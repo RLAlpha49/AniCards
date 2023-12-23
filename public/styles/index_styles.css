@@ -79,8 +79,28 @@ input[type="text"] {
 }
 
 #dataForm input[type="checkbox"] {
-    order: -1;
+    appearance: none;
+    background-color: #1F2833;
+    border: 2px solid #66FCF1;
+    border-radius: 4px;
+    display: inline-block;
+    position: relative;
+    height: 20px;
+    width: 20px;
     margin-bottom: 5px;
+    cursor: pointer;
+}
+
+#dataForm input[type="checkbox"]:checked::before {
+    content: "";
+    position: absolute;
+    height: 12px;
+    width: 12px;
+    top: 50%;
+    left: 50%;
+    background-color: #66FCF1;
+    transform: translate(-50%, -50%);
+    border-radius: 2px;
 }
 
 button {
