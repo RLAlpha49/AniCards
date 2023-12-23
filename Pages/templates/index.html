@@ -16,13 +16,20 @@
         
         <!-- Checkboxes for selecting data -->
         <form id="dataForm" action="/username/generate_svgs" method="post">
+            <label id="formLabel">Stat Card Types</label>
             <div>
-                <input type="checkbox" id="animeStats" name="keys" value="animeStats">
-                <label for="animeStats">Anime Stats (count, episodes watched, minutes watched, minutes planned, mean score)</label><br>
-                <input type="checkbox" id="mangaStats" name="keys" value="mangaStats">
-                <label for="mangaStats">Manga Stats (count, chapters read, volumes read, chapters planned, mean score)</label><br>
-                <input type="checkbox" id="socialStats" name="keys" value="socialStats">
-                <label for="socialStats">Total Activities, Followers, and Following</label><br>
+                <label>
+                    <input type="checkbox" id="animeStats" name="keys" value="animeStats">
+                    <span>Anime Stats (count, episodes watched, minutes watched, mean score, standard deviation)</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="mangaStats" name="keys" value="mangaStats">
+                    <span>Manga Stats (count, chapters read, volumes read, mean score, standard deviation)</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="socialStats" name="keys" value="socialStats">
+                    <span>Social Stats (Total Activities, Followers, and Following)</span>
+                </label>
             </div>
             <input type="submit" value="Generate SVGs" style="display: none;"> <!-- Hide the original submit button -->
         </form>

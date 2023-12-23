@@ -1,5 +1,14 @@
 /* Filename: styles/user_styles.css */
 
+/* Palette
+#1b1d25: Dark Blue (Background color of the body)
+#C5C6C7: Light Grey (Text color, color of the checkboxes, and color of the download button)
+#66FCF1: Light Blue (Color of the h1 text and hover background color of the download button)
+#45A29E: Turquoise (Background color of the download button)
+#1F2833: Darker Blue (Border color of the download button)
+#0B0C10: Black (Hover text color of the download button)
+*/
+
 body {
     font-family: 'Helvetica Neue', sans-serif;
     background-color: #1b1d25;
