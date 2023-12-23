@@ -14,13 +14,45 @@ body {
     margin: 0;
     padding: 0;
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
     height: 100vh;
 }
 
-.container {
+.center-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    flex-grow: 1;
     text-align: center;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    width: 100%;
+    background-color: #1F2833;
+    color: #66FCF1;
+    box-sizing: border-box;
+}
+
+header a {
+    text-decoration: none;
+    color: inherit;
+}
+
+header h1 {
+    margin: 0;
+    padding: 0 10px;
+}
+
+header p {
+    margin: 0;
+    padding: 0 10px;
 }
 
 h1 {
@@ -110,7 +142,7 @@ button {
     background-color: #45A29E;
     color: #C5C6C7;
     cursor: pointer;
-    margin: auto; 
+    margin-top: 20px;
     width: 300px;
     display: block;
 }

@@ -17,9 +17,48 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
     height: 100vh;
     color: #C5C6C7;
+}
+
+.center-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    width: 100%;
+    flex-grow: 1;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    width: 100%;
+    background-color: #1F2833;
+    color: #66FCF1;
+    box-sizing: border-box;
+}
+
+header a {
+    text-decoration: none;
+    color: inherit;
+}
+
+header h1 {
+    margin: 0;
+    padding: 0 10px;
+}
+
+header p {
+    margin: 0;
+    padding: 0 10px;
+}
+
+p {
+    color: #C5C6C7;
+    margin-bottom: 20px;
+    font-size: 1.2em;
 }
 
 .container {
