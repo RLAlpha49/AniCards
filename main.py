@@ -1,3 +1,12 @@
+
+# TODO: Add option to select which Stat Cards to generate on main page
+# TODO: Add option for light or dark mode for Stat Cards (Part of Themes)
+# TODO: Add more stats
+# TODO: Design default Stat Cards
+
+# TODO: Add option to change theme of Stat Cards (Need more to be made/designed if people want them)
+
+
 # Import necessary modules
 from flask import Flask, abort, make_response, render_template
 from flask_sqlalchemy import SQLAlchemy

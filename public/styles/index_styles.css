@@ -16,7 +16,7 @@ body {
 }
 
 h1 {
-    color: #66FCF1; 
+    color: #66FCF1;
     font-size: 2.5em;
     margin-bottom: 10px;
 }
@@ -32,21 +32,21 @@ input[type="text"] {
     border: none;
     border-radius: 5px;
     width: 200px;
-    background-color: #1F2833; 
-    color: #C5C6C7; 
+    background-color: #1F2833;
+    color: #C5C6C7;
 }
 
 button {
     padding: 10px 20px;
     border: none;
     border-radius: 5px;
-    background-color: #45A29E; 
-    color: #C5C6C7; 
+    background-color: #45A29E;
+    color: #C5C6C7;
     cursor: pointer;
     margin-left: 10px;
 }
 
 button:hover {
     background-color: #66FCF1;
-    color: #0B0C10; 
+    color: #0B0C10;
 }
