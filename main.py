@@ -1,19 +1,25 @@
-from flask import Flask, send_from_directory, abort, make_response
+# Import necessary modules
+from flask import Flask, abort, make_response, render_template
 from flask_sqlalchemy import SQLAlchemy
 from AniListData import fetch_ani_list_data
 from generateSVGs import generate_svg
 import os
 
-app = Flask(__name__, static_folder='public')
+# Initialize Flask app
+app = Flask(__name__, static_folder='public', template_folder='Pages/templates')
+
+# Configure SQLAlchemy with SQLite database
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test.db'
 db = SQLAlchemy(app)
 
+# Define SVG model for SQLAlchemy
 class Svg(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), nullable=False)
     key = db.Column(db.String(80), nullable=False)
     data = db.Column(db.Text, nullable=False)
 
+# Route for generating SVGs for a user
 @app.route('/<username>', methods=['GET'])
 def generate_svgs(username):
     # Delete existing SVG data for the user
@@ -32,32 +38,32 @@ def generate_svgs(username):
             db.session.add(svg)
         db.session.commit()
 
-        # Generate an HTML document that includes img tags for all the SVGs
-        img_tags = "\n".join(f'<img src="/{username}/{key}" alt="{key}">' for key in keys)
-        html_document = f'<!DOCTYPE html>\n<html>\n<body>\n{img_tags}\n</body>\n</html>'
-        return html_document
+        # Render the HTML template
+        return render_template('user_template.html', username=username, keys=keys)
     else:
         abort(404, description="Too many requests")
 
-@app.route('/<username>/<key>', methods=['GET'])
+# Route for getting a specific SVG for a user
+@app.route('/get_svg/<username>/<key>', methods=['GET'])
 def get_svg(username, key):
-    # Get the SVG from the database
     svg = Svg.query.filter_by(username=username, key=key).first()
     if svg:
-        # Create a response with the SVG and set the Content-Type to image/svg+xml
         response = make_response(svg.data)
         response.headers['Content-Type'] = 'image/svg+xml'
         return response
-    abort(404, description="SVG not found")
+    else:
+        abort(404, description="SVG not found")
 
+# Home route
 @app.route('/')
-def serve_static_files():
-    return send_from_directory(app.static_folder, 'index.html')
+def home():
+    return render_template('index.html')
 
+# Create the database for local testing if it doesn't exist
 if not os.path.exists('./test.db'):
     with app.app_context():
         db.create_all()
 
-
+# Run the Flask app
 if __name__ == '__main__':
     app.run(debug=True)

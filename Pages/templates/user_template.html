@@ -1,0 +1,26 @@
+<!-- Filename: templates/user_template.html -->
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AniList Stat Cards</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles/user_styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>{{ username }}</h1>
+
+        <div class="svg-container">
+            {% for key in keys %}
+            <div class="svg-item">
+                <img id="{{ key }}" src="{{ url_for('get_svg', username=username, key=key) }}" />
+                <button class="download-button">Download PNG</button>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='scripts/fetch_data.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/download.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+/* Filename: styles/user_styles.css */
+
+body {
+    font-family: 'Helvetica Neue', sans-serif;
+    background-color: #1b1d25; 
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    color: #C5C6C7; 
+}
+
+.container {
+    width: 100%; 
+    max-width: 90%; 
+}
+
+h1 {
+    text-align: center;
+    color: #66FCF1;
+    margin-bottom: 2em;
+    font-size: 2.5em;
+}
+
+.svg-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); 
+    gap: 2em 6em;
+}
+
+.svg-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+img {
+    width: auto;
+    height: auto;
+    border: 6px solid #C5C6C7;
+    border-radius: 10px;
+}
+
+.download-button {
+    display: block;
+    width: auto; 
+    padding: 1em 2em;
+    margin-top: 0.5em;
+    background-color: #45A29E;
+    color: #C5C6C7; 
+    border: 2px solid #1F2833;
+    border-radius: 5px;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+    font-size: 1.2em;
+}
+
+.download-button:hover {
+    background-color: #66FCF1;
+    color: #0B0C10;
+}

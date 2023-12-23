@@ -36,7 +36,7 @@ def fetch_data(name, username):
     # This function needs to be implemented in Python
     pass
 
-def generate_anime_count_svg(data):
+def generate_anime_count_svg(data,):
     return generate_svg('Watched anime count', data.get('animeCount'), 50)
 
 def generate_episodes_watched_svg(data):
