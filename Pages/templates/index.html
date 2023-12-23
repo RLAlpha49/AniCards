@@ -1,7 +1,5 @@
 <!-- Filename: templates/index.html -->
 
-<!-- Filename: templates/index.html -->
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -34,10 +32,10 @@
             <input type="submit" value="Generate SVGs" style="display: none;"> <!-- Hide the original submit button -->
         </form>
 
-        <button onclick="fetchUserData()">Generate Stat Cards</button>
-        <div id="svgContainer"></div>
+        <button onclick="validateForm()">Generate Stat Cards</button>
     </div>
 
     <script src="{{ url_for('static', filename='scripts/fetchUserData.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/validateForm.js') }}"></script>
 </body>
 </html>
