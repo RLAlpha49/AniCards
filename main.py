@@ -7,7 +7,7 @@
 
 
 # Import necessary modules
-from flask import Flask, abort, make_response, render_template, redirect, url_for, request
+from flask import Flask, abort, make_response, render_template, redirect, url_for, Response, request
 from flask_sqlalchemy import SQLAlchemy
 from AniListData import fetch_anilist_data
 from generateSVGs import generate_svg
@@ -36,8 +36,9 @@ def generate_svgs(username):
     # Get keys from the form data
     keys = request.form.getlist('keys')  # Get list of keys
 
-    # Delete existing SVG data for the user
-    Svg.query.filter_by(username=username).delete()
+    # Delete existing SVG data for the user associated with the keys
+    for key in keys:
+        Svg.query.filter_by(username=username, key=key).delete()
     db.session.commit()
 
     # Fetch the data and generate an SVG for each key
@@ -78,6 +79,16 @@ def get_svg(username, key):
         response = make_response(svg.data)
         response.headers['Content-Type'] = 'image/svg+xml'
         return response
+    else:
+        abort(404, description="SVG not found")
+        
+@app.route('/<username>/<key>.svg')
+def get_svg_from_db(username, key):
+    # Fetch the SVG for the user from the database
+    svg = Svg.query.filter_by(username=username, key=key).first()
+    if svg:
+        # Return the SVG data with the correct content type
+        return Response(svg.data, mimetype='image/svg+xml')
     else:
         abort(404, description="SVG not found")
 

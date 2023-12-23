@@ -43,12 +43,12 @@ function downloadImageAsPng(img, filename) {
 
 // Function to handle click events on download buttons
 async function handleDownloadButtonClick(event) {
-    // Get the image element associated with the download button
-    const imgElement = event.target.previousElementSibling;
-    // Get the URL of the SVG
-    const svgUrl = imgElement.src;
-    // Create a filename for the PNG
-    const filename = imgElement.id + '.png';
+    // Get the URL of the SVG from the data-url attribute of the download button
+    const svgUrl = event.target.getAttribute('data-url');
+    // Get the key from the data-key attribute of the download button
+    const key = event.target.getAttribute('data-key');
+    // Create a filename for the PNG based on the key
+    const filename = `${key}.png`;
 
     try {
         // Fetch the SVG as an Image object

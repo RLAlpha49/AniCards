@@ -20,7 +20,8 @@
             {% for key in keys %}
             <div class="svg-item">
                 <img id="{{ key }}" src="{{ url_for('get_svg', username=username, key=key) }}" />
-                <button class="download-button">Download PNG</button>
+                <button class="link-button" onclick="showLink('{{ url_for('get_svg_from_db', username=username, key=key, _external=True) }}')">Show Link</button>
+                <button class="download-button" data-url="{{ url_for('get_svg_from_db', username=username, key=key, _external=True) }}" data-key="{{ key }}">Download PNG</button>
             </div>
             {% endfor %}
         </div>
@@ -28,5 +29,6 @@
 
     <script src="{{ url_for('static', filename='scripts/fetch_data.js') }}"></script>
     <script src="{{ url_for('static', filename='scripts/download.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/show_link.js') }}"></script>
 </body>
 </html>
