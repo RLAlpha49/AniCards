@@ -35,7 +35,6 @@ class Svg(db.Model):
 def generate_svgs(username):
     # Get keys from the form data
     keys = request.form.getlist('keys')  # Get list of keys
-    print(request)
 
     # Delete existing SVG data for the user
     Svg.query.filter_by(username=username).delete()

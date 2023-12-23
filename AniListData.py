@@ -6,7 +6,6 @@ import queries
 # Function to fetch data from AniList for a given username
 def fetch_anilist_data(username, keys):
     try:
-        print(keys)
         user_id_response = requests.post('https://graphql.anilist.co', json={
             'query': queries.USER_ID,
             'variables': {'userName': username},
@@ -25,10 +24,8 @@ def fetch_anilist_data(username, keys):
             {'query': queries.USER_MANGA_STATS, 'variables': {'userName': username}, 'key': 'mangaStats', 'path': 'data.User.statistics.manga'},
             {'query': queries.USER_SOCIAL_STATS, 'variables': {'userId': user_id}, 'key': 'socialStats', 'path': 'data'},
         ]
-        print(requests_data)
 
         for request_data in requests_data:
-            print(request_data['query'])
             if request_data['key'] not in keys:
                 continue
 
@@ -37,8 +34,6 @@ def fetch_anilist_data(username, keys):
                     'query': request_data['query'],
                     'variables': request_data['variables'],
                 })
-                
-                print(response.json())
 
                 jsonpath_expr = parse(request_data['path'])
                 matches = [match.value for match in jsonpath_expr.find(response.json())]
