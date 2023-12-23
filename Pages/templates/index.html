@@ -1,5 +1,7 @@
 <!-- Filename: templates/index.html -->
 
+<!-- Filename: templates/index.html -->
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -11,6 +13,20 @@
         <h1>AniList Stat Cards</h1>
         <p>This application fetches user data from AniList and displays it in a visually appealing format. Enter a username below to get started.</p>
         <input type="text" id="usernameInput" placeholder="Enter username">
+        
+        <!-- Checkboxes for selecting data -->
+        <form id="dataForm" action="/username/generate_svgs" method="post">
+            <div>
+                <input type="checkbox" id="animeStats" name="keys" value="animeStats">
+                <label for="animeStats">Anime Stats (count, episodes watched, minutes watched, minutes planned, mean score)</label><br>
+                <input type="checkbox" id="mangaStats" name="keys" value="mangaStats">
+                <label for="mangaStats">Manga Stats (count, chapters read, volumes read, chapters planned, mean score)</label><br>
+                <input type="checkbox" id="socialStats" name="keys" value="socialStats">
+                <label for="socialStats">Total Activities, Followers, and Following</label><br>
+            </div>
+            <input type="submit" value="Generate SVGs" style="display: none;"> <!-- Hide the original submit button -->
+        </form>
+
         <button onclick="fetchUserData()">Generate Stat Cards</button>
         <div id="svgContainer"></div>
     </div>

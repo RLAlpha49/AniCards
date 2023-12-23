@@ -4,7 +4,11 @@
 function fetchUserData() {
     // Get the username from the input field
     const username = document.getElementById('usernameInput').value;
-    
-    // Redirect the user to the URL associated with the username
-    window.location.href = '/' + username;
+
+    // Set the action of the form to the correct URL
+    const form = document.getElementById('dataForm');
+    form.action = '/' + username + '/generate_svgs';
+
+    // Submit the form
+    form.submit();
 }

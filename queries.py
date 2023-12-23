@@ -8,68 +8,40 @@ USER_ID = """
     }
 """
 
-USER_ANIME_COUNT = """
+USER_ANIME_STATS = """
     query ($userName: String) { 
         User(name: $userName) { 
             statistics { 
                 anime { 
-                    count 
-                } 
-            } 
-        }
-    }
-"""
-
-USER_EPISODES_WATCHED = """
-    query ($userName: String) { 
-        User(name: $userName) { 
-            statistics { 
-                anime { 
-                    episodesWatched 
+                    count
+                    episodesWatched
+                    minutesWatched
+                    meanScore
+                    standardDeviation
                 } 
             } 
         } 
     }
 """
 
-USER_HOURS_WATCHED = """
-    query ($userName: String) { 
-        User(name: $userName) { 
-            statistics { 
-                anime { 
-                    minutesWatched 
-                } 
-            } 
-        }
-    }
-"""
-
-USER_MANGA_COUNT = """
+USER_MANGA_STATS = """
     query ($userName: String) { 
         User(name: $userName) { 
             statistics { 
                 manga { 
-                    count 
+                    count
+                    chaptersRead
+                    volumesRead
+                    meanScore
+                    standardDeviation
                 } 
             } 
         } 
     }
 """
 
-USER_CHAPTERS_READ = """
-    query ($userName: String) { 
-        User(name: $userName) { 
-            statistics { 
-                manga { 
-                    chaptersRead 
-                } 
-            } 
-        }
-    }
-"""
-
-USER_TOTAL_ACTIVITIES = """
-    query ($userName: String) {
+USER_SOCIAL_STATS = """
+    query ($userName: String, $userId: Int!) {
         User(name: $userName) { 
             stats {
                 activityHistory {
@@ -77,27 +49,12 @@ USER_TOTAL_ACTIVITIES = """
                 }
             }
         }
-    }
-"""
-
-USER_TOTAL_FOLLOWERS = """
-    query ($userId: Int!) { 
         Page {
             pageInfo {
                 total
             }
             followers(userId: $userId) {
                 id
-            }
-        }
-    }
-"""
-
-USER_TOTAL_FOLLOWING = """
-    query ($userId: Int!) { 
-        Page {
-            pageInfo {
-                total
             }
             following(userId: $userId) {
                 id
