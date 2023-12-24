@@ -92,10 +92,11 @@ img {
     border-radius: 10px;
 }
 
-.download-button {
+.link-button, .download-button {
     display: block;
     width: auto;
     padding: 1em 2em;
+    margin-bottom: 0.5em;
     margin-top: 0.5em;
     background-color: #45A29E;
     color: #C5C6C7;
@@ -107,7 +108,7 @@ img {
     font-size: 1.2em;
 }
 
-.download-button:hover {
+.link-button:hover, .download-button:hover {
     background-color: #66FCF1;
     color: #0B0C10;
 }

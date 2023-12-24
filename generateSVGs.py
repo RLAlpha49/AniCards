@@ -1,7 +1,6 @@
 from markupsafe import Markup
 import math
 import os
-import re
 
 def generate_svg(title, value, y, username):
     if value is None:
@@ -24,10 +23,12 @@ def generate_svg(title, value, y, username):
 
 def generate_button(name, y):
     return Markup(f'''
-        <g transform="translate(0, {y})" onclick="fetchData('{name}', 'username')" style="cursor: pointer;">
-            <rect x="0" y="0" width="500" height="100" style="fill:blue;stroke:black;stroke-width:1;fill-opacity:0.1;stroke-opacity:0.9" />
-            <text x="250" y="50" text-anchor="middle" font-size="35">Retry</text>
-        </g>
+        <svg xmlns="http://www.w3.org/2000/svg">
+            <g transform="translate(0, {y})" onclick="fetchData('{name}', 'username')" style="cursor: pointer;">
+                <rect x="0" y="0" width="500" height="100" style="fill:blue;stroke:black;stroke-width:1;fill-opacity:0.1;stroke-opacity:0.9" />
+                <text x="250" y="50" text-anchor="middle" font-size="35">Retry</text>
+            </g>
+        </svg>
     ''')
 
 def fetch_data(name, username):

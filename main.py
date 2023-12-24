@@ -1,7 +1,6 @@
 
 # TODO: Add option for light or dark mode for Stat Cards (Part of Themes)
 # TODO: Add more stats
-# TODO: Design default Stat Cards
 
 # TODO: Add option to change theme of Stat Cards (Need more to be made/designed if people want them)
 
@@ -43,19 +42,17 @@ def generate_svgs(username):
 
     # Fetch the data and generate an SVG for each key
     data = fetch_anilist_data(username, keys)
-    if data:
-        for key in keys:
-            # Generate an SVG for the key
-            svg_data = generate_svg(key, data.get(key), 0, username)
-            # Store the SVG in the database
-            svg = Svg(username=username, key=key, data=svg_data, keys=','.join(keys))  # Save keys in database
-            db.session.add(svg)
-        db.session.commit()
 
-        # After generating the SVGs, redirect to the display page
-        return redirect(url_for('display_svgs', username=username))
-    else:
-        abort(404, description="Too many requests")
+    for key in keys:
+        # Generate an SVG for the key
+        svg_data = generate_svg(key, data.get(key) if data else None, 0, username)
+        # Store the SVG in the database
+        svg = Svg(username=username, key=key, data=svg_data, keys=','.join(keys))  # Save keys in database
+        db.session.add(svg)
+    db.session.commit()
+
+    # After generating the SVGs, redirect to the display page
+    return redirect(url_for('display_svgs', username=username))
 
 @app.route('/<username>', methods=['GET'])
 def display_svgs(username):
