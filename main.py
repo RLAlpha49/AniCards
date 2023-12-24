@@ -46,7 +46,7 @@ def generate_svgs(username):
     if data:
         for key in keys:
             # Generate an SVG for the key
-            svg_data = generate_svg(key, data.get(key), 0)
+            svg_data = generate_svg(key, data.get(key), 0, username)
             # Store the SVG in the database
             svg = Svg(username=username, key=key, data=svg_data, keys=','.join(keys))  # Save keys in database
             db.session.add(svg)
