@@ -49,12 +49,17 @@ USER_SOCIAL_STATS = """
                 }
             }
         }
-        Page {
+        followersPage: Page {
             pageInfo {
                 total
             }
             followers(userId: $userId) {
                 id
+            }
+        }
+        followingPage: Page {
+            pageInfo {
+                total
             }
             following(userId: $userId) {
                 id
