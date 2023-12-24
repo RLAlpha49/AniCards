@@ -49,8 +49,15 @@ def inline_styles(svg_file, css_file, dasharray, dashoffset):
     return svg
 
 def generate_animeStats_svg(value, username):
-    # Define milestones
-    milestones = [100, 300, 500, 750, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000, 13000, 14000, 15000, 16000, 17000, 18000, 19000, 20000]
+    # Initialize milestones list with the first three milestones
+    milestones = [100, 300, 500]
+
+    # Determine the maximum milestone based on the number of episodes watched
+    max_milestone = ((value['episodesWatched'] // 1000) + 1) * 1000
+
+    # Generate the rest of the milestones
+    for i in range(1000, max_milestone + 1, 1000):
+        milestones.append(i)
 
     # Determine the previous milestone based on the number of episodes watched
     previous_milestone = max(milestone for milestone in milestones if milestone < value['episodesWatched'])

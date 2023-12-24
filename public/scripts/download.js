@@ -1,23 +1,124 @@
 // Filename: public/scripts/download.js
 
-// Function to fetch SVG from a URL and convert it to an Image object
-async function fetchSvgAsImage(url) {
-    // Fetch the SVG from the URL
-    const response = await fetch(url);
-    // Get the SVG text from the response
-    const svgText = await response.text();
-    // Create a Blob object from the SVG text
-    const blob = new Blob([svgText], {type: "image/svg+xml"});
-    // Create a URL for the Blob object
-    const blobUrl = URL.createObjectURL(blob);
 
-    // Return a new Promise that resolves with the Image object
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img); // Resolve the Promise when the image has loaded
-        img.onerror = reject; // Reject the Promise if there's an error
-        img.src = blobUrl; // Set the source of the Image object to the Blob URL
+
+// Function to modify SVG document
+function modifySvgDoc(svgDoc, dashoffset) {
+    const staggerElements = Array.from(svgDoc.querySelectorAll('.stagger'));
+    staggerElements.forEach(element => {
+        element.style.opacity = '1';
+        element.style.animationDelay = '';
     });
+
+    const styleElements = Array.from(svgDoc.querySelectorAll('style'));
+    styleElements.forEach(style => {
+        const cssRules = style.innerHTML.split('}').map(rule => rule.trim()).filter(Boolean);
+        const filteredRules = cssRules.map(rule => {
+            return filterAnimationProperties(rule);
+        }).filter(Boolean);
+        style.innerHTML = filteredRules.join(' ');
+    });
+
+    // Set the stroke-dashoffset property to its final value
+    const rankCircle = svgDoc.querySelector('.rank-circle');
+    if (rankCircle && dashoffset !== null) {
+        rankCircle.style.strokeDashoffset = dashoffset;
+    }
+}
+
+// Function to filter out animation properties from CSS rule
+function filterAnimationProperties(rule) {
+    if (rule.startsWith('@keyframes')) {
+        return '';
+    }
+    const [selector, properties] = rule.split('{');
+    const parsedProperties = properties.split(';').map(prop => prop.trim()).filter(Boolean);
+    const filteredProperties = parsedProperties.filter(prop => {
+        if (selector.trim() === '.stagger' && prop.startsWith('animation')) {
+            return false;
+        }
+        return !prop.startsWith('animation');
+    });
+    return `${selector} { ${filteredProperties.join('; ')} }`;
+}
+
+// Function to fetch SVG from a URL and convert it to an Image object
+async function fetchSvgAsImage(url, key) {
+    const response = await fetch(url);
+    let svgText = await response.text();
+
+    const parser = new DOMParser();
+    const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
+
+    let dashoffset = null;
+    if (key === 'animeStats') {
+        const userData = getUserDataFromSvg(svgDoc); // You need to implement this function
+        dashoffset = calculateDashoffset(userData); 
+    }
+
+    modifySvgDoc(svgDoc, dashoffset);
+
+    const serializer = new XMLSerializer();
+    svgText = serializer.serializeToString(svgDoc);
+
+    const img = new Image();
+    img.src = 'data:image/svg+xml,' + encodeURIComponent(svgText);
+
+    return new Promise((resolve, reject) => {
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            img.src = canvas.toDataURL('image/png');
+            resolve(img);
+        };
+        img.onerror = reject;
+    });
+}
+
+// Function to get user data from SVG
+function getUserDataFromSvg(svgDoc) {
+    // Find the text element with the data-testid 'episodesWatched'
+    const episodesWatchedElement = svgDoc.querySelector('[data-testid="episodesWatched"]');
+
+    // Check if the element exists
+    if (!episodesWatchedElement) {
+        console.error('Element with data-testid "episodesWatched" not found in SVG document');
+        return null;
+    }
+
+    // Get the text content of the element
+    const episodesWatched = parseInt(episodesWatchedElement.textContent, 10);
+
+    // Return the user data
+    return {
+        episodesWatched: episodesWatched
+    };
+}
+
+// Function to calculate dashoffset
+function calculateDashoffset(userData) {
+    // Initialize milestones array with the first three milestones
+    let milestones = [100, 300, 500];
+
+    // Determine the maximum milestone based on the user's data
+    let maxMilestone = Math.ceil(userData.episodesWatched / 1000) * 1000;
+
+    // Generate the rest of the milestones
+    for (let i = 1000; i <= maxMilestone; i += 1000) {
+        milestones.push(i);
+    }
+
+    const previous_milestone = Math.max(...milestones.filter(milestone => milestone < userData.episodesWatched));
+    const current_milestone = Math.min(...milestones.filter(milestone => milestone > userData.episodesWatched));
+
+    const percentage = ((userData.episodesWatched - previous_milestone) / (current_milestone - previous_milestone)) * 100;
+    const circle_circumference = 2 * Math.PI * 40;
+    const dashoffset = circle_circumference * (1 - (percentage / 100));
+
+    return dashoffset;
 }
 
 // Function to convert an Image object to a PNG and download it
@@ -52,7 +153,7 @@ async function handleDownloadButtonClick(event) {
 
     try {
         // Fetch the SVG as an Image object
-        const img = await fetchSvgAsImage(svgUrl);
+        const img = await fetchSvgAsImage(svgUrl, key);
         // Download the Image object as a PNG
         downloadImageAsPng(img, filename);
     } catch (error) {
