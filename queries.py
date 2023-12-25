@@ -65,5 +65,21 @@ USER_SOCIAL_STATS = """
                 id
             }
         }
+        threadsPage: Page {
+            pageInfo {
+                total
+            }
+            threads(userId: $userId) {
+                id
+            }
+        }
+        threadCommentsPage: Page {
+            pageInfo {
+                total
+            }
+            threadComments(userId: $userId) {
+                id
+            }
+        }
     }
 """

@@ -36,6 +36,7 @@ def fetch_anilist_data(username, keys):
                 })
 
                 response_data = response.json()
+                print(response.json())
 
                 if response_data is None or 'data' not in response_data:
                     print("Error: No data in response")
@@ -46,6 +47,7 @@ def fetch_anilist_data(username, keys):
                             'totalFollowers': response_data['data']['followersPage']['pageInfo']['total'],
                             'totalFollowing': response_data['data']['followingPage']['pageInfo']['total'],
                             'totalActivity': sum(amount['amount'] for amount in response_data['data']['User']['stats']['activityHistory']),
+                            'threadPostsCommentsCount': response_data['data']['threadsPage']['pageInfo']['total'] + response_data['data']['threadCommentsPage']['pageInfo']['total'],
                         }
                         data[request_data['key']] = simplified_data
                         print(simplified_data)
