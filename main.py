@@ -11,8 +11,6 @@ from flask_sqlalchemy import SQLAlchemy
 from AniListData import fetch_anilist_data
 from generateSVGs import generate_svg
 import os
-from flask import redirect
-from flask import url_for
 
 # Initialize Flask app
 app = Flask(__name__, static_folder='public', template_folder='Pages/templates')
