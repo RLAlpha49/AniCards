@@ -51,9 +51,9 @@ async function fetchSvgAsImage(url, key) {
     const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
 
     let dashoffset = null;
-    if (key === 'animeStats') {
-        const userData = getUserDataFromSvg(svgDoc); // You need to implement this function
-        dashoffset = calculateDashoffset(userData); 
+    if (key === 'animeStats' || key === 'mangaStats') {
+        const userData = getUserDataFromSvg(svgDoc, key);
+        dashoffset = calculateDashoffset(userData);
     }
 
     modifySvgDoc(svgDoc, dashoffset);
@@ -79,22 +79,30 @@ async function fetchSvgAsImage(url, key) {
 }
 
 // Function to get user data from SVG
-function getUserDataFromSvg(svgDoc) {
-    // Find the text element with the data-testid 'episodesWatched'
-    const episodesWatchedElement = svgDoc.querySelector('[data-testid="episodesWatched"]');
+function getUserDataFromSvg(svgDoc, key) {
+    let dataTestId = '';
+    if (key === 'animeStats') {
+        dataTestId = 'episodesWatched';
+    } else if (key === 'mangaStats') {
+        dataTestId = 'chaptersRead';
+    }
+
+    // Find the text element with the data-testid
+    const dataElement = svgDoc.querySelector(`[data-testid="${dataTestId}"]`);
+    console.log(dataElement);
 
     // Check if the element exists
-    if (!episodesWatchedElement) {
-        console.error('Element with data-testid "episodesWatched" not found in SVG document');
+    if (!dataElement) {
+        console.error(`Element with data-testid "${dataTestId}" not found in SVG document`);
         return null;
     }
 
     // Get the text content of the element
-    const episodesWatched = parseInt(episodesWatchedElement.textContent, 10);
+    const dataValue = parseInt(dataElement.textContent, 10);
 
     // Return the user data
     return {
-        episodesWatched: episodesWatched
+        dataValue: dataValue
     };
 }
 
@@ -104,17 +112,17 @@ function calculateDashoffset(userData) {
     let milestones = [100, 300, 500];
 
     // Determine the maximum milestone based on the user's data
-    let maxMilestone = Math.ceil(userData.episodesWatched / 1000) * 1000;
+    let maxMilestone = Math.ceil(userData.dataValue / 1000) * 1000;
 
     // Generate the rest of the milestones
     for (let i = 1000; i <= maxMilestone; i += 1000) {
         milestones.push(i);
     }
 
-    const previous_milestone = Math.max(...milestones.filter(milestone => milestone < userData.episodesWatched));
-    const current_milestone = Math.min(...milestones.filter(milestone => milestone > userData.episodesWatched));
+    const previous_milestone = Math.max(...milestones.filter(milestone => milestone < userData.dataValue));
+    const current_milestone = Math.min(...milestones.filter(milestone => milestone > userData.dataValue));
 
-    const percentage = ((userData.episodesWatched - previous_milestone) / (current_milestone - previous_milestone)) * 100;
+    const percentage = ((userData.dataValue - previous_milestone) / (current_milestone - previous_milestone)) * 100;
     const circle_circumference = 2 * Math.PI * 40;
     const dashoffset = circle_circumference * (1 - (percentage / 100));
 
