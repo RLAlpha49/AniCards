@@ -9,16 +9,17 @@
 */
 
 body {
-    font-family: Arial, sans-serif;
+    font-family: 'Helvetica Neue', sans-serif;
     background-color: #1b1d25;
     margin: 0;
-    padding: 0;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-self: center;
     align-items: center;
-    height: 100vh;
+    min-height: 100vh;  /* Replace height: 100vh; with min-height: 100vh; */
+    color: #C5C6C7;
 }
+
 
 .center-container {
     display: flex;
@@ -27,6 +28,8 @@ body {
     align-items: center;
     flex-grow: 1;
     text-align: center;
+    flex-wrap: wrap; /* Add this line */
+    padding: 0 5%;
 }
 
 header {
@@ -65,6 +68,7 @@ p {
     color: #C5C6C7;
     margin-bottom: 20px;
     font-size: 1.2em;
+    padding: 10px 20px;
 }
 
 input[type="text"] {
@@ -79,10 +83,14 @@ input[type="text"] {
 #dataForm {
     background-color: #1F2833;
     border-radius: 5px;
-    padding: 20px;
-    width: 900px;
+    padding: 10px 20px;
+    max-width: 900px;  /* Replace width: 900px; with max-width: 900px; */
     margin: 20px auto;
     color: #C5C6C7;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;  /* Add this line */
+    justify-content: space-around;
 }
 
 #formLabelWrapper {
@@ -94,7 +102,6 @@ input[type="text"] {
     font-size: 20px;
     font-weight: bold;
     color: #66FCF1;
-    margin: auto;
     text-align: center;
     width: fit-content; 
 }
@@ -103,15 +110,16 @@ input[type="text"] {
     display: flex;
     justify-content: space-around; 
     flex-wrap: wrap;
-    margin-bottom: 10px;
+    width: 100%;
 }
 
 #dataForm label {
     display: flex;
     flex-direction: column;
     align-items: center;
-    width: calc(33.33% - 10px); /* Adjust the width to fit three labels in one row */
-    margin: 5px; /* Add margin to create a gap between the labels */
+    width: calc(33.33% - 10px);
+    box-sizing: border-box;
+    padding: 10px 10px;
 }
 
 #dataForm input[type="checkbox"] {
@@ -146,7 +154,7 @@ button {
     background-color: #45A29E;
     color: #C5C6C7;
     cursor: pointer;
-    margin-top: 20px;
+    margin-bottom: 20px;
     width: 300px;
     display: block;
 }
