@@ -2,3 +2,5 @@ package-lock.json
 node_modules
 __pycache__
 instance/test.db
+fourm.txt
+post.txt
