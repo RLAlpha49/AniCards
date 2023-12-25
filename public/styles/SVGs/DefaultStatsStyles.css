@@ -1,3 +1,7 @@
+svg {
+    overflow: visible;
+}
+
 .header {
     font: 600 18px 'Segoe UI', Ubuntu, Sans-Serif;
     fill: #fe428e;
