@@ -21,8 +21,6 @@ To run the application locally, you need to have Python and PostgreSQL installed
 git clone https://github.com/RLAlpha49/Anilist-Stat-Cards.git
 ```
 
-Replace yourusername and yourrepository with your GitHub username and the name of your repository.
-
 Next, navigate into the cloned repository:
 
 ```bash
