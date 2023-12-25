@@ -52,3 +52,7 @@ heroku create
 git push heroku master
 heroku open
 ```
+
+## Disclaimer
+
+This project is not affiliated with AniList in any way. It is a standalone project that uses the AniList GraphQL API to fetch user data and generate SVG stat cards.
