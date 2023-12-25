@@ -18,12 +18,43 @@ USER_ANIME_STATS = """
                     minutesWatched
                     meanScore
                     standardDeviation
+                    genres(sort: COUNT_DESC) {
+                        genre
+                        count
+                    }
+                    tags(sort: COUNT_DESC) {
+                        tag {
+                            name
+                        }
+                        count
+                    }
+                    voiceActors(sort: COUNT_DESC) {
+                        voiceActor {
+                            name {
+                                full
+                            }
+                        }
+                        count
+                    }
+                    studios(sort: COUNT_DESC) {
+                        studio {
+                            name
+                        }
+                        count
+                    }
+                    staff(sort: COUNT_DESC) {
+                        staff {
+                            name {
+                                full
+                            }
+                        }
+                        count
+                    }
                 } 
             } 
         } 
     }
 """
-
 USER_MANGA_STATS = """
     query ($userName: String) { 
         User(name: $userName) { 
@@ -34,8 +65,26 @@ USER_MANGA_STATS = """
                     volumesRead
                     meanScore
                     standardDeviation
+                    genres(sort: COUNT_DESC) {
+                        genre
+                        count
+                    }
+                    tags(sort: COUNT_DESC) {
+                        tag {
+                            name
+                        }
+                        count
+                    }
+                    staff(sort: COUNT_DESC) {
+                        staff {
+                            name {
+                                full
+                            }
+                        }
+                        count
+                    }
                 } 
-            } 
+            }
         } 
     }
 """

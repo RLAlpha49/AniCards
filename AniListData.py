@@ -42,7 +42,41 @@ def fetch_anilist_data(username, keys):
                     print("Error: No data in response")
                     data[request_data['key']] = None
                 else:
-                    if request_data['key'] == 'socialStats':
+                    if request_data['key'] == 'animeStats':
+                        # Extract the data for each SVG
+                        data['animeStats'] = {
+                            'count': response_data['data']['User']['statistics']['anime']['count'],
+                            'episodesWatched': response_data['data']['User']['statistics']['anime']['episodesWatched'],
+                            'minutesWatched': response_data['data']['User']['statistics']['anime']['minutesWatched'],
+                            'meanScore': response_data['data']['User']['statistics']['anime']['meanScore'],
+                            'standardDeviation': response_data['data']['User']['statistics']['anime']['standardDeviation'],
+                        }
+                        if 'animeGenres' in keys:
+                            data['animeGenres'] = response_data['data']['User']['statistics']['anime']['genres']
+                        if 'animeTags' in keys:
+                            data['animeTags'] = response_data['data']['User']['statistics']['anime']['tags']
+                        if 'animeVoiceActors' in keys:
+                            data['animeVoiceActors'] = response_data['data']['User']['statistics']['anime']['voiceActors']
+                        if 'animeStudios' in keys:
+                            data['animeStudios'] = response_data['data']['User']['statistics']['anime']['studios']
+                        if 'animeStaff' in keys:
+                            data['animeStaff'] = response_data['data']['User']['statistics']['anime']['staff']
+                    elif request_data['key'] == 'mangaStats':
+                        # Extract the data for each SVG
+                        data['mangaStats'] = {
+                            'count': response_data['data']['User']['statistics']['manga']['count'],
+                            'chaptersRead': response_data['data']['User']['statistics']['manga']['chaptersRead'],
+                            'volumesRead': response_data['data']['User']['statistics']['manga']['volumesRead'],
+                            'meanScore': response_data['data']['User']['statistics']['manga']['meanScore'],
+                            'standardDeviation': response_data['data']['User']['statistics']['manga']['standardDeviation'],
+                        }
+                        if 'mangaGenres' in keys:
+                            data['mangaGenres'] = response_data['data']['User']['statistics']['manga']['genres']
+                        if 'mangaTags' in keys:
+                            data['mangaTags'] = response_data['data']['User']['statistics']['manga']['tags']
+                        if 'mangaStaff' in keys:
+                            data['mangaStaff'] = response_data['data']['User']['statistics']['manga']['staff']
+                    elif request_data['key'] == 'socialStats':
                         simplified_data = {
                             'totalFollowers': response_data['data']['followersPage']['pageInfo']['total'],
                             'totalFollowing': response_data['data']['followingPage']['pageInfo']['total'],
