@@ -89,7 +89,6 @@ function getUserDataFromSvg(svgDoc, key) {
 
     // Find the text element with the data-testid
     const dataElement = svgDoc.querySelector(`[data-testid="${dataTestId}"]`);
-    console.log(dataElement);
 
     // Check if the element exists
     if (!dataElement) {
