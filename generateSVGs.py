@@ -6,12 +6,29 @@ def generate_svg(title, value, y, username):
     if value is None:
         return generate_button(title, y)
     else:
+        print(value)
         if title == 'animeStats':
             return generate_animeStats_svg(value, username)
         elif title == 'mangaStats':
             return generate_mangaStats_svg(value, username)
         elif title == 'socialStats':
             return generate_socialStats_svg(value, username)
+        elif title == 'animeGenres':
+            return generate_extraAnimeStats_svg(value, username, 'genre')
+        elif title == 'animeTags':
+            return generate_extraAnimeStats_svg(value, username, 'tag')
+        elif title == 'animeVoiceActors':
+            return generate_extraAnimeStats_svg(value, username, 'voiceActor')
+        elif title == 'animeStudios':
+            return generate_extraAnimeStats_svg(value, username, 'studio')
+        elif title == 'animeStaff':
+            return generate_extraAnimeStats_svg(value, username, 'staff')
+        elif title == 'mangaGenres':
+            return generate_extraMangaStats_svg(value, username, 'genre')
+        elif title == 'mangaTags':
+            return generate_extraMangaStats_svg(value, username, 'tag')
+        elif title == 'mangaStaff':
+            return generate_extraMangaStats_svg(value, username, 'staff')
         else:
             return Markup(f'''
                 <svg xmlns="http://www.w3.org/2000/svg">
@@ -101,6 +118,46 @@ def generate_animeStats_svg(value, username):
 
     return Markup(html)
 
+def generate_extraAnimeStats_svg(value, username, key):
+    # Read the HTML template
+    with open('Pages/templates/SVGs/animeStatsSVG.html', 'r') as file:
+        html_template = file.read()
+
+    # Escape the curly braces in the HTML template
+    html_template = html_template.replace('{', '{{').replace('}', '}}')
+
+    # Unescape the placeholders that you want to replace
+    placeholders = ['username', 'count', 'data1', 'data2', 'data3', 'data4', 'data5']
+    for placeholder in placeholders:
+        html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
+
+    # Inline the styles
+    html_template = inline_styles(
+        os.path.join('Pages', 'templates', 'SVGs', 'extraAnime&MangaStatsSVG.html'),
+        os.path.join('public', 'styles', 'SVGs', 'DefaultStatsStyles.css'),
+        0,  # dasharray is not used in this SVG
+        0   # dashoffset is not used in this SVG
+    )
+
+    # Replace the placeholders in the HTML template with actual values
+    html = html_template.format(
+        username=username,
+        type="Voice Actor's" if key == 'voiceActor' else key.capitalize(),
+        format='Anime',
+        key1=value[0][key],
+        data1=value[0]['count'],
+        key2=value[1][key],
+        data2=value[1]['count'],
+        key3=value[2][key],
+        data3=value[2]['count'],
+        key4=value[3][key],
+        data4=value[3]['count'],
+        key5=value[4][key],
+        data5=value[4]['count']
+    )
+
+    return Markup(html)
+
 def generate_mangaStats_svg(value, username):
     # Initialize milestones list with the first three milestones
     milestones = [100, 300, 500]
@@ -149,6 +206,48 @@ def generate_mangaStats_svg(value, username):
         current_milestone=current_milestone,
         previous_milestone=previous_milestone,
         **value
+    )
+
+    return Markup(html)
+
+def generate_extraMangaStats_svg(value, username, key):
+    print(value)
+    print(key)
+    # Read the HTML template
+    with open('Pages/templates/SVGs/mangaStatsSVG.html', 'r') as file:
+        html_template = file.read()
+
+    # Escape the curly braces in the HTML template
+    html_template = html_template.replace('{', '{{').replace('}', '}}')
+
+    # Unescape the placeholders that you want to replace
+    placeholders = ['username', 'count', 'data1', 'data2', 'data3', 'data4', 'data5']
+    for placeholder in placeholders:
+        html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
+
+    # Inline the styles
+    html_template = inline_styles(
+        os.path.join('Pages', 'templates', 'SVGs', 'extraAnime&MangaStatsSVG.html'),
+        os.path.join('public', 'styles', 'SVGs', 'DefaultStatsStyles.css'),
+        0,  # dasharray is not used in this SVG
+        0   # dashoffset is not used in this SVG
+    )
+
+    # Replace the placeholders in the HTML template with actual values
+    html = html_template.format(
+        username=username,
+        type='Voice Actor' if key == 'voiceActor' else key.capitalize(),
+        format='Manga',
+        key1=value[0][key],
+        data1=value[0]['count'],
+        key2=value[1][key],
+        data2=value[1]['count'],
+        key3=value[2][key],
+        data3=value[2]['count'],
+        key4=value[3][key],
+        data4=value[3]['count'],
+        key5=value[4][key],
+        data5=value[4]['count']
     )
 
     return Markup(html)

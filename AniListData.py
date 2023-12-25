@@ -36,7 +36,7 @@ def fetch_anilist_data(username, keys):
                 })
 
                 response_data = response.json()
-                print(response.json())
+                #print(response.json())
 
                 if response_data is None or 'data' not in response_data:
                     print("Error: No data in response")
@@ -51,16 +51,34 @@ def fetch_anilist_data(username, keys):
                             'meanScore': response_data['data']['User']['statistics']['anime']['meanScore'],
                             'standardDeviation': response_data['data']['User']['statistics']['anime']['standardDeviation'],
                         }
+
                         if 'animeGenres' in keys:
-                            data['animeGenres'] = response_data['data']['User']['statistics']['anime']['genres']
+                            top_genres = sorted(response_data['data']['User']['statistics']['anime']['genres'], key=lambda x: x['count'], reverse=True)[:5]
+                            data['animeGenres'] = top_genres
+
                         if 'animeTags' in keys:
-                            data['animeTags'] = response_data['data']['User']['statistics']['anime']['tags']
+                            tags = response_data['data']['User']['statistics']['anime']['tags']
+                            top_tags = sorted(tags, key=lambda x: x['count'], reverse=True)[:5]
+                            top_tags = [{'tag': tag['tag']['name'], 'count': tag['count']} for tag in top_tags]
+                            data['animeTags'] = top_tags
+
                         if 'animeVoiceActors' in keys:
-                            data['animeVoiceActors'] = response_data['data']['User']['statistics']['anime']['voiceActors']
+                            voice_actors = response_data['data']['User']['statistics']['anime']['voiceActors']
+                            top_voice_actors = sorted(voice_actors, key=lambda x: x['count'], reverse=True)[:5]
+                            top_voice_actors = [{'voiceActor': actor['voiceActor']['name']['full'], 'count': actor['count']} for actor in top_voice_actors]
+                            data['animeVoiceActors'] = top_voice_actors
+
                         if 'animeStudios' in keys:
-                            data['animeStudios'] = response_data['data']['User']['statistics']['anime']['studios']
+                            studios = response_data['data']['User']['statistics']['anime']['studios']
+                            top_studios = sorted(studios, key=lambda x: x['count'], reverse=True)[:5]
+                            top_studios = [{'studio': studio['studio']['name'], 'count': studio['count']} for studio in top_studios]
+                            data['animeStudios'] = top_studios
+                        
                         if 'animeStaff' in keys:
-                            data['animeStaff'] = response_data['data']['User']['statistics']['anime']['staff']
+                            staff = response_data['data']['User']['statistics']['anime']['staff']
+                            top_staff = sorted(staff, key=lambda x: x['count'], reverse=True)[:5]
+                            top_staff = [{'staff': staff_member['staff']['name']['full'], 'count': staff_member['count']} for staff_member in top_staff]
+                            data['animeStaff'] = top_staff
                     elif request_data['key'] == 'mangaStats':
                         # Extract the data for each SVG
                         data['mangaStats'] = {
@@ -71,11 +89,22 @@ def fetch_anilist_data(username, keys):
                             'standardDeviation': response_data['data']['User']['statistics']['manga']['standardDeviation'],
                         }
                         if 'mangaGenres' in keys:
-                            data['mangaGenres'] = response_data['data']['User']['statistics']['manga']['genres']
+                            genres = response_data['data']['User']['statistics']['manga']['genres']
+                            top_genres = sorted(genres, key=lambda x: x['count'], reverse=True)[:5]
+                            top_genres = [{'genre': genre['genre'], 'count': genre['count']} for genre in top_genres]
+                            data['mangaGenres'] = top_genres
+
                         if 'mangaTags' in keys:
-                            data['mangaTags'] = response_data['data']['User']['statistics']['manga']['tags']
+                            tags = response_data['data']['User']['statistics']['manga']['tags']
+                            top_tags = sorted(tags, key=lambda x: x['count'], reverse=True)[:5]
+                            top_tags = [{'tag': tag['tag']['name'], 'count': tag['count']} for tag in top_tags]
+                            data['mangaTags'] = top_tags
+
                         if 'mangaStaff' in keys:
-                            data['mangaStaff'] = response_data['data']['User']['statistics']['manga']['staff']
+                            staff = response_data['data']['User']['statistics']['manga']['staff']
+                            top_staff = sorted(staff, key=lambda x: x['count'], reverse=True)[:5]
+                            top_staff = [{'staff': staff_member['staff']['name']['full'], 'count': staff_member['count']} for staff_member in top_staff]
+                            data['mangaStaff'] = top_staff
                     elif request_data['key'] == 'socialStats':
                         simplified_data = {
                             'totalFollowers': response_data['data']['followersPage']['pageInfo']['total'],
