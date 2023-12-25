@@ -43,6 +43,8 @@ header {
 header a {
     text-decoration: none;
     color: inherit;
+    display: flex;
+    align-items: center;
 }
 
 header h1 {
@@ -94,6 +96,10 @@ img {
     height: auto;
     border: 6px solid #C5C6C7;
     border-radius: 10px;
+}
+
+.favicon {
+    border: none;
 }
 
 .link-button, .download-button {

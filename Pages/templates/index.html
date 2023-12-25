@@ -5,10 +5,12 @@
 <head>
     <title>AniList Stat Cards</title>
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='styles/index_styles.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.png') }}">
 </head>
 <body>
     <header>
         <a href="/">
+            <img src="{{ url_for('static', filename='favicon.png') }}" alt="Site Icon" style="height: 64px; width: 64px;">
             <h1>ASC - AniList Stat Cards</h1>
         </a>
         <p>Version: v1.0</p>
