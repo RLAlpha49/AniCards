@@ -15,7 +15,9 @@ The application uses Flask and SQLAlchemy to serve a web application and interac
 
 ## Running the Application
 
-To run the application locally, you need to have Python and PostgreSQL installed. Then, you can install the necessary Python packages with:
+To run the application locally, you need to have Python and PostgreSQL installed. 
+
+First, clone the repository:
 
 ```bash
 git clone https://github.com/RLAlpha49/Anilist-Stat-Cards.git
@@ -27,16 +29,24 @@ Next, navigate into the cloned repository:
 cd Anilist-Stat-Cards
 ```
 
-You need to have Python and PostgreSQL installed. Then, you can install the necessary Python packages with:
+Then, you can install the necessary Python packages. If you're on Windows and haven't added Python to your PATH, you might need to use 'py -m pip' instead of 'pip':
 
 ```bash
+# If Python and pip are added to your PATH, or you're on macOS or Linux:
 pip install -r requirements.txt
+
+# If you're on Windows and Python is not added to your PATH:
+py -m pip install -r requirements.txt
 ```
 
 You can start the application with:
 
 ```bash
+# If Python is added to your PATH, or you're on macOS or Linux:
 python main.py
+
+# If you're on Windows and Python is not added to your PATH:
+py main.py
 ```
 
 The application will be available at [http://localhost:5000](http://localhost:5000).
