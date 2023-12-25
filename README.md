@@ -6,7 +6,7 @@ This is a Flask application that generates SVG stat cards for AniList users. It 
 
 - Fetches user data from AniList using the AniList GraphQL API.
 - Generates SVG stat cards that display the user's statistics.
-- Supports multiple themes for the stat cards.
+- Supports multiple themes for the stat cards. (Hopefully Later)
 - Stores generated SVGs in a PostgreSQL database for caching.
 
 ## How it Works
