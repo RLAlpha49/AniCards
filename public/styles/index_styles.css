@@ -95,15 +95,27 @@ input[type="text"] {
 
 #formLabelWrapper {
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
 }
 
 #formLabel {
-    font-size: 20px;
+    font-size: 22px;
     font-weight: bold;
     color: #66FCF1;
     text-align: center;
-    width: fit-content; 
+}
+
+#selectAll {
+    cursor: pointer;
+    font-size: 18px;
+    color: #007BFF;
+}
+
+#selectAll:hover {
+    color: #0056b3;
+    text-decoration: none;
 }
 
 #dataForm div {

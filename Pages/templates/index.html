@@ -22,6 +22,9 @@
         <form id="dataForm" action="/username/generate_svgs" method="post">
             <div id="formLabelWrapper">
                 <label id="formLabel">Stat Card Types</label>
+                <div id="selectAll" onclick="selectAllCheckboxes()">
+                    <span>Select All</span>
+                </div>
             </div>
             <div>
                 <label>
@@ -77,5 +80,6 @@
 
     <script src="{{ url_for('static', filename='scripts/fetchUserData.js') }}"></script>
     <script src="{{ url_for('static', filename='scripts/validateForm.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/selectAll.js') }}"></script>
 </body>
 </html>
