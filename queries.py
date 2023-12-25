@@ -81,5 +81,13 @@ USER_SOCIAL_STATS = """
                 id
             }
         }
+        reviewsPage: Page {
+            pageInfo {
+                total
+            }
+            reviews(userId: $userId) {
+                id
+            }
+        }
     }
 """

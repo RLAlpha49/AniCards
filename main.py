@@ -33,6 +33,13 @@ def generate_svgs(username):
     # Get keys from the form data
     keys = request.form.getlist('keys')  # Get list of keys
 
+    # Define custom order
+    custom_order = ['animeStats', 'socialStats', 'mangaStats']
+
+    # Sort keys according to custom order
+    keys.sort(key=lambda x: custom_order.index(x) if x in custom_order else len(custom_order))
+
+    print(keys)
     # Delete existing SVG data for the user associated with the keys
     for key in keys:
         Svg.query.filter_by(username=username, key=key).delete()

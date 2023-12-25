@@ -80,9 +80,14 @@ input[type="text"] {
     background-color: #1F2833;
     border-radius: 5px;
     padding: 20px;
-    width: 600px;
+    width: 900px;
     margin: 20px auto;
     color: #C5C6C7;
+}
+
+#formLabelWrapper {
+    display: flex;
+    justify-content: center;
 }
 
 #formLabel {
@@ -91,7 +96,6 @@ input[type="text"] {
     color: #66FCF1;
     margin: auto;
     text-align: center;
-    display: block;
     width: fit-content; 
 }
 
@@ -106,8 +110,8 @@ input[type="text"] {
     display: flex;
     flex-direction: column;
     align-items: center;
-    width: 40%;
-    margin-bottom: 5px;
+    width: calc(33.33% - 10px); /* Adjust the width to fit three labels in one row */
+    margin: 5px; /* Add margin to create a gap between the labels */
 }
 
 #dataForm input[type="checkbox"] {

@@ -21,8 +21,8 @@ def fetch_anilist_data(username, keys):
 
         requests_data = [
             {'query': queries.USER_ANIME_STATS, 'variables': {'userName': username}, 'key': 'animeStats', 'path': 'data.User.statistics.anime'},
-            {'query': queries.USER_MANGA_STATS, 'variables': {'userName': username}, 'key': 'mangaStats', 'path': 'data.User.statistics.manga'},
             {'query': queries.USER_SOCIAL_STATS, 'variables': {'userName': username, 'userId': user_id}, 'key': 'socialStats', 'path': 'data'},
+            {'query': queries.USER_MANGA_STATS, 'variables': {'userName': username}, 'key': 'mangaStats', 'path': 'data.User.statistics.manga'},
         ]
 
         for request_data in requests_data:
@@ -48,6 +48,7 @@ def fetch_anilist_data(username, keys):
                             'totalFollowing': response_data['data']['followingPage']['pageInfo']['total'],
                             'totalActivity': sum(amount['amount'] for amount in response_data['data']['User']['stats']['activityHistory']),
                             'threadPostsCommentsCount': response_data['data']['threadsPage']['pageInfo']['total'] + response_data['data']['threadCommentsPage']['pageInfo']['total'],
+                            'totalReviews': response_data['data']['reviewsPage']['pageInfo']['total'],
                         }
                         data[request_data['key']] = simplified_data
                         print(simplified_data)
