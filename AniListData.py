@@ -114,7 +114,6 @@ def fetch_anilist_data(username, keys):
                             'totalReviews': response_data['data']['reviewsPage']['pageInfo']['total'],
                         }
                         data[request_data['key']] = simplified_data
-                        print(simplified_data)
                     else:
                         jsonpath_expr = parse(request_data['path'])
                         matches = [match.value for match in jsonpath_expr.find(response.json())]

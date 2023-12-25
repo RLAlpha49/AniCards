@@ -1,13 +1,11 @@
 
 # TODO: Add option for light or dark mode for Stat Cards (Part of Themes)
-# TODO: Add more stats
-
 # TODO: Add option to change theme of Stat Cards (Need more to be made/designed if people want them)
-
 
 # Import necessary modules
 from flask import Flask, abort, make_response, render_template, redirect, url_for, Response, request
 from flask_sqlalchemy import SQLAlchemy
+from urllib.parse import urlparse, urlunparse
 from AniListData import fetch_anilist_data
 from generateSVGs import generate_svg
 import os
@@ -15,8 +13,18 @@ import os
 # Initialize Flask app
 app = Flask(__name__, static_folder='public', template_folder='Pages/templates')
 
-# Configure SQLAlchemy with SQLite database
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test.db'
+# Get the DATABASE_URL environment variable
+database_url = os.getenv('DATABASE_URL')
+
+# If running on Heroku, convert the URL from postgres:// to postgresql://
+if database_url:
+    url = urlparse(database_url)
+    if url.scheme == 'postgres':
+        url = url._replace(scheme='postgresql')
+    database_url = urlunparse(url)
+
+# Configure SQLAlchemy with the database URL
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///test.db'
 db = SQLAlchemy(app)
 
 # Define SVG model for SQLAlchemy
@@ -25,7 +33,7 @@ class Svg(db.Model):
     username = db.Column(db.String(80), nullable=False)
     key = db.Column(db.String(80), nullable=False)
     data = db.Column(db.Text, nullable=False)
-    keys = db.Column(db.String(255), nullable=False)  # New column to store keys
+    keys = db.Column(db.String(255), nullable=False)
 
 # Route for generating SVGs for a user
 @app.route('/<username>/generate_svgs', methods=['POST'])
@@ -39,7 +47,6 @@ def generate_svgs(username):
     # Sort keys according to custom order
     keys.sort(key=lambda x: custom_order.index(x) if x in custom_order else len(custom_order))
 
-    print(keys)
     # Delete existing SVG data for the user associated with the keys
     for key in keys:
         Svg.query.filter_by(username=username, key=key).delete()
@@ -100,10 +107,10 @@ def home():
     return render_template('index.html')
 
 # Create the database for local testing if it doesn't exist
-if not os.path.exists('./test.db'):
+if not os.path.exists('./test.db') and not database_url:
     with app.app_context():
         db.create_all()
-
+        
 # Run the Flask app
 if __name__ == '__main__':
     app.run(debug=True)

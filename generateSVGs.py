@@ -6,7 +6,6 @@ def generate_svg(title, value, y, username):
     if value is None:
         return generate_button(title, y)
     else:
-        print(value)
         if title == 'animeStats':
             return generate_animeStats_svg(value, username)
         elif title == 'mangaStats':
@@ -211,8 +210,6 @@ def generate_mangaStats_svg(value, username):
     return Markup(html)
 
 def generate_extraMangaStats_svg(value, username, key):
-    print(value)
-    print(key)
     # Read the HTML template
     with open('Pages/templates/SVGs/mangaStatsSVG.html', 'r') as file:
         html_template = file.read()
