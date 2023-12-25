@@ -18,6 +18,20 @@ The application uses Flask and SQLAlchemy to serve a web application and interac
 To run the application locally, you need to have Python and PostgreSQL installed. Then, you can install the necessary Python packages with:
 
 ```bash
+git clone https://github.com/yourusername/yourrepository.git
+```
+
+Replace yourusername and yourrepository with your GitHub username and the name of your repository.
+
+Next, navigate into the cloned repository:
+
+```bash
+cd yourrepository
+```
+
+You need to have Python and PostgreSQL installed. Then, you can install the necessary Python packages with:
+
+```bash
 pip install -r requirements.txt
 ```
 
