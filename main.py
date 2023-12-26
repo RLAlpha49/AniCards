@@ -54,10 +54,18 @@ def generate_svgs(username):
 
     # Fetch the data and generate an SVG for each key
     data = fetch_anilist_data(username, keys)
+    
+    # Define colors for the SVGs
+    colors = [
+        'fe428e',  # title color
+        '#fe428e',  # circle color (needs # symbol)
+        'e4e2e2',  # background color
+        'a9fef7'  # text color
+    ]
 
     for key in keys:
         # Generate an SVG for the key
-        svg_data = generate_svg(key, data.get(key) if data else None, 0, username)
+        svg_data = generate_svg(key, data.get(key) if data else None, 0, username, colors)
         # Store the SVG in the database
         svg = Svg(username=username, key=key, data=svg_data, keys=','.join(keys))  # Save keys in database
         db.session.add(svg)

@@ -2,32 +2,32 @@ from markupsafe import Markup
 import math
 import os
 
-def generate_svg(title, value, y, username):
+def generate_svg(title, value, y, username, colors):
     if value is None:
         return generate_button(title, y)
     else:
         if title == 'animeStats':
-            return generate_animeStats_svg(value, username)
+            return generate_animeStats_svg(value, username, colors)
         elif title == 'mangaStats':
-            return generate_mangaStats_svg(value, username)
+            return generate_mangaStats_svg(value, username, colors)
         elif title == 'socialStats':
-            return generate_socialStats_svg(value, username)
+            return generate_socialStats_svg(value, username, colors)
         elif title == 'animeGenres':
-            return generate_extraAnimeStats_svg(value, username, 'genre')
+            return generate_extraAnimeStats_svg(value, username, 'genre', colors)
         elif title == 'animeTags':
-            return generate_extraAnimeStats_svg(value, username, 'tag')
+            return generate_extraAnimeStats_svg(value, username, 'tag', colors)
         elif title == 'animeVoiceActors':
-            return generate_extraAnimeStats_svg(value, username, 'voiceActor')
+            return generate_extraAnimeStats_svg(value, username, 'voiceActor', colors)
         elif title == 'animeStudios':
-            return generate_extraAnimeStats_svg(value, username, 'studio')
+            return generate_extraAnimeStats_svg(value, username, 'studio', colors)
         elif title == 'animeStaff':
-            return generate_extraAnimeStats_svg(value, username, 'staff')
+            return generate_extraAnimeStats_svg(value, username, 'staff', colors)
         elif title == 'mangaGenres':
-            return generate_extraMangaStats_svg(value, username, 'genre')
+            return generate_extraMangaStats_svg(value, username, 'genre', colors)
         elif title == 'mangaTags':
-            return generate_extraMangaStats_svg(value, username, 'tag')
+            return generate_extraMangaStats_svg(value, username, 'tag', colors)
         elif title == 'mangaStaff':
-            return generate_extraMangaStats_svg(value, username, 'staff')
+            return generate_extraMangaStats_svg(value, username, 'staff', colors)
         else:
             return Markup(f'''
                 <svg xmlns="http://www.w3.org/2000/svg">
@@ -51,11 +51,15 @@ def fetch_data(name, username):
     # This function needs to be implemented in Python
     pass
 
-def inline_styles(svg_file, css_file, dasharray, dashoffset):
+def inline_styles(svg_file, css_file, dasharray, dashoffset, colors):
     with open(css_file, 'r') as f:
         styles = f.read()
         styles = styles.replace('{', '{{').replace('}', '}}')
         styles = styles.replace('{{dasharray}}', str(dasharray)).replace('{{dashoffset}}', str(dashoffset))
+        styles = styles.replace('{{title_color}}', colors[0])
+        styles = styles.replace('{{circle_color}}', colors[1])
+        styles = styles.replace('{{background_color}}', colors[2])
+        styles = styles.replace('{{text_color}}', colors[3])
 
     with open(svg_file, 'r') as f:
         svg = f.read()
@@ -65,7 +69,7 @@ def inline_styles(svg_file, css_file, dasharray, dashoffset):
 
     return svg
 
-def generate_animeStats_svg(value, username):
+def generate_animeStats_svg(value, username, colors):
     # Initialize milestones list with the first three milestones
     milestones = [100, 300, 500]
 
@@ -99,12 +103,15 @@ def generate_animeStats_svg(value, username):
     for placeholder in placeholders:
         html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
 
+    
+
     # Inline the styles
     html_template = inline_styles(
         os.path.join('Pages', 'templates', 'SVGs', 'animeStatsSVG.html'),
         os.path.join('public', 'styles', 'SVGs', 'DefaultStatsStyles.css'),
         dasharray,
-        dashoffset
+        dashoffset,
+        colors
     )
 
     # Replace the placeholders in the HTML template with actual values
@@ -117,7 +124,7 @@ def generate_animeStats_svg(value, username):
 
     return Markup(html)
 
-def generate_extraAnimeStats_svg(value, username, key):
+def generate_extraAnimeStats_svg(value, username, key, colors):
     # Read the HTML template
     with open('Pages/templates/SVGs/animeStatsSVG.html', 'r') as file:
         html_template = file.read()
@@ -135,7 +142,8 @@ def generate_extraAnimeStats_svg(value, username, key):
         os.path.join('Pages', 'templates', 'SVGs', 'extraAnime&MangaStatsSVG.html'),
         os.path.join('public', 'styles', 'SVGs', 'DefaultStatsStyles.css'),
         0,  # dasharray is not used in this SVG
-        0   # dashoffset is not used in this SVG
+        0,   # dashoffset is not used in this SVG
+        colors
     )
 
     # Replace the placeholders in the HTML template with actual values
@@ -157,7 +165,7 @@ def generate_extraAnimeStats_svg(value, username, key):
 
     return Markup(html)
 
-def generate_mangaStats_svg(value, username):
+def generate_mangaStats_svg(value, username, colors):
     # Initialize milestones list with the first three milestones
     milestones = [100, 300, 500]
 
@@ -196,7 +204,8 @@ def generate_mangaStats_svg(value, username):
         os.path.join('Pages', 'templates', 'SVGs', 'mangaStatsSVG.html'),
         os.path.join('public', 'styles', 'SVGs', 'DefaultStatsStyles.css'),
         dasharray,
-        dashoffset
+        dashoffset,
+        colors
     )
 
     # Replace the placeholders in the HTML template with actual values
@@ -209,7 +218,7 @@ def generate_mangaStats_svg(value, username):
 
     return Markup(html)
 
-def generate_extraMangaStats_svg(value, username, key):
+def generate_extraMangaStats_svg(value, username, key, colors):
     # Read the HTML template
     with open('Pages/templates/SVGs/mangaStatsSVG.html', 'r') as file:
         html_template = file.read()
@@ -227,7 +236,8 @@ def generate_extraMangaStats_svg(value, username, key):
         os.path.join('Pages', 'templates', 'SVGs', 'extraAnime&MangaStatsSVG.html'),
         os.path.join('public', 'styles', 'SVGs', 'DefaultStatsStyles.css'),
         0,  # dasharray is not used in this SVG
-        0   # dashoffset is not used in this SVG
+        0,   # dashoffset is not used in this SVG
+        colors
     )
 
     # Replace the placeholders in the HTML template with actual values
@@ -249,7 +259,7 @@ def generate_extraMangaStats_svg(value, username, key):
 
     return Markup(html)
 
-def generate_socialStats_svg(value, username):
+def generate_socialStats_svg(value, username, colors):
     # Read the HTML template
     with open('Pages/templates/SVGs/socialStatsSVG.html', 'r') as file:
         html_template = file.read()
@@ -267,7 +277,8 @@ def generate_socialStats_svg(value, username):
         os.path.join('Pages', 'templates', 'SVGs', 'socialStatsSVG.html'),
         os.path.join('public', 'styles', 'SVGs', 'DefaultStatsStyles.css'),
         0,  # dasharray is not used in this SVG
-        0   # dashoffset is not used in this SVG
+        0,   # dashoffset is not used in this SVG
+        colors
     )
 
     # Replace the placeholders in the HTML template with actual values

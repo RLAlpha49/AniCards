@@ -2,6 +2,22 @@ svg {
     overflow: visible;
 }
 
+[data-testid="card-title"] text {
+    fill: {title_color};
+}
+
+[data-testid="main-card-body"] circle {
+    stroke: {circle_color};
+}
+
+[data-testid="card-bg"] {
+    fill: {background_color};
+}
+
+[data-testid="main-card-body"] text {
+    fill: {text_color};
+}
+
 .header {
     font: 600 18px 'Segoe UI', Ubuntu, Sans-Serif;
     fill: #fe428e;
@@ -42,13 +58,11 @@ display: none;
 }
 
 .rank-circle-rim {
-stroke: #fe428e;
 fill: none;
 stroke-width: 6;
 opacity: 0.2;
 }
 .rank-circle {
-stroke: #fe428e;
 stroke-dasharray: 250;
 fill: none;
 stroke-width: 6;
