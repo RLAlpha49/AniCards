@@ -149,7 +149,7 @@ def generate_extraAnimeStats_svg(value, username, key, colors):
     # Replace the placeholders in the HTML template with actual values
     html = html_template.format(
         username=username,
-        type="Voice Actor's" if key == 'voiceActor' else key.capitalize(),
+        type="Voice Actor" if key == 'voiceActor' else key.capitalize(),
         format='Anime',
         key1=value[0][key],
         data1=value[0]['count'],

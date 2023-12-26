@@ -91,6 +91,36 @@ h1 {
     min-width: 200px;
 }
 
+.svg-wrapper {
+    display: inline-block;
+    text-align: center;
+}
+
+.button-wrapper {
+    display: flex;
+    justify-content: space-between;
+}
+
+.link-button, .download-button {
+    display: inline-block; /* Change this from block to inline-block */
+    width: 48%; /* Adjust this value as needed */
+    padding: 0.5em 1em;
+    margin: 5px 0; /* Add some margin to the top and bottom of the buttons */
+    background-color: #45A29E;
+    color: #C5C6C7;
+    border: 2px solid #1F2833;
+    border-radius: 5px;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+    font-size: 0.95em;
+}
+
+.link-button:hover, .download-button:hover {
+    background-color: #66FCF1;
+    color: #0B0C10;
+}
+
 img {
     width: auto;
     height: auto;
@@ -100,25 +130,4 @@ img {
 
 .favicon {
     border: none;
-}
-
-.link-button, .download-button {
-    display: block;
-    width: auto;
-    padding: 1em 2em;
-    margin-bottom: 0.5em;
-    margin-top: 0.5em;
-    background-color: #45A29E;
-    color: #C5C6C7;
-    border: 2px solid #1F2833;
-    border-radius: 5px;
-    cursor: pointer;
-    text-decoration: none;
-    text-align: center;
-    font-size: 1.2em;
-}
-
-.link-button:hover, .download-button:hover {
-    background-color: #66FCF1;
-    color: #0B0C10;
 }
