@@ -91,21 +91,104 @@ h1 {
     min-width: 200px;
 }
 
-.svg-wrapper {
-    display: inline-block;
+.svg-controls {
+    display: flex;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+
+.svg-item button {
+    flex: 1;
+    margin: 0 5px;
+    padding: 0.5em 1em;
+    border: 2px solid #1F2833;
+    border-radius: 5px;
+    background-color: #45A29E;
+    color: #C5C6C7;
+    font-size: 0.9em;
+    cursor: pointer;
     text-align: center;
+    max-width: 48%;
+}
+
+.select-container {
+    position: relative;
+    flex: 1;
+    margin: 0 5px;
+    width: 100%; /* Add this */
+    box-sizing: border-box; /* Add this */
+}
+
+.svg-item select {
+    flex: 1;
+    margin: 0 5px;
+    padding: 0.5em 1em;
+    border: 2px solid #1F2833;
+    border-radius: 5px;
+    background-color: #45A29E;
+    color: #C5C6C7;
+    font-size: 0.9em;
+    cursor: pointer;
+    text-align: center;
+    width: 100%;
+    z-index: 1;
+    position: relative;
+    box-sizing: border-box;
+    appearance: none; /* Add this */
+    -webkit-appearance: none; /* Add this */
+    -moz-appearance: none; /* Add this */
+}
+
+
+.arrow {
+    background: url('../images/dropdown-arrow.png') no-repeat;
+    background-size: 15px;
+    width: 15px;
+    height: 15px;
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%) rotate(-90deg);
+    pointer-events: none;
+    z-index: 2; /* Add this */
+}
+
+.svg-item select:focus + .arrow {
+    transform: translateY(-50%) rotate(0deg);
+}
+
+.svg-item button:hover {
+    background-color: #66FCF1;
+    color: #0B0C10;
+}
+
+#color-picker {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #1F2833;
+    padding: 20px;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .button-wrapper {
     display: flex;
     justify-content: space-between;
+    text-align: center;
+    margin-top: 10px;
 }
 
 .link-button, .download-button {
-    display: inline-block; /* Change this from block to inline-block */
-    width: 48%; /* Adjust this value as needed */
+    display: inline-block;
+    width: 48%;
     padding: 0.5em 1em;
-    margin: 5px 0; /* Add some margin to the top and bottom of the buttons */
+    margin: 5px 0;
     background-color: #45A29E;
     color: #C5C6C7;
     border: 2px solid #1F2833;
@@ -113,7 +196,7 @@ h1 {
     cursor: pointer;
     text-decoration: none;
     text-align: center;
-    font-size: 0.95em;
+    font-size: 0.9em;
 }
 
 .link-button:hover, .download-button:hover {

@@ -5,12 +5,12 @@
 <head>
     <title>AniList Stat Cards Generator</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles/user_styles.css') }}">
-    <link rel="icon" href="{{ url_for('static', filename='favicon.png') }}">
+    <link rel="icon" href="{{ url_for('static', filename='images/favicon.png') }}">
 </head>
 <body>
     <header>
         <a href="/">
-            <img class="favicon" src="{{ url_for('static', filename='favicon.png') }}" alt="Site Icon" style="height: 64px; width: 64px;">
+            <img class="favicon" src="{{ url_for('static', filename='images/favicon.png') }}" alt="Site Icon" style="height: 64px; width: 64px;">
             <h1>ASCG - AniList Stat Cards Generator</h1>
         </a>
         <p>Version: v1.0</p>
@@ -18,11 +18,42 @@
     <div class="center-container">
         <h1>{{ username }}</h1>
 
+        <!-- SVG container -->
         <div class="svg-container">
             {% for key in keys %}
             <div class="svg-item">
                 <div class="svg-wrapper">
+                    <div class="svg-controls">
+                        <div class="select-container">
+                            <!-- Dropdown for SVG types -->
+                            <select id="svg-type-{{ key }}" onchange="changeSvgType('{{ key }}')">
+                                <option value="">SVG Type</option>
+                                {% for type in svg_types %}
+                                <option value="{{ type }}">{{ type }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="arrow"></div>
+                        </div>
+
+                        <!-- Button to open color picker popup -->
+                        <button id="color-button-{{ key }}" onclick="openColorPicker('{{ key }}')">Pick Colors</button>
+                    </div>
+
                     <img id="{{ key }}" src="{{ url_for('get_svg', username=username, key=key) }}" />
+
+                    <!-- Color picker popup -->
+                    <div id="color-picker-{{ key }}" style="display: none;">
+                        <label for="color1-{{ key }}">Color 1:</label>
+                        <input type="text" id="color1-{{ key }}" name="color1-{{ key }}" placeholder="#FFFFFF">
+                        <label for="color2-{{ key }}">Color 2:</label>
+                        <input type="text" id="color2-{{ key }}" name="color2-{{ key }}" placeholder="#FFFFFF">
+                        <label for="color3-{{ key }}">Color 3:</label>
+                        <input type="text" id="color3-{{ key }}" name="color3-{{ key }}" placeholder="#FFFFFF">
+                        <label for="color4-{{ key }}">Color 4:</label>
+                        <input type="text" id="color4-{{ key }}" name="color4-{{ key }}" placeholder="#FFFFFF">
+                        <button onclick="applyColors('{{ key }}')">Apply colors</button>
+                    </div>
+
                     <div class="button-wrapper">
                         <button class="link-button" onclick="showLink('{{ url_for('get_svg_from_db', username=username, key=key, _external=True) }}')">Show Link</button>
                         <button class="download-button" data-url="{{ url_for('get_svg_from_db', username=username, key=key, _external=True) }}" data-key="{{ key }}">Download PNG</button>
@@ -36,5 +67,6 @@
     <script src="{{ url_for('static', filename='scripts/fetch_data.js') }}"></script>
     <script src="{{ url_for('static', filename='scripts/download.js') }}"></script>
     <script src="{{ url_for('static', filename='scripts/show_link.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/arrows.js') }}"></script>
 </body>
 </html>
