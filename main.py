@@ -37,6 +37,20 @@ class Svg(db.Model):
     data = db.Column(db.Text, nullable=False)
     keys = db.Column(db.String(255), nullable=False)
 
+key_types = {
+    'animeStats': [],
+    'socialStats': [],
+    'mangaStats': [],
+    'animeGenres': [],
+    'animeTags': [],
+    'animeVoiceActors': [],
+    'animeStudios': [],
+    'animeStaff': [],
+    'mangaGenres': [],
+    'mangaTags': [],
+    'mangaStaff': [],
+}
+
 # Route for generating SVGs for a user
 @app.route('/<username>/generate_svgs', methods=['POST'])
 def generate_svgs(username):
@@ -85,8 +99,14 @@ def display_svgs(username):
         # Extract the keys from the first SVG (they should be the same for all SVGs)
         keys = svgs[0].keys.split(',')
 
+        # Generate the svg_types dictionary
+        svg_types = {key: [svg for svg in svgs if key in svg.keys.split(',')] for key in keys}
+
+        # Generate the types for each key
+        svg_types = {key: key_types[key] for key in svg_types}
+
         # Render the HTML template
-        return render_template('user_template.html', username=username, svgs=svgs, keys=keys)
+        return render_template('user_template.html', username=username, svgs=svgs, keys=keys, svg_types=svg_types)
     else:
         abort(404, description="No SVGs found for this user")
 

@@ -27,8 +27,8 @@
                         <div class="select-container">
                             <!-- Dropdown for SVG types -->
                             <select id="svg-type-{{ key }}" onchange="changeSvgType('{{ key }}')">
-                                <option value="">SVG Type</option>
-                                {% for type in svg_types %}
+                                <option value="default" selected>Default</option>
+                                {% for type in svg_types[key] %}
                                 <option value="{{ type }}">{{ type }}</option>
                                 {% endfor %}
                             </select>
