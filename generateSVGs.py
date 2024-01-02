@@ -2,32 +2,32 @@ from markupsafe import Markup
 import math
 import os
 
-def generate_svg(title, value, y, username, colors):
+def generate_svg(title, value, y, username, colors, type='Default'):
     if value is None:
         return generate_button(title, y)
     else:
         if title == 'animeStats':
-            return generate_animeStats_svg(value, username, colors)
+            return generate_animeStats_svg(value, username, colors, type)
         elif title == 'mangaStats':
-            return generate_mangaStats_svg(value, username, colors)
+            return generate_mangaStats_svg(value, username, colors, type)
         elif title == 'socialStats':
-            return generate_socialStats_svg(value, username, colors)
+            return generate_socialStats_svg(value, username, colors, type)
         elif title == 'animeGenres':
-            return generate_extraAnimeStats_svg(value, username, 'genre', colors)
+            return generate_extraAnimeStats_svg(value, username, 'genre', colors, type)
         elif title == 'animeTags':
-            return generate_extraAnimeStats_svg(value, username, 'tag', colors)
+            return generate_extraAnimeStats_svg(value, username, 'tag', colors, type)
         elif title == 'animeVoiceActors':
-            return generate_extraAnimeStats_svg(value, username, 'voiceActor', colors)
+            return generate_extraAnimeStats_svg(value, username, 'voiceActor', colors, type)
         elif title == 'animeStudios':
-            return generate_extraAnimeStats_svg(value, username, 'studio', colors)
+            return generate_extraAnimeStats_svg(value, username, 'studio', colors, type)
         elif title == 'animeStaff':
-            return generate_extraAnimeStats_svg(value, username, 'staff', colors)
+            return generate_extraAnimeStats_svg(value, username, 'staff', colors, type)
         elif title == 'mangaGenres':
-            return generate_extraMangaStats_svg(value, username, 'genre', colors)
+            return generate_extraMangaStats_svg(value, username, 'genre', colors, type)
         elif title == 'mangaTags':
-            return generate_extraMangaStats_svg(value, username, 'tag', colors)
+            return generate_extraMangaStats_svg(value, username, 'tag', colors, type)
         elif title == 'mangaStaff':
-            return generate_extraMangaStats_svg(value, username, 'staff', colors)
+            return generate_extraMangaStats_svg(value, username, 'staff', colors, type)
         else:
             return Markup(f'''
                 <svg xmlns="http://www.w3.org/2000/svg">
@@ -69,222 +69,227 @@ def inline_styles(svg_file, css_file, dasharray, dashoffset, colors):
 
     return svg
 
-def generate_animeStats_svg(value, username, colors):
-    # Initialize milestones list with the first three milestones
-    milestones = [100, 300, 500]
+def generate_animeStats_svg(value, username, colors, type):
+    if type == 'Default':
+        # Initialize milestones list with the first three milestones
+        milestones = [100, 300, 500]
 
-    # Determine the maximum milestone based on the number of episodes watched
-    max_milestone = ((value['episodesWatched'] // 1000) + 1) * 1000
+        # Determine the maximum milestone based on the number of episodes watched
+        max_milestone = ((value['episodesWatched'] // 1000) + 1) * 1000
 
-    # Generate the rest of the milestones
-    for i in range(1000, max_milestone + 1, 1000):
-        milestones.append(i)
+        # Generate the rest of the milestones
+        for i in range(1000, max_milestone + 1, 1000):
+            milestones.append(i)
 
-    # Determine the previous milestone based on the number of episodes watched
-    previous_milestone = max(milestone for milestone in milestones if milestone < value['episodesWatched'])
+        # Determine the previous milestone based on the number of episodes watched
+        previous_milestone = max(milestone for milestone in milestones if milestone < value['episodesWatched'])
 
-    # Determine the current milestone based on the number of episodes watched
-    current_milestone = min(milestone for milestone in milestones if milestone > value['episodesWatched'])
+        # Determine the current milestone based on the number of episodes watched
+        current_milestone = min(milestone for milestone in milestones if milestone > value['episodesWatched'])
 
-    percentage = ((value['episodesWatched'] - previous_milestone) / (current_milestone - previous_milestone)) * 100
-    circle_circumference = 2 * math.pi * 40
-    dasharray = circle_circumference
-    dashoffset = circle_circumference * (1 - (percentage / 100))
+        percentage = ((value['episodesWatched'] - previous_milestone) / (current_milestone - previous_milestone)) * 100
+        circle_circumference = 2 * math.pi * 40
+        dasharray = circle_circumference
+        dashoffset = circle_circumference * (1 - (percentage / 100))
 
-    # Read the HTML template
-    with open('Pages/templates/SVGs/animeStatsSVG.html', 'r') as file:
-        html_template = file.read()
+        # Read the HTML template
+        with open('Pages/templates/SVGs/animeStatsSVG.html', 'r') as file:
+            html_template = file.read()
 
-    # Escape the curly braces in the HTML template
-    html_template = html_template.replace('{', '{{').replace('}', '}}')
+        # Escape the curly braces in the HTML template
+        html_template = html_template.replace('{', '{{').replace('}', '}}')
 
-    # Unescape the placeholders that you want to replace
-    placeholders = ['username', 'count', 'episodesWatched', 'minutesWatched', 'meanScore', 'standardDeviation', 'current_milestone']
-    for placeholder in placeholders:
-        html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
+        # Unescape the placeholders that you want to replace
+        placeholders = ['username', 'count', 'episodesWatched', 'minutesWatched', 'meanScore', 'standardDeviation', 'current_milestone']
+        for placeholder in placeholders:
+            html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
 
-    
+        
 
-    # Inline the styles
-    html_template = inline_styles(
-        os.path.join('Pages', 'templates', 'SVGs', 'animeStatsSVG.html'),
-        os.path.join('public', 'styles', 'SVGs', 'DefaultStatsStyles.css'),
-        dasharray,
-        dashoffset,
-        colors
-    )
+        # Inline the styles
+        html_template = inline_styles(
+            os.path.join('Pages', 'templates', 'SVGs', 'animeStatsSVG.html'),
+            os.path.join('public', 'styles', 'SVGs', 'DefaultStatsStyles.css'),
+            dasharray,
+            dashoffset,
+            colors
+        )
 
-    # Replace the placeholders in the HTML template with actual values
-    html = html_template.format(
-        username=username,
-        current_milestone=current_milestone,
-        previous_milestone=previous_milestone,
-        **value
-    )
+        # Replace the placeholders in the HTML template with actual values
+        html = html_template.format(
+            username=username,
+            current_milestone=current_milestone,
+            previous_milestone=previous_milestone,
+            **value
+        )
 
-    return Markup(html)
+        return Markup(html)
 
-def generate_extraAnimeStats_svg(value, username, key, colors):
-    # Read the HTML template
-    with open('Pages/templates/SVGs/animeStatsSVG.html', 'r') as file:
-        html_template = file.read()
+def generate_extraAnimeStats_svg(value, username, key, colors, type):
+    if type == 'Default':
+        # Read the HTML template
+        with open('Pages/templates/SVGs/animeStatsSVG.html', 'r') as file:
+            html_template = file.read()
 
-    # Escape the curly braces in the HTML template
-    html_template = html_template.replace('{', '{{').replace('}', '}}')
+        # Escape the curly braces in the HTML template
+        html_template = html_template.replace('{', '{{').replace('}', '}}')
 
-    # Unescape the placeholders that you want to replace
-    placeholders = ['username', 'count', 'data1', 'data2', 'data3', 'data4', 'data5']
-    for placeholder in placeholders:
-        html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
+        # Unescape the placeholders that you want to replace
+        placeholders = ['username', 'count', 'data1', 'data2', 'data3', 'data4', 'data5']
+        for placeholder in placeholders:
+            html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
 
-    # Inline the styles
-    html_template = inline_styles(
-        os.path.join('Pages', 'templates', 'SVGs', 'extraAnime&MangaStatsSVG.html'),
-        os.path.join('public', 'styles', 'SVGs', 'DefaultStatsStyles.css'),
-        0,  # dasharray is not used in this SVG
-        0,   # dashoffset is not used in this SVG
-        colors
-    )
+        # Inline the styles
+        html_template = inline_styles(
+            os.path.join('Pages', 'templates', 'SVGs', 'extraAnime&MangaStatsSVG.html'),
+            os.path.join('public', 'styles', 'SVGs', 'DefaultStatsStyles.css'),
+            0,  # dasharray is not used in this SVG
+            0,   # dashoffset is not used in this SVG
+            colors
+        )
 
-    # Replace the placeholders in the HTML template with actual values
-    html = html_template.format(
-        username=username,
-        type="Voice Actor" if key == 'voiceActor' else key.capitalize(),
-        format='Anime',
-        key1=value[0][key],
-        data1=value[0]['count'],
-        key2=value[1][key],
-        data2=value[1]['count'],
-        key3=value[2][key],
-        data3=value[2]['count'],
-        key4=value[3][key],
-        data4=value[3]['count'],
-        key5=value[4][key],
-        data5=value[4]['count']
-    )
+        # Replace the placeholders in the HTML template with actual values
+        html = html_template.format(
+            username=username,
+            type="Voice Actor" if key == 'voiceActor' else key.capitalize(),
+            format='Anime',
+            key1=value[0][key],
+            data1=value[0]['count'],
+            key2=value[1][key],
+            data2=value[1]['count'],
+            key3=value[2][key],
+            data3=value[2]['count'],
+            key4=value[3][key],
+            data4=value[3]['count'],
+            key5=value[4][key],
+            data5=value[4]['count']
+        )
 
-    return Markup(html)
+        return Markup(html)
 
-def generate_mangaStats_svg(value, username, colors):
-    # Initialize milestones list with the first three milestones
-    milestones = [100, 300, 500]
+def generate_mangaStats_svg(value, username, colors, type):
+    if type == 'Default':
+        # Initialize milestones list with the first three milestones
+        milestones = [100, 300, 500]
 
-    # Determine the maximum milestone based on the number of episodes watched
-    max_milestone = ((value['chaptersRead'] // 1000) + 1) * 1000
+        # Determine the maximum milestone based on the number of episodes watched
+        max_milestone = ((value['chaptersRead'] // 1000) + 1) * 1000
 
-    # Generate the rest of the milestones
-    for i in range(1000, max_milestone + 1, 1000):
-        milestones.append(i)
+        # Generate the rest of the milestones
+        for i in range(1000, max_milestone + 1, 1000):
+            milestones.append(i)
 
-    # Determine the previous milestone based on the number of episodes watched
-    previous_milestone = max(milestone for milestone in milestones if milestone < value['chaptersRead'])
+        # Determine the previous milestone based on the number of episodes watched
+        previous_milestone = max(milestone for milestone in milestones if milestone < value['chaptersRead'])
 
-    # Determine the current milestone based on the number of episodes watched
-    current_milestone = min(milestone for milestone in milestones if milestone > value['chaptersRead'])
+        # Determine the current milestone based on the number of episodes watched
+        current_milestone = min(milestone for milestone in milestones if milestone > value['chaptersRead'])
 
-    percentage = ((value['chaptersRead'] - previous_milestone) / (current_milestone - previous_milestone)) * 100
-    circle_circumference = 2 * math.pi * 40
-    dasharray = circle_circumference
-    dashoffset = circle_circumference * (1 - (percentage / 100))
+        percentage = ((value['chaptersRead'] - previous_milestone) / (current_milestone - previous_milestone)) * 100
+        circle_circumference = 2 * math.pi * 40
+        dasharray = circle_circumference
+        dashoffset = circle_circumference * (1 - (percentage / 100))
 
-    # Read the HTML template
-    with open('Pages/templates/SVGs/mangaStatsSVG.html', 'r') as file:
-        html_template = file.read()
+        # Read the HTML template
+        with open('Pages/templates/SVGs/mangaStatsSVG.html', 'r') as file:
+            html_template = file.read()
 
-    # Escape the curly braces in the HTML template
-    html_template = html_template.replace('{', '{{').replace('}', '}}')
+        # Escape the curly braces in the HTML template
+        html_template = html_template.replace('{', '{{').replace('}', '}}')
 
-    # Unescape the placeholders that you want to replace
-    placeholders = ['username', 'count', 'chaptersRead', 'volumesRead', 'meanScore', 'standardDeviation', 'current_milestone']
-    for placeholder in placeholders:
-        html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
+        # Unescape the placeholders that you want to replace
+        placeholders = ['username', 'count', 'chaptersRead', 'volumesRead', 'meanScore', 'standardDeviation', 'current_milestone']
+        for placeholder in placeholders:
+            html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
 
-    # Inline the styles
-    html_template = inline_styles(
-        os.path.join('Pages', 'templates', 'SVGs', 'mangaStatsSVG.html'),
-        os.path.join('public', 'styles', 'SVGs', 'DefaultStatsStyles.css'),
-        dasharray,
-        dashoffset,
-        colors
-    )
+        # Inline the styles
+        html_template = inline_styles(
+            os.path.join('Pages', 'templates', 'SVGs', 'mangaStatsSVG.html'),
+            os.path.join('public', 'styles', 'SVGs', 'DefaultStatsStyles.css'),
+            dasharray,
+            dashoffset,
+            colors
+        )
 
-    # Replace the placeholders in the HTML template with actual values
-    html = html_template.format(
-        username=username,
-        current_milestone=current_milestone,
-        previous_milestone=previous_milestone,
-        **value
-    )
+        # Replace the placeholders in the HTML template with actual values
+        html = html_template.format(
+            username=username,
+            current_milestone=current_milestone,
+            previous_milestone=previous_milestone,
+            **value
+        )
 
-    return Markup(html)
+        return Markup(html)
 
-def generate_extraMangaStats_svg(value, username, key, colors):
-    # Read the HTML template
-    with open('Pages/templates/SVGs/mangaStatsSVG.html', 'r') as file:
-        html_template = file.read()
+def generate_extraMangaStats_svg(value, username, key, colors, type):
+    if type == 'Default':
+        # Read the HTML template
+        with open('Pages/templates/SVGs/mangaStatsSVG.html', 'r') as file:
+            html_template = file.read()
 
-    # Escape the curly braces in the HTML template
-    html_template = html_template.replace('{', '{{').replace('}', '}}')
+        # Escape the curly braces in the HTML template
+        html_template = html_template.replace('{', '{{').replace('}', '}}')
 
-    # Unescape the placeholders that you want to replace
-    placeholders = ['username', 'count', 'data1', 'data2', 'data3', 'data4', 'data5']
-    for placeholder in placeholders:
-        html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
+        # Unescape the placeholders that you want to replace
+        placeholders = ['username', 'count', 'data1', 'data2', 'data3', 'data4', 'data5']
+        for placeholder in placeholders:
+            html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
 
-    # Inline the styles
-    html_template = inline_styles(
-        os.path.join('Pages', 'templates', 'SVGs', 'extraAnime&MangaStatsSVG.html'),
-        os.path.join('public', 'styles', 'SVGs', 'DefaultStatsStyles.css'),
-        0,  # dasharray is not used in this SVG
-        0,   # dashoffset is not used in this SVG
-        colors
-    )
+        # Inline the styles
+        html_template = inline_styles(
+            os.path.join('Pages', 'templates', 'SVGs', 'extraAnime&MangaStatsSVG.html'),
+            os.path.join('public', 'styles', 'SVGs', 'DefaultStatsStyles.css'),
+            0,  # dasharray is not used in this SVG
+            0,   # dashoffset is not used in this SVG
+            colors
+        )
 
-    # Replace the placeholders in the HTML template with actual values
-    html = html_template.format(
-        username=username,
-        type='Voice Actor' if key == 'voiceActor' else key.capitalize(),
-        format='Manga',
-        key1=value[0][key],
-        data1=value[0]['count'],
-        key2=value[1][key],
-        data2=value[1]['count'],
-        key3=value[2][key],
-        data3=value[2]['count'],
-        key4=value[3][key],
-        data4=value[3]['count'],
-        key5=value[4][key],
-        data5=value[4]['count']
-    )
+        # Replace the placeholders in the HTML template with actual values
+        html = html_template.format(
+            username=username,
+            type='Voice Actor' if key == 'voiceActor' else key.capitalize(),
+            format='Manga',
+            key1=value[0][key],
+            data1=value[0]['count'],
+            key2=value[1][key],
+            data2=value[1]['count'],
+            key3=value[2][key],
+            data3=value[2]['count'],
+            key4=value[3][key],
+            data4=value[3]['count'],
+            key5=value[4][key],
+            data5=value[4]['count']
+        )
 
-    return Markup(html)
+        return Markup(html)
 
-def generate_socialStats_svg(value, username, colors):
-    # Read the HTML template
-    with open('Pages/templates/SVGs/socialStatsSVG.html', 'r') as file:
-        html_template = file.read()
+def generate_socialStats_svg(value, username, colors, type):
+    if type == 'Default':
+        # Read the HTML template
+        with open('Pages/templates/SVGs/socialStatsSVG.html', 'r') as file:
+            html_template = file.read()
 
-    # Escape the curly braces in the HTML template
-    html_template = html_template.replace('{', '{{').replace('}', '}}')
+        # Escape the curly braces in the HTML template
+        html_template = html_template.replace('{', '{{').replace('}', '}}')
 
-    # Unescape the placeholders that you want to replace
-    placeholders = ['username', 'totalFollowers', 'totalFollowing', 'totalActivity']
-    for placeholder in placeholders:
-        html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
+        # Unescape the placeholders that you want to replace
+        placeholders = ['username', 'totalFollowers', 'totalFollowing', 'totalActivity']
+        for placeholder in placeholders:
+            html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
 
-    # Inline the styles
-    html_template = inline_styles(
-        os.path.join('Pages', 'templates', 'SVGs', 'socialStatsSVG.html'),
-        os.path.join('public', 'styles', 'SVGs', 'DefaultStatsStyles.css'),
-        0,  # dasharray is not used in this SVG
-        0,   # dashoffset is not used in this SVG
-        colors
-    )
+        # Inline the styles
+        html_template = inline_styles(
+            os.path.join('Pages', 'templates', 'SVGs', 'socialStatsSVG.html'),
+            os.path.join('public', 'styles', 'SVGs', 'DefaultStatsStyles.css'),
+            0,  # dasharray is not used in this SVG
+            0,   # dashoffset is not used in this SVG
+            colors
+        )
 
-    # Replace the placeholders in the HTML template with actual values
-    html = html_template.format(
-        username=username,
-        **value
-    )
+        # Replace the placeholders in the HTML template with actual values
+        html = html_template.format(
+            username=username,
+            **value
+        )
 
-    return Markup(html)
+        return Markup(html)
