@@ -34,7 +34,7 @@ class Svg(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), nullable=False)
     key = db.Column(db.String(80), nullable=False)
-    data = db.Column(db.Text, nullable=False)
+    data = db.Column(db.Text, nullable=True)
     keys = db.Column(db.String(255), nullable=False)
 
 key_types = {
@@ -83,7 +83,7 @@ def generate_svgs(username):
         # Generate an SVG for the key
         svg_data = generate_svg(key, data.get(key) if data else None, 0, username, colors)
         # Store the SVG in the database
-        svg = Svg(username=username, key=key, data=svg_data, keys=','.join(keys))  # Save keys in database
+        svg = Svg(username=username, key=key, data=svg_data, keys=','.join(keys))
         db.session.add(svg)
     db.session.commit()
 
@@ -114,7 +114,7 @@ def display_svgs(username):
 @app.route('/get_svg/<username>/<key>', methods=['GET'])
 def get_svg(username, key):
     svg = Svg.query.filter_by(username=username, key=key).first()
-    if svg:
+    if svg and svg.data:
         response = make_response(svg.data)
         response.headers['Content-Type'] = 'image/svg+xml'
         return response

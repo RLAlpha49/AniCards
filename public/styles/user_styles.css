@@ -211,6 +211,24 @@ img {
     border-radius: 10px;
 }
 
+button.svg-button {
+    display: inline-block !important;
+    min-width: 100% !important;
+    padding: 10px !important;
+    border: 6px solid #C5C6C7 !important;
+    border-radius: 10px !important;
+    background: none !important;
+    color: inherit !important;
+    font-size: inherit !important;
+    cursor: pointer !important;
+    text-align: center !important;
+    box-sizing: border-box;
+}
+
+div[id] {
+    width: 100%;
+}
+
 .favicon {
     border: none;
 }

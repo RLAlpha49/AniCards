@@ -4,7 +4,7 @@ import os
 
 def generate_svg(title, value, y, username, colors, type='Default'):
     if value is None:
-        return generate_button(title, y)
+        return None
     else:
         if title == 'animeStats':
             return generate_animeStats_svg(value, username, colors, type)
