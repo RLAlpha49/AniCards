@@ -21,30 +21,20 @@ body {
     min-height: 100vh;
 }
 
-.content {
-    display: flex;
-    flex: 1 0 auto;
-    flex-direction: column;
-    align-items: center;
-}
-
-.center-container {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    width: 100%;
-    flex-grow: 1;
-}
-
 header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px;
+    padding: 5px;
     width: 100%;
     background-color: #1e1e2e;
     color: #66FCF1;
     box-sizing: border-box;
+}
+
+header a, header h1, header p {
+    padding: 0 5px;
+    margin: 0;
 }
 
 header a {
@@ -55,31 +45,46 @@ header a {
 }
 
 header h1 {
-    margin: 0;
-    padding: 0 10px;
+    font-size: 1.8em; 
 }
 
 header p {
-    margin: 0;
-    padding: 0 10px;
-}
-
-p {
-    color: #C5C6C7;
-    margin-bottom: 20px;
-    font-size: 1.2em;
-}
-
-.container {
-    width: 100%;
-    max-width: 90%;
+    color: #C5C6C7; 
+    margin-left: auto;
 }
 
 h1 {
-    text-align: center;
     color: #66FCF1;
-    margin-bottom: 2em;
     font-size: 2.5em;
+}
+
+p {
+    margin-bottom: 20px;
+    font-size: 1.2em;
+    padding: 10px 20px;
+}
+
+.content, .svg-item {
+    display: flex;
+    flex: 1 0 auto;
+    flex-direction: column;
+    align-items: center;
+}
+
+.container, .center-container {
+    width: 100%;
+}
+
+.center-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    flex-grow: 1;
+}
+
+.center-container h1 {
+    text-align: center;
+    margin-bottom: 2em;
 }
 
 .svg-container {
@@ -91,10 +96,6 @@ h1 {
 }
 
 .svg-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    flex: 1 0 auto;
     min-width: 200px;
 }
 
@@ -105,8 +106,7 @@ h1 {
     gap: 5px;
 }
 
-
-.svg-item button {
+.svg-item button, .svg-item select {
     flex: 1;
     margin: 0 5px;
     padding: 0.5em 1em;
@@ -120,34 +120,27 @@ h1 {
     max-width: 48%;
 }
 
+.svg-item select {
+    max-width: 100%;
+}
+
 .select-container {
     position: relative;
     flex: 1;
     margin: 0 5px;
-    width: 100%; /* Add this */
-    box-sizing: border-box; /* Add this */
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .svg-item select {
-    flex: 1;
-    margin: 0 5px;
-    padding: 0.5em 1em;
-    border: 2px solid #1F2833;
-    border-radius: 5px;
-    background-color: #45A29E;
-    color: #C5C6C7;
-    font-size: 0.9em;
-    cursor: pointer;
-    text-align: center;
     width: 100%;
     z-index: 1;
     position: relative;
     box-sizing: border-box;
-    appearance: none; /* Add this */
-    -webkit-appearance: none; /* Add this */
-    -moz-appearance: none; /* Add this */
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
 }
-
 
 .arrow {
     background: url('../images/dropdown-arrow.png') no-repeat;
@@ -159,14 +152,14 @@ h1 {
     top: 50%;
     transform: translateY(-50%) rotate(-90deg);
     pointer-events: none;
-    z-index: 2; /* Add this */
+    z-index: 2;
 }
 
 .svg-item select:focus + .arrow {
     transform: translateY(-50%) rotate(0deg);
 }
 
-.svg-item button:hover {
+.svg-item button:hover, .link-button:hover, .download-button:hover {
     background-color: #66FCF1;
     color: #0B0C10;
 }
@@ -193,7 +186,7 @@ h1 {
 
 .link-button, .download-button {
     display: inline-block;
-    width: 48%;
+    width: 100%;
     padding: 0.5em 1em;
     margin: 5px 0;
     background-color: #45A29E;
@@ -206,29 +199,25 @@ h1 {
     font-size: 0.9em;
 }
 
-.link-button:hover, .download-button:hover {
-    background-color: #66FCF1;
-    color: #0B0C10;
+img, button.svg-button {
+    border: 6px solid #C5C6C7;
+    border-radius: 10px;
 }
 
 img {
     width: auto;
     height: auto;
-    border: 6px solid #C5C6C7;
-    border-radius: 10px;
 }
 
 button.svg-button {
-    display: inline-block !important;
-    min-width: 100% !important;
-    padding: 10px !important;
-    border: 6px solid #C5C6C7 !important;
-    border-radius: 10px !important;
-    background: none !important;
-    color: inherit !important;
-    font-size: inherit !important;
-    cursor: pointer !important;
-    text-align: center !important;
+    display: inline-block;
+    min-width: 100%;
+    padding: 10px;
+    background: none;
+    color: inherit;
+    font-size: inherit;
+    cursor: pointer;
+    text-align: center;
     box-sizing: border-box;
 }
 
@@ -250,13 +239,12 @@ div[id] {
 .modal {
     display: none; 
     position: fixed; 
-    z-index: 1; 
+    z-index: 3; 
     left: 0;
     top: 0;
     width: 100%; 
     height: 100%; 
     overflow: auto; 
-    z-index: 3;
 }
 
 .modal-background {
@@ -266,22 +254,25 @@ div[id] {
     background-color: rgba(0,0,0,0.4);
 }
 
+.modal-content, .modal-content button {
+    border-radius: 5px;
+    color: #C5C6C7;
+    font-size: 1.2em;
+}
+
 .modal-content {
     position: fixed;
     left: 50%;
-    top: 100%;
+    top: 50%;
     transform: translate(-50%, -50%);
     background-color: #1F2833;
     margin: auto;
     padding: 20px;
     border: 1px solid #45A29E;
     width: 80%;
-    max-width: 500px; 
-    color: #C5C6C7;
-    font-size: 1.2em;
-    border-radius: 5px;
+    max-width: 600px;
+    word-wrap: break-word;
     animation: slideUp 0.5s forwards;
-
 }
 
 .modal-content button {
@@ -289,13 +280,10 @@ div[id] {
     padding: 0.5em 1em;
     margin: 5px 0;
     background-color: #45A29E;
-    color: #C5C6C7;
     border: 2px solid #1F2833;
-    border-radius: 5px;
     cursor: pointer;
     text-decoration: none;
     text-align: center;
-    font-size: 0.9em;
 }
 
 .modal-content button:hover {
@@ -303,18 +291,18 @@ div[id] {
     color: #0B0C10;
 }
 
-.close {
-    color: #C5C6C7;
-    float: right;
-    font-size: 28px;
-    font-weight: bold;
-}
-
 .close:hover,
 .close:focus {
     color: #66FCF1;
     text-decoration: none;
     cursor: pointer;
+}
+
+.close {
+    color: #C5C6C7;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
 }
 
 .copy-section {
@@ -350,8 +338,9 @@ div[id] {
 }
 
 .footer-div p, .footer-div a {
-    color: #C5C6C7;
+    color: inherit;
     margin: 0;
+    padding: 0;
 }
 
 .footer-div a:hover {
@@ -364,10 +353,6 @@ div[id] {
     display: flex;
     justify-content: center;
     gap: 10px;
-}
-
-.footer-div li {
-    display: inline;
 }
 
 .favicon {

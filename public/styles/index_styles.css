@@ -8,24 +8,22 @@
 #0B0C10: Black (Background color of the body)
 */
 
-body {
-    font-family: 'Helvetica Neue', sans-serif;
-    background-color: #1b1d25;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    justify-self: center;
-    align-items: center;
-    min-height: 100vh;
-    color: #C5C6C7;
-}
-
-
-.center-container {
+body, .center-container {
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
+    color: #C5C6C7;
+}
+
+body {
+    font-family: 'Helvetica Neue', sans-serif;
+    background-color: #1b1d25;
+    margin: 0;
+    min-height: 100vh;
+}
+
+.center-container {
     flex-grow: 1;
     text-align: center;
     flex-wrap: wrap;
@@ -36,11 +34,16 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px;
+    padding: 5px;
     width: 100%;
     background-color: #1e1e2e;
     color: #66FCF1;
     box-sizing: border-box;
+}
+
+header a, header h1, header p {
+    padding: 0 5px;
+    margin: 0;
 }
 
 header a {
@@ -51,23 +54,21 @@ header a {
 }
 
 header h1 {
-    margin: 0;
-    padding: 0 10px;
+    font-size: 1.8em; /* Smaller font size */
+    padding: 0 5px; /* Less padding */
 }
 
 header p {
-    margin: 0;
-    padding: 0 10px;
+    color: #C5C6C7; 
+    margin-left: auto;
 }
 
 h1 {
     color: #66FCF1;
     font-size: 2.5em;
-    margin-bottom: 10px;
 }
 
 p {
-    color: #C5C6C7;
     margin-bottom: 20px;
     font-size: 1.2em;
     padding: 10px 20px;
@@ -79,27 +80,30 @@ input[type="text"] {
     border-radius: 5px;
     width: 200px;
     background-color: #1F2833;
-    color: #C5C6C7;
 }
 
+#dataForm, #dataForm div {
+    display: flex;
+    justify-content: space-around; 
+    flex-wrap: wrap;
+    width: 100%;
+}
 #dataForm {
     background-color: #1F2833;
     border-radius: 5px;
     padding: 10px 20px;
-    max-width: 900px;  /* Replace width: 900px; with max-width: 900px; */
+    max-width: 900px; 
     margin: 20px auto;
     color: #C5C6C7;
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;  /* Add this line */
-    justify-content: space-around;
 }
 
-#formLabelWrapper {
+#formLabelWrapper, #dataForm label {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 5px;
+    width: calc(33.33% - 10px);
+    box-sizing: border-box;
+    padding: 10px 10px;
 }
 
 #formLabel {
@@ -120,25 +124,8 @@ input[type="text"] {
     text-decoration: none;
 }
 
-#dataForm div {
-    display: flex;
-    justify-content: space-around; 
-    flex-wrap: wrap;
-    width: 100%;
-}
-
-#dataForm label {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: calc(33.33% - 10px);
-    box-sizing: border-box;
-    padding: 10px 10px;
-}
-
 #dataForm input[type="checkbox"] {
     appearance: none;
-    background-color: #1F2833;
     border: 2px solid #66FCF1;
     border-radius: 4px;
     display: inline-block;
@@ -207,9 +194,4 @@ button:hover {
     display: flex;
     justify-content: center;
     gap: 10px;
-
-}
-
-.footer-div li {
-    display: inline;
 }
