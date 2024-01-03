@@ -1,7 +1,6 @@
 
 # TODO: Add option for light or dark mode for Stat Cards (Part of Themes)
 # TODO: Add option to change theme of Stat Cards (Need more to be made/designed if people want them)
-# TODO: Add Footer
 # TODO: Add a Banner/Badges generator from user input (Implementing imgur API & New website page to showcase Banner/Badges generated)
 
 # Import necessary modules
