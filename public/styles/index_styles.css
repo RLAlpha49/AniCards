@@ -16,7 +16,7 @@ body {
     flex-direction: column;
     justify-self: center;
     align-items: center;
-    min-height: 100vh;  /* Replace height: 100vh; with min-height: 100vh; */
+    min-height: 100vh;
     color: #C5C6C7;
 }
 
@@ -28,7 +28,7 @@ body {
     align-items: center;
     flex-grow: 1;
     text-align: center;
-    flex-wrap: wrap; /* Add this line */
+    flex-wrap: wrap;
     padding: 0 5%;
 }
 
@@ -38,7 +38,7 @@ header {
     align-items: center;
     padding: 20px;
     width: 100%;
-    background-color: #1F2833;
+    background-color: #1e1e2e;
     color: #66FCF1;
     box-sizing: border-box;
 }
@@ -176,4 +176,40 @@ button {
 button:hover {
     background-color: #66FCF1;
     color: #0B0C10;
+}
+
+.footer-div {
+    margin-top: 40px; 
+    flex-shrink: 0;
+    background-color: #171723;
+    color: #C5C6C7;
+    text-align: center;
+    padding: 10px; 
+    width: 100%;
+    border-top: 1px solid #66FCF1;
+    font-size: 0.8em;
+    box-sizing: border-box;
+}
+
+.footer-div p, .footer-div a {
+    color: #C5C6C7;
+    margin: 0;
+    padding: 0;
+}
+
+.footer-div a:hover {
+    color: #66FCF1;
+}
+
+.footer-div ul {
+    list-style-type: none;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+
+}
+
+.footer-div li {
+    display: inline;
 }

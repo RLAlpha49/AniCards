@@ -16,13 +16,16 @@ body {
     padding: 0;
     height: 100vh;
     color: #C5C6C7;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
 }
 
 .content {
     display: flex;
+    flex: 1 0 auto;
     flex-direction: column;
     align-items: center;
-    height: 100%;
 }
 
 .center-container {
@@ -39,7 +42,7 @@ header {
     align-items: center;
     padding: 20px;
     width: 100%;
-    background-color: #1F2833;
+    background-color: #1e1e2e;
     color: #66FCF1;
     box-sizing: border-box;
 }
@@ -331,6 +334,40 @@ div[id] {
 
 #copyStatus.hide {
     opacity: 0;
+}
+
+.footer-div {
+    margin-top: 40px; 
+    flex-shrink: 0;
+    background-color: #171723;
+    color: #C5C6C7;
+    text-align: center;
+    padding: 10px; 
+    width: 100%;
+    border-top: 1px solid #66FCF1;
+    font-size: 0.8em;
+    box-sizing: border-box;
+}
+
+.footer-div p, .footer-div a {
+    color: #C5C6C7;
+    margin: 0;
+}
+
+.footer-div a:hover {
+    color: #66FCF1;
+}
+
+.footer-div ul {
+    list-style-type: none;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+
+.footer-div li {
+    display: inline;
 }
 
 .favicon {

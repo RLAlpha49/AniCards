@@ -80,6 +80,17 @@
         </div>
     </div>
 
+    <footer class="footer-div">
+        <p>© 2024 Alpha49</p>
+        <ul>
+            <li><a href="https://yourwebsite.com">Your Website</a></li>
+            <li><a href="https://twitter.com/yourusername">Twitter</a></li>
+            <li><a href="mailto:your@email.com">Contact</a></li>
+        </ul>
+        <p>This application uses the AniList API. This project is not affiliated with AniList in any way.</p>
+        <p>This project is licensed under the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GNU General Public License v3.0</a>.</p>
+    </footer>
+
     <script>
         // Define the keys and username variables that are used in main.js
         const keys = [{% for key in keys %}'{{ key }}'{% if not loop.last %}, {% endif %}{% endfor %}];
