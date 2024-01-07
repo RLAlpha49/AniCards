@@ -2,6 +2,16 @@
 
 This is a Flask application that generates SVG stat cards for AniList users. It fetches user data from AniList and generates an SVG image that displays the user's statistics in a visually appealing way.
 
+## Table of Contents
+
+- [Features](#features)
+- [How it Works](#how-it-works)
+- [Prerequisites](#prerequisites)
+- [Running the Application](#running-the-application)
+- [Deploying to Heroku](#deploying-to-heroku)
+- [License](#license)
+- [Disclaimer](#disclaimer)
+
 ## Features
 
 - Fetches user data from AniList using the AniList GraphQL API.
@@ -13,9 +23,14 @@ This is a Flask application that generates SVG stat cards for AniList users. It 
 
 The application uses Flask and SQLAlchemy to serve a web application and interact with a PostgreSQL database. When a request is made to generate SVGs for a user, the application fetches the user's data from AniList, generates an SVG image, and stores the SVG in the database. If the SVG for a user already exists in the database, the application serves the cached SVG instead of generating a new one.
 
-## Running the Application
+## Prerequisites
 
-To run the application locally, you need to have Python and PostgreSQL installed. 
+Before running the application, make sure you have the following installed:
+
+- Python
+- PostgreSQL
+
+## Running the Application
 
 First, clone the repository:
 
@@ -62,6 +77,10 @@ heroku create
 git push heroku master
 heroku open
 ```
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
 
 ## Disclaimer
 
