@@ -38,7 +38,7 @@ class Svg(db.Model):
     keys = db.Column(db.String(255), nullable=False)
 
 key_types = {
-    'animeStats': [],
+    'animeStats': ['idk', 'test'],
     'socialStats': [],
     'mangaStats': [],
     'animeGenres': [],

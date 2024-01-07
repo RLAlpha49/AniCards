@@ -153,6 +153,7 @@ p {
     transform: translateY(-50%) rotate(-90deg);
     pointer-events: none;
     z-index: 2;
+    transition: transform 0.3s ease;
 }
 
 .svg-item select:focus + .arrow {
