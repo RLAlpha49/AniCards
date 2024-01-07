@@ -96,6 +96,7 @@
         const keys = [{% for key in keys %}'{{ key }}'{% if not loop.last %}, {% endif %}{% endfor %}];
         const username = '{{ username }}';
     </script>
+    <script src="{{ url_for('static', filename='scripts/forceRenderSVGs.js') }}"></script>
     <script src="{{ url_for('static', filename='scripts/svg_button.js') }}"></script>
     <script src="{{ url_for('static', filename='scripts/fetch_data.js') }}"></script>
     <script src="{{ url_for('static', filename='scripts/download.js') }}"></script>
