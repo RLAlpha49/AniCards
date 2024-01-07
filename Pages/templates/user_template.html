@@ -34,27 +34,11 @@
                                     {% endfor %}
                                 </select>
                                 <div class="arrow"></div>
-                            </div>
-
-                            <!-- Button to open color picker popup -->
-                            <button id="color-button-{{ key }}" onclick="openColorPicker('{{ key }}')">Pick Colors</button>
+                            </div> 
                         </div>
 
                         <div id="{{ key }}">
                             Loading...
-                        </div>
-
-                        <!-- Color picker popup -->
-                        <div id="color-picker-{{ key }}" style="display: none;">
-                            <label for="color1-{{ key }}">Color 1:</label>
-                            <input type="text" id="color1-{{ key }}" name="color1-{{ key }}" placeholder="#FFFFFF">
-                            <label for="color2-{{ key }}">Color 2:</label>
-                            <input type="text" id="color2-{{ key }}" name="color2-{{ key }}" placeholder="#FFFFFF">
-                            <label for="color3-{{ key }}">Color 3:</label>
-                            <input type="text" id="color3-{{ key }}" name="color3-{{ key }}" placeholder="#FFFFFF">
-                            <label for="color4-{{ key }}">Color 4:</label>
-                            <input type="text" id="color4-{{ key }}" name="color4-{{ key }}" placeholder="#FFFFFF">
-                            <button onclick="applyColors('{{ key }}')">Apply colors</button>
                         </div>
 
                         <div class="button-wrapper">

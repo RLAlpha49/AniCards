@@ -20,6 +20,24 @@
         <p>This application fetches user data from AniList and displays it in a visually appealing format. Enter a username below to get started.</p>
         <input type="text" id="usernameInput" placeholder="Enter username">
         
+        <form id="colorForm" action="/username/generate_svgs" method="post">
+            <h2>Color Selection</h2>
+            <p>If a color is not changed, it will not be affected.</p>
+            <!-- Color picker inputs -->
+            <label>
+                <span>Color 1:</span>
+                <input type="color" id="color1" name="colors">
+            </label>
+            <label>
+                <span>Color 2:</span>
+                <input type="color" id="color2" name="colors">
+            </label>
+            <label>
+                <span>Color 3:</span>
+                <input type="color" id="color3" name="colors">
+            </label>
+        </form>
+
         <!-- Checkboxes for selecting data -->
         <form id="dataForm" action="/username/generate_svgs" method="post">
             <div id="formLabelWrapper">
