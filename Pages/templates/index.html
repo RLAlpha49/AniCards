@@ -8,104 +8,113 @@
     <link rel="icon" href="{{ url_for('static', filename='images/favicon.png') }}">
 </head>
 <body>
-    <header>
-        <a href="/">
-            <img src="{{ url_for('static', filename='images/favicon.png') }}" alt="Site Icon" style="height: 64px; width: 64px;">
-            <h1>ASCG - AniList Stat Cards Generator</h1>
-        </a>
-        <p>Version: v1.0</p>
-    </header>
-    <div class="center-container">
-        <h1>AniList Stat Cards Generator</h1>
-        <p>This application fetches user data from AniList and displays it in a visually appealing format. Enter a username below to get started.</p>
-        <input type="text" id="usernameInput" placeholder="Enter username">
-        
-        <form id="colorForm" action="/username/generate_svgs" method="post">
-            <h2>Color Selection</h2>
-            <p>If a color is not changed, it will not be affected.</p>
-            <!-- Color picker inputs -->
-            <label>
-                <span>Title Color:</span>
-                <input type="color" id="color1" name="colors">
-            </label>
-            <label>
-                <span>Background Color:</span>
-                <input type="color" id="color2" name="colors">
-            </label>
-            <label>
-                <span>Text Color:</span>
-                <input type="color" id="color3" name="colors">
-            </label>
-            <label>
-                <span>Circle Color:</span>
-                <input type="color" id="color4" name="colors">
-            </label>
-        </form>
+    <div class="container">
+        <div class="sidebar">
+            <img src="{{ url_for('static', filename='images/favicon.png') }}" alt="Site Icon" style="height: 54px; width: 54px;">
+        </div>
+        <div class="main">
+            <header>
+                <a href="/">
+                    <img src="{{ url_for('static', filename='images/favicon.png') }}" alt="Site Icon" style="height: 64px; width: 64px;">
+                    <h1>ASCG - AniList Stat Cards Generator</h1>
+                </a>
+                <p>Version: v1.0</p>
+            </header>
+            <div class="main-content">
+                <div class="center-container">
+                    <h1>AniList Stat Cards Generator</h1>
+                    <p>This application fetches user data from AniList and displays it in a visually appealing format. Enter a username below to get started.</p>
+                    <input type="text" id="usernameInput" placeholder="Enter username">
+                    
+                    <form id="colorForm" action="/username/generate_svgs" method="post">
+                        <h2>Color Selection</h2>
+                        <p>If a color is not changed, it will not be affected.</p>
+                        <!-- Color picker inputs -->
+                        <label>
+                            <span>Title Color:</span>
+                            <input type="color" id="color1" name="colors">
+                        </label>
+                        <label>
+                            <span>Background Color:</span>
+                            <input type="color" id="color2" name="colors">
+                        </label>
+                        <label>
+                            <span>Text Color:</span>
+                            <input type="color" id="color3" name="colors">
+                        </label>
+                        <label>
+                            <span>Circle Color:</span>
+                            <input type="color" id="color4" name="colors">
+                        </label>
+                    </form>
 
-        <!-- Checkboxes for selecting data -->
-        <form id="dataForm" action="/username/generate_svgs" method="post">
-            <div id="formLabelWrapper">
-                <label id="formLabel">Stat Card Types</label>
-                <div id="selectAll" onclick="selectAllCheckboxes()">
-                    <span>Select All</span>
+                    <!-- Checkboxes for selecting data -->
+                    <form id="dataForm" action="/username/generate_svgs" method="post">
+                        <div id="formLabelWrapper">
+                            <label id="formLabel">Stat Card Types</label>
+                            <div id="selectAll" onclick="selectAllCheckboxes()">
+                                <span>Select All</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label>
+                                <input type="checkbox" id="animeStats" name="keys" value="animeStats">
+                                <span>Anime Stats (Count, Episodes Watched, Minutes Watched, Mean Score, Standard Deviation)</span>
+                            </label>
+                            <label>
+                                <input type="checkbox" id="socialStats" name="keys" value="socialStats">
+                                <span>Social Stats (Total Activities (30 Days), Followers, Following, Thread Posts/Comments, Reviews)</span>
+                            </label>
+                            <label>
+                                <input type="checkbox" id="mangaStats" name="keys" value="mangaStats">
+                                <span>Manga Stats (Count, Chapters Read, Volumes Read, Mean Score, Standard Deviation)</span>
+                            </label>
+                            <label>
+                                <input type="checkbox" id="animeGenres" name="keys" value="animeGenres">
+                                <span>Anime Genres (Top 5 Count)</span>
+                            </label>
+                            <label>
+                                <input type="checkbox" id="animeTags" name="keys" value="animeTags">
+                                <span>Anime Tags (Top 5 Count)</span>
+                            </label>
+                            <label>
+                                <input type="checkbox" id="animeVoiceActors" name="keys" value="animeVoiceActors">
+                                <span>Anime Voice Actors (Top 5 Count)</span>
+                            </label>
+                            <label>
+                                <input type="checkbox" id="animeStudios" name="keys" value="animeStudios">
+                                <span>Anime Studios (Top 5 Count)</span>
+                            </label>
+                            <label>
+                                <input type="checkbox" id="animeStaff" name="keys" value="animeStaff">
+                                <span>Anime Staff (Top 5 Count)</span>
+                            </label>
+                            <label>
+                                <input type="checkbox" id="mangaGenres" name="keys" value="mangaGenres">
+                                <span>Manga Genres (Top 5 Count)</span>
+                            </label>
+                            <label>
+                                <input type="checkbox" id="mangaTags" name="keys" value="mangaTags">
+                                <span>Manga Tags (Top 5 Count)</span>
+                            </label>
+                            <label>
+                                <input type="checkbox" id="mangaStaff" name="keys" value="mangaStaff">
+                                <span>Manga Staff (Top 5 Count)</span>
+                            </label>
+
+                            <!-- Hidden inputs for color data -->
+                            <input type="hidden" id="hiddenColor1" name="colors">
+                            <input type="hidden" id="hiddenColor2" name="colors">
+                            <input type="hidden" id="hiddenColor3" name="colors">
+                            <input type="hidden" id="hiddenColor4" name="colors">
+                        </div>
+                        <input type="submit" value="Generate SVGs" style="display: none;"> <!-- Hide the original submit button -->
+                    </form>
+
+                    <button onclick="validateForm()">Generate/ReGenerate Stat Cards</button>
                 </div>
             </div>
-            <div>
-                <label>
-                    <input type="checkbox" id="animeStats" name="keys" value="animeStats">
-                    <span>Anime Stats (Count, Episodes Watched, Minutes Watched, Mean Score, Standard Deviation)</span>
-                </label>
-                <label>
-                    <input type="checkbox" id="socialStats" name="keys" value="socialStats">
-                    <span>Social Stats (Total Activities (30 Days), Followers, Following, Thread Posts/Comments, Reviews)</span>
-                </label>
-                <label>
-                    <input type="checkbox" id="mangaStats" name="keys" value="mangaStats">
-                    <span>Manga Stats (Count, Chapters Read, Volumes Read, Mean Score, Standard Deviation)</span>
-                </label>
-                <label>
-                    <input type="checkbox" id="animeGenres" name="keys" value="animeGenres">
-                    <span>Anime Genres (Top 5 Count)</span>
-                </label>
-                <label>
-                    <input type="checkbox" id="animeTags" name="keys" value="animeTags">
-                    <span>Anime Tags (Top 5 Count)</span>
-                </label>
-                <label>
-                    <input type="checkbox" id="animeVoiceActors" name="keys" value="animeVoiceActors">
-                    <span>Anime Voice Actors (Top 5 Count)</span>
-                </label>
-                <label>
-                    <input type="checkbox" id="animeStudios" name="keys" value="animeStudios">
-                    <span>Anime Studios (Top 5 Count)</span>
-                </label>
-                <label>
-                    <input type="checkbox" id="animeStaff" name="keys" value="animeStaff">
-                    <span>Anime Staff (Top 5 Count)</span>
-                </label>
-                <label>
-                    <input type="checkbox" id="mangaGenres" name="keys" value="mangaGenres">
-                    <span>Manga Genres (Top 5 Count)</span>
-                </label>
-                <label>
-                    <input type="checkbox" id="mangaTags" name="keys" value="mangaTags">
-                    <span>Manga Tags (Top 5 Count)</span>
-                </label>
-                <label>
-                    <input type="checkbox" id="mangaStaff" name="keys" value="mangaStaff">
-                    <span>Manga Staff (Top 5 Count)</span>
-                </label>
-
-                <!-- Hidden inputs for color data -->
-                <input type="hidden" id="hiddenColor1" name="colors">
-                <input type="hidden" id="hiddenColor2" name="colors">
-                <input type="hidden" id="hiddenColor3" name="colors">
-                <input type="hidden" id="hiddenColor4" name="colors">
-            </div>
-            <input type="submit" value="Generate SVGs" style="display: none;"> <!-- Hide the original submit button -->
-        </form>
-
-        <button onclick="validateForm()">Generate/ReGenerate Stat Cards</button>
+        </div>
     </div>
 
     <footer class="footer-div">
