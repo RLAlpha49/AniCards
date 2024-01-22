@@ -158,7 +158,7 @@ input[type="text"] {
 #colorForm {
     background-color: #1F2833;
     border-radius: 5px;
-    padding: 10px 20px;
+    padding: 2% 4%;
     max-width: 900px; 
     margin: 20px auto;
     color: #C5C6C7;
@@ -168,9 +168,9 @@ input[type="text"] {
     display: flex;
     flex-direction: column;
     align-items: center;
-    width: calc(33.33% - 10px);
+    width: calc(50% - 10px); 
     box-sizing: border-box;
-    padding: 10px 10px;
+    padding: 2% 4%;
     margin-top: 5px;
 }
 
@@ -245,4 +245,19 @@ button:hover {
     display: flex;
     justify-content: center;
     gap: 10px;
+}
+
+#dataForm, #colorForm {
+    padding: 2% 4%; 
+    max-width: 70%
+}
+
+#dataForm div{
+    padding: 2% 4%; 
+    width: calc(90% - 2%); 
+}
+
+#colorForm label {
+    padding: 2% 4%; 
+    width: calc(50% - 2%); 
 }
