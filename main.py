@@ -71,14 +71,17 @@ def generate_svgs(username):
     # Fetch the data and generate an SVG for each key
     data = fetch_anilist_data(username, keys)
     
-    # Define colors for the SVGs
-    colors = [
-        'fe428e',  # title color
-        '#fe428e',  # circle color (needs # symbol)
-        'e4e2e2',  # background color
-        'a9fef7'  # text color
-    ]
+    # Get colors from the form data
+    colors = request.form.getlist('colors')  # Get list of colors
+    colors = [color.lstrip('#') for color in colors]  # Remove '#' from the start of each color
 
+    # If no colors were selected, use default colors
+    if not colors or len(colors) != 4:
+        colors = ['fe428e', 'fe428e', 'e4e2e2', 'a9fef7']
+    else:
+        default_colors = ['fe428e', 'fe428e', 'e4e2e2', 'a9fef7']
+        colors = [color if color != '000000' else default for color, default in zip(colors, default_colors)]
+    
     for key in keys:
         # Generate an SVG for the key
         svg_data = generate_svg(key, data.get(key) if data else None, 0, username, colors)

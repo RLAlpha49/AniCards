@@ -25,16 +25,20 @@
             <p>If a color is not changed, it will not be affected.</p>
             <!-- Color picker inputs -->
             <label>
-                <span>Color 1:</span>
+                <span>Title Color:</span>
                 <input type="color" id="color1" name="colors">
             </label>
             <label>
-                <span>Color 2:</span>
+                <span>Background Color:</span>
                 <input type="color" id="color2" name="colors">
             </label>
             <label>
-                <span>Color 3:</span>
+                <span>Text Color:</span>
                 <input type="color" id="color3" name="colors">
+            </label>
+            <label>
+                <span>Circle Color:</span>
+                <input type="color" id="color4" name="colors">
             </label>
         </form>
 
@@ -91,6 +95,12 @@
                     <input type="checkbox" id="mangaStaff" name="keys" value="mangaStaff">
                     <span>Manga Staff (Top 5 Count)</span>
                 </label>
+
+                <!-- Hidden inputs for color data -->
+                <input type="hidden" id="hiddenColor1" name="colors">
+                <input type="hidden" id="hiddenColor2" name="colors">
+                <input type="hidden" id="hiddenColor3" name="colors">
+                <input type="hidden" id="hiddenColor4" name="colors">
             </div>
             <input type="submit" value="Generate SVGs" style="display: none;"> <!-- Hide the original submit button -->
         </form>
@@ -109,6 +119,26 @@
         <p>This project is licensed under the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GNU General Public License v3.0</a>.</p>
     </footer>
 
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var dataForm = document.getElementById('dataForm');
+            dataForm.addEventListener('submit', function(event) {
+                var color1 = document.getElementById('color1');
+                var color2 = document.getElementById('color2');
+                var color3 = document.getElementById('color3');
+                var color4 = document.getElementById('color4');
+                console.log(color1.value, color2.value, color3.value, color4.value)
+
+                if (color1.value !== color1.defaultValue) document.getElementById('hiddenColor1').value = color1.value;
+                if (color2.value !== color2.defaultValue) document.getElementById('hiddenColor2').value = color2.value;
+                if (color3.value !== color3.defaultValue) document.getElementById('hiddenColor3').value = color3.value;
+                if (color4.value !== color4.defaultValue) document.getElementById('hiddenColor4').value = color4.value;
+
+                // If you want to prevent the form from being submitted after this code runs, uncomment the next line
+                event.preventDefault();
+            });
+        });
+    </script>
     <script src="{{ url_for('static', filename='scripts/fetchUserData.js') }}"></script>
     <script src="{{ url_for('static', filename='scripts/validateForm.js') }}"></script>
     <script src="{{ url_for('static', filename='scripts/selectAll.js') }}"></script>

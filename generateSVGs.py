@@ -57,9 +57,9 @@ def inline_styles(svg_file, css_file, dasharray, dashoffset, colors):
         styles = styles.replace('{', '{{').replace('}', '}}')
         styles = styles.replace('{{dasharray}}', str(dasharray)).replace('{{dashoffset}}', str(dashoffset))
         styles = styles.replace('{{title_color}}', colors[0])
-        styles = styles.replace('{{circle_color}}', colors[1])
         styles = styles.replace('{{background_color}}', colors[2])
         styles = styles.replace('{{text_color}}', colors[3])
+        styles = styles.replace('{{circle_color}}', colors[1])
 
     with open(svg_file, 'r') as f:
         svg = f.read()

@@ -3,11 +3,11 @@ svg {
 }
 
 [data-testid="card-title"] text {
-    fill: {title_color};
+    fill: #{title_color};
 }
 
 [data-testid="main-card-body"] circle {
-    stroke: {circle_color};
+    stroke: #{circle_color};
 }
 
 [data-testid="card-bg"] {
@@ -15,7 +15,7 @@ svg {
 }
 
 [data-testid="main-card-body"] text {
-    fill: {text_color};
+    fill: #{text_color};
 }
 
 .header {
