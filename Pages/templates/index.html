@@ -14,7 +14,7 @@
             <nav>
                 <ul>
                     <li><a href="/"><img src="{{ url_for('static', filename='images/home.png') }}" alt="Home"></a></li>
-                    <li><a href="#"><img src="{{ url_for('static', filename='images/stat-cards.png') }}" alt="Stat Cards"></a></li>
+                    <li><a href="/statcards"><img src="{{ url_for('static', filename='images/stat-cards.png') }}" alt="Stat Cards"></a></li>
                     <li><a href="#"><img src="{{ url_for('static', filename='images/wip.png') }}" alt="WIP"></a></li>
                 </ul>
             </nav>
@@ -138,6 +138,15 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            var links = document.querySelectorAll('.sidebar nav ul li a');
+            links.forEach(function(link) {
+                var img = link.querySelector('img');
+                if (link.href === window.location.href) {
+                    img.style.filter = 'invert(1) brightness(1)'; // Change color for active link
+                } else {
+                    img.style.filter = 'invert(1) brightness(0.6)'; // Default color for other links
+                }
+            });
             var usernameInput = document.getElementById('usernameInput');
             usernameInput.addEventListener('keypress', function(event) {
                 var key = event.which || event.keyCode;

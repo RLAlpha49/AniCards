@@ -28,7 +28,7 @@ body {
 }
 
 .sidebar {
-    width: 200px;
+    width: 150px;
     background-color: #16181f; 
     font-family: 'Helvetica Neue', sans-serif;
     color: #C5C6C7; 
@@ -46,13 +46,21 @@ body {
     align-items: center;
 }
 
-.sidebar nav ul li {
-    margin-bottom: 1em;
+
+.sidebar nav ul li a {
+    display: inline-block;
+    padding: 5px 15px; 
+    transition: filter 0.3s ease;
+    background-color: #16181f;
+}
+
+.sidebar nav ul li a:hover {
+    filter: brightness(120%); 
 }
 
 .sidebar nav ul li a img {
-    width: 32px; 
-    height: 32px; 
+    width: 24px; 
+    height: 24px; 
     filter: invert(1) brightness(0.6);
 }
 
