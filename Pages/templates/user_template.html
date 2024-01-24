@@ -8,72 +8,85 @@
     <link rel="icon" href="{{ url_for('static', filename='images/favicon.png') }}">
 </head>
 <body>
-    <div class="content">
-        <header>
-            <a href="/">
-                <img class="favicon" src="{{ url_for('static', filename='images/favicon.png') }}" alt="Site Icon" style="height: 64px; width: 64px;">
-                <h1>ASCG - AniList Stat Cards Generator</h1>
-            </a>
-            <p>Version: v1.0</p>
-        </header>
-        <div class="center-container">
-            <h1>{{ username }}</h1>
+    <div class="container">
+        <div class="sidebar">
+            <img src="{{ url_for('static', filename='images/favicon.png') }}" alt="Site Icon" style="height: 46px; width: 46px;">
+            <nav>
+                <ul>
+                    <li><a href="/"><img src="{{ url_for('static', filename='images/home.png') }}" alt="Home"></a></li>
+                    <li><a href="#"><img src="{{ url_for('static', filename='images/stat-cards.png') }}" alt="Stat Cards"></a></li>
+                    <li><a href="#"><img src="{{ url_for('static', filename='images/wip.png') }}" alt="WIP"></a></li>
+                </ul>
+            </nav>
+        </div>
+        <div class="main">
+            <header>
+                <a href="/">
+                    <img src="{{ url_for('static', filename='images/favicon.png') }}" alt="Site Icon" style="height: 64px; width: 64px;">
+                    <h1>ASCG - AniList Stat Cards Generator</h1>
+                </a>
+                <p>Version: v1.0</p>
+            </header>
+            <div class="content">
+                <div class="center-container">
+                    <h1>{{ username }}</h1>
 
-            <!-- SVG container -->
-            <div class="svg-container">
-                {% for key in keys %}
-                <div class="svg-item">
-                    <div class="svg-wrapper">
-                        <div class="svg-controls">
-                            <div class="select-container">
-                                <!-- Dropdown for SVG types -->
-                                <select id="svg-type-{{ key }}" onchange="changeSvgType('{{ key }}')">
-                                    <option value="default" selected>Default</option>
-                                    {% for type in svg_types[key] %}
-                                    <option value="{{ type }}">{{ type }}</option>
-                                    {% endfor %}
-                                </select>
-                                <div class="arrow"></div>
-                            </div> 
-                        </div>
+                    <!-- SVG container -->
+                    <div class="svg-container">
+                        {% for key in keys %}
+                        <div class="svg-item">
+                            <div class="svg-wrapper">
+                                <div class="svg-controls">
+                                    <div class="select-container">
+                                        <!-- Dropdown for SVG types -->
+                                        <select id="svg-type-{{ key }}" onchange="changeSvgType('{{ key }}')">
+                                            <option value="default" selected>Default</option>
+                                            {% for type in svg_types[key] %}
+                                            <option value="{{ type }}">{{ type }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <div class="arrow"></div>
+                                    </div> 
+                                </div>
 
-                        <div id="{{ key }}">
-                            Loading...
-                        </div>
+                                <div id="{{ key }}">
+                                    Loading...
+                                </div>
 
-                        <div class="button-wrapper">
-                            <button class="link-button" onclick="showLink('{{ url_for('get_svg_from_db', username=username, key=key, _external=True) }}')">Show Link</button>
-                            <button class="download-button" data-url="{{ url_for('get_svg_from_db', username=username, key=key, _external=True) }}" data-key="{{ key }}">Download PNG</button>
+                                <div class="button-wrapper">
+                                    <button class="link-button" onclick="showLink('{{ url_for('get_svg_from_db', username=username, key=key, _external=True) }}')">Show Link</button>
+                                    <button class="download-button" data-url="{{ url_for('get_svg_from_db', username=username, key=key, _external=True) }}" data-key="{{ key }}">Download PNG</button>
+                                </div>
+                            </div>
                         </div>
+                        {% endfor %}
                     </div>
                 </div>
-                {% endfor %}
             </div>
-        </div>
-    </div>
 
-    <div id="linkModal" class="modal">
-        <div class="modal-background"></div>
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <p id="linkText"></p>
-            <div class="copy-section">
-                <button onclick="copyLink()">Copy Link</button>
-                <p id="copyStatus"></p>
+            <div id="linkModal" class="modal">
+                <div class="modal-background"></div>
+                <div class="modal-content">
+                    <span class="close">&times;</span>
+                    <p id="linkText"></p>
+                    <div class="copy-section">
+                        <button onclick="copyLink()">Copy Link</button>
+                        <p id="copyStatus"></p>
+                    </div>
+                </div>
             </div>
-        </div>
+            <footer class="footer-div">
+                <p>© 2024 Alpha49</p>
+                <ul>
+                    <li><a href="https://mywebsite.com">Website</a></li>
+                    <li><a href="https://twitter.com/yourusername">Twitter</a></li>
+                    <li><a href="mailto:your@email.com">Contact</a></li>
+                </ul>
+                <p>This application uses the AniList API. This project is not affiliated with AniList in any way.</p>
+                <p>This project is licensed under the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GNU General Public License v3.0</a>.</p>
+            </footer>
+        </div> 
     </div>
-
-    <footer class="footer-div">
-        <p>© 2024 Alpha49</p>
-        <ul>
-            <li><a href="https://mywebsite.com">Website</a></li>
-            <li><a href="https://twitter.com/yourusername">Twitter</a></li>
-            <li><a href="mailto:your@email.com">Contact</a></li>
-        </ul>
-        <p>This application uses the AniList API. This project is not affiliated with AniList in any way.</p>
-        <p>This project is licensed under the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GNU General Public License v3.0</a>.</p>
-    </footer>
 
     <script>
         // Define the keys and username variables that are used in the link and download buttons

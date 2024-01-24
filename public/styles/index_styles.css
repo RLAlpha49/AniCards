@@ -294,3 +294,7 @@ button:hover {
     padding: 2% 4%; 
     width: calc(50% - 2%); 
 }
+
+#usernameInput {
+    color: #ffffff;
+}

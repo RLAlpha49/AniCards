@@ -13,7 +13,7 @@
             <img src="{{ url_for('static', filename='images/favicon.png') }}" alt="Site Icon" style="height: 46px; width: 46px;">
             <nav>
                 <ul>
-                    <li><a href="#"><img src="{{ url_for('static', filename='images/home.png') }}" alt="Home"></a></li>
+                    <li><a href="/"><img src="{{ url_for('static', filename='images/home.png') }}" alt="Home"></a></li>
                     <li><a href="#"><img src="{{ url_for('static', filename='images/stat-cards.png') }}" alt="Stat Cards"></a></li>
                     <li><a href="#"><img src="{{ url_for('static', filename='images/wip.png') }}" alt="WIP"></a></li>
                 </ul>
@@ -138,6 +138,14 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            var usernameInput = document.getElementById('usernameInput');
+            usernameInput.addEventListener('keypress', function(event) {
+                var key = event.which || event.keyCode;
+                if (key === 13) {
+                    validateForm();
+                    event.preventDefault(); 
+                }
+            });
             var dataForm = document.getElementById('dataForm');
             dataForm.addEventListener('submit', function(event) {
                 var color1 = document.getElementById('color1');
@@ -151,7 +159,6 @@
                 if (color3.value !== color3.defaultValue) document.getElementById('hiddenColor3').value = color3.value;
                 if (color4.value !== color4.defaultValue) document.getElementById('hiddenColor4').value = color4.value;
 
-                // If you want to prevent the form from being submitted after this code runs, uncomment the next line
                 event.preventDefault();
             });
         });
