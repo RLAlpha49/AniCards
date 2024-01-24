@@ -21,10 +21,6 @@
         </div>
         <div class="main">
             <header>
-                <a href="/">
-                    <img src="{{ url_for('static', filename='images/favicon.png') }}" alt="Site Icon" style="height: 64px; width: 64px;">
-                    <h1>ASCG - AniList Stat Cards Generator</h1>
-                </a>
                 <p>Version: v1.0</p>
             </header>
             <div class="content">
@@ -98,9 +94,11 @@
             links.forEach(function(link) {
                 var img = link.querySelector('img');
                 if (link.href === window.location.href) {
-                    img.style.filter = 'invert(1) brightness(1)'; // Change color for active link
+                    img.style.filter = 'invert(1) brightness(1)';
+                    link.style.backgroundColor = '#16181f'; 
                 } else {
-                    img.style.filter = 'invert(1) brightness(0.6)'; // Default color for other links
+                    img.style.filter = 'invert(1) brightness(0.6)';
+                    link.style.backgroundColor = 'transparent';
                 }
             });
         });
