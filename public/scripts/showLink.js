@@ -2,7 +2,9 @@ var modal = document.getElementById("linkModal");
 var linkText = document.getElementById("linkText");
 
 function showLink(link) {
-    linkText.textContent = link;
+    // Replace 'http' with 'https' in the link
+    var secureLink = link.replace('http://', 'https://');
+    linkText.textContent = secureLink;
     modal.style.display = "block";
 }
 

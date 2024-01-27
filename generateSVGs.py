@@ -125,6 +125,14 @@ def generate_animeStats_svg(value, username, colors, type):
 
         return Markup(html)
 
+def calculate_font_size(text, initial_font_size, max_width):
+    scaling_factor = 0.6  # Adjust this value based on your specific font
+    estimated_text_width = len(text) * initial_font_size * scaling_factor
+    while estimated_text_width > max_width:
+        initial_font_size -= 1
+        estimated_text_width = len(text) * initial_font_size * scaling_factor
+    return initial_font_size
+
 def generate_extraAnimeStats_svg(value, username, key, colors, type):
     if type == 'Default':
         # Read the HTML template
@@ -135,7 +143,7 @@ def generate_extraAnimeStats_svg(value, username, key, colors, type):
         html_template = html_template.replace('{', '{{').replace('}', '}}')
 
         # Unescape the placeholders that you want to replace
-        placeholders = ['username', 'count', 'data1', 'data2', 'data3', 'data4', 'data5']
+        placeholders = ['username', 'count', 'data1', 'data2', 'data3', 'data4', 'data5', 'headerStyle']
         for placeholder in placeholders:
             html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
 
@@ -148,6 +156,17 @@ def generate_extraAnimeStats_svg(value, username, key, colors, type):
             colors
         )
 
+        # Calculate the font size
+        text = f"{username}'s Top Manga {key.capitalize()}s"
+        initial_font_size = 18
+        max_width = 320
+        font_size = calculate_font_size(text, initial_font_size, max_width)
+        print(font_size)
+
+        # Generate the CSS rules for the header class
+        header_style = f"font-weight: 600; font-family: 'Segoe UI', Ubuntu, Sans-Serif; fill: #fe428e; animation: fadeInAnimation 0.8s ease-in-out forwards; font-size: {font_size}px;"
+        print(header_style) 
+        
         # Replace the placeholders in the HTML template with actual values
         html = html_template.format(
             username=username,
@@ -162,7 +181,8 @@ def generate_extraAnimeStats_svg(value, username, key, colors, type):
             key4=value[3][key],
             data4=value[3]['count'],
             key5=value[4][key],
-            data5=value[4]['count']
+            data5=value[4]['count'],
+            headerStyle=header_style
         )
 
         return Markup(html)
@@ -231,7 +251,7 @@ def generate_extraMangaStats_svg(value, username, key, colors, type):
         html_template = html_template.replace('{', '{{').replace('}', '}}')
 
         # Unescape the placeholders that you want to replace
-        placeholders = ['username', 'count', 'data1', 'data2', 'data3', 'data4', 'data5']
+        placeholders = ['username', 'count', 'data1', 'data2', 'data3', 'data4', 'data5', 'headerStyle']
         for placeholder in placeholders:
             html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
 
@@ -243,6 +263,15 @@ def generate_extraMangaStats_svg(value, username, key, colors, type):
             0,   # dashoffset is not used in this SVG
             colors
         )
+
+        # Calculate the font size
+        text = f"{username}'s Top Manga {key.capitalize()}s"
+        initial_font_size = 18
+        max_width = 320
+        font_size = calculate_font_size(text, initial_font_size, max_width)
+        
+        # Generate the CSS rules for the header class
+        header_style = f"font-weight: 600; font-family: 'Segoe UI', Ubuntu, Sans-Serif; fill: #fe428e; animation: fadeInAnimation 0.8s ease-in-out forwards; font-size: {font_size}px;"
 
         # Replace the placeholders in the HTML template with actual values
         html = html_template.format(
@@ -258,7 +287,8 @@ def generate_extraMangaStats_svg(value, username, key, colors, type):
             key4=value[3][key],
             data4=value[3]['count'],
             key5=value[4][key],
-            data5=value[4]['count']
+            data5=value[4]['count'],
+            headerStyle=header_style
         )
 
         return Markup(html)
