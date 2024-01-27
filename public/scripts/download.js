@@ -152,7 +152,11 @@ function downloadImageAsPng(img, filename) {
 // Function to handle click events on download buttons
 async function handleDownloadButtonClick(event) {
     // Get the URL of the SVG from the data-url attribute of the download button
-    const svgUrl = event.target.getAttribute('data-url');
+    let svgUrl = event.target.getAttribute('data-url');
+    // Replace http:// with https:// in the SVG URL
+    if (window.location.protocol === 'https:') {
+        svgUrl = svgUrl.replace('http://', 'https://');
+    }
     // Get the key from the data-key attribute of the download button
     const key = event.target.getAttribute('data-key');
     // Create a filename for the PNG based on the key

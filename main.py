@@ -29,6 +29,8 @@ if database_url:
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///test.db'
 db = SQLAlchemy(app)
 
+app.config['PREFERRED_URL_SCHEME'] = 'https'
+
 # Define SVG model for SQLAlchemy
 class Svg(db.Model):
     id = db.Column(db.Integer, primary_key=True)
