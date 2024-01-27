@@ -7,7 +7,7 @@ function fetchUserData() {
 
     // Set the action of the form to the correct URL
     const form = document.getElementById('dataForm');
-    form.action = '/' + username + '/generate_svgs';
+    form.action = '/AniCards/StatCards/' + username + '/generate_svgs';
 
     // Submit the form
     form.submit();

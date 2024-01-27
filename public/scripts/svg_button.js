@@ -8,7 +8,7 @@ window.onload = function() {
 
 function fetchSvg(key, username) {
     return function() {
-        const url = `/get_svg/${username}/${key}`;
+        const url = `/AniCards/StatCards/get_svg/${username}/${key}`;
         fetch(url)
             .then(response => {
                 if (response.status === 404) {

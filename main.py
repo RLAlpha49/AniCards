@@ -54,7 +54,7 @@ key_types = {
 }
 
 # Route for generating SVGs for a user
-@app.route('/<username>/generate_svgs', methods=['POST'])
+@app.route('/AniCards/StatCards/<username>/generate_svgs', methods=['POST'])
 def generate_svgs(username):
     # Get keys from the form data
     keys = request.form.getlist('keys')  # Get list of keys
@@ -95,7 +95,7 @@ def generate_svgs(username):
     # After generating the SVGs, redirect to the display page
     return redirect(url_for('display_svgs', username=username))
 
-@app.route('/<username>', methods=['GET'])
+@app.route('/AniCards/StatCards/<username>', methods=['GET'])
 def display_svgs(username):
     # Fetch the SVGs for the user from the database
     svgs = Svg.query.filter_by(username=username).all()
@@ -116,7 +116,7 @@ def display_svgs(username):
         abort(404, description="No SVGs found for this user")
 
 # Route for getting a specific SVG for a user
-@app.route('/get_svg/<username>/<key>', methods=['GET'])
+@app.route('/AniCards/StatCards/get_svg/<username>/<key>', methods=['GET'])
 def get_svg(username, key):
     svg = Svg.query.filter_by(username=username, key=key).first()
     if svg and svg.data:
@@ -126,7 +126,7 @@ def get_svg(username, key):
     else:
         abort(404, description="SVG not found")
         
-@app.route('/<username>/<key>.svg')
+@app.route('/AniCards/StatCards/<username>/<key>.svg')
 def get_svg_from_db(username, key):
     # Fetch the SVG for the user from the database
     svg = Svg.query.filter_by(username=username, key=key).first()
@@ -137,7 +137,7 @@ def get_svg_from_db(username, key):
         abort(404, description="SVG not found")
 
 # Home route
-@app.route('/')
+@app.route('/AniCards/StatCards')
 def home():
     return render_template('index.html')
 
