@@ -370,7 +370,6 @@ div[id] {
 
 .sidebar {
     width: 54px;
-    flex-grow: 1;
     flex-shrink: 0;
     flex-basis: auto; 
     background-color: #16181f; 
@@ -382,17 +381,15 @@ div[id] {
     justify-content: flex-start;
 }
 
-.sidebar img {
-    border: none;
-}
-
 .sidebar nav ul {
     list-style-type: none;
     padding: 0;
+    margin: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
 }
+
 
 .sidebar nav ul li a {
     display: inline-block;
@@ -402,7 +399,15 @@ div[id] {
 }
 
 .sidebar nav ul li a:hover {
-    filter: brightness(120%); 
+    filter: brightness(140%);
+}
+
+.active-link {
+    filter: brightness(140%);
+}
+
+.active-link:hover {
+    filter: brightness(160%);
 }
 
 .sidebar nav ul li a img {
