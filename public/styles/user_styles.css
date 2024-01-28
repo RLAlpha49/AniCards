@@ -26,32 +26,17 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 5px;
     width: 100%;
+    height: 46px;
     background-color: #1e1e2e;
     color: #66FCF1;
     box-sizing: border-box;
 }
 
-header a, header h1, header p {
-    padding: 0 5px;
-    margin: 0;
-}
-
-header a {
-    text-decoration: none;
-    color: inherit;
-    display: flex;
-    align-items: center;
-}
-
-header h1 {
-    font-size: 1.8em; 
-}
-
 header p {
     color: #C5C6C7; 
     margin-left: auto;
+    font-size: 1em;
 }
 
 h1 {
