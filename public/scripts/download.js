@@ -2,13 +2,17 @@
 
 // Function to modify SVG document
 function modifySvgDoc(svgDoc, dashoffset) {
+    // Select all elements with class 'stagger'
     const staggerElements = Array.from(svgDoc.querySelectorAll('.stagger'));
+    // Remove animation delay and set opacity to 1 for each element
     staggerElements.forEach(element => {
         element.style.opacity = '1';
         element.style.animationDelay = '';
     });
 
+    // Select all style elements
     const styleElements = Array.from(svgDoc.querySelectorAll('style'));
+    // Filter out animation properties from each style element
     styleElements.forEach(style => {
         const cssRules = style.innerHTML.split('}').map(rule => rule.trim()).filter(Boolean);
         const filteredRules = cssRules.map(rule => {
@@ -26,42 +30,54 @@ function modifySvgDoc(svgDoc, dashoffset) {
 
 // Function to filter out animation properties from CSS rule
 function filterAnimationProperties(rule) {
+    // If the rule is a keyframes rule, return an empty string
     if (rule.startsWith('@keyframes')) {
         return '';
     }
+    // Split the rule into selector and properties
     const [selector, properties] = rule.split('{');
+    // Split the properties into individual properties
     const parsedProperties = properties.split(';').map(prop => prop.trim()).filter(Boolean);
+    // Filter out animation properties
     const filteredProperties = parsedProperties.filter(prop => {
         if (selector.trim() === '.stagger' && prop.startsWith('animation')) {
             return false;
         }
         return !prop.startsWith('animation');
     });
+    // Return the rule with filtered properties
     return `${selector} { ${filteredProperties.join('; ')} }`;
 }
 
 // Function to fetch SVG from a URL and convert it to an Image object
 async function fetchSvgAsImage(url, key) {
+    // Fetch the SVG
     const response = await fetch(url);
     let svgText = await response.text();
 
+    // Parse the SVG text into a document
     const parser = new DOMParser();
     const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
 
+    // Calculate the stroke-dashoffset if the key is 'animeStats' or 'mangaStats'
     let dashoffset = null;
     if (key === 'animeStats' || key === 'mangaStats') {
         const userData = getUserDataFromSvg(svgDoc, key);
         dashoffset = calculateDashoffset(userData);
     }
 
+    // Modify the SVG document
     modifySvgDoc(svgDoc, dashoffset);
 
+    // Serialize the SVG document back into text
     const serializer = new XMLSerializer();
     svgText = serializer.serializeToString(svgDoc);
 
+    // Create a new Image object with the SVG text as its source
     const img = new Image();
     img.src = 'data:image/svg+xml,' + encodeURIComponent(svgText);
 
+    // Return a Promise that resolves with the Image object when it loads
     return new Promise((resolve, reject) => {
         img.onload = () => {
             const canvas = document.createElement('canvas');
@@ -78,6 +94,7 @@ async function fetchSvgAsImage(url, key) {
 
 // Function to get user data from SVG
 function getUserDataFromSvg(svgDoc, key) {
+    // Determine the data-testid based on the key
     let dataTestId = '';
     if (key === 'animeStats') {
         dataTestId = 'episodesWatched';
@@ -116,13 +133,19 @@ function calculateDashoffset(userData) {
         milestones.push(i);
     }
 
+    // Find the largest milestone that is less than the user's data value
     const previous_milestone = Math.max(...milestones.filter(milestone => milestone < userData.dataValue));
+    // Find the smallest milestone that is greater than the user's data value
     const current_milestone = Math.min(...milestones.filter(milestone => milestone > userData.dataValue));
 
+    // Calculate the percentage of the way the user's data value is between the previous and current milestones
     const percentage = ((userData.dataValue - previous_milestone) / (current_milestone - previous_milestone)) * 100;
+    // Calculate the circumference of the circle (assuming a radius of 40)
     const circle_circumference = 2 * Math.PI * 40;
+    // Calculate the dashoffset based on the percentage
     const dashoffset = circle_circumference * (1 - (percentage / 100));
 
+    // Return the calculated dashoffset
     return dashoffset;
 }
 

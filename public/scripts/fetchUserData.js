@@ -2,13 +2,14 @@
 
 // Function to fetch user data based on input
 function fetchUserData() {
-    // Get the username from the input field
+    // Get the username from the input field with id 'usernameInput'
     const username = document.getElementById('usernameInput').value;
 
-    // Set the action of the form to the correct URL
+    // Get the form element with id 'dataForm'
     const form = document.getElementById('dataForm');
+    // Set the action of the form to the correct URL, using the entered username
     form.action = '/AniCards/StatCards/' + username + '/generate_svgs';
 
-    // Submit the form
+    // Submit the form, triggering the request to the server
     form.submit();
 }
