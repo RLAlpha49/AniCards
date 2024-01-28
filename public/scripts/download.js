@@ -1,7 +1,5 @@
 // Filename: public/scripts/download.js
 
-
-
 // Function to modify SVG document
 function modifySvgDoc(svgDoc, dashoffset) {
     const staggerElements = Array.from(svgDoc.querySelectorAll('.stagger'));

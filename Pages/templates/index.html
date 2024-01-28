@@ -130,18 +130,6 @@
         </div>
     </div>
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            var links = document.querySelectorAll('.sidebar nav ul li a');
-            links.forEach(function(link) {
-                var img = link.querySelector('img');
-                if (link.href === window.location.href) {
-                    img.style.filter = 'invert(1) brightness(1)'; // Change color for active link
-                    link.classList.add('active-link'); // Add active-link class to active link
-                } else {
-                    img.style.filter = 'invert(1) brightness(0.6)'; // Default color for other links
-                    link.classList.remove('active-link'); // Remove active-link class from other links
-                }
-            });
             var usernameInput = document.getElementById('usernameInput');
             usernameInput.addEventListener('keypress', function(event) {
                 var key = event.which || event.keyCode;
@@ -167,6 +155,7 @@
             });
         });
     </script>
+    <script src="{{ url_for('static', filename='scripts/sidebarHover.js') }}"></script>
     <script src="{{ url_for('static', filename='scripts/fetchUserData.js') }}"></script>
     <script src="{{ url_for('static', filename='scripts/validateForm.js') }}"></script>
     <script src="{{ url_for('static', filename='scripts/selectAll.js') }}"></script>
