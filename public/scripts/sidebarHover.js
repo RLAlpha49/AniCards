@@ -5,6 +5,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Get all the anchor elements inside list items in the sidebar navigation
     var links = document.querySelectorAll('.sidebar nav ul li a');
+    console.log(links);
 
     // Loop over each link
     links.forEach(function(link) {
