@@ -5,7 +5,7 @@
 # TODO: Add sidebar
 
 # Import necessary modules
-from flask import Flask, abort, make_response, render_template, redirect, url_for, Response, request
+from flask import Flask, abort, make_response, render_template, redirect, url_for, Response, request, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from urllib.parse import urlparse, urlunparse
 from AniListData import fetch_anilist_data
@@ -145,6 +145,10 @@ def statCards():
 @app.route('/AniCards/')
 def home():
     return render_template('aniCards.html')
+
+@app.route('/robots.txt')
+def static_from_root():
+    return send_from_directory(app.static_folder, request.path[1:])
 
 # Create the database for local testing if it doesn't exist
 if not os.path.exists('./test.db') and not database_url:
