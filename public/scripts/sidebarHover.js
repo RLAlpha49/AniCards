@@ -9,20 +9,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Loop over each link
     links.forEach(function(link) {
-        // Get the image inside the link
         var img = link.querySelector('img');
 
-        // If the href of the link matches the current URL
         if (link.href === window.location.href) {
-            // Apply a filter to the image to invert the colors and set the brightness to 1
-            img.style.filter = 'invert(1) brightness(1)';
-            // Set the background color of the link to #16181f
-            link.style.backgroundColor = '#16181f'; 
+            link.classList.add('active-link');
         } else {
-            // Apply a filter to the image to invert the colors and set the brightness to 0.6
-            img.style.filter = 'invert(1) brightness(0.6)';
-            // Set the background color of the link to transparent
-            link.style.backgroundColor = 'transparent';
+            link.classList.remove('active-link');
         }
     });
 });
