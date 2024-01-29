@@ -78,6 +78,109 @@ git push heroku master
 heroku open
 ```
 
+## Deploying with uWSGI, Nginx, and Cloudflare
+
+This application can also be deployed using uWSGI and Nginx, with Cloudflare as a reverse proxy. Here are the steps:
+
+1. **Install uWSGI and Nginx**:
+
+```bash
+sudo apt-get update
+sudo apt-get install python3-dev
+sudo apt-get install nginx
+pip install uwsgi
+```
+
+2. **Create a uWSGI Configuration File**:
+
+Create a file named `uwsgi.ini` in your project directory:
+
+```bash
+[uwsgi]
+module = main:app
+master = true
+processes = 5
+socket = myproject.sock
+chmod-socket = 660
+vacuum = true
+die-on-term = true
+```
+
+3. **Test uWSGI Serving**:
+
+You can test if uWSGI is serving your application correctly:
+
+```bash
+uwsgi --ini uwsgi.ini
+```
+
+4. **Create a systemd Unit File**:
+
+Create a file at `/etc/systemd/system/myproject.service`:
+
+```bash
+[Unit]
+Description=uWSGI instance to serve myproject
+After=network.target
+
+[Service]
+User=yourusername
+Group=www-data
+WorkingDirectory=/path/to/your/project
+EnvironmentFile=/path/to/your/project/.env
+ExecStart=/path/to/your/project/venv/bin/uwsgi --ini uwsgi.ini
+
+[Install]
+WantedBy=multi-user.target
+```
+
+In this file, `/path/to/your/project/.env` should be the path to a file containing your environment variables. Each line in this file should be in the format `VARNAME=value.`
+
+```bash
+USER=yourusername
+GROUP=www-data
+WORKING_DIRECTORY=/path/to/your/project
+```
+
+5. **Start the uWSGI service**:
+
+```bash
+sudo systemctl start myproject
+sudo systemctl enable myproject
+```
+
+6. **Configure Nginx to Proxy Requests**:
+
+Create a new server block configuration file in Nginx's `sites-available` directory. Replace `server_name` with your domain name:
+
+```bash
+server {
+    listen 80;
+    server_name yourdomain.com;
+
+    location / {
+        include uwsgi_params;
+        uwsgi_pass unix:/path/to/your/project/myproject.sock;
+    }
+}
+```
+
+7. **Link to the Nginx Configuration**:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/myproject /etc/nginx/sites-enabled
+```
+
+8. **Restart Nginx**:
+
+```bash
+sudo systemctl restart nginx
+```
+
+8. **Configure Cloudflare**:
+
+Go to your Cloudflare dashboard, add your domain, and update your DNS records to point to your server's IP address. Make sure your SSL/TLS encryption mode is set to "Full".
+
 ## License
 
 This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
