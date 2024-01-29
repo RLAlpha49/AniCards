@@ -136,10 +136,15 @@ def get_svg_from_db(username, key):
     else:
         abort(404, description="SVG not found")
 
+# StatCards route
+@app.route('/AniCards/StatCards/')
+def statCards():
+    return render_template('statCards.html')
+
 # Home route
-@app.route('/AniCards/StatCards')
+@app.route('/AniCards/')
 def home():
-    return render_template('index.html')
+    return render_template('aniCards.html')
 
 # Create the database for local testing if it doesn't exist
 if not os.path.exists('./test.db') and not database_url:
