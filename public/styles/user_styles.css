@@ -37,6 +37,7 @@ header p {
     color: #C5C6C7; 
     margin-left: auto;
     font-size: 1em;
+    white-space: nowrap;
 }
 
 h1 {
