@@ -28,7 +28,7 @@ body {
 }
 
 .sidebar {
-    width: 54px;
+    width: 62px;
     flex-shrink: 0;
     flex-basis: auto; 
     background-color: #16181f; 
@@ -36,8 +36,12 @@ body {
     color: #C5C6C7; 
     display: flex;
     flex-direction: column;
-    align-items: center;
     justify-content: flex-start;
+    transition: width 0.3s;
+}
+
+.sidebar.expanded {
+    width: 150px;
 }
 
 .sidebar nav ul {
@@ -46,33 +50,78 @@ body {
     margin: 0;
     display: flex;
     flex-direction: column;
-    align-items: center;
 }
 
+.sidebar.expanded nav ul li {
+    width: 150px;
+}
+
+.sidebar.expanded nav ul li a{
+    width: 120px;
+    text-decoration: none;
+}
 
 .sidebar nav ul li a {
-    display: inline-block;
-    padding: 5px 15px; 
-    transition: filter 0.3s ease;
-    background-color: #16181f;
+    display: flex;
+    align-items: center;
+    padding: 5px 15px;
+    text-decoration: none;
+    color: white;
+    width: 50px;
+    transition: width 0.5s; 
+    overflow: hidden; 
 }
 
 .sidebar nav ul li a:hover {
-    filter: brightness(140%);
+    filter: brightness(130%);
 }
 
-.active-link {
-    filter: brightness(140%);
-}
-
-.active-link:hover {
+.sidebar nav ul li.active-link a {
     filter: brightness(160%);
 }
 
+.sidebar nav ul li.active-link .link-text {
+    filter: none;
+    color: #47a59f;
+}
+
+.sidebar nav ul li.active-link a:hover {
+    filter: brightness(120%);
+}
+
 .sidebar nav ul li a img {
-    width: 24px; 
-    height: 24px; 
+    width: 32px; 
+    height: 32px; 
+}
+
+.sidebar nav ul li a img:not(.site-icon) {
     filter: invert(1) brightness(0.6);
+}
+
+.sidebar nav ul li.active-link .link-content img:not(.site-icon) {
+    filter: invert(56%) sepia(58%) saturate(371%) hue-rotate(127deg) brightness(92%) contrast(85%);
+}
+
+.link-content {
+    display: flex;
+    align-items: center;
+}
+
+.link-text {
+    transform: scaleX(0); 
+    transform-origin: left; 
+    opacity: 0; 
+    transition: transform 0.5s, opacity 0.5s;
+    white-space: nowrap;
+    text-decoration: none; 
+    filter: brightness(0.6);
+    color: white; 
+}
+
+.sidebar.expanded .link-text {
+    padding-left: 10px; 
+    transform: scaleX(1);
+    opacity: 1; 
 }
 
 .center-container {
@@ -87,7 +136,7 @@ header {
     justify-content: space-between;
     align-items: center;
     width: 100%;
-    height: 46px;
+    height: 42px;
     background-color: #1e1e2e;
     color: #66FCF1;
     box-sizing: border-box;
@@ -300,4 +349,10 @@ button:hover {
 
 #usernameInput {
     color: #ffffff;
+}
+
+#arrow {
+    position: relative;
+    left: 0;
+    cursor: pointer;
 }

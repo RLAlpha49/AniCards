@@ -3,18 +3,22 @@
 // Add an event listener for the DOMContentLoaded event
 // This event is fired when the initial HTML document has been completely loaded and parsed
 document.addEventListener('DOMContentLoaded', function() {
-    // Get all the anchor elements inside list items in the sidebar navigation
-    var links = document.querySelectorAll('.sidebar nav ul li a');
-    console.log(links);
+    // Get all the list items in the sidebar navigation
+    var listItems = document.querySelectorAll('.sidebar nav ul li');
+    console.log(listItems);
 
-    // Loop over each link
-    links.forEach(function(link) {
-        var img = link.querySelector('img');
+    // Loop over each list item
+    listItems.forEach(function(listItem) {
+        var link = listItem.querySelector('a');
 
-        if (link.href === window.location.href) {
-            link.classList.add('active-link');
-        } else {
-            link.classList.remove('active-link');
+        // Check if the listItem is not the site icon
+        if (!listItem.classList.contains('site-icon-li')) {
+            // Check if the link's href is equal to the current URL or if the link's href ends with 'StatCards/' and the current URL starts with the link's href
+            if (link.href === window.location.href || (link.href.endsWith('StatCards/') && window.location.href.startsWith(link.href))) {
+                listItem.classList.add('active-link');
+            } else {
+                listItem.classList.remove('active-link');
+            }
         }
     });
 });
