@@ -13,7 +13,7 @@ from generateSVGs import generate_svg
 import os
 
 # Initialize Flask app
-app = Flask(__name__, static_folder='public', template_folder='Pages/templates')
+app = Flask(__name__, static_folder='public', template_folder='Pages')
 
 # Get the DATABASE_URL environment variable
 database_url = os.getenv('DATABASE_URL')

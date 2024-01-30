@@ -93,7 +93,7 @@ def generate_animeStats_svg(value, username, colors, type):
         dashoffset = circle_circumference * (1 - (percentage / 100))
 
         # Read the HTML template
-        with open('Pages/templates/SVGs/animeStatsSVG.html', 'r') as file:
+        with open('Pages/SVGs/animeStatsSVG.html', 'r') as file:
             html_template = file.read()
 
         # Escape the curly braces in the HTML template
@@ -108,7 +108,7 @@ def generate_animeStats_svg(value, username, colors, type):
 
         # Inline the styles
         html_template = inline_styles(
-            os.path.join('Pages', 'templates', 'SVGs', 'animeStatsSVG.html'),
+            os.path.join('Pages', 'SVGs', 'animeStatsSVG.html'),
             os.path.join('public', 'styles', 'SVGs', 'DefaultStatsStyles.css'),
             dasharray,
             dashoffset,
@@ -136,7 +136,7 @@ def calculate_font_size(text, initial_font_size, max_width):
 def generate_extraAnimeStats_svg(value, username, key, colors, type):
     if type == 'Default':
         # Read the HTML template
-        with open('Pages/templates/SVGs/animeStatsSVG.html', 'r') as file:
+        with open('Pages/SVGs/animeStatsSVG.html', 'r') as file:
             html_template = file.read()
 
         # Escape the curly braces in the HTML template
@@ -149,7 +149,7 @@ def generate_extraAnimeStats_svg(value, username, key, colors, type):
 
         # Inline the styles
         html_template = inline_styles(
-            os.path.join('Pages', 'templates', 'SVGs', 'extraAnime&MangaStatsSVG.html'),
+            os.path.join('Pages', 'SVGs', 'extraAnime&MangaStatsSVG.html'),
             os.path.join('public', 'styles', 'SVGs', 'DefaultStatsStyles.css'),
             0,  # dasharray is not used in this SVG
             0,   # dashoffset is not used in this SVG
@@ -211,7 +211,7 @@ def generate_mangaStats_svg(value, username, colors, type):
         dashoffset = circle_circumference * (1 - (percentage / 100))
 
         # Read the HTML template
-        with open('Pages/templates/SVGs/mangaStatsSVG.html', 'r') as file:
+        with open('Pages/SVGs/mangaStatsSVG.html', 'r') as file:
             html_template = file.read()
 
         # Escape the curly braces in the HTML template
@@ -224,7 +224,7 @@ def generate_mangaStats_svg(value, username, colors, type):
 
         # Inline the styles
         html_template = inline_styles(
-            os.path.join('Pages', 'templates', 'SVGs', 'mangaStatsSVG.html'),
+            os.path.join('Pages', 'SVGs', 'mangaStatsSVG.html'),
             os.path.join('public', 'styles', 'SVGs', 'DefaultStatsStyles.css'),
             dasharray,
             dashoffset,
@@ -244,7 +244,7 @@ def generate_mangaStats_svg(value, username, colors, type):
 def generate_extraMangaStats_svg(value, username, key, colors, type):
     if type == 'Default':
         # Read the HTML template
-        with open('Pages/templates/SVGs/mangaStatsSVG.html', 'r') as file:
+        with open('Pages/SVGs/mangaStatsSVG.html', 'r') as file:
             html_template = file.read()
 
         # Escape the curly braces in the HTML template
@@ -257,7 +257,7 @@ def generate_extraMangaStats_svg(value, username, key, colors, type):
 
         # Inline the styles
         html_template = inline_styles(
-            os.path.join('Pages', 'templates', 'SVGs', 'extraAnime&MangaStatsSVG.html'),
+            os.path.join('Pages', 'SVGs', 'extraAnime&MangaStatsSVG.html'),
             os.path.join('public', 'styles', 'SVGs', 'DefaultStatsStyles.css'),
             0,  # dasharray is not used in this SVG
             0,   # dashoffset is not used in this SVG
@@ -296,7 +296,7 @@ def generate_extraMangaStats_svg(value, username, key, colors, type):
 def generate_socialStats_svg(value, username, colors, type):
     if type == 'Default':
         # Read the HTML template
-        with open('Pages/templates/SVGs/socialStatsSVG.html', 'r') as file:
+        with open('Pages/SVGs/socialStatsSVG.html', 'r') as file:
             html_template = file.read()
 
         # Escape the curly braces in the HTML template
@@ -309,7 +309,7 @@ def generate_socialStats_svg(value, username, colors, type):
 
         # Inline the styles
         html_template = inline_styles(
-            os.path.join('Pages', 'templates', 'SVGs', 'socialStatsSVG.html'),
+            os.path.join('Pages', 'SVGs', 'socialStatsSVG.html'),
             os.path.join('public', 'styles', 'SVGs', 'DefaultStatsStyles.css'),
             0,  # dasharray is not used in this SVG
             0,   # dashoffset is not used in this SVG
