@@ -5,7 +5,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Get all the list items in the sidebar navigation
     var listItems = document.querySelectorAll('.sidebar nav ul li');
-    console.log(listItems);
 
     // Loop over each list item
     listItems.forEach(function(listItem) {
