@@ -57,8 +57,72 @@ body {
     transition: width 0.3s;
 }
 
+.sidebar .bottom-link {
+    margin-top: auto;
+}
+
+.sidebar .bottom-link a {
+    display: flex;
+    align-items: center;
+    padding: 5px 15px;
+    text-decoration: none;
+    color: white;
+    width: 50px;
+    transition: width 0.5s; 
+    overflow: hidden; 
+}
+
+
+.sidebar .bottom-link a img {
+    width: 32px; 
+    height: 32px; 
+}
+
+.sidebar .bottom-link a img:not(.site-icon) {
+    filter: invert(1) brightness(0.6);
+}
+
+.sidebar .bottom-link a:hover {
+    filter: brightness(130%);
+}
+
+.sidebar .bottom-link .link-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.sidebar .bottom-link .link-content a:not(:first-child) {
+    display: none;
+}
+
+.sidebar.expanded .bottom-link .link-content a:not(:first-child) {
+    display: block;
+}
+
+.sidebar .bottom-link .link-text {
+    transform: scaleX(0); 
+    transform-origin: left; 
+    opacity: 0; 
+    transition: transform 0.5s, opacity 0.5s;
+    white-space: nowrap;
+    text-decoration: none; 
+    filter: brightness(0.6);
+    color: white; 
+}
+
+.sidebar.expanded .bottom-link a{
+    width: 180px;
+}
+
+.sidebar.expanded .bottom-link .link-text {
+    padding-left: 10px; 
+    transform: scaleX(1);
+    opacity: 1; 
+}
+
 .sidebar.expanded {
-    width: 150px;
+    width: 180px;
 }
 
 .sidebar nav ul {
@@ -70,11 +134,11 @@ body {
 }
 
 .sidebar.expanded nav ul li {
-    width: 150px;
+    width: 180px;
 }
 
 .sidebar.expanded nav ul li a{
-    width: 120px;
+    width: 180px;
     text-decoration: none;
 }
 
