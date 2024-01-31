@@ -89,20 +89,20 @@ body {
     overflow: hidden; 
 }
 
-.sidebar nav ul li a:hover {
+.sidebar nav ul li:not(.site-icon-li) a:hover {
     filter: brightness(130%);
 }
 
-.sidebar nav ul li.active-link a {
+.sidebar nav ul li.active-link:not(.site-icon-li) a {
     filter: brightness(160%);
 }
 
-.sidebar nav ul li.active-link .link-text {
+.sidebar nav ul li.active-link:not(.site-icon-li) .link-text {
     filter: none;
     color: #47a59f;
 }
 
-.sidebar nav ul li.active-link a:hover {
+.sidebar nav ul li.active-link:not(.site-icon-li) a:hover {
     filter: brightness(120%);
 }
 
