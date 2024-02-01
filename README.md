@@ -67,6 +67,38 @@ py main.py
 
 The application will be available at [http://localhost:5000](http://localhost:5000).
 
+## Running the Application with Waitress and Cloudflare
+
+Waitress is a production-quality WSGI server that can be used to run your Flask application. Here's how you can run your application with Waitress and have it hosted by Cloudflare:
+
+1. **Install Waitress**:
+
+```bash
+pip install waitress
+```
+
+2. **Navigate to your application's directory**:
+
+```bash
+cd path/to/your/application
+```
+
+Replace path/to/your/application with the actual path to your application's directory.
+
+3. **Start your application**:
+
+```bash
+waitress-serve --port=5000 --threads=4 'main:app'
+```
+
+Replace 'main:app' with the import path to your application's Flask instance. For example, if your Flask instance is created in a file named 'app.py', you would use 'app:app'. The --threads=4 option tells Waitress to use 4 threads. Adjust this number based on your server's capabilities and the expected load on your application.
+
+The application will now be available at [http://localhost:5000](http://localhost:5000).
+
+3. **Configure Cloudflare**:
+
+Go to your Cloudflare dashboard, add your domain, and update your DNS records to point to your server's IP address and port 5000. Make sure your SSL/TLS encryption mode is set to "Full".
+
 ## Deploying to Heroku
 
 This application is designed to be easily deployable to Heroku. It uses the `DATABASE_URL` environment variable to configure the database, and automatically converts `postgres://` URLs to `postgresql://` URLs, which are required by SQLAlchemy.
