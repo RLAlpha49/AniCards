@@ -56,89 +56,109 @@ key_types = {
 # Route for generating SVGs for a user
 @app.route('/AniCards/StatCards/<username>/generate_svgs', methods=['POST'])
 def generate_svgs(username):
-    print(f"Generating SVGs for user: {username}")
-    # Get keys from the form data
-    keys = request.form.getlist('keys')  # Get list of keys
+    try:
+        print(f"Generating SVGs for user: {username}")
+        # Get keys from the form data
+        keys = request.form.getlist('keys')  # Get list of keys
 
-    # Define custom order
-    custom_order = ['animeStats', 'socialStats', 'mangaStats']
+        # Define custom order
+        custom_order = ['animeStats', 'socialStats', 'mangaStats']
 
-    # Sort keys according to custom order
-    keys.sort(key=lambda x: custom_order.index(x) if x in custom_order else len(custom_order))
+        # Sort keys according to custom order
+        keys.sort(key=lambda x: custom_order.index(x) if x in custom_order else len(custom_order))
 
-    # Delete existing SVG data for the user associated with the keys
-    for key in keys:
-        Svg.query.filter_by(username=username, key=key).delete()
-    db.session.commit()
+        # Delete existing SVG data for the user associated with the keys
+        for key in keys:
+            Svg.query.filter_by(username=username, key=key).delete()
+        db.session.commit()
 
-    # Fetch the data and generate an SVG for each key
-    data = fetch_anilist_data(username, keys)
-    
-    # Get colors from the form data
-    colors = request.form.getlist('colors')  # Get list of colors
-    colors = [color.lstrip('#') for color in colors]  # Remove '#' from the start of each color
+        # Fetch the data and generate an SVG for each key
+        data = fetch_anilist_data(username, keys)
+        
+        # Get colors from the form data
+        colors = request.form.getlist('colors')  # Get list of colors
+        colors = [color.lstrip('#') for color in colors]  # Remove '#' from the start of each color
 
-    # If no colors were selected, use default colors
-    if not colors or len(colors) != 4:
-        colors = ['fe428e', 'fe428e', 'e4e2e2', 'a9fef7']
-    else:
-        default_colors = ['fe428e', 'fe428e', 'e4e2e2', 'a9fef7']
-        colors = [color if color != '000000' else default for color, default in zip(colors, default_colors)]
-    
-    for key in keys:
-        print(f"Generating SVG for key: {key}")
-        svg_data = generate_svg(key, data.get(key) if data else None, 0, username, colors)
-        print(f"Storing SVG in the database for key: {key}")
-        svg = Svg(username=username, key=key, data=svg_data, keys=','.join(keys))
-        db.session.add(svg)
-    db.session.commit()
-    print("SVGs generated and stored in the database") 
+        # If no colors were selected, use default colors
+        if not colors or len(colors) != 4:
+            colors = ['fe428e', 'fe428e', 'e4e2e2', 'a9fef7']
+        else:
+            default_colors = ['fe428e', 'fe428e', 'e4e2e2', 'a9fef7']
+            colors = [color if color != '000000' else default for color, default in zip(colors, default_colors)]
+        
+        for key in keys:
+            print(f"Generating SVG for key: {key}")
+            svg_data = generate_svg(key, data.get(key) if data else None, 0, username, colors)
+            print(f"Storing SVG in the database for key: {key}")
+            svg = Svg(username=username, key=key, data=svg_data, keys=','.join(keys))
+            db.session.add(svg)
+        db.session.commit()
+        print("SVGs generated and stored in the database") 
 
-    return redirect(url_for('display_svgs', username=username))
+        return redirect(url_for('display_svgs', username=username))
+    except Exception as e:
+        print(f"An error occurred while generating SVGs for user: {username}. Error: {e}")
+        # Return a response indicating an error occurred
+        return str(e), 500
 
 @app.route('/AniCards/StatCards/<username>', methods=['GET'])
 def display_svgs(username):
-    print(f"Fetching SVGs for user: {username}")
-    # Fetch the SVGs for the user from the database
-    svgs = Svg.query.filter_by(username=username).all()
+    try:
+        print(f"Fetching SVGs for user: {username}")
+        # Fetch the SVGs for the user from the database
+        svgs = Svg.query.filter_by(username=username).all()
 
-    if svgs:
-        # Extract the keys from the first SVG (they should be the same for all SVGs)
-        keys = svgs[0].keys.split(',')
+        if svgs:
+            # Extract the keys from the first SVG (they should be the same for all SVGs)
+            keys = svgs[0].keys.split(',')
 
-        # Generate the svg_types dictionary
-        svg_types = {key: [svg for svg in svgs if key in svg.keys.split(',')] for key in keys}
+            # Generate the svg_types dictionary
+            svg_types = {key: [svg for svg in svgs if key in svg.keys.split(',')] for key in keys}
 
-        # Generate the types for each key
-        svg_types = {key: key_types[key] for key in svg_types}
+            # Generate the types for each key
+            svg_types = {key: key_types[key] for key in svg_types}
 
-        # Render the HTML template
-        return render_template('user_template.html', username=username, svgs=svgs, keys=keys, svg_types=svg_types)
-    else:
-        abort(404, description="No SVGs found for this user")
+            # Render the HTML template
+            return render_template('user_template.html', username=username, svgs=svgs, keys=keys, svg_types=svg_types)
+        else:
+            abort(404, description="No SVGs found for this user")
+    except Exception as e:
+        print(f"An error occurred while fetching SVGs for user: {username}. Error: {e}")
+        # Return a response indicating an error occurred
+        return str(e), 500
 
 # Route for getting a specific SVG for a user
 @app.route('/AniCards/StatCards/get_svg/<username>/<key>', methods=['GET'])
 def get_svg(username, key):
-    print(f"Fetching SVG for user: {username}, key: {key}")
-    svg = Svg.query.filter_by(username=username, key=key).first()
-    if svg and svg.data:
-        response = make_response(svg.data)
-        response.headers['Content-Type'] = 'image/svg+xml'
-        return response
-    else:
-        abort(404, description="SVG not found")
-        
+    try:
+        print(f"Fetching SVG for user: {username}, key: {key}")
+        svg = Svg.query.filter_by(username=username, key=key).first()
+        if svg and svg.data:
+            response = make_response(svg.data)
+            response.headers['Content-Type'] = 'image/svg+xml'
+            return response
+        else:
+            abort(404, description="SVG not found")
+    except Exception as e:
+        print(f"An error occurred while fetching SVG for user: {username}, key: {key}. Error: {e}")
+        # Return a response indicating an error occurred
+        return str(e), 500
+
 @app.route('/AniCards/StatCards/<username>/<key>.svg')
 def get_svg_from_db(username, key):
-    print(f"Fetching SVG from database for user: {username}, key: {key}")
-    # Fetch the SVG for the user from the database
-    svg = Svg.query.filter_by(username=username, key=key).first()
-    if svg:
-        # Return the SVG data with the correct content type
-        return Response(svg.data, mimetype='image/svg+xml')
-    else:
-        abort(404, description="SVG not found")
+    try:
+        print(f"Fetching SVG from database for user: {username}, key: {key}")
+        # Fetch the SVG for the user from the database
+        svg = Svg.query.filter_by(username=username, key=key).first()
+        if svg:
+            # Return the SVG data with the correct content type
+            return Response(svg.data, mimetype='image/svg+xml')
+        else:
+            abort(404, description="SVG not found")
+    except Exception as e:
+        print(f"An error occurred while fetching SVG from database for user: {username}, key: {key}. Error: {e}")
+        # Return a response indicating an error occurred
+        return str(e), 500
 
 # StatCards route
 @app.route('/AniCards/StatCards/')
