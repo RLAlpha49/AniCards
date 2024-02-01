@@ -8,6 +8,7 @@ This is a Flask application that generates SVG stat cards for AniList users. It 
 - [How it Works](#how-it-works)
 - [Prerequisites](#prerequisites)
 - [Running the Application](#running-the-application)
+  - [Deploying with Waitress & Cloudflare](#running-the-application-with-waitress-and-cloudflare)
   - [Deploying to Heroku](#deploying-to-heroku)
   - [Deploying with uWSGI, Nginx, and Cloudflare](#deploying-with-uwsgi-nginx-and-cloudflare)
 - [License](#license)
