@@ -161,11 +161,9 @@ def generate_extraAnimeStats_svg(value, username, key, colors, type):
         initial_font_size = 18
         max_width = 320
         font_size = calculate_font_size(text, initial_font_size, max_width)
-        print(font_size)
 
         # Generate the CSS rules for the header class
         header_style = f"font-weight: 600; font-family: 'Segoe UI', Ubuntu, Sans-Serif; fill: #fe428e; animation: fadeInAnimation 0.8s ease-in-out forwards; font-size: {font_size}px;"
-        print(header_style) 
         
         # Replace the placeholders in the HTML template with actual values
         html = html_template.format(
