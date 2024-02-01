@@ -9,6 +9,10 @@
 #0B0C10: Black (Hover text color of the download button)
 */
 
+html {
+    min-height: 100vh;
+}
+
 body {
     font-family: 'Helvetica Neue', sans-serif;
     background-color: #1b1d25;
@@ -49,6 +53,10 @@ p {
     margin-bottom: 20px;
     font-size: 1.2em;
     padding: 10px 20px;
+}
+
+.content {
+    padding: 40px;
 }
 
 .content, .svg-item {

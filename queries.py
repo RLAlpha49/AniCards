@@ -8,8 +8,8 @@ USER_ID = """
     }
 """
 
-USER_ANIME_STATS = """
-    query ($userName: String) { 
+USER_ANIME_MANGA_SOCIAL_STATS = """
+    query ($userName: String, $userId: Int!) { 
         User(name: $userName) { 
             statistics { 
                 anime { 
@@ -50,15 +50,7 @@ USER_ANIME_STATS = """
                         }
                         count
                     }
-                } 
-            } 
-        } 
-    }
-"""
-USER_MANGA_STATS = """
-    query ($userName: String) { 
-        User(name: $userName) { 
-            statistics { 
+                }
                 manga { 
                     count
                     chaptersRead
@@ -85,13 +77,6 @@ USER_MANGA_STATS = """
                     }
                 } 
             }
-        } 
-    }
-"""
-
-USER_SOCIAL_STATS = """
-    query ($userName: String, $userId: Int!) {
-        User(name: $userName) { 
             stats {
                 activityHistory {
                     amount
@@ -137,6 +122,6 @@ USER_SOCIAL_STATS = """
             reviews(userId: $userId) {
                 id
             }
-        }
+        } 
     }
 """
