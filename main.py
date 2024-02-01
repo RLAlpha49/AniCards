@@ -56,6 +56,7 @@ key_types = {
 # Route for generating SVGs for a user
 @app.route('/AniCards/StatCards/<username>/generate_svgs', methods=['POST'])
 def generate_svgs(username):
+    print(f"Generating SVGs for user: {username}")
     # Get keys from the form data
     keys = request.form.getlist('keys')  # Get list of keys
 
@@ -85,18 +86,19 @@ def generate_svgs(username):
         colors = [color if color != '000000' else default for color, default in zip(colors, default_colors)]
     
     for key in keys:
-        # Generate an SVG for the key
+        print(f"Generating SVG for key: {key}")
         svg_data = generate_svg(key, data.get(key) if data else None, 0, username, colors)
-        # Store the SVG in the database
+        print(f"Storing SVG in the database for key: {key}")
         svg = Svg(username=username, key=key, data=svg_data, keys=','.join(keys))
         db.session.add(svg)
     db.session.commit()
+    print("SVGs generated and stored in the database") 
 
-    # After generating the SVGs, redirect to the display page
     return redirect(url_for('display_svgs', username=username))
 
 @app.route('/AniCards/StatCards/<username>', methods=['GET'])
 def display_svgs(username):
+    print(f"Fetching SVGs for user: {username}")
     # Fetch the SVGs for the user from the database
     svgs = Svg.query.filter_by(username=username).all()
 
@@ -118,6 +120,7 @@ def display_svgs(username):
 # Route for getting a specific SVG for a user
 @app.route('/AniCards/StatCards/get_svg/<username>/<key>', methods=['GET'])
 def get_svg(username, key):
+    print(f"Fetching SVG for user: {username}, key: {key}")
     svg = Svg.query.filter_by(username=username, key=key).first()
     if svg and svg.data:
         response = make_response(svg.data)
@@ -128,6 +131,7 @@ def get_svg(username, key):
         
 @app.route('/AniCards/StatCards/<username>/<key>.svg')
 def get_svg_from_db(username, key):
+    print(f"Fetching SVG from database for user: {username}, key: {key}")
     # Fetch the SVG for the user from the database
     svg = Svg.query.filter_by(username=username, key=key).first()
     if svg:
