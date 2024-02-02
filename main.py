@@ -198,7 +198,6 @@ def display_svgs(username):
                 svg_types = {}
                 for key in keys:
                     svg_types[key] = key_types.get(key, [])
-                print(svg_types)
 
                 # Render the HTML template
                 return render_template('user_template.html', username=username, svgs=svg_types, keys=keys, svg_types=svg_types)
