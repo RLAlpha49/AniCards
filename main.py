@@ -162,7 +162,7 @@ def get_svg_from_db(username, key):
             response.headers['Content-Type'] = 'image/svg+xml'
 
             # Add cache control headers
-            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+            response.headers['Cache-Control'] = 'no-cache, must-revalidate, max-age=0'
             response.headers['Pragma'] = 'no-cache'
             response.headers['Expires'] = '0'
 
