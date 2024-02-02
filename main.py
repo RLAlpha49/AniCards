@@ -157,8 +157,16 @@ def get_svg_from_db(username, key):
         # Fetch the SVG for the user from the database
         svg = Svg.query.filter_by(username=username, key=key).first()
         if svg:
-            # Return the SVG data with the correct content type
-            return Response(svg.data, mimetype='image/svg+xml')
+            # Create a response with the SVG data and the correct content type
+            response = make_response(svg.data)
+            response.headers['Content-Type'] = 'image/svg+xml'
+
+            # Add cache control headers
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+
+            return response
         else:
             abort(404, description="SVG not found")
     except Exception as e:
