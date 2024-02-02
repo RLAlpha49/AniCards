@@ -33,6 +33,8 @@ app.config['PREFERRED_URL_SCHEME'] = 'https'
 
 # Define SVG model for SQLAlchemy
 class Svg(db.Model):
+    __tablename__ = 'statcards'
+    __table_args__ = {'schema': 'svg'}
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), nullable=False)
     key = db.Column(db.String(80), nullable=False)
