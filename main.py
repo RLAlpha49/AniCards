@@ -90,7 +90,6 @@ def generate_svgs(username):
         for key in keys:
             log_message(f"Generating SVG for key: {key}")
             svg_data = generate_svg(key, data.get(key) if data else None, 0, username, colors)
-            print(svg_data)
             if svg_data is not None:
                 successful_keys.append(key)  # Add the key to the list of successful keys
                 log_message(f"Storing SVG in the database for key: {key}")
@@ -114,7 +113,13 @@ def display_svgs(username):
 
         if svgs:
             # Extract the keys from all SVGs
-            keys = set(key for svg in svgs for key in svg.keys.split(','))
+            keys = list(set(key for svg in svgs for key in svg.keys.split(',')))
+
+            # Define custom order
+            custom_order = ['animeStats', 'socialStats', 'mangaStats', 'animeGenres', 'animeTags', 'animeVoiceActors', 'animeStudios', 'animeStaff', 'mangaGenres', 'mangaTags', 'mangaStaff']
+
+            # Sort keys according to custom order
+            keys.sort(key=lambda x: custom_order.index(x) if x in custom_order else len(custom_order))
 
             # Generate the svg_types dictionary
             svg_types = {key: [svg for svg in svgs if key in svg.keys.split(',')] for key in keys}
