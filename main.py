@@ -86,12 +86,16 @@ def generate_svgs(username):
             default_colors = ['fe428e', 'fe428e', 'e4e2e2', 'a9fef7']
             colors = [color if color != '000000' else default for color, default in zip(colors, default_colors)]
         
+        successful_keys = []
         for key in keys:
             log_message(f"Generating SVG for key: {key}")
             svg_data = generate_svg(key, data.get(key) if data else None, 0, username, colors)
-            log_message(f"Storing SVG in the database for key: {key}")
-            svg = Svg(username=username, key=key, data=svg_data, keys=','.join(keys))
-            db.session.add(svg)
+            print(svg_data)
+            if svg_data is not None:
+                successful_keys.append(key)  # Add the key to the list of successful keys
+                log_message(f"Storing SVG in the database for key: {key}")
+                svg = Svg(username=username, key=key, data=svg_data, keys=','.join(successful_keys))
+                db.session.add(svg)
         db.session.commit()
         log_message("SVGs generated and stored in the database") 
 
@@ -109,14 +113,11 @@ def display_svgs(username):
         svgs = Svg.query.filter_by(username=username).all()
 
         if svgs:
-            # Extract the keys from the first SVG (they should be the same for all SVGs)
-            keys = svgs[0].keys.split(',')
+            # Extract the keys from all SVGs
+            keys = set(key for svg in svgs for key in svg.keys.split(','))
 
             # Generate the svg_types dictionary
             svg_types = {key: [svg for svg in svgs if key in svg.keys.split(',')] for key in keys}
-
-            # Generate the types for each key
-            svg_types = {key: key_types[key] for key in svg_types}
 
             # Render the HTML template
             return render_template('user_template.html', username=username, svgs=svgs, keys=keys, svg_types=svg_types)

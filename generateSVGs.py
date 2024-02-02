@@ -392,6 +392,7 @@ def generate_extraMangaStats_svg(value, username, key, colors, type):
 
     except Exception as e:
         log_message(f'Error occurred generating extra manga stats svg for {username}: {e}', 'error')
+        return None
 
 def generate_socialStats_svg(value, username, colors, type):
     try:
