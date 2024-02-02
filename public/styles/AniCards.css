@@ -249,7 +249,7 @@ p {
     color: #C5C6C7;
     text-align: center;
     padding: 10px; 
-    width: 100%;
+    width: 100vw;
     border-top: 1px solid #66FCF1;
     font-size: 0.8em;
     box-sizing: border-box;
@@ -259,6 +259,7 @@ p {
     color: #C5C6C7;
     margin: 0;
     padding: 0;
+    transform: translateX(-30px);
 }
 
 .footer-div a:hover {
@@ -271,6 +272,7 @@ p {
     display: flex;
     justify-content: center;
     gap: 10px;
+    transform: translateX(-30px);
 }
 
 #arrow {
