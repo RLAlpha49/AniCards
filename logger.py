@@ -11,6 +11,9 @@ def log_message(message, level='info'):
     # Create a logger
     logger = logging.getLogger('Main_Logger')
     logger.setLevel(logging.DEBUG)
+    
+    # Comment if you want logs to appear in the terminal where the flask application is running
+    logger.propagate = False # Don't propagate to the root logger
 
     # Create logs directory if it doesn't exist
     if not os.path.exists('logs'):
