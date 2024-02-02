@@ -8,6 +8,7 @@ This is a Flask application that generates SVG stat cards for AniList users. It 
 - [How it Works](#how-it-works)
 - [Prerequisites](#prerequisites)
 - [Running the Application](#running-the-application)
+  - [Deploying with Waitress & Cloudflare](#running-the-application-with-waitress-and-cloudflare)
   - [Deploying to Heroku](#deploying-to-heroku)
   - [Deploying with uWSGI, Nginx, and Cloudflare](#deploying-with-uwsgi-nginx-and-cloudflare)
 - [License](#license)
@@ -95,7 +96,7 @@ Replace 'main:app' with the import path to your application's Flask instance. Fo
 
 The application will now be available at [http://localhost:5000](http://localhost:5000).
 
-3. **Configure Cloudflare**:
+4. **Configure Cloudflare**:
 
 Go to your Cloudflare dashboard, add your domain, and update your DNS records to point to your server's IP address and port 5000. Make sure your SSL/TLS encryption mode is set to "Full".
 
