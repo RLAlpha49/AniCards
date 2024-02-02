@@ -178,7 +178,7 @@ def static_from_root():
     return send_from_directory(app.static_folder, request.path[1:])
 
 # Create the database for local testing if it doesn't exist
-if not os.path.exists('./test.db') and not database_url:
+if not os.path.exists('instance/test.db') and not database_url:
     with app.app_context():
         log_message('Creating database for local testing', 'debug')
         db.create_all()
