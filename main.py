@@ -2,7 +2,6 @@
 # TODO: Add option for light or dark mode for Stat Cards (Part of Themes)
 # TODO: Add option to change theme of Stat Cards (Need more to be made/designed if people want them)
 # TODO: Add a Banner/Badges generator from user input (Implementing imgur API & New website page to showcase Banner/Badges generated)
-# TODO: Add sidebar
 
 # Import necessary modules
 from flask import Flask, abort, make_response, render_template, redirect, url_for, Response, request, send_from_directory
@@ -11,6 +10,7 @@ from urllib.parse import urlparse, urlunparse
 from AniListData import fetch_anilist_data
 from generateSVGs import generate_svg
 import os
+from logger import log_message
 
 # Initialize Flask app
 app = Flask(__name__, static_folder='public', template_folder='Pages')
@@ -57,7 +57,7 @@ key_types = {
 @app.route('/AniCards/StatCards/<username>/generate_svgs', methods=['POST'])
 def generate_svgs(username):
     try:
-        print(f"Generating SVGs for user: {username}")
+        log_message(f"Generating SVGs for user: {username}")
         # Get keys from the form data
         keys = request.form.getlist('keys')  # Get list of keys
 
@@ -87,24 +87,24 @@ def generate_svgs(username):
             colors = [color if color != '000000' else default for color, default in zip(colors, default_colors)]
         
         for key in keys:
-            print(f"Generating SVG for key: {key}")
+            log_message(f"Generating SVG for key: {key}")
             svg_data = generate_svg(key, data.get(key) if data else None, 0, username, colors)
-            print(f"Storing SVG in the database for key: {key}")
+            log_message(f"Storing SVG in the database for key: {key}")
             svg = Svg(username=username, key=key, data=svg_data, keys=','.join(keys))
             db.session.add(svg)
         db.session.commit()
-        print("SVGs generated and stored in the database") 
+        log_message("SVGs generated and stored in the database") 
 
         return redirect(url_for('display_svgs', username=username))
     except Exception as e:
-        print(f"An error occurred while generating SVGs for user: {username}. Error: {e}")
+        log_message(f"An error occurred while generating SVGs for user: {username}. Error: {e}", "error")
         # Return a response indicating an error occurred
         return str(e), 500
 
 @app.route('/AniCards/StatCards/<username>', methods=['GET'])
 def display_svgs(username):
     try:
-        print(f"Fetching SVGs for user: {username}")
+        log_message(f"Fetching SVGs for user: {username}")
         # Fetch the SVGs for the user from the database
         svgs = Svg.query.filter_by(username=username).all()
 
@@ -123,7 +123,7 @@ def display_svgs(username):
         else:
             abort(404, description="No SVGs found for this user")
     except Exception as e:
-        print(f"An error occurred while fetching SVGs for user: {username}. Error: {e}")
+        log_message(f"An error occurred while fetching SVGs for user: {username}. Error: {e}", "error")
         # Return a response indicating an error occurred
         return str(e), 500
 
@@ -131,7 +131,7 @@ def display_svgs(username):
 @app.route('/AniCards/StatCards/get_svg/<username>/<key>', methods=['GET'])
 def get_svg(username, key):
     try:
-        print(f"Fetching SVG for user: {username}, key: {key}")
+        log_message(f"Fetching SVG for user: {username}, key: {key}")
         svg = Svg.query.filter_by(username=username, key=key).first()
         if svg and svg.data:
             response = make_response(svg.data)
@@ -140,14 +140,14 @@ def get_svg(username, key):
         else:
             abort(404, description="SVG not found")
     except Exception as e:
-        print(f"An error occurred while fetching SVG for user: {username}, key: {key}. Error: {e}")
+        log_message(f"An error occurred while fetching SVG for user: {username}, key: {key}. Error: {e}", "error")
         # Return a response indicating an error occurred
         return str(e), 500
 
 @app.route('/AniCards/StatCards/<username>/<key>.svg')
 def get_svg_from_db(username, key):
     try:
-        print(f"Fetching SVG from database for user: {username}, key: {key}")
+        log_message(f"Fetching SVG from database for user: {username}, key: {key}")
         # Fetch the SVG for the user from the database
         svg = Svg.query.filter_by(username=username, key=key).first()
         if svg:
@@ -156,27 +156,31 @@ def get_svg_from_db(username, key):
         else:
             abort(404, description="SVG not found")
     except Exception as e:
-        print(f"An error occurred while fetching SVG from database for user: {username}, key: {key}. Error: {e}")
+        log_message(f"An error occurred while fetching SVG from database for user: {username}, key: {key}. Error: {e}", "error")
         # Return a response indicating an error occurred
         return str(e), 500
 
 # StatCards route
 @app.route('/AniCards/StatCards/')
 def statCards():
+    log_message('Accessing StatCards route', 'info')
     return render_template('statCards.html')
 
 # Home route
 @app.route('/AniCards/')
 def home():
+    log_message('Accessing Home route', 'info')
     return render_template('aniCards.html')
 
 @app.route('/robots.txt')
 def static_from_root():
+    log_message('Accessing robots.txt', 'info')
     return send_from_directory(app.static_folder, request.path[1:])
 
 # Create the database for local testing if it doesn't exist
 if not os.path.exists('./test.db') and not database_url:
     with app.app_context():
+        log_message('Creating database for local testing', 'debug')
         db.create_all()
         
 # Run the Flask app
