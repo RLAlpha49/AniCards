@@ -5,21 +5,18 @@ import glob
 import sys
 
 def run_server():
-    print("Starting server...")
     return subprocess.Popen(['waitress-serve', '--port=5000', '--threads=4', 'main:app'], stdout=subprocess.PIPE)
 
 def stop_server(server_process):
     if server_process:
-        print("Stopping server...")
         server_process.terminate()
         server_process.wait()
 
 def restart_server(server_process):
-    print("Restarting server...")
     stop_server(server_process)
     changes = pull_from_git()
     if 'server.py' in changes:
-        print("Changes detected in server.py, restarting")
+        print("Changes detected in server.py, restarting...")
         sys.exit(2)  # Exit with status code 2 to signal a restart
     return run_server()
 
