@@ -5,14 +5,17 @@ import glob
 import sys
 
 def run_server():
+    print("Starting server...")
     return subprocess.Popen(['waitress-serve', '--port=5000', '--threads=4', 'main:app'], stdout=subprocess.PIPE)
 
 def stop_server(server_process):
     if server_process:
+        print("Stopping server...")
         server_process.terminate()
         server_process.wait()
 
 def restart_server(server_process):
+    print("Restarting server...")
     stop_server(server_process)
     changes = pull_from_git()
     if 'server.py' in changes:
@@ -29,6 +32,7 @@ def open_newest_file(file_type):
     os.startfile(newest_file)
 
 def pull_from_git():
+    print("Pulling latest changes from git...")
     changes = subprocess.check_output(['git', 'pull']).decode('utf-8')
     return changes
 
@@ -46,6 +50,9 @@ while True:
             server_process = run_server()
         else:
             print("Server is already running.")
+    elif command == 'pull':
+        pull_from_git()
+        server_process = restart_server(server_process)
     elif command.startswith('open '):
         file_type = command.split(' ')[1]
         open_newest_file(file_type)
