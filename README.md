@@ -78,21 +78,19 @@ Waitress is a production-quality WSGI server that can be used to run your Flask 
 pip install waitress
 ```
 
-2. **Navigate to your application's directory**:
+2. **Run Wrapper.py**:
 
 ```bash
 cd path/to/your/application
+py wrapper.py
 ```
 
 Replace path/to/your/application with the actual path to your application's directory.
-
-3. **Start your application**:
+By default I have waitress set to use 4 threads. If you want to change this edit this line in 'server.py' to the amount of threads you want.
 
 ```bash
-waitress-serve --port=5000 --threads=4 'main:app'
+return subprocess.Popen(['waitress-serve', '--port=5000', '--threads=4', 'main:app'], stdout=subprocess.PIPE)
 ```
-
-Replace 'main:app' with the import path to your application's Flask instance. For example, if your Flask instance is created in a file named 'app.py', you would use 'app:app'. The --threads=4 option tells Waitress to use 4 threads. Adjust this number based on your server's capabilities and the expected load on your application.
 
 The application will now be available at [http://localhost:5000](http://localhost:5000).
 
