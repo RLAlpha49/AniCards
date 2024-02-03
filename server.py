@@ -5,20 +5,27 @@ import glob
 import sys
 
 def run_server():
+    print("Starting server...")
     return subprocess.Popen(['waitress-serve', '--port=5000', '--threads=4', 'main:app'], stdout=subprocess.PIPE)
 
 def stop_server(server_process):
     if server_process:
+        print("Stopping server...")
         server_process.terminate()
         server_process.wait()
 
 def restart_server(server_process):
     stop_server(server_process)
-    changes = pull_from_git()
-    if 'server.py' in changes:
+    changes_made = pull_from_git()
+    if changes_made and 'server.py' in changes_made:
         print("Changes detected in server.py, restarting...")
         sys.exit(2)  # Exit with status code 2 to signal a restart
-    return run_server()
+    return run_server(silent=True)
+
+def run_server(silent=False):
+    if not silent:
+        print("Starting server...")
+    return subprocess.Popen(['waitress-serve', '--port=5000', '--threads=4', 'main:app'], stdout=subprocess.PIPE)
 
 def open_newest_file(file_type):
     files = glob.glob(f'logs/{file_type}_*.log')
@@ -31,7 +38,12 @@ def open_newest_file(file_type):
 def pull_from_git():
     print("Pulling latest changes from git...")
     changes = subprocess.check_output(['git', 'pull']).decode('utf-8')
-    return changes
+    if 'Already up to date.' in changes:
+        print("No changes were made.")
+        return False
+    else:
+        print("Changes were made.")
+        return True
 
 server_process = run_server()
 
@@ -48,8 +60,9 @@ while True:
         else:
             print("Server is already running.")
     elif command == 'pull':
-        pull_from_git()
-        server_process = restart_server(server_process)
+        changes_made = pull_from_git()
+        if changes_made:
+            server_process = restart_server(server_process)
     elif command.startswith('open '):
         file_type = command.split(' ')[1]
         open_newest_file(file_type)
