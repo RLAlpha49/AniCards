@@ -42,7 +42,7 @@ def pull_from_git():
         print("No changes were made.")
         return False
     else:
-        print("Changes were made.")
+        print("Changes were made.\n")
         return True
 
 server_process = run_server()
