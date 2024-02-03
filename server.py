@@ -1,5 +1,5 @@
+# Used to run server through waitress
 import subprocess
-import sys
 import os
 
 def run_server():
