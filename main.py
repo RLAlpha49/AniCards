@@ -181,7 +181,7 @@ def display_svgs(username):
 
         if user:
             # Fetch the StatCard for the user from the database
-            statcard = StatCard.query.get(user.id)
+            statcard = db.session.get(StatCard, user.id)
 
             if statcard:
                 log_message(f"Fetching SVGs ({statcard.keys}) for user: {username}")
