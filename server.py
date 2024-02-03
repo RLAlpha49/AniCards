@@ -13,7 +13,10 @@ def restart_server(server_process):
     return run_server()
 
 def open_newest_file(file_type):
-    files = glob.glob(f'{file_type}_*.log')
+    files = glob.glob(f'logs/{file_type}_*.log')
+    if not files:
+        print(f"No {file_type} files found in logs directory.")
+        return
     newest_file = max(files, key=os.path.getctime)
     os.startfile(newest_file)
 
