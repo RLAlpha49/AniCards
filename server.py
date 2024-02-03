@@ -16,7 +16,8 @@ def restart_server(server_process):
     stop_server(server_process)
     changes = pull_from_git()
     if 'server.py' in changes:
-        os.execv(__file__, sys.argv)
+        print("Changes detected in server.py, restarting")
+        sys.exit(2)  # Exit with status code 2 to signal a restart
     return run_server()
 
 def open_newest_file(file_type):
