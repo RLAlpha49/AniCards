@@ -4,5 +4,4 @@ __pycache__
 instance/test.db
 fourm.txt
 post.txt
-log.log
-debug.log
+/logs

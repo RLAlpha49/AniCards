@@ -1,8 +1,13 @@
+import datetime
 import logging
+import logging.handlers
 import inspect
 import os
 
-def log_message(message, level='info'):
+# Get the current timestamp
+timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H_%M_%S')
+
+def log_message(message, level='info', timestamp=timestamp):
     # Get the caller information
     caller = inspect.stack()[1]
     function_name = caller[3]
@@ -22,8 +27,8 @@ def log_message(message, level='info'):
         os.makedirs('logs')
 
     # Create file handlers
-    log_handler = logging.FileHandler(os.path.join('logs', 'log.log'))
-    debug_handler = logging.FileHandler(os.path.join('logs', 'debug.log'))
+    log_handler = logging.handlers.RotatingFileHandler(os.path.join('logs', f'log_{timestamp}.log'), backupCount=30)
+    debug_handler = logging.handlers.RotatingFileHandler(os.path.join('logs', f'debug_{timestamp}.log'), backupCount=30)
 
     # Set levels for handlers
     log_handler.setLevel(logging.INFO)
