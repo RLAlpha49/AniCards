@@ -16,7 +16,7 @@ def stop_server(server_process):
 
 def restart_server(server_process, pull_silent=False):
     stop_server(server_process)
-    if not pull_silent:
+    if pull_silent is not True:
         changes_made = pull_from_git()
         if changes_made and 'server.py' in changes_made:
             print("\nChanges detected in server.py, restarting server.py...")
