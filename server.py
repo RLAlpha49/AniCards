@@ -14,12 +14,13 @@ def stop_server(server_process):
         server_process.terminate()
         server_process.wait()
 
-def restart_server(server_process):
+def restart_server(server_process, pull_silent=False):
     stop_server(server_process)
-    changes_made = pull_from_git()
-    if changes_made and 'server.py' in changes_made:
-        print("\nChanges detected in server.py, restarting server.py...")
-        sys.exit(2)  # Exit with status code 2 to signal a restart
+    if not pull_silent:
+        changes_made = pull_from_git()
+        if changes_made and 'server.py' in changes_made:
+            print("\nChanges detected in server.py, restarting server.py...")
+            sys.exit(2)  # Exit with status code 2 to signal a restart
     return run_server(silent=True)
 
 def run_server(silent=False):
@@ -62,7 +63,7 @@ while True:
     elif command == 'pull':
         changes_made = pull_from_git()
         if changes_made:
-            server_process = restart_server(server_process)
+            server_process = restart_server(server_process, True)
     elif command.startswith('open '):
         file_type = command.split(' ')[1]
         open_newest_file(file_type)
