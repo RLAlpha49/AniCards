@@ -176,7 +176,6 @@ def generate_svgs(username):
 @app.route('/AniCards/StatCards/<username>', methods=['GET'])
 def display_svgs(username):
     try:
-        log_message(f"Fetching SVGs for user: {username}")
         # Fetch the User for the username from the database
         user = User.query.filter_by(username=username).first()
 
@@ -185,6 +184,7 @@ def display_svgs(username):
             statcard = StatCard.query.get(user.id)
 
             if statcard:
+                log_message(f"Fetching SVGs ({statcard.keys}) for user: {username}")
                 # Extract the keys from the StatCard
                 keys = statcard.keys.split(',')
 
@@ -213,7 +213,7 @@ def display_svgs(username):
 @app.route('/AniCards/StatCards/get_svg/<username>/<key>', methods=['GET'])
 def get_svg(username, key):
     try:
-        log_message(f"Fetching SVG for user: {username}, key: {key}")
+        log_message(f"Fetching SVG for user: {username}, key: {key}", 'debug')
         # Fetch the User for the username from the database
         user = User.query.filter_by(username=username).first()
         if user:

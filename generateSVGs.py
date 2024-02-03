@@ -85,17 +85,17 @@ def inline_styles(svg_file, css_file, dasharray, dashoffset, colors):
             styles = styles.replace('{{text_color}}', colors[3])
             styles = styles.replace('{{circle_color}}', colors[1])
 
-        log_message('Styles read and replaced successfully', 'info')
+        log_message('Styles read and replaced successfully', 'debug')
 
         with open(svg_file, 'r') as f:
             svg = f.read()
 
-        log_message('SVG file read successfully', 'info')
+        log_message('SVG file read successfully', 'debug')
 
         # Insert the styles into the SVG file inside a <style> tag
         svg = svg.replace('<defs>', f'<defs><style>{styles}</style>', 1)
 
-        log_message('Styles inlined into SVG successfully', 'info')
+        log_message('Styles inlined into SVG successfully', 'debug')
 
         return svg
 
@@ -128,11 +128,13 @@ def generate_animeStats_svg(value, username, colors, type):
             dasharray = circle_circumference
             dashoffset = circle_circumference * (1 - (percentage / 100))
 
-            log_message(f'Milestones calculated successfully for {username}', 'info')
+            log_message(f'Milestones calculated successfully for {username}', 'debug')
 
             # Read the HTML template
             with open('Pages/SVGs/animeStatsSVG.html', 'r') as file:
                 html_template = file.read()
+            
+            log_message(f'HTML template read successfully for {username}', 'info')
 
             # Escape the curly braces in the HTML template
             html_template = html_template.replace('{', '{{').replace('}', '}}')
@@ -151,7 +153,7 @@ def generate_animeStats_svg(value, username, colors, type):
                 colors
             )
 
-            log_message(f'Styles inlined successfully for {username}', 'info')
+            log_message(f'Styles inlined successfully for {username}', 'debug')
 
             # Replace the placeholders in the HTML template with actual values
             html = html_template.format(
@@ -179,7 +181,7 @@ def calculate_font_size(text, initial_font_size, max_width):
             initial_font_size -= 1
             estimated_text_width = len(text) * initial_font_size * scaling_factor
 
-        log_message(f'Font size calculated successfully for text: {text}', 'info')
+        log_message(f'Font size calculated successfully for text: {text}', 'debug')
 
         return initial_font_size
 
@@ -206,7 +208,7 @@ def generate_extraAnimeStats_svg(value, username, key, colors, type):
             for placeholder in placeholders:
                 html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
 
-            log_message(f'Placeholders replaced successfully for {username}', 'info')
+            log_message(f'Placeholders replaced successfully for {username}', 'debug')
 
             # Inline the styles
             html_template = inline_styles(
@@ -217,7 +219,7 @@ def generate_extraAnimeStats_svg(value, username, key, colors, type):
                 colors
             )
 
-            log_message(f'Styles inlined successfully for {username}', 'info')
+            log_message(f'Styles inlined successfully for {username}', 'debug')
 
             # Calculate the font size
             text = f"{username}'s Top Manga {key.capitalize()}s"
@@ -225,7 +227,7 @@ def generate_extraAnimeStats_svg(value, username, key, colors, type):
             max_width = 320
             font_size = calculate_font_size(text, initial_font_size, max_width)
 
-            log_message(f'Font size calculated successfully for {username}', 'info')
+            log_message(f'Font size calculated successfully for {username}', 'debug')
 
             # Generate the CSS rules for the header class
             header_style = f"font-weight: 600; font-family: 'Segoe UI', Ubuntu, Sans-Serif; fill: #fe428e; animation: fadeInAnimation 0.8s ease-in-out forwards; font-size: {font_size}px;"
@@ -281,7 +283,7 @@ def generate_mangaStats_svg(value, username, colors, type):
             dasharray = circle_circumference
             dashoffset = circle_circumference * (1 - (percentage / 100))
 
-            log_message(f'Milestones calculated successfully for {username}', 'info')
+            log_message(f'Milestones calculated successfully for {username}', 'debug')
 
             # Read the HTML template
             with open('Pages/SVGs/mangaStatsSVG.html', 'r') as file:
@@ -297,7 +299,7 @@ def generate_mangaStats_svg(value, username, colors, type):
             for placeholder in placeholders:
                 html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
 
-            log_message(f'Placeholders replaced successfully for {username}', 'info')
+            log_message(f'Placeholders replaced successfully for {username}', 'debug')
 
             # Inline the styles
             html_template = inline_styles(
@@ -308,7 +310,7 @@ def generate_mangaStats_svg(value, username, colors, type):
                 colors
             )
 
-            log_message(f'Styles inlined successfully for {username}', 'info')
+            log_message(f'Styles inlined successfully for {username}', 'debug')
 
             # Replace the placeholders in the HTML template with actual values
             html = html_template.format(
@@ -344,7 +346,7 @@ def generate_extraMangaStats_svg(value, username, key, colors, type):
             for placeholder in placeholders:
                 html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
 
-            log_message(f'Placeholders replaced successfully for {username}', 'info')
+            log_message(f'Placeholders replaced successfully for {username}', 'debug')
 
             # Inline the styles
             html_template = inline_styles(
@@ -355,7 +357,7 @@ def generate_extraMangaStats_svg(value, username, key, colors, type):
                 colors
             )
 
-            log_message(f'Styles inlined successfully for {username}', 'info')
+            log_message(f'Styles inlined successfully for {username}', 'debug')
 
             # Calculate the font size
             text = f"{username}'s Top Manga {key.capitalize()}s"
@@ -363,7 +365,7 @@ def generate_extraMangaStats_svg(value, username, key, colors, type):
             max_width = 320
             font_size = calculate_font_size(text, initial_font_size, max_width)
 
-            log_message(f'Font size calculated successfully for {username}', 'info')
+            log_message(f'Font size calculated successfully for {username}', 'debug')
 
             # Generate the CSS rules for the header class
             header_style = f"font-weight: 600; font-family: 'Segoe UI', Ubuntu, Sans-Serif; fill: #fe428e; animation: fadeInAnimation 0.8s ease-in-out forwards; font-size: {font_size}px;"
@@ -413,7 +415,7 @@ def generate_socialStats_svg(value, username, colors, type):
             for placeholder in placeholders:
                 html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
 
-            log_message(f'Placeholders replaced successfully for {username}', 'info')
+            log_message(f'Placeholders replaced successfully for {username}', 'debug')
 
             # Inline the styles
             html_template = inline_styles(
@@ -424,7 +426,7 @@ def generate_socialStats_svg(value, username, colors, type):
                 colors
             )
 
-            log_message(f'Styles inlined successfully for {username}', 'info')
+            log_message(f'Styles inlined successfully for {username}', 'debug')
 
             # Replace the placeholders in the HTML template with actual values
             html = html_template.format(
