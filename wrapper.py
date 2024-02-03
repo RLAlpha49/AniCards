@@ -3,7 +3,6 @@ import subprocess
 import time
 
 while True:
-    print("Starting server.py")
     process = subprocess.Popen(['python', 'server.py'])
     process.wait()
 
@@ -11,5 +10,4 @@ while True:
     if process.returncode != 2:
         break
 
-    print("Restarting server.py")
     time.sleep(1)  # Optional delay to prevent rapid restarts
