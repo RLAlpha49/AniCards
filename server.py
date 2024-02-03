@@ -10,7 +10,7 @@ def run_server():
 
 def stop_server(server_process):
     if server_process:
-        print("Stopping server...")
+        print("\nStopping server...")
         server_process.terminate()
         server_process.wait()
 
@@ -40,7 +40,7 @@ def pull_from_git():
     print("\nPulling latest changes from git...")
     changes = subprocess.check_output(['git', 'pull']).decode('utf-8')
     if 'Already up to date.' in changes:
-        print("No changes were made.")
+        print("No changes were made.\n")
         return False
     else:
         print("Changes were made.\n")
