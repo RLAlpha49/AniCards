@@ -2,14 +2,17 @@
 import subprocess
 import os
 import glob
+import sys
 
 def run_server():
-    return subprocess.Popen(['waitress-serve', '--port=5000', '--threads=4', 'main:app'])
+    return subprocess.Popen(['waitress-serve', '--port=5000', '--threads=4', 'main:app'], stdout=subprocess.PIPE)
 
 def restart_server(server_process):
     server_process.terminate()
     server_process.wait()
-    os.system('git pull')
+    changes = pull_from_git()
+    if 'server.py' in changes:
+        os.execv(__file__, sys.argv)
     return run_server()
 
 def open_newest_file(file_type):
@@ -19,6 +22,10 @@ def open_newest_file(file_type):
         return
     newest_file = max(files, key=os.path.getctime)
     os.startfile(newest_file)
+
+def pull_from_git():
+    changes = subprocess.check_output(['git', 'pull']).decode('utf-8')
+    return changes
 
 server_process = run_server()
 
