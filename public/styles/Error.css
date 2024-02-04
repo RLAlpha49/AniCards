@@ -140,6 +140,11 @@ body, .center-container {
     display: none;
 }
 
+.sidebar .bottom-link .link-content a:not(:first-child) img {
+    filter: invert(0) brightness(0.6);
+}
+
+
 .sidebar.expanded .bottom-link .link-content a:not(:first-child) {
     display: block;
 }
