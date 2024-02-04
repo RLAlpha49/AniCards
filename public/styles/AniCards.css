@@ -91,7 +91,7 @@ body, .center-container {
 
 .link-content {
     display: flex;
-    align-items: center;
+    align-items: flex-start; 
 }
 
 .link-text {
@@ -126,6 +126,10 @@ body, .center-container {
 
 .sidebar nav ul li.active-link .link-content img:not(.site-icon) {
     filter: invert(56%) sepia(58%) saturate(371%) hue-rotate(127deg) brightness(92%) contrast(85%);
+}
+
+.bottom-link .link-content{
+    height: 46px;
 }
 
 .sidebar .bottom-link {
