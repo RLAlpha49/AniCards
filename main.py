@@ -171,7 +171,7 @@ def generate_svgs(username):
     except Exception as e:
         log_message(f"An error occurred while generating SVGs for user: {username}. Error: {e}", "error")
         # Return a response indicating an error occurred
-        return str(e), 500
+        raise e
 
 @app.route('/AniCards/StatCards/<username>', methods=['GET'])
 def display_svgs(username):
@@ -208,7 +208,7 @@ def display_svgs(username):
     except Exception as e:
         log_message(f"An error occurred while fetching SVGs for user: {username}. Error: {e}", "error")
         # Return a response indicating an error occurred
-        return str(e), 500
+        raise e
 
 @app.route('/AniCards/StatCards/get_svg/<username>/<key>', methods=['GET'])
 def get_svg(username, key):
@@ -230,7 +230,7 @@ def get_svg(username, key):
     except Exception as e:
         log_message(f"An error occurred while fetching SVG for user: {username}, key: {key}. Error: {e}", "error")
         # Return a response indicating an error occurred
-        return str(e), 500
+        raise e
 
 @app.route('/AniCards/StatCards/<username>/<key>.svg')
 def get_svg_from_db(username, key):
@@ -259,7 +259,7 @@ def get_svg_from_db(username, key):
     except Exception as e:
         log_message(f"An error occurred while fetching SVG from database for user: {username}, key: {key}. Error: {e}", "error")
         # Return a response indicating an error occurred
-        return str(e), 500
+        raise e
 
 # StatCards route
 @app.route('/AniCards/StatCards/')
@@ -277,6 +277,10 @@ def home():
 def static_from_root():
     log_message('Accessing robots.txt', 'info')
     return send_from_directory(app.static_folder, request.path[1:])
+
+@app.errorhandler(Exception)
+def handle_error(e):
+    return render_template('Error.html', error=str(e)), 500
 
 # Create the database for local testing if it doesn't exist
 if not os.path.exists('instance/test.db') and not database_url:
