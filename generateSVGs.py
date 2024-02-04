@@ -75,15 +75,16 @@ def fetch_data(name, username):
 def inline_styles(svg_file, css_file, dasharray, dashoffset, colors):
     try:
         log_message('Started inlining styles into svg', 'debug')
+        print(colors)
 
         with open(css_file, 'r') as f:
             styles = f.read()
             styles = styles.replace('{', '{{').replace('}', '}}')
             styles = styles.replace('{{dasharray}}', str(dasharray)).replace('{{dashoffset}}', str(dashoffset))
             styles = styles.replace('{{title_color}}', colors[0])
-            styles = styles.replace('{{background_color}}', colors[2])
-            styles = styles.replace('{{text_color}}', colors[3])
-            styles = styles.replace('{{circle_color}}', colors[1])
+            styles = styles.replace('{{background_color}}', colors[1])
+            styles = styles.replace('{{text_color}}', colors[2])
+            styles = styles.replace('{{circle_color}}', colors[3])
 
         log_message('Styles read and replaced successfully', 'debug')
 
@@ -204,7 +205,7 @@ def generate_extraAnimeStats_svg(value, username, key, colors, type):
             html_template = html_template.replace('{', '{{').replace('}', '}}')
 
             # Unescape the placeholders that you want to replace
-            placeholders = ['username', 'count', 'data1', 'data2', 'data3', 'data4', 'data5', 'headerStyle']
+            placeholders = ['username', 'count', 'data1', 'data2', 'data3', 'data4', 'data5']
             for placeholder in placeholders:
                 html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
 

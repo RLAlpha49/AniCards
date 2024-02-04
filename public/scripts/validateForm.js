@@ -17,9 +17,6 @@ function validateForm() {
     var color3 = document.getElementById('color3');
     var color4 = document.getElementById('color4');
 
-    // Log the values of the color inputs
-    console.log(color1.value, color2.value, color3.value, color4.value);
-
     // If the value of a color input has been changed, set the value of the corresponding hidden input to the new color
     if (color1.value !== color1.defaultValue) document.getElementById('hiddenColor1').value = color1.value;
     if (color2.value !== color2.defaultValue) document.getElementById('hiddenColor2').value = color2.value;

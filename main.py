@@ -106,9 +106,9 @@ def generate_svgs(username):
 
         # If no colors were selected, use default colors
         if not colors or len(colors) != 4:
-            colors = ['fe428e', 'fe428e', 'e4e2e2', 'a9fef7']
+            colors = ['fe428e', '141321', 'a9fef7', 'fe428e']
         else:
-            default_colors = ['fe428e', 'fe428e', 'e4e2e2', 'a9fef7']
+            default_colors = ['fe428e', '141321', 'a9fef7', 'fe428e']
             colors = [color if color != '000000' else default for color, default in zip(colors, default_colors)]
         
         successful_keys = []

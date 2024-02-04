@@ -11,7 +11,7 @@ svg {
 }
 
 [data-testid="card-bg"] {
-    fill: {background_color};
+    fill: #{background_color};
 }
 
 [data-testid="main-card-body"] text {
