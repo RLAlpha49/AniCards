@@ -26,7 +26,7 @@ def restart_server(server_process, pull_silent=False):
         stop_server(server_process)
         if pull_silent is not True:
             changes_made = pull_from_git()
-            if changes_made and 'server.py' in changes_made:
+            if changes_made and isinstance(changes_made, list) and 'server.py' in changes_made:
                 print("\nChanges detected in server.py, restarting server.py...")
                 sys.exit(2)  # Exit with status code 2 to signal a restart
         return run_server(silent=True)
@@ -47,13 +47,14 @@ def open_newest_file(file_type):
 def pull_from_git():
     try:
         print("\nPulling latest changes from git...")
-        changes = subprocess.check_output(['git', 'pull']).decode('utf-8')
-        if 'Already up to date.' in changes:
-            print("No changes were made.\n")
-            return False
-        else:
+        subprocess.check_output(['git', 'fetch']).decode('utf-8')
+        changes = subprocess.check_output(['git', 'diff', '--name-only', 'HEAD', 'origin/main']).decode('utf-8')
+        if changes:
             print("Changes were made.\n")
-            return True
+            return changes.splitlines()
+        else:
+            print("No changes were made.\n")
+            return []
     except Exception as e:
         print(f"Error pulling from git: {e}")
 
