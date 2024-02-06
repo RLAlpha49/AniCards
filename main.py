@@ -2,6 +2,8 @@
 # TODO: Add option for light or dark mode for Stat Cards (Part of Themes)
 # TODO: Add option to change theme of Stat Cards (Need more to be made/designed if people want them)
 # TODO: Add a Banner/Badges generator from user input (Implementing imgur API & New website page to showcase Banner/Badges generated)
+# TODO: Set to subdomain anicards.alpha49.com
+# TODO: Add automatic refreshing of SVGs 
 
 # Import necessary modules
 from flask import Flask, abort, make_response, render_template, redirect, url_for, request, send_from_directory
