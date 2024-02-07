@@ -450,9 +450,7 @@ def process_keys_and_generate_svgs(username, keys, colors, user):
     }
 
     for key in keys:
-        svg_data = generate_svg(
-            key, data.get(key) if data else None, username, colors
-        )
+        svg_data = generate_svg(key, data.get(key) if data else None, username, colors)
         if svg_data is not None:
             successful_keys.append(key)  # Add the key to the list of successful keys
 
@@ -505,20 +503,20 @@ def process_user(user, custom_order, key_to_class):
     successful_keys = []
 
     for key in keys:
-        process_key(key, data, user, colors, successful_keys, key_to_class)
+        user_info = {"user": user, "colors": colors}
+        process_key(key, data, user_info, successful_keys, key_to_class)
 
     db.session.commit()
 
 
-def process_key(key, data, user, colors, successful_keys, key_to_class):
+def process_key(key, data, user_info, successful_keys, key_to_class):
     """
     Process a key's data and generate an SVG for it.
 
     Args:
         key (str): The key to process.
         data (dict): The data to generate the SVG from.
-        user (User): The user the data belongs to.
-        colors (list): The colors to use in the SVG.
+        user_info (dict): A dictionary containing the user and colors.
         successful_keys (list): A list of keys that have been successfully processed.
         key_to_class (dict): A mapping from keys to classes.
 
@@ -528,8 +526,8 @@ def process_key(key, data, user, colors, successful_keys, key_to_class):
     svg_data = generate_svg(
         key,
         data.get(key) if data else None,
-        user.username,
-        colors,
+        user_info["user"].username,
+        user_info["colors"],
     )
     if svg_data is not None:
         successful_keys.append(key)
@@ -537,11 +535,13 @@ def process_key(key, data, user, colors, successful_keys, key_to_class):
         # Save the data in the respective table
         record_class = key_to_class.get(key)
         if record_class:
-            record = record_class.query.filter_by(statcard_id=user.id).first()
+            record = record_class.query.filter_by(
+                statcard_id=user_info["user"].id
+            ).first()
             if record:
                 record.data = svg_data
             else:
-                record = record_class(data=svg_data, statcard_id=user.id)
+                record = record_class(data=svg_data, statcard_id=user_info["user"].id)
                 db.session.add(record)
 
 
