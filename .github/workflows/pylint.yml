@@ -41,10 +41,3 @@ jobs:
     - name: Analysing the code with pylint
       run: |
         pylint $(git ls-files '*.py')
-    - name: Create Pylint report
-      run: pylint --output-format=json --reports=y $(git ls-files '*.py') > pylint_report.txt
-    - name: Upload Pylint report as artifact
-      uses: actions/upload-artifact@v4.3.1
-      with:
-        name: pylint_report
-        path: pylint_report.txt
