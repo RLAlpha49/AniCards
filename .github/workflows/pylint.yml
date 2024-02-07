@@ -10,15 +10,17 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         python-version: ["3.10", "3.11", "3.12"]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4.1.1
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v5.0.0
       with:
         python-version: ${{ matrix.python-version }}
     - name: Cache Python dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4.0.0
       with:
-        path: ~/.cache/pip
+        path: |
+          ~/.cache/pip
+          ~/AppData/Local/pip/Cache
         key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
         restore-keys: |
           ${{ runner.os }}-pip-
@@ -40,9 +42,9 @@ jobs:
       run: |
         pylint $(git ls-files '*.py')
     - name: Create Pylint report
-      run: pylint $(git ls-files '*.py') > pylint_report.txt
+      run: pylint --output-format=json --reports=y $(git ls-files '*.py') > pylint_report.txt
     - name: Upload Pylint report as artifact
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4.3.1
       with:
         name: pylint_report
         path: pylint_report.txt
