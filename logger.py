@@ -60,7 +60,10 @@ def log_message(message, level='info'):
         logger.addHandler(debug_handler)
 
     # Log the message
-    message = f'File: {file_name}, Function: {function_name}, Line: {line_number}, Message: {message}'
+    message = f'File: {file_name},
+    Function: {function_name},
+    Line: {line_number},
+    Message: {message}'
     if level.lower() == 'error':
         logger.error(message)
     elif level.lower() == 'debug':

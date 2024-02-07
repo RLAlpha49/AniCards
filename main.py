@@ -36,7 +36,11 @@ app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///test.db'
 db.init_app(app)
 
 # Import your models after creating the db instance
-from models import User, StatCard, AnimeStats, SocialStats, MangaStats, AnimeGenres, AnimeTags, AnimeVoiceActors, AnimeStudios, AnimeStaff, MangaGenres, MangaTags, MangaStaff
+from models import (
+    User, StatCard, AnimeStats, SocialStats, MangaStats, 
+    AnimeGenres, AnimeTags, AnimeVoiceActors, AnimeStudios, 
+    AnimeStaff, MangaGenres, MangaTags, MangaStaff
+)
 
 app.config['PREFERRED_URL_SCHEME'] = 'https'
 
@@ -105,7 +109,8 @@ def generate_svgs(username):
             colors = ['fe428e', '141321', 'a9fef7', 'fe428e']
         else:
             default_colors = ['fe428e', '141321', 'a9fef7', 'fe428e']
-            colors = [color if color != '000000' else default for color, default in zip(colors, default_colors)]
+            colors = [color if color != '000000' else default for color,
+                      default in zip(colors, default_colors)]
 
         # Find an existing StatCard
         statcard = StatCard.query.filter_by(id=user.id).first()
@@ -133,7 +138,8 @@ def generate_svgs(username):
 
         return redirect(url_for('display_svgs', username=username))
     except Exception as e:
-        log_message(f"An error occurred while generating SVGs for user: {username}. Error: {e}", "error")
+        log_message(f"An error occurred while generating SVGs for user:
+                    {username}. Error: {e}", "error")
         # Return a response indicating an error occurred
         raise e
 
@@ -153,10 +159,13 @@ def display_svgs(username):
                 keys = statcard.keys.split(',')
 
                 # Define custom order
-                custom_order = ['animeStats', 'socialStats', 'mangaStats', 'animeGenres', 'animeTags', 'animeVoiceActors', 'animeStudios', 'animeStaff', 'mangaGenres', 'mangaTags', 'mangaStaff']
+                custom_order = ['animeStats', 'socialStats', 'mangaStats', 'animeGenres',
+                                'animeTags', 'animeVoiceActors', 'animeStudios', 'animeStaff',
+                                'mangaGenres', 'mangaTags', 'mangaStaff']
 
                 # Sort keys according to custom order
-                keys.sort(key=lambda x: custom_order.index(x) if x in custom_order else len(custom_order))
+                keys.sort(key=lambda x: custom_order.index(x)
+                          if x in custom_order else len(custom_order))
 
                 # Fetch the data from the respective tables and generate the svg_types dictionary
                 svg_types = {}
@@ -164,13 +173,18 @@ def display_svgs(username):
                     svg_types[key] = key_types.get(key, [])
 
                 # Render the HTML template
-                return render_template('user_template.html', username=username, svgs=svg_types, keys=keys, svg_types=svg_types)
+                return render_template('user_template.html',
+                                       username=username,
+                                       svgs=svg_types,
+                                       keys=keys,
+                                       svg_types=svg_types)
             else:
                 abort(404, description="No SVGs found for this user")
         else:
             abort(404, description="User not found")
     except Exception as e:
-        log_message(f"An error occurred while fetching SVGs for user: {username}. Error: {e}", "error")
+        log_message(f"An error occurred while fetching SVGs for user:
+                    {username}. Error: {e}", "error")
         # Return a response indicating an error occurred
         raise e
 
@@ -192,7 +206,8 @@ def get_svg(username, key):
         else:
             abort(404, description="User not found")
     except Exception as e:
-        log_message(f"An error occurred while fetching SVG for user: {username}, key: {key}. Error: {e}", "error")
+        log_message(f"An error occurred while fetching SVG for user:
+                    {username}, key: {key}. Error: {e}", "error")
         # Return a response indicating an error occurred
         raise e
 
@@ -221,7 +236,8 @@ def get_svg_from_db(username, key):
         else:
             abort(404, description="User not found")
     except Exception as e:
-        log_message(f"An error occurred while fetching SVG from database for user: {username}, key: {key}. Error: {e}", "error")
+        log_message(f"An error occurred while fetching SVG from database for user:
+                    {username}, key: {key}. Error: {e}", "error")
         # Return a response indicating an error occurred
         raise e
 
@@ -314,7 +330,8 @@ def generate_svgs_for_all_users():
                     custom_order = ['animeStats', 'socialStats', 'mangaStats']
 
                     # Sort keys according to custom order
-                    keys.sort(key=lambda x: custom_order.index(x) if x in custom_order else len(custom_order))
+                    keys.sort(key=lambda x: custom_order.index(x)
+                              if x in custom_order else len(custom_order))
 
                     # Fetch the data and generate an SVG for each key
                     data = fetch_anilist_data(user.username, keys)
@@ -340,9 +357,13 @@ def generate_svgs_for_all_users():
                     }
 
                     for key in keys:
-                        svg_data = generate_svg(key, data.get(key) if data else None, 0, user.username, colors)
+                        svg_data = generate_svg(key,
+                                                data.get(key) if data else None,
+                                                0,
+                                                user.username,
+                                                colors)
                         if svg_data is not None:
-                            successful_keys.append(key)  # Add the key to the list of successful keys
+                            successful_keys.append(key)
 
                             # Save the data in the respective table
                             record_class = key_to_class.get(key)
@@ -356,7 +377,8 @@ def generate_svgs_for_all_users():
 
                     db.session.commit()
         except Exception as e:
-            log_message(f"An error occurred while generating SVGs for all users. Error: {e}", "error")
+            log_message(f"An error occurred while generating SVGs for all users. Error: {e}",
+                "error")
             raise e
     
 def job():
@@ -378,3 +400,4 @@ scheduler_thread.start()
 # Run the Flask app
 if __name__ == '__main__':
     app.run(debug=True)
+    
