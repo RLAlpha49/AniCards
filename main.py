@@ -451,6 +451,7 @@ def process_keys_and_generate_svgs(username, keys, colors, user):
 
     for key in keys:
         svg_data = generate_svg(key, data.get(key) if data else None, username, colors)
+
         if svg_data is not None:
             successful_keys.append(key)  # Add the key to the list of successful keys
 
@@ -609,7 +610,7 @@ def run_schedule():
 
 # Run the scheduler in a separate thread
 scheduler_thread = Thread(target=run_schedule)
-scheduler_thread.start()
+#scheduler_thread.start()
 
 # Run the Flask app
 if __name__ == "__main__":
