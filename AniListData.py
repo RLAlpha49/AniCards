@@ -1,3 +1,8 @@
+"""
+This module is used to fetch and process data from AniList.
+It uses the requests module to send HTTP requests and the queries module to handle GraphQL queries.
+"""
+
 # Import necessary modules
 import requests
 import queries
@@ -5,13 +10,23 @@ from logger import log_message
 
 # Function to fetch data from AniList for a given username
 def fetch_anilist_data(username, keys):
+    """
+    Fetches data for a given user from AniList. The data fetched depends on the keys provided.
+    
+    Parameters:
+    username (str): The username of the AniList user.
+    keys (list): The list of keys indicating the type of data to fetch.
+
+    Returns:
+    dict: A dictionary containing the fetched data. If an error occurs, returns None.
+    """
     try:
         log_message(f'Started fetching data for {username}', 'debug')
 
         user_id_response = requests.post('https://graphql.anilist.co', json={
-            'query': queries.USER_ID,
-            'variables': {'userName': username},
-        })
+                    'query': queries.USER_ID,
+                    'variables': {'userName': username},
+                }, timeout=10)
 
         if user_id_response is None or user_id_response.status_code != 200:
             log_message("Error: Failed to get user ID", 'error')
@@ -25,7 +40,7 @@ def fetch_anilist_data(username, keys):
             response = requests.post('https://graphql.anilist.co', json={
                 'query': queries.USER_ANIME_MANGA_SOCIAL_STATS,
                 'variables': {'userName': username, 'userId': user_id},
-            })
+            }, timeout=10)
 
             response_data = response.json()
 
@@ -48,7 +63,7 @@ def fetch_anilist_data(username, keys):
                 }
                 if 'animeGenres' in keys:
                     top_genres = sorted(
-                        response_data['data']['User']['statistics']['anime']['genres'], 
+                        response_data['data']['User']['statistics']['anime']['genres'],
                         key=lambda x: x['count'], reverse=True)[:5]
                     data['animeGenres'] = top_genres
 
@@ -75,7 +90,7 @@ def fetch_anilist_data(username, keys):
                     top_studios = [{'studio': studio['studio']['name'],
                                     'count': studio['count']} for studio in top_studios]
                     data['animeStudios'] = top_studios
-                
+
                 if 'animeStaff' in keys:
                     staff = response_data['data']['User']['statistics']['anime']['staff']
                     top_staff = sorted(staff, key=lambda x: x['count'],
@@ -83,7 +98,7 @@ def fetch_anilist_data(username, keys):
                     top_staff = [{'staff': staff_member['staff']['name']['full'],
                                   'count': staff_member['count']} for staff_member in top_staff]
                     data['animeStaff'] = top_staff
-
+                
                 # Extract the data for each SVG
                 data['mangaStats'] = {
                     'count': 
@@ -130,11 +145,11 @@ def fetch_anilist_data(username, keys):
                     'totalActivity':
                         sum(amount['amount'] for amount in response_data['data']['User']['stats']['activityHistory']),
                     'threadPostsCommentsCount': 
-                        response_data['data']['threadsPage']['pageInfo']['total'] + response_data['data']['threadCommentsPage']['pageInfo']['total'],
+                        response_data['data']['threadsPage']['pageInfo']['total'] 
+                        + response_data['data']['threadCommentsPage']['pageInfo']['total'],
                     'totalReviews':
                         response_data['data']['reviewsPage']['pageInfo']['total'],
                 }
-                
                 log_message(f'Successfully fetched data for {username}', 'info')
         except requests.exceptions.RequestException as error:
             if error.response and error.response.status_code == 429:
