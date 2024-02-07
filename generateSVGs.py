@@ -75,7 +75,6 @@ def fetch_data(name, username):
 def inline_styles(svg_file, css_file, dasharray, dashoffset, colors):
     try:
         log_message('Started inlining styles into svg', 'debug')
-        print(colors)
 
         with open(css_file, 'r') as f:
             styles = f.read()
