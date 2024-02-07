@@ -21,6 +21,7 @@ def run_server(silent=False):
         return subprocess.Popen(server_command, stdout=subprocess.PIPE)
     except Exception as start_error:
         print(f"Error starting server: {start_error}")
+        return False
 
 
 def stop_server(server_process):
@@ -50,6 +51,7 @@ def restart_server(server_process, pull_silent=False):
         return run_server(silent=True)
     except Exception as restart_error:
         print(f"Error restarting server: {restart_error}")
+        return False
 
 
 def open_newest_file(file_type):
@@ -81,6 +83,7 @@ def pull_from_git():
         return True
     except Exception as pull_error:
         print(f"Error pulling from git: {pull_error}")
+        return False
 
 
 try:

@@ -309,10 +309,8 @@ def get_svg(username, key):
                 response = make_response(record.data)
                 response.headers["Content-Type"] = "image/svg+xml"
                 return response
-            else:
-                abort(404, description="SVG not found")
-        else:
-            abort(404, description="User not found")
+            abort(404, description="SVG not found")
+        abort(404, description="User not found")
     except Exception as e:
         log_message(
             f"An error occurred while fetching SVG for user: {username}, key: {key}. Error: {e}",
@@ -357,10 +355,10 @@ def get_svg_from_db(username, key):
                 response.headers["Expires"] = "0"
 
                 return response
-            else:
-                abort(404, description="SVG not found")
-        else:
-            abort(404, description="User not found")
+
+            abort(404, description="SVG not found")
+
+        abort(404, description="User not found")
     except Exception as e:
         log_message(
             f"An error occurred while fetching SVG from database for user: "
@@ -453,7 +451,7 @@ def process_keys_and_generate_svgs(username, keys, colors, user):
 
     for key in keys:
         svg_data = generate_svg(
-            key, data.get(key) if data else None, 0, username, colors
+            key, data.get(key) if data else None, username, colors
         )
         if svg_data is not None:
             successful_keys.append(key)  # Add the key to the list of successful keys
@@ -469,6 +467,82 @@ def process_keys_and_generate_svgs(username, keys, colors, user):
                     db.session.add(record)
 
     return successful_keys
+
+
+def process_user(user, custom_order, key_to_class):
+    """
+    Process a user's data and generate SVGs for each key in their statcard.
+
+    Args:
+        user (User): The user to process.
+        custom_order (list): The custom order to sort the keys in.
+        key_to_class (dict): A mapping from keys to classes.
+
+    Returns:
+        None
+    """
+    statcard = StatCard.query.filter_by(user_id=user.id).first()
+
+    if not statcard:
+        return
+
+    # Get the keys from the statcard
+    keys = statcard.keys.split(",")
+
+    # Sort keys according to custom order
+    keys.sort(
+        key=lambda x: (
+            custom_order.index(x) if x in custom_order else len(custom_order)
+        )
+    )
+
+    # Fetch the data and generate an SVG for each key
+    data = fetch_anilist_data(user.username, keys)
+
+    # Use default colors
+    colors = ["fe428e", "141321", "a9fef7", "fe428e"]
+
+    successful_keys = []
+
+    for key in keys:
+        process_key(key, data, user, colors, successful_keys, key_to_class)
+
+    db.session.commit()
+
+
+def process_key(key, data, user, colors, successful_keys, key_to_class):
+    """
+    Process a key's data and generate an SVG for it.
+
+    Args:
+        key (str): The key to process.
+        data (dict): The data to generate the SVG from.
+        user (User): The user the data belongs to.
+        colors (list): The colors to use in the SVG.
+        successful_keys (list): A list of keys that have been successfully processed.
+        key_to_class (dict): A mapping from keys to classes.
+
+    Returns:
+        None
+    """
+    svg_data = generate_svg(
+        key,
+        data.get(key) if data else None,
+        user.username,
+        colors,
+    )
+    if svg_data is not None:
+        successful_keys.append(key)
+
+        # Save the data in the respective table
+        record_class = key_to_class.get(key)
+        if record_class:
+            record = record_class.query.filter_by(statcard_id=user.id).first()
+            if record:
+                record.data = svg_data
+            else:
+                record = record_class(data=svg_data, statcard_id=user.id)
+                db.session.add(record)
 
 
 def generate_svgs_for_all_users():
@@ -487,72 +561,24 @@ def generate_svgs_for_all_users():
             # Define custom order
             custom_order = ["animeStats", "socialStats", "mangaStats"]
 
+            # Define a dictionary to map keys to classes
+            key_to_class = {
+                "animeStats": AnimeStats,
+                "socialStats": SocialStats,
+                "mangaStats": MangaStats,
+                "animeGenres": AnimeGenres,
+                "animeTags": AnimeTags,
+                "animeVoiceActors": AnimeVoiceActors,
+                "animeStudios": AnimeStudios,
+                "animeStaff": AnimeStaff,
+                "mangaGenres": MangaGenres,
+                "mangaTags": MangaTags,
+                "mangaStaff": MangaStaff,
+            }
+
             for user in users:
-                # Fetch the user's statcard
-                statcard = StatCard.query.filter_by(user_id=user.id).first()
+                process_user(user, custom_order, key_to_class)
 
-                if statcard:
-                    # Get the keys from the statcard
-                    keys = statcard.keys.split(",")
-
-                    # Sort keys according to custom order
-                    keys.sort(
-                        key=lambda x: (
-                            custom_order.index(x)
-                            if x in custom_order
-                            else len(custom_order)
-                        )
-                    )
-
-                    # Fetch the data and generate an SVG for each key
-                    data = fetch_anilist_data(user.username, keys)
-
-                    # Use default colors
-                    colors = ["fe428e", "141321", "a9fef7", "fe428e"]
-
-                    successful_keys = []
-
-                    # Define a dictionary to map keys to classes
-                    key_to_class = {
-                        "animeStats": AnimeStats,
-                        "socialStats": SocialStats,
-                        "mangaStats": MangaStats,
-                        "animeGenres": AnimeGenres,
-                        "animeTags": AnimeTags,
-                        "animeVoiceActors": AnimeVoiceActors,
-                        "animeStudios": AnimeStudios,
-                        "animeStaff": AnimeStaff,
-                        "mangaGenres": MangaGenres,
-                        "mangaTags": MangaTags,
-                        "mangaStaff": MangaStaff,
-                    }
-
-                    for key in keys:
-                        svg_data = generate_svg(
-                            key,
-                            data.get(key) if data else None,
-                            0,
-                            user.username,
-                            colors,
-                        )
-                        if svg_data is not None:
-                            successful_keys.append(key)
-
-                            # Save the data in the respective table
-                            record_class = key_to_class.get(key)
-                            if record_class:
-                                record = record_class.query.filter_by(
-                                    statcard_id=user.id
-                                ).first()
-                                if record:
-                                    record.data = svg_data
-                                else:
-                                    record = record_class(
-                                        data=svg_data, statcard_id=user.id
-                                    )
-                                    db.session.add(record)
-
-                    db.session.commit()
         except Exception as e:
             log_message(
                 f"An error occurred while generating SVGs for all users. Error: {e}",
