@@ -1,3 +1,7 @@
+"""
+This module is used to generate SVG html.
+"""
+
 from markupsafe import Markup
 import math
 import os
@@ -79,7 +83,8 @@ def inline_styles(svg_file, css_file, dasharray, dashoffset, colors):
         with open(css_file, 'r') as f:
             styles = f.read()
             styles = styles.replace('{', '{{').replace('}', '}}')
-            styles = styles.replace('{{dasharray}}', str(dasharray)).replace('{{dashoffset}}', str(dashoffset))
+            styles = styles.replace('{{dasharray}}',
+                                    str(dasharray)).replace('{{dashoffset}}', str(dashoffset))
             styles = styles.replace('{{title_color}}', colors[0])
             styles = styles.replace('{{background_color}}', colors[1])
             styles = styles.replace('{{text_color}}', colors[2])
@@ -118,12 +123,15 @@ def generate_animeStats_svg(value, username, colors, type):
                 milestones.append(i)
 
             # Determine the previous milestone based on the number of episodes watched
-            previous_milestone = max(milestone for milestone in milestones if milestone < value['episodesWatched'])
+            previous_milestone = max(
+                milestone for milestone in milestones if milestone < value['episodesWatched'])
 
             # Determine the current milestone based on the number of episodes watched
-            current_milestone = min(milestone for milestone in milestones if milestone > value['episodesWatched'])
+            current_milestone = min(
+                milestone for milestone in milestones if milestone > value['episodesWatched'])
 
-            percentage = ((value['episodesWatched'] - previous_milestone) / (current_milestone - previous_milestone)) * 100
+            percentage = ((value['episodesWatched'] - previous_milestone)
+                          / (current_milestone - previous_milestone)) * 100
             circle_circumference = 2 * math.pi * 40
             dasharray = circle_circumference
             dashoffset = circle_circumference * (1 - (percentage / 100))
@@ -133,16 +141,18 @@ def generate_animeStats_svg(value, username, colors, type):
             # Read the HTML template
             with open('Pages/SVGs/animeStatsSVG.html', 'r') as file:
                 html_template = file.read()
-            
+                            
             log_message(f'HTML template read successfully for {username}', 'info')
 
             # Escape the curly braces in the HTML template
             html_template = html_template.replace('{', '{{').replace('}', '}}')
 
             # Unescape the placeholders that you want to replace
-            placeholders = ['username', 'count', 'episodesWatched', 'minutesWatched', 'meanScore', 'standardDeviation', 'current_milestone']
+            placeholders = ['username', 'count', 'episodesWatched', 'minutesWatched',
+                            'meanScore', 'standardDeviation', 'current_milestone']
             for placeholder in placeholders:
-                html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
+                html_template = html_template.replace('{{' + placeholder + '}}',
+                                                      '{' + placeholder + '}')
 
             # Inline the styles
             html_template = inline_styles(
@@ -206,7 +216,8 @@ def generate_extraAnimeStats_svg(value, username, key, colors, type):
             # Unescape the placeholders that you want to replace
             placeholders = ['username', 'count', 'data1', 'data2', 'data3', 'data4', 'data5']
             for placeholder in placeholders:
-                html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
+                html_template = html_template.replace('{{' + placeholder + '}}',
+                                                      '{' + placeholder + '}')
 
             log_message(f'Placeholders replaced successfully for {username}', 'debug')
 
@@ -230,8 +241,12 @@ def generate_extraAnimeStats_svg(value, username, key, colors, type):
             log_message(f'Font size calculated successfully for {username}', 'debug')
 
             # Generate the CSS rules for the header class
-            header_style = f"font-weight: 600; font-family: 'Segoe UI', Ubuntu, Sans-Serif; fill: #fe428e; animation: fadeInAnimation 0.8s ease-in-out forwards; font-size: {font_size}px;"
-            
+            header_style = f"font-weight: 600;
+            font-family: 'Segoe UI', Ubuntu, Sans-Serif;
+            fill: #fe428e;
+            animation: fadeInAnimation 0.8s ease-in-out forwards;
+            font-size: {font_size}px;"
+                        
             # Replace the placeholders in the HTML template with actual values
             html = html_template.format(
                 username=username,
@@ -273,12 +288,15 @@ def generate_mangaStats_svg(value, username, colors, type):
                 milestones.append(i)
 
             # Determine the previous milestone based on the number of episodes watched
-            previous_milestone = max(milestone for milestone in milestones if milestone < value['chaptersRead'])
+            previous_milestone = max(
+                milestone for milestone in milestones if milestone < value['chaptersRead'])
 
             # Determine the current milestone based on the number of episodes watched
-            current_milestone = min(milestone for milestone in milestones if milestone > value['chaptersRead'])
+            current_milestone = min(
+                milestone for milestone in milestones if milestone > value['chaptersRead'])
 
-            percentage = ((value['chaptersRead'] - previous_milestone) / (current_milestone - previous_milestone)) * 100
+            percentage = ((value['chaptersRead'] - previous_milestone)
+                          / (current_milestone - previous_milestone)) * 100
             circle_circumference = 2 * math.pi * 40
             dasharray = circle_circumference
             dashoffset = circle_circumference * (1 - (percentage / 100))
@@ -295,9 +313,11 @@ def generate_mangaStats_svg(value, username, colors, type):
             html_template = html_template.replace('{', '{{').replace('}', '}}')
 
             # Unescape the placeholders that you want to replace
-            placeholders = ['username', 'count', 'chaptersRead', 'volumesRead', 'meanScore', 'standardDeviation', 'current_milestone']
+            placeholders = ['username', 'count', 'chaptersRead', 'volumesRead',
+                            'meanScore', 'standardDeviation', 'current_milestone']
             for placeholder in placeholders:
-                html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
+                html_template = html_template.replace('{{' + placeholder + '}}',
+                                                      '{' + placeholder + '}')
 
             log_message(f'Placeholders replaced successfully for {username}', 'debug')
 
@@ -342,9 +362,11 @@ def generate_extraMangaStats_svg(value, username, key, colors, type):
             html_template = html_template.replace('{', '{{').replace('}', '}}')
 
             # Unescape the placeholders that you want to replace
-            placeholders = ['username', 'count', 'data1', 'data2', 'data3', 'data4', 'data5', 'headerStyle']
+            placeholders = ['username', 'count', 'data1', 'data2',
+                            'data3', 'data4', 'data5', 'headerStyle']
             for placeholder in placeholders:
-                html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
+                html_template = html_template.replace('{{' + placeholder + '}}',
+                                                      '{' + placeholder + '}')
 
             log_message(f'Placeholders replaced successfully for {username}', 'debug')
 
@@ -368,7 +390,11 @@ def generate_extraMangaStats_svg(value, username, key, colors, type):
             log_message(f'Font size calculated successfully for {username}', 'debug')
 
             # Generate the CSS rules for the header class
-            header_style = f"font-weight: 600; font-family: 'Segoe UI', Ubuntu, Sans-Serif; fill: #fe428e; animation: fadeInAnimation 0.8s ease-in-out forwards; font-size: {font_size}px;"
+            header_style = f"font-weight: 600;
+            font-family: 'Segoe UI', Ubuntu, Sans-Serif;
+            fill: #fe428e;
+            animation: fadeInAnimation 0.8s ease-in-out forwards;
+            font-size: {font_size}px;"
 
             # Replace the placeholders in the HTML template with actual values
             html = html_template.format(
@@ -413,7 +439,8 @@ def generate_socialStats_svg(value, username, colors, type):
             # Unescape the placeholders that you want to replace
             placeholders = ['username', 'totalFollowers', 'totalFollowing', 'totalActivity']
             for placeholder in placeholders:
-                html_template = html_template.replace('{{' + placeholder + '}}', '{' + placeholder + '}')
+                html_template = html_template.replace('{{' + placeholder + '}}',
+                                                      '{' + placeholder + '}')
 
             log_message(f'Placeholders replaced successfully for {username}', 'debug')
 
