@@ -5,3 +5,4 @@ instance/test.db
 fourm.txt
 post.txt
 /logs
+.vscode/settings.json

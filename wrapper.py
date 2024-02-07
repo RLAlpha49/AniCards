@@ -1,5 +1,5 @@
 """
-This module continuously runs a subprocess (server.py) and restarts it if it exits with a special status code.
+This module continuously runs a subprocess (server.py) and restarts it.
 """
 
 import os
@@ -12,7 +12,9 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 while True:
     try:
         # Use 'with' statement for resource-allocating operation
-        with subprocess.Popen(['python', os.path.join(script_dir, 'server.py')]) as process:
+        with subprocess.Popen(
+            ["python", os.path.join(script_dir, "server.py")]
+        ) as process:
             process.wait()
 
             # Check if server.py has exited with a special status code

@@ -1,4 +1,8 @@
-# queries.py
+"""
+This module contains GraphQL queries for fetching user data from an API.
+
+The queries fetch various user statistics including anime, manga, and social stats.
+"""
 
 USER_ID = """
     query ($userName: String) { 
