@@ -11,6 +11,7 @@
 
 html {
     min-height: 100vh;
+    overflow-x: hidden;
 }
 
 body {
@@ -231,7 +232,7 @@ p {
 /* This will apply when the viewport is 600px or less */
 @media (max-width: 600px) {
     body {
-        transform: scale(0.8);
+        transform: scale(0.6);
         transform-origin: 0 0;
     }
 }
