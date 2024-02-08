@@ -8,6 +8,14 @@
 #0B0C10: Black (Background color of the body)
 */
 
+/* This will apply when the viewport is 600px or less */
+@media (max-width: 600px) {
+    body {
+        transform: scale(0.7);
+        transform-origin: 0 0;
+    }
+}
+
 body,
 html {
     height: 100%;
