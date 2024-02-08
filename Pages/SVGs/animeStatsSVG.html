@@ -1,53 +1,149 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="450" height="195" viewBox="0 0 450 195" fill="none" role="img" aria-labelledby="descId">
-    <title id="titleId">{username}'s Anime Stats</title>
-    <desc id="descId">Count: {count}, Episodes Watched: {episodesWatched}, Minutes Watched: {minutesWatched}, Mean Score: {meanScore}, Standard Deviation: {standardDeviation}</desc>
-    <defs>
-        <!-- Styles will be inserted here by the inline_styles function -->
-    </defs>
-    <rect data-testid="card-bg" x="0.5" y="0.5" rx="4.5" height="99%" stroke="#e4e2e2" width="449" fill="#141321" stroke-opacity="1"/>
-    <g data-testid="card-title" transform="translate(25, 35)">
-        <g transform="translate(0, 0)">
-            <text x="0" y="0" class="header" data-testid="header">{username}'s Anime Stats</text>
-        </g>
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="450"
+  height="195"
+  viewBox="0 0 450 195"
+  fill="none"
+  role="img"
+  aria-labelledby="descId"
+>
+  <title id="titleId">{username}'s Anime Stats</title>
+  <desc id="descId">
+    Count: {count}, Episodes Watched: {episodesWatched}, Minutes Watched:
+    {minutesWatched}, Mean Score: {meanScore}, Standard Deviation:
+    {standardDeviation}
+  </desc>
+  <defs>
+    <!-- Styles will be inserted here by the inline_styles function -->
+  </defs>
+  <rect
+    data-testid="card-bg"
+    x="0.5"
+    y="0.5"
+    rx="4.5"
+    height="99%"
+    stroke="#e4e2e2"
+    width="449"
+    fill="#141321"
+    stroke-opacity="1"
+  />
+  <g data-testid="card-title" transform="translate(25, 35)">
+    <g transform="translate(0, 0)">
+      <text x="0" y="0" class="header" data-testid="header">
+        {username}'s Anime Stats
+      </text>
     </g>
-    <g data-testid="main-card-body" transform="translate(0, 55)">
-        <g transform="translate(375, 37.5)">
-            <text x="-10" y="-50" class="milestone" text-anchor="middle" alignment-baseline="middle" fill="#a9fef7" font-size="15" style="animation: scaleInAnimation 0.5s;">
-                {current_milestone}
-            </text>
-            <text x="-10" y="10" class="episodes-watched" text-anchor="middle" alignment-baseline="middle" fill="#fe428e" font-size="15" style="animation: scaleInAnimation 0.5s;">
-                {episodesWatched}
-            </text>
-            <text x="-10" y="70" class="label" text-anchor="middle" alignment-baseline="middle" fill="#a9fef7" font-size="15" style="animation: scaleInAnimation 0.5s;">
-                Episodes Watched
-            </text>
-            <circle class="rank-circle-rim" cx="-10" cy="8" r="40"></circle>
-            <circle class="rank-circle" cx="-10" cy="8" r="40"></circle>
-        </g>
-        <svg x="0" y="0">
-            <g transform="translate(0, 0)">
-                <g class="stagger" style="animation-delay: 450ms" transform="translate(25, 0)">
-                    <text class="stat bold" y="12.5">Count:</text>
-                    <text class="stat bold" x="199.01" y="12.5" data-testid="count">{count}</text>
-                </g>
-                <g class="stagger" style="animation-delay: 600ms" transform="translate(25, 25)">
-                    <text class="stat bold" y="12.5">Episodes Watched:</text>
-                    <text class="stat bold" x="199.01" y="12.5" data-testid="episodesWatched">{episodesWatched}</text>
-                </g>
-                <g class="stagger" style="animation-delay: 750ms" transform="translate(25, 50)">
-                    <text class="stat bold" y="12.5">Minutes Watched:</text>
-                    <text class="stat bold" x="199.01" y="12.5" data-testid="minutesWatched">{minutesWatched}</text>
-                </g>
-                <g class="stagger" style="animation-delay: 900ms" transform="translate(25, 75)">
-                    <text class="stat bold" y="12.5">Mean Score:</text>
-                    <text class="stat bold" x="199.01" y="12.5" data-testid="meanScore">{meanScore}</text>
-                </g>
-                <g class="stagger" style="animation-delay: 1050ms" transform="translate(25, 100)">
-                    <text class="stat bold" y="12.5">Standard Deviation:</text>
-                    <text class="stat bold" x="199.01" y="12.5" data-testid="standardDeviation">{standardDeviation}</text>
-                </g>
-            </g>
-        </svg>
+  </g>
+  <g data-testid="main-card-body" transform="translate(0, 55)">
+    <g transform="translate(375, 37.5)">
+      <text
+        x="-10"
+        y="-50"
+        class="milestone"
+        text-anchor="middle"
+        alignment-baseline="middle"
+        fill="#a9fef7"
+        font-size="15"
+        style="animation: scaleInAnimation 0.5s"
+      >
+        {current_milestone}
+      </text>
+      <text
+        x="-10"
+        y="10"
+        class="episodes-watched"
+        text-anchor="middle"
+        alignment-baseline="middle"
+        fill="#fe428e"
+        font-size="15"
+        style="animation: scaleInAnimation 0.5s"
+      >
+        {episodesWatched}
+      </text>
+      <text
+        x="-10"
+        y="70"
+        class="label"
+        text-anchor="middle"
+        alignment-baseline="middle"
+        fill="#a9fef7"
+        font-size="15"
+        style="animation: scaleInAnimation 0.5s"
+      >
+        Episodes Watched
+      </text>
+      <circle class="rank-circle-rim" cx="-10" cy="8" r="40"></circle>
+      <circle class="rank-circle" cx="-10" cy="8" r="40"></circle>
     </g>
-    <script xmlns=""/>
+    <svg x="0" y="0">
+      <g transform="translate(0, 0)">
+        <g
+          class="stagger"
+          style="animation-delay: 450ms"
+          transform="translate(25, 0)"
+        >
+          <text class="stat bold" y="12.5">Count:</text>
+          <text class="stat bold" x="199.01" y="12.5" data-testid="count">
+            {count}
+          </text>
+        </g>
+        <g
+          class="stagger"
+          style="animation-delay: 600ms"
+          transform="translate(25, 25)"
+        >
+          <text class="stat bold" y="12.5">Episodes Watched:</text>
+          <text
+            class="stat bold"
+            x="199.01"
+            y="12.5"
+            data-testid="episodesWatched"
+          >
+            {episodesWatched}
+          </text>
+        </g>
+        <g
+          class="stagger"
+          style="animation-delay: 750ms"
+          transform="translate(25, 50)"
+        >
+          <text class="stat bold" y="12.5">Minutes Watched:</text>
+          <text
+            class="stat bold"
+            x="199.01"
+            y="12.5"
+            data-testid="minutesWatched"
+          >
+            {minutesWatched}
+          </text>
+        </g>
+        <g
+          class="stagger"
+          style="animation-delay: 900ms"
+          transform="translate(25, 75)"
+        >
+          <text class="stat bold" y="12.5">Mean Score:</text>
+          <text class="stat bold" x="199.01" y="12.5" data-testid="meanScore">
+            {meanScore}
+          </text>
+        </g>
+        <g
+          class="stagger"
+          style="animation-delay: 1050ms"
+          transform="translate(25, 100)"
+        >
+          <text class="stat bold" y="12.5">Standard Deviation:</text>
+          <text
+            class="stat bold"
+            x="199.01"
+            y="12.5"
+            data-testid="standardDeviation"
+          >
+            {standardDeviation}
+          </text>
+        </g>
+      </g>
+    </svg>
+  </g>
+  <script xmlns="" />
 </svg>

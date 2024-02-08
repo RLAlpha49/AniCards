@@ -1,135 +1,190 @@
 <!-- Filename: templates/user_template.html -->
 
 <!DOCTYPE html>
-<html>
-<head>
+<html lang="en">
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="AniList User Page: View and customize AniList stat cards for specific users. Select from various SVG types and download your customized card."
+    />
     <title>AniList Stat Cards Generated User</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles/user_styles.css') }}">
-    <link rel="icon" href="{{ url_for('static', filename='images/favicon.png') }}">
-</head>
-<body>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='styles/user_styles.css') }}"
+    />
+    <link
+      rel="icon"
+      href="{{ url_for('static', filename='images/favicon.png') }}"
+    />
+  </head>
+  <body>
     <div class="container">
-        <div class="sidebar">
-            <nav>
-                <ul>
-                    <li class="site-icon-li">
-                        <a href="/AniCards/">
-                            <div class="link-content">
-                                <img class="site-icon" src="{{ url_for('static', filename='images/favicon.png') }}" alt="Site Icon">
-                                <span class="link-text">AniCards</span>
-                            </div>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/AniCards/">
-                            <div class="link-content">
-                                <img src="{{ url_for('static', filename='images/home.png') }}" alt="Home">
-                                <span class="link-text">Home</span>
-                            </div>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/AniCards/StatCards/">
-                            <div class="link-content">
-                                <img src="{{ url_for('static', filename='images/stat-cards.png') }}" alt="Stat Cards">
-                                <span class="link-text">Stat Cards</span>
-                            </div>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="#">
-                            <div class="link-content">
-                                <img src="{{ url_for('static', filename='images/wip.png') }}" alt="WIP">
-                                <span class="link-text">WIP</span>
-                            </div>
-                        </a>
-                    </li>
-                </ul>
-            </nav>
-            <div class="bottom-link">
+      <div class="sidebar">
+        <nav>
+          <ul>
+            <li class="site-icon-li">
+              <a href="/AniCards/">
                 <div class="link-content">
-                    <a href="https://discord.gg/TaeAPPmAbw">
-                        <img src="{{ url_for('static', filename='images/Discord.png') }}" alt="Discord">
-                    </a>
-                    <a href="https://github.com/RLAlpha49/Anilist-Stat-Cards">
-                        <img src="{{ url_for('static', filename='images/GitHub.png') }}" alt="GitHub">
-                    </a>
-                    <a href="https://ko-fi.com/alpha49">
-                        <img src="{{ url_for('static', filename='images/Ko-Fi.png') }}" alt="Ko-Fi">
-                    </a>
+                  <img
+                    class="site-icon"
+                    src="{{ url_for('static', filename='images/favicon.png') }}"
+                    alt="Site Sidebar Icon"
+                  />
+                  <span class="link-text">AniCards</span>
                 </div>
-            </div>
+              </a>
+            </li>
+            <li>
+              <a href="/AniCards/">
+                <div class="link-content">
+                  <img
+                    src="{{ url_for('static', filename='images/home.png') }}"
+                    alt="Home Sidebar Icon"
+                  />
+                  <span class="link-text">Home</span>
+                </div>
+              </a>
+            </li>
+            <li>
+              <a href="/AniCards/StatCards/">
+                <div class="link-content">
+                  <img
+                    src="{{ url_for('static', filename='images/stat-cards.png') }}"
+                    alt="Stat Cards Sidebar Icon"
+                  />
+                  <span class="link-text">Stat Cards</span>
+                </div>
+              </a>
+            </li>
+            <li>
+              <a href="#">
+                <div class="link-content">
+                  <img
+                    src="{{ url_for('static', filename='images/wip.png') }}"
+                    alt="WIP"
+                  />
+                  <span class="link-text">WIP</span>
+                </div>
+              </a>
+            </li>
+          </ul>
+        </nav>
+        <div class="bottom-link">
+          <div class="link-content">
+            <a href="https://discord.gg/TaeAPPmAbw">
+              <img
+                src="{{ url_for('static', filename='images/Discord.png') }}"
+                alt="Discord"
+              />
+            </a>
+            <a href="https://github.com/RLAlpha49/Anilist-Stat-Cards">
+              <img
+                src="{{ url_for('static', filename='images/GitHub.png') }}"
+                alt="GitHub"
+              />
+            </a>
+            <a href="https://ko-fi.com/alpha49">
+              <img
+                src="{{ url_for('static', filename='images/Ko-Fi.png') }}"
+                alt="Ko-Fi"
+              />
+            </a>
+          </div>
         </div>
-        <div class="main">
-            <header>
-                <div id="arrow">&#8594;</div> 
-                <p>Version: v1.0</p>
-            </header>
-            <div class="content">
-                <div class="center-container">
-                    <h1>{{ username }}</h1>
+      </div>
+      <div class="main">
+        <header>
+          <div id="arrow">&#8594;</div>
+          <p>Version: v1.0</p>
+        </header>
+        <div class="content">
+          <div class="center-container">
+            <h1>{{ username }}</h1>
 
-                    <!-- SVG container -->
-                    <div class="svg-container">
-                        {% for key in keys %}
-                        <div class="svg-item">
-                            <div class="svg-wrapper">
-                                <div class="svg-controls">
-                                    <div class="select-container">
-                                        <!-- Dropdown for SVG types -->
-                                        <select id="svg-type-{{ key }}" onchange="changeSvgType('{{ key }}')">
-                                            <option value="default" selected>Default</option>
-                                            {% for type in svg_types[key] %}
-                                            <option value="{{ type }}">{{ type }}</option>
-                                            {% endfor %}
-                                        </select>
-                                        <div class="arrow"></div>
-                                    </div> 
-                                </div>
-
-                                <div id="{{ key }}">
-                                    Loading...
-                                </div>
-
-                                <div class="button-wrapper">
-                                    <button class="link-button" onclick="showLink('{{ url_for('get_svg_from_db', username=username, key=key, _external=True) }}')">Show Link</button>
-                                    <button class="download-button" data-url="{{ url_for('get_svg_from_db', username=username, key=key, _external=True) }}" data-key="{{ key }}">Download PNG</button>
-                                </div>
-                            </div>
-                        </div>
+            <!-- SVG container -->
+            <div class="svg-container">
+              {% for key in keys %}
+              <div class="svg-item">
+                <div class="svg-wrapper">
+                  <div class="svg-controls">
+                    <div class="select-container">
+                      <!-- Dropdown for SVG types -->
+                      <select
+                        id="svg-type-{{ key }}"
+                        onchange="changeSvgType('{{ key }}')"
+                      >
+                        <option value="default" selected>Default</option>
+                        {% for type in svg_types[key] %}
+                        <option value="{{ type }}">{{ type }}</option>
                         {% endfor %}
+                      </select>
+                      <div class="arrow"></div>
                     </div>
-                </div>
-            </div>
+                  </div>
 
-            <div id="linkModal" class="modal">
-                <div class="modal-background"></div>
-                <div class="modal-content">
-                    <span class="close">&times;</span>
-                    <p id="linkText"></p>
-                    <div class="copy-section">
-                        <button onclick="copyLink()">Copy Link</button>
-                        <p id="copyStatus"></p>
-                    </div>
+                  <div id="{{ key }}">Loading...</div>
+
+                  <div class="button-wrapper">
+                    <button
+                      class="link-button"
+                      onclick="showLink('{{ url_for('get_svg_from_db', username=username, key=key, _external=True) }}')"
+                    >
+                      Show Link
+                    </button>
+                    <button
+                      class="download-button"
+                      data-url="{{ url_for('get_svg_from_db', username=username, key=key, _external=True) }}"
+                      data-key="{{ key }}"
+                    >
+                      Download PNG
+                    </button>
+                  </div>
                 </div>
+              </div>
+              {% endfor %}
             </div>
-            <footer class="footer-div">
-                <p>© 2024 Alpha49</p>
-                <ul>
-                    <li><a href="https://alpha49.com" target="_blank">Website</a></li>
-                    <li><a href="https://github.com/RLAlpha49" target="_blank">Github</a></li>
-                    <li><a href="mailto:contact@alpha49.com">Contact</a></li>
-                </ul>
-                <p>This application uses the AniList API. This project is not affiliated with AniList in any way.</p>
-                <p>This project is licensed under the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GNU General Public License v3.0</a>.</p>
-            </footer>
-        </div> 
+          </div>
+        </div>
+
+        <div id="linkModal" class="modal">
+          <div class="modal-background"></div>
+          <div class="modal-content">
+            <span class="close">&times;</span>
+            <p id="linkText"></p>
+            <div class="copy-section">
+              <button onclick="copyLink()">Copy Link</button>
+              <p id="copyStatus"></p>
+            </div>
+          </div>
+        </div>
+        <footer class="footer-div">
+          <p>© 2024 Alpha49</p>
+          <ul>
+            <li><a href="https://alpha49.com" target="_blank">Website</a></li>
+            <li>
+              <a href="https://github.com/RLAlpha49" target="_blank">Github</a>
+            </li>
+            <li><a href="mailto:contact@alpha49.com">Contact</a></li>
+          </ul>
+          <p>
+            This application uses the AniList API. This project is not
+            affiliated with AniList in any way.
+          </p>
+          <p>
+            This project is licensed under the
+            <a href="https://www.gnu.org/licenses/gpl-3.0.en.html"
+              >GNU General Public License v3.0</a
+            >.
+          </p>
+        </footer>
+      </div>
     </div>
 
     <script>
-        // Define the keys and username variables that are used in the link and download buttons
-        const keys = [{% for key in keys %}'{{ key }}'{% if not loop.last %}, {% endif %}{% endfor %}];
-        const username = '{{ username }}';
+      // Define the keys and username variables that are used in the link and download buttons
+      const keys = [{% for key in keys %}'{{ key }}'{% if not loop.last %}, {% endif %}{% endfor %}];
+      const username = '{{ username }}';
     </script>
     <script src="{{ url_for('static', filename='scripts/sidebarExpanded.js') }}"></script>
     <script src="{{ url_for('static', filename='scripts/sidebarHover.js') }}"></script>
@@ -139,5 +194,5 @@
     <script src="{{ url_for('static', filename='scripts/download.js') }}"></script>
     <script src="{{ url_for('static', filename='scripts/showLink.js') }}"></script>
     <script src="{{ url_for('static', filename='scripts/arrows.js') }}"></script>
-</body>
+  </body>
 </html>

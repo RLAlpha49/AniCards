@@ -1,38 +1,91 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="320" height="195" viewBox="0 0 320 195" fill="none" role="img" aria-labelledby="descId">
-    <title id="titleId">{username}'s {type} {format} Stats</title>
-    <desc id="descId">Data 1: {data1}, Data 2: {data2}, Data 3: {data3}, Data 4: {data4}, Data 5: {data5}</desc>
-    <defs>
-        <!-- Styles will be inserted here by the inline_styles function -->
-    </defs>
-    <rect data-testid="card-bg" x="0.5" y="0.5" rx="4.5" height="99%" stroke="#e4e2e2" width="319" fill="#141321" stroke-opacity="1"/>
-    <g data-testid="card-title" transform="translate(25, 35)">
-        <g transform="translate(0, 0)">
-            <text x="0" y="0" class="header" data-testid="header">{username}'s Top {format} {type}'s </text>
-        </g>
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="320"
+  height="195"
+  viewBox="0 0 320 195"
+  fill="none"
+  role="img"
+  aria-labelledby="descId"
+>
+  <title id="titleId">{username}'s {type} {format} Stats</title>
+  <desc id="descId">
+    Data 1: {data1}, Data 2: {data2}, Data 3: {data3}, Data 4: {data4}, Data 5:
+    {data5}
+  </desc>
+  <defs>
+    <!-- Styles will be inserted here by the inline_styles function -->
+  </defs>
+  <rect
+    data-testid="card-bg"
+    x="0.5"
+    y="0.5"
+    rx="4.5"
+    height="99%"
+    stroke="#e4e2e2"
+    width="319"
+    fill="#141321"
+    stroke-opacity="1"
+  />
+  <g data-testid="card-title" transform="translate(25, 35)">
+    <g transform="translate(0, 0)">
+      <text x="0" y="0" class="header" data-testid="header">
+        {username}'s Top {format} {type}'s
+      </text>
     </g>
-    <g data-testid="main-card-body" transform="translate(0, 55)">
-        <g transform="translate(0, 0)">
-            <g class="stagger" style="animation-delay: 450ms" transform="translate(25, 0)">
-                <text class="stat bold" y="12.5">{key1}</text>
-                <text class="stat bold" x="239.01" y="12.5" data-testid="data1">{data1}</text>
-            </g>
-            <g class="stagger" style="animation-delay: 600ms" transform="translate(25, 25)">
-                <text class="stat bold" y="12.5">{key2}:</text>
-                <text class="stat bold" x="239.01" y="12.5" data-testid="data2">{data2}</text>
-            </g>
-            <g class="stagger" style="animation-delay: 750ms" transform="translate(25, 50)">
-                <text class="stat bold" y="12.5">{key3}:</text>
-                <text class="stat bold" x="239.01" y="12.5" data-testid="data3">{data3}</text>
-            </g>
-            <g class="stagger" style="animation-delay: 900ms" transform="translate(25, 75)">
-                <text class="stat bold" y="12.5">{key4}:</text>
-                <text class="stat bold" x="239.01" y="12.5" data-testid="data4">{data4}</text>
-            </g>
-            <g class="stagger" style="animation-delay: 1050ms" transform="translate(25, 100)">
-                <text class="stat bold" y="12.5">{key5}:</text>
-                <text class="stat bold" x="239.01" y="12.5" data-testid="data5">{data5}</text>
-            </g>
-        </g>
+  </g>
+  <g data-testid="main-card-body" transform="translate(0, 55)">
+    <g transform="translate(0, 0)">
+      <g
+        class="stagger"
+        style="animation-delay: 450ms"
+        transform="translate(25, 0)"
+      >
+        <text class="stat bold" y="12.5">{key1}</text>
+        <text class="stat bold" x="239.01" y="12.5" data-testid="data1">
+          {data1}
+        </text>
+      </g>
+      <g
+        class="stagger"
+        style="animation-delay: 600ms"
+        transform="translate(25, 25)"
+      >
+        <text class="stat bold" y="12.5">{key2}:</text>
+        <text class="stat bold" x="239.01" y="12.5" data-testid="data2">
+          {data2}
+        </text>
+      </g>
+      <g
+        class="stagger"
+        style="animation-delay: 750ms"
+        transform="translate(25, 50)"
+      >
+        <text class="stat bold" y="12.5">{key3}:</text>
+        <text class="stat bold" x="239.01" y="12.5" data-testid="data3">
+          {data3}
+        </text>
+      </g>
+      <g
+        class="stagger"
+        style="animation-delay: 900ms"
+        transform="translate(25, 75)"
+      >
+        <text class="stat bold" y="12.5">{key4}:</text>
+        <text class="stat bold" x="239.01" y="12.5" data-testid="data4">
+          {data4}
+        </text>
+      </g>
+      <g
+        class="stagger"
+        style="animation-delay: 1050ms"
+        transform="translate(25, 100)"
+      >
+        <text class="stat bold" y="12.5">{key5}:</text>
+        <text class="stat bold" x="239.01" y="12.5" data-testid="data5">
+          {data5}
+        </text>
+      </g>
     </g>
-    <script xmlns=""/>
+  </g>
+  <script xmlns="" />
 </svg>
