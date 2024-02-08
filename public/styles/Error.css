@@ -13,8 +13,11 @@
     body {
         transform: scale(0.7);
         transform-origin: 0 0;
+        width: 128.57%; /* 100 / 0.7 = 142.85 */
+        overflow-x: hidden;
     }
 }
+
 
 body,
 html {
