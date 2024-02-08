@@ -231,12 +231,9 @@ p {
 
 /* This will apply when the viewport is 600px or less */
 @media (max-width: 600px) {
-    body {
-        transform: scale(0.6);
+    #wrapper {
+        transform: scale(0.8);
         transform-origin: 0 0;
-        width: 166.66%; /* 100 / 0.6 = 166.66 */
-        height: 100%; /* 100 / 0.6 = 166.66 */
-        overflow-x: hidden;
     }
 }
 
