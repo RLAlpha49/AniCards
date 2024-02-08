@@ -230,12 +230,9 @@ p {
 
 /* This will apply when the viewport is 600px or less */
 @media (max-width: 600px) {
-    .svg-container {
-        width: 100%;
-    }
-
-    .svg-item {
-        width: 100%;
+    body {
+        transform: scale(0.8);
+        transform-origin: 0 0;
     }
 }
 
