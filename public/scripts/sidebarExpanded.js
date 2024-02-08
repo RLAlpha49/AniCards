@@ -1,7 +1,8 @@
+/* eslint-disable no-undef */
 // Filename: public/scripts/sidebarExpanded.js
 
 // Add a click event listener to the element with id 'arrow'
-document.getElementById('arrow').addEventListener('click', function() {
+document.getElementById('arrow').addEventListener('click', function () {
     // Get the first element with class 'sidebar'
     var sidebar = document.getElementsByClassName('sidebar')[0];
 

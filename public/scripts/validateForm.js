@@ -1,3 +1,5 @@
+/* eslint-disable no-unused-vars */
+/* eslint-disable no-undef */
 // Filename: public/scripts/validateForm.js
 
 // Define the validateForm function

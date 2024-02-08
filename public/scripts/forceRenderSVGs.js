@@ -18,9 +18,9 @@ var svgs = document.querySelectorAll('svg');
 
 // Create an intersection observer
 // This will call a function whenever an SVG enters or leaves the viewport
-var observer = new IntersectionObserver(function(entries) {
+var observer = new IntersectionObserver(function (entries) {
     // Loop over all the entries
-    entries.forEach(function(entry) {
+    entries.forEach(function (entry) {
         // If the SVG is in the viewport
         if (entry.isIntersecting) {
             // Force a re-render of the SVG
@@ -31,6 +31,6 @@ var observer = new IntersectionObserver(function(entries) {
 
 // Start observing all SVG elements
 // Whenever an SVG enters or leaves the viewport, the observer will be notified
-svgs.forEach(function(svg) {
+svgs.forEach(function (svg) {
     observer.observe(svg);
 });

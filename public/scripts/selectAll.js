@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 // Filename: public/scripts/selectAll.js
 
 // Function to select all checkboxes in a form

@@ -2,12 +2,12 @@
 
 // Add an event listener for the DOMContentLoaded event
 // This event is fired when the initial HTML document has been completely loaded and parsed
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     // Get all the list items in the sidebar navigation
     var listItems = document.querySelectorAll('.sidebar nav ul li');
 
     // Loop over each list item
-    listItems.forEach(function(listItem) {
+    listItems.forEach(function (listItem) {
         var link = listItem.querySelector('a');
 
         // Check if the listItem is not the site icon

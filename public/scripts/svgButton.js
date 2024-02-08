@@ -1,7 +1,8 @@
+/* eslint-disable no-undef */
 // Filename: public/scripts/svgButton.js
 
 // When the page is loaded, fetch the SVGs for all keys
-window.onload = function() {
+window.onload = function () {
     // The keys and username variables will be defined in the HTML file
     // Loop over each key and fetch the corresponding SVG
     for (let key of keys) {
@@ -12,7 +13,7 @@ window.onload = function() {
 // Function to fetch an SVG for a given key and username
 function fetchSvg(key, username) {
     // Return a function that fetches the SVG when called
-    return function() {
+    return function () {
         // Construct the URL for the fetch request
         const url = `/AniCards/StatCards/get_svg/${username}/${key}`;
 
@@ -22,7 +23,7 @@ function fetchSvg(key, username) {
                 // If the response status is 404, throw an error indicating the SVG was not found
                 if (response.status === 404) {
                     throw new Error('SVG not found');
-                } 
+                }
                 // If the response status is not OK, throw an error with the status
                 else if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);

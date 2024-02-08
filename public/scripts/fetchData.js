@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 // Filename: public/scripts/fetchData.js
 
 // Function to fetch data from a specific URL and update an SVG element

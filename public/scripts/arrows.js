@@ -1,7 +1,7 @@
 // Filename: public/scripts/arrow.js
 
 // Wait for the DOM to fully load
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     // Select all select elements within elements with the class 'svg-item'
     let selects = document.querySelectorAll('.svg-item select');
 

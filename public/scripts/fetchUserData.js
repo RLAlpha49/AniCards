@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 // Filename: public/scripts/fetchUserData.js
 
 // Function to fetch user data based on input

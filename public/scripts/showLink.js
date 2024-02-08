@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 // Filename: public/scripts/showLink.js
 
 // Get the modal and linkText elements
@@ -18,12 +19,12 @@ function showLink(link) {
 var span = document.getElementsByClassName("close")[0];
 
 // Add an onclick event to the close button to hide the modal
-span.onclick = function() {
+span.onclick = function () {
     modal.style.display = "none";
 }
 
 // Add an onclick event to the window to hide the modal if clicked outside of it
-window.onclick = function(event) {
+window.onclick = function (event) {
     if (event.target == modal) {
         modal.style.display = "none";
     }
@@ -51,7 +52,7 @@ function copyLink() {
     copyStatus.classList.remove("hide");
 
     // Hide the copyStatus element after 3 seconds
-    setTimeout(function() {
+    setTimeout(function () {
         copyStatus.classList.add("hide");
     }, 3000);
 }
@@ -61,14 +62,14 @@ var closeButton = document.querySelector(".close");
 var copyStatus = document.getElementById("copyStatus");
 
 // Add a click event listener to the close button to hide the modal and clear the copyStatus text
-closeButton.addEventListener("click", function() {
+closeButton.addEventListener("click", function () {
     modal.style.display = "none";
     copyStatus.textContent = "";
     copyStatus.classList.remove("hide");
 });
 
 // Add a click event listener to the modal to hide it and clear the copyStatus text if clicked outside of it
-modal.addEventListener("click", function(event) {
+modal.addEventListener("click", function (event) {
     if (event.target === modal) {
         modal.style.display = "none";
         copyStatus.textContent = "";
