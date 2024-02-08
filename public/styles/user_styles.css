@@ -228,6 +228,17 @@ p {
     padding: 10px 20px;
 }
 
+/* This will apply when the viewport is 600px or less */
+@media (max-width: 600px) {
+    .svg-container {
+        width: 100%;
+    }
+
+    .svg-item {
+        width: 100%;
+    }
+}
+
 .svg-container {
     display: flex;
     justify-content: center;
