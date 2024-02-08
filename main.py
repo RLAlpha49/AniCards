@@ -394,7 +394,7 @@ def static_from_root():
 @app.errorhandler(Exception)
 def handle_error(e):
     """Handles any exceptions that occur during request handling."""
-    return render_template("Error.html", error=str(e)), 500
+    return render_template("error.html", error=str(e)), 500
 
 
 # Create the database for local testing if it doesn't exist
