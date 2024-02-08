@@ -8,7 +8,8 @@
 #0B0C10: Black (Background color of the body)
 */
 
-body, .center-container {
+body,
+.center-container {
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -30,10 +31,10 @@ body {
 .sidebar {
     width: 62px;
     flex-shrink: 0;
-    flex-basis: auto; 
-    background-color: #16181f; 
+    flex-basis: auto;
+    background-color: #16181f;
     font-family: 'Helvetica Neue', sans-serif;
-    color: #C5C6C7; 
+    color: #C5C6C7;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
@@ -44,7 +45,8 @@ body {
     width: 180px;
 }
 
-.sidebar nav ul, .sidebar .bottom-link {
+.sidebar nav ul,
+.sidebar .bottom-link {
     list-style-type: none;
     padding: 0;
     margin: 0;
@@ -52,54 +54,59 @@ body {
     flex-direction: column;
 }
 
-.sidebar nav ul li:not(.site-icon-li), .sidebar .bottom-link {
+.sidebar nav ul li:not(.site-icon-li),
+.sidebar .bottom-link {
     width: 100%;
 }
 
-.sidebar nav ul li a, .sidebar .bottom-link a {
+.sidebar nav ul li a,
+.sidebar .bottom-link a {
     display: flex;
     align-items: center;
     padding: 5px 15px;
     text-decoration: none;
     color: white;
     width: 100%;
-    transition: width 0.5s; 
-    overflow: hidden; 
+    transition: width 0.5s;
+    overflow: hidden;
 }
 
-.sidebar nav ul li a img, .sidebar .bottom-link a img {
-    width: 32px; 
-    height: 32px; 
+.sidebar nav ul li a img,
+.sidebar .bottom-link a img {
+    width: 32px;
+    height: 32px;
 }
 
-.sidebar nav ul li a img:not(.site-icon), .sidebar .bottom-link a img:not(.site-icon) {
+.sidebar nav ul li a img:not(.site-icon),
+.sidebar .bottom-link a img:not(.site-icon) {
     filter: invert(1) brightness(0.6);
 }
 
-.sidebar nav ul li a:hover, .sidebar .bottom-link a:hover {
+.sidebar nav ul li a:hover,
+.sidebar .bottom-link a:hover {
     filter: brightness(130%);
 }
 
 .link-content {
     display: flex;
-    align-items: flex-start; 
+    align-items: flex-start;
 }
 
 .link-text {
-    transform: scaleX(0); 
-    transform-origin: left; 
-    opacity: 0; 
+    transform: scaleX(0);
+    transform-origin: left;
+    opacity: 0;
     transition: transform 0.5s, opacity 0.5s;
     white-space: nowrap;
-    text-decoration: none; 
+    text-decoration: none;
     filter: brightness(0.6);
-    color: white; 
+    color: white;
 }
 
 .sidebar.expanded .link-text {
-    padding-left: 10px; 
+    padding-left: 10px;
     transform: scaleX(1);
-    opacity: 1; 
+    opacity: 1;
 }
 
 .sidebar nav ul li.active-link:not(.site-icon-li) a {
@@ -119,7 +126,7 @@ body {
     filter: invert(56%) sepia(58%) saturate(371%) hue-rotate(127deg) brightness(92%) contrast(85%);
 }
 
-.bottom-link .link-content{
+.bottom-link .link-content {
     height: 46px;
 }
 
@@ -166,7 +173,7 @@ header {
 }
 
 header p {
-    color: #C5C6C7; 
+    color: #C5C6C7;
     margin-left: auto;
     font-size: 1em;
 }
@@ -196,7 +203,7 @@ input[type="text"] {
 
 #colorForm {
     display: flex;
-    justify-content: space-around; 
+    justify-content: space-around;
     flex-wrap: wrap;
     width: 100%;
 }
@@ -205,7 +212,7 @@ input[type="text"] {
     background-color: #1F2833;
     border-radius: 5px;
     padding: 2% 4%;
-    max-width: 900px; 
+    max-width: 900px;
     margin: 20px auto;
     color: #C5C6C7;
 }
@@ -216,7 +223,7 @@ input[type="text"] {
     justify-content: space-between;
     align-items: center;
     position: relative;
-    width: calc(25% - 10px); 
+    width: calc(25% - 10px);
     box-sizing: border-box;
     padding: 2% 4%;
     margin-top: 5px;
@@ -227,7 +234,7 @@ input[type="text"] {
     border: 2px solid #66FCF1;
     border-radius: 4px;
     cursor: pointer;
-    
+
 }
 
 #colorForm h2 {
@@ -247,22 +254,25 @@ input[type="text"] {
     margin-bottom: 0px;
 }
 
-#dataForm, #dataForm div {
+#dataForm,
+#dataForm div {
     display: flex;
-    justify-content: space-around; 
+    justify-content: space-around;
     flex-wrap: wrap;
     width: 100%;
 }
+
 #dataForm {
     background-color: #1F2833;
     border-radius: 5px;
     padding: 10px 20px;
-    max-width: 900px; 
+    max-width: 900px;
     margin: 20px auto;
     color: #C5C6C7;
 }
 
-#formLabelWrapper, #dataForm label {
+#formLabelWrapper,
+#dataForm label {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -313,14 +323,15 @@ input[type="text"] {
     border-radius: 2px;
 }
 
-#dataForm, #colorForm {
-    padding: 2% 4%; 
+#dataForm,
+#colorForm {
+    padding: 2% 4%;
     max-width: 70%
 }
 
-#dataForm div{
-    padding: 2% 4%; 
-    width: calc(90% - 2%); 
+#dataForm div {
+    padding: 2% 4%;
+    width: calc(90% - 2%);
 }
 
 button {
@@ -341,19 +352,20 @@ button:hover {
 }
 
 .footer-div {
-    margin-top: 40px; 
+    margin-top: 40px;
     flex-shrink: 0;
     background-color: #171723;
     color: #C5C6C7;
     text-align: center;
-    padding: 10px; 
+    padding: 10px;
     width: 100%;
     border-top: 1px solid #66FCF1;
     font-size: 0.8em;
     box-sizing: border-box;
 }
 
-.footer-div p, .footer-div a {
+.footer-div p,
+.footer-div a {
     color: #C5C6C7;
     margin: 0;
     padding: 0;

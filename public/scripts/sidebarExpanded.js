@@ -9,8 +9,10 @@ document.getElementById('arrow').addEventListener('click', function() {
     if (sidebar.classList.contains('expanded')) {
         // If it does, remove the 'expanded' class
         sidebar.classList.remove('expanded');
+        footer.style.width = 'calc(100% - 62px)';
     } else {
         // If it doesn't, add the 'expanded' class
         sidebar.classList.add('expanded');
+        footer.style.width = 'calc(100% - 180px)';
     }
 });
