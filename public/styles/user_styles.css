@@ -232,9 +232,9 @@ p {
 /* This will apply when the viewport is 600px or less */
 @media (max-width: 600px) {
     body {
-        transform: scale(0.7);
+        transform: scale(0.6);
         transform-origin: 0 0;
-        width: 128.57%; /* 100 / 0.7 = 142.85 */
+        width: 166.66%; /* 100 / 0.6 = 166.66 */
         overflow-x: hidden;
     }
 }
