@@ -30,61 +30,58 @@ def generate_svg(title, value, username, colors, card_type="Default"):
         if value is None:
             return None
 
-        if title == "animeStats":
-            return generate_animeStats_svg(value, username, colors, card_type)
-        if title == "mangaStats":
-            return generate_mangaStats_svg(value, username, colors, card_type)
-        if title == "socialStats":
-            return generate_socialStats_svg(value, username, colors, card_type)
-        if title == "animeGenres":
-            return generate_extraAnimeStats_svg(
-                value, username, "genre", colors, card_type
-            )
-        if title == "animeTags":
-            return generate_extraAnimeStats_svg(
-                value, username, "tag", colors, card_type
-            )
-        if title == "animeVoiceActors":
-            return generate_extraAnimeStats_svg(
-                value, username, "voiceActor", colors, card_type
-            )
-        if title == "animeStudios":
-            return generate_extraAnimeStats_svg(
-                value, username, "studio", colors, card_type
-            )
-        if title == "animeStaff":
-            return generate_extraAnimeStats_svg(
-                value, username, "staff", colors, card_type
-            )
-        if title == "mangaGenres":
-            return generate_extraMangaStats_svg(
-                value, username, "genre", colors, card_type
-            )
-        if title == "mangaTags":
-            return generate_extraMangaStats_svg(
-                value, username, "tag", colors, card_type
-            )
-        if title == "mangaStaff":
-            return generate_extraMangaStats_svg(
-                value, username, "staff", colors, card_type
-            )
+        title_to_function = {
+            "animeStats": generate_animeStats_svg,
+            "mangaStats": generate_mangaStats_svg,
+            "socialStats": generate_socialStats_svg,
+            "animeGenres": lambda v, u, c, t: generate_extraAnimeStats_svg(
+                v, u, "genre", c, t
+            ),
+            "animeTags": lambda v, u, c, t: generate_extraAnimeStats_svg(
+                v, u, "tag", c, t
+            ),
+            "animeVoiceActors": lambda v, u, c, t: generate_extraAnimeStats_svg(
+                v, u, "voiceActor", c, t
+            ),
+            "animeStudios": lambda v, u, c, t: generate_extraAnimeStats_svg(
+                v, u, "studio", c, t
+            ),
+            "animeStaff": lambda v, u, c, t: generate_extraAnimeStats_svg(
+                v, u, "staff", c, t
+            ),
+            "mangaGenres": lambda v, u, c, t: generate_extraMangaStats_svg(
+                v, u, "genre", c, t
+            ),
+            "mangaTags": lambda v, u, c, t: generate_extraMangaStats_svg(
+                v, u, "tag", c, t
+            ),
+            "mangaStaff": lambda v, u, c, t: generate_extraMangaStats_svg(
+                v, u, "staff", c, t
+            ),
+        }
 
-        log_message("Invalid title, generating placeholder svg", "debug")
-        result = Markup(
-            f"""
-            <svg xmlns="http://www.w3.org/2000/svg">
-                <g transform="translate(0, 0)">
-                    <text x="0" y="50" font-size="35">{title}: {value}</text>
-                </g>
-            </svg>
-        """
-        )
+        function_to_execute = title_to_function.get(title)
+
+        if function_to_execute is not None:
+            result = function_to_execute(value, username, colors, card_type)
+        else:
+            log_message("Invalid title, generating placeholder svg", "debug")
+            result = Markup(
+                f"""
+                <svg xmlns="http://www.w3.org/2000/svg">
+                    <g transform="translate(0, 0)">
+                        <text x="0" y="50" font-size="35">{title}: {value}</text>
+                    </g>
+                </svg>
+            """
+            )
 
         log_message(f"SVG generated successfully for {title}", "info")
         return result
 
     except Exception as e:
         log_message(f"Error occurred generating svg for {title}: {e}", "error")
+        return None
 
 
 def generate_button(name, y):
@@ -171,6 +168,56 @@ def inline_styles(svg_file, css_file, dasharray, dashoffset, colors):
         return None
 
 
+def calculate_milestones(value, key):
+    """
+    Calculate milestones, percentage, circle circumference, dasharray, and
+    dashoffset based on the number of a given key.
+
+    Parameters:
+    value (dict): A dictionary containing the statistics for the user.
+    key (str): The key in the dictionary to calculate milestones for.
+
+    Returns:
+    tuple: A tuple containing previous milestone, current milestone, dasharray,
+    and dashoffset.
+    """
+    # Initialize milestones list with the first five milestones
+    milestones = [100, 250, 500, 750, 1000]
+
+    # Determine the maximum milestone based on the number of the given key
+    max_milestone = ((value[key] // 1000) + 1) * 1000
+
+    # Generate the rest of the milestones
+    for i in range(1000, max_milestone + 1, 1000):
+        milestones.append(i)
+
+    # Determine the previous milestone based on the number of the given key
+    previous_milestone = max(
+        milestone for milestone in milestones if milestone < value[key]
+    )
+
+    # Determine the current milestone based on the number of the given key
+    current_milestone = min(
+        milestone for milestone in milestones if milestone > value[key]
+    )
+
+    # Calculate percentage
+    percentage = (
+        (value[key] - previous_milestone) / (current_milestone - previous_milestone)
+    ) * 100
+
+    # Calculate circle circumference
+    circle_circumference = 2 * math.pi * 40
+
+    # Calculate dasharray
+    dasharray = circle_circumference
+
+    # Calculate dashoffset
+    dashoffset = circle_circumference * (1 - (percentage / 100))
+
+    return previous_milestone, current_milestone, dasharray, dashoffset
+
+
 def generate_animeStats_svg(value, username, colors, svg_type):
     """
     Generates an SVG representation of anime statistics for a given user.
@@ -186,37 +233,9 @@ def generate_animeStats_svg(value, username, colors, svg_type):
         log_message(f"Started generating anime stats svg for {username}", "debug")
 
         if svg_type == "Default":
-            # Initialize milestones list with the first three milestones
-            milestones = [100, 300, 500]
-
-            # Determine the maximum milestone based on the number of episodes watched
-            max_milestone = ((value["episodesWatched"] // 1000) + 1) * 1000
-
-            # Generate the rest of the milestones
-            for i in range(1000, max_milestone + 1, 1000):
-                milestones.append(i)
-
-            # Determine the previous milestone based on the number of episodes watched
-            previous_milestone = max(
-                milestone
-                for milestone in milestones
-                if milestone < value["episodesWatched"]
+            previous_milestone, current_milestone, dasharray, dashoffset = (
+                calculate_milestones(value, "episodesWatched")
             )
-
-            # Determine the current milestone based on the number of episodes watched
-            current_milestone = min(
-                milestone
-                for milestone in milestones
-                if milestone > value["episodesWatched"]
-            )
-
-            percentage = (
-                (value["episodesWatched"] - previous_milestone)
-                / (current_milestone - previous_milestone)
-            ) * 100
-            circle_circumference = 2 * math.pi * 40
-            dasharray = circle_circumference
-            dashoffset = circle_circumference * (1 - (percentage / 100))
 
             log_message(f"Milestones calculated successfully for {username}", "debug")
 
@@ -266,11 +285,12 @@ def generate_animeStats_svg(value, username, colors, svg_type):
             log_message(f"HTML template generated successfully for {username}", "info")
 
             return Markup(html)
-
+        return None
     except Exception as e:
         log_message(
             f"Error occurred generating anime stats svg for {username}: {e}", "error"
         )
+        return None
 
 
 def calculate_font_size(text, initial_font_size, max_width):
@@ -301,6 +321,42 @@ def calculate_font_size(text, initial_font_size, max_width):
         log_message(
             f"Error occurred calculating font size for text: {text}: {e}", "error"
         )
+        return None
+
+
+def inline_styles_and_calculate_font_size(username, html_template, colors, key):
+    """
+    Inline the styles and calculate the font size for the SVG.
+
+    Parameters:
+    username (str): The username of the user.
+    html_template (str): The HTML template to be used for the SVG.
+    colors (list): A list of color values to be used in the SVG.
+    key (str): The key to be used in the statistics.
+
+    Returns:
+    tuple: A tuple containing the HTML template with inlined styles and the calculated font size.
+    """
+    # Inline the styles
+    html_template = inline_styles(
+        os.path.join("Pages", "SVGs", "extraAnime&MangaStatsSVG.html"),
+        os.path.join("public", "styles", "SVGs", "DefaultStatsStyles.css"),
+        0,  # dasharray is not used in this SVG
+        0,  # dashoffset is not used in this SVG
+        colors,
+    )
+
+    log_message(f"Styles inlined successfully for {username}", "debug")
+
+    # Calculate the font size
+    text = f"{username}'s Top Manga {key.capitalize()}s"
+    initial_font_size = 18
+    max_width = 320
+    font_size = calculate_font_size(text, initial_font_size, max_width)
+
+    log_message(f"Font size calculated successfully for {username}", "debug")
+
+    return html_template, font_size
 
 
 def generate_extraAnimeStats_svg(value, username, key, colors, svg_type):
@@ -345,24 +401,10 @@ def generate_extraAnimeStats_svg(value, username, key, colors, svg_type):
 
             log_message(f"Placeholders replaced successfully for {username}", "debug")
 
-            # Inline the styles
-            html_template = inline_styles(
-                os.path.join("Pages", "SVGs", "extraAnime&MangaStatsSVG.html"),
-                os.path.join("public", "styles", "SVGs", "DefaultStatsStyles.css"),
-                0,  # dasharray is not used in this SVG
-                0,  # dashoffset is not used in this SVG
-                colors,
+            # Inline the styles and calculate the font size
+            html_template, font_size = inline_styles_and_calculate_font_size(
+                username, html_template, colors, key
             )
-
-            log_message(f"Styles inlined successfully for {username}", "debug")
-
-            # Calculate the font size
-            text = f"{username}'s Top Manga {key.capitalize()}s"
-            initial_font_size = 18
-            max_width = 320
-            font_size = calculate_font_size(text, initial_font_size, max_width)
-
-            log_message(f"Font size calculated successfully for {username}", "debug")
 
             # Generate the CSS rules for the header class
             header_style = f"""font-weight: 600;
@@ -392,12 +434,13 @@ def generate_extraAnimeStats_svg(value, username, key, colors, svg_type):
             log_message(f"HTML template generated successfully for {username}", "info")
 
             return Markup(html)
-
+        return None
     except Exception as e:
         log_message(
             f"Error occurred generated extra anime stats svg for {username}: {e}",
             "error",
         )
+        return None
 
 
 def generate_mangaStats_svg(value, username, colors, svg_type):
@@ -415,37 +458,9 @@ def generate_mangaStats_svg(value, username, colors, svg_type):
         log_message(f"Started generating manga stats svg for {username}", "debug")
 
         if svg_type == "Default":
-            # Initialize milestones list with the first three milestones
-            milestones = [100, 300, 500]
-
-            # Determine the maximum milestone based on the number of episodes watched
-            max_milestone = ((value["chaptersRead"] // 1000) + 1) * 1000
-
-            # Generate the rest of the milestones
-            for i in range(1000, max_milestone + 1, 1000):
-                milestones.append(i)
-
-            # Determine the previous milestone based on the number of episodes watched
-            previous_milestone = max(
-                milestone
-                for milestone in milestones
-                if milestone < value["chaptersRead"]
+            previous_milestone, current_milestone, dasharray, dashoffset = (
+                calculate_milestones(value, "chaptersRead")
             )
-
-            # Determine the current milestone based on the number of episodes watched
-            current_milestone = min(
-                milestone
-                for milestone in milestones
-                if milestone > value["chaptersRead"]
-            )
-
-            percentage = (
-                (value["chaptersRead"] - previous_milestone)
-                / (current_milestone - previous_milestone)
-            ) * 100
-            circle_circumference = 2 * math.pi * 40
-            dasharray = circle_circumference
-            dashoffset = circle_circumference * (1 - (percentage / 100))
 
             log_message(f"Milestones calculated successfully for {username}", "debug")
 
@@ -497,11 +512,13 @@ def generate_mangaStats_svg(value, username, colors, svg_type):
             log_message(f"HTML template generated successfully for {username}", "info")
 
             return Markup(html)
+        return None
 
     except Exception as e:
         log_message(
             f"Error occurred generating manga stats svg for {username}: {e}", "error"
         )
+        return None
 
 
 def generate_extraMangaStats_svg(value, username, key, colors, svg_type):
@@ -547,24 +564,10 @@ def generate_extraMangaStats_svg(value, username, key, colors, svg_type):
 
             log_message(f"Placeholders replaced successfully for {username}", "debug")
 
-            # Inline the styles
-            html_template = inline_styles(
-                os.path.join("Pages", "SVGs", "extraAnime&MangaStatsSVG.html"),
-                os.path.join("public", "styles", "SVGs", "DefaultStatsStyles.css"),
-                0,  # dasharray is not used in this SVG
-                0,  # dashoffset is not used in this SVG
-                colors,
+            # Inline the styles and calculate the font size
+            html_template, font_size = inline_styles_and_calculate_font_size(
+                username, html_template, colors, key
             )
-
-            log_message(f"Styles inlined successfully for {username}", "debug")
-
-            # Calculate the font size
-            text = f"{username}'s Top Manga {key.capitalize()}s"
-            initial_font_size = 18
-            max_width = 320
-            font_size = calculate_font_size(text, initial_font_size, max_width)
-
-            log_message(f"Font size calculated successfully for {username}", "debug")
 
             # Generate the CSS rules for the header class
             header_style = f"""font-weight: 600;
@@ -594,7 +597,7 @@ def generate_extraMangaStats_svg(value, username, key, colors, svg_type):
             log_message(f"HTML template generated successfully for {username}", "info")
 
             return Markup(html)
-
+        return None
     except Exception as e:
         log_message(
             f"Error occurred generating extra manga stats svg for {username}: {e}",
@@ -658,8 +661,9 @@ def generate_socialStats_svg(value, username, colors, svg_type):
             log_message(f"HTML template generated successfully for {username}", "info")
 
             return Markup(html)
-
+        return None
     except Exception as e:
         log_message(
             f"Error occurred generating social stats svg for {username}: {e}", "error"
         )
+        return None
