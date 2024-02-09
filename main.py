@@ -51,7 +51,7 @@ if database_url:
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url or "sqlite:///test.db"
 db.init_app(app)
 
-# Import your models after creating the db instance
+# Import models after creating the db instance
 # pylint: disable=wrong-import-position
 from models import (
     User,
