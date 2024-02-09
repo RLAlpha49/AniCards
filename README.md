@@ -11,6 +11,7 @@ This is a Flask application that generates SVG stat cards for AniList users. It 
   - [Deploying with Waitress & Cloudflare](#running-the-application-with-waitress-and-cloudflare)
   - [Deploying to Heroku](#deploying-to-heroku)
 - [License](#license)
+- [Credits](#credits)
 - [Disclaimer](#disclaimer)
 
 ## Features
@@ -112,6 +113,10 @@ heroku open
 ## License
 
 This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+
+## Credits
+
+The default designs of the SVGs are based on the [github-profile-readme-maker](https://github.com/VishwaGauravIn/github-profile-readme-maker) repository, which is licensed under the GPL-3.0 License.
 
 ## Disclaimer
 
