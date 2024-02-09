@@ -10,7 +10,6 @@ This is a Flask application that generates SVG stat cards for AniList users. It 
 - [Running the Application](#running-the-application)
   - [Deploying with Waitress & Cloudflare](#running-the-application-with-waitress-and-cloudflare)
   - [Deploying to Heroku](#deploying-to-heroku)
-  - [Deploying with uWSGI, Nginx, and Cloudflare](#deploying-with-uwsgi-nginx-and-cloudflare)
 - [License](#license)
 - [Disclaimer](#disclaimer)
 
@@ -74,29 +73,29 @@ Waitress is a production-quality WSGI server that can be used to run your Flask 
 
 1. **Install Waitress**:
 
-```bash
-pip install waitress
-```
+    ```bash
+    pip install waitress
+    ```
 
 2. **Run Wrapper.py**:
 
-```bash
-cd path/to/your/application
-py wrapper.py
-```
+    ```bash
+    cd path/to/your/application
+    py wrapper.py
+    ```
 
-Replace path/to/your/application with the actual path to your application's directory.
-By default I have waitress set to use 4 threads. If you want to change this edit this line in 'server.py' to the amount of threads you want.
+    Replace path/to/your/application with the actual path to your application's directory.
+    By default I have waitress set to use 4 threads. If you want to change this edit this line in 'server.py' to the amount of threads you want.
 
-```bash
-return subprocess.Popen(['waitress-serve', '--port=5000', '--threads=4', 'main:app'], stdout=subprocess.PIPE)
-```
+    ```bash
+    return subprocess.Popen(['waitress-serve', '--port=5000', '--threads=4', 'main:app'], stdout=subprocess.PIPE)
+    ```
 
-The application will now be available at [http://localhost:5000](http://localhost:5000).
+    The application will now be available at [http://localhost:5000](http://localhost:5000).
 
-4. **Configure Cloudflare**:
+3. **Configure Cloudflare**:
 
-Go to your Cloudflare dashboard, add your domain, and update your DNS records to point to your server's IP address and port 5000. Make sure your SSL/TLS encryption mode is set to "Full".
+    Go to your Cloudflare dashboard, add your domain, and update your DNS records to point to your server's IP address and port 5000. Make sure your SSL/TLS encryption mode is set to "Full".
 
 ## Deploying to Heroku
 
@@ -109,109 +108,6 @@ heroku create
 git push heroku master
 heroku open
 ```
-
-## Deploying with uWSGI, Nginx, and Cloudflare
-
-This application can also be deployed using uWSGI and Nginx, with Cloudflare as a reverse proxy. Here are the steps:
-
-1. **Install uWSGI and Nginx**:
-
-```bash
-sudo apt-get update
-sudo apt-get install python3-dev
-sudo apt-get install nginx
-pip install uwsgi
-```
-
-2. **Create a uWSGI Configuration File**:
-
-Create a file named `uwsgi.ini` in your project directory:
-
-```bash
-[uwsgi]
-module = main:app
-master = true
-processes = 5
-socket = myproject.sock
-chmod-socket = 660
-vacuum = true
-die-on-term = true
-```
-
-3. **Test uWSGI Serving**:
-
-You can test if uWSGI is serving your application correctly:
-
-```bash
-uwsgi --ini uwsgi.ini
-```
-
-4. **Create a systemd Unit File**:
-
-Create a file at `/etc/systemd/system/myproject.service`:
-
-```bash
-[Unit]
-Description=uWSGI instance to serve myproject
-After=network.target
-
-[Service]
-User=yourusername
-Group=www-data
-WorkingDirectory=/path/to/your/project
-EnvironmentFile=/path/to/your/project/.env
-ExecStart=/path/to/your/project/venv/bin/uwsgi --ini uwsgi.ini
-
-[Install]
-WantedBy=multi-user.target
-```
-
-In this file, `/path/to/your/project/.env` should be the path to a file containing your environment variables. Each line in this file should be in the format `VARNAME=value.`
-
-```bash
-USER=yourusername
-GROUP=www-data
-WORKING_DIRECTORY=/path/to/your/project
-```
-
-5. **Start the uWSGI service**:
-
-```bash
-sudo systemctl start myproject
-sudo systemctl enable myproject
-```
-
-6. **Configure Nginx to Proxy Requests**:
-
-Create a new server block configuration file in Nginx's `sites-available` directory. Replace `server_name` with your domain name:
-
-```bash
-server {
-    listen 80;
-    server_name yourdomain.com;
-
-    location / {
-        include uwsgi_params;
-        uwsgi_pass unix:/path/to/your/project/myproject.sock;
-    }
-}
-```
-
-7. **Link to the Nginx Configuration**:
-
-```bash
-sudo ln -s /etc/nginx/sites-available/myproject /etc/nginx/sites-enabled
-```
-
-8. **Restart Nginx**:
-
-```bash
-sudo systemctl restart nginx
-```
-
-8. **Configure Cloudflare**:
-
-Go to your Cloudflare dashboard, add your domain, and update your DNS records to point to your server's IP address. Make sure your SSL/TLS encryption mode is set to "Full".
 
 ## License
 
