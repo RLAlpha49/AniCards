@@ -15,7 +15,7 @@ function fetchSvg(key, username) {
     // Return a function that fetches the SVG when called
     return function () {
         // Construct the URL for the fetch request
-        const url = `/AniCards/StatCards/get_svg/${username}/${key}`;
+        const url = `/StatCards/get_svg/${username}/${key}`;
 
         // Fetch the SVG from the server
         fetch(url)

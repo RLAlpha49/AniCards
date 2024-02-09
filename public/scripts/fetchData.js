@@ -4,7 +4,7 @@
 // Function to fetch data from a specific URL and update an SVG element
 function fetchData(name, username) {
     // Construct the URL for the fetch request using the provided username and name
-    const url = `/AniCards/StatCards/${username}/${name}`;
+    const url = `/StatCards/${username}/${name}`;
 
     // Fetch data from the server
     fetch(url)

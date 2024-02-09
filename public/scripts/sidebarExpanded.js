@@ -8,13 +8,13 @@ document.getElementById('arrow').addEventListener('click', function () {
     if (sidebar.classList.contains('expanded')) {
         sidebar.classList.remove('expanded');
         // Check if the current page is 'anicards.html'
-        if (window.location.pathname === '/AniCards/') {
+        if (window.location.pathname === '/') {
             footer.style.width = 'calc(100% - 62px)';
         }
     } else {
         sidebar.classList.add('expanded');
         // Check if the current page is 'anicards.html'
-        if (window.location.pathname === '/AniCards/') {
+        if (window.location.pathname === '/') {
             footer.style.width = 'calc(100% - 180px)';
         }
     }

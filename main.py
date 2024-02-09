@@ -6,7 +6,6 @@ This module is the main entry point for the AniCards application.
 # TODO: Add option for light or dark mode for Stat Cards (Part of Themes)
 # TODO: Add option to change theme of Stat Cards (Need more to be made/designed if people want them)
 # TODO: Add a Banner/Badges generator from user input (Need to implement imgur API)
-# TODO: Set to subdomain anicards.alpha49.com
 # TODO: Add the colors used to generate the svg to the individual statcard tables
 
 # Standard library imports
@@ -124,7 +123,7 @@ def get_record(key, user_id):
 
 
 # Route for generating SVGs for a user
-@app.route("/AniCards/StatCards/<username>/generate_svgs", methods=["POST"])
+@app.route("/StatCards/<username>/generate_svgs", methods=["POST"])
 def generate_svgs(username):
     """
     Generates SVGs for the given username based on the keys and colors provided in the form data.
@@ -206,7 +205,7 @@ def generate_svgs(username):
         raise e
 
 
-@app.route("/AniCards/StatCards/<username>", methods=["GET"])
+@app.route("/StatCards/<username>", methods=["GET"])
 def display_svgs(username):
     """
     Fetches the SVGs associated with the given username from the database and displays them.
@@ -283,7 +282,7 @@ def display_svgs(username):
         raise e
 
 
-@app.route("/AniCards/StatCards/get_svg/<username>/<key>", methods=["GET"])
+@app.route("/StatCards/get_svg/<username>/<key>", methods=["GET"])
 def get_svg(username, key):
     """
     Fetches the SVG associated with the given username and key from the database.
@@ -320,7 +319,7 @@ def get_svg(username, key):
         raise e
 
 
-@app.route("/AniCards/StatCards/<username>/<key>.svg")
+@app.route("/StatCards/<username>/<key>.svg")
 def get_svg_from_db(username, key):
     """
     Fetches the SVG associated with the given username and key from the database.
@@ -370,14 +369,14 @@ def get_svg_from_db(username, key):
 
 
 # StatCards route
-@app.route("/AniCards/StatCards/")
+@app.route("/StatCards/")
 def stat_cards():
     """Handles requests for the StatCards route."""
     log_message("Accessing StatCards route", "info")
     return render_template("statCards.html")
 
 
-@app.route("/AniCards/")
+@app.route("/")
 def home():
     """Handles requests for the Home route."""
     log_message("Accessing Home route", "info")
