@@ -301,7 +301,7 @@ input[type="text"] {
 #selectAll {
     cursor: pointer;
     font-size: 18px;
-    color: #007BFF;
+    color: #70B9FF;
 }
 
 #selectAll:hover {
@@ -348,12 +348,13 @@ button {
     padding: 10px 20px;
     border: none;
     border-radius: 5px;
-    background-color: #45A29E;
-    color: #C5C6C7;
+    background-color: #4CB3AE;
+    color: #000000;
     cursor: pointer;
     margin-bottom: 20px;
     width: 300px;
     display: block;
+    font-weight: bold;
 }
 
 button:hover {
