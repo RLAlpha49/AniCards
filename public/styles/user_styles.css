@@ -262,10 +262,10 @@ p {
 .svg-item select {
     flex: 1;
     padding: 0.5em 1em;
-    border: 2px solid #000000;
+    border: 2px solid #1F2833;
     border-radius: 5px;
     background-color: #4CB3AD;
-    color: #C5C6C7;
+    color: #000000;
     font-size: 0.9em;
     cursor: pointer;
     text-align: center;
