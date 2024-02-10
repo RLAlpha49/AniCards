@@ -37,7 +37,8 @@ function fetchSvg(key, username) {
 
                 // Set the inner HTML of the container to an image element with the SVG as its source
                 // The SVG is base64-encoded and prefixed with the necessary data URL metadata
-                container.innerHTML = `<img src="data:image/svg+xml;base64,${btoa(svg)}" />`;
+                // Add an alt attribute to the image element
+                container.innerHTML = `<img src="data:image/svg+xml;base64,${btoa(svg)}" alt="SVG image of ${key}" />`;
             })
             .catch(error => {
                 // Get the container element by its ID, which is assumed to be the same as the key

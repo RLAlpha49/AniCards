@@ -19,6 +19,9 @@ function fetchData(name, username) {
             // Update the SVG element's source with the fetched data
             // The data is URL-encoded and prefixed with the necessary data URL metadata
             svgElement.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(data);
+
+            // Add an alt attribute to the SVG element
+            svgElement.setAttribute('alt', `SVG image of ${name}`);
         })
         .catch(error => {
             // Log any errors that occurred during the fetch
