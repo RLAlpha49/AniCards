@@ -377,7 +377,7 @@ button.svg-button {
     box-sizing: border-box;
 }
 
-div[id] {
+div[id]:not .arrow {
     width: 100%;
 }
 
