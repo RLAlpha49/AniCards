@@ -8,15 +8,6 @@
 #0B0C10: Black (Background color of the body)
 */
 
-/* This will apply when the viewport is 600px or less */
-@media (max-width: 600px) {
-    body {
-        transform: scale(0.6);
-        transform-origin: 0 0;
-        overflow-x: hidden;
-    }
-}
-
 body,
 html {
     height: 100%;
@@ -36,11 +27,7 @@ body,
     color: #C5C6C7;
 }
 
-.container,
-.main {
-    width: 100vw;
-    min-height: 100vh;
-}
+
 
 .container {
     display: flex;
