@@ -4,7 +4,7 @@ This module defines the database models for the application.
 
 # pylint: disable=R0903
 
-from database import db
+from Program.Database.database import db
 
 
 class User(db.Model):

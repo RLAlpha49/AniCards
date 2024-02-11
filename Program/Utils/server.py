@@ -33,6 +33,7 @@ def stop_server(server_process):
             print("\nStopping server...")
             server_process.terminate()
             server_process.wait()
+            print("Stopped server\n")
     except Exception as stop_error:
         print(f"Error stopping server: {stop_error}")
 
@@ -74,7 +75,7 @@ def pull_from_git():
     Pull the latest changes from git.
     """
     try:
-        print("\nPulling latest changes from git...")
+        print("Pulling latest changes from git...")
         changes = subprocess.check_output(["git", "pull"]).decode("utf-8")
         if "Already up to date." in changes:
             print("No changes were made.\n")
@@ -99,13 +100,21 @@ try:
             if SERVER_PROCESS is None:
                 SERVER_PROCESS = run_server()
             else:
-                print("Server is already running.")
+                print("\nServer is already running.\n")
         elif command == "pull":
+            print()
             CHANGES_MADE = pull_from_git()
             if CHANGES_MADE:
                 SERVER_PROCESS = restart_server(SERVER_PROCESS, True)
         elif command.startswith("open "):
             FILE_TYPE = command.split(" ")[1]
             open_newest_file(FILE_TYPE)
+            print()
+        elif command == "close":
+            if SERVER_PROCESS is not None:
+                stop_server(SERVER_PROCESS)
+            print("Closing program...")
+            sys.exit(0)
 except Exception as error:
     print(f"An error occurred: {error}")
+    input("Press Enter to exit...")

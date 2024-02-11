@@ -8,7 +8,7 @@ This module is used to generate SVG html.
 import os
 import math
 from markupsafe import Markup
-from logger import log_message
+from Program.Utils.logger import log_message
 
 
 def generate_svg(title, value, username, colors, card_type="Default"):

@@ -14,6 +14,7 @@ import os
 from threading import Thread
 import time
 import schedule
+import subprocess
 
 # Related third party imports
 from flask import (
@@ -28,10 +29,14 @@ from flask import (
 )
 
 # Local application/library specific imports
-from AniListData import fetch_anilist_data
-from generateSVGs import generate_svg
-from logger import log_message
-from database import db
+from Program.Database import database
+from Program.Anilist import AniListData
+from Program.generateSVGs import generate_svg
+from Program.Utils.logger import log_message
+
+# Use the imported modules
+fetch_anilist_data = AniListData.fetch_anilist_data
+db = database.db
 
 # Initialize Flask app
 app = Flask(__name__, static_folder="public", template_folder="Pages")
@@ -51,8 +56,8 @@ app.config["SQLALCHEMY_DATABASE_URI"] = database_url or "sqlite:///test.db"
 db.init_app(app)
 
 # Import models after creating the db instance
-# pylint: disable=wrong-import-position
-from models import (
+# pylint: disable=C0412, C0413
+from Program.Database.models import (
     User,
     StatCard,
     AnimeStats,
@@ -609,8 +614,10 @@ def run_schedule():
 
 # Run the scheduler in a separate thread
 scheduler_thread = Thread(target=run_schedule)
-#scheduler_thread.start()
+# scheduler_thread.start()
 
 # Run the Flask app
 if __name__ == "__main__":
-    app.run(debug=True)
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    wrapper_path = os.path.join(script_dir, "Program", "Utils", "wrapper.py")
+    subprocess.run(["python", wrapper_path], check=True)

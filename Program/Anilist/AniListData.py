@@ -5,8 +5,8 @@ It uses the requests module to send HTTP requests and the queries module to hand
 """
 # Import necessary modules
 import requests
-import queries
-from logger import log_message
+import Program.Anilist.queries as queries
+from Program.Utils.logger import log_message
 
 
 def fetch_anime_data(response_data, keys):
