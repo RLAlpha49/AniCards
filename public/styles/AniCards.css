@@ -27,7 +27,11 @@ body,
     color: #C5C6C7;
 }
 
-
+.container,
+.main {
+    width: 100vw;
+    min-height: 100vh;
+}
 
 .container {
     display: flex;
