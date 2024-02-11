@@ -13,8 +13,8 @@ from urllib.parse import urlparse, urlunparse
 import os
 from threading import Thread
 import time
-import schedule
 import subprocess
+import schedule
 
 # Related third party imports
 from flask import (

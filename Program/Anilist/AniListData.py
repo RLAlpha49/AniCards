@@ -5,7 +5,8 @@ It uses the requests module to send HTTP requests and the queries module to hand
 """
 # Import necessary modules
 import requests
-import Program.Anilist.queries as queries
+# pylint: disable=import-error
+from Program.Anilist import queries
 from Program.Utils.logger import log_message
 
 
