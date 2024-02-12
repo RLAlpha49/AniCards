@@ -29,8 +29,8 @@ The application uses Flask and SQLAlchemy to serve a web application and interac
 
 Before running the application, make sure you have the following installed:
 
-- Python
-- PostgreSQL
+- [Python](https://www.python.org/downloads/)
+- [PostgreSQL](https://www.postgresql.org/download/)
 
 ## Running the Application
 
