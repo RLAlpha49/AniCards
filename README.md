@@ -46,25 +46,47 @@ Next, navigate into the cloned repository:
 cd Anilist-Stat-Cards
 ```
 
-Then, you can install the necessary Python packages. If you're on Windows and haven't added Python to your PATH, you might need to use 'py -m pip' instead of 'pip':
+Now, create a Python virtual environment. This will help to keep the dependencies required by different projects separate by creating isolated Python environments for them:
 
 ```bash
-# If Python and pip are added to your PATH, or you're on macOS or Linux:
+# If Python and venv are added to your PATH, or you're on macOS or Linux:
+python3 -m venv env
+
+# If you're on Windows and Python is not added to your PATH:
+py -m venv env
+```
+
+Activate the virtual environment:
+
+```bash
+# If you're on macOS or Linux:
+source env/bin/activate
+
+# If you're on Windows:
+.\env\Scripts\activate
+```
+
+Then, you can install the necessary Python packages:
+
+```bash
 pip install -r requirements.txt
-
-# If you're on Windows and Python is not added to your PATH:
-py -m pip install -r requirements.txt
 ```
 
-You can start the application with:
+You can start the application by running either of the following commands:
 
 ```bash
-# If Python is added to your PATH, or you're on macOS or Linux:
 python main.py
-
-# If you're on Windows and Python is not added to your PATH:
-py main.py
 ```
+
+or
+
+```bash
+python wrapper.py
+```
+
+Running main.py will start the application directly.
+
+Running wrapper.py will also start the application, but in addition, it provides control commands for the server. You can use commands like "restart", "stop", "start", "pull", and "close" to control the server's operation.
 
 The application will be available at [http://localhost:5000](http://localhost:5000).
 
@@ -72,21 +94,32 @@ The application will be available at [http://localhost:5000](http://localhost:50
 
 Waitress is a production-quality WSGI server that can be used to run your Flask application. Here's how you can run your application with Waitress and have it hosted by Cloudflare:
 
-1. **Install Waitress**:
+1. **Activate the Python virtual environment**:
+
+    ```bash
+    # If you're on macOS or Linux:
+    source env/bin/activate
+
+    # If you're on Windows:
+    .\env\Scripts\activate
+    ```
+
+2. **Install Waitress**:
 
     ```bash
     pip install waitress
     ```
 
-2. **Run Wrapper.py**:
+3. **Navigate to your application's directory and run Wrapper.py**:
 
     ```bash
     cd path/to/your/application
-    py wrapper.py
+    python wrapper.py
     ```
 
-    Replace path/to/your/application with the actual path to your application's directory.
-    By default I have waitress set to use 4 threads. If you want to change this edit this line in 'server.py' to the amount of threads you want.
+    Replace `path/to/your/application` with the actual path to your application's directory.
+
+    By default, I have waitress set to use 4 threads. If you want to change this, edit this line in 'server.py' to the amount of threads you want.
 
     ```bash
     return subprocess.Popen(['waitress-serve', '--port=5000', '--threads=4', 'main:app'], stdout=subprocess.PIPE)
