@@ -1,3 +1,4 @@
+---
 name: Pylint
 
 on: [push]
@@ -10,28 +11,31 @@ jobs:
         os: [ubuntu-latest]
         python-version: ["3.12"]
     steps:
-    - uses: actions/checkout@v4.1.1
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5.0.0
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Cache Python dependencies
-      uses: actions/cache@v4.0.0
-      with:
-        path: |
-          ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        pip install pylint
-      shell: bash
-    - name: Analysing the code with pylint
-      run: |
-        for file in $(git ls-files '*.py'); do
-          pylint "$file"
-        done
-      shell: bash
+      - uses: actions/checkout@v4.1.1
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=${PYTHONPATH}:." >> $GITHUB_ENV
+        shell: bash
+      - name: Cache Python dependencies
+        uses: actions/cache@v4.0.0
+        with:
+          path: |
+            ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pylint
+        shell: bash
+      - name: Analysing the code with pylint
+        run: |
+          for file in $(git ls-files '*.py'); do
+            pylint "$file"
+          done
+        shell: bash
