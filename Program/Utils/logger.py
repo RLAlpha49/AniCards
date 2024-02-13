@@ -7,10 +7,29 @@ import inspect
 import logging
 import logging.handlers
 import os
+import glob
 
 # Get the current timestamp
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
 
+def cleanup_log_files():
+    """
+    Cleans up log files in the 'logs' directory.
+    
+    This function deletes the oldest log files in the 'logs' directory until there are only 30 left for each type of log file (debug and log). The function prints the number of log files before and after deletion, as well as the name of each file that's being deleted.
+    """
+    # Limit the number of log files
+    for pattern in ["logs/debug_*.log", "logs/log_*.log"]:
+        log_type = "debug" if "debug" in pattern else "log"
+        log_files = sorted(glob.glob(pattern))
+        print(f"Before deletion: {len(log_files)} {log_type} files")
+        while len(log_files) > 30:
+            os.remove(log_files[0])
+            log_files = sorted(glob.glob(pattern))
+        print(f"After deletion: {len(log_files)} {log_type} files\n")
+
+# Call the cleanup function when the server starts
+cleanup_log_files()
 
 def log_message(message, level="info"):
     """
@@ -39,12 +58,11 @@ def log_message(message, level="info"):
         os.makedirs("logs")
 
     # Create file handlers
-    log_handler = logging.handlers.RotatingFileHandler(
-        os.path.join("logs", f"log_{timestamp}.log"), backupCount=30
-    )
-    debug_handler = logging.handlers.RotatingFileHandler(
-        os.path.join("logs", f"debug_{timestamp}.log"), backupCount=30
-    )
+    log_filename = os.path.join("logs", f"log_{timestamp}.log")
+    debug_filename = os.path.join("logs", f"debug_{timestamp}.log")
+
+    log_handler = logging.handlers.RotatingFileHandler(log_filename, backupCount=30)
+    debug_handler = logging.handlers.RotatingFileHandler(debug_filename, backupCount=30)
 
     # Set levels for handlers
     log_handler.setLevel(logging.INFO)

@@ -47,57 +47,50 @@ def fetch_anime_data(response_data, keys):
             ],
         }
         if "animeGenres" in keys:
-            top_genres = sorted(
-                response_data["data"]["User"]["statistics"]["anime"]["genres"],
-                key=lambda x: x["count"],
-                reverse=True,
-            )[:5]
-            data["animeGenres"] = top_genres
+            genres = response_data["data"]["User"]["statistics"]["anime"]["genres"]
+            data["animeGenres"] = get_top_items(genres, "genre")
 
         if "animeTags" in keys:
             tags = response_data["data"]["User"]["statistics"]["anime"]["tags"]
-            top_tags = sorted(tags, key=lambda x: x["count"], reverse=True)[:5]
-            top_tags = [
-                {"tag": tag["tag"]["name"], "count": tag["count"]} for tag in top_tags
-            ]
-            data["animeTags"] = top_tags
+            top_tags = get_top_items(tags, "tag")
+            data["animeTags"] = process_items(
+                top_tags, lambda tag: {"tag": tag["tag"]["name"], "count": tag["count"]}
+            )
 
         if "animeVoiceActors" in keys:
             voice_actors = response_data["data"]["User"]["statistics"]["anime"][
                 "voiceActors"
             ]
-            top_voice_actors = sorted(
-                voice_actors, key=lambda x: x["count"], reverse=True
-            )[:5]
-            top_voice_actors = [
-                {
+            top_voice_actors = get_top_items(voice_actors, "voiceActor")
+            data["animeVoiceActors"] = process_items(
+                top_voice_actors,
+                lambda actor: {
                     "voiceActor": actor["voiceActor"]["name"]["full"],
                     "count": actor["count"],
-                }
-                for actor in top_voice_actors
-            ]
-            data["animeVoiceActors"] = top_voice_actors
+                },
+            )
 
         if "animeStudios" in keys:
             studios = response_data["data"]["User"]["statistics"]["anime"]["studios"]
-            top_studios = sorted(studios, key=lambda x: x["count"], reverse=True)[:5]
-            top_studios = [
-                {"studio": studio["studio"]["name"], "count": studio["count"]}
-                for studio in top_studios
-            ]
-            data["animeStudios"] = top_studios
+            top_studios = get_top_items(studios, "studio")
+            data["animeStudios"] = process_items(
+                top_studios,
+                lambda studio: {
+                    "studio": studio["studio"]["name"],
+                    "count": studio["count"],
+                },
+            )
 
         if "animeStaff" in keys:
             staff = response_data["data"]["User"]["statistics"]["anime"]["staff"]
-            top_staff = sorted(staff, key=lambda x: x["count"], reverse=True)[:5]
-            top_staff = [
-                {
+            top_staff = get_top_items(staff, "staff")
+            data["animeStaff"] = process_items(
+                top_staff,
+                lambda staff_member: {
                     "staff": staff_member["staff"]["name"]["full"],
                     "count": staff_member["count"],
-                }
-                for staff_member in top_staff
-            ]
-            data["animeStaff"] = top_staff
+                },
+            )
     except KeyError as e:
         raise ValueError(f"Missing key {e} in anime response data") from e
     return data
@@ -282,3 +275,23 @@ def fetch_anilist_data(username, keys):
     except requests.exceptions.RequestException as error:
         log_message(f"Failed to fetch data for user {username}: {error}", "error")
         return None
+
+
+def get_top_items(items, key, top_n=5):
+    """
+    Sorts a list of dictionaries by a specific key and returns the top n items.
+
+    Parameters:
+    items (list): The list of dictionaries to sort.
+    key (str): The key in the dictionaries to sort by.
+    top_n (int, optional): The number of top items to return. Defaults to 5.
+
+    Returns:
+    list: The top n dictionaries from the list, sorted by the specified key in descending order.
+    """
+    top_items = sorted(items, key=lambda x: x["count"], reverse=True)[:top_n]
+    return top_items
+
+
+def process_items(items, process_func):
+    return [process_func(item) for item in items]
