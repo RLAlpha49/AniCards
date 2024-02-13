@@ -104,21 +104,6 @@ key_to_class = {
     "mangaStaff": MangaStaff,
 }
 
-# Map keys to query functions
-key_to_query = {
-    "animeStats": AnimeStats.query,
-    "socialStats": SocialStats.query,
-    "mangaStats": MangaStats.query,
-    "animeGenres": AnimeGenres.query,
-    "animeTags": AnimeTags.query,
-    "animeVoiceActors": AnimeVoiceActors.query,
-    "animeStudios": AnimeStudios.query,
-    "animeStaff": AnimeStaff.query,
-    "mangaGenres": MangaGenres.query,
-    "mangaTags": MangaTags.query,
-    "mangaStaff": MangaStaff.query,
-}
-
 
 def get_record(key, user_id):
     """
@@ -131,6 +116,21 @@ def get_record(key, user_id):
     Returns:
     Record: The record associated with the key and user_id, or None if no such record exists.
     """
+    
+    # Map keys to query functions
+    key_to_query = {
+        "animeStats": AnimeStats.query,
+        "socialStats": SocialStats.query,
+        "mangaStats": MangaStats.query,
+        "animeGenres": AnimeGenres.query,
+        "animeTags": AnimeTags.query,
+        "animeVoiceActors": AnimeVoiceActors.query,
+        "animeStudios": AnimeStudios.query,
+        "animeStaff": AnimeStaff.query,
+        "mangaGenres": MangaGenres.query,
+        "mangaTags": MangaTags.query,
+        "mangaStaff": MangaStaff.query,
+    }
 
     # Get the query function for the given key
     query = key_to_query.get(key)

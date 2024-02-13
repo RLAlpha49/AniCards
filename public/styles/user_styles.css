@@ -29,6 +29,47 @@ body {
   width: 100%;
 }
 
+p {
+  margin-bottom: 20px;
+  font-size: 1.2em;
+  padding: 10px 20px;
+}
+
+header p {
+  color: #c5c6c7;
+  margin-left: auto;
+  font-size: 1em;
+  white-space: nowrap;
+}
+
+.footer-div {
+  margin-top: 40px;
+  flex-shrink: 0;
+  background-color: #171723;
+  color: #c5c6c7;
+  text-align: center;
+  padding: 10px;
+  width: 100%;
+  border-top: 1px solid #66fcf1;
+  font-size: 0.8em;
+  box-sizing: border-box;
+}
+
+.footer-div p,
+.footer-div a {
+  color: inherit;
+  margin: 0;
+  padding: 0;
+}
+
+.footer-div ul {
+  list-style-type: none;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
 .sidebar {
   width: 62px;
   flex-shrink: 0;
@@ -70,6 +111,16 @@ body {
   width: 100%;
   transition: width 0.5s;
   overflow: hidden;
+}
+
+.footer-div a:hover {
+  color: #66fcf1;
+}
+
+.center-container img,
+button.svg-button {
+  border: 6px solid #c5c6c7;
+  border-radius: 10px;
 }
 
 .sidebar nav ul li a img,
@@ -119,6 +170,14 @@ body {
   color: #47a59f;
 }
 
+.sidebar .bottom-link .link-content a:not(:first-child) {
+  display: none;
+}
+
+.sidebar .bottom-link .link-content a:not(:first-child) img {
+  filter: invert(0) brightness(0.6);
+}
+
 .sidebar nav ul li.active-link:not(.site-icon-li) a:hover {
   filter: brightness(120%);
 }
@@ -134,14 +193,6 @@ body {
 
 .sidebar .bottom-link {
   margin-top: auto;
-}
-
-.sidebar .bottom-link .link-content a:not(:first-child) {
-  display: none;
-}
-
-.sidebar .bottom-link .link-content a:not(:first-child) img {
-  filter: invert(0) brightness(0.6);
 }
 
 .sidebar.expanded .bottom-link .link-content a:not(:first-child) {
@@ -171,13 +222,6 @@ header {
   box-sizing: border-box;
 }
 
-header p {
-  color: #c5c6c7;
-  margin-left: auto;
-  font-size: 1em;
-  white-space: nowrap;
-}
-
 .content {
   padding: 40px;
 }
@@ -193,20 +237,11 @@ header p {
 .center-container {
   flex-grow: 1;
   text-align: center;
+  flex-flow: column;
   flex-wrap: wrap;
   padding: 0 5%;
-}
-
-.center-container {
   display: flex;
-  flex-direction: column;
   justify-content: center;
-  flex-grow: 1;
-}
-
-.center-container h1 {
-  text-align: center;
-  margin-bottom: 2em;
 }
 
 h1 {
@@ -214,14 +249,13 @@ h1 {
   font-size: 2.5em;
 }
 
-p {
-  margin-bottom: 20px;
-  font-size: 1.2em;
-  padding: 10px 20px;
+.center-container h1 {
+  text-align: center;
+  margin-bottom: 2em;
 }
 
 /* This will apply when the viewport is 600px or less */
-@media (max-width: 600px) {
+@media (width <= 600px) {
   .svg-item {
     transform: scale(0.7);
   }
@@ -253,7 +287,7 @@ p {
   border: 2px solid #1f2833;
   border-radius: 5px;
   background-color: #4cb3ad;
-  color: #000000;
+  color: #000;
   font-size: 0.9em;
   cursor: pointer;
   text-align: center;
@@ -262,10 +296,6 @@ p {
 
 .svg-item button {
   margin: 0 5px;
-}
-
-.svg-item select {
-  max-width: 100%;
 }
 
 .select-container {
@@ -278,12 +308,11 @@ p {
 
 .svg-item select {
   width: 100%;
+  max-width: 100%;
   z-index: 1;
   position: relative;
   box-sizing: border-box;
   appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
 }
 
 .arrow {
@@ -300,8 +329,46 @@ p {
   transition: transform 0.3s ease;
 }
 
+div[id]:not .arrow {
+  width: 100%;
+}
+
 .svg-item select:focus + .arrow {
   transform: translateY(-50%) rotate(0deg);
+}
+
+.link-button,
+.download-button {
+  display: inline-block;
+  width: 100%;
+  padding: 0.5em 1em;
+  margin: 5px 0;
+  background-color: #45a29e;
+  color: #c5c6c7;
+  border: 2px solid #1f2833;
+  border-radius: 5px;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+  font-size: 0.9em;
+}
+
+.modal-content,
+.modal-content button {
+  border-radius: 5px;
+  color: #c5c6c7;
+  font-size: 1.2em;
+}
+
+.modal-content button {
+  display: inline-block;
+  padding: 0.5em 1em;
+  margin: 5px 0;
+  background-color: #45a29e;
+  border: 2px solid #1f2833;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
 }
 
 .svg-item button:hover,
@@ -331,28 +398,6 @@ p {
   margin-top: 10px;
 }
 
-.link-button,
-.download-button {
-  display: inline-block;
-  width: 100%;
-  padding: 0.5em 1em;
-  margin: 5px 0;
-  background-color: #45a29e;
-  color: #c5c6c7;
-  border: 2px solid #1f2833;
-  border-radius: 5px;
-  cursor: pointer;
-  text-decoration: none;
-  text-align: center;
-  font-size: 0.9em;
-}
-
-.center-container img,
-button.svg-button {
-  border: 6px solid #c5c6c7;
-  border-radius: 10px;
-}
-
 button.svg-button {
   display: inline-block;
   min-width: 100%;
@@ -365,10 +410,7 @@ button.svg-button {
   box-sizing: border-box;
 }
 
-div[id]:not .arrow {
-  width: 100%;
-}
-
+/* stylelint-disable-next-line keyframes-name-pattern */
 @keyframes slideUp {
   from {
     top: 100%;
@@ -396,14 +438,7 @@ div[id]:not .arrow {
   position: fixed;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.4);
-}
-
-.modal-content,
-.modal-content button {
-  border-radius: 5px;
-  color: #c5c6c7;
-  font-size: 1.2em;
+  background-color: rgb(0 0 0 / 40%);
 }
 
 .modal-content {
@@ -421,27 +456,9 @@ div[id]:not .arrow {
   animation: slideUp 0.5s forwards;
 }
 
-.modal-content button {
-  display: inline-block;
-  padding: 0.5em 1em;
-  margin: 5px 0;
-  background-color: #45a29e;
-  border: 2px solid #1f2833;
-  cursor: pointer;
-  text-decoration: none;
-  text-align: center;
-}
-
 .modal-content button:hover {
   background-color: #66fcf1;
   color: #0b0c10;
-}
-
-.close:hover,
-.close:focus {
-  color: #66fcf1;
-  text-decoration: none;
-  cursor: pointer;
 }
 
 .close {
@@ -449,6 +466,13 @@ div[id]:not .arrow {
   float: right;
   font-size: 28px;
   font-weight: bold;
+}
+
+.close:hover,
+.close:focus {
+  color: #66fcf1;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .copy-section {
@@ -468,38 +492,6 @@ div[id]:not .arrow {
 
 #copyStatus.hide {
   opacity: 0;
-}
-
-.footer-div {
-  margin-top: 40px;
-  flex-shrink: 0;
-  background-color: #171723;
-  color: #c5c6c7;
-  text-align: center;
-  padding: 10px;
-  width: 100%;
-  border-top: 1px solid #66fcf1;
-  font-size: 0.8em;
-  box-sizing: border-box;
-}
-
-.footer-div p,
-.footer-div a {
-  color: inherit;
-  margin: 0;
-  padding: 0;
-}
-
-.footer-div a:hover {
-  color: #66fcf1;
-}
-
-.footer-div ul {
-  list-style-type: none;
-  padding: 0;
-  display: flex;
-  justify-content: center;
-  gap: 10px;
 }
 
 .favicon {
