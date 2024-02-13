@@ -23,9 +23,8 @@ function fetchSvg (key, username) {
         // If the response status is 404, throw an error indicating the SVG was not found
         if (response.status === 404) {
           throw new Error('SVG not found')
-        }
-        // If the response status is not OK, throw an error with the status
-        else if (!response.ok) {
+        } else if (!response.ok) {
+          // If the response status is not OK, throw an error with the status
           throw new Error(`HTTP error! status: ${response.status}`)
         }
         // Otherwise, return the response text

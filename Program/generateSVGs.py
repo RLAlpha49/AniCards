@@ -1,12 +1,10 @@
-# pylint: disable=C0103
+# pylint: disable=C0103, W0718
 """
 This module is used to generate SVG html.
 """
 
-# pylint: disable=W0718
-
-import os
 import math
+import os
 from markupsafe import Markup
 from Program.Utils.logger import log_message
 
@@ -231,9 +229,12 @@ def generate_animeStats_svg(value, username, colors, svg_type):
         log_message(f"Started generating anime stats svg for {username}", "debug")
 
         if svg_type == "Default":
-            previous_milestone, current_milestone, dasharray, dashoffset = (
-                calculate_milestones(value, "episodesWatched")
-            )
+            (
+                previous_milestone,
+                current_milestone,
+                dasharray,
+                dashoffset,
+            ) = calculate_milestones(value, "episodesWatched")
 
             log_message(f"Milestones calculated successfully for {username}", "debug")
 
@@ -456,9 +457,12 @@ def generate_mangaStats_svg(value, username, colors, svg_type):
         log_message(f"Started generating manga stats svg for {username}", "debug")
 
         if svg_type == "Default":
-            previous_milestone, current_milestone, dasharray, dashoffset = (
-                calculate_milestones(value, "chaptersRead")
-            )
+            (
+                previous_milestone,
+                current_milestone,
+                dasharray,
+                dashoffset,
+            ) = calculate_milestones(value, "chaptersRead")
 
             log_message(f"Milestones calculated successfully for {username}", "debug")
 

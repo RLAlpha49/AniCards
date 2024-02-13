@@ -131,39 +131,42 @@ function getUserDataFromSvg (svgDoc, key) {
 }
 
 // Function to calculate dashoffset
-function calculateDashoffset (userData) {
+function calculateDashoffset(userData) {
   // Initialize milestones array with the first three milestones
-  const milestones = [100, 300, 500]
+  const milestones = [100, 300, 500];
 
   // Determine the maximum milestone based on the user's data
-  const maxMilestone = Math.ceil(userData.dataValue / 1000) * 1000
+  const maxMilestone = Math.ceil(userData.dataValue / 1000) * 1000;
 
   // Generate the rest of the milestones
   for (let i = 1000; i <= maxMilestone; i += 1000) {
-    milestones.push(i)
+    milestones.push(i);
   }
 
   // Find the largest milestone that is less than the user's data value
-  const previous_milestone = Math.max(
+  const previousMilestone = Math.max(
     ...milestones.filter((milestone) => milestone < userData.dataValue)
-  )
+  );
+
   // Find the smallest milestone that is greater than the user's data value
-  const current_milestone = Math.min(
+  const currentMilestone = Math.min(
     ...milestones.filter((milestone) => milestone > userData.dataValue)
-  )
+  );
 
   // Calculate the percentage of the way the user's data value is between the previous and current milestones
   const percentage =
-    ((userData.dataValue - previous_milestone) /
-      (current_milestone - previous_milestone)) *
-    100
+    ((userData.dataValue - previousMilestone) /
+      (currentMilestone - previousMilestone)) *
+    100;
+
   // Calculate the circumference of the circle (assuming a radius of 40)
-  const circle_circumference = 2 * Math.PI * 40
+  const circleCircumference = 2 * Math.PI * 40;
+
   // Calculate the dashoffset based on the percentage
-  const dashoffset = circle_circumference * (1 - percentage / 100)
+  const dashoffset = circleCircumference * (1 - percentage / 100);
 
   // Return the calculated dashoffset
-  return dashoffset
+  return dashoffset;
 }
 
 // Function to convert an Image object to a PNG and download it

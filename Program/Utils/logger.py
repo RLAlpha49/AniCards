@@ -3,9 +3,9 @@ This module is used for logging messages with different levels.
 """
 
 import datetime
+import inspect
 import logging
 import logging.handlers
-import inspect
 import os
 
 # Get the current timestamp

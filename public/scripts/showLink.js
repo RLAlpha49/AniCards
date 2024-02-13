@@ -25,7 +25,7 @@ span.onclick = function () {
 
 // Add an onclick event to the window to hide the modal if clicked outside of it
 window.onclick = function (event) {
-  if (event.target == modal) {
+  if (event.target === modal) {
     modal.style.display = 'none'
   }
 }

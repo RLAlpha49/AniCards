@@ -1,12 +1,11 @@
+# pylint: disable=W0718
 """
 This module is used to run, stop, restart the server and pull updates from git.
 """
 
-# pylint: disable=W0718
-
-import subprocess
-import os
 import glob
+import os
+import subprocess
 import sys
 
 

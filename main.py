@@ -9,30 +9,45 @@ This module is the main entry point for the AniCards application.
 # TODO: Add the colors used to generate the svg to the individual statcard tables
 
 # Standard library imports
-from urllib.parse import urlparse, urlunparse
 import os
-from threading import Thread
-import time
 import subprocess
-import schedule
+import time
+from threading import Thread
+from urllib.parse import urlparse, urlunparse
 
 # Related third party imports
+import schedule
 from flask import (
     Flask,
     abort,
     make_response,
-    render_template,
     redirect,
-    url_for,
+    render_template,
     request,
     send_from_directory,
+    url_for,
 )
 
 # Local application/library specific imports
-from Program.Database import database
 from Program.Anilist import AniListData
-from Program.generateSVGs import generate_svg
+from Program.Database import database
+from Program.Database.models import (
+    AnimeGenres,
+    AnimeStaff,
+    AnimeStats,
+    AnimeStudios,
+    AnimeTags,
+    AnimeVoiceActors,
+    MangaGenres,
+    MangaStaff,
+    MangaStats,
+    MangaTags,
+    SocialStats,
+    StatCard,
+    User,
+)
 from Program.Utils.logger import log_message
+from Program.generateSVGs import generate_svg
 
 # Use the imported modules
 fetch_anilist_data = AniListData.fetch_anilist_data
@@ -54,24 +69,6 @@ if database_url:
 # Configure SQLAlchemy with the database URL
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url or "sqlite:///test.db"
 db.init_app(app)
-
-# Import models after creating the db instance
-# pylint: disable=C0412, C0413
-from Program.Database.models import (
-    User,
-    StatCard,
-    AnimeStats,
-    SocialStats,
-    MangaStats,
-    AnimeGenres,
-    AnimeTags,
-    AnimeVoiceActors,
-    AnimeStudios,
-    AnimeStaff,
-    MangaGenres,
-    MangaTags,
-    MangaStaff,
-)
 
 app.config["PREFERRED_URL_SCHEME"] = "https"
 
@@ -116,7 +113,7 @@ def get_record(key, user_id):
     Returns:
     Record: The record associated with the key and user_id, or None if no such record exists.
     """
-    
+
     # Map keys to query functions
     key_to_query = {
         "animeStats": AnimeStats.query,
@@ -368,9 +365,9 @@ def get_svg_from_db(username, key):
                 response.headers["Content-Type"] = "image/svg+xml"
 
                 # Add cache control headers
-                response.headers["Cache-Control"] = (
-                    "no-cache, must-revalidate, max-age=0"
-                )
+                response.headers[
+                    "Cache-Control"
+                ] = "no-cache, must-revalidate, max-age=0"
                 response.headers["Pragma"] = "no-cache"
                 response.headers["Expires"] = "0"
 
@@ -473,7 +470,7 @@ def process_keys_and_generate_svgs(username, keys, colors, user):
     return successful_keys
 
 
-def process_user(user, custom_order, key_to_class):
+def process_user(user, custom_order):
     """
     Process a user's data and generate SVGs for each key in their statcard.
 
@@ -510,12 +507,12 @@ def process_user(user, custom_order, key_to_class):
 
     for key in keys:
         user_info = {"user": user, "colors": colors}
-        process_key(key, data, user_info, successful_keys, key_to_class)
+        process_key(key, data, user_info, successful_keys)
 
     db.session.commit()
 
 
-def process_key(key, data, user_info, successful_keys, key_to_class):
+def process_key(key, data, user_info, successful_keys):
     """
     Process a key's data and generate an SVG for it.
 
@@ -570,7 +567,7 @@ def generate_svgs_for_all_users():
             # Define a dictionary to map keys to classes
 
             for user in users:
-                process_user(user, custom_order, key_to_class)
+                process_user(user, custom_order)
 
         except Exception as e:
             log_message(
