@@ -31,4 +31,7 @@ jobs:
       shell: bash
     - name: Analysing the code with pylint
       run: |
-        pylint $(git ls-files '*.py')
+        for file in $(git ls-files '*.py'); do
+          pylint "$file"
+        done
+      shell: bash

@@ -89,6 +89,36 @@ key_types = {
     "mangaStaff": [],
 }
 
+# Define a dictionary to map keys to classes
+key_to_class = {
+    "animeStats": AnimeStats,
+    "socialStats": SocialStats,
+    "mangaStats": MangaStats,
+    "animeGenres": AnimeGenres,
+    "animeTags": AnimeTags,
+    "animeVoiceActors": AnimeVoiceActors,
+    "animeStudios": AnimeStudios,
+    "animeStaff": AnimeStaff,
+    "mangaGenres": MangaGenres,
+    "mangaTags": MangaTags,
+    "mangaStaff": MangaStaff,
+}
+
+# Map keys to query functions
+key_to_query = {
+    "animeStats": AnimeStats.query,
+    "socialStats": SocialStats.query,
+    "mangaStats": MangaStats.query,
+    "animeGenres": AnimeGenres.query,
+    "animeTags": AnimeTags.query,
+    "animeVoiceActors": AnimeVoiceActors.query,
+    "animeStudios": AnimeStudios.query,
+    "animeStaff": AnimeStaff.query,
+    "mangaGenres": MangaGenres.query,
+    "mangaTags": MangaTags.query,
+    "mangaStaff": MangaStaff.query,
+}
+
 
 def get_record(key, user_id):
     """
@@ -101,20 +131,6 @@ def get_record(key, user_id):
     Returns:
     Record: The record associated with the key and user_id, or None if no such record exists.
     """
-    # Map keys to query functions
-    key_to_query = {
-        "animeStats": AnimeStats.query,
-        "socialStats": SocialStats.query,
-        "mangaStats": MangaStats.query,
-        "animeGenres": AnimeGenres.query,
-        "animeTags": AnimeTags.query,
-        "animeVoiceActors": AnimeVoiceActors.query,
-        "animeStudios": AnimeStudios.query,
-        "animeStaff": AnimeStaff.query,
-        "mangaGenres": MangaGenres.query,
-        "mangaTags": MangaTags.query,
-        "mangaStaff": MangaStaff.query,
-    }
 
     # Get the query function for the given key
     query = key_to_query.get(key)
@@ -438,21 +454,6 @@ def process_keys_and_generate_svgs(username, keys, colors, user):
 
     successful_keys = []
 
-    # Define a dictionary to map keys to classes
-    key_to_class = {
-        "animeStats": AnimeStats,
-        "socialStats": SocialStats,
-        "mangaStats": MangaStats,
-        "animeGenres": AnimeGenres,
-        "animeTags": AnimeTags,
-        "animeVoiceActors": AnimeVoiceActors,
-        "animeStudios": AnimeStudios,
-        "animeStaff": AnimeStaff,
-        "mangaGenres": MangaGenres,
-        "mangaTags": MangaTags,
-        "mangaStaff": MangaStaff,
-    }
-
     for key in keys:
         svg_data = generate_svg(key, data.get(key) if data else None, username, colors)
 
@@ -567,19 +568,6 @@ def generate_svgs_for_all_users():
             custom_order = ["animeStats", "socialStats", "mangaStats"]
 
             # Define a dictionary to map keys to classes
-            key_to_class = {
-                "animeStats": AnimeStats,
-                "socialStats": SocialStats,
-                "mangaStats": MangaStats,
-                "animeGenres": AnimeGenres,
-                "animeTags": AnimeTags,
-                "animeVoiceActors": AnimeVoiceActors,
-                "animeStudios": AnimeStudios,
-                "animeStaff": AnimeStaff,
-                "mangaGenres": MangaGenres,
-                "mangaTags": MangaTags,
-                "mangaStaff": MangaStaff,
-            }
 
             for user in users:
                 process_user(user, custom_order, key_to_class)

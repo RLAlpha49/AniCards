@@ -5,18 +5,18 @@ The queries fetch various user statistics including anime, manga, and social sta
 """
 
 USER_ID = """
-    query ($userName: String) { 
-        User(name: $userName) { 
+    query ($userName: String) {
+        User(name: $userName) {
             id
-        } 
+        }
     }
 """
 
 USER_ANIME_MANGA_SOCIAL_STATS = """
-    query ($userName: String, $userId: Int!) { 
-        User(name: $userName) { 
-            statistics { 
-                anime { 
+    query ($userName: String, $userId: Int!) {
+        User(name: $userName) {
+            statistics {
+                anime {
                     count
                     episodesWatched
                     minutesWatched
@@ -55,7 +55,7 @@ USER_ANIME_MANGA_SOCIAL_STATS = """
                         count
                     }
                 }
-                manga { 
+                manga {
                     count
                     chaptersRead
                     volumesRead
@@ -79,7 +79,7 @@ USER_ANIME_MANGA_SOCIAL_STATS = """
                         }
                         count
                     }
-                } 
+                }
             }
             stats {
                 activityHistory {
@@ -126,6 +126,6 @@ USER_ANIME_MANGA_SOCIAL_STATS = """
             reviews(userId: $userId) {
                 id
             }
-        } 
+        }
     }
 """
