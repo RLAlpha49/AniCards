@@ -244,6 +244,7 @@ def generate_default_base_stats_html(
         return html
     return None
 
+
 def generate_extra_stats_html(
     value, username, key, colors, svg_type, stats_type
 ):  # pylint: disable=R0913
