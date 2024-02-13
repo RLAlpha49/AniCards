@@ -12,11 +12,15 @@ import glob
 # Get the current timestamp
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
 
+
 def cleanup_log_files():
     """
     Cleans up log files in the 'logs' directory.
-    
-    This function deletes the oldest log files in the 'logs' directory until there are only 30 left for each type of log file (debug and log). The function prints the number of log files before and after deletion, as well as the name of each file that's being deleted.
+
+    This function deletes the oldest log files in the 'logs' directory until there
+    are only 30 left for each type of log file (debug and log). The function prints
+    the number of log files before and after deletion, as well as the name of each
+    file that's being deleted.
     """
     # Limit the number of log files
     for pattern in ["logs/debug_*.log", "logs/log_*.log"]:
@@ -28,8 +32,10 @@ def cleanup_log_files():
             log_files = sorted(glob.glob(pattern))
         print(f"After deletion: {len(log_files)} {log_type} files\n")
 
+
 # Call the cleanup function when the server starts
 cleanup_log_files()
+
 
 def log_message(message, level="info"):
     """

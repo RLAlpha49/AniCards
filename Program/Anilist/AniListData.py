@@ -48,11 +48,11 @@ def fetch_anime_data(response_data, keys):
         }
         if "animeGenres" in keys:
             genres = response_data["data"]["User"]["statistics"]["anime"]["genres"]
-            data["animeGenres"] = get_top_items(genres, "genre")
+            data["animeGenres"] = get_top_items(genres)
 
         if "animeTags" in keys:
             tags = response_data["data"]["User"]["statistics"]["anime"]["tags"]
-            top_tags = get_top_items(tags, "tag")
+            top_tags = get_top_items(tags)
             data["animeTags"] = process_items(
                 top_tags, lambda tag: {"tag": tag["tag"]["name"], "count": tag["count"]}
             )
@@ -61,7 +61,7 @@ def fetch_anime_data(response_data, keys):
             voice_actors = response_data["data"]["User"]["statistics"]["anime"][
                 "voiceActors"
             ]
-            top_voice_actors = get_top_items(voice_actors, "voiceActor")
+            top_voice_actors = get_top_items(voice_actors)
             data["animeVoiceActors"] = process_items(
                 top_voice_actors,
                 lambda actor: {
@@ -72,7 +72,7 @@ def fetch_anime_data(response_data, keys):
 
         if "animeStudios" in keys:
             studios = response_data["data"]["User"]["statistics"]["anime"]["studios"]
-            top_studios = get_top_items(studios, "studio")
+            top_studios = get_top_items(studios)
             data["animeStudios"] = process_items(
                 top_studios,
                 lambda studio: {
@@ -83,7 +83,7 @@ def fetch_anime_data(response_data, keys):
 
         if "animeStaff" in keys:
             staff = response_data["data"]["User"]["statistics"]["anime"]["staff"]
-            top_staff = get_top_items(staff, "staff")
+            top_staff = get_top_items(staff)
             data["animeStaff"] = process_items(
                 top_staff,
                 lambda staff_member: {
@@ -277,13 +277,12 @@ def fetch_anilist_data(username, keys):
         return None
 
 
-def get_top_items(items, key, top_n=5):
+def get_top_items(items, top_n=5):
     """
     Sorts a list of dictionaries by a specific key and returns the top n items.
 
     Parameters:
     items (list): The list of dictionaries to sort.
-    key (str): The key in the dictionaries to sort by.
     top_n (int, optional): The number of top items to return. Defaults to 5.
 
     Returns:
@@ -294,4 +293,14 @@ def get_top_items(items, key, top_n=5):
 
 
 def process_items(items, process_func):
+    """
+    Process a list of items using a specified function.
+
+    Args:
+        items (list): The list of items to be processed.
+        process_func (function): The function to apply to each item.
+
+    Returns:
+        list: A new list containing the result of applying process_func to each item in items.
+    """
     return [process_func(item) for item in items]
