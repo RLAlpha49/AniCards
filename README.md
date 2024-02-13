@@ -114,9 +114,18 @@ Waitress is a production-quality WSGI server that can be used to run your Flask 
 
     ```bash
     cd path/to/your/application
-    python wrapper.py
     ```
 
+    ```bash
+    python main.py
+    ```
+    
+    or
+    
+    ```bash
+    python wrapper.py
+    ```
+    
     Replace `path/to/your/application` with the actual path to your application's directory.
 
     By default, I have waitress set to use 4 threads. If you want to change this, edit this line in 'server.py' to the amount of threads you want.
@@ -127,7 +136,7 @@ Waitress is a production-quality WSGI server that can be used to run your Flask 
 
     The application will now be available at [http://localhost:5000](http://localhost:5000).
 
-4. **Configure Cloudflare**:
+5. **Configure Cloudflare**:
 
     Go to your Cloudflare dashboard, add your domain, and update your DNS records to point to your server's IP address and port 5000. Make sure your SSL/TLS encryption mode is set to "Full".
 
