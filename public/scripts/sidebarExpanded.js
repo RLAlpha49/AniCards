@@ -2,8 +2,8 @@
 
 // Add a click event listener to the element with id 'arrow'
 document.getElementById('arrow').addEventListener('click', function () {
-  var sidebar = document.getElementsByClassName('sidebar')[0]
-  var footer = document.getElementsByClassName('footer-div')[0]
+  const sidebar = document.getElementsByClassName('sidebar')[0]
+  const footer = document.getElementsByClassName('footer-div')[0]
 
   if (sidebar.classList.contains('expanded')) {
     sidebar.classList.remove('expanded')

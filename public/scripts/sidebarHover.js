@@ -4,11 +4,11 @@
 // This event is fired when the initial HTML document has been completely loaded and parsed
 document.addEventListener('DOMContentLoaded', function () {
   // Get all the list items in the sidebar navigation
-  var listItems = document.querySelectorAll('.sidebar nav ul li')
+  const listItems = document.querySelectorAll('.sidebar nav ul li')
 
   // Loop over each list item
   listItems.forEach(function (listItem) {
-    var link = listItem.querySelector('a')
+    const link = listItem.querySelector('a')
 
     // Check if the listItem is not the site icon
     if (!listItem.classList.contains('site-icon-li')) {

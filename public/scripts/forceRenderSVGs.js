@@ -1,9 +1,9 @@
 // Filename: public/scripts/forceRenderSVGs.js
 
 // Function to force a re-render of an SVG element
-function forceRerender(svgElement) {
+function forceRerender (svgElement) {
   // Get the parent of the SVG element
-  var parent = svgElement.parentNode
+  const parent = svgElement.parentNode
 
   // Remove the SVG element from the DOM
   parent.removeChild(svgElement)
@@ -14,11 +14,11 @@ function forceRerender(svgElement) {
 }
 
 // Get all SVG elements in the document
-var svgs = document.querySelectorAll('svg')
+const svgs = document.querySelectorAll('svg')
 
 // Create an intersection observer
 // This will call a function whenever an SVG enters or leaves the viewport
-var observer = new IntersectionObserver(function (entries) {
+const observer = new IntersectionObserver(function (entries) {
   // Loop over all the entries
   entries.forEach(function (entry) {
     // If the SVG is in the viewport

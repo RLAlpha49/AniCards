@@ -1,7 +1,7 @@
 // Filename: public/scripts/download.js
 
 // Function to modify SVG document
-function modifySvgDoc(svgDoc, dashoffset) {
+function modifySvgDoc (svgDoc, dashoffset) {
   // Select all elements with class 'stagger'
   const staggerElements = Array.from(svgDoc.querySelectorAll('.stagger'))
   // Remove animation delay and set opacity to 1 for each element
@@ -34,7 +34,7 @@ function modifySvgDoc(svgDoc, dashoffset) {
 }
 
 // Function to filter out animation properties from CSS rule
-function filterAnimationProperties(rule) {
+function filterAnimationProperties (rule) {
   // If the rule is a keyframes rule, return an empty string
   if (rule.startsWith('@keyframes')) {
     return ''
@@ -58,7 +58,7 @@ function filterAnimationProperties(rule) {
 }
 
 // Function to fetch SVG from a URL and convert it to an Image object
-async function fetchSvgAsImage(url, key) {
+async function fetchSvgAsImage (url, key) {
   // Fetch the SVG
   const response = await fetch(url)
   let svgText = await response.text()
@@ -101,7 +101,7 @@ async function fetchSvgAsImage(url, key) {
 }
 
 // Function to get user data from SVG
-function getUserDataFromSvg(svgDoc, key) {
+function getUserDataFromSvg (svgDoc, key) {
   // Determine the data-testid based on the key
   let dataTestId = ''
   if (key === 'animeStats') {
@@ -126,21 +126,21 @@ function getUserDataFromSvg(svgDoc, key) {
 
   // Return the user data
   return {
-    dataValue: dataValue,
+    dataValue
   }
 }
 
 // Function to calculate dashoffset
-function calculateDashoffset(userData) {
+function calculateDashoffset (userData) {
   // Initialize milestones array with the first three milestones
-  let milestones = [100, 300, 500]
+  const milestones = [100, 300, 500]
 
   // Determine the maximum milestone based on the user's data
-  let maxMilestone = Math.ceil(userData.dataValue / 1000) * 1000
+  const maxMilestone = Math.ceil(userData.dataValue / 1000) * 1000
 
   // Generate the rest of the milestones
   for (let i = 1000; i <= maxMilestone; i += 1000) {
-    milestones.push(i);
+    milestones.push(i)
   }
 
   // Find the largest milestone that is less than the user's data value
@@ -167,7 +167,7 @@ function calculateDashoffset(userData) {
 }
 
 // Function to convert an Image object to a PNG and download it
-function downloadImageAsPng(img, filename) {
+function downloadImageAsPng (img, filename) {
   // Create a new canvas element
   const canvas = document.createElement('canvas')
   // Set the canvas dimensions to match the image
@@ -188,7 +188,7 @@ function downloadImageAsPng(img, filename) {
 }
 
 // Function to handle click events on download buttons
-async function handleDownloadButtonClick(event) {
+async function handleDownloadButtonClick (event) {
   // Get the URL of the SVG from the data-url attribute of the download button
   let svgUrl = event.target.getAttribute('data-url')
   // Replace http:// with https:// in the SVG URL

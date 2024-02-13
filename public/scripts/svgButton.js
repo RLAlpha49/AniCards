@@ -11,7 +11,7 @@ window.onload = function () {
 }
 
 // Function to fetch an SVG for a given key and username
-function fetchSvg(key, username) {
+function fetchSvg (key, username) {
   // Return a function that fetches the SVG when called
   return function () {
     // Construct the URL for the fetch request

@@ -190,11 +190,11 @@ header p {
 
 .sidebar nav ul li.active-link .link-content img:not(.site-icon) {
   filter:
-    invert(56%) 
+    invert(56%)
     sepia(58%)
-    saturate(371%) 
+    saturate(371%)
     hue-rotate(127deg)
-    brightness(92%) 
+    brightness(92%)
     contrast(85%);
 }
 

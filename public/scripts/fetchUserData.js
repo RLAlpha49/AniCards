@@ -2,7 +2,7 @@
 // Filename: public/scripts/fetchUserData.js
 
 // Function to fetch user data based on input
-function fetchUserData() {
+function fetchUserData () {
   // Get the username from the input field with id 'usernameInput'
   const username = document.getElementById('usernameInput').value
 

@@ -2,13 +2,13 @@
 // Filename: public/scripts/showLink.js
 
 // Get the modal and linkText elements
-var modal = document.getElementById('linkModal')
-var linkText = document.getElementById('linkText')
+const modal = document.getElementById('linkModal')
+const linkText = document.getElementById('linkText')
 
 // Function to show the link in the modal
-function showLink(link) {
+function showLink (link) {
   // Replace 'http' with 'https' in the link
-  var secureLink = link.replace('http://', 'https://')
+  const secureLink = link.replace('http://', 'https://')
   // Set the text content of the linkText element to the secure link
   linkText.textContent = secureLink
   // Display the modal
@@ -16,7 +16,7 @@ function showLink(link) {
 }
 
 // Get the close button element
-var span = document.getElementsByClassName('close')[0]
+const span = document.getElementsByClassName('close')[0]
 
 // Add an onclick event to the close button to hide the modal
 span.onclick = function () {
@@ -31,9 +31,9 @@ window.onclick = function (event) {
 }
 
 // Function to copy the link to the clipboard
-function copyLink() {
+function copyLink () {
   // Create a temporary input element
-  var tempInput = document.createElement('input')
+  const tempInput = document.createElement('input')
   // Set the value of the input to the link text
   tempInput.value = linkText.textContent
   // Add the input to the document
@@ -46,7 +46,7 @@ function copyLink() {
   document.body.removeChild(tempInput)
 
   // Get the copyStatus element and change its text
-  var copyStatus = document.getElementById('copyStatus')
+  const copyStatus = document.getElementById('copyStatus')
   copyStatus.textContent = 'Link copied to clipboard'
   // Display the copyStatus element
   copyStatus.classList.remove('hide')
@@ -58,8 +58,8 @@ function copyLink() {
 }
 
 // Get the close button and copyStatus elements
-var closeButton = document.querySelector('.close')
-var copyStatus = document.getElementById('copyStatus')
+const closeButton = document.querySelector('.close')
+const copyStatus = document.getElementById('copyStatus')
 
 // Add a click event listener to the close button to hide the modal and clear the copyStatus text
 closeButton.addEventListener('click', function () {
