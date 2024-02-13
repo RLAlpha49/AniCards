@@ -603,7 +603,7 @@ scheduler_thread = Thread(target=run_schedule)
 
 # Run the Flask app
 if __name__ == "__main__":
-    script_dir = os.path.dirname(os.path.realpath(__file__))
-    wrapper_path = os.path.join(script_dir, "Program", "Utils", "wrapper.py")
-    subprocess.run(["python", wrapper_path], check=True)
-    # app.run(debug=True)
+    # script_dir = os.path.dirname(os.path.realpath(__file__))
+    # wrapper_path = os.path.join(script_dir, "Program", "Utils", "wrapper.py")
+    # subprocess.run(["python", wrapper_path], check=True)
+    app.run(debug=True)

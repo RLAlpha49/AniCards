@@ -7,7 +7,7 @@ import math
 import os
 
 from markupsafe import Markup
-from Program.Utils.logger import log_message
+from Program.Utils.logger import log_message # pylint: disable=E0401
 
 
 def generate_svg(title, value, username, colors, card_type="Default"):
@@ -121,6 +121,166 @@ def generate_button(name, y):
 def fetch_data(name, username):  # pylint: disable=W0613, C0116
     # This function needs to be implemented
     pass
+
+
+def generate_base_stats_html(  # pylint: disable=R0913
+    html_path,
+    placeholders,
+    styles_path,
+    css_path,
+    dasharray,
+    dashoffset,
+    colors,
+    username,
+    current_milestone,
+    previous_milestone,
+    **values,
+):
+    """
+    Generate HTML by replacing placeholders in a template with actual values.
+
+    Args:
+        html_path (str): The path to the HTML template.
+        placeholders (list): The placeholders to replace in the HTML template.
+        styles_path (str): The path to the styles.
+        css_path (str): The path to the CSS file.
+        dasharray (str): The 'stroke-dasharray' property for the SVG.
+        dashoffset (str): The 'stroke-dashoffset' property for the SVG.
+        colors (list): The colors for the SVG.
+        username (str): The username.
+        current_milestone (str): The current milestone.
+        previous_milestone (str): The previous milestone.
+        **values: The values to replace the placeholders with.
+
+    Returns:
+        str: The generated HTML.
+    """
+    # Read the HTML template
+    with open(html_path, "r", encoding="utf-8") as file:
+        html_template = file.read()
+
+    log_message(f"HTML template read successfully for {username}", "info")
+
+    # Escape the curly braces in the HTML template
+    html_template = html_template.replace("{", "{{").replace("}", "}}")
+
+    # Unescape the placeholders that you want to replace
+    for placeholder in placeholders:
+        html_template = html_template.replace(
+            "{{" + placeholder + "}}", "{" + placeholder + "}"
+        )
+
+    # Inline the styles
+    html_template = inline_styles(
+        styles_path,
+        css_path,
+        dasharray,
+        dashoffset,
+        colors,
+    )
+
+    log_message(f"Styles inlined successfully for {username}", "debug")
+
+    # Replace the placeholders in the HTML template with actual values
+    html = html_template.format(
+        username=username,
+        current_milestone=current_milestone,
+        previous_milestone=previous_milestone,
+        **values,
+    )
+
+    return html
+
+
+def generate_extra_stats_html(value, username, key, colors, svg_type, stats_type): # pylint: disable=R0913
+    """
+    Generates an SVG representation of extra statistics for a given user.
+    Parameters:
+    value (list): A list of dictionaries containing the extra statistics for the user.
+    username (str): The username of the user.
+    key (str): The key to be used in the statistics.
+    colors (list): A list of color values to be used in the SVG.
+    svg_type (str): The type of SVG to generate.
+    stats_type (str): The type of statistics to generate ("Anime" or "Manga").
+    Returns:
+    Markup: The generated SVG as a Markup object, or None if an error occurred.
+    """
+    try:
+        log_message(
+            f"Started generating extra {stats_type.lower()} stats svg for {username}",
+            "debug",
+        )
+
+        if svg_type == "Default":
+            # Read the HTML template
+            with open(
+                f"Pages/SVGs/{stats_type.lower()}StatsSVG.html", "r", encoding="utf-8"
+            ) as file:
+                html_template = file.read()
+
+            log_message(f"HTML template read successfully for {username}", "info")
+
+            # Escape the curly braces in the HTML template
+            html_template = html_template.replace("{", "{{").replace("}", "}}")
+
+            # Unescape the placeholders that you want to replace
+            placeholders = [
+                "username",
+                "count",
+                "data1",
+                "data2",
+                "data3",
+                "data4",
+                "data5",
+                "headerStyle",
+            ]
+            for placeholder in placeholders:
+                html_template = html_template.replace(
+                    "{{" + placeholder + "}}", "{" + placeholder + "}"
+                )
+
+            log_message(f"Placeholders replaced successfully for {username}", "debug")
+
+            # Inline the styles and calculate the font size
+            html_template, font_size = inline_styles_and_calculate_font_size(
+                username, html_template, colors, key
+            )
+
+            # Generate the CSS rules for the header class
+            header_style = f"""font-weight: 600;
+                        font-family: 'Segoe UI', Ubuntu, Sans-Serif;
+                        fill: #fe428e;
+                        animation: fadeInAnimation 0.8s ease-in-out forwards;
+                        font-size: {font_size}px;"""
+
+            # Replace the placeholders in the HTML template with actual values
+            html = html_template.format(
+                username=username,
+                type="Voice Actor" if key == "voiceActor" else key.capitalize(),
+                format=stats_type,
+                key1=value[0][key],
+                data1=value[0]["count"],
+                key2=value[1][key],
+                data2=value[1]["count"],
+                key3=value[2][key],
+                data3=value[2]["count"],
+                key4=value[3][key],
+                data4=value[3]["count"],
+                key5=value[4][key],
+                data5=value[4]["count"],
+                headerStyle=header_style,
+            )
+
+            log_message(f"HTML template generated successfully for {username}", "info")
+
+            return Markup(html)
+        return None
+    except Exception as e:
+        log_message(
+            f"Error occurred generating extra {stats_type.lower()} stats svg for {username}: {e}",
+            "error",
+        )
+        return None
 
 
 def inline_styles(svg_file, css_file, dasharray, dashoffset, colors):
@@ -242,16 +402,7 @@ def generate_animeStats_svg(value, username, colors, svg_type):
 
             log_message(f"Milestones calculated successfully for {username}", "debug")
 
-            # Read the HTML template
-            with open("Pages/SVGs/animeStatsSVG.html", "r", encoding="utf-8") as file:
-                html_template = file.read()
-
-            log_message(f"HTML template read successfully for {username}", "info")
-
-            # Escape the curly braces in the HTML template
-            html_template = html_template.replace("{", "{{").replace("}", "}}")
-
-            # Unescape the placeholders that you want to replace
+            # Define the placeholders
             placeholders = [
                 "username",
                 "count",
@@ -261,24 +412,23 @@ def generate_animeStats_svg(value, username, colors, svg_type):
                 "standardDeviation",
                 "current_milestone",
             ]
-            for placeholder in placeholders:
-                html_template = html_template.replace(
-                    "{{" + placeholder + "}}", "{" + placeholder + "}"
-                )
 
-            # Inline the styles
-            html_template = inline_styles(
-                os.path.join("Pages", "SVGs", "animeStatsSVG.html"),
-                os.path.join("public", "styles", "SVGs", "DefaultStatsStyles.css"),
-                dasharray,
-                dashoffset,
-                colors,
+            # Define the paths
+            html_path = "Pages/SVGs/animeStatsSVG.html"
+            styles_path = os.path.join("Pages", "SVGs", "animeStatsSVG.html")
+            css_path = os.path.join(
+                "public", "styles", "SVGs", "DefaultStatsStyles.css"
             )
 
-            log_message(f"Styles inlined successfully for {username}", "debug")
-
-            # Replace the placeholders in the HTML template with actual values
-            html = html_template.format(
+            # Call the function
+            html = generate_base_stats_html(
+                html_path=html_path,
+                placeholders=placeholders,
+                styles_path=styles_path,
+                css_path=css_path,
+                dasharray=dasharray,
+                dashoffset=dashoffset,
+                colors=colors,
                 username=username,
                 current_milestone=current_milestone,
                 previous_milestone=previous_milestone,
@@ -374,76 +524,7 @@ def generate_extraAnimeStats_svg(value, username, key, colors, svg_type):
     Returns:
     Markup: The generated SVG as a Markup object, or None if an error occurred.
     """
-    try:
-        log_message(f"started generating extra anime svg for {username}", "debug")
-
-        if svg_type == "Default":
-            # Read the HTML template
-            with open("Pages/SVGs/animeStatsSVG.html", "r", encoding="utf-8") as file:
-                html_template = file.read()
-
-            log_message(f"HTML template read successfully for {username}", "info")
-
-            # Escape the curly braces in the HTML template
-            html_template = html_template.replace("{", "{{").replace("}", "}}")
-
-            # Unescape the placeholders that you want to replace
-            placeholders = [
-                "username",
-                "count",
-                "data1",
-                "data2",
-                "data3",
-                "data4",
-                "data5",
-            ]
-            for placeholder in placeholders:
-                html_template = html_template.replace(
-                    "{{" + placeholder + "}}", "{" + placeholder + "}"
-                )
-
-            log_message(f"Placeholders replaced successfully for {username}", "debug")
-
-            # Inline the styles and calculate the font size
-            html_template, font_size = inline_styles_and_calculate_font_size(
-                username, html_template, colors, key
-            )
-
-            # Generate the CSS rules for the header class
-            header_style = f"""font-weight: 600;
-                        font-family: 'Segoe UI', Ubuntu, Sans-Serif;
-                        fill: #fe428e;
-                        animation: fadeInAnimation 0.8s ease-in-out forwards;
-                        font-size: {font_size}px;"""
-
-            # Replace the placeholders in the HTML template with actual values
-            html = html_template.format(
-                username=username,
-                type="Voice Actor" if key == "voiceActor" else key.capitalize(),
-                format="Anime",
-                key1=value[0][key],
-                data1=value[0]["count"],
-                key2=value[1][key],
-                data2=value[1]["count"],
-                key3=value[2][key],
-                data3=value[2]["count"],
-                key4=value[3][key],
-                data4=value[3]["count"],
-                key5=value[4][key],
-                data5=value[4]["count"],
-                headerStyle=header_style,
-            )
-
-            log_message(f"HTML template generated successfully for {username}", "info")
-
-            return Markup(html)
-        return None
-    except Exception as e:
-        log_message(
-            f"Error occurred generated extra anime stats svg for {username}: {e}",
-            "error",
-        )
-        return None
+    return generate_extra_stats_html(value, username, key, colors, svg_type, "Anime")
 
 
 def generate_mangaStats_svg(value, username, colors, svg_type):
@@ -470,16 +551,7 @@ def generate_mangaStats_svg(value, username, colors, svg_type):
 
             log_message(f"Milestones calculated successfully for {username}", "debug")
 
-            # Read the HTML template
-            with open("Pages/SVGs/mangaStatsSVG.html", "r", encoding="utf-8") as file:
-                html_template = file.read()
-
-            log_message(f"HTML template read successfully for {username}", "info")
-
-            # Escape the curly braces in the HTML template
-            html_template = html_template.replace("{", "{{").replace("}", "}}")
-
-            # Unescape the placeholders that you want to replace
+            # Define the placeholders
             placeholders = [
                 "username",
                 "count",
@@ -489,33 +561,30 @@ def generate_mangaStats_svg(value, username, colors, svg_type):
                 "standardDeviation",
                 "current_milestone",
             ]
-            for placeholder in placeholders:
-                html_template = html_template.replace(
-                    "{{" + placeholder + "}}", "{" + placeholder + "}"
-                )
 
-            log_message(f"Placeholders replaced successfully for {username}", "debug")
-
-            # Inline the styles
-            html_template = inline_styles(
-                os.path.join("Pages", "SVGs", "mangaStatsSVG.html"),
-                os.path.join("public", "styles", "SVGs", "DefaultStatsStyles.css"),
-                dasharray,
-                dashoffset,
-                colors,
+            # Define the paths
+            html_path = "Pages/SVGs/mangaStatsSVG.html"
+            styles_path = os.path.join("Pages", "SVGs", "mangaStatsSVG.html")
+            css_path = os.path.join(
+                "public", "styles", "SVGs", "DefaultStatsStyles.css"
             )
 
-            log_message(f"Styles inlined successfully for {username}", "debug")
-
-            # Replace the placeholders in the HTML template with actual values
-            html = html_template.format(
+            # Call the function
+            html = generate_base_stats_html(
+                html_path=html_path,
+                placeholders=placeholders,
+                styles_path=styles_path,
+                css_path=css_path,
+                dasharray=dasharray,
+                dashoffset=dashoffset,
+                colors=colors,
                 username=username,
                 current_milestone=current_milestone,
                 previous_milestone=previous_milestone,
                 **value,
             )
 
-            log_message(f"HTML template generated successfully for {username}", "info")
+            log_message(f"HTML generated successfully for {username}", "info")
 
             return Markup(html)
         return None
@@ -539,77 +608,7 @@ def generate_extraMangaStats_svg(value, username, key, colors, svg_type):
     Returns:
     Markup: The generated SVG as a Markup object, or None if an error occurred.
     """
-    try:
-        log_message(f"Started generating extra manga stats svg for {username}", "debug")
-
-        if svg_type == "Default":
-            # Read the HTML template
-            with open("Pages/SVGs/mangaStatsSVG.html", "r", encoding="utf-8") as file:
-                html_template = file.read()
-
-            log_message(f"HTML template read successfully for {username}", "info")
-
-            # Escape the curly braces in the HTML template
-            html_template = html_template.replace("{", "{{").replace("}", "}}")
-
-            # Unescape the placeholders that you want to replace
-            placeholders = [
-                "username",
-                "count",
-                "data1",
-                "data2",
-                "data3",
-                "data4",
-                "data5",
-                "headerStyle",
-            ]
-            for placeholder in placeholders:
-                html_template = html_template.replace(
-                    "{{" + placeholder + "}}", "{" + placeholder + "}"
-                )
-
-            log_message(f"Placeholders replaced successfully for {username}", "debug")
-
-            # Inline the styles and calculate the font size
-            html_template, font_size = inline_styles_and_calculate_font_size(
-                username, html_template, colors, key
-            )
-
-            # Generate the CSS rules for the header class
-            header_style = f"""font-weight: 600;
-                        font-family: 'Segoe UI', Ubuntu, Sans-Serif;
-                        fill: #fe428e;
-                        animation: fadeInAnimation 0.8s ease-in-out forwards;
-                        font-size: {font_size}px;"""
-
-            # Replace the placeholders in the HTML template with actual values
-            html = html_template.format(
-                username=username,
-                type="Voice Actor" if key == "voiceActor" else key.capitalize(),
-                format="Manga",
-                key1=value[0][key],
-                data1=value[0]["count"],
-                key2=value[1][key],
-                data2=value[1]["count"],
-                key3=value[2][key],
-                data3=value[2]["count"],
-                key4=value[3][key],
-                data4=value[3]["count"],
-                key5=value[4][key],
-                data5=value[4]["count"],
-                headerStyle=header_style,
-            )
-
-            log_message(f"HTML template generated successfully for {username}", "info")
-
-            return Markup(html)
-        return None
-    except Exception as e:
-        log_message(
-            f"Error occurred generating extra manga stats svg for {username}: {e}",
-            "error",
-        )
-        return None
+    return generate_extra_stats_html(value, username, key, colors, svg_type, "Manga")
 
 
 def generate_socialStats_svg(value, username, colors, svg_type):
