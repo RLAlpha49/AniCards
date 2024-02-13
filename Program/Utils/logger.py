@@ -3,11 +3,11 @@ This module is used for logging messages with different levels.
 """
 
 import datetime
+import glob
 import inspect
 import logging
 import logging.handlers
 import os
-import glob
 
 # Get the current timestamp
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H_%M_%S")

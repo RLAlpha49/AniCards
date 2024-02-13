@@ -7,7 +7,7 @@ import math
 import os
 
 from markupsafe import Markup
-from Program.Utils.logger import log_message # pylint: disable=E0401
+from Program.Utils.logger import log_message  # pylint: disable=E0401
 
 
 def generate_svg(title, value, username, colors, card_type="Default"):
@@ -192,7 +192,61 @@ def generate_base_stats_html(  # pylint: disable=R0913
     return html
 
 
-def generate_extra_stats_html(value, username, key, colors, svg_type, stats_type): # pylint: disable=R0913
+def generate_default_base_stats_html(
+    html_path,
+    placeholders,
+    styles_path,
+    dasharray,
+    dashoffset,
+    colors,
+    username,
+    current_milestone,
+    previous_milestone,
+    **value,
+):  # pylint: disable=R0913
+    """
+    Generates the default base statistics HTML for a given user.
+
+    Parameters:
+    html_path (str): The path to the HTML template.
+    placeholders (list): A list of placeholders to replace in the HTML template.
+    styles_path (str): The path to the styles for the HTML template.
+    dasharray (str): The dasharray value for the SVG.
+    dashoffset (str): The dashoffset value for the SVG.
+    colors (list): A list of color values to be used in the SVG.
+    username (str): The username of the user.
+    current_milestone (str): The current milestone of the user.
+    previous_milestone (str): The previous milestone of the user.
+    value (dict): Additional values to replace in the HTML template.
+
+    Returns:
+    str: The generated HTML as a string, or None if an error occurred.
+    """
+    css_path = os.path.join("public", "styles", "SVGs", "DefaultStatsStyles.css")
+
+    # Call the function
+    html = generate_base_stats_html(
+        html_path=html_path,
+        placeholders=placeholders,
+        styles_path=styles_path,
+        css_path=css_path,
+        dasharray=dasharray,
+        dashoffset=dashoffset,
+        colors=colors,
+        username=username,
+        current_milestone=current_milestone,
+        previous_milestone=previous_milestone,
+        **value,
+    )
+
+    if html:
+        log_message(f"HTML template generated successfully for {username}", "info")
+        return html
+    return None
+
+def generate_extra_stats_html(
+    value, username, key, colors, svg_type, stats_type
+):  # pylint: disable=R0913
     """
     Generates an SVG representation of extra statistics for a given user.
     Parameters:
@@ -416,26 +470,18 @@ def generate_animeStats_svg(value, username, colors, svg_type):
             # Define the paths
             html_path = "Pages/SVGs/animeStatsSVG.html"
             styles_path = os.path.join("Pages", "SVGs", "animeStatsSVG.html")
-            css_path = os.path.join(
-                "public", "styles", "SVGs", "DefaultStatsStyles.css"
-            )
-
-            # Call the function
-            html = generate_base_stats_html(
-                html_path=html_path,
-                placeholders=placeholders,
-                styles_path=styles_path,
-                css_path=css_path,
-                dasharray=dasharray,
-                dashoffset=dashoffset,
-                colors=colors,
-                username=username,
-                current_milestone=current_milestone,
-                previous_milestone=previous_milestone,
+            html = generate_default_base_stats_html(
+                html_path,
+                placeholders,
+                styles_path,
+                dasharray,
+                dashoffset,
+                colors,
+                username,
+                current_milestone,
+                previous_milestone,
                 **value,
             )
-
-            log_message(f"HTML template generated successfully for {username}", "info")
 
             return Markup(html)
         return None
@@ -565,26 +611,18 @@ def generate_mangaStats_svg(value, username, colors, svg_type):
             # Define the paths
             html_path = "Pages/SVGs/mangaStatsSVG.html"
             styles_path = os.path.join("Pages", "SVGs", "mangaStatsSVG.html")
-            css_path = os.path.join(
-                "public", "styles", "SVGs", "DefaultStatsStyles.css"
-            )
-
-            # Call the function
-            html = generate_base_stats_html(
-                html_path=html_path,
-                placeholders=placeholders,
-                styles_path=styles_path,
-                css_path=css_path,
-                dasharray=dasharray,
-                dashoffset=dashoffset,
-                colors=colors,
-                username=username,
-                current_milestone=current_milestone,
-                previous_milestone=previous_milestone,
+            html = generate_default_base_stats_html(
+                html_path,
+                placeholders,
+                styles_path,
+                dasharray,
+                dashoffset,
+                colors,
+                username,
+                current_milestone,
+                previous_milestone,
                 **value,
             )
-
-            log_message(f"HTML generated successfully for {username}", "info")
 
             return Markup(html)
         return None
