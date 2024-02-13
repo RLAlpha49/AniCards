@@ -1,3 +1,4 @@
+/* global fetchUserData */
 /* eslint-disable no-unused-vars */
 /* eslint-disable no-undef */
 // Filename: public/scripts/validateForm.js

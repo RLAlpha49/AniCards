@@ -46,8 +46,8 @@ from Program.Database.models import (
     StatCard,
     User,
 )
-from Program.Utils.logger import log_message
 from Program.generateSVGs import generate_svg
+from Program.Utils.logger import log_message
 
 # Use the imported modules
 fetch_anilist_data = AniListData.fetch_anilist_data

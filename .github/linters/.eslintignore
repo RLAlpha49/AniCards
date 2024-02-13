@@ -1,0 +1,4 @@
+# .github/linters/.eslintignore
+
+# Ignore configuration files
+.stylelintrc.json

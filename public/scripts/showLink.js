@@ -1,3 +1,4 @@
+/* exported copyLink */
 /* eslint-disable no-unused-vars */
 // Filename: public/scripts/showLink.js
 
