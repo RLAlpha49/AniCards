@@ -5,19 +5,19 @@ svg {
 }
 
 [data-testid="card-title"] text {
-  fill: var(--title-color);
+  fill: #{title_color};
 }
 
 [data-testid="main-card-body"] circle {
-  stroke: var(--circle-color);
+  stroke: #{circle_color};
 }
 
 [data-testid="card-bg"] {
-  fill: var(--background-color);
+  fill: #{background_color};
 }
 
 [data-testid="main-card-body"] text {
-  fill: var(--text-color);
+  fill: #{text_color};
 }
 
 .header {
@@ -28,6 +28,7 @@ svg {
 }
 
 @supports (-moz-appearance: auto) {
+
   /* Selector detects Firefox */
   .header {
     font-size: 15.5px;
@@ -40,6 +41,7 @@ svg {
 }
 
 @supports (-moz-appearance: auto) {
+
   /* Selector detects Firefox */
   .stat {
     font-size: 12px;
@@ -97,11 +99,11 @@ svg {
 
 @keyframes rankAnimation {
   from {
-    stroke-dashoffset: var(--dasharray);
+    stroke-dashoffset: {dasharray};
   }
 
   to {
-    stroke-dashoffset: var(--dashoffset);
+    stroke-dashoffset: {dashoffset};
   }
 }
 
