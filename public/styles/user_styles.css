@@ -348,13 +348,14 @@ div[id]:not .arrow {
   width: 100%;
 }
 
-div[id]:not(#animeStats):not(#mangaStats):not(#socialStats):not(#arrow) {
+div[id]:not(#animeStats, #mangaStats, #socialStats, #arrow) {
   width: 331.2px;
   height: 206.2px;
   object-fit: cover;
 }
 
-#animeStats, #mangaStats {
+#animeStats,
+#mangaStats {
   width: 461.2px;
   height: 206.2px;
 }
