@@ -12,9 +12,11 @@ body {
   padding: 0;
   height: 100%;
   color: #c5c6c7;
-  display: flex;
   flex-direction: column;
-  min-height: 100%;
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto 1fr;
   overflow-x: hidden;
 }
 
@@ -81,6 +83,10 @@ header p {
   flex-direction: column;
   justify-content: flex-start;
   transition: width 0.3s;
+  grid-row: 2;
+  position: sticky;
+  top: 0;
+  bottom: 0;
 }
 
 .sidebar.expanded {
@@ -141,7 +147,7 @@ button.svg-button {
 
 .link-content {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
 }
 
 .link-text {
@@ -217,6 +223,9 @@ button.svg-button {
 }
 
 header {
+  grid-column: 1 / -1;
+  position: sticky;
+  top: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -337,6 +346,22 @@ h1 {
 
 div[id]:not .arrow {
   width: 100%;
+}
+
+div[id]:not(#animeStats):not(#mangaStats):not(#socialStats):not(#arrow) {
+  width: 331.2px;
+  height: 206.2px;
+  object-fit: cover;
+}
+
+#animeStats, #mangaStats {
+  width: 461.2px;
+  height: 206.2px;
+}
+
+#socialStats {
+  width: 291.2px;
+  height: 206.2px;
 }
 
 .svg-item select:focus + .arrow {

@@ -124,6 +124,7 @@ header p {
   position: sticky;
   top: 0;
   bottom: 0;
+  height: 100vh;
 }
 
 .sidebar.expanded {
@@ -162,7 +163,7 @@ header p {
 
 .link-content {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
 }
 
 .link-text {
