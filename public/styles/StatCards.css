@@ -63,7 +63,7 @@ header p {
   text-decoration: none;
   color: white;
   width: 100%;
-  transition: width 0.5s;
+  transition: width 0.7s;
   overflow: hidden;
 }
 
@@ -89,7 +89,7 @@ header p {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  transition: width 0.3s;
+  transition: width 0.5s;
   grid-row: 2;
   position: sticky;
   top: 0;
@@ -140,7 +140,7 @@ header p {
   transform: scaleX(0);
   transform-origin: left;
   opacity: 0;
-  transition: transform 0.5s, opacity 0.5s;
+  transition: transform 0.7s, opacity 0.7s;
   white-space: nowrap;
   text-decoration: none;
   filter: brightness(0.6);
@@ -176,12 +176,7 @@ header p {
 
 .sidebar nav ul li.active-link .link-content img:not(.site-icon) {
   filter:
-    invert(56%)
-    sepia(58%)
-    saturate(371%)
-    hue-rotate(127deg)
-    brightness(92%)
-    contrast(85%);
+    invert(56%) sepia(58%) saturate(371%) hue-rotate(127deg) brightness(92%) contrast(85%);
 }
 
 .bottom-link .link-content {
@@ -227,6 +222,17 @@ header {
   color: #66fcf1;
   box-sizing: border-box;
   z-index: 1;
+}
+
+#arrow img {
+  width: 32px;
+  height: 32px;
+  filter: invert(1);
+  transition: transform 0.5s ease-in-out;
+}
+
+#arrow.expanded img {
+  transform: rotate(180deg);
 }
 
 h1 {

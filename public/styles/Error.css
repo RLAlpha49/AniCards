@@ -1,5 +1,5 @@
 /* This will apply when the viewport is 600px or less */
-@media (width <= 600px) {
+@media (width <=600px) {
   body {
     transform: scale(0.6);
     transform-origin: 0 0;
@@ -81,7 +81,7 @@ header p {
   text-decoration: none;
   color: white;
   width: 100%;
-  transition: width 0.5s;
+  transition: width 0.7s;
   overflow: hidden;
 }
 
@@ -108,7 +108,7 @@ header p {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  transition: width 0.3s;
+  transition: width 0.5s;
 }
 
 .sidebar.expanded {
@@ -154,7 +154,7 @@ header p {
   transform: scaleX(0);
   transform-origin: left;
   opacity: 0;
-  transition: transform 0.5s, opacity 0.5s;
+  transition: transform 0.7s, opacity 0.7s;
   white-space: nowrap;
   text-decoration: none;
   filter: brightness(0.6);
@@ -190,12 +190,7 @@ header p {
 
 .sidebar nav ul li.active-link .link-content img:not(.site-icon) {
   filter:
-    invert(56%)
-    sepia(58%)
-    saturate(371%)
-    hue-rotate(127deg)
-    brightness(92%)
-    contrast(85%);
+    invert(56%) sepia(58%) saturate(371%) hue-rotate(127deg) brightness(92%) contrast(85%);
 }
 
 .bottom-link .link-content {
@@ -225,6 +220,17 @@ header {
   background-color: #1e1e2e;
   color: #66fcf1;
   box-sizing: border-box;
+}
+
+#arrow img {
+  width: 32px;
+  height: 32px;
+  filter: invert(1);
+  transition: transform 0.5s ease-in-out;
+}
+
+#arrow.expanded img {
+  transform: rotate(180deg);
 }
 
 .center-container {
