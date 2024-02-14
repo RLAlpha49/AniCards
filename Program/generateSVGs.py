@@ -80,7 +80,7 @@ def generate_svg(title, value, username, colors, card_type="Default"):
 
     except Exception as e:
         log_message(f"Error occurred generating svg for {title}: {e}", "error")
-        return None
+        raise e
 
 
 def generate_button(name, y):
@@ -115,7 +115,7 @@ def generate_button(name, y):
 
     except Exception as e:
         log_message(f"Error occurred generating button for {name}: {e}", "error")
-        return None
+        raise e
 
 
 def fetch_data(name, username):  # pylint: disable=W0613, C0116
@@ -335,7 +335,7 @@ def generate_extra_stats_html(
             f"Error occurred generating extra {stats_type.lower()} stats svg for {username}: {e}",
             "error",
         )
-        return None
+        raise e
 
 
 def inline_styles(svg_file, css_file, dasharray, dashoffset, colors):
@@ -380,7 +380,7 @@ def inline_styles(svg_file, css_file, dasharray, dashoffset, colors):
 
     except Exception as e:
         log_message(f"Error occurred inlining styles into SVG: {e}", "error")
-        return None
+        raise e
 
 
 def calculate_milestones(value, key):
@@ -490,7 +490,7 @@ def generate_animeStats_svg(value, username, colors, svg_type):
         log_message(
             f"Error occurred generating anime stats svg for {username}: {e}", "error"
         )
-        return None
+        raise e
 
 
 def calculate_font_size(text, initial_font_size, max_width):
@@ -521,7 +521,7 @@ def calculate_font_size(text, initial_font_size, max_width):
         log_message(
             f"Error occurred calculating font size for text: {text}: {e}", "error"
         )
-        return None
+        raise e
 
 
 def inline_styles_and_calculate_font_size(username, html_template, colors, key):
@@ -632,7 +632,7 @@ def generate_mangaStats_svg(value, username, colors, svg_type):
         log_message(
             f"Error occurred generating manga stats svg for {username}: {e}", "error"
         )
-        return None
+        raise e
 
 
 def generate_extraMangaStats_svg(value, username, key, colors, svg_type):
@@ -710,4 +710,4 @@ def generate_socialStats_svg(value, username, colors, svg_type):
         log_message(
             f"Error occurred generating social stats svg for {username}: {e}", "error"
         )
-        return None
+        raise e

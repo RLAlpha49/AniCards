@@ -237,7 +237,9 @@ def fetch_anilist_data(username, keys):
 
         if user_id_response is None or user_id_response.status_code != 200:
             log_message("Error: Failed to get user ID", "error")
-            return None
+            raise Exception(  # pylint: disable=W0719
+                "Failed to get user ID\n" + str(user_id_response)
+            )
 
         user_id = user_id_response.json()["data"]["User"]["id"]
 
@@ -265,16 +267,16 @@ def fetch_anilist_data(username, keys):
                 data.update(fetch_social_data(response_data))
             except Exception as e:  # pylint: disable=W0703
                 log_message(f"Error: {e}", "error")
-                return None
+                raise e
         except requests.exceptions.RequestException as error:
             if error.response and error.response.status_code == 429:
                 log_message("Rate limit exceeded", "error")
-                return None
+                raise e from error
             raise error
         return data
     except requests.exceptions.RequestException as error:
         log_message(f"Failed to fetch data for user {username}: {error}", "error")
-        return None
+        raise e from error
 
 
 def get_top_items(items, top_n=5):
