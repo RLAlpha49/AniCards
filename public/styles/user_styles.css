@@ -261,8 +261,9 @@ h1 {
 
 /* This will apply when the viewport is 600px or less */
 @media (width <= 600px) {
-  .svg-item {
-    transform: scale(0.7);
+  .content {
+    transform-origin: top left;
+    transform: scale(0.7) translate(-5%, -1%);
   }
 }
 
