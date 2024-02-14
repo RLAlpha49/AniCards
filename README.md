@@ -119,13 +119,13 @@ Waitress is a production-quality WSGI server that can be used to run your Flask 
     ```bash
     python main.py
     ```
-    
+
     or
-    
+
     ```bash
     python wrapper.py
     ```
-    
+
     Replace `path/to/your/application` with the actual path to your application's directory.
 
     By default, I have waitress set to use 4 threads. If you want to change this, edit this line in 'server.py' to the amount of threads you want.
