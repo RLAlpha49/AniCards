@@ -43,7 +43,7 @@ function filterAnimationProperties (rule) {
   const [selector, properties] = rule.split('{')
   // Split the properties into individual properties
   const parsedProperties = properties
-    .split('')
+    .split(';')
     .map((prop) => prop.trim())
     .filter(Boolean)
   // Filter out animation properties
@@ -54,7 +54,7 @@ function filterAnimationProperties (rule) {
     return !prop.startsWith('animation')
   })
   // Return the rule with filtered properties
-  return `${selector} { ${filteredProperties.join(' ')} }`
+  return `${selector} { ${filteredProperties.join('; ')} }`
 }
 
 // Function to fetch SVG from a URL and convert it to an Image object
@@ -111,12 +111,12 @@ function getUserDataFromSvg (svgDoc, key) {
   }
 
   // Find the text element with the data-testid
-  const dataElement = svgDoc.querySelector(`[data-testid='${dataTestId}']`)
+  const dataElement = svgDoc.querySelector(`[data-testid="${dataTestId}"]`)
 
   // Check if the element exists
   if (!dataElement) {
     console.error(
-      `Element with data-testid '${dataTestId}' not found in SVG document`
+      `Element with data-testid "${dataTestId}" not found in SVG document`
     )
     return null
   }
