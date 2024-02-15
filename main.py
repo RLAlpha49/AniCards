@@ -513,7 +513,7 @@ def process_user(user, custom_order):
     )
 
     # Fetch the data and generate an SVG for each key
-    data, userid = fetch_anilist_data(user.username, keys)
+    data = fetch_anilist_data(user.username, keys)
 
     # Use default colors
     colors = ["fe428e", "141321", "a9fef7", "fe428e"]
