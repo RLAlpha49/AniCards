@@ -198,8 +198,15 @@ header p {
 }
 
 .main-content {
+  flex: 1 0 auto;
   grid-column: 2;
   grid-row: 2;
+}
+
+.content-footer {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 42px);
 }
 
 .center-container {

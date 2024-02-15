@@ -395,6 +395,30 @@ def stat_cards():
     return render_template("statCards.html")
 
 
+@app.route("/faq")
+def faq():
+    """Handles requests for the FAQ route."""
+    log_message("Accessing FAQ route", "info")
+    return render_template("faq.html")
+
+
+@app.route("/changelog")
+def changelog():
+    """Handles requests for the Changelog route."""
+    log_message("Accessing Changelog route", "info")
+    return render_template("changelog.html")
+
+
+@app.route("/demo")
+def demo():
+    """Handles requests for the Demo Video route."""
+    log_message("Accessing Demo Video route", "info")
+    video_dir = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "public", "videos"
+    )
+    return send_from_directory(directory=video_dir, path="demo.mp4")
+
+
 @app.route("/")
 def home():
     """Handles requests for the Home route."""
