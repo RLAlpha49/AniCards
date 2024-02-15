@@ -16,7 +16,9 @@ class Base(db.Model):
     __table_args__ = {"schema": "svg"}
     id = db.Column(db.Integer, primary_key=True)
     data = db.Column(db.Text, nullable=True)
-    statcard_id = db.Column(db.Integer, db.ForeignKey("svg.users.id"))
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("svg.statcards.user_id")
+    )  # Reference to Anilist user ID in StatCard
 
     def __repr__(self):
         return f"<{self.__class__.__name__} {self.id}>"
@@ -30,8 +32,8 @@ class User(db.Model):
     __tablename__ = "users"
     __table_args__ = {"schema": "svg"}
     id = db.Column(db.Integer, primary_key=True)
+    userid = db.Column(db.Integer, unique=True)
     username = db.Column(db.String(80), nullable=False, unique=True)
-    statcards = db.relationship("StatCard", backref="user", lazy=True)
 
     def __repr__(self):
         return f"<User {self.username}>"
@@ -46,11 +48,12 @@ class StatCard(db.Model):
     __table_args__ = {"schema": "svg"}
     id = db.Column(db.Integer, primary_key=True)
     keys = db.Column(db.String(255), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey("svg.users.id"), nullable=False)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("svg.users.userid"), nullable=False, unique=True
+    )
 
     def __repr__(self):
         return f"<StatCard {self.id}>"
-
 
 class AnimeStats(Base):
     """AnimeStats model."""

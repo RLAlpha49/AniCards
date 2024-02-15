@@ -51,6 +51,7 @@ from Program.Utils.logger import log_message
 
 # Use the imported modules
 fetch_anilist_data = AniListData.fetch_anilist_data
+fetch_user_id = AniListData.get_user_id
 db = database.db
 
 # Initialize Flask app
@@ -134,7 +135,7 @@ def get_record(key, user_id):
 
     # If the key is valid, execute the query and return the result
     if query is not None:
-        return query.filter_by(statcard_id=user_id).first()
+        return query.filter_by(user_id=user_id).first()
 
     # If the key is not valid, return None
     return None
@@ -159,10 +160,13 @@ def generate_svgs(username):
         # Fetch the user
         user = User.query.filter_by(username=username).first()
         if not user:
-            # If the user doesn't exist, create a new user
-            user = User(username=username)
-            db.session.add(user)
-            db.session.commit()
+            # If the user doesn't exist, fetch the userid
+            userid = fetch_user_id(username)
+            if userid is not None:
+                # Create a new user with the username and userid
+                user = User(username=username, userid=userid)
+                db.session.add(user)
+                db.session.commit()
 
         log_message(f"Generating SVGs for user: {username}")
         # Get keys from the form data
@@ -184,11 +188,12 @@ def generate_svgs(username):
                 for color, default in zip(colors, default_colors)
             ]
 
-        # Find an existing StatCard
-        statcard = StatCard.query.filter_by(id=user.id).first()
+        # Fetch the StatCard for the user from the database
+        statcard = StatCard.query.filter_by(user_id=user.userid).first()
 
         if not statcard:
-            statcard = StatCard(user_id=user.id)
+            # If the StatCard doesn't exist, create a new one
+            statcard = StatCard(user_id=user.userid)
             db.session.add(statcard)
             db.session.commit()
 
@@ -196,16 +201,12 @@ def generate_svgs(username):
             username=username, keys=keys, colors=colors, user=user
         )
 
-        if statcard:
-            existing_keys = statcard.keys.split(",") if statcard.keys else []
-            new_keys = [key for key in successful_keys if key not in existing_keys]
-            all_keys = existing_keys + new_keys
-            keys_string = ",".join(all_keys)
-            statcard.keys = keys_string
-        else:
-            keys_string = ",".join(successful_keys)
-            statcard = StatCard(keys=keys_string, user_id=user.id)
-            db.session.add(statcard)
+        # Update the keys in the StatCard
+        existing_keys = statcard.keys.split(",") if statcard.keys else []
+        new_keys = [key for key in successful_keys if key not in existing_keys]
+        all_keys = existing_keys + new_keys
+        keys_string = ",".join(all_keys)
+        statcard.keys = keys_string
 
         db.session.commit()
         log_message("SVGs generated and stored in the database")
@@ -246,7 +247,7 @@ def display_svgs(username):
             abort(404, description="User not found")
 
         # Fetch the StatCard for the user from the database
-        statcard = db.session.get(StatCard, user.id)
+        statcard = StatCard.query.filter_by(user_id=user.userid).first()
 
         if not statcard:
             abort(404, description="No SVGs found for this user")
@@ -321,7 +322,7 @@ def get_svg(username, key):
         user = User.query.filter_by(username=username).first()
         if user:
             # Fetch the data from the respective table
-            record = get_record(key, user.id)
+            record = get_record(key, user.userid)
             if record and record.data:
                 response = make_response(record.data)
                 response.headers["Content-Type"] = "image/svg+xml"
@@ -358,16 +359,16 @@ def get_svg_from_db(username, key):
         user = User.query.filter_by(username=username).first()
         if user:
             # Fetch the data from the respective table
-            record = get_record(key, user.id)
+            record = get_record(key, user.userid)
             if record and record.data:
                 # Create a response with the SVG data and the correct content type
                 response = make_response(record.data)
                 response.headers["Content-Type"] = "image/svg+xml"
 
                 # Add cache control headers
-                response.headers[
-                    "Cache-Control"
-                ] = "no-cache, must-revalidate, max-age=0"
+                response.headers["Cache-Control"] = (
+                    "no-cache, must-revalidate, max-age=0"
+                )
                 response.headers["Pragma"] = "no-cache"
                 response.headers["Expires"] = "0"
 
@@ -447,7 +448,21 @@ def process_keys_and_generate_svgs(username, keys, colors, user):
     )
 
     # Fetch the data and generate an SVG for each key
-    data = fetch_anilist_data(username, keys)
+    data, userid = fetch_anilist_data(username, keys)
+
+    # Check if a user with the given username exists
+    user = User.query.filter_by(username=username).first()
+
+    if not user:
+        # If the user doesn't exist, create a new user
+        user = User(username=username, userid=userid)
+        db.session.add(user)
+        db.session.commit()
+    else:
+        # If the user exists but the userid is different, update the userid
+        if user.userid != userid:
+            user.userid = userid
+            db.session.commit()
 
     successful_keys = []
 
@@ -460,11 +475,11 @@ def process_keys_and_generate_svgs(username, keys, colors, user):
             # Save the data in the respective table
             record_class = key_to_class.get(key)
             if record_class:
-                record = record_class.query.filter_by(statcard_id=user.id).first()
+                record = record_class.query.filter_by(user_id=user.userid).first()
                 if record:
                     record.data = svg_data
                 else:
-                    record = record_class(data=svg_data, statcard_id=user.id)
+                    record = record_class(data=svg_data, user_id=user.userid)
                     db.session.add(record)
 
     return successful_keys
@@ -482,7 +497,7 @@ def process_user(user, custom_order):
     Returns:
         None
     """
-    statcard = StatCard.query.filter_by(user_id=user.id).first()
+    statcard = StatCard.query.filter_by(user_id=user.userid).first()
 
     if not statcard:
         return
@@ -498,7 +513,7 @@ def process_user(user, custom_order):
     )
 
     # Fetch the data and generate an SVG for each key
-    data = fetch_anilist_data(user.username, keys)
+    data, userid = fetch_anilist_data(user.username, keys)
 
     # Use default colors
     colors = ["fe428e", "141321", "a9fef7", "fe428e"]
@@ -538,13 +553,11 @@ def process_key(key, data, user_info, successful_keys):
         # Save the data in the respective table
         record_class = key_to_class.get(key)
         if record_class:
-            record = record_class.query.filter_by(
-                statcard_id=user_info["user"].id
-            ).first()
+            record = record_class.query.filter_by(user_id=user_info["user"].id).first()
             if record:
                 record.data = svg_data
             else:
-                record = record_class(data=svg_data, statcard_id=user_info["user"].id)
+                record = record_class(data=svg_data, user_id=user_info["user"].id)
                 db.session.add(record)
 
 

@@ -11,6 +11,38 @@ from Program.Anilist import queries
 from Program.Utils.logger import log_message
 
 
+def get_user_id(username):
+    """
+    Fetch the user ID from AniList for a given username.
+
+    Args:
+        username (str): The username to fetch the ID for.
+
+    Returns:
+        int: The ID of the user.
+
+    Raises:
+        Exception: If the request to the AniList API fails.
+    """
+    user_id_response = requests.post(
+        "https://graphql.anilist.co",
+        json={
+            "query": queries.USER_ID,
+            "variables": {"userName": username},
+        },
+        timeout=10,
+    )
+
+    if user_id_response.status_code == 200:
+        data = user_id_response.json()
+        return data["data"]["User"]["id"]
+
+    log_message("Error: Failed to get user ID", "error")
+    raise Exception(  # pylint: disable=W0719
+        "Failed to get user ID\n" + str(user_id_response)
+    )
+
+
 def fetch_anime_data(response_data, keys):
     """
     Extracts anime data from the response data.
@@ -226,22 +258,7 @@ def fetch_anilist_data(username, keys):
     try:
         log_message(f"Started fetching data for {username}", "debug")
 
-        user_id_response = requests.post(
-            "https://graphql.anilist.co",
-            json={
-                "query": queries.USER_ID,
-                "variables": {"userName": username},
-            },
-            timeout=10,
-        )
-
-        if user_id_response is None or user_id_response.status_code != 200:
-            log_message("Error: Failed to get user ID", "error")
-            raise Exception(  # pylint: disable=W0719
-                "Failed to get user ID\n" + str(user_id_response)
-            )
-
-        user_id = user_id_response.json()["data"]["User"]["id"]
+        user_id = get_user_id(username)
 
         data = {key: None for key in keys}
 
@@ -273,7 +290,7 @@ def fetch_anilist_data(username, keys):
                 log_message("Rate limit exceeded", "error")
                 raise e from error
             raise error
-        return data
+        return data, user_id
     except requests.exceptions.RequestException as error:
         log_message(f"Failed to fetch data for user {username}: {error}", "error")
         raise e from error
