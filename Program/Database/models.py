@@ -55,6 +55,7 @@ class StatCard(db.Model):
     def __repr__(self):
         return f"<StatCard {self.id}>"
 
+
 class AnimeStats(Base):
     """AnimeStats model."""
 
