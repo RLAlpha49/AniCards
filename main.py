@@ -74,7 +74,7 @@ db.init_app(app)
 app.config["PREFERRED_URL_SCHEME"] = "https"
 
 key_types = {
-    "animeStats": ["idk", "test"],
+    "animeStats": [],
     "socialStats": [],
     "mangaStats": [],
     "animeGenres": [],
