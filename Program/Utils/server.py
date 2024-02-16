@@ -16,7 +16,7 @@ def run_server(silent=False):
     try:
         if not silent:
             print("Starting server...")
-        server_command = ["waitress-serve", "--port=5000", "--threads=16", "main:app"]
+        server_command = ["waitress-serve", "--port=5000", "--threads=16", "--connection-limit=200", "--channel-timeout=90", "main:app"]
         return subprocess.Popen(server_command, stdout=subprocess.PIPE)
     except Exception as start_error:
         print(f"Error starting server: {start_error}")
