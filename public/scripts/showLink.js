@@ -2,9 +2,10 @@
 /* eslint-disable no-unused-vars */
 // Filename: public/scripts/showLink.js
 
-// Get the modal and linkText elements
+// Get the modal, linkText, and exampleUsage elements
 const modal = document.getElementById('linkModal')
 const linkText = document.getElementById('linkText')
+const exampleUsage = document.getElementById('exampleUsage')
 
 // Function to show the link in the modal
 function showLink (link) {
@@ -14,29 +15,16 @@ function showLink (link) {
   linkText.textContent = secureLink
   // Display the modal
   modal.style.display = 'block'
+  // Set the text content of the example usage element to an example of how to use the link in an Anilist bio
+  exampleUsage.textContent = `Anilist Example: img150("${secureLink}")`
 }
 
-// Get the close button element
-const span = document.getElementsByClassName('close')[0]
-
-// Add an onclick event to the close button to hide the modal
-span.onclick = function () {
-  modal.style.display = 'none'
-}
-
-// Add an onclick event to the window to hide the modal if clicked outside of it
-window.onclick = function (event) {
-  if (event.target === modal) {
-    modal.style.display = 'none'
-  }
-}
-
-// Function to copy the link to the clipboard
-function copyLink () {
+// Function to copy the link or example to the clipboard
+function copyLink (elementToCopy, isExample = false) {
   // Create a temporary input element
   const tempInput = document.createElement('input')
-  // Set the value of the input to the link text
-  tempInput.value = linkText.textContent
+  // Set the value of the input to the link text or example
+  tempInput.value = isExample ? elementToCopy.textContent.replace('Anilist Example: ', '') : elementToCopy.textContent
   // Add the input to the document
   document.body.appendChild(tempInput)
   // Select the input text
@@ -58,22 +46,14 @@ function copyLink () {
   }, 3000)
 }
 
-// Get the close button and copyStatus elements
-const closeButton = document.querySelector('.close')
-const copyStatus = document.getElementById('copyStatus')
+// Get the copy button elements
+const copyLinkButton = document.getElementById('copyLinkButton')
+const copyExampleButton = document.getElementById('copyExampleButton')
 
-// Add a click event listener to the close button to hide the modal and clear the copyStatus text
-closeButton.addEventListener('click', function () {
-  modal.style.display = 'none'
-  copyStatus.textContent = ''
-  copyStatus.classList.remove('hide')
+// Add click event listeners to the copy buttons to copy the link or example
+copyLinkButton.addEventListener('click', function () {
+  copyLink(linkText)
 })
-
-// Add a click event listener to the modal to hide it and clear the copyStatus text if clicked outside of it
-modal.addEventListener('click', function (event) {
-  if (event.target === modal) {
-    modal.style.display = 'none'
-    copyStatus.textContent = ''
-    copyStatus.classList.remove('hide')
-  }
+copyExampleButton.addEventListener('click', function () {
+  copyLink(exampleUsage, true)
 })
