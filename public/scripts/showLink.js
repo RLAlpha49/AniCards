@@ -7,6 +7,9 @@ const modal = document.getElementById('linkModal')
 const linkText = document.getElementById('linkText')
 const exampleUsage = document.getElementById('exampleUsage')
 
+// Get the close button element
+const closeButton = document.querySelector('.close')
+
 // Function to show the link in the modal
 function showLink (link) {
   // Replace 'http' with 'https' in the link
@@ -56,4 +59,9 @@ copyLinkButton.addEventListener('click', function () {
 })
 copyExampleButton.addEventListener('click', function () {
   copyLink(exampleUsage, true)
+})
+
+// Add click event listener to the close button to close the modal
+closeButton.addEventListener('click', function () {
+  modal.style.display = 'none'
 })
