@@ -5,6 +5,7 @@ It uses the requests module to send HTTP requests and the queries module to hand
 """
 # Import necessary modules
 import requests
+from requests.exceptions import Timeout
 
 # pylint: disable=import-error
 from Program.Anilist import queries
@@ -22,16 +23,24 @@ def get_user_id(username):
         int: The ID of the user.
 
     Raises:
-        Exception: If the request to the AniList API fails.
+        Timeout: If the request to the AniList API times out.
+        Exception: If the request to the AniList API fails for a reason other than a timeout.
     """
-    user_id_response = requests.post(
-        "https://graphql.anilist.co",
-        json={
-            "query": queries.USER_ID,
-            "variables": {"userName": username},
-        },
-        timeout=10,
-    )
+    try:
+        user_id_response = requests.post(
+            "https://graphql.anilist.co",
+            json={
+                "query": queries.USER_ID,
+                "variables": {"userName": username},
+            },
+            timeout=10,
+        )
+    except Timeout as exc:
+        log_message("Error: Request to get user ID timed out", "error")
+        raise Timeout('Request to get user ID timed out') from exc
+    except Exception as e:
+        log_message("Error: Failed to get user ID", "error")
+        raise Exception("Failed to get user ID: " + str(e)) from e  # pylint: disable=W0719
 
     if user_id_response.status_code == 200:
         data = user_id_response.json()
