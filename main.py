@@ -410,16 +410,6 @@ def changelog():
     return render_template("changelog.html")
 
 
-@app.route("/demo")
-def demo():
-    """Handles requests for the Demo Video route."""
-    log_message("Accessing Demo Video route", "info")
-    video_dir = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "public", "videos"
-    )
-    return send_from_directory(directory=video_dir, path="demo.mp4")
-
-
 @app.route("/")
 def home():
     """Handles requests for the Home route."""
