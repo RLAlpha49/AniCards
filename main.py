@@ -388,6 +388,7 @@ def get_svg_from_db(username, key):
 
 
 # StatCards route
+@app.route("/StatCards")
 @app.route("/StatCards/")
 def stat_cards():
     """Handles requests for the StatCards route."""
