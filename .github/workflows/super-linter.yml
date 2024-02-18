@@ -15,9 +15,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fix pip cache permissions
-        run: sudo chown -R $USER /github/home/.cache/pip
-
       - name: Lint Code Base
         uses: github/super-linter@v4
         env:
