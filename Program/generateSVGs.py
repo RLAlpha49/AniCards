@@ -408,12 +408,12 @@ def calculate_milestones(value, key):
 
     # Determine the previous milestone based on the number of the given key
     previous_milestone = max(
-        milestone for milestone in milestones if milestone < value[key]
+        (milestone for milestone in milestones if milestone < value[key]), default=0
     )
 
     # Determine the current milestone based on the number of the given key
     current_milestone = min(
-        milestone for milestone in milestones if milestone > value[key]
+        (milestone for milestone in milestones if milestone >= value[key]), default=100
     )
 
     # Calculate percentage

@@ -272,7 +272,11 @@ h1 {
 
 .center-container h1 {
   text-align: center;
-  margin-bottom: 2em;
+}
+
+.center-container p {
+  width: 50%;
+  margin: 0 auto 3em;
 }
 
 /* This will apply when the viewport is 600px or less */
