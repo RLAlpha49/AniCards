@@ -16,11 +16,31 @@
       rel="icon"
       href="{{ url_for('static', filename='images/favicon.png') }}"
     />
-    <link
-      rel="alternate"
-      type="application/ld+json"
-      href="{{ url_for('static', filename='structured-data/changelog.jsonld') }}"
-    />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "name": "AniCards Changelog",
+        "description": "Changelog for AniCards, a project that provides statistical cards for AniList users.",
+        "url": "https://anicards.alpha49.com/changelog",
+        "breadcrumb": {
+          "@type": "BreadcrumbList",
+          "itemListElement": [
+            {
+              "@type": "ListItem",
+              "position": 1,
+              "name": "Changelog",
+              "item": "https://anicards.alpha49.com/changelog"
+            }
+          ]
+        },
+        "publisher": {
+          "@type": "Person",
+          "name": "Alpha49",
+          "url": "https://www.alpha49.com"
+        }
+      }
+    </script>
   </head>
   <script
     async

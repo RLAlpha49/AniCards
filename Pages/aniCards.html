@@ -16,11 +16,31 @@
       rel="icon"
       href="{{ url_for('static', filename='images/favicon.png') }}"
     />
-    <link
-      rel="alternate"
-      type="application/ld+json"
-      href="{{ url_for('static', filename='structured-data/aniCards.jsonld') }}"
-    />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "name": "AniCards Home",
+        "description": "AniCards is a project in active development that provides statistical cards for AniList users. Navigate through different features using the sidebar.",
+        "url": "https://anicards.alpha49.com",
+        "breadcrumb": {
+          "@type": "BreadcrumbList",
+          "itemListElement": [
+            {
+              "@type": "ListItem",
+              "position": 1,
+              "name": "Home",
+              "item": "https://anicards.alpha49.com"
+            }
+          ]
+        },
+        "publisher": {
+          "@type": "Person",
+          "name": "Alpha49",
+          "url": "https://www.alpha49.com"
+        }
+      }
+    </script>
   </head>
   <script
     async

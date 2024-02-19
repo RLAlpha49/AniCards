@@ -18,11 +18,39 @@
       href="{{ url_for('static', filename='images/favicon.png') }}"
     />
     <link rel="canonical" href="https://anicards.alpha49.com/StatCards/" />
-    <link
-      rel="alternate"
-      type="application/ld+json"
-      href="{{ url_for('static', filename='structured-data/StatCards.jsonld') }}"
-    />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "name": "AniList Stat Cards Generator",
+        "description": "AniList Stat Cards Generator: Create custom stat cards with user data from AniList. Customize colors and select specific data types for your card.",
+        "url": "https://anicards.alpha49.com/StatCards/",
+        "publisher": {
+          "@type": "Organization",
+          "name": "Alpha49",
+          "url": "https://alpha49.com",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://anicards.alpha49.com/static/images/favicon.png"
+          }
+        },
+        "image": {
+          "@type": "ImageObject",
+          "url": "https://anicards.alpha49.com/static/images/stat-cards.png"
+        },
+        "mainEntity": {
+          "@type": "SoftwareApplication",
+          "name": "AniList Stat Cards Generator",
+          "applicationCategory": "DesignApplication",
+          "operatingSystem": "Web",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          }
+        }
+      }
+    </script>
   </head>
   <script
     async
