@@ -16,6 +16,31 @@
       rel="icon"
       href="{{ url_for('static', filename='images/favicon.png') }}"
     />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "name": "AniList Stat Cards for {{ username }}",
+        "description": "View and customize AniList stat cards for user {{ username }}. Select from various SVG types and download your customized card.",
+        "url": "{{ request.url }}",
+        "breadcrumb": {
+          "@type": "BreadcrumbList",
+          "itemListElement": [
+            {
+              "@type": "ListItem",
+              "position": 1,
+              "name": "User",
+              "item": "{{ request.url }}"
+            }
+          ]
+        },
+        "publisher": {
+          "@type": "Person",
+          "name": "Alpha49",
+          "url": "https://www.alpha49.com"
+        }
+      }
+    </script>
   </head>
   <script
     async

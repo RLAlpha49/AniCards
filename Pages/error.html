@@ -16,6 +16,15 @@
       rel="icon"
       href="{{ url_for('static', filename='images/favicon.png') }}"
     />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "name": "AniCards Error",
+        "description": "An error occurred while trying to access this page. Please try again later.",
+        "url": "{{ request.url }}"
+      }
+    </script>
   </head>
   <script
     async
