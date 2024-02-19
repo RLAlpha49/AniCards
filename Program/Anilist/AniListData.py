@@ -5,11 +5,11 @@ It uses the requests module to send HTTP requests and the queries module to hand
 """
 # Import necessary modules
 import requests
-from requests.exceptions import Timeout
 
-# pylint: disable=import-error
+# pylint: disable=import-error, C0411
 from Program.Anilist import queries
 from Program.Utils.logger import log_message
+from requests.exceptions import Timeout
 
 
 def get_user_id(username):
@@ -37,10 +37,12 @@ def get_user_id(username):
         )
     except Timeout as exc:
         log_message("Error: Request to get user ID timed out", "error")
-        raise Timeout('Request to get user ID timed out') from exc
+        raise Timeout("Request to get user ID timed out") from exc
     except Exception as e:
         log_message("Error: Failed to get user ID", "error")
-        raise Exception("Failed to get user ID: " + str(e)) from e  # pylint: disable=W0719
+        raise Exception(
+            "Failed to get user ID: " + str(e)
+        ) from e  # pylint: disable=W0719
 
     if user_id_response.status_code == 200:
         data = user_id_response.json()
@@ -297,12 +299,12 @@ def fetch_anilist_data(username, keys):
         except requests.exceptions.RequestException as error:
             if error.response and error.response.status_code == 429:
                 log_message("Rate limit exceeded", "error")
-                raise e from error
+                raise error
             raise error
         return data, user_id
     except requests.exceptions.RequestException as error:
         log_message(f"Failed to fetch data for user {username}: {error}", "error")
-        raise e from error
+        raise error
 
 
 def get_top_items(items, top_n=5):

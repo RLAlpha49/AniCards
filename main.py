@@ -16,6 +16,7 @@ from threading import Thread
 from urllib.parse import urlparse, urlunparse
 
 # Related third party imports
+from typing import Dict, List
 import schedule
 from flask import (
     Flask,
@@ -73,7 +74,7 @@ db.init_app(app)
 
 app.config["PREFERRED_URL_SCHEME"] = "https"
 
-key_types = {
+key_types: Dict[str, List] = {
     "animeStats": [],
     "socialStats": [],
     "mangaStats": [],
@@ -366,9 +367,9 @@ def get_svg_from_db(username, key):
                 response.headers["Content-Type"] = "image/svg+xml"
 
                 # Add cache control headers
-                response.headers[
-                    "Cache-Control"
-                ] = "no-cache, must-revalidate, max-age=0"
+                response.headers["Cache-Control"] = (
+                    "no-cache, must-revalidate, max-age=0"
+                )
                 response.headers["Pragma"] = "no-cache"
                 response.headers["Expires"] = "0"
 
