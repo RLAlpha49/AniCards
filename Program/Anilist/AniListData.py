@@ -40,9 +40,9 @@ def get_user_id(username):
         raise Timeout("Request to get user ID timed out") from exc
     except Exception as e:
         log_message("Error: Failed to get user ID", "error")
-        raise Exception(
+        raise Exception(  # pylint: disable=W0719
             "Failed to get user ID: " + str(e)
-        ) from e  # pylint: disable=W0719
+        ) from e
 
     if user_id_response.status_code == 200:
         data = user_id_response.json()
