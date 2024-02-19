@@ -1,6 +1,0 @@
-{
-    "ignore": [
-        "**/faq.html",
-        "**/DefaultStatsStyles.css"
-    ]
-}
