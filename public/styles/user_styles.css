@@ -45,6 +45,17 @@ header p {
   white-space: nowrap;
 }
 
+.changelog-link {
+  color: #007BFF;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.changelog-link:hover {
+  color: #0056b3;
+  text-decoration: underline;
+}
+
 .footer-div {
   margin-top: 40px;
   flex-shrink: 0;

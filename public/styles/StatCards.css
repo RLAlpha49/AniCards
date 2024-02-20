@@ -48,6 +48,17 @@ header p {
   font-size: 1em;
 }
 
+.changelog-link {
+  color: #007BFF;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.changelog-link:hover {
+  color: #0056b3;
+  text-decoration: underline;
+}
+
 .footer-div p,
 .footer-div a {
   color: #c5c6c7;
