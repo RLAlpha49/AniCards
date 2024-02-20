@@ -15,9 +15,4 @@
         <changefreq>daily</changefreq>
         <priority>0.8</priority>
     </url>
-    <url>
-        <loc>https://anicards.alpha49.com/changelog</loc>
-        <changefreq>daily</changefreq>
-        <priority>0.8</priority>
-    </url>
 </urlset>
