@@ -50,7 +50,9 @@ def get_user_id(username):
 
     log_message("Error: Failed to get user ID", "error")
     raise Exception(  # pylint: disable=W0719
-        "Failed to get user ID\n" + str(user_id_response)
+        "Failed to get user ID\n"
+        "Status code: " + str(user_id_response.status_code) + "\n"
+        "Response: " + str(user_id_response.json())
     )
 
 
@@ -286,8 +288,13 @@ def fetch_anilist_data(username, keys):
             response_data = response.json()
 
             if response_data is None or "data" not in response_data:
-                log_message("Error: No data in response", "error")
-                return None
+                error_message = (
+                    "Error: No AniList data returned in request.\n"
+                    "Status code: " + str(response.status_code) + "\n"
+                    "Response: " + str(response.json())
+                )
+                log_message(error_message, "error")
+                raise ValueError(error_message)
 
             try:
                 data.update(fetch_anime_data(response_data, keys))
