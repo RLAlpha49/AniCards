@@ -27,7 +27,7 @@ def cleanup_log_files():
         log_type = "debug" if "debug" in pattern else "log"
         log_files = sorted(glob.glob(pattern))
         print(f"Before deletion: {len(log_files)} {log_type} files")
-        while len(log_files) > 30:
+        while len(log_files) > 10:
             os.remove(log_files[0])
             log_files = sorted(glob.glob(pattern))
         print(f"After deletion: {len(log_files)} {log_type} files\n")
