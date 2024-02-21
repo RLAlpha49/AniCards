@@ -22,17 +22,17 @@ USER_ANIME_MANGA_SOCIAL_STATS = """
                     minutesWatched
                     meanScore
                     standardDeviation
-                    genres(sort: COUNT_DESC) {
+                    genres(limit: 6, sort: COUNT_DESC) {
                         genre
                         count
                     }
-                    tags(sort: COUNT_DESC) {
+                    tags(limit: 6, sort: COUNT_DESC) {
                         tag {
                             name
                         }
                         count
                     }
-                    voiceActors(sort: COUNT_DESC) {
+                    voiceActors(limit: 6, sort: COUNT_DESC) {
                         voiceActor {
                             name {
                                 full
@@ -40,13 +40,13 @@ USER_ANIME_MANGA_SOCIAL_STATS = """
                         }
                         count
                     }
-                    studios(sort: COUNT_DESC) {
+                    studios(limit: 6, sort: COUNT_DESC) {
                         studio {
                             name
                         }
                         count
                     }
-                    staff(sort: COUNT_DESC) {
+                    staff(limit: 6, sort: COUNT_DESC) {
                         staff {
                             name {
                                 full
@@ -61,17 +61,17 @@ USER_ANIME_MANGA_SOCIAL_STATS = """
                     volumesRead
                     meanScore
                     standardDeviation
-                    genres(sort: COUNT_DESC) {
+                    genres(limit: 6, sort: COUNT_DESC) {
                         genre
                         count
                     }
-                    tags(sort: COUNT_DESC) {
+                    tags(limit: 6, sort: COUNT_DESC) {
                         tag {
                             name
                         }
                         count
                     }
-                    staff(sort: COUNT_DESC) {
+                    staff(limit: 6, sort: COUNT_DESC) {
                         staff {
                             name {
                                 full
