@@ -405,13 +405,6 @@ def faq():
     return render_template("faq.html")
 
 
-@app.route("/changelog")
-def changelog():
-    """Handles requests for the Changelog route."""
-    log_message("Accessing Changelog route", "info")
-    return render_template("changelog.html")
-
-
 @app.route("/")
 def home():
     """Handles requests for the Home route."""
