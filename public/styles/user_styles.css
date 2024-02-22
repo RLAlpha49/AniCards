@@ -246,6 +246,7 @@ header {
   background-color: #1e1e2e;
   color: #66fcf1;
   box-sizing: border-box;
+  z-index: 2;
 }
 
 #arrow img {
@@ -367,7 +368,7 @@ h1 {
   top: 50%;
   transform: translateY(-50%) rotate(-90deg);
   pointer-events: none;
-  z-index: 2;
+  z-index: 1;
   transition: transform 0.3s ease;
 }
 
