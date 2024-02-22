@@ -20,7 +20,7 @@ def run_server(silent=False):
             "waitress-serve",
             "--port=5000",
             "--threads=16",
-            "--connection-limit=200",
+            "--connection-limit=300",
             "--channel-timeout=90",
             "main:app",
         ]
