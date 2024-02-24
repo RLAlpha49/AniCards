@@ -311,7 +311,15 @@ def generate_extra_stats_html(
             # Replace the placeholders in the HTML template with actual values
             html = html_template.format(
                 username=username,
-                type="Voice Actor" if key == "voiceActor" else key.capitalize(),
+                type=(
+                    "Voice Actors"
+                    if key == "voiceActor"
+                    else (
+                        key.capitalize()
+                        if key.capitalize() == "Staff"
+                        else key.capitalize() + "s"
+                    )
+                ),
                 format=stats_type,
                 key1=value[0][key],
                 data1=value[0]["count"],
