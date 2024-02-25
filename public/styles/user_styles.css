@@ -202,12 +202,7 @@ button.svg-button {
 
 .sidebar nav ul li.active-link .link-content img:not(.site-icon) {
   filter:
-    invert(56%)
-    sepia(58%)
-    saturate(371%)
-    hue-rotate(127deg)
-    brightness(92%)
-    contrast(85%);
+    invert(56%) sepia(58%) saturate(371%) hue-rotate(127deg) brightness(92%) contrast(85%);
 }
 
 .bottom-link .link-content {
@@ -296,11 +291,36 @@ h1 {
   margin: 0 auto 3em;
 }
 
-/* This will apply when the viewport is 600px or less */
 @media (width <= 600px) {
   .content {
     transform-origin: top left;
-    transform: scale(0.7) translate(-5%, -1%);
+    transform: scale(0.9);
+  }
+
+  .main {
+    width: 324.72px;
+  }
+
+  .center-container p {
+    width: 100%;
+  }
+}
+
+@media (width <= 550px) {
+  .content {
+    transform: scale(0.8);
+  }
+}
+
+@media (width <= 500px) {
+  .content {
+    transform: scale(0.7);
+  }
+}
+
+@media (width <= 450px) {
+  .content {
+    transform: scale(0.6);
   }
 }
 
@@ -393,7 +413,7 @@ div[id]:not(#animeStats, #mangaStats, #socialStats, #arrow) {
   height: 206.2px;
 }
 
-.svg-item select:focus + .arrow {
+.svg-item select:focus+.arrow {
   transform: translateY(-50%) rotate(0deg);
 }
 
