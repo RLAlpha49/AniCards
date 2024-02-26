@@ -32,17 +32,18 @@ body {
   width: 100%;
 }
 
-p {
-  margin-bottom: 20px;
-  font-size: 1.2em;
-  padding: 10px 20px;
-}
-
 header p {
   color: #c5c6c7;
   margin-left: auto;
   font-size: 1em;
   white-space: nowrap;
+  padding: 10px;
+}
+
+.content p {
+  margin-bottom: 20px;
+  font-size: 1.2em;
+  padding: 10px 20px;
 }
 
 .changelog-link {
@@ -232,6 +233,8 @@ button.svg-button {
   flex-grow: 1;
   display: flex;
   flex-direction: column;
+  height: 100vh;
+  overflow: auto;
 }
 
 header {
@@ -294,408 +297,6 @@ h1 {
 .center-container p {
   width: 50%;
   margin: 0 auto 3em;
-}
-
-@media (width <= 700px) {
-  .center-container h1 {
-    font-size: calc(2.5em * 0.9);
-  }
-
-  .center-container p {
-    width: auto !important;
-    font-size: calc(1.2em * 0.9);
-  }
-
-  .svg-wrapper {
-    font-size: calc(1em * 0.9);
-  }
-
-  .sidebar nav ul li a img,
-  .sidebar .bottom-link a img {
-    max-width: calc(32px * 0.9);
-    max-height: calc(32px * 0.9);
-  }
-
-  div[id]:not(#animeStats, #mangaStats, #socialStats, #arrow, ) {
-    width: calc(331.2px * 0.9)!important;
-    height: calc(206.2px * 0.9)!important;
-  }
-  
-  #animeStats,
-  #mangaStats,
-  #animeStats img,
-  #mangaStats img {
-    width: calc(461.2px * 0.9) !important;
-    height: calc(206.2px * 0.9)!important;
-    border: none !important;
-    border-radius: 0 !important;
-  }
-  
-  #socialStats,
-  #socialStats img {
-    width: calc(291.2px * 0.9)!important;
-    height: calc(206.2px* 0.9)!important;
-    border: none !important;
-    border-radius: 0 !important;
-  }
-
-  #arrow img {
-    height: calc(32px * 0.9);
-    width: calc(32px * 0.9);
-  }
-
-  div[id] img:not(#animeStats img, #mangaStats img, #socialStats img, #arrow img) {
-    width: calc(331.2px * 0.9)!important;
-    height: calc(206.2px * 0.9)!important;
-    border: none !important;
-    border-radius: 0 !important;
-  }
-
-  .sidebar {
-    width: calc(64px * 0.9);
-  }
-
-  .sidebar.expanded {
-    width: calc(160px * 0.9);
-  }
-
-  .sidebar nav ul li a,
-  .sidebar .bottom-link a {
-    padding: calc(5px * 0.9) calc(15px * 0.9);
-  }
-
-  .link-text {
-    padding-left: calc(10px * 0.9);
-    font-size: calc(1em * 0.9);
-  }
-
-  header {
-    height: calc(42px * 0.9);
-  }
-
-  .changelog-link {
-    font-size: calc(1em * 0.9);
-  }
-
-  .footer-div {
-    font-size: calc(0.8em * 0.9);
-  }
-}
-
-@media (width <= 550px) {
-  .center-container h1 {
-    font-size: calc(2.5em * 0.8);
-  }
-
-  .center-container p {
-    font-size: calc(1.2em * 0.8);
-  }
-
-  .svg-wrapper {
-    font-size: calc(1em * 0.8);
-  }
-
-  .sidebar nav ul li a img,
-  .sidebar .bottom-link a img {
-    max-width: calc(32px * 0.8);
-    max-height: calc(32px * 0.8);
-  }
-
-  div[id]:not(#animeStats, #mangaStats, #socialStats, #arrow, #animeStats img, #mangaStats img, #socialStats img) {
-    width: calc(331.2px * 0.8)!important;
-    height: calc(206.2px * 0.8)!important;
-  }
-  
-  #animeStats,
-  #mangaStats,
-  #animeStats img,
-  #mangaStats img {
-    width: calc(461.2px * 0.8) !important;
-    height: calc(206.2px * 0.8)!important;
-  }
-  
-  #socialStats,
-  #socialStats img {
-    width: calc(291.2px * 0.8)!important;
-    height: calc(206.2px* 0.8)!important;
-  }
-
-  #arrow img {
-    height: calc(32px * 0.8);
-    width: calc(32px * 0.8);
-  }
-
-  div[id] img:not(#animeStats img, #mangaStats img, #socialStats img, #arrow img) {
-    width: calc(331.2px * 0.8)!important;
-    height: calc(206.2px * 0.8)!important;
-  }
-
-  .sidebar {
-    width: calc(64px * 0.8);
-  }
-
-  .sidebar.expanded {
-    width: calc(160px * 0.8);
-  }
-
-  .sidebar nav ul li a,
-  .sidebar .bottom-link a {
-    padding: calc(5px * 0.8) calc(15px * 0.8);
-  }
-
-  .link-text {
-    padding-left: calc(10px * 0.8);
-    font-size: calc(1em * 0.8);
-  }
-
-  header {
-    height: calc(42px * 0.8);
-  }
-
-  .changelog-link {
-    font-size: calc(1em * 0.8);
-  }
-
-  .footer-div {
-    font-size: calc(0.8em * 0.8);
-  }
-}
-
-@media (width <= 500px) {
-  .center-container h1 {
-    font-size: calc(2.5em * 0.7);
-  }
-
-  .center-container p {
-    font-size: calc(1.2em * 0.7);
-  }
-
-  .svg-wrapper {
-    font-size: calc(1em * 0.7);
-  }
-
-  .sidebar nav ul li a img,
-  .sidebar .bottom-link a img {
-    max-width: calc(32px * 0.7);
-    max-height: calc(32px * 0.7);
-  }
-
-  div[id]:not(#animeStats, #mangaStats, #socialStats, #arrow, #animeStats img, #mangaStats img, #socialStats img) {
-    width: calc(331.2px * 0.7)!important;
-    height: calc(206.2px * 0.7)!important;
-  }
-  
-  #animeStats,
-  #mangaStats,
-  #animeStats img,
-  #mangaStats img {
-    width: calc(461.2px * 0.7) !important;
-    height: calc(206.2px * 0.7)!important;
-  }
-  
-  #socialStats,
-  #socialStats img {
-    width: calc(291.2px * 0.7)!important;
-    height: calc(206.2px* 0.7)!important;
-  }
-
-  #arrow img {
-    height: calc(32px * 0.7);
-    width: calc(32px * 0.7);
-  }
-
-  div[id] img:not(#animeStats img, #mangaStats img, #socialStats img, #arrow img) {
-    width: calc(331.2px * 0.7)!important;
-    height: calc(206.2px * 0.7)!important;
-  }
-
-  .sidebar {
-    width: calc(64px * 0.7);
-  }
-
-  .sidebar.expanded {
-    width: calc(160px * 0.7);
-  }
-
-  .sidebar nav ul li a,
-  .sidebar .bottom-link a {
-    padding: calc(5px * 0.7) calc(15px * 0.7);
-  }
-
-  .link-text {
-    padding-left: calc(10px * 0.7);
-    font-size: calc(1em * 0.7);
-  }
-
-  header {
-    height: calc(42px * 0.7);
-  }
-
-  .changelog-link {
-    font-size: calc(1em * 0.7);
-  }
-
-  .footer-div {
-    font-size: calc(0.8em * 0.7);
-  }
-}
-
-@media (width <= 450px) {
-  .center-container h1 {
-    font-size: calc(2.5em * 0.6);
-  }
-
-  .center-container p {
-    font-size: calc(1.2em * 0.6);
-  }
-  
-  .svg-wrapper {
-    font-size: calc(1em * 0.6);
-  }
-
-  .sidebar nav ul li a img,
-  .sidebar .bottom-link a img {
-    max-width: calc(32px * 0.6);
-    max-height: calc(32px * 0.6);
-  }
-
-  div[id]:not(#animeStats, #mangaStats, #socialStats, #arrow, #animeStats img, #mangaStats img, #socialStats img) {
-    width: calc(331.2px * 0.6)!important;
-    height: calc(206.2px * 0.6)!important;
-  }
-  
-  #animeStats,
-  #mangaStats,
-  #animeStats img,
-  #mangaStats img {
-    width: calc(461.2px * 0.6) !important;
-    height: calc(206.2px * 0.6)!important;
-  }
-  
-  #socialStats,
-  #socialStats img {
-    width: calc(291.2px * 0.6)!important;
-    height: calc(206.2px* 0.6)!important;
-  }
-
-  #arrow img {
-    height: calc(32px * 0.6);
-    width: calc(32px * 0.6);
-  }
-
-  div[id] img:not(#animeStats img, #mangaStats img, #socialStats img, #arrow img) {
-    width: calc(331.2px * 0.6)!important;
-    height: calc(206.2px * 0.6)!important;
-  }
-
-  .sidebar {
-    width: calc(64px * 0.6);
-  }
-
-  .sidebar.expanded {
-    width: calc(160px * 0.6);
-  }
-
-  .sidebar nav ul li a,
-  .sidebar .bottom-link a {
-    padding: calc(5px * 0.6) calc(15px * 0.6);
-  }
-
-  .link-text {
-    padding-left: calc(10px * 0.6);
-    font-size: calc(1em * 0.6);
-  }
-
-  header {
-    height: calc(42px * 0.6);
-  }
-
-  .changelog-link {
-    font-size: calc(1em * 0.6);
-  }
-
-  .footer-div {
-    font-size: calc(0.8em * 0.6);
-  }
-}
-
-@media (width <= 400px) {
-  .center-container h1 {
-    font-size: calc(2.5em * 0.5);
-  }
-
-  .center-container p {
-    font-size: calc(1.2em * 0.5);
-  }
-  
-  .svg-wrapper {
-    font-size: calc(1em * 0.5);
-  }
-
-  .sidebar nav ul li a img,
-  .sidebar .bottom-link a img {
-    max-width: calc(32px * 0.5);
-    max-height: calc(32px * 0.5);
-  }
-
-  div[id]:not(#animeStats, #mangaStats, #socialStats, #arrow, #animeStats img, #mangaStats img, #socialStats img) {
-    width: calc(331.2px * 0.5)!important;
-    height: calc(206.2px * 0.5)!important;
-  }
-  
-  #animeStats,
-  #mangaStats,
-  #animeStats img,
-  #mangaStats img {
-    width: calc(461.2px * 0.5) !important;
-    height: calc(206.2px * 0.5)!important;
-  }
-  
-  #socialStats,
-  #socialStats img {
-    width: calc(291.2px * 0.5)!important;
-    height: calc(206.2px* 0.5)!important;
-  }
-
-  #arrow img {
-    height: calc(32px * 0.5);
-    width: calc(32px * 0.5);
-  }
-
-  div[id] img:not(#animeStats img, #mangaStats img, #socialStats img, #arrow img) {
-    width: calc(331.2px * 0.5)!important;
-    height: calc(206.2px * 0.5)!important;
-  }
-
-  .sidebar {
-    width: calc(64px * 0.5);
-  }
-
-  .sidebar.expanded {
-    width: calc(160px * 0.5);
-  }
-
-  .sidebar nav ul li a,
-  .sidebar .bottom-link a {
-    padding: calc(5px * 0.5) calc(15px * 0.5);
-  }
-
-  .link-text {
-    padding-left: calc(10px * 0.5);
-    font-size: calc(1em * 0.5);
-  }
-
-  header {
-    height: calc(42px * 0.5);
-  }
-
-  .changelog-link {
-    font-size: calc(1em * 0.5);
-  }
-
-  .footer-div {
-    font-size: calc(0.8em * 0.5);
-  }
 }
 
 .svg-container {
@@ -954,4 +555,461 @@ button.svg-button {
 
 .favicon {
   border: none;
+}
+
+@media (width <= 700px) {
+  .content {
+    padding: calc(40px * 0.9);
+  }
+
+  .center-container h1 {
+    font-size: calc(2.5em * 0.9);
+  }
+
+  header p,
+  .content p {
+    width: auto !important;
+    font-size: calc(1.2em * 0.9);
+    padding: calc(10px * 0.9) calc(20px * 0.9);
+  }
+
+  .svg-wrapper {
+    font-size: calc(1em * 0.9);
+  }
+
+  .sidebar nav ul li a img,
+  .sidebar .bottom-link a img {
+    max-width: calc(32px * 0.9);
+    max-height: calc(32px * 0.9);
+  }
+
+  div[id]:not(#animeStats, #mangaStats, #socialStats, #arrow, ) {
+    width: calc(331.2px * 0.9) !important;
+    height: calc(206.2px * 0.9) !important;
+  }
+  
+  #animeStats,
+  #mangaStats,
+  #animeStats img,
+  #mangaStats img {
+    width: calc(461.2px * 0.9) !important;
+    height: calc(206.2px * 0.9) !important;
+    border: none !important;
+    border-radius: 0 !important;
+  }
+  
+  #socialStats,
+  #socialStats img {
+    width: calc(291.2px * 0.9) !important;
+    height: calc(206.2px* 0.9) !important;
+    border: none !important;
+    border-radius: 0 !important;
+  }
+
+  #arrow img {
+    height: calc(32px * 0.9);
+    width: calc(32px * 0.9);
+  }
+
+  div[id] img:not(#animeStats img, #mangaStats img, #socialStats img, #arrow img) {
+    width: calc(331.2px * 0.9) !important;
+    height: calc(206.2px * 0.9) !important;
+    border: none !important;
+    border-radius: 0 !important;
+  }
+
+  .sidebar {
+    width: calc(64px * 0.9);
+  }
+
+  .sidebar.expanded {
+    width: calc(160px * 0.9);
+  }
+
+  .sidebar nav ul li a,
+  .sidebar .bottom-link a {
+    padding: calc(5px * 0.9) calc(15px * 0.9);
+  }
+
+  .link-text {
+    padding-left: calc(10px * 0.9);
+    font-size: calc(1em * 0.9);
+  }
+
+  header {
+    height: calc(42px * 0.9);
+  }
+
+  .changelog-link {
+    font-size: calc(1em * 0.9);
+  }
+
+  .footer-div {
+    margin-top: calc(40px * 0.9);
+    font-size: calc(0.8em * 0.9);
+  }
+
+  .modal-content, .modal-content button {
+    font-size: calc(1.2em * 0.9);
+  }
+}
+
+@media (width <= 550px) {
+  .content {
+    padding: calc(40px * 0.8);
+  }
+
+  .center-container h1 {
+    font-size: calc(2.5em * 0.8);
+  }
+
+  header p,
+  .content p {
+    font-size: calc(1.2em * 0.8);
+    padding: calc(10px * 0.8) calc(20px * 0.8);
+  }
+
+  .svg-wrapper {
+    font-size: calc(1em * 0.8);
+  }
+
+  .sidebar nav ul li a img,
+  .sidebar .bottom-link a img {
+    max-width: calc(32px * 0.8);
+    max-height: calc(32px * 0.8);
+  }
+
+  div[id]:not(#animeStats, #mangaStats, #socialStats, #arrow, #animeStats img, #mangaStats img, #socialStats img) {
+    width: calc(331.2px * 0.8) !important;
+    height: calc(206.2px * 0.8) !important;
+  }
+  
+  #animeStats,
+  #mangaStats,
+  #animeStats img,
+  #mangaStats img {
+    width: calc(461.2px * 0.8) !important;
+    height: calc(206.2px * 0.8) !important;
+  }
+  
+  #socialStats,
+  #socialStats img {
+    width: calc(291.2px * 0.8) !important;
+    height: calc(206.2px* 0.8) !important;
+  }
+
+  #arrow img {
+    height: calc(32px * 0.8);
+    width: calc(32px * 0.8);
+  }
+
+  div[id] img:not(#animeStats img, #mangaStats img, #socialStats img, #arrow img) {
+    width: calc(331.2px * 0.8) !important;
+    height: calc(206.2px * 0.8) !important;
+  }
+
+  .sidebar {
+    width: calc(64px * 0.8);
+  }
+
+  .sidebar.expanded {
+    width: calc(160px * 0.8);
+  }
+
+  .sidebar nav ul li a,
+  .sidebar .bottom-link a {
+    padding: calc(5px * 0.8) calc(15px * 0.8);
+  }
+
+  .link-text {
+    padding-left: calc(10px * 0.8);
+    font-size: calc(1em * 0.8);
+  }
+
+  header {
+    height: calc(42px * 0.8);
+  }
+
+  .changelog-link {
+    font-size: calc(1em * 0.8);
+  }
+
+  .footer-div {
+    margin-top: calc(40px * 0.8);
+    font-size: calc(0.8em * 0.8);
+  }
+
+  .modal-content, .modal-content button {
+    font-size: calc(1.2em * 0.8);
+  }
+}
+
+@media (width <= 500px) {
+  .content {
+    padding: calc(40px * 0.7);
+  }
+
+  .center-container h1 {
+    font-size: calc(2.5em * 0.7);
+  }
+
+  header p,
+  .content p {
+    font-size: calc(1.2em * 0.7);
+    padding: calc(10px * 0.7) calc(20px * 0.7);
+  }
+
+  .svg-wrapper {
+    font-size: calc(1em * 0.7);
+  }
+
+  .sidebar nav ul li a img,
+  .sidebar .bottom-link a img {
+    max-width: calc(32px * 0.7);
+    max-height: calc(32px * 0.7);
+  }
+
+  div[id]:not(#animeStats, #mangaStats, #socialStats, #arrow, #animeStats img, #mangaStats img, #socialStats img) {
+    width: calc(331.2px * 0.7) !important;
+    height: calc(206.2px * 0.7) !important;
+  }
+  
+  #animeStats,
+  #mangaStats,
+  #animeStats img,
+  #mangaStats img {
+    width: calc(461.2px * 0.7) !important;
+    height: calc(206.2px * 0.7) !important;
+  }
+  
+  #socialStats,
+  #socialStats img {
+    width: calc(291.2px * 0.7) !important;
+    height: calc(206.2px* 0.7) !important;
+  }
+
+  #arrow img {
+    height: calc(32px * 0.7);
+    width: calc(32px * 0.7);
+  }
+
+  div[id] img:not(#animeStats img, #mangaStats img, #socialStats img, #arrow img) {
+    width: calc(331.2px * 0.7) !important;
+    height: calc(206.2px * 0.7) !important;
+  }
+
+  .sidebar {
+    width: calc(64px * 0.7);
+  }
+
+  .sidebar.expanded {
+    width: calc(160px * 0.7);
+  }
+
+  .sidebar nav ul li a,
+  .sidebar .bottom-link a {
+    padding: calc(5px * 0.7) calc(15px * 0.7);
+  }
+
+  .link-text {
+    padding-left: calc(10px * 0.7);
+    font-size: calc(1em * 0.7);
+  }
+
+  header {
+    height: calc(42px * 0.7);
+  }
+
+  .changelog-link {
+    font-size: calc(1em * 0.7);
+  }
+
+  .footer-div {
+    margin-top: calc(40px * 0.7);
+    font-size: calc(0.8em * 0.7);
+  }
+
+  .modal-content, .modal-content button {
+    font-size: calc(1.2em * 0.7);
+  }
+}
+
+@media (width <= 450px) {
+  .content {
+    padding: calc(40px * 0.6);
+  }
+
+  .center-container h1 {
+    font-size: calc(2.5em * 0.6);
+  }
+
+  header p,
+  .content p {
+    font-size: calc(1.2em * 0.6);
+    padding: calc(10px * 0.6) calc(20px * 0.6);
+  }
+  
+  .svg-wrapper {
+    font-size: calc(1em * 0.6);
+  }
+
+  .sidebar nav ul li a img,
+  .sidebar .bottom-link a img {
+    max-width: calc(32px * 0.6);
+    max-height: calc(32px * 0.6);
+  }
+
+  div[id]:not(#animeStats, #mangaStats, #socialStats, #arrow, #animeStats img, #mangaStats img, #socialStats img) {
+    width: calc(331.2px * 0.6) !important;
+    height: calc(206.2px * 0.6) !important;
+  }
+  
+  #animeStats,
+  #mangaStats,
+  #animeStats img,
+  #mangaStats img {
+    width: calc(461.2px * 0.6) !important;
+    height: calc(206.2px * 0.6) !important;
+  }
+  
+  #socialStats,
+  #socialStats img {
+    width: calc(291.2px * 0.6) !important;
+    height: calc(206.2px* 0.6) !important;
+  }
+
+  #arrow img {
+    height: calc(32px * 0.6);
+    width: calc(32px * 0.6);
+  }
+
+  div[id] img:not(#animeStats img, #mangaStats img, #socialStats img, #arrow img) {
+    width: calc(331.2px * 0.6) !important;
+    height: calc(206.2px * 0.6) !important;
+  }
+
+  .sidebar {
+    width: calc(64px * 0.6);
+  }
+
+  .sidebar.expanded {
+    width: calc(160px * 0.6);
+  }
+
+  .sidebar nav ul li a,
+  .sidebar .bottom-link a {
+    padding: calc(5px * 0.6) calc(15px * 0.6);
+  }
+
+  .link-text {
+    padding-left: calc(10px * 0.6);
+    font-size: calc(1em * 0.6);
+  }
+
+  header {
+    height: calc(42px * 0.6);
+  }
+
+  .changelog-link {
+    font-size: calc(1em * 0.6);
+  }
+
+  .footer-div {
+    margin-top: calc(40px * 0.6);
+    font-size: calc(0.8em * 0.6);
+  }
+
+  .modal-content, .modal-content button {
+    font-size: calc(1.2em * 0.6);
+  }
+}
+
+@media (width <= 400px) {
+  .content {
+    padding: calc(40px * 0.5);
+  }
+
+  .center-container h1 {
+    font-size: calc(2.5em * 0.5);
+  }
+
+  header p,
+  .content p {
+    font-size: calc(1.2em * 0.5);
+    padding: calc(10px * 0.5) calc(20px * 0.5);
+  }
+  
+  .svg-wrapper {
+    font-size: calc(1em * 0.5);
+  }
+
+  .sidebar nav ul li a img,
+  .sidebar .bottom-link a img {
+    max-width: calc(32px * 0.5);
+    max-height: calc(32px * 0.5);
+  }
+
+  div[id]:not(#animeStats, #mangaStats, #socialStats, #arrow, #animeStats img, #mangaStats img, #socialStats img) {
+    width: calc(331.2px * 0.5) !important;
+    height: calc(206.2px * 0.5) !important;
+  }
+  
+  #animeStats,
+  #mangaStats,
+  #animeStats img,
+  #mangaStats img {
+    width: calc(461.2px * 0.5) !important;
+    height: calc(206.2px * 0.5) !important;
+  }
+
+  #socialStats,
+  #socialStats img {
+    width: calc(291.2px * 0.5) !important;
+    height: calc(206.2px* 0.5) !important;
+  }
+
+  #arrow img {
+    height: calc(32px * 0.5);
+    width: calc(32px * 0.5);
+  }
+
+  div[id] img:not(#animeStats img, #mangaStats img, #socialStats img, #arrow img) {
+    width: calc(331.2px * 0.5) !important;
+    height: calc(206.2px * 0.5) !important;
+  }
+
+  .sidebar {
+    width: calc(64px * 0.5);
+  }
+
+  .sidebar.expanded {
+    width: calc(160px * 0.5);
+  }
+
+  .sidebar nav ul li a,
+  .sidebar .bottom-link a {
+    padding: calc(5px * 0.5) calc(15px * 0.5);
+  }
+
+  .link-text {
+    padding-left: calc(10px * 0.5);
+    font-size: calc(1em * 0.5);
+  }
+
+  header {
+    height: calc(42px * 0.5);
+  }
+
+  .changelog-link {
+    font-size: calc(1em * 0.5);
+  }
+
+  .footer-div {
+    margin-top: calc(40px * 0.5);
+    font-size: calc(0.8em * 0.5);
+  }
+
+  .modal-content, .modal-content button {
+    font-size: calc(1.2em * 0.5);
+  }
 }
