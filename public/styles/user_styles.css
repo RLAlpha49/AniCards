@@ -587,7 +587,7 @@ button.svg-button {
     width: calc(331.2px * 0.9) !important;
     height: calc(206.2px * 0.9) !important;
   }
-  
+
   #animeStats,
   #mangaStats,
   #animeStats img,
@@ -597,7 +597,7 @@ button.svg-button {
     border: none !important;
     border-radius: 0 !important;
   }
-  
+
   #socialStats,
   #socialStats img {
     width: calc(291.2px * 0.9) !important;
@@ -649,7 +649,8 @@ button.svg-button {
     font-size: calc(0.8em * 0.9);
   }
 
-  .modal-content, .modal-content button {
+  .modal-content,
+  .modal-content button {
     font-size: calc(1.2em * 0.9);
   }
 }
@@ -683,7 +684,7 @@ button.svg-button {
     width: calc(331.2px * 0.8) !important;
     height: calc(206.2px * 0.8) !important;
   }
-  
+
   #animeStats,
   #mangaStats,
   #animeStats img,
@@ -691,7 +692,7 @@ button.svg-button {
     width: calc(461.2px * 0.8) !important;
     height: calc(206.2px * 0.8) !important;
   }
-  
+
   #socialStats,
   #socialStats img {
     width: calc(291.2px * 0.8) !important;
@@ -739,7 +740,8 @@ button.svg-button {
     font-size: calc(0.8em * 0.8);
   }
 
-  .modal-content, .modal-content button {
+  .modal-content,
+  .modal-content button {
     font-size: calc(1.2em * 0.8);
   }
 }
@@ -773,7 +775,7 @@ button.svg-button {
     width: calc(331.2px * 0.7) !important;
     height: calc(206.2px * 0.7) !important;
   }
-  
+
   #animeStats,
   #mangaStats,
   #animeStats img,
@@ -781,7 +783,7 @@ button.svg-button {
     width: calc(461.2px * 0.7) !important;
     height: calc(206.2px * 0.7) !important;
   }
-  
+
   #socialStats,
   #socialStats img {
     width: calc(291.2px * 0.7) !important;
@@ -829,7 +831,8 @@ button.svg-button {
     font-size: calc(0.8em * 0.7);
   }
 
-  .modal-content, .modal-content button {
+  .modal-content,
+  .modal-content button {
     font-size: calc(1.2em * 0.7);
   }
 }
@@ -848,7 +851,7 @@ button.svg-button {
     font-size: calc(1.2em * 0.6);
     padding: calc(10px * 0.6) calc(20px * 0.6);
   }
-  
+
   .svg-wrapper {
     font-size: calc(1em * 0.6);
   }
@@ -863,7 +866,7 @@ button.svg-button {
     width: calc(331.2px * 0.6) !important;
     height: calc(206.2px * 0.6) !important;
   }
-  
+
   #animeStats,
   #mangaStats,
   #animeStats img,
@@ -871,7 +874,7 @@ button.svg-button {
     width: calc(461.2px * 0.6) !important;
     height: calc(206.2px * 0.6) !important;
   }
-  
+
   #socialStats,
   #socialStats img {
     width: calc(291.2px * 0.6) !important;
@@ -919,7 +922,8 @@ button.svg-button {
     font-size: calc(0.8em * 0.6);
   }
 
-  .modal-content, .modal-content button {
+  .modal-content,
+  .modal-content button {
     font-size: calc(1.2em * 0.6);
   }
 }
@@ -938,7 +942,7 @@ button.svg-button {
     font-size: calc(1.2em * 0.5);
     padding: calc(10px * 0.5) calc(20px * 0.5);
   }
-  
+
   .svg-wrapper {
     font-size: calc(1em * 0.5);
   }
@@ -953,7 +957,7 @@ button.svg-button {
     width: calc(331.2px * 0.5) !important;
     height: calc(206.2px * 0.5) !important;
   }
-  
+
   #animeStats,
   #mangaStats,
   #animeStats img,
@@ -1009,7 +1013,8 @@ button.svg-button {
     font-size: calc(0.8em * 0.5);
   }
 
-  .modal-content, .modal-content button {
+  .modal-content,
+  .modal-content button {
     font-size: calc(1.2em * 0.5);
   }
 }
