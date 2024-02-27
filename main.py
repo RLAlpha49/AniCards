@@ -158,6 +158,14 @@ def generate_svgs(username):
     Raises:
     Exception: If an error occurs while generating the SVGs or storing them in the database.
     """
+
+    # Define a dictionary that maps the new keys to the old keys
+    key_mapping = {
+        "animeStatsCheckbox": "animeStats",
+        "mangaStatsCheckbox": "mangaStats",
+        "socialStatsCheckbox": "socialStats",
+    }
+
     try:
         # Fetch the user
         user = User.query.filter_by(username=username).first()
@@ -173,6 +181,7 @@ def generate_svgs(username):
         log_message(f"Generating SVGs for user: {username}")
         # Get keys from the form data
         keys = request.form.getlist("keys")  # Get list of keys
+        keys = [key_mapping.get(key, key) for key in keys]  # Replace keys
 
         # Get colors from the form data
         colors = request.form.getlist("colors")  # Get list of colors

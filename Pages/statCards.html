@@ -14,6 +14,10 @@
       href="{{ url_for('static', filename='styles/StatCards.css') }}"
     />
     <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='styles/scaling.css') }}"
+    />
+    <link
       rel="icon"
       href="{{ url_for('static', filename='images/favicon.png') }}"
     />
@@ -183,19 +187,19 @@
                 <!-- Color picker inputs -->
                 <label>
                   <span>Title Color:</span>
-                  <input type="color" id="color1" name="colors" />
+                  <input type="color" id="color1" name="colors" class="color-input" />
                 </label>
                 <label>
                   <span>Background Color:</span>
-                  <input type="color" id="color2" name="colors" />
+                  <input type="color" id="color2" name="colors" class="color-input" />
                 </label>
                 <label>
                   <span>Text Color:</span>
-                  <input type="color" id="color3" name="colors" />
+                  <input type="color" id="color3" name="colors" class="color-input" />
                 </label>
                 <label>
                   <span>Circle Color:</span>
-                  <input type="color" id="color4" name="colors" />
+                  <input type="color" id="color4" name="colors" class="color-input" />
                 </label>
               </form>
 
@@ -215,7 +219,7 @@
                   <label>
                     <input
                       type="checkbox"
-                      id="animeStats"
+                      id="animeStatsCheckbox"
                       name="keys"
                       value="animeStats"
                     />
@@ -227,7 +231,7 @@
                   <label>
                     <input
                       type="checkbox"
-                      id="socialStats"
+                      id="socialStatsCheckbox"
                       name="keys"
                       value="socialStats"
                     />
@@ -239,7 +243,7 @@
                   <label>
                     <input
                       type="checkbox"
-                      id="mangaStats"
+                      id="mangaStatsCheckbox"
                       name="keys"
                       value="mangaStats"
                     />
