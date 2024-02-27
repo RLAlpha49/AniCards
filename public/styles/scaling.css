@@ -239,18 +239,20 @@
     max-height: calc(32px * 0.8);
   }
 
+  /* stylelint-disable indentation */
   div[id]:not(#animeStats,
-  #mangaStats,
-  #socialStats,
-  #arrow,
-  #formLabelWrapper,
-  #selectAll,
-  #animeStats img,
-  #mangaStats img,
-  #socialStats img) {
-  width: calc(331.2px * 0.8) !important;
-  height: calc(206.2px * 0.8) !important;
+    #mangaStats,
+    #socialStats,
+    #arrow,
+    #formLabelWrapper,
+    #selectAll,
+    #animeStats img,
+    #mangaStats img,
+    #socialStats img) {
+    width: calc(331.2px * 0.8) !important;
+    height: calc(206.2px * 0.8) !important;
   }
+  /* stylelint-enable indentation */
 
   #animeStats,
   #mangaStats,
@@ -394,18 +396,20 @@
     max-height: calc(32px * 0.7);
   }
 
+  /* stylelint-disable indentation */
   div[id]:not(#animeStats,
-  #mangaStats,
-  #socialStats,
-  #arrow,
-  #formLabelWrapper,
-  #selectAll,
-  #animeStats img,
-  #mangaStats img,
-  #socialStats img) {
-  width: calc(331.2px * 0.7) !important;
-  height: calc(206.2px * 0.7) !important;
+    #mangaStats,
+    #socialStats,
+    #arrow,
+    #formLabelWrapper,
+    #selectAll,
+    #animeStats img,
+    #mangaStats img,
+    #socialStats img) {
+    width: calc(331.2px * 0.7) !important;
+    height: calc(206.2px * 0.7) !important;
   }
+  /* stylelint-enable indentation */
 
   #animeStats,
   #mangaStats,
@@ -549,18 +553,20 @@
     max-height: calc(32px * 0.6);
   }
 
+  /* stylelint-disable indentation */
   div[id]:not(#animeStats,
-  #mangaStats,
-  #socialStats,
-  #arrow,
-  #formLabelWrapper,
-  #selectAll,
-  #animeStats img,
-  #mangaStats img,
-  #socialStats img) {
-  width: calc(331.2px * 0.6) !important;
-  height: calc(206.2px * 0.6) !important;
+    #mangaStats,
+    #socialStats,
+    #arrow,
+    #formLabelWrapper,
+    #selectAll,
+    #animeStats img,
+    #mangaStats img,
+    #socialStats img) {
+    width: calc(331.2px * 0.6) !important;
+    height: calc(206.2px * 0.6) !important;
   }
+  /* stylelint-enable indentation */
 
   #animeStats,
   #mangaStats,
@@ -709,18 +715,20 @@
     max-height: calc(32px * 0.5);
   }
 
+  /* stylelint-disable indentation */
   div[id]:not(#animeStats,
-  #mangaStats,
-  #socialStats,
-  #arrow,
-  #formLabelWrapper,
-  #selectAll,
-  #animeStats img,
-  #mangaStats img,
-  #socialStats img) {
-  width: calc(331.2px * 0.5) !important;
-  height: calc(206.2px * 0.5) !important;
+    #mangaStats,
+    #socialStats,
+    #arrow,
+    #formLabelWrapper,
+    #selectAll,
+    #animeStats img,
+    #mangaStats img,
+    #socialStats img) {
+    width: calc(331.2px * 0.5) !important;
+    height: calc(206.2px * 0.5) !important;
   }
+  /* stylelint-enable indentation */
 
   #animeStats,
   #mangaStats,
