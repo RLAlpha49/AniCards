@@ -1,6 +1,6 @@
 /* stylelint-disable selector-id-pattern */
 
-@media (width <=700px) {
+@media (width <= 700px) {
   .content {
     padding: calc(40px * 0.9);
   }
@@ -41,7 +41,7 @@
     padding: calc(2% * 0.9) calc(4% * 0.9);
     height: calc(100px * 0.9);
   }
-  
+
   #formLabel {
     font-size: calc(22px * 0.9);
   }
@@ -154,7 +154,7 @@
   }
 }
 
-@media (width <=550px) {
+@media (width <= 550px) {
   .content {
     padding: calc(40px * 0.8);
   }
@@ -240,16 +240,16 @@
   }
 
   div[id]:not(#animeStats,
-    #mangaStats,
-    #socialStats,
-    #arrow,
-    #formLabelWrapper,
-    #selectAll,
-    #animeStats img,
-    #mangaStats img,
-    #socialStats img) {
-    width: calc(331.2px * 0.8) !important;
-    height: calc(206.2px * 0.8) !important;
+  #mangaStats,
+  #socialStats,
+  #arrow,
+  #formLabelWrapper,
+  #selectAll,
+  #animeStats img,
+  #mangaStats img,
+  #socialStats img) {
+  width: calc(331.2px * 0.8) !important;
+  height: calc(206.2px * 0.8) !important;
   }
 
   #animeStats,
@@ -314,7 +314,7 @@
   }
 }
 
-@media (width <=500px) {
+@media (width <= 500px) {
   .content {
     padding: calc(40px * 0.7);
   }
@@ -395,16 +395,16 @@
   }
 
   div[id]:not(#animeStats,
-    #mangaStats,
-    #socialStats,
-    #arrow,
-    #formLabelWrapper,
-    #selectAll,
-    #animeStats img,
-    #mangaStats img,
-    #socialStats img) {
-    width: calc(331.2px * 0.7) !important;
-    height: calc(206.2px * 0.7) !important;
+  #mangaStats,
+  #socialStats,
+  #arrow,
+  #formLabelWrapper,
+  #selectAll,
+  #animeStats img,
+  #mangaStats img,
+  #socialStats img) {
+  width: calc(331.2px * 0.7) !important;
+  height: calc(206.2px * 0.7) !important;
   }
 
   #animeStats,
@@ -469,7 +469,7 @@
   }
 }
 
-@media (width <=450px) {
+@media (width <= 450px) {
   .content {
     padding: calc(40px * 0.6);
   }
@@ -550,16 +550,16 @@
   }
 
   div[id]:not(#animeStats,
-    #mangaStats,
-    #socialStats,
-    #arrow,
-    #formLabelWrapper,
-    #selectAll,
-    #animeStats img,
-    #mangaStats img,
-    #socialStats img) {
-    width: calc(331.2px * 0.6) !important;
-    height: calc(206.2px * 0.6) !important;
+  #mangaStats,
+  #socialStats,
+  #arrow,
+  #formLabelWrapper,
+  #selectAll,
+  #animeStats img,
+  #mangaStats img,
+  #socialStats img) {
+  width: calc(331.2px * 0.6) !important;
+  height: calc(206.2px * 0.6) !important;
   }
 
   #animeStats,
@@ -624,7 +624,7 @@
   }
 }
 
-@media (width <=400px) {
+@media (width <= 400px) {
   .content {
     padding: calc(40px * 0.5);
   }
@@ -710,16 +710,16 @@
   }
 
   div[id]:not(#animeStats,
-    #mangaStats,
-    #socialStats,
-    #arrow,
-    #formLabelWrapper,
-    #selectAll,
-    #animeStats img,
-    #mangaStats img,
-    #socialStats img) {
-    width: calc(331.2px * 0.5) !important;
-    height: calc(206.2px * 0.5) !important;
+  #mangaStats,
+  #socialStats,
+  #arrow,
+  #formLabelWrapper,
+  #selectAll,
+  #animeStats img,
+  #mangaStats img,
+  #socialStats img) {
+  width: calc(331.2px * 0.5) !important;
+  height: calc(206.2px * 0.5) !important;
   }
 
   #animeStats,
