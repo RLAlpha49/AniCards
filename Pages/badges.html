@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="AniList Stat Cards Generator: Create custom stat cards with user data from AniList. Customize colors and select specific data types for your card."
+      content="AniList Badge Generator: Create custom badges with user data from AniList."
     />
-    <title>AniList Stat Cards Generator</title>
+    <title>AniList Badge Generator</title>
     <link
       rel="stylesheet"
       type="text/css"
@@ -50,10 +50,6 @@
             "@type": "ImageObject",
             "url": "https://anicards.alpha49.com/static/images/favicon.png"
           }
-        },
-        "image": {
-          "@type": "ImageObject",
-          "url": "https://anicards.alpha49.com/static/images/stat-cards.png"
         },
         "mainEntity": {
           "@type": "SoftwareApplication",
@@ -109,7 +105,7 @@
                     src="{{ url_for('static', filename='images/stat-cards.png') }}"
                     alt="Stat Cards Sidebar Icon"
                   />
-                  <span class="link-text">Stat Cards</span>
+                  <span class="link-text">Badges</span>
                 </div>
               </a>
             </li>
