@@ -6,34 +6,34 @@
   }
 
   .center-container h1 {
-    font-size: calc(2.5em * 0.9);
+    font-size: calc(2.5em * 0.95);
   }
 
   header p,
   .content p,
   .main-content p {
     width: auto !important;
-    font-size: calc(1.2em * 0.9);
+    font-size: calc(1.2em * 0.95);
     padding: calc(10px * 0.9) calc(20px * 0.9);
   }
 
   .main-content h2 {
-    font-size: calc(1.5em * 0.9);
+    font-size: calc(1.5em * 0.95);
   }
 
   #usernameInput {
-    font-size: calc(0.8em * 0.9);
+    font-size: calc(0.8em * 0.95);
     width: calc(200px * 0.9);
   }
 
   #colorForm h2 {
-    font-size: calc(22px * 0.9);
+    font-size: calc(22px * 0.95);
     margin-bottom: calc(-20px * 0.9);
   }
 
   #colorForm p,
   #colorForm span {
-    font-size: calc(16px * 0.9);
+    font-size: calc(16px * 0.95);
   }
 
   #colorForm label {
@@ -43,11 +43,12 @@
   }
 
   #formLabel {
-    font-size: calc(22px * 0.9);
+    font-size: calc(22px * 0.95);
+    width: auto;
   }
 
   #selectAll {
-    font-size: calc(18px * 0.9);
+    font-size: calc(18px * 0.95);
   }
 
   #dataForm input[type="checkbox"] {
@@ -61,18 +62,22 @@
   }
 
   #dataForm label span {
-    font-size: calc(16px * 0.9);
+    font-size: calc(16px * 0.95);
+  }
+
+  #formLabelWrapper, #dataForm label {
+    width: calc(50% - 10px);
   }
 
   button {
-    font-size: calc(1em * 0.9);
+    font-size: calc(1em * 0.95);
     width: calc(300px * 0.9);
     padding: calc(10px * 0.9) calc(20px * 0.9);
     margin-bottom: calc(20px * 0.9);
   }
 
   .svg-wrapper {
-    font-size: calc(1em * 0.9);
+    font-size: calc(1em * 0.95);
   }
 
   .sidebar nav ul li a img,
@@ -131,7 +136,7 @@
 
   .link-text {
     padding-left: calc(10px * 0.9);
-    font-size: calc(1em * 0.9);
+    font-size: calc(1em * 0.95);
   }
 
   header {
@@ -139,18 +144,18 @@
   }
 
   .changelog-link {
-    font-size: calc(1em * 0.9);
+    font-size: calc(1em * 0.95);
   }
 
   .footer-div {
     width: calc(100% - (64px * 0.9));
     margin-top: calc(40px * 0.9);
-    font-size: calc(0.8em * 0.9);
+    font-size: calc(0.8em * 0.95);
   }
 
   .modal-content,
   .modal-content button {
-    font-size: calc(1.2em * 0.9);
+    font-size: calc(1.2em * 0.95);
   }
 }
 
@@ -160,33 +165,33 @@
   }
 
   .center-container h1 {
-    font-size: calc(2.5em * 0.8);
+    font-size: calc(2.5em * 0.9);
   }
 
   header p,
   .content p,
   .main-content p {
-    font-size: calc(1.2em * 0.8);
+    font-size: calc(1.2em * 0.9);
     padding: calc(10px * 0.8) calc(20px * 0.8);
   }
 
   .main-content h2 {
-    font-size: calc(1.5em * 0.8);
+    font-size: calc(1.5em * 0.9);
   }
 
   #usernameInput {
-    font-size: calc(0.8em * 0.8);
+    font-size: calc(0.8em * 0.9);
     width: calc(200px * 0.8);
   }
 
   #colorForm h2 {
-    font-size: calc(22px * 0.8);
+    font-size: calc(22px * 0.9);
     margin-bottom: calc(-20px * 0.8);
   }
 
   #colorForm p,
   #colorForm span {
-    font-size: calc(16px * 0.8);
+    font-size: calc(16px * 0.9);
   }
 
   #colorForm label {
@@ -196,11 +201,11 @@
   }
 
   #formLabel {
-    font-size: calc(22px * 0.8);
+    font-size: calc(22px * 0.9);
   }
 
   #selectAll {
-    font-size: calc(18px * 0.8);
+    font-size: calc(18px * 0.9);
   }
 
   #dataForm input[type="checkbox"] {
@@ -214,11 +219,16 @@
   }
 
   #dataForm label span {
-    font-size: calc(16px * 0.8);
+    font-size: calc(16px * 0.9);
+  }
+
+  #dataForm,
+  #colorForm {
+    max-width: 75%;
   }
 
   button {
-    font-size: calc(1em * 0.8);
+    font-size: calc(1em * 0.9);
     width: calc(300px * 0.8);
     padding: calc(10px * 0.8) calc(20px * 0.8);
     margin-bottom: calc(20px * 0.8);
@@ -230,7 +240,7 @@
   }
 
   .svg-wrapper {
-    font-size: calc(1em * 0.8);
+    font-size: calc(1em * 0.9);
   }
 
   .sidebar nav ul li a img,
@@ -293,7 +303,7 @@
 
   .link-text {
     padding-left: calc(10px * 0.8);
-    font-size: calc(1em * 0.8);
+    font-size: calc(1em * 0.9);
   }
 
   header {
@@ -301,18 +311,18 @@
   }
 
   .changelog-link {
-    font-size: calc(1em * 0.8);
+    font-size: calc(1em * 0.9);
   }
 
   .footer-div {
     width: calc(100% - (64px * 0.8));
     margin-top: calc(40px * 0.8);
-    font-size: calc(0.8em * 0.8);
+    font-size: calc(0.8em * 0.9);
   }
 
   .modal-content,
   .modal-content button {
-    font-size: calc(1.2em * 0.8);
+    font-size: calc(1.2em * 0.9);
   }
 }
 
@@ -322,33 +332,33 @@
   }
 
   .center-container h1 {
-    font-size: calc(2.5em * 0.7);
+    font-size: calc(2.5em * 0.85);
   }
 
   header p,
   .content p,
   .main-content p {
-    font-size: calc(1.2em * 0.7);
+    font-size: calc(1.2em * 0.85);
     padding: calc(10px * 0.7) calc(20px * 0.7);
   }
 
   .main-content h2 {
-    font-size: calc(1.5em * 0.7);
+    font-size: calc(1.5em * 0.85);
   }
 
   #usernameInput {
-    font-size: calc(0.8em * 0.7);
+    font-size: calc(0.8em * 0.85);
     width: calc(200px * 0.7);
   }
 
   #colorForm h2 {
-    font-size: calc(22px * 0.7);
+    font-size: calc(22px * 0.85);
     margin-bottom: calc(-20px * 0.7);
   }
 
   #colorForm p,
   #colorForm span {
-    font-size: calc(16px * 0.7);
+    font-size: calc(16px * 0.85);
   }
 
   #colorForm label {
@@ -358,11 +368,11 @@
   }
 
   #formLabel {
-    font-size: calc(22px * 0.7);
+    font-size: calc(22px * 0.85);
   }
 
   #selectAll {
-    font-size: calc(18px * 0.7);
+    font-size: calc(18px * 0.85);
   }
 
   #dataForm input[type="checkbox"] {
@@ -376,11 +386,16 @@
   }
 
   #dataForm label span {
-    font-size: calc(16px * 0.7);
+    font-size: calc(16px * 0.85);
+  }
+
+  #dataForm,
+  #colorForm {
+    max-width: 80%;
   }
 
   button {
-    font-size: calc(1em * 0.7);
+    font-size: calc(1em * 0.85);
     width: calc(300px * 0.7);
     padding: calc(10px * 0.7) calc(20px * 0.7);
     margin-bottom: calc(20px * 0.7);
@@ -450,7 +465,7 @@
 
   .link-text {
     padding-left: calc(10px * 0.7);
-    font-size: calc(1em * 0.7);
+    font-size: calc(1em * 0.85);
   }
 
   header {
@@ -458,7 +473,7 @@
   }
 
   .changelog-link {
-    font-size: calc(1em * 0.7);
+    font-size: calc(1em * 0.85);
   }
 
   .footer-div {
@@ -469,7 +484,7 @@
 
   .modal-content,
   .modal-content button {
-    font-size: calc(1.2em * 0.7);
+    font-size: calc(1.2em * 0.85);
   }
 }
 
@@ -479,33 +494,33 @@
   }
 
   .center-container h1 {
-    font-size: calc(2.5em * 0.6);
+    font-size: calc(2.5em * 0.8);
   }
 
   header p,
   .content p,
   .main-content p {
-    font-size: calc(1.2em * 0.6);
+    font-size: calc(1.2em * 0.8);
     padding: calc(10px * 0.6) calc(20px * 0.6);
   }
 
   .main-content h2 {
-    font-size: calc(1.5em * 0.6);
+    font-size: calc(1.5em * 0.8);
   }
 
   #usernameInput {
-    font-size: calc(0.8em * 0.6);
+    font-size: calc(0.8em * 0.8);
     width: calc(200px * 0.6);
   }
 
   #colorForm h2 {
-    font-size: calc(22px * 0.6);
+    font-size: calc(22px * 0.8);
     margin-bottom: calc(-20px * 0.6);
   }
 
   #colorForm p,
   #colorForm span {
-    font-size: calc(16px * 0.6);
+    font-size: calc(16px * 0.8);
   }
 
   #colorForm label {
@@ -515,7 +530,7 @@
   }
 
   #formLabel {
-    font-size: calc(22px * 0.6);
+    font-size: calc(22px * 0.8);
   }
 
   #selectAll {
@@ -533,18 +548,23 @@
   }
 
   #dataForm label span {
-    font-size: calc(16px * 0.6);
+    font-size: calc(16px * 0.8);
+  }
+
+  #dataForm,
+  #colorForm {
+    max-width: 85%;
   }
 
   button {
-    font-size: calc(1em * 0.6);
+    font-size: calc(1em * 0.8);
     width: calc(300px * 0.6);
     padding: calc(10px * 0.6) calc(20px * 0.6);
     margin-bottom: calc(20px * 0.6);
   }
 
   .svg-wrapper {
-    font-size: calc(1em * 0.6);
+    font-size: calc(1em * 0.8);
   }
 
   .sidebar nav ul li a img,
@@ -607,7 +627,7 @@
 
   .link-text {
     padding-left: calc(10px * 0.6);
-    font-size: calc(1em * 0.6);
+    font-size: calc(1em * 0.8);
   }
 
   header {
@@ -615,18 +635,18 @@
   }
 
   .changelog-link {
-    font-size: calc(1em * 0.6);
+    font-size: calc(1em * 0.8);
   }
 
   .footer-div {
     width: calc(100% - (64px * 0.6));
     margin-top: calc(40px * 0.6);
-    font-size: calc(0.8em * 0.6);
+    font-size: calc(0.8em * 0.8);
   }
 
   .modal-content,
   .modal-content button {
-    font-size: calc(1.2em * 0.6);
+    font-size: calc(1.2em * 0.8);
   }
 }
 
@@ -636,47 +656,41 @@
   }
 
   .center-container h1 {
-    font-size: calc(2.5em * 0.5);
+    font-size: calc(2.5em * 0.75);
   }
 
   header p,
   .content p,
   .main-content p {
-    font-size: calc(1.2em * 0.5);
+    font-size: calc(1.2em * 0.75);
     padding: calc(10px * 0.5) calc(20px * 0.5);
   }
 
   .main-content h2 {
-    font-size: calc(1.5em * 0.5);
+    font-size: calc(1.5em * 0.75);
   }
 
   #usernameInput {
-    font-size: calc(0.8em * 0.5);
+    font-size: calc(0.8em * 0.75);
     width: calc(200px * 0.5);
   }
 
   #colorForm h2 {
-    font-size: calc(22px * 0.5);
+    font-size: calc(22px * 0.75);
     margin-bottom: calc(-20px * 0.5);
   }
 
   #colorForm p,
   #colorForm span {
-    font-size: calc(16px * 0.5);
-  }
-
-  #colorForm label {
-    width: calc(100px * 0.5);
-    padding: calc(2% * 0.5) calc(4% * 0.5);
-    height: calc(100px * 0.5);
+    font-size: calc(16px * 0.75);
   }
 
   #formLabel {
-    font-size: calc(22px * 0.5);
+    font-size: calc(22px * 0.75);
   }
 
   #selectAll {
-    font-size: calc(18px * 0.5);
+    font-size: calc(18px * 0.75);
   }
 
   #dataForm input[type="checkbox"] {
@@ -690,11 +704,16 @@
   }
 
   #dataForm label span {
-    font-size: calc(16px * 0.5);
+    font-size: calc(16px * 0.75);
+  }
+
+  #dataForm,
+  #colorForm {
+    max-width: 90%;
   }
 
   button {
-    font-size: calc(1em * 0.5);
+    font-size: calc(1em * 0.75);
     width: calc(300px * 0.5);
     padding: calc(10px * 0.5) calc(20px * 0.9);
     margin-bottom: calc(20px * 0.5);
@@ -706,7 +725,7 @@
   }
 
   .svg-wrapper {
-    font-size: calc(1em * 0.5);
+    font-size: calc(1em * 0.75);
   }
 
   .sidebar nav ul li a img,
@@ -769,7 +788,7 @@
 
   .link-text {
     padding-left: calc(10px * 0.5);
-    font-size: calc(1em * 0.5);
+    font-size: calc(1em * 0.75);
   }
 
   header {
@@ -777,17 +796,17 @@
   }
 
   .changelog-link {
-    font-size: calc(1em * 0.5);
+    font-size: calc(1em * 0.75);
   }
 
   .footer-div {
     width: calc(100% - (64px * 0.5));
     margin-top: calc(40px * 0.5);
-    font-size: calc(0.8em * 0.5);
+    font-size: calc(0.8em * 0.75);
   }
 
   .modal-content,
   .modal-content button {
-    font-size: calc(1.2em * 0.5);
+    font-size: calc(1.2em * 0.75);
   }
 }
