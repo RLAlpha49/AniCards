@@ -1,18 +1,5 @@
-/* This will apply when the viewport is 600px or less */
-@media (width <= 600px) {
-  body {
-    transform: scale(0.6);
-    transform-origin: 0 0;
-    overflow-x: hidden;
-  }
-}
-
-body,
-html {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
+body {
+    margin: 0;
   font-family: "Helvetica Neue", sans-serif;
   background-color: #1b1d25;
 }
@@ -26,16 +13,9 @@ body,
   color: #c5c6c7;
 }
 
-.container,
-.main {
-  width: 100vw;
-  min-height: 100vh;
-}
-
-.container {
-  display: flex;
-  flex: 1 0 auto;
-  position: relative;
+.main-content {
+  grid-column: 2;
+  grid-row: 2;
 }
 
 p {
@@ -62,18 +42,16 @@ header p {
 }
 
 .footer-div {
-  position: absolute;
-  bottom: 0;
   margin-top: 40px;
   flex-shrink: 0;
   background-color: #171723;
   color: #c5c6c7;
   text-align: center;
   padding: 10px;
-  width: 100vw;
   border-top: 1px solid #66fcf1;
   font-size: 0.8em;
   box-sizing: border-box;
+  transition: width 0.5s;
 }
 
 .footer-div p,
@@ -81,7 +59,6 @@ header p {
   color: #c5c6c7;
   margin: 0;
   padding: 0;
-  transform: translateX(-30px);
 }
 
 .sidebar nav ul li a,
@@ -91,7 +68,7 @@ header p {
   padding: 5px 15px;
   text-decoration: none;
   color: white;
-  width: 100%;
+  width: auto;
   transition: width 0.7s;
   overflow: hidden;
 }
@@ -106,11 +83,10 @@ header p {
   display: flex;
   justify-content: center;
   gap: 10px;
-  transform: translateX(-30px);
 }
 
 .sidebar {
-  width: 62px;
+  width: 64px;
   flex-shrink: 0;
   flex-basis: auto;
   background-color: #16181f;
@@ -120,10 +96,15 @@ header p {
   flex-direction: column;
   justify-content: flex-start;
   transition: width 0.5s;
+  grid-row: 2;
+  position: sticky;
+  top: 0;
+  bottom: 0;
+  height: 100vh;
 }
 
 .sidebar.expanded {
-  width: 180px;
+  width: 160px;
 }
 
 .sidebar nav ul,
@@ -158,7 +139,7 @@ header p {
 
 .link-content {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
 }
 
 .link-text {
@@ -191,24 +172,17 @@ header p {
   display: none;
 }
 
+.sidebar .bottom-link .link-content a:not(:first-child) img {
+  filter: invert(0) brightness(0.6);
+}
+
 .sidebar nav ul li.active-link:not(.site-icon-li) a:hover {
   filter: brightness(120%);
 }
 
-.sidebar .bottom-link .link-content a:not(:first-child) img {
-  filter:
-    invert(0)
-    brightness(0.6);
-}
-
 .sidebar nav ul li.active-link .link-content img:not(.site-icon) {
-  filter:
-    invert(56%)
-    sepia(58%)
-    saturate(371%)
-    hue-rotate(127deg)
-    brightness(92%)
-    contrast(85%);
+  filter: invert(56%) sepia(58%) saturate(371%) hue-rotate(127deg)
+    brightness(92%) contrast(85%);
 }
 
 .bottom-link .link-content {
@@ -229,7 +203,17 @@ header p {
   cursor: pointer;
 }
 
+.center-container {
+  flex-grow: 1;
+  text-align: center;
+  flex-wrap: wrap;
+  padding: 0 5%;
+}
+
 header {
+  grid-column: 1 / -1;
+  position: sticky;
+  top: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -238,6 +222,7 @@ header {
   background-color: #1e1e2e;
   color: #66fcf1;
   box-sizing: border-box;
+  z-index: 1;
 }
 
 #arrow img {
@@ -249,13 +234,6 @@ header {
 
 #arrow.expanded img {
   transform: rotate(180deg);
-}
-
-.center-container {
-  flex-grow: 1;
-  text-align: center;
-  flex-wrap: wrap;
-  padding: 0 5%;
 }
 
 h1 {

@@ -406,6 +406,13 @@ def stat_cards():
     log_message("Accessing StatCards route", "info")
     return render_template("statCards.html")
 
+@app.route("/Badges")
+@app.route("/Badges/")
+def badges():
+    """Handles requests for the Badges route."""
+    log_message("Accessing Badges route", "info")
+    return render_template("badges.html")
+
 
 @app.route("/faq")
 def faq():

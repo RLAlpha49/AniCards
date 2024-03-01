@@ -11,13 +11,22 @@
     <link
       rel="stylesheet"
       type="text/css"
+      href="{{ url_for('static', filename='styles/common.css') }}"
+    />
+    <link
+      rel="stylesheet"
+      type="text/css"
       href="{{ url_for('static', filename='styles/StatCards.css') }}"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='styles/scaling.css') }}"
     />
     <link
       rel="icon"
       href="{{ url_for('static', filename='images/favicon.png') }}"
     />
-    <link rel="canonical" href="https://anicards.alpha49.com/StatCards/" />
+    <link rel="canonical" href="https://anicards.alpha49.com/Badges/" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -105,7 +114,7 @@
                     src="{{ url_for('static', filename='images/stat-cards.png') }}"
                     alt="Stat Cards Sidebar Icon"
                   />
-                  <span class="link-text">Badges</span>
+                  <span class="link-text">StatCards</span>
                 </div>
               </a>
             </li>
@@ -156,21 +165,32 @@
               alt="Sidebar Expand Arrow"
             />
           </div>
-          <p><a class="changelog-link" href="https://docs.alpha49.com/" target="_blank">Changelog</a></p>
+          <p>
+            <a
+              class="changelog-link"
+              href="https://docs.alpha49.com/"
+              target="_blank"
+              >Changelog</a
+            >
+          </p>
         </header>
         <div class="content-footer">
           <div class="main-content">
             <div class="center-container">
-              <h1>AniList Stat Cards Generator</h1>
+              <h1>AniList Badge Generator</h1>
               <p>
-                This application fetches user data from AniList and displays it
-                in a visually appealing format. Enter a username below to get
-                started.
+                This application creates completionist badges. Enter a username
+                and milestone below to get started.
               </p>
               <input
                 type="text"
                 id="usernameInput"
                 placeholder="Enter username"
+              />
+              <input
+                type="text"
+                id="milestoneInput"
+                placeholder="Enter milestone"
               />
 
               <form
@@ -182,31 +202,23 @@
                 <p>If a color is not changed, it will not be affected.</p>
                 <!-- Color picker inputs -->
                 <label>
-                  <span>Title Color:</span>
+                  <span>Main Color:</span>
                   <input type="color" id="color1" name="colors" />
                 </label>
                 <label>
-                  <span>Background Color:</span>
+                  <span>Accent Color:</span>
                   <input type="color" id="color2" name="colors" />
-                </label>
-                <label>
-                  <span>Text Color:</span>
-                  <input type="color" id="color3" name="colors" />
-                </label>
-                <label>
-                  <span>Circle Color:</span>
-                  <input type="color" id="color4" name="colors" />
                 </label>
               </form>
 
-              <!-- Checkboxes for selecting data -->
+              <!-- Checkboxes for selecting types -->
               <form
                 id="dataForm"
                 action="/username/generate_svgs"
                 method="post"
               >
                 <div id="formLabelWrapper">
-                  <label id="formLabel">Stat Card Types</label>
+                  <label id="formLabel">Badge Types</label>
                   <div id="selectAll" onclick="selectAllCheckboxes()">
                     <span>Select All</span>
                   </div>
@@ -215,117 +227,43 @@
                   <label>
                     <input
                       type="checkbox"
-                      id="animeStats"
+                      id="animeCompleted"
                       name="keys"
-                      value="animeStats"
+                      value="animeCompleted"
                     />
-                    <span
-                      >Anime Stats (Count, Episodes Watched, Minutes Watched,
-                      Mean Score, Standard Deviation)</span
-                    >
+                    <span>Anime Completed</span>
                   </label>
                   <label>
                     <input
                       type="checkbox"
-                      id="socialStats"
+                      id="episodesWatched"
                       name="keys"
-                      value="socialStats"
+                      value="episodesWatched"
                     />
-                    <span
-                      >Social Stats (Total Activities (30 Days), Followers,
-                      Following, Thread Posts/Comments, Reviews)</span
-                    >
+                    <span>Episodes Watched</span>
                   </label>
                   <label>
                     <input
                       type="checkbox"
-                      id="mangaStats"
+                      id="mangaCompleted"
                       name="keys"
-                      value="mangaStats"
+                      value="mangaCompleted"
                     />
-                    <span
-                      >Manga Stats (Count, Chapters Read, Volumes Read, Mean
-                      Score, Standard Deviation)</span
-                    >
+                    <span>Manga Completed</span>
                   </label>
                   <label>
                     <input
                       type="checkbox"
-                      id="animeGenres"
+                      id="chaptersRead"
                       name="keys"
-                      value="animeGenres"
+                      value="chaptersRead"
                     />
-                    <span>Anime Genres (Top 5 Count)</span>
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      id="animeTags"
-                      name="keys"
-                      value="animeTags"
-                    />
-                    <span>Anime Tags (Top 5 Count)</span>
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      id="animeVoiceActors"
-                      name="keys"
-                      value="animeVoiceActors"
-                    />
-                    <span>Anime Voice Actors (Top 5 Count)</span>
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      id="animeStudios"
-                      name="keys"
-                      value="animeStudios"
-                    />
-                    <span>Anime Studios (Top 5 Count)</span>
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      id="animeStaff"
-                      name="keys"
-                      value="animeStaff"
-                    />
-                    <span>Anime Staff (Top 5 Count)</span>
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      id="mangaGenres"
-                      name="keys"
-                      value="mangaGenres"
-                    />
-                    <span>Manga Genres (Top 5 Count)</span>
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      id="mangaTags"
-                      name="keys"
-                      value="mangaTags"
-                    />
-                    <span>Manga Tags (Top 5 Count)</span>
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      id="mangaStaff"
-                      name="keys"
-                      value="mangaStaff"
-                    />
-                    <span>Manga Staff (Top 5 Count)</span>
+                    <span>Chapters Read</span>
                   </label>
 
                   <!-- Hidden inputs for color data -->
                   <input type="hidden" id="hiddenColor1" name="colors" />
                   <input type="hidden" id="hiddenColor2" name="colors" />
-                  <input type="hidden" id="hiddenColor3" name="colors" />
-                  <input type="hidden" id="hiddenColor4" name="colors" />
                 </div>
                 <input
                   type="submit"
@@ -367,6 +305,14 @@
     </div>
     <script>
       // Allows for pressing enter to submit the form in the username text field
+      var milestoneInput = document.getElementById("milestoneInput");
+      milestoneInput.addEventListener("keypress", function (event) {
+        var key = event.which || event.keyCode;
+        if (key === 13) {
+          validateForm();
+          event.preventDefault();
+        }
+      });
       var usernameInput = document.getElementById("usernameInput");
       usernameInput.addEventListener("keypress", function (event) {
         var key = event.which || event.keyCode;
