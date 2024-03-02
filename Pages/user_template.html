@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <!-- htmlhint id-class-value: false -->
 {% extends "templates/base.html" %} {% block headtop %}
 <meta
@@ -6,10 +7,10 @@
 />
 <title>AniList Stat Cards Generated User</title>
 {% endblock %} {% block headstyle %}
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='styles/user_styles.css') }}"
-    />
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', filename='styles/user_styles.css') }}"
+/>
 {% endblock %} {% block headscript %}
 <script type="application/ld+json">
   {
@@ -53,13 +54,10 @@
   <div class="center-container">
     <h1>{{ username }}</h1>
     <p>
-      If you use these resources, I would appreciate a credit either to
-      myself
-      <a href="https://anilist.co/user/Alpha49/" target="_blank"
-        >@Alpha49</a
-      >
-      or to the website itself. This will help this project reach out to
-      more people. Thank you!
+      If you use these resources, I would appreciate a credit either to myself
+      <a href="https://anilist.co/user/Alpha49/" target="_blank">@Alpha49</a>
+      or to the website itself. This will help this project reach out to more
+      people. Thank you!
     </p>
     <!-- SVG container -->
     <div class="svg-container">
