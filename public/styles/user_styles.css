@@ -76,7 +76,8 @@ header {
   justify-content: center;
 }
 
-.center-container img, button.svg-button {
+.center-container img,
+button.svg-button {
   border: 6px solid #c5c6c7;
   border-radius: 10px;
 }

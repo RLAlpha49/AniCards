@@ -1,331 +1,192 @@
-<!-- htmlhint id-class-value: false -->
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta
-      name="description"
-      content="AniList Badge Generator: Create custom badges with user data from AniList."
-    />
-    <title>AniList Badge Generator</title>
-    <link
-      rel="stylesheet"
-      type="text/css"
-      href="{{ url_for('static', filename='styles/common.css') }}"
-    />
-    <link
-      rel="stylesheet"
-      type="text/css"
-      href="{{ url_for('static', filename='styles/StatCards.css') }}"
-    />
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='styles/scaling.css') }}"
-    />
-    <link
-      rel="icon"
-      href="{{ url_for('static', filename='images/favicon.png') }}"
-    />
-    <link rel="canonical" href="https://anicards.alpha49.com/Badges/" />
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "WebPage",
-        "name": "AniList Badge Generator",
-        "description": "AniList Badges Generator: Create custom badges with user data from AniList.",
-        "url": "https://anicards.alpha49.com/Badges/",
-        "breadcrumb": {
-          "@type": "BreadcrumbList",
-          "itemListElement": [
-            {
-              "@type": "ListItem",
-              "position": 1,
-              "name": "Home",
-              "item": "https://anicards.alpha49.com"
-            },
-            {
-              "@type": "ListItem",
-              "position": 2,
-              "name": "Stat Cards",
-              "item": "https://anicards.alpha49.com/Badges/"
-            }
-          ]
+{% extends "templates/base.html" %} {% block headtop %}
+<meta
+  name="description"
+  content="AniList Badge Generator: Create custom badges with user data from AniList."
+/>
+<title>AniList Badge Generator</title>
+{% endblock %} {% block headstyle %}
+<link
+  rel="stylesheet"
+  type="text/css"
+  href="{{ url_for('static', filename='styles/StatCards.css') }}"
+/>
+<link rel="canonical" href="https://anicards.alpha49.com/Badges/" />
+{% endblock %} {% block headscript %}
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "AniList Badge Generator",
+    "description": "AniList Badges Generator: Create custom badges with user data from AniList.",
+    "url": "https://anicards.alpha49.com/Badges/",
+    "breadcrumb": {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://anicards.alpha49.com"
         },
-        "publisher": {
-          "@type": "Person",
-          "name": "Alpha49",
-          "url": "https://www.alpha49.com",
-          "logo": {
-            "@type": "ImageObject",
-            "url": "https://anicards.alpha49.com/static/images/favicon.png"
-          }
-        },
-        "mainEntity": {
-          "@type": "SoftwareApplication",
-          "name": "AniList Badge Generator",
-          "applicationCategory": "DesignApplication",
-          "operatingSystem": "Web",
-          "offers": {
-            "@type": "Offer",
-            "price": "0",
-            "priceCurrency": "USD"
-          }
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Stat Cards",
+          "item": "https://anicards.alpha49.com/Badges/"
         }
+      ]
+    },
+    "publisher": {
+      "@type": "Person",
+      "name": "Alpha49",
+      "url": "https://www.alpha49.com",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://anicards.alpha49.com/static/images/favicon.png"
       }
-    </script>
-  </head>
-  <script
-    async
-    src="https://www.googletagmanager.com/gtag/js?id=G-6ZX08Y2PJM"
-  ></script>
-  <script src="{{ url_for('static', filename='scripts/gtag.js') }}"></script>
-  <body>
-    <div class="container">
-      <div class="sidebar">
-        <nav>
-          <ul>
-            <li class="site-icon-li">
-              <a href="/">
-                <div class="link-content">
-                  <img
-                    class="site-icon"
-                    src="{{ url_for('static', filename='images/favicon.png') }}"
-                    alt="Site Sidebar Icon"
-                  />
-                  <span class="link-text">AniCards</span>
-                </div>
-              </a>
-            </li>
-            <li>
-              <a href="/">
-                <div class="link-content">
-                  <img
-                    src="{{ url_for('static', filename='images/home.png') }}"
-                    alt="Home Sidebar Icon"
-                  />
-                  <span class="link-text">Home</span>
-                </div>
-              </a>
-            </li>
-            <li>
-              <a href="/StatCards/">
-                <div class="link-content">
-                  <img
-                    src="{{ url_for('static', filename='images/stat-cards.png') }}"
-                    alt="Stat Cards Sidebar Icon"
-                  />
-                  <span class="link-text">StatCards</span>
-                </div>
-              </a>
-            </li>
-            <li>
-              <a href="/faq">
-                <div class="link-content">
-                  <img
-                    src="{{ url_for('static', filename='images/faq.png') }}"
-                    alt="FAQ Sidebar Icon"
-                  />
-                  <span class="link-text">FAQ</span>
-                </div>
-              </a>
-            </li>
-          </ul>
-        </nav>
-        <div class="bottom-link">
-          <div class="link-content">
-            <a href="https://discord.gg/TaeAPPmAbw" target="_blank">
-              <img
-                src="{{ url_for('static', filename='images/Discord.png') }}"
-                alt="Discord Sidebar Icon"
-              />
-            </a>
-            <a
-              href="https://github.com/RLAlpha49/Anilist-Stat-Cards"
-              target="_blank"
-            >
-              <img
-                src="{{ url_for('static', filename='images/GitHub.png') }}"
-                alt="GitHub Sidebar Icon"
-              />
-            </a>
-            <a href="https://ko-fi.com/alpha49" target="_blank">
-              <img
-                src="{{ url_for('static', filename='images/Ko-Fi.png') }}"
-                alt="Ko-Fi Sidebar Icon"
-              />
-            </a>
+    },
+    "mainEntity": {
+      "@type": "SoftwareApplication",
+      "name": "AniList Badge Generator",
+      "applicationCategory": "DesignApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+  }
+</script>
+{% endblock %} {% block content %}
+<div class="content-footer">
+  <div class="main-content">
+    <div class="center-container">
+      <h1>AniList Badge Generator</h1>
+      <p>
+        This application creates completionist badges. Enter a username
+        and milestone below to get started.
+      </p>
+      <input
+        type="text"
+        id="usernameInput"
+        placeholder="Enter username"
+      />
+      <input
+        type="text"
+        id="milestoneInput"
+        placeholder="Enter milestone"
+      />
+
+      <form
+        id="colorForm"
+        action="/username/generate_svgs"
+        method="post"
+      >
+        <h2>Color Selection</h2>
+        <p>If a color is not changed, it will not be affected.</p>
+        <!-- Color picker inputs -->
+        <label>
+          <span>Main Color:</span>
+          <input type="color" id="color1" name="colors" />
+        </label>
+        <label>
+          <span>Accent Color:</span>
+          <input type="color" id="color2" name="colors" />
+        </label>
+      </form>
+
+      <!-- Checkboxes for selecting types -->
+      <form
+        id="dataForm"
+        action="/username/generate_svgs"
+        method="post"
+      >
+        <div id="formLabelWrapper">
+          <label id="formLabel">Badge Types</label>
+          <div id="selectAll" onclick="selectAllCheckboxes()">
+            <span>Select All</span>
           </div>
         </div>
-      </div>
-      <div class="main">
-        <header>
-          <div id="arrow">
-            <img
-              src="{{ url_for('static', filename='images/sidebar-arrow.png') }}"
-              alt="Sidebar Expand Arrow"
+        <div>
+          <label>
+            <input
+              type="checkbox"
+              id="animeCompleted"
+              name="keys"
+              value="animeCompleted"
             />
-          </div>
-          <p>
-            <a
-              class="changelog-link"
-              href="https://docs.alpha49.com/"
-              target="_blank"
-              >Changelog</a
-            >
-          </p>
-        </header>
-        <div class="content-footer">
-          <div class="main-content">
-            <div class="center-container">
-              <h1>AniList Badge Generator</h1>
-              <p>
-                This application creates completionist badges. Enter a username
-                and milestone below to get started.
-              </p>
-              <input
-                type="text"
-                id="usernameInput"
-                placeholder="Enter username"
-              />
-              <input
-                type="text"
-                id="milestoneInput"
-                placeholder="Enter milestone"
-              />
+            <span>Anime Completed</span>
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              id="episodesWatched"
+              name="keys"
+              value="episodesWatched"
+            />
+            <span>Episodes Watched</span>
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              id="mangaCompleted"
+              name="keys"
+              value="mangaCompleted"
+            />
+            <span>Manga Completed</span>
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              id="chaptersRead"
+              name="keys"
+              value="chaptersRead"
+            />
+            <span>Chapters Read</span>
+          </label>
 
-              <form
-                id="colorForm"
-                action="/username/generate_svgs"
-                method="post"
-              >
-                <h2>Color Selection</h2>
-                <p>If a color is not changed, it will not be affected.</p>
-                <!-- Color picker inputs -->
-                <label>
-                  <span>Main Color:</span>
-                  <input type="color" id="color1" name="colors" />
-                </label>
-                <label>
-                  <span>Accent Color:</span>
-                  <input type="color" id="color2" name="colors" />
-                </label>
-              </form>
-
-              <!-- Checkboxes for selecting types -->
-              <form
-                id="dataForm"
-                action="/username/generate_svgs"
-                method="post"
-              >
-                <div id="formLabelWrapper">
-                  <label id="formLabel">Badge Types</label>
-                  <div id="selectAll" onclick="selectAllCheckboxes()">
-                    <span>Select All</span>
-                  </div>
-                </div>
-                <div>
-                  <label>
-                    <input
-                      type="checkbox"
-                      id="animeCompleted"
-                      name="keys"
-                      value="animeCompleted"
-                    />
-                    <span>Anime Completed</span>
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      id="episodesWatched"
-                      name="keys"
-                      value="episodesWatched"
-                    />
-                    <span>Episodes Watched</span>
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      id="mangaCompleted"
-                      name="keys"
-                      value="mangaCompleted"
-                    />
-                    <span>Manga Completed</span>
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      id="chaptersRead"
-                      name="keys"
-                      value="chaptersRead"
-                    />
-                    <span>Chapters Read</span>
-                  </label>
-
-                  <!-- Hidden inputs for color data -->
-                  <input type="hidden" id="hiddenColor1" name="colors" />
-                  <input type="hidden" id="hiddenColor2" name="colors" />
-                </div>
-                <input
-                  type="submit"
-                  value="Generate SVGs"
-                  style="display: none"
-                />
-                <!-- Hide the original submit button -->
-              </form>
-
-              <button onclick="validateForm()">
-                Generate/ReGenerate Stat Cards
-              </button>
-            </div>
-          </div>
-          <footer class="footer-div">
-            <p>© 2024 Alpha49</p>
-            <ul>
-              <li><a href="https://alpha49.com" target="_blank">Website</a></li>
-              <li>
-                <a href="https://github.com/RLAlpha49" target="_blank"
-                  >Github</a
-                >
-              </li>
-              <li><a href="mailto:contact@alpha49.com">Contact</a></li>
-            </ul>
-            <p>
-              This application uses the AniList API. This project is not
-              affiliated with AniList in any way.
-            </p>
-            <p>
-              This project is licensed under the
-              <a href="https://www.gnu.org/licenses/gpl-3.0.en.html"
-                >GNU General Public License v3.0</a
-              >.
-            </p>
-          </footer>
+          <!-- Hidden inputs for color data -->
+          <input type="hidden" id="hiddenColor1" name="colors" />
+          <input type="hidden" id="hiddenColor2" name="colors" />
         </div>
-      </div>
+        <input
+          type="submit"
+          value="Generate SVGs"
+          style="display: none"
+        />
+        <!-- Hide the original submit button -->
+      </form>
+
+      <button onclick="validateForm()">
+        Generate/ReGenerate Stat Cards
+      </button>
     </div>
-    <script>
-      // Allows for pressing enter to submit the form in the username text field
-      var milestoneInput = document.getElementById("milestoneInput");
-      milestoneInput.addEventListener("keypress", function (event) {
-        var key = event.which || event.keyCode;
-        if (key === 13) {
-          validateForm();
-          event.preventDefault();
-        }
-      });
-      var usernameInput = document.getElementById("usernameInput");
-      usernameInput.addEventListener("keypress", function (event) {
-        var key = event.which || event.keyCode;
-        if (key === 13) {
-          validateForm();
-          event.preventDefault();
-        }
-      });
-    </script>
-    <script src="{{ url_for('static', filename='scripts/sidebarExpanded.js') }}"></script>
-    <script src="{{ url_for('static', filename='scripts/sidebarHover.js') }}"></script>
-    <script src="{{ url_for('static', filename='scripts/fetchUserData.js') }}"></script>
-    <script src="{{ url_for('static', filename='scripts/validateForm.js') }}"></script>
-    <script src="{{ url_for('static', filename='scripts/selectAll.js') }}"></script>
-  </body>
-</html>
+  </div>
+</div>
+{% endblock %} {% block scripts %}
+<script>
+  // Allows for pressing enter to submit the form in the username text field
+  var milestoneInput = document.getElementById("milestoneInput");
+  milestoneInput.addEventListener("keypress", function (event) {
+    var key = event.which || event.keyCode;
+    if (key === 13) {
+      validateForm();
+      event.preventDefault();
+    }
+  });
+  var usernameInput = document.getElementById("usernameInput");
+  usernameInput.addEventListener("keypress", function (event) {
+    var key = event.which || event.keyCode;
+    if (key === 13) {
+      validateForm();
+      event.preventDefault();
+    }
+  });
+</script>
+<script src="{{ url_for('static', filename='scripts/sidebarExpanded.js') }}"></script>
+<script src="{{ url_for('static', filename='scripts/sidebarHover.js') }}"></script>
+<script src="{{ url_for('static', filename='scripts/fetchUserData.js') }}"></script>
+<script src="{{ url_for('static', filename='scripts/validateForm.js') }}"></script>
+<script src="{{ url_for('static', filename='scripts/selectAll.js') }}"></script>
+{% endblock %}

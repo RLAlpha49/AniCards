@@ -406,6 +406,7 @@ def stat_cards():
     log_message("Accessing StatCards route", "info")
     return render_template("statCards.html")
 
+
 @app.route("/Badges")
 @app.route("/Badges/")
 def badges():

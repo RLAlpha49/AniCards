@@ -1,191 +1,60 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta
-      name="description"
-      content="AniCards is a project in active development that provides statistical cards for AniList users. Navigate through different features using the sidebar."
-    />
-    <title>AniCards Home</title>
-    <link
-      rel="stylesheet"
-      type="text/css"
-      href="{{ url_for('static', filename='styles/common.css') }}"
-    />
-    <link
-      rel="stylesheet"
-      type="text/css"
-      href="{{ url_for('static', filename='styles/AniCards.css') }}"
-    />
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='styles/scaling.css') }}"
-    />
-    <link
-      rel="icon"
-      href="{{ url_for('static', filename='images/favicon.png') }}"
-    />
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "WebPage",
-        "name": "AniCards Home",
-        "description": "AniCards is a project in active development that provides statistical cards for AniList users. Navigate through different features using the sidebar.",
-        "url": "https://anicards.alpha49.com",
-        "breadcrumb": {
-          "@type": "BreadcrumbList",
-          "itemListElement": [
-            {
-              "@type": "ListItem",
-              "position": 1,
-              "name": "Home",
-              "item": "https://anicards.alpha49.com"
-            }
-          ]
-        },
-        "publisher": {
-          "@type": "Person",
-          "name": "Alpha49",
-          "url": "https://www.alpha49.com"
+{% extends "templates/base.html" %} {% block headtop %}
+<meta
+  name="description"
+  content="AniCards is a project in active development that provides statistical cards for AniList users. Navigate through different features using the sidebar."
+/>
+<title>AniCards Home</title>
+{% endblock %} {% block headstyle %}
+<link
+  rel="stylesheet"
+  type="text/css"
+  href="{{ url_for('static', filename='styles/AniCards.css') }}"
+/>
+{% endblock %} {% block headscript %}
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "AniCards Home",
+    "description": "AniCards is a project in active development that provides statistical cards for AniList users. Navigate through different features using the sidebar.",
+    "url": "https://anicards.alpha49.com",
+    "breadcrumb": {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://anicards.alpha49.com"
         }
-      }
-    </script>
-  </head>
-  <script
-    async
-    src="https://www.googletagmanager.com/gtag/js?id=G-6ZX08Y2PJM"
-  ></script>
-  <script src="{{ url_for('static', filename='scripts/gtag.js') }}"></script>
-  <body>
-    <div class="container">
-      <div class="sidebar">
-        <nav>
-          <ul>
-            <li class="site-icon-li">
-              <a href="/">
-                <div class="link-content">
-                  <img
-                    class="site-icon"
-                    src="{{ url_for('static', filename='images/favicon.png') }}"
-                    alt="Site Sidebar Icon"
-                  />
-                  <span class="link-text">AniCards</span>
-                </div>
-              </a>
-            </li>
-            <li>
-              <a href="/">
-                <div class="link-content">
-                  <img
-                    src="{{ url_for('static', filename='images/home.png') }}"
-                    alt="Home Sidebar Icon"
-                  />
-                  <span class="link-text">Home</span>
-                </div>
-              </a>
-            </li>
-            <li>
-              <a href="/StatCards/">
-                <div class="link-content">
-                  <img
-                    src="{{ url_for('static', filename='images/stat-cards.png') }}"
-                    alt="Stat Cards Sidebar Icon"
-                  />
-                  <span class="link-text">Stat Cards</span>
-                </div>
-              </a>
-            </li>
-            <li>
-              <a href="/faq">
-                <div class="link-content">
-                  <img
-                    src="{{ url_for('static', filename='images/faq.png') }}"
-                    alt="FAQ Sidebar Icon"
-                  />
-                  <span class="link-text">FAQ</span>
-                </div>
-              </a>
-            </li>
-          </ul>
-        </nav>
-        <div class="bottom-link">
-          <div class="link-content">
-            <a href="https://discord.gg/TaeAPPmAbw" target="_blank">
-              <img
-                src="{{ url_for('static', filename='images/Discord.png') }}"
-                alt="Discord Sidebar Icon"
-              />
-            </a>
-            <a
-              href="https://github.com/RLAlpha49/Anilist-Stat-Cards"
-              target="_blank"
-            >
-              <img
-                src="{{ url_for('static', filename='images/GitHub.png') }}"
-                alt="GitHub Sidebar Icon"
-              />
-            </a>
-            <a href="https://ko-fi.com/alpha49" target="_blank">
-              <img
-                src="{{ url_for('static', filename='images/Ko-Fi.png') }}"
-                alt="Ko-Fi Sidebar Icon"
-              />
-            </a>
-          </div>
-        </div>
-      </div>
-      <div class="main">
-        <header>
-          <div id="arrow">
-            <img
-              src="{{ url_for('static', filename='images/sidebar-arrow.png') }}"
-              alt="Sidebar Expand Arrow"
-            />
-          </div>
-          <p><a class="changelog-link" href="https://docs.alpha49.com/" target="_blank">Changelog</a></p>
-        </header>
-        <div class="main-content">
-          <div class="center-container">
-            <h1>Welcome to AniCards</h1>
-            <p>
-              This is the home page. Use the sidebar to navigate to different
-              features.
-            </p>
-            <p>
-              Please note that this project is in active development. There may
-              be some website downtime.
-            </p>
-            <p>
-              There may also be occasional database purges. This means that some
-              data may be lost and will need to be re-entered. If you notice
-              that images or SVGs have stopped working, you may need to
-              regenerate them.
-            </p>
-          </div>
-        </div>
-        <footer class="footer-div">
-          <p>© 2024 Alpha49</p>
-          <ul>
-            <li><a href="https://alpha49.com" target="_blank">Website</a></li>
-            <li>
-              <a href="https://github.com/RLAlpha49" target="_blank">Github</a>
-            </li>
-            <li><a href="mailto:contact@alpha49.com">Contact</a></li>
-          </ul>
-          <p>
-            This application uses the AniList API. This project is not
-            affiliated with AniList in any way.
-          </p>
-          <p>
-            This project is licensed under the
-            <a href="https://www.gnu.org/licenses/gpl-3.0.en.html"
-              >GNU General Public License v3.0</a
-            >.
-          </p>
-        </footer>
-      </div>
-    </div>
-    <script src="{{ url_for('static', filename='scripts/sidebarExpanded.js') }}"></script>
-    <script src="{{ url_for('static', filename='scripts/sidebarHover.js') }}"></script>
-  </body>
-</html>
+      ]
+    },
+    "publisher": {
+      "@type": "Person",
+      "name": "Alpha49",
+      "url": "https://www.alpha49.com"
+    }
+  }
+</script>
+{% endblock %} {% block content %}
+<div class="main-content">
+  <div class="center-container">
+    <h1>Welcome to AniCards</h1>
+    <p>
+      This is the home page. Use the sidebar to navigate to different features.
+    </p>
+    <p>
+      Please note that this project is in active development. There may be some
+      website downtime.
+    </p>
+    <p>
+      There may also be occasional database purges. This means that some data
+      may be lost and will need to be re-entered. If you notice that images or
+      SVGs have stopped working, you may need to regenerate them.
+    </p>
+  </div>
+</div>
+{% endblock %} {% block scripts %}
+<script src="{{ url_for('static', filename='scripts/sidebarExpanded.js') }}"></script>
+<script src="{{ url_for('static', filename='scripts/sidebarHover.js') }}"></script>
+{% endblock %}

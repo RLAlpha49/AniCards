@@ -1,308 +1,173 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta
-      name="description"
-      content="Frequently Asked Questions about AniCards."
-    />
-    <title>AniCards FAQ</title>
-    <link
-      rel="stylesheet"
-      type="text/css"
-      href="{{ url_for('static', filename='styles/StatCards.css') }}"
-    />
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='styles/scaling.css') }}"
-    />
-    <link
-      rel="icon"
-      href="{{ url_for('static', filename='images/favicon.png') }}"
-    />
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "WebPage",
-        "name": "AniList Stat Cards FAQ",
-        "description": "Frequently Asked Questions about the AniList Stat Cards Generator.",
-        "url": "https://anicards.alpha49.com/FAQ/",
-        "breadcrumb": {
-          "@type": "BreadcrumbList",
-          "itemListElement": [
-            {
-              "@type": "ListItem",
-              "position": 1,
-              "name": "Home",
-              "item": "https://anicards.alpha49.com"
-            },
-            {
-              "@type": "ListItem",
-              "position": 2,
-              "name": "FAQ",
-              "item": "https://anicards.alpha49.com/FAQ/"
-            }
-          ]
+{% extends "templates/base.html" %} {% block headtop %}
+<meta name="description" content="Frequently Asked Questions about AniCards." />
+<title>AniCards FAQ</title>
+{% endblock %} {% block headstyle %}
+<link
+  rel="stylesheet"
+  type="text/css"
+  href="{{ url_for('static', filename='styles/StatCards.css') }}"
+/>
+{% endblock %} {% block headscript %}
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "AniList Stat Cards FAQ",
+    "description": "Frequently Asked Questions about the AniList Stat Cards Generator.",
+    "url": "https://anicards.alpha49.com/FAQ/",
+    "breadcrumb": {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://anicards.alpha49.com"
         },
-        "publisher": {
-          "@type": "Person",
-          "name": "Alpha49",
-          "url": "https://www.alpha49.com",
-          "logo": {
-            "@type": "ImageObject",
-            "url": "https://anicards.alpha49.com/static/images/favicon.png"
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "FAQ",
+          "item": "https://anicards.alpha49.com/FAQ/"
+        }
+      ]
+    },
+    "publisher": {
+      "@type": "Person",
+      "name": "Alpha49",
+      "url": "https://www.alpha49.com",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://anicards.alpha49.com/static/images/favicon.png"
+      }
+    },
+    "image": {
+      "@type": "ImageObject",
+      "url": "https://anicards.alpha49.com/static/images/faq.png"
+    },
+    "mainEntity": {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What should I do if I don't see the latest updates you've made to the website?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "If it seems like the latest updates to the website are not applying for you, try pressing Ctrl + F5 on the page in question. This will refresh your browser cache. If this doesn't work, feel free to contact me for further assistance."
           }
         },
-        "image": {
-          "@type": "ImageObject",
-          "url": "https://anicards.alpha49.com/static/images/faq.png"
+        {
+          "@type": "Question",
+          "name": "What is the purpose of this project?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Simple answer is I thought that GPRM's visual stat representation was amazing. So I thought I might as well make it for AniList since I use it a lot. Massive credit towards them as the default stat designs are from their project."
+          }
         },
-        "mainEntity": {
-          "@type": "FAQPage",
-          "mainEntity": [
-            {
-              "@type": "Question",
-              "name": "What should I do if I don't see the latest updates you've made to the website?",
-              "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "If it seems like the latest updates to the website are not applying for you, try pressing Ctrl + F5 on the page in question. This will refresh your browser cache. If this doesn't work, feel free to contact me for further assistance."
-              }
-            },
-            {
-              "@type": "Question",
-              "name": "What is the purpose of this project?",
-              "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "Simple answer is I thought that GPRM's visual stat representation was amazing. So I thought I might as well make it for AniList since I use it a lot. Massive credit towards them as the default stat designs are from their project."
-              }
-            },
-            {
-              "@type": "Question",
-              "name": "How can I contribute to this project?",
-              "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "There are several ways you can contribute to this project. If you're a developer, you can submit pull requests on GitHub with your proposed changes. If you're not a developer or prefer to contribute in other ways, you can join the Discord server and share your thoughts and ideas there. I appreciate all contributions, no matter how small!"
-              }
-            },
-            {
-              "@type": "Question",
-              "name": "How do I report a bug or request a feature?",
-              "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "If you encounter a bug or would like to request a new feature, please open an issue on the GitHub repository or discuss it in the Discord server. When reporting a bug, please include as much information as possible, such as the steps to reproduce the bug, the expected behavior, and the actual behavior. Screenshots or screen recordings can also be helpful. When requesting a feature, please explain in detail what you want and why you think it would be beneficial to the project. I appreciate your feedback and contributions!"
-              }
-            },
-            {
-              "@type": "Question",
-              "name": "How can I get help if I have a problem?",
-              "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "If you need help with anything, feel free to contact me. You can reach me on AniList or Discord. Alternatively, you can go to the #support channel in the Discord server, where I or others can assist you."
-              }
-            }
-          ]
+        {
+          "@type": "Question",
+          "name": "How can I contribute to this project?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "There are several ways you can contribute to this project. If you're a developer, you can submit pull requests on GitHub with your proposed changes. If you're not a developer or prefer to contribute in other ways, you can join the Discord server and share your thoughts and ideas there. I appreciate all contributions, no matter how small!"
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I report a bug or request a feature?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "If you encounter a bug or would like to request a new feature, please open an issue on the GitHub repository or discuss it in the Discord server. When reporting a bug, please include as much information as possible, such as the steps to reproduce the bug, the expected behavior, and the actual behavior. Screenshots or screen recordings can also be helpful. When requesting a feature, please explain in detail what you want and why you think it would be beneficial to the project. I appreciate your feedback and contributions!"
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How can I get help if I have a problem?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "If you need help with anything, feel free to contact me. You can reach me on AniList or Discord. Alternatively, you can go to the #support channel in the Discord server, where I or others can assist you."
+          }
         }
-      }
-    </script>
-  </head>
-  <script
-    async
-    src="https://www.googletagmanager.com/gtag/js?id=G-6ZX08Y2PJM"
-  ></script>
-  <script src="{{ url_for('static', filename='scripts/gtag.js') }}"></script>
-  <body>
-    <div class="container">
-      <div class="sidebar">
-        <nav>
-          <ul>
-            <li class="site-icon-li">
-              <a href="/">
-                <div class="link-content">
-                  <img
-                    class="site-icon"
-                    src="{{ url_for('static', filename='images/favicon.png') }}"
-                    alt="Site Sidebar Icon"
-                  />
-                  <span class="link-text">AniCards</span>
-                </div>
-              </a>
-            </li>
-            <li>
-              <a href="/">
-                <div class="link-content">
-                  <img
-                    src="{{ url_for('static', filename='images/home.png') }}"
-                    alt="Home Sidebar Icon"
-                  />
-                  <span class="link-text">Home</span>
-                </div>
-              </a>
-            </li>
-            <li>
-              <a href="/StatCards/">
-                <div class="link-content">
-                  <img
-                    src="{{ url_for('static', filename='images/stat-cards.png') }}"
-                    alt="Stat Cards Sidebar Icon"
-                  />
-                  <span class="link-text">Stat Cards</span>
-                </div>
-              </a>
-            </li>
-            <li>
-              <a href="/faq">
-                <div class="link-content">
-                  <img
-                    src="{{ url_for('static', filename='images/faq.png') }}"
-                    alt="FAQ Sidebar Icon"
-                  />
-                  <span class="link-text">FAQ</span>
-                </div>
-              </a>
-            </li>
-          </ul>
-        </nav>
-        <div class="bottom-link">
-          <div class="link-content">
-            <a href="https://discord.gg/TaeAPPmAbw" target="_blank">
-              <img
-                src="{{ url_for('static', filename='images/Discord.png') }}"
-                alt="Discord Sidebar Icon"
-              />
-            </a>
-            <a
-              href="https://github.com/RLAlpha49/Anilist-Stat-Cards"
-              target="_blank"
-            >
-              <img
-                src="{{ url_for('static', filename='images/GitHub.png') }}"
-                alt="GitHub Sidebar Icon"
-              />
-            </a>
-            <a href="https://ko-fi.com/alpha49" target="_blank">
-              <img
-                src="{{ url_for('static', filename='images/Ko-Fi.png') }}"
-                alt="Ko-Fi Sidebar Icon"
-              />
-            </a>
-          </div>
-        </div>
-      </div>
-      <div class="main">
-        <header>
-          <div id="arrow">
-            <img
-              src="{{ url_for('static', filename='images/sidebar-arrow.png') }}"
-              alt="Sidebar Expand Arrow"
-            />
-          </div>
-          <p><a class="changelog-link" href="https://docs.alpha49.com/" target="_blank">Changelog</a></p>
-        </header>
-        <div class="content-footer">
-          <div class="main-content">
-            <div class="center-container">
-              <h1>Frequently Asked Questions</h1>
-              <h2>
-                What should I do if I don't see the latest updates you've made
-                to the website?
-              </h2>
-              <p>
-                If it seems like the latest updates to the website are not
-                applying for you, try pressing Ctrl + F5 on the page in
-                question. This will refresh your browser cache. If this doesn't
-                work, feel free to contact me for further assistance.
-              </p>
-              <h2>What is the purpose of this project?</h2>
-              <p>
-                Simple answer is I thought that
-                <a
-                  href="https://github.com/VishwaGauravIn/github-profile-readme-maker?tab=readme-ov-file"
-                  target="_blank"
-                  >GPRM's</a
-                >
-                visual stat representation was amazing. So I thought I might as
-                well make it for AniList since I use it a lot. Massive credit
-                towards them as the default stat designs are from their project.
-              </p>
-              <h2>How can I contribute to this project?</h2>
-              <p>
-                There are several ways you can contribute to this project. If
-                you're a developer, you can submit pull requests on GitHub with
-                your proposed changes. If you're not a developer or prefer to
-                contribute in other ways, you can join the Discord server and
-                share your thoughts and ideas there. I appreciate all
-                contributions, no matter how small!
-              </p>
-              <h2>How do I report a bug or request a feature?</h2>
-              <p>
-                If you encounter a bug or would like to request a new feature,
-                please open an issue on the
-                <a
-                  href="https://github.com/RLAlpha49/Anilist-Stat-Cards"
-                  target="_blank"
-                  >GitHub repository</a
-                >
-                or discuss it in the
-                <a href="https://discord.gg/TaeAPPmAbw" target="_blank"
-                  >Discord server</a
-                >. When reporting a bug, please include as much information as
-                possible, such as the steps to reproduce the bug, the expected
-                behavior, and the actual behavior. Screenshots or screen
-                recordings can also be helpful. When requesting a feature,
-                please explain in detail what you want and why you think it
-                would be beneficial to the project. I appreciate your feedback
-                and contributions!
-              </p>
-              <h2>How can I get help if I have a problem?</h2>
-              <p>
-                If you need help with anything, feel free to contact me. You can
-                reach me on
-                <a href="https://anilist.co/user/Alpha49/" target="_blank"
-                  >AniList</a
-                >
-                or
-                <a
-                  href="https://discordapp.com/users/251479989378220044"
-                  target="_blank"
-                  >Discord</a
-                >. Alternatively, you can go to the
-                <a href="https://discord.gg/UkVNnF8J2k" target="_blank"
-                  >#support</a
-                >
-                channel in the
-                <a href="https://discord.gg/TaeAPPmAbw" target="_blank"
-                  >Discord server</a
-                >, where I or others can assist you.
-              </p>
-              <!-- Questions go here <h2> for questions <p> for answer -->
-            </div>
-          </div>
-          <footer class="footer-div">
-            <p>© 2024 Alpha49</p>
-            <ul>
-              <li><a href="https://alpha49.com" target="_blank">Website</a></li>
-              <li>
-                <a href="https://github.com/RLAlpha49" target="_blank"
-                  >Github</a
-                >
-              </li>
-              <li><a href="mailto:contact@alpha49.com">Contact</a></li>
-            </ul>
-            <p>
-              This application uses the AniList API. This project is not
-              affiliated with AniList in any way.
-            </p>
-            <p>
-              This project is licensed under the
-              <a href="https://www.gnu.org/licenses/gpl-3.0.en.html"
-                >GNU General Public License v3.0</a
-              >.
-            </p>
-          </footer>
-        </div>
-      </div>
+      ]
+    }
+  }
+</script>
+{% endblock %} {% block content %}
+<div class="content-footer">
+  <div class="main-content">
+    <div class="center-container">
+      <h1>Frequently Asked Questions</h1>
+      <h2>
+        What should I do if I don't see the latest updates you've made to the
+        website?
+      </h2>
+      <p>
+        If it seems like the latest updates to the website are not applying for
+        you, try pressing Ctrl + F5 on the page in question. This will refresh
+        your browser cache. If this doesn't work, feel free to contact me for
+        further assistance.
+      </p>
+      <h2>What is the purpose of this project?</h2>
+      <p>
+        Simple answer is I thought that
+        <a
+          href="https://github.com/VishwaGauravIn/github-profile-readme-maker?tab=readme-ov-file"
+          target="_blank"
+          >GPRM's</a
+        >
+        visual stat representation was amazing. So I thought I might as well
+        make it for AniList since I use it a lot. Massive credit towards them as
+        the default stat designs are from their project.
+      </p>
+      <h2>How can I contribute to this project?</h2>
+      <p>
+        There are several ways you can contribute to this project. If you're a
+        developer, you can submit pull requests on GitHub with your proposed
+        changes. If you're not a developer or prefer to contribute in other
+        ways, you can join the Discord server and share your thoughts and ideas
+        there. I appreciate all contributions, no matter how small!
+      </p>
+      <h2>How do I report a bug or request a feature?</h2>
+      <p>
+        If you encounter a bug or would like to request a new feature, please
+        open an issue on the
+        <a
+          href="https://github.com/RLAlpha49/Anilist-Stat-Cards"
+          target="_blank"
+          >GitHub repository</a
+        >
+        or discuss it in the
+        <a href="https://discord.gg/TaeAPPmAbw" target="_blank"
+          >Discord server</a
+        >. When reporting a bug, please include as much information as possible,
+        such as the steps to reproduce the bug, the expected behavior, and the
+        actual behavior. Screenshots or screen recordings can also be helpful.
+        When requesting a feature, please explain in detail what you want and
+        why you think it would be beneficial to the project. I appreciate your
+        feedback and contributions!
+      </p>
+      <h2>How can I get help if I have a problem?</h2>
+      <p>
+        If you need help with anything, feel free to contact me. You can reach
+        me on
+        <a href="https://anilist.co/user/Alpha49/" target="_blank">AniList</a>
+        or
+        <a
+          href="https://discordapp.com/users/251479989378220044"
+          target="_blank"
+          >Discord</a
+        >. Alternatively, you can go to the
+        <a href="https://discord.gg/UkVNnF8J2k" target="_blank">#support</a>
+        channel in the
+        <a href="https://discord.gg/TaeAPPmAbw" target="_blank"
+          >Discord server</a
+        >, where I or others can assist you.
+      </p>
+      <!-- Questions go here <h2> for questions <p> for answer -->
     </div>
-    <script src="{{ url_for('static', filename='scripts/sidebarExpanded.js') }}"></script>
-    <script src="{{ url_for('static', filename='scripts/sidebarHover.js') }}"></script>
-  </body>
-</html>
+  </div>
+</div>
+{% endblock %} {% block scripts %}
+<script src="{{ url_for('static', filename='scripts/sidebarExpanded.js') }}"></script>
+<script src="{{ url_for('static', filename='scripts/sidebarHover.js') }}"></script>
+{% endblock %}
