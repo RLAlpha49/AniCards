@@ -88,9 +88,9 @@ def log_message(message, level="info"):
 
     # Log the message
     message = (
-        f"File: {file_name},"
-        f"Function: {function_name},"
-        f"Line: {line_number},"
+        f"File: {file_name}, "
+        f"Function: {function_name}, "
+        f"Line: {line_number}, "
         f"Message: {message}"
     )
     if level.lower() == "error":
