@@ -1,3 +1,5 @@
+/* eslint-env browser */
+
 // Filename: public/scripts/download.js
 
 // Function to modify SVG document

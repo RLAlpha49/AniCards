@@ -1,3 +1,5 @@
+/* eslint-env browser */
+
 // Filename: public/scripts/forceRenderSVGs.js
 
 // Function to force a re-render of an SVG element

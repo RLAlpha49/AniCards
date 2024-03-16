@@ -1,13 +1,35 @@
 /* eslint-disable no-undef */
 // Filename: public/scripts/svgButton.js
 
-// When the page is loaded, fetch the SVGs for all keys
+// When the page is loaded, set up an Intersection Observer for each SVG container
 window.onload = function () {
   // The keys and username variables will be defined in the HTML file
-  // Loop over each key and fetch the corresponding SVG
+  // Loop over each key and set up an Intersection Observer for the corresponding SVG container
   for (const key of keys) {
-    fetchSvg(key, username)()
+    observeSvg(key, username)
   }
+}
+
+// Function to set up an Intersection Observer for a given SVG container
+function observeSvg (key, username) {
+  // Get the container element by its ID, which is assumed to be the same as the key
+  const container = document.getElementById(key)
+
+  // Create a new IntersectionObserver instance
+  const observer = new IntersectionObserver((entries, observer) => {
+    entries.forEach(entry => {
+      // If the container is in the viewport, fetch the SVG
+      if (entry.isIntersecting) {
+        fetchSvg(key, username)()
+
+        // Once the SVG is fetched, we don't need to observe the container anymore
+        observer.unobserve(container)
+      }
+    })
+  })
+
+  // Observe the SVG container
+  observer.observe(container)
 }
 
 // Function to fetch an SVG for a given key and username
