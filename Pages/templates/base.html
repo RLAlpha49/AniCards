@@ -90,13 +90,15 @@
               target="_blank"
             >
               <img
-                src="{{ url_for('static', filename='images/GitHub.webp') }}"
+                id="github-icon"
+                data-src="{{ url_for('static', filename='images/GitHub.webp') }}"
                 alt="GitHub Sidebar Icon"
               />
             </a>
             <a href="https://ko-fi.com/alpha49" target="_blank">
               <img
-                src="{{ url_for('static', filename='images/Ko-Fi.webp') }}"
+              id="kofi-icon"
+                data-src="{{ url_for('static', filename='images/Ko-Fi.webp') }}"
                 alt="Ko-Fi Sidebar Icon"
               />
             </a>
@@ -143,6 +145,38 @@
         </footer>
       </div>
     </div>
+    <script>
+      // Function to load an image when the sidebar is expanded
+      function loadImage(id) {
+        const img = document.getElementById(id);
+        if (img && !img.src) {
+          img.src = img.dataset.src;
+        }
+      }
+
+      // Function to load the images when the sidebar is expanded
+      function loadImages() {
+        loadImage('github-icon');
+        loadImage('kofi-icon');
+        // Add more calls to loadImage for the other images
+      }
+
+      // Get the sidebar element
+      const sidebar = document.querySelector('.sidebar');
+
+      // Create a MutationObserver instance
+      const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+          // If the class list has changed and it includes 'expanded', load the images
+          if (mutation.attributeName === 'class' && sidebar.classList.contains('expanded')) {
+            loadImages();
+          }
+        });
+      });
+
+      // Start observing the sidebar for changes to its class list
+      observer.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
+    </script>
     <script src="{{ url_for('static', filename='scripts/lazyLoadImages.js') }}"></script>
     {% block scripts %} {% endblock %}
   </body>

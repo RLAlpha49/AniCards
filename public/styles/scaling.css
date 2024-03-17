@@ -128,7 +128,7 @@
   }
 
   .sidebar.expanded {
-    width: calc(160px * 0.9);
+    width: calc(180px * 0.9);
   }
 
   .sidebar nav ul li a,
@@ -296,7 +296,7 @@
   }
 
   .sidebar.expanded {
-    width: calc(160px * 0.8);
+    width: calc(180px * 0.8);
   }
 
   .sidebar nav ul li a,
@@ -459,7 +459,7 @@
   }
 
   .sidebar.expanded {
-    width: calc(160px * 0.7);
+    width: calc(180px * 0.7);
   }
 
   .sidebar nav ul li a,
@@ -622,7 +622,7 @@
   }
 
   .sidebar.expanded {
-    width: calc(160px * 0.6);
+    width: calc(180px * 0.6);
   }
 
   .sidebar nav ul li a,
@@ -784,7 +784,7 @@
   }
 
   .sidebar.expanded {
-    width: calc(160px * 0.5);
+    width: calc(180px * 0.5);
   }
 
   .sidebar nav ul li a,
@@ -794,7 +794,7 @@
 
   .link-text {
     padding-left: calc(10px * 0.5);
-    font-size: calc(1em * 0.75);
+    font-size: calc(1em * 0.70);
   }
 
   header {

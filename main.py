@@ -17,6 +17,7 @@ from threading import Thread
 # Related third party imports
 from typing import Dict, List
 from urllib.parse import urlparse, urlunparse
+from sqlalchemy.exc import OperationalError
 
 import schedule
 from flask import (
@@ -223,6 +224,13 @@ def generate_svgs(username):
         log_message("SVGs generated and stored in the database")
 
         return redirect(url_for("display_svgs", username=username))
+    except OperationalError as oe:
+        log_message(
+            f"An error occurred while fetching SVGs for user: {username}. Database Error: {oe}",
+            "error",
+        )
+        # Return a response indicating a database connection issue occurred
+        raise Exception("Database connection issue") # pylint: disable=W0719, W0707
     except Exception as e:
         log_message(
             "An error occurred while generating SVGs for user: "

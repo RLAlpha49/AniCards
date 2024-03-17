@@ -20,7 +20,7 @@ html {
 }
 
 .footer-div {
-  width: calc(100% - 64px) !important;
+  width: calc(100% - 64px);
   position: absolute;
   bottom: 0;
 }
