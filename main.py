@@ -29,7 +29,6 @@ from flask import (
     send_from_directory,
     url_for,
 )
-from sqlalchemy.exc import OperationalError
 
 # Local application/library specific imports
 from Program.Anilist import AniListData
@@ -51,6 +50,7 @@ from Program.Database.models import (
 )
 from Program.generateSVGs import generate_svg
 from Program.Utils.logger import log_message
+from sqlalchemy.exc import OperationalError
 
 # Use the imported modules
 fetch_anilist_data = AniListData.fetch_anilist_data
@@ -651,7 +651,7 @@ scheduler_thread = Thread(target=run_schedule)
 
 # Run the Flask app
 if __name__ == "__main__":
-    # script_dir = os.path.dirname(os.path.realpath(__file__))
-    # wrapper_path = os.path.join(script_dir, "Program", "Utils", "wrapper.py")
-    # subprocess.run(["python", wrapper_path], check=True)
-    app.run(debug=True)
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    wrapper_path = os.path.join(script_dir, "Program", "Utils", "wrapper.py")
+    subprocess.run(["python", wrapper_path], check=True)
+    # app.run(debug=True)

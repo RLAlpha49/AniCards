@@ -5,3 +5,4 @@ schedule
 requests
 markupsafe
 waitress
+sqlalchemy
