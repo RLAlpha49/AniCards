@@ -17,7 +17,6 @@ from threading import Thread
 # Related third party imports
 from typing import Dict, List
 from urllib.parse import urlparse, urlunparse
-from sqlalchemy.exc import OperationalError
 
 import schedule
 from flask import (
@@ -30,6 +29,7 @@ from flask import (
     send_from_directory,
     url_for,
 )
+from sqlalchemy.exc import OperationalError
 
 # Local application/library specific imports
 from Program.Anilist import AniListData
@@ -230,7 +230,7 @@ def generate_svgs(username):
             "error",
         )
         # Return a response indicating a database connection issue occurred
-        raise Exception("Database connection issue") # pylint: disable=W0719, W0707
+        raise Exception("Database connection issue")  # pylint: disable=W0719, W0707
     except Exception as e:
         log_message(
             "An error occurred while generating SVGs for user: "
@@ -651,7 +651,7 @@ scheduler_thread = Thread(target=run_schedule)
 
 # Run the Flask app
 if __name__ == "__main__":
-    script_dir = os.path.dirname(os.path.realpath(__file__))
-    wrapper_path = os.path.join(script_dir, "Program", "Utils", "wrapper.py")
-    subprocess.run(["python", wrapper_path], check=True)
-    # app.run(debug=True)
+    # script_dir = os.path.dirname(os.path.realpath(__file__))
+    # wrapper_path = os.path.join(script_dir, "Program", "Utils", "wrapper.py")
+    # subprocess.run(["python", wrapper_path], check=True)
+    app.run(debug=True)

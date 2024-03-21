@@ -1,5 +1,6 @@
 flask
 flask_sqlalchemy
+psycopg2
 schedule
 requests
 markupsafe

@@ -24,29 +24,24 @@ function showLink (link) {
 
 // Function to copy the link or example to the clipboard
 function copyLink (elementToCopy, isExample = false) {
-  // Create a temporary input element
-  const tempInput = document.createElement('input')
-  // Set the value of the input to the link text or example
-  tempInput.value = isExample ? elementToCopy.textContent.replace('Anilist Example: ', '') : elementToCopy.textContent
-  // Add the input to the document
-  document.body.appendChild(tempInput)
-  // Select the input text
-  tempInput.select()
-  // Copy the selected text
-  document.execCommand('copy')
-  // Remove the temporary input from the document
-  document.body.removeChild(tempInput)
+  // Get the text to copy
+  const textToCopy = isExample ? elementToCopy.textContent.replace('Anilist Example: ', '') : elementToCopy.textContent
 
-  // Get the copyStatus element and change its text
-  const copyStatus = document.getElementById('copyStatus')
-  copyStatus.textContent = 'Link copied to clipboard'
-  // Display the copyStatus element
-  copyStatus.classList.remove('hide')
+  // Copy the text to the clipboard
+  navigator.clipboard.writeText(textToCopy).then(function () {
+    // Get the copyStatus element and change its text
+    const copyStatus = document.getElementById('copyStatus')
+    copyStatus.textContent = 'Link copied to clipboard'
+    // Display the copyStatus element
+    copyStatus.classList.remove('hide')
 
-  // Hide the copyStatus element after 3 seconds
-  setTimeout(function () {
-    copyStatus.classList.add('hide')
-  }, 3000)
+    // Hide the copyStatus element after 3 seconds
+    setTimeout(function () {
+      copyStatus.classList.add('hide')
+    }, 3000)
+  }, function (err) {
+    console.error('Could not copy text: ', err)
+  })
 }
 
 // Get the copy button elements

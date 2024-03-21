@@ -24,7 +24,7 @@ def run_server(silent=False):
             "--channel-timeout=90",
             "main:app",
         ]
-        return subprocess.Popen(server_command, stdout=subprocess.PIPE)
+        return subprocess.Popen(server_command)
     except Exception as start_error:
         print(f"Error starting server: {start_error}")
         return False

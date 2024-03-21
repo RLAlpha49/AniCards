@@ -228,10 +228,9 @@
 {% endblock %} {% block scripts %}
 <script>
   // Allows for pressing enter to submit the form in the username text field
-  var usernameInput = document.getElementById("usernameInput");
+  let usernameInput = document.getElementById("usernameInput");
   usernameInput.addEventListener("keypress", function (event) {
-    var key = event.which || event.keyCode;
-    if (key === 13) {
+    if (event.key === 'Enter') {
       validateForm();
       event.preventDefault();
     }
