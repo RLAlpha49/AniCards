@@ -50,7 +50,7 @@ from Program.Database.models import (
 )
 from Program.generateSVGs import generate_svg
 from Program.Utils.logger import log_message
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import OperationalError  # pylint: disable=C0411
 
 # Use the imported modules
 fetch_anilist_data = AniListData.fetch_anilist_data
