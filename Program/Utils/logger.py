@@ -35,7 +35,7 @@ def cleanup_log_files():
 
 
 # Call the cleanup function when the server starts
-if 'unittest' not in sys.modules:
+if "unittest" not in sys.modules:
     cleanup_log_files()
 
 
@@ -47,7 +47,7 @@ def log_message(message, level="info"):
     message (str): The message to log.
     level (str): The level of the message. Default is 'info'.
     """
-    if 'unittest' in sys.modules:
+    if "unittest" in sys.modules:
         return
 
     # Get the caller information

@@ -13,7 +13,6 @@ import os
 import subprocess
 import time
 from threading import Thread
-
 # Related third party imports
 from typing import Dict, List
 from urllib.parse import urlparse, urlunparse
@@ -29,6 +28,7 @@ from flask import (
     send_from_directory,
     url_for,
 )
+from sqlalchemy.exc import OperationalError  # pylint: disable=C0411
 
 # Local application/library specific imports
 from Program.Anilist import AniListData
@@ -48,9 +48,8 @@ from Program.Database.models import (
     StatCard,
     User,
 )
-from Program.generateSVGs import generate_svg
 from Program.Utils.logger import log_message
-from sqlalchemy.exc import OperationalError  # pylint: disable=C0411
+from Program.generateSVGs import generate_svg
 
 # Use the imported modules
 fetch_anilist_data = AniListData.fetch_anilist_data
@@ -385,9 +384,9 @@ def get_svg_from_db(username, key):
                 response.headers["Content-Type"] = "image/svg+xml"
 
                 # Add cache control headers
-                response.headers[
-                    "Cache-Control"
-                ] = "no-cache, must-revalidate, max-age=0"
+                response.headers["Cache-Control"] = (
+                    "no-cache, must-revalidate, max-age=0"
+                )
                 response.headers["Pragma"] = "no-cache"
                 response.headers["Expires"] = "0"
 
