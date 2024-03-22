@@ -1,5 +1,12 @@
 ---
 version: "1.0"
 linter: jetbrains/qodana-python-community:2023.3
+bootstrap: |
+  rm -rf .idea
+  pip install -r requirements.txt --quiet
+profile:
+  name: qodana.recommended
+include:
+  - name: CheckDependencyLicenses
 exclude:
   - name: PyPep8NamingInspection
