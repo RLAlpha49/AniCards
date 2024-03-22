@@ -38,7 +38,7 @@ class TestUserProfileRoute(unittest.TestCase):
         Test the title of the response.
         """
         title_check = (
-                "<title>AniList Stat Cards Generated User</title>" in self.response_data
+            "<title>AniList Stat Cards Generated User</title>" in self.response_data
         )
         self.assertTrue(title_check)
         print(
@@ -59,9 +59,9 @@ class TestUserProfileRoute(unittest.TestCase):
         Test the description of the response.
         """
         description_check = (
-                                "AniList User Page: View and customize AniList stat cards for specific users. "
-                                "Select from various SVG types and download your customized card."
-                            ) in self.response_data
+            "AniList User Page: View and customize AniList stat cards for specific users. "
+            "Select from various SVG types and download your customized card."
+        ) in self.response_data
         self.assertTrue(description_check)
         print(
             "Description check: "
@@ -128,12 +128,12 @@ class TestUserProfileRoute(unittest.TestCase):
         Test the SVG loading or loaded check of the response.
         """
         svg_loading_check = (
-                '<div id="' in self.response_data
-                and '">Loading...</div>' in self.response_data
+            '<div id="' in self.response_data
+            and '">Loading...</div>' in self.response_data
         )
         svg_loaded_check = (
-                '<img src="data:image/svg+xml;base64,' in self.response_data
-                and 'alt="SVG image of animeStats">' in self.response_data
+            '<img src="data:image/svg+xml;base64,' in self.response_data
+            and 'alt="SVG image of animeStats">' in self.response_data
         )
         self.assertTrue(svg_loading_check or svg_loaded_check)
         result = (

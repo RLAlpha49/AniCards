@@ -38,7 +38,7 @@ class TestStatCardsRoute(unittest.TestCase):
         Test the title of the response.
         """
         title_check = (
-                "<title>AniList Stat Cards Generator</title>" in self.response_data
+            "<title>AniList Stat Cards Generator</title>" in self.response_data
         )
         self.assertTrue(title_check)
         print(
@@ -59,9 +59,9 @@ class TestStatCardsRoute(unittest.TestCase):
         Test the description of the response.
         """
         description_check = (
-                                "AniList Stat Cards Generator: Create custom stat cards with user data from AniList. "
-                                "Customize colors and select specific data types for your card."
-                            ) in self.response_data
+            "AniList Stat Cards Generator: Create custom stat cards with user data from AniList. "
+            "Customize colors and select specific data types for your card."
+        ) in self.response_data
         self.assertTrue(description_check)
         print(
             "Description check: "
@@ -73,8 +73,8 @@ class TestStatCardsRoute(unittest.TestCase):
         Test the username input of the response.
         """
         username_input_check = (
-                '<input type="text" id="usernameInput" placeholder="Enter username"/>'
-                in self.response_data
+            '<input type="text" id="usernameInput" placeholder="Enter username"/>'
+            in self.response_data
         )
         self.assertTrue(username_input_check)
         print(
@@ -87,8 +87,8 @@ class TestStatCardsRoute(unittest.TestCase):
         Test the color form of the response.
         """
         color_form_check = (
-                '<form id="colorForm" action="/username/generate_svgs" method="post">'
-                in self.response_data
+            '<form id="colorForm" action="/username/generate_svgs" method="post">'
+            in self.response_data
         )
         self.assertTrue(color_form_check)
         print(
@@ -101,8 +101,8 @@ class TestStatCardsRoute(unittest.TestCase):
         Test the data form of the response.
         """
         data_form_check = (
-                '<form id="dataForm" action="/username/generate_svgs" method="post">'
-                in self.response_data
+            '<form id="dataForm" action="/username/generate_svgs" method="post">'
+            in self.response_data
         )
         self.assertTrue(data_form_check)
         print(

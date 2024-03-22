@@ -57,9 +57,9 @@ class TestHomeRoute(unittest.TestCase):
         Test the description of the response.
         """
         description_check = (
-                                "AniCards is a project in active development that provides "
-                                "statistical cards for AniList users."
-                            ) in self.response_data
+            "AniCards is a project in active development that provides "
+            "statistical cards for AniList users."
+        ) in self.response_data
         self.assertTrue(description_check)
         print(
             "Description check: "

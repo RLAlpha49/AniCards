@@ -57,7 +57,7 @@ class TestFaqRoute(unittest.TestCase):
         Test the description of the response.
         """
         description_check = (
-                "Frequently Asked Questions about AniCards." in self.response_data
+            "Frequently Asked Questions about AniCards." in self.response_data
         )
         self.assertTrue(description_check)
         print(
@@ -70,8 +70,8 @@ class TestFaqRoute(unittest.TestCase):
         Test the first question of the response.
         """
         question1_check = (
-                "What should I do if I don't see the latest updates you've made to the website?"
-                in self.response_data
+            "What should I do if I don't see the latest updates you've made to the website?"
+            in self.response_data
         )
         self.assertTrue(question1_check)
         print(
@@ -106,7 +106,7 @@ class TestFaqRoute(unittest.TestCase):
         Test the fourth question of the response.
         """
         question4_check = (
-                "How do I report a bug or request a feature?" in self.response_data
+            "How do I report a bug or request a feature?" in self.response_data
         )
         self.assertTrue(question4_check)
         print(
@@ -119,7 +119,7 @@ class TestFaqRoute(unittest.TestCase):
         Test the fifth question of the response.
         """
         question5_check = (
-                "How can I get help if I have a problem?" in self.response_data
+            "How can I get help if I have a problem?" in self.response_data
         )
         self.assertTrue(question5_check)
         print(

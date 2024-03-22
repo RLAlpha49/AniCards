@@ -57,8 +57,8 @@ class TestBadgesRoute(unittest.TestCase):
         Test the description of the response.
         """
         description_check = (
-                "AniList Badge Generator: Create custom badges with user data from AniList."
-                in self.response_data
+            "AniList Badge Generator: Create custom badges with user data from AniList."
+            in self.response_data
         )
         self.assertTrue(description_check)
         print(
@@ -71,8 +71,8 @@ class TestBadgesRoute(unittest.TestCase):
         Test the username input of the response.
         """
         username_input_check = (
-                '<input type="text" id="usernameInput" placeholder="Enter username"/>'
-                in self.response_data
+            '<input type="text" id="usernameInput" placeholder="Enter username"/>'
+            in self.response_data
         )
         self.assertTrue(username_input_check)
         print(
@@ -85,8 +85,8 @@ class TestBadgesRoute(unittest.TestCase):
         Test the milestone input of the response.
         """
         milestone_input_check = (
-                '<input type="text" id="milestoneInput" placeholder="Enter milestone"/>'
-                in self.response_data
+            '<input type="text" id="milestoneInput" placeholder="Enter milestone"/>'
+            in self.response_data
         )
         self.assertTrue(milestone_input_check)
         print(
@@ -99,8 +99,8 @@ class TestBadgesRoute(unittest.TestCase):
         Test the color form of the response.
         """
         color_form_check = (
-                '<form id="colorForm" action="/username/generate_svgs" method="post">'
-                in self.response_data
+            '<form id="colorForm" action="/username/generate_svgs" method="post">'
+            in self.response_data
         )
         self.assertTrue(color_form_check)
         print(
@@ -113,8 +113,8 @@ class TestBadgesRoute(unittest.TestCase):
         Test the data form of the response.
         """
         data_form_check = (
-                '<form id="dataForm" action="/username/generate_svgs" method="post">'
-                in self.response_data
+            '<form id="dataForm" action="/username/generate_svgs" method="post">'
+            in self.response_data
         )
         self.assertTrue(data_form_check)
         print(

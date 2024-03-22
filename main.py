@@ -16,7 +16,7 @@ from threading import Thread
 
 # Related third party imports
 from typing import Dict, List
-from urllib.parse import urlparse, urlunparse, ParseResult
+from urllib.parse import ParseResult, urlparse, urlunparse
 
 import schedule
 from flask import (
@@ -386,10 +386,12 @@ def get_svg_from_db(username, key):
                 response = make_response(record.data)
                 response.headers["Content-Type"] = "image/svg+xml"
 
+                # fmt: off
                 # Add cache control headers
                 response.headers["Cache-Control"] = (
                     "no-cache, must-revalidate, max-age=0"
                 )
+                # fmt: on
                 response.headers["Pragma"] = "no-cache"
                 response.headers["Expires"] = "0"
 
