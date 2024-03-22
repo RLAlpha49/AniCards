@@ -4,14 +4,23 @@ from main import app
 
 
 class TestUserProfileRoute(unittest.TestCase):
+    """
+    Test case for the UserProfile route.
+    """
 
     def setUp(self):
+        """
+        Set up the test client and get the response from the UserProfile route.
+        """
         self.app = app.test_client()
         self.app.testing = True
         self.response = self.app.get("/StatCards/Alpha49")
         self.response_data = self.response.data.decode()
 
     def test_01_status_code(self):
+        """
+        Test the status code of the response.
+        """
         print("\nTesting User Profile Route...")
         status_code_check = self.response.status_code == 200
         self.assertTrue(status_code_check)
@@ -21,6 +30,9 @@ class TestUserProfileRoute(unittest.TestCase):
         )
 
     def test_02_title_check(self):
+        """
+        Test the title of the response.
+        """
         title_check = (
                 "<title>AniList Stat Cards Generated User</title>" in self.response_data
         )
@@ -31,11 +43,17 @@ class TestUserProfileRoute(unittest.TestCase):
         )
 
     def test_03_h1_check(self):
+        """
+        Test the h1 of the response.
+        """
         h1_check = "<h1>Alpha49</h1>" in self.response_data
         self.assertTrue(h1_check)
         print("H1 check: " + ("\033[92m✔\033[0m" if h1_check else "\033[91m✖\033[0m"))
 
     def test_04_description_check(self):
+        """
+        Test the description of the response.
+        """
         description_check = (
                                 "AniList User Page: View and customize AniList stat cards for specific users. Select from "
                                 "various SVG types and download your customized card."
@@ -47,6 +65,9 @@ class TestUserProfileRoute(unittest.TestCase):
         )
 
     def test_05_svg_container_check(self):
+        """
+        Test the SVG container of the response.
+        """
         svg_container_check = '<div class="svg-container">' in self.response_data
         self.assertTrue(svg_container_check)
         print(
@@ -55,6 +76,9 @@ class TestUserProfileRoute(unittest.TestCase):
         )
 
     def test_06_svg_item_check(self):
+        """
+        Test the SVG item of the response.
+        """
         svg_item_check = '<div class="svg-item">' in self.response_data
         self.assertTrue(svg_item_check)
         print(
@@ -63,6 +87,9 @@ class TestUserProfileRoute(unittest.TestCase):
         )
 
     def test_07_svg_wrapper_check(self):
+        """
+        Test the SVG wrapper of the response.
+        """
         svg_wrapper_check = '<div class="svg-wrapper">' in self.response_data
         self.assertTrue(svg_wrapper_check)
         print(
@@ -71,6 +98,9 @@ class TestUserProfileRoute(unittest.TestCase):
         )
 
     def test_08_svg_controls_check(self):
+        """
+        Test the SVG controls of the response.
+        """
         svg_controls_check = '<div class="svg-controls">' in self.response_data
         self.assertTrue(svg_controls_check)
         print(
@@ -79,6 +109,9 @@ class TestUserProfileRoute(unittest.TestCase):
         )
 
     def test_09_select_container_check(self):
+        """
+        Test the select container of the response.
+        """
         select_container_check = '<div class="select-container">' in self.response_data
         self.assertTrue(select_container_check)
         print(
@@ -87,8 +120,12 @@ class TestUserProfileRoute(unittest.TestCase):
         )
 
     def test_10_svg_loading_or_loaded_check(self):
+        """
+        Test the SVG loading or loaded check of the response.
+        """
         svg_loading_check = (
-                '<div id="' in self.response_data and '">Loading...</div>' in self.response_data
+                '<div id="' in self.response_data
+                and '">Loading...</div>' in self.response_data
         )
         svg_loaded_check = (
                 '<img src="data:image/svg+xml;base64,' in self.response_data
@@ -103,6 +140,9 @@ class TestUserProfileRoute(unittest.TestCase):
         print("SVG loading or loaded check: " + result)
 
     def test_11_button_wrapper_check(self):
+        """
+        Test the button wrapper of the response.
+        """
         button_wrapper_check = '<div class="button-wrapper">' in self.response_data
         self.assertTrue(button_wrapper_check)
         print(
@@ -111,9 +151,15 @@ class TestUserProfileRoute(unittest.TestCase):
         )
 
     def tearDown(self):
+        """
+        Tear down the test case.
+        """
         pass
 
 
 if __name__ == "__main__":
+    """
+    Run the test suite.
+    """
     suite = unittest.TestLoader().loadTestsFromTestCase(TestUserProfileRoute)
     unittest.TextTestRunner(verbosity=2).run(suite)

@@ -13,6 +13,7 @@ import os
 import subprocess
 import time
 from threading import Thread
+
 # Related third party imports
 from typing import Dict, List
 from urllib.parse import urlparse, urlunparse
@@ -28,7 +29,6 @@ from flask import (
     send_from_directory,
     url_for,
 )
-from sqlalchemy.exc import OperationalError  # pylint: disable=C0411
 
 # Local application/library specific imports
 from Program.Anilist import AniListData
@@ -48,8 +48,9 @@ from Program.Database.models import (
     StatCard,
     User,
 )
-from Program.Utils.logger import log_message
 from Program.generateSVGs import generate_svg
+from Program.Utils.logger import log_message
+from sqlalchemy.exc import OperationalError  # pylint: disable=C0411
 
 # Use the imported modules
 fetch_anilist_data = AniListData.fetch_anilist_data
