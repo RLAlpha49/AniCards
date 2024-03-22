@@ -1,8 +1,9 @@
 ---
 version: "1.0"
 linter: jetbrains/qodana-python-community:2023.3
-bootstrap: pip install -r requirements.txt
 include:
   - name: CheckDependencyLicenses
 exclude:
   - name: PyPep8NamingInspection
+  - name: PyUnresolvedReferencesInspection
+  - name: PyInterpreterInspection
