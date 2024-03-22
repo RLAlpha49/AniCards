@@ -69,22 +69,10 @@
         This application creates completionist badges. Enter a username
         and milestone below to get started.
       </p>
-      <input
-        type="text"
-        id="usernameInput"
-        placeholder="Enter username"
-      />
-      <input
-        type="text"
-        id="milestoneInput"
-        placeholder="Enter milestone"
-      />
+        <input type="text" id="usernameInput" placeholder="Enter username"/>
+        <input type="text" id="milestoneInput" placeholder="Enter milestone"/>
 
-      <form
-        id="colorForm"
-        action="/username/generate_svgs"
-        method="post"
-      >
+        <form id="colorForm" action="/username/generate_svgs" method="post">
         <h2>Color Selection</h2>
         <p>If a color is not changed, it will not be affected.</p>
         <!-- Color picker inputs -->
@@ -99,11 +87,7 @@
       </form>
 
       <!-- Checkboxes for selecting types -->
-      <form
-        id="dataForm"
-        action="/username/generate_svgs"
-        method="post"
-      >
+        <form id="dataForm" action="/username/generate_svgs" method="post">
         <div id="formLabelWrapper">
           <label id="formLabel">Badge Types</label>
           <div id="selectAll" onclick="selectAllCheckboxes()">

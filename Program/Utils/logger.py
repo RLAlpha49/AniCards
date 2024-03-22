@@ -8,6 +8,7 @@ import inspect
 import logging
 import logging.handlers
 import os
+import sys
 
 # Get the current timestamp
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
@@ -34,7 +35,8 @@ def cleanup_log_files():
 
 
 # Call the cleanup function when the server starts
-cleanup_log_files()
+if 'unittest' not in sys.modules:
+    cleanup_log_files()
 
 
 def log_message(message, level="info"):
@@ -45,6 +47,9 @@ def log_message(message, level="info"):
     message (str): The message to log.
     level (str): The level of the message. Default is 'info'.
     """
+    if 'unittest' in sys.modules:
+        return
+
     # Get the caller information
     caller = inspect.stack()[1]
     function_name = caller[3]

@@ -1,244 +1,244 @@
 <!-- htmlhint id-class-value: false -->
 <!DOCTYPE html>
 {% extends "templates/base.html" %} {% block headtop %}
-<meta
-  name="description"
-  content="AniList Stat Cards Generator: Create custom stat cards with user data from AniList. Customize colors and select specific data types for your card."
-/>
-<title>AniList Stat Cards Generator</title>
+    <meta
+            name="description"
+            content="AniList Stat Cards Generator: Create custom stat cards with user data from AniList. Customize colors and select specific data types for your card."
+    />
+    <title>AniList Stat Cards Generator</title>
 {% endblock %} {% block headstyle %}
-<link
-  rel="stylesheet"
-  type="text/css"
-  href="{{ url_for('static', filename='styles/StatCards.css') }}"
-/>
-<link rel="canonical" href="https://anicards.alpha49.com/StatCards/" />
+    <link
+            rel="stylesheet"
+            type="text/css"
+            href="{{ url_for('static', filename='styles/StatCards.css') }}"
+    />
+    <link rel="canonical" href="https://anicards.alpha49.com/StatCards/"/>
 {% endblock %} {% block headscript %}
-<script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "WebPage",
-    "name": "AniList Stat Cards Generator",
-    "description": "AniList Stat Cards Generator: Create custom stat cards with user data from AniList. Customize colors and select specific data types for your card.",
-    "url": "https://anicards.alpha49.com/StatCards/",
-    "breadcrumb": {
-      "@type": "BreadcrumbList",
-      "itemListElement": [
+    <script type="application/ld+json">
         {
-          "@type": "ListItem",
-          "position": 1,
-          "name": "Home",
-          "item": "https://anicards.alpha49.com"
-        },
-        {
-          "@type": "ListItem",
-          "position": 2,
-          "name": "Stat Cards",
-          "item": "https://anicards.alpha49.com/StatCards/"
+            "@context": "https://schema.org",
+            "@type": "WebPage",
+            "name": "AniList Stat Cards Generator",
+            "description": "AniList Stat Cards Generator: Create custom stat cards with user data from AniList. Customize colors and select specific data types for your card.",
+            "url": "https://anicards.alpha49.com/StatCards/",
+            "breadcrumb": {
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "Home",
+                        "item": "https://anicards.alpha49.com"
+                    },
+                    {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Stat Cards",
+                        "item": "https://anicards.alpha49.com/StatCards/"
+                    }
+                ]
+            },
+            "publisher": {
+                "@type": "Person",
+                "name": "Alpha49",
+                "url": "https://www.alpha49.com",
+                "logo": {
+                    "@type": "ImageObject",
+                    "url": "https://anicards.alpha49.com/static/images/favicon.webp"
+                }
+            },
+            "mainEntity": {
+                "@type": "SoftwareApplication",
+                "name": "AniList Stat Cards Generator",
+                "applicationCategory": "DesignApplication",
+                "operatingSystem": "Web",
+                "offers": {
+                    "@type": "Offer",
+                    "price": "0",
+                    "priceCurrency": "USD"
+                }
+            }
         }
-      ]
-    },
-    "publisher": {
-      "@type": "Person",
-      "name": "Alpha49",
-      "url": "https://www.alpha49.com",
-      "logo": {
-        "@type": "ImageObject",
-        "url": "https://anicards.alpha49.com/static/images/favicon.webp"
-      }
-    },
-    "mainEntity": {
-      "@type": "SoftwareApplication",
-      "name": "AniList Stat Cards Generator",
-      "applicationCategory": "DesignApplication",
-      "operatingSystem": "Web",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
-      }
-    }
-  }
-</script>
+    </script>
 {% endblock %} {% block content %}
-<div class="content-footer">
-  <div class="main-content">
-    <div class="center-container">
-      <h1>AniList Stat Cards Generator</h1>
-      <p>
-        This application fetches user data from AniList and displays it in a
-        visually appealing format. Enter a username below to get started.
-      </p>
-      <input type="text" id="usernameInput" placeholder="Enter username" />
+    <div class="content-footer">
+        <div class="main-content">
+            <div class="center-container">
+                <h1>AniList Stat Cards Generator</h1>
+                <p>
+                    This application fetches user data from AniList and displays it in a
+                    visually appealing format. Enter a username below to get started.
+                </p>
+                <input type="text" id="usernameInput" placeholder="Enter username"/>
 
-      <form id="colorForm" action="/username/generate_svgs" method="post">
-        <h2>Color Selection</h2>
-        <p>If a color is not changed, it will not be affected.</p>
-        <!-- Color picker inputs -->
-        <label>
-          <span>Title Color:</span>
-          <input type="color" id="color1" name="colors" class="color-input" />
-        </label>
-        <label>
-          <span>Background Color:</span>
-          <input type="color" id="color2" name="colors" class="color-input" />
-        </label>
-        <label>
-          <span>Text Color:</span>
-          <input type="color" id="color3" name="colors" class="color-input" />
-        </label>
-        <label>
-          <span>Circle Color:</span>
-          <input type="color" id="color4" name="colors" class="color-input" />
-        </label>
-      </form>
+                <form id="colorForm" action="/username/generate_svgs" method="post">
+                    <h2>Color Selection</h2>
+                    <p>If a color is not changed, it will not be affected.</p>
+                    <!-- Color picker inputs -->
+                    <label>
+                        <span>Title Color:</span>
+                        <input type="color" id="color1" name="colors" class="color-input"/>
+                    </label>
+                    <label>
+                        <span>Background Color:</span>
+                        <input type="color" id="color2" name="colors" class="color-input"/>
+                    </label>
+                    <label>
+                        <span>Text Color:</span>
+                        <input type="color" id="color3" name="colors" class="color-input"/>
+                    </label>
+                    <label>
+                        <span>Circle Color:</span>
+                        <input type="color" id="color4" name="colors" class="color-input"/>
+                    </label>
+                </form>
 
-      <!-- Checkboxes for selecting data -->
-      <form id="dataForm" action="/username/generate_svgs" method="post">
-        <div id="formLabelWrapper">
-          <label id="formLabel">Stat Card Types</label>
-          <div id="selectAll" onclick="selectAllCheckboxes()">
-            <span>Select All</span>
-          </div>
-        </div>
-        <div>
-          <label>
-            <input
-              type="checkbox"
-              id="animeStatsCheckbox"
-              name="keys"
-              value="animeStats"
-            />
-            <span
-              >Anime Stats (Count, Episodes Watched, Minutes Watched, Mean
+                <!-- Checkboxes for selecting data -->
+                <form id="dataForm" action="/username/generate_svgs" method="post">
+                    <div id="formLabelWrapper">
+                        <label id="formLabel">Stat Card Types</label>
+                        <div id="selectAll" onclick="selectAllCheckboxes()">
+                            <span>Select All</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label>
+                            <input
+                                    type="checkbox"
+                                    id="animeStatsCheckbox"
+                                    name="keys"
+                                    value="animeStats"
+                            />
+                            <span
+                            >Anime Stats (Count, Episodes Watched, Minutes Watched, Mean
               Score, Standard Deviation)</span
-            >
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              id="socialStatsCheckbox"
-              name="keys"
-              value="socialStats"
-            />
-            <span
-              >Social Stats (Total Activities (30 Days), Followers, Following,
+                            >
+                        </label>
+                        <label>
+                            <input
+                                    type="checkbox"
+                                    id="socialStatsCheckbox"
+                                    name="keys"
+                                    value="socialStats"
+                            />
+                            <span
+                            >Social Stats (Total Activities (30 Days), Followers, Following,
               Thread Posts/Comments, Reviews)</span
-            >
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              id="mangaStatsCheckbox"
-              name="keys"
-              value="mangaStats"
-            />
-            <span
-              >Manga Stats (Count, Chapters Read, Volumes Read, Mean Score,
+                            >
+                        </label>
+                        <label>
+                            <input
+                                    type="checkbox"
+                                    id="mangaStatsCheckbox"
+                                    name="keys"
+                                    value="mangaStats"
+                            />
+                            <span
+                            >Manga Stats (Count, Chapters Read, Volumes Read, Mean Score,
               Standard Deviation)</span
-            >
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              id="animeGenres"
-              name="keys"
-              value="animeGenres"
-            />
-            <span>Anime Genres (Top 5 Count)</span>
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              id="animeTags"
-              name="keys"
-              value="animeTags"
-            />
-            <span>Anime Tags (Top 5 Count)</span>
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              id="animeVoiceActors"
-              name="keys"
-              value="animeVoiceActors"
-            />
-            <span>Anime Voice Actors (Top 5 Count)</span>
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              id="animeStudios"
-              name="keys"
-              value="animeStudios"
-            />
-            <span>Anime Studios (Top 5 Count)</span>
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              id="animeStaff"
-              name="keys"
-              value="animeStaff"
-            />
-            <span>Anime Staff (Top 5 Count)</span>
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              id="mangaGenres"
-              name="keys"
-              value="mangaGenres"
-            />
-            <span>Manga Genres (Top 5 Count)</span>
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              id="mangaTags"
-              name="keys"
-              value="mangaTags"
-            />
-            <span>Manga Tags (Top 5 Count)</span>
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              id="mangaStaff"
-              name="keys"
-              value="mangaStaff"
-            />
-            <span>Manga Staff (Top 5 Count)</span>
-          </label>
+                            >
+                        </label>
+                        <label>
+                            <input
+                                    type="checkbox"
+                                    id="animeGenres"
+                                    name="keys"
+                                    value="animeGenres"
+                            />
+                            <span>Anime Genres (Top 5 Count)</span>
+                        </label>
+                        <label>
+                            <input
+                                    type="checkbox"
+                                    id="animeTags"
+                                    name="keys"
+                                    value="animeTags"
+                            />
+                            <span>Anime Tags (Top 5 Count)</span>
+                        </label>
+                        <label>
+                            <input
+                                    type="checkbox"
+                                    id="animeVoiceActors"
+                                    name="keys"
+                                    value="animeVoiceActors"
+                            />
+                            <span>Anime Voice Actors (Top 5 Count)</span>
+                        </label>
+                        <label>
+                            <input
+                                    type="checkbox"
+                                    id="animeStudios"
+                                    name="keys"
+                                    value="animeStudios"
+                            />
+                            <span>Anime Studios (Top 5 Count)</span>
+                        </label>
+                        <label>
+                            <input
+                                    type="checkbox"
+                                    id="animeStaff"
+                                    name="keys"
+                                    value="animeStaff"
+                            />
+                            <span>Anime Staff (Top 5 Count)</span>
+                        </label>
+                        <label>
+                            <input
+                                    type="checkbox"
+                                    id="mangaGenres"
+                                    name="keys"
+                                    value="mangaGenres"
+                            />
+                            <span>Manga Genres (Top 5 Count)</span>
+                        </label>
+                        <label>
+                            <input
+                                    type="checkbox"
+                                    id="mangaTags"
+                                    name="keys"
+                                    value="mangaTags"
+                            />
+                            <span>Manga Tags (Top 5 Count)</span>
+                        </label>
+                        <label>
+                            <input
+                                    type="checkbox"
+                                    id="mangaStaff"
+                                    name="keys"
+                                    value="mangaStaff"
+                            />
+                            <span>Manga Staff (Top 5 Count)</span>
+                        </label>
 
-          <!-- Hidden inputs for color data -->
-          <input type="hidden" id="hiddenColor1" name="colors" />
-          <input type="hidden" id="hiddenColor2" name="colors" />
-          <input type="hidden" id="hiddenColor3" name="colors" />
-          <input type="hidden" id="hiddenColor4" name="colors" />
+                        <!-- Hidden inputs for color data -->
+                        <input type="hidden" id="hiddenColor1" name="colors"/>
+                        <input type="hidden" id="hiddenColor2" name="colors"/>
+                        <input type="hidden" id="hiddenColor3" name="colors"/>
+                        <input type="hidden" id="hiddenColor4" name="colors"/>
+                    </div>
+                    <input type="submit" value="Generate SVGs" style="display: none"/>
+                    <!-- Hide the original submit button -->
+                </form>
+
+                <button onclick="validateForm()">Generate/ReGenerate Stat Cards</button>
+            </div>
         </div>
-        <input type="submit" value="Generate SVGs" style="display: none" />
-        <!-- Hide the original submit button -->
-      </form>
-
-      <button onclick="validateForm()">Generate/ReGenerate Stat Cards</button>
     </div>
-  </div>
-</div>
 {% endblock %} {% block scripts %}
-<script>
-  // Allows for pressing enter to submit the form in the username text field
-  let usernameInput = document.getElementById("usernameInput");
-  usernameInput.addEventListener("keypress", function (event) {
-    if (event.key === 'Enter') {
-      validateForm();
-      event.preventDefault();
-    }
-  });
-</script>
-<script src="{{ url_for('static', filename='scripts/sidebarExpanded.js') }}"></script>
-<script src="{{ url_for('static', filename='scripts/sidebarHover.js') }}"></script>
-<script src="{{ url_for('static', filename='scripts/fetchUserData.js') }}"></script>
-<script src="{{ url_for('static', filename='scripts/validateForm.js') }}"></script>
-<script src="{{ url_for('static', filename='scripts/selectAll.js') }}"></script>
+    <script>
+        // Allows for pressing enter to submit the form in the username text field
+        let usernameInput = document.getElementById("usernameInput");
+        usernameInput.addEventListener("keypress", function (event) {
+            if (event.key === 'Enter') {
+                validateForm();
+                event.preventDefault();
+            }
+        });
+    </script>
+    <script src="{{ url_for('static', filename='scripts/sidebarExpanded.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/sidebarHover.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/fetchUserData.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/validateForm.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/selectAll.js') }}"></script>
 {% endblock %}
