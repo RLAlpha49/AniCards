@@ -1,3 +1,4 @@
+import time
 import unittest
 
 from main import app
@@ -12,6 +13,7 @@ class TestBadgesRoute(unittest.TestCase):
     def test_badges_route(self):
         print('\nTesting Badges route...')
         response = self.app.get('/Badges')
+        time.sleep(1)
         self.assertEqual(response.status_code, 200)
 
         # Convert the response data from bytes to string
