@@ -1,3 +1,7 @@
+"""
+This module contains unit tests for the User Profile route in the main application.
+"""
+
 import unittest
 
 from main import app
@@ -55,8 +59,8 @@ class TestUserProfileRoute(unittest.TestCase):
         Test the description of the response.
         """
         description_check = (
-                                "AniList User Page: View and customize AniList stat cards for specific users. Select from "
-                                "various SVG types and download your customized card."
+                                "AniList User Page: View and customize AniList stat cards for specific users. "
+                                "Select from various SVG types and download your customized card."
                             ) in self.response_data
         self.assertTrue(description_check)
         print(
@@ -150,16 +154,8 @@ class TestUserProfileRoute(unittest.TestCase):
             + ("\033[92m✔\033[0m" if button_wrapper_check else "\033[91m✖\033[0m")
         )
 
-    def tearDown(self):
-        """
-        Tear down the test case.
-        """
-        pass
-
 
 if __name__ == "__main__":
-    """
-    Run the test suite.
-    """
+    # Run the test suite.
     suite = unittest.TestLoader().loadTestsFromTestCase(TestUserProfileRoute)
     unittest.TextTestRunner(verbosity=2).run(suite)

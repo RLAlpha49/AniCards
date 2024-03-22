@@ -1,3 +1,7 @@
+"""
+This module contains unit tests for the FAQ route in the main application.
+"""
+
 import unittest
 
 from main import app
@@ -123,16 +127,8 @@ class TestFaqRoute(unittest.TestCase):
             + ("\033[92m✔\033[0m" if question5_check else "\033[91m✖\033[0m")
         )
 
-    def tearDown(self):
-        """
-        Tear down the test case.
-        """
-        pass
-
 
 if __name__ == "__main__":
-    """
-    Run the test suite.
-    """
+    # Run the test suite.
     suite = unittest.TestLoader().loadTestsFromTestCase(TestFaqRoute)
     unittest.TextTestRunner(verbosity=2).run(suite)

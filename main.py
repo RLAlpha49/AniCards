@@ -16,7 +16,7 @@ from threading import Thread
 
 # Related third party imports
 from typing import Dict, List
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import urlparse, urlunparse, ParseResult
 
 import schedule
 from flask import (
@@ -67,7 +67,9 @@ database_url = os.getenv("DATABASE_URL")
 if database_url:
     url = urlparse(database_url)
     if url.scheme == "postgres":
-        url = url._replace(scheme="postgresql")
+        url = ParseResult(
+            "postgresql", url.netloc, url.path, url.params, url.query, url.fragment
+        )
     database_url = urlunparse(url)
 
 # Configure SQLAlchemy with the database URL
@@ -210,7 +212,7 @@ def generate_svgs(username):
             db.session.commit()
 
         successful_keys = process_keys_and_generate_svgs(
-            username=username, keys=keys, colors=colors, user=user
+            username=username, keys=keys, colors=colors
         )
 
         # Update the keys in the StatCard
@@ -457,7 +459,7 @@ if not os.path.exists("instance/test.db") and not database_url:
         db.create_all()
 
 
-def process_keys_and_generate_svgs(username, keys, colors, user):
+def process_keys_and_generate_svgs(username, keys, colors):
     """
     Process the provided keys,
     fetch the corresponding data,
@@ -468,8 +470,6 @@ def process_keys_and_generate_svgs(username, keys, colors, user):
     username (str): The username of the user.
     keys (list): The keys to process.
     colors (dict): The colors to use in the SVGs.
-    user (User): The user object.
-    statcard (StatCard): The statcard object.
 
     Returns:
     list: A list of keys for which SVGs were successfully generated.
@@ -527,7 +527,6 @@ def process_user(user, custom_order):
     Args:
         user (User): The user to process.
         custom_order (list): The custom order to sort the keys in.
-        key_to_class (dict): A mapping from keys to classes.
 
     Returns:
         None
@@ -571,7 +570,6 @@ def process_key(key, data, user_info, successful_keys):
         data (dict): The data to generate the SVG from.
         user_info (dict): A dictionary containing the user and colors.
         successful_keys (list): A list of keys that have been successfully processed.
-        key_to_class (dict): A mapping from keys to classes.
 
     Returns:
         None

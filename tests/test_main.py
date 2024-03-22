@@ -1,3 +1,10 @@
+"""
+This module contains the test suite for the application.
+It loads all test cases from different test classes into a test suite and runs them.
+"""
+
+# pylint: disable=C0413, E0401
+
 import os
 import sys
 
@@ -27,8 +34,6 @@ def suite():
 
 
 if __name__ == "__main__":
-    """
-    Run the test suite.
-    """
+    # Run the test suite.
     runner = unittest.TextTestRunner()
     runner.run(suite())

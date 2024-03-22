@@ -118,9 +118,9 @@ def generate_button(name, y):
         raise e
 
 
-def fetch_data(name, username):  # pylint: disable=W0613, C0116
-    # This function needs to be implemented
-    pass
+# def fetch_data(name, username):  # pylint: disable=W0613, C0116
+#     # This function needs to be implemented
+#     pass
 
 
 def generate_base_stats_html(  # pylint: disable=R0913
@@ -298,7 +298,7 @@ def generate_extra_stats_html(
 
             # Inline the styles and calculate the font size
             html_template, font_size = inline_styles_and_calculate_font_size(
-                username, html_template, colors, key
+                username, colors, key
             )
 
             # Generate the CSS rules for the header class
@@ -532,13 +532,12 @@ def calculate_font_size(text, initial_font_size, max_width):
         raise e
 
 
-def inline_styles_and_calculate_font_size(username, html_template, colors, key):
+def inline_styles_and_calculate_font_size(username, colors, key):
     """
     Inline the styles and calculate the font size for the SVG.
 
     Parameters:
     username (str): The username of the user.
-    html_template (str): The HTML template to be used for the SVG.
     colors (list): A list of color values to be used in the SVG.
     key (str): The key to be used in the statistics.
 

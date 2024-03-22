@@ -1,3 +1,7 @@
+"""
+This module contains unit tests for the Home route in the main application.
+"""
+
 import unittest
 
 from main import app
@@ -53,8 +57,8 @@ class TestHomeRoute(unittest.TestCase):
         Test the description of the response.
         """
         description_check = (
-                                "AniCards is a project in active development that provides statistical cards for AniList "
-                                "users."
+                                "AniCards is a project in active development that provides "
+                                "statistical cards for AniList users."
                             ) in self.response_data
         self.assertTrue(description_check)
         print(
@@ -62,16 +66,8 @@ class TestHomeRoute(unittest.TestCase):
             + ("\033[92m✔\033[0m" if description_check else "\033[91m✖\033[0m")
         )
 
-    def tearDown(self):
-        """
-        Tear down the test case.
-        """
-        pass
-
 
 if __name__ == "__main__":
-    """
-    Run the test suite.
-    """
+    # Run the test suite.
     suite = unittest.TestLoader().loadTestsFromTestCase(TestHomeRoute)
     unittest.TextTestRunner(verbosity=2).run(suite)
