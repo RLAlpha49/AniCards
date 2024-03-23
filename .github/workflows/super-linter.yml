@@ -19,9 +19,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Make scripts executable
-        run: chmod +x linux_install_and_run.sh
-
       - name: Super-Linter
         uses: super-linter/super-linter@v6.3.0
         env:
