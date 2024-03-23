@@ -1,5 +1,5 @@
 ---
-name: Route Tests
+name: Tests
 
 on:
   push:
@@ -7,7 +7,8 @@ on:
   pull_request:
     branches: [main]
 jobs:
-  build:
+  Route-Tests:
+    name: Route Tests
     runs-on: ubuntu-latest
     permissions:
       contents: read
