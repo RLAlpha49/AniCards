@@ -1,5 +1,6 @@
 # AniCards
 
+[![Route Tests](https://github.com/RLAlpha49/AniCards/actions/workflows/route-tests.yml/badge.svg)](https://github.com/RLAlpha49/AniCards/actions/workflows/route-tests.yml)
 [![CodeQL](https://github.com/RLAlpha49/AniCards/actions/workflows/codeql.yml/badge.svg)](https://github.com/RLAlpha49/AniCards/actions/workflows/codeql.yml)
 [![Qodana](https://github.com/RLAlpha49/AniCards/actions/workflows/code_quality.yml/badge.svg)](https://github.com/RLAlpha49/AniCards/actions/workflows/code_quality.yml)
 [![Lint Code Base](https://github.com/RLAlpha49/AniCards/actions/workflows/super-linter.yml/badge.svg)](https://github.com/RLAlpha49/AniCards/actions/workflows/super-linter.yml)
