@@ -2,7 +2,8 @@
 This module is the main entry point for the AniCards application.
 """
 
-# pylint: disable=W0511
+# pylint: disable=W0511, E0401
+
 # TODO: Add option for light or dark mode for Stat Cards (Part of Themes)
 # TODO: Add option to change theme of Stat Cards (Need more to be made/designed if people want them)
 # TODO: Add a Banner/Badges generator from user input (Need to implement imgur API)
@@ -348,8 +349,8 @@ def get_svg(username, key):
                 response = make_response(record.data)
                 response.headers["Content-Type"] = "image/svg+xml"
                 return response
-            abort(404, description="SVG not found")
-        abort(404, description="User not found")
+            return abort(404, description="SVG not found")
+        return abort(404, description="User not found")
     except Exception as e:
         log_message(
             f"An error occurred while fetching SVG for user: {username}, key: {key}. Error: {e}",
@@ -397,9 +398,9 @@ def get_svg_from_db(username, key):
 
                 return response
 
-            abort(404, description="SVG not found")
+            return abort(404, description="SVG not found")
 
-        abort(404, description="User not found")
+        return abort(404, description="User not found")
     except Exception as e:
         log_message(
             f"An error occurred while fetching SVG from database for user: "

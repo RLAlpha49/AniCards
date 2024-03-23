@@ -2,6 +2,9 @@
 This module contains unit tests for the User Profile route in the main application.
 """
 
+# pylint: disable=R0801
+
+
 import unittest
 
 from main import app

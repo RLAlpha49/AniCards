@@ -1,4 +1,4 @@
-# pylint: disable=C0103
+# pylint: disable=C0103, E0401, C0411
 """
 This module is used to fetch and process data from AniList.
 It uses the requests module to send HTTP requests and the queries module to handle GraphQL queries.
@@ -6,7 +6,6 @@ It uses the requests module to send HTTP requests and the queries module to hand
 # Import necessary modules
 import requests
 
-# pylint: disable=import-error, C0411
 from Program.Anilist import queries
 from Program.Utils.logger import log_message
 from requests.exceptions import Timeout

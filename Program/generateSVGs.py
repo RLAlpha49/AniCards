@@ -6,7 +6,7 @@ This module is used to generate SVG html.
 import math
 import os
 
-from markupsafe import Markup
+from markupsafe import Markup  # pylint: disable=E0401
 from Program.Utils.logger import log_message  # pylint: disable=E0401
 
 
