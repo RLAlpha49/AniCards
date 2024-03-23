@@ -2,6 +2,8 @@
 This module contains unit tests for the Badges route in the main application.
 """
 
+# pylint: disable=R0801
+
 import unittest
 
 from main import app
