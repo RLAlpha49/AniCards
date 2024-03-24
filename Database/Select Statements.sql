@@ -1,3 +1,5 @@
+-- noinspection SqlResolveForFile
+
 SELECT * FROM svg.users;
 
 SELECT * FROM svg.statcards;
