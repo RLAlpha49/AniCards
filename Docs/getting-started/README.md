@@ -4,9 +4,7 @@ description: Getting started running the application personally
 
 # Getting Started
 
-## Getting Started
-
-### Prerequisites
+## Prerequisites
 
 Before running the application, make sure you have the following installed:
 
