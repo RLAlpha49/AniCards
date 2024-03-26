@@ -83,7 +83,7 @@ description: Changelogs of the AniCards project
 
 * [Remove demo route](https://github.com/RLAlpha49/AniCards/commit/451c667e688448ef37a30c567c5157ec505441da)
 
-### Bug fixes
+### Bugfixes
 
 * [Fix error for no milestone being set if value was too low](https://github.com/RLAlpha49/AniCards/commit/bb0b4daa2614fdc7510753c7ae07ee7ce1d0a371)
 
@@ -108,7 +108,7 @@ description: Changelogs of the AniCards project
 
 ## 2/16/2024
 
-### Bug fixes
+### Bugfixes
 
 * [Remove test key types from anime stats](https://github.com/RLAlpha49/AniCards/commit/6e4a0fc381f4a0940e61d4a297429e1e08d0d202)
 

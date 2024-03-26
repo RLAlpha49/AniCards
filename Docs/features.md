@@ -4,13 +4,13 @@ description: Current and planned features of AniCards
 
 # Features
 
-### Included Features
+## Included Features
 
 * Fetches user data from AniList using the AniList GraphQL API.
 * Generates SVG stat cards that display the user's statistics.
 * Stores generated SVGs in a PostgreSQL database for caching.
 
-### Planned Features
+## Planned Features
 
 * Supports multiple themes for the stat cards.
 * Generates SVG stat badges for milestones
