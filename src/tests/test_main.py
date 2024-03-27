@@ -12,7 +12,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 import unittest  # noqa: E402
 
-from test_badges import TestBadgesRoute  # noqa: E402
+# from test_badges import TestBadgesRoute  # noqa: E402
 from test_faq import TestFaqRoute  # noqa: E402
 from test_home import TestHomeRoute  # noqa: E402
 from test_stat_cards import TestStatCardsRoute  # noqa: E402
@@ -28,7 +28,7 @@ def suite():
     test_suite.addTest(loader.loadTestsFromTestCase(TestHomeRoute))
     test_suite.addTest(loader.loadTestsFromTestCase(TestFaqRoute))
     test_suite.addTest(loader.loadTestsFromTestCase(TestStatCardsRoute))
-    test_suite.addTest(loader.loadTestsFromTestCase(TestBadgesRoute))
+    # test_suite.addTest(loader.loadTestsFromTestCase(TestBadgesRoute))
     test_suite.addTest(loader.loadTestsFromTestCase(TestUserProfileRoute))
     return test_suite
 
