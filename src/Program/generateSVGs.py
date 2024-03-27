@@ -7,7 +7,7 @@ import math
 import os
 
 from markupsafe import Markup  # pylint: disable=E0401
-from Program.Utils.logger import log_message  # pylint: disable=E0401
+from src.Program.Utils.logger import log_message  # pylint: disable=E0401
 
 
 def generate_svg(title, value, username, colors, card_type="Default"):

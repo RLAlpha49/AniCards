@@ -7,7 +7,7 @@ This module contains unit tests for the User Profile route in the main applicati
 
 import unittest
 
-from main import app
+from src.main import app
 
 
 class TestUserProfileRoute(unittest.TestCase):

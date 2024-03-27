@@ -4,8 +4,8 @@ __pycache__
 /instance
 fourm.txt
 post.txt
-/logs
+/src/logs
 .vscode/settings.json
 env
-public/images/Old PNG's
+src/public/images/Old PNG's
 /.idea

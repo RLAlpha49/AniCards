@@ -6,7 +6,7 @@ This module contains unit tests for the Badges route in the main application.
 
 import unittest
 
-from main import app
+from src.main import app
 
 
 class TestBadgesRoute(unittest.TestCase):

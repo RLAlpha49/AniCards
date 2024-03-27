@@ -5,8 +5,8 @@ It uses the requests module to send HTTP requests and the queries module to hand
 """
 # Import necessary modules
 import requests
-from Program.Anilist import queries
-from Program.Utils.logger import log_message
+from src.Program.Anilist import queries
+from src.Program.Utils.logger import log_message
 from requests.exceptions import Timeout
 
 
