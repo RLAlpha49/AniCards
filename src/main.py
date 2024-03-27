@@ -30,6 +30,7 @@ from flask import (
     send_from_directory,
     url_for,
 )
+from sqlalchemy.exc import OperationalError  # pylint: disable=C0411
 
 # Local application/library specific imports
 from src.Program.Anilist import AniListData
@@ -51,7 +52,6 @@ from src.Program.Database.models import (
 )
 from src.Program.generateSVGs import generate_svg
 from src.Program.Utils.logger import log_message
-from sqlalchemy.exc import OperationalError  # pylint: disable=C0411
 
 # Use the imported modules
 fetch_anilist_data = AniListData.fetch_anilist_data

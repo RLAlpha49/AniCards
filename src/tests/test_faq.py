@@ -4,7 +4,7 @@ This module contains unit tests for the FAQ route in the main application.
 
 import unittest
 
-from src.main import app
+from src.main import app  # pylint: disable=E0401
 
 
 class TestFaqRoute(unittest.TestCase):

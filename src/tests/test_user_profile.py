@@ -7,7 +7,7 @@ This module contains unit tests for the User Profile route in the main applicati
 
 import unittest
 
-from src.main import app
+from src.main import app  # pylint: disable=E0401
 
 
 class TestUserProfileRoute(unittest.TestCase):
