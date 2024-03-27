@@ -33,9 +33,9 @@ from flask import (
 from sqlalchemy.exc import OperationalError  # pylint: disable=C0411
 
 # Local application/library specific imports
-from src.Program.Anilist import AniListData
-from src.Program.Database import database
-from src.Program.Database.models import (
+from Program.Anilist import AniListData
+from Program.Database import database
+from Program.Database.models import (
     AnimeGenres,
     AnimeStaff,
     AnimeStats,
@@ -50,8 +50,8 @@ from src.Program.Database.models import (
     StatCard,
     User,
 )
-from src.Program.generateSVGs import generate_svg
-from src.Program.Utils.logger import log_message
+from Program.generateSVGs import generate_svg
+from Program.Utils.logger import log_message
 
 # Use the imported modules
 fetch_anilist_data = AniListData.fetch_anilist_data
