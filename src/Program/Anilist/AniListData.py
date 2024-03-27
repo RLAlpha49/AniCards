@@ -5,9 +5,9 @@ It uses the requests module to send HTTP requests and the queries module to hand
 """
 # Import necessary modules
 import requests
-from requests.exceptions import Timeout
 from Program.Anilist import queries
 from Program.Utils.logger import log_message
+from requests.exceptions import Timeout
 
 
 def get_user_id(username):
