@@ -80,7 +80,7 @@ def generate_svg(title, value, username, colors, card_type="Default"):
 
     except Exception as e:
         log_message(f"Error occurred generating svg for {title}: {e}", "error")
-        raise e
+        raise Exception(f"Error occurred generating svg for {title}: {e}")
 
 
 def generate_button(name, y):

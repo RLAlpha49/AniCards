@@ -477,50 +477,57 @@ def process_keys_and_generate_svgs(username, keys, colors):
     Returns:
     list: A list of keys for which SVGs were successfully generated.
     """
-    # Define custom order
-    custom_order = ["animeStats", "socialStats", "mangaStats"]
+    try:
+        # Define custom order
+        custom_order = ["animeStats", "socialStats", "mangaStats"]
 
-    # Sort keys according to custom order
-    keys.sort(
-        key=lambda x: custom_order.index(x) if x in custom_order else len(custom_order)
-    )
+        # Sort keys according to custom order
+        keys.sort(
+            key=lambda x: custom_order.index(x) if x in custom_order else len(custom_order)
+        )
 
-    # Fetch the data and generate an SVG for each key
-    data, userid = fetch_anilist_data(username, keys)
+        # Fetch the data and generate an SVG for each key
+        data, userid = fetch_anilist_data(username, keys)
 
-    # Check if a user with the given username exists
-    user = User.query.filter_by(username=username).first()
+        # Check if a user with the given username exists
+        user = User.query.filter_by(username=username).first()
 
-    if not user:
-        # If the user doesn't exist, create a new user
-        user = User(username=username, userid=userid)
-        db.session.add(user)
-        db.session.commit()
-    else:
-        # If the user exists but the userid is different, update the userid
-        if user.userid != userid:
-            user.userid = userid
+        if not user:
+            # If the user doesn't exist, create a new user
+            user = User(username=username, userid=userid)
+            db.session.add(user)
             db.session.commit()
+        else:
+            # If the user exists but the userid is different, update the userid
+            if user.userid != userid:
+                user.userid = userid
+                db.session.commit()
 
-    successful_keys = []
+        successful_keys = []
 
-    for key in keys:
-        svg_data = generate_svg(key, data.get(key) if data else None, username, colors)
+        for key in keys:
+            svg_data = generate_svg(key, data.get(key) if data else None, username, colors)
 
-        if svg_data is not None:
-            successful_keys.append(key)  # Add the key to the list of successful keys
+            if svg_data is not None:
+                successful_keys.append(key)  # Add the key to the list of successful keys
 
-            # Save the data in the respective table
-            record_class = key_to_class.get(key)
-            if record_class:
-                record = record_class.query.filter_by(user_id=user.userid).first()
-                if record:
-                    record.data = svg_data
-                else:
-                    record = record_class(data=svg_data, user_id=user.userid)
-                    db.session.add(record)
+                # Save the data in the respective table
+                record_class = key_to_class.get(key)
+                if record_class:
+                    record = record_class.query.filter_by(user_id=user.userid).first()
+                    if record:
+                        record.data = svg_data
+                    else:
+                        record = record_class(data=svg_data, user_id=user.userid)
+                        db.session.add(record)
 
-    return successful_keys
+        return successful_keys
+    except Exception as e:
+        log_message(
+            f"An error occurred while processing keys and generating SVGs for user: {username}. Error: {e}",
+            "error",
+        )
+        raise e
 
 
 def process_user(user, custom_order):
