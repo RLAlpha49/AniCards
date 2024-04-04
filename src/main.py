@@ -530,7 +530,8 @@ def process_keys_and_generate_svgs(username, keys, colors):
         return successful_keys
     except Exception as e:
         log_message(
-            f"An error occurred while processing keys and generating SVGs for user: {username}. Error: {e}",
+            "An error occurred while processing keys and generating SVGs for user: "
+            f"{username}. Error: {str(e)}",
             "error",
         )
         raise e
