@@ -483,7 +483,9 @@ def process_keys_and_generate_svgs(username, keys, colors):
 
         # Sort keys according to custom order
         keys.sort(
-            key=lambda x: custom_order.index(x) if x in custom_order else len(custom_order)
+            key=lambda x: (
+                custom_order.index(x) if x in custom_order else len(custom_order)
+            )
         )
 
         # Fetch the data and generate an SVG for each key
@@ -506,10 +508,14 @@ def process_keys_and_generate_svgs(username, keys, colors):
         successful_keys = []
 
         for key in keys:
-            svg_data = generate_svg(key, data.get(key) if data else None, username, colors)
+            svg_data = generate_svg(
+                key, data.get(key) if data else None, username, colors
+            )
 
             if svg_data is not None:
-                successful_keys.append(key)  # Add the key to the list of successful keys
+                successful_keys.append(
+                    key
+                )  # Add the key to the list of successful keys
 
                 # Save the data in the respective table
                 record_class = key_to_class.get(key)
