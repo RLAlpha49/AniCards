@@ -296,11 +296,18 @@ def fetch_anilist_data(username, keys):
                 raise ValueError(error_message)
 
             try:
-                log_message(f"Started fetching anime data for {username}, Keys: {keys}", "debug")
+                log_message(
+                    f"Started fetching anime data for {username}, Keys: {keys}", "debug"
+                )
                 data.update(fetch_anime_data(response_data, keys))
-                log_message(f"Started fetching manga data for {username}, Keys: {keys}", "debug")
+                log_message(
+                    f"Started fetching manga data for {username}, Keys: {keys}", "debug"
+                )
                 data.update(fetch_manga_data(response_data, keys))
-                log_message(f"Started fetching social data for {username}, Keys: {keys}", "debug")
+                log_message(
+                    f"Started fetching social data for {username}, Keys: {keys}",
+                    "debug",
+                )
                 data.update(fetch_social_data(response_data))
             except Exception as e:  # pylint: disable=W0703
                 log_message(f"Error: {e}", "error")
