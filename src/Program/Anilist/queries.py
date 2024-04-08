@@ -87,7 +87,7 @@ USER_ANIME_MANGA_SOCIAL_STATS = """
                 }
             }
         }
-        followersPage: Page {
+        followersPage: Page(perPage: 1) {
             pageInfo {
                 total
             }
@@ -95,7 +95,7 @@ USER_ANIME_MANGA_SOCIAL_STATS = """
                 id
             }
         }
-        followingPage: Page {
+        followingPage: Page(perPage: 1) {
             pageInfo {
                 total
             }
@@ -103,7 +103,7 @@ USER_ANIME_MANGA_SOCIAL_STATS = """
                 id
             }
         }
-        threadsPage: Page {
+        threadsPage: Page(perPage: 1) {
             pageInfo {
                 total
             }
@@ -111,7 +111,7 @@ USER_ANIME_MANGA_SOCIAL_STATS = """
                 id
             }
         }
-        threadCommentsPage: Page {
+        threadCommentsPage: Page(perPage: 1) {
             pageInfo {
                 total
             }
@@ -119,7 +119,7 @@ USER_ANIME_MANGA_SOCIAL_STATS = """
                 id
             }
         }
-        reviewsPage: Page {
+        reviewsPage: Page(perPage: 1) {
             pageInfo {
                 total
             }
