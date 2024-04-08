@@ -180,7 +180,7 @@ def generate_svgs(username):
                 # Try to fetch the user using the userid
                 user = User.query.filter_by(userid=userid).first()
                 if not user:
-                    # If the user still doesn't exist, create a new user with the username and userid
+                    # If the user still doesn't exist, create new user with the username and userid
                     user = User(username=username, userid=userid)
                     db.session.add(user)
                 else:
