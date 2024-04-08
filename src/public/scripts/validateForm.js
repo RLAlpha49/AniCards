@@ -10,8 +10,8 @@ function validateForm () {
 
   // Check if the username contains a space
   if (username.includes(' ')) {
-    alert('Username should not contain spaces.');
-    return;
+    alert('Username should not contain spaces.')
+    return
   }
 
   // Get all the checkboxes in the form with id 'dataForm'

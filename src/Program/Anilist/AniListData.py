@@ -34,6 +34,8 @@ def get_user_id(username):
             timeout=10,
         )
 
+        response_data = user_id_response.json()
+
         if (
             "errors" in response_data
             and any(
