@@ -171,15 +171,21 @@ def generate_svgs(username):
     }
 
     try:
-        # Fetch the user
+        # Fetch the user by username
         user = User.query.filter_by(username=username).first()
         if not user:
             # If the user doesn't exist, fetch the userid
             userid = fetch_user_id(username)
             if userid is not None:
-                # Create a new user with the username and userid
-                user = User(username=username, userid=userid)
-                db.session.add(user)
+                # Try to fetch the user using the userid
+                user = User.query.filter_by(userid=userid).first()
+                if not user:
+                    # If the user still doesn't exist, create a new user with the username and userid
+                    user = User(username=username, userid=userid)
+                    db.session.add(user)
+                else:
+                    # If a user with the given userid exists, update the username
+                    user.username = username
                 db.session.commit()
 
         log_message(f"Generating SVGs for user: {username}")

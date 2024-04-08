@@ -8,6 +8,12 @@ function validateForm () {
   // Get the username from the input field with id 'usernameInput'
   const username = document.getElementById('usernameInput').value
 
+  // Check if the username contains a space
+  if (username.includes(' ')) {
+    alert('Username should not contain spaces.');
+    return;
+  }
+
   // Get all the checkboxes in the form with id 'dataForm'
   const checkboxes = document.querySelectorAll(
     '#dataForm input[type="checkbox"]'
