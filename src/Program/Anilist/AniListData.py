@@ -33,6 +33,17 @@ def get_user_id(username):
             },
             timeout=10,
         )
+
+        if (
+            "errors" in response_data
+            and any(
+                "Internal Server Error" in error.get("message")
+                or error.get("status") == 500
+                for error in response_data["errors"]
+            )
+        ) or ("error" in response_data and response_data["error"].get("status") == 500):
+            raise ValueError("Anilist Server Error (Try Again)")
+
     except Timeout as exc:
         log_message("Error: Request to get user ID timed out", "error")
         raise Timeout("Request to get user ID timed out") from exc
@@ -285,6 +296,19 @@ def fetch_anilist_data(username, keys):
 
             response_data = response.json()
             log_message(f"Data fetched for {username}: {response_data}", "debug")
+
+            # Check for 'Internal Server Error' or 'Status': 500
+            if (
+                "errors" in response_data
+                and any(
+                    "Internal Server Error" in error.get("message")
+                    or error.get("status") == 500
+                    for error in response_data["errors"]
+                )
+            ) or (
+                "error" in response_data and response_data["error"].get("status") == 500
+            ):
+                raise ValueError("Anilist Server Error (Try Again)")
 
             if response_data is None or "data" not in response_data:
                 error_message = (
