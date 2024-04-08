@@ -4,6 +4,69 @@ description: Changelogs of the AniCards project
 
 # Changelog
 
+## 4/8/2024
+
+### Improvements
+
+* [Reduce unnecessary items in query](https://github.com/RLAlpha49/AniCards/commit/68875d49a37fcdcbc1f38bd8e9995223b1261a73)
+
+### Bugfixes
+
+* [Fixed database error for trying to create a duplicate userid due to username containing spaces](https://github.com/RLAlpha49/AniCards/commit/7cecbd2c58b31feed3944229e7c274a511e1f0e7)
+
+## 4/5/2024
+
+### Improvements
+
+* [Added extra log handling for fetching data](https://github.com/RLAlpha49/AniCards/commit/38225b9669deceb376756788b644195b2224d5a5)
+
+## 4/4/2024
+
+### Improvements
+
+* [Error handling displays what svg the error came from and what the error is](https://github.com/RLAlpha49/AniCards/commit/86dc115fc8c1279bf7f292c54d057e03c4bf52ad)
+
+## 3/25/2024
+
+### Improvements
+
+* [More specific on what username to enter on statCards.html](https://github.com/RLAlpha49/AniCards/commit/afeb5cfcadf5f79dc350906f9e1e11a452b0d6da)
+
+## 3/22/2024
+
+### New features <a href="#new-features-1-2" id="new-features-1-2"></a>
+
+* [Create route-tests.yml for testing routes through GitHub actions](https://github.com/RLAlpha49/AniCards/commit/65b910945b4d5c44b0ca1b0f12313e150f88d79c)
+
+### Bugfixes
+
+* [Fix DOM text reinterpreted as HTML](https://github.com/RLAlpha49/AniCards/commit/5377e70c75c8c5be9cfe73a4296a613847795327)
+
+## 3/21/2024
+
+### Improvements
+
+* [Remove forceRenderSVGs.js](https://github.com/RLAlpha49/AniCards/commit/570270c6f369b9d0627e8dbd8a39d5aa877b2a8b)
+
+## 3/17/2024
+
+### Improvements
+
+* [Change sidebar size to 180px, Fix footer width, Error handling for database connection issues](https://github.com/RLAlpha49/AniCards/commit/41979c02602afe0c3c5c7a9fc200ddd0fd0092b3)
+
+## 3/16/2024
+
+### Improvements
+
+* [Added lazy image loading](https://github.com/RLAlpha49/AniCards/commit/04abbbf95d4470abf0dd6faaa1344ca7c686ea3c)
+* [Switched image format to webp from png](https://github.com/RLAlpha49/AniCards/commit/f8b2155ca2c013575a32828f914fd859dedf9353)
+
+## 3/11/2024
+
+### Bugfixes
+
+* [Fix capitalization of AniCards.css file](https://github.com/RLAlpha49/AniCards/commit/97bb0ef8a386bb355b91276785a1157fcaddf908)
+
 ## 3/2/2024
 
 ### Improvements
