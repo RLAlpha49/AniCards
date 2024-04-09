@@ -103,7 +103,7 @@ USER_ANIME_MANGA_SOCIAL_STATS = """
                 id
             }
         }
-        threadsPage: Page(perPage: 1) {
+        threadsPage: Page {
             pageInfo {
                 total
             }
