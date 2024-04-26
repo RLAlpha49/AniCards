@@ -59,7 +59,7 @@ description: Changelogs of the AniCards project
 ### Improvements
 
 * [Added lazy image loading](https://github.com/RLAlpha49/AniCards/commit/04abbbf95d4470abf0dd6faaa1344ca7c686ea3c)
-* [Switched image format to webp from png](https://github.com/RLAlpha49/AniCards/commit/f8b2155ca2c013575a32828f914fd859dedf9353)
+* [Switched image format to webp from PNG](https://github.com/RLAlpha49/AniCards/commit/f8b2155ca2c013575a32828f914fd859dedf9353)
 
 ## 3/11/2024
 
