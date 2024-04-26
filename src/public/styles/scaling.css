@@ -141,6 +141,11 @@
     font-size: calc(1em * 0.95);
   }
 
+  .small-text {
+    padding-left: calc(10px * 0.9);
+    font-size: calc(0.8em * 0.95);
+  }
+
   header {
     height: calc(42px * 0.9);
   }
@@ -309,6 +314,11 @@
     font-size: calc(1em * 0.9);
   }
 
+  .small-text {
+    padding-left: calc(10px * 0.8);
+    font-size: calc(0.8em * 0.9);
+  }
+
   header {
     height: calc(42px * 0.8);
   }
@@ -470,6 +480,11 @@
   .link-text {
     padding-left: calc(10px * 0.7);
     font-size: calc(1em * 0.85);
+  }
+
+  .small-text {
+    padding-left: calc(10px * 0.7);
+    font-size: calc(0.8em * 0.85);
   }
 
   header {
@@ -635,6 +650,11 @@
     font-size: calc(1em * 0.8);
   }
 
+  .small-text {
+    padding-left: calc(10px * 0.6);
+    font-size: calc(0.8em * 0.8);
+  }
+
   header {
     height: calc(42px * 0.6);
   }
@@ -795,6 +815,11 @@
   .link-text {
     padding-left: calc(10px * 0.5);
     font-size: calc(1em * 0.7);
+  }
+
+  .small-text {
+    padding-left: calc(10px * 0.5);
+    font-size: calc(0.8em * 0.75);
   }
 
   header {

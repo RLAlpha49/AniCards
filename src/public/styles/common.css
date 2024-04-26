@@ -153,7 +153,25 @@ header p {
   color: white;
 }
 
-.sidebar.expanded .link-text {
+.text-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.small-text {
+  transform: scaleX(0);
+  transform-origin: left;
+  opacity: 0;
+  transition: transform 0.7s, opacity 0.7s;
+  white-space: nowrap;
+  text-decoration: none;
+  filter: brightness(0.6);
+  color: white;
+  font-size: 0.8em;
+  display: block;
+}
+
+.sidebar.expanded .link-text, .sidebar.expanded .small-text {
   padding-left: 10px;
   transform: scaleX(1);
   opacity: 1;
