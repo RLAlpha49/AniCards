@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="320"
+  height="195"
+  viewBox="0 0 320 195"
+  fill="none"
+  role="img"
+  aria-labelledby="desc-id"
+>
+  <title id="title-id">Alpha49's Studios Anime Stats</title>
+  <desc id="desc-id">
+    Data 1: 33, Data 2: 25, Data 3: 23, Data 4: 19, Data 5:
+    17
+  </desc>
+  <defs><style>/* stylelint-disable selector-class-pattern, keyframes-name-pattern */
+
+svg {
+  overflow: visible;
+}
+
+[data-testid="card-title"] text {
+  fill: #fe428e;
+}
+
+[data-testid="main-card-body"] circle {
+  stroke: #fe428e;
+}
+
+[data-testid="card-bg"] {
+  fill: #141321;
+}
+
+[data-testid="main-card-body"] text {
+  fill: #a9fef7;
+}
+
+.header {
+  font-weight: 600;
+  font-family: "Segoe UI", Ubuntu, sans-serif;
+  fill: #fe428e;
+  animation: fadeInAnimation 0.8s ease-in-out forwards;
+}
+
+@supports (-moz-appearance: auto) {
+
+  /* Selector detects Firefox */
+  .header {
+    font-size: 15.5px;
+  }
+}
+
+.stat {
+  font: 600 14px "Segoe UI", Ubuntu, "Helvetica Neue", sans-serif;
+  fill: #a9fef7;
+}
+
+@supports (-moz-appearance: auto) {
+
+  /* Selector detects Firefox */
+  .stat {
+    font-size: 12px;
+  }
+}
+
+.stagger {
+  opacity: 0;
+  animation: fadeInAnimation 0.3s ease-in-out forwards;
+}
+
+.rank-text {
+  font: 800 24px "Segoe UI", Ubuntu, sans-serif;
+  fill: #a9fef7;
+  animation: scaleInAnimation 0.3s ease-in-out forwards;
+}
+
+.rank-percentile-header {
+  font-size: 14px;
+}
+
+.rank-percentile-text {
+  font-size: 16px;
+}
+
+.not_bold {
+  font-weight: 400;
+}
+
+.bold {
+  font-weight: 700;
+}
+
+.icon {
+  fill: #f8d847;
+  display: none;
+}
+
+.rank-circle-rim {
+  fill: none;
+  stroke-width: 6;
+  opacity: 0.2;
+}
+
+.rank-circle {
+  stroke-dasharray: 250;
+  fill: none;
+  stroke-width: 6;
+  stroke-linecap: round;
+  opacity: 0.8;
+  transform-origin: -10px 8px;
+  transform: rotate(-90deg);
+  animation: rankAnimation 1s forwards ease-in-out;
+}
+
+@keyframes rankAnimation {
+  from {
+    stroke-dashoffset: 0;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Animations */
+@keyframes scaleInAnimation {
+  from {
+    transform: translate(0, 0) scale(0);
+  }
+
+  to {
+    transform: translate(0, 0) scale(1);
+  }
+}
+
+@keyframes fadeInAnimation {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}</style>
+    <!-- Styles will be inserted here by the inline_styles function -->
+  </defs>
+  <rect
+    data-testid="card-bg"
+    x="0.5"
+    y="0.5"
+    rx="4.5"
+    height="99%"
+    stroke="#e4e2e2"
+    width="319"
+    fill="#141321"
+    stroke-opacity="1"
+  />
+  <g data-testid="card-title" transform="translate(25, 35)">
+    <g transform="translate(0, 0)">
+      <text x="0" y="0" class="header" data-testid="header">
+        Alpha49's Top Anime Studios
+      </text>
+    </g>
+  </g>
+  <g data-testid="main-card-body" transform="translate(0, 55)">
+    <g transform="translate(0, 0)">
+      <g
+        class="stagger"
+        style="animation-delay: 450ms"
+        transform="translate(25, 0)"
+      >
+        <text class="stat bold" y="12.5">J.C. Staff</text>
+        <text class="stat bold" x="239.01" y="12.5" data-testid="data1">
+          33
+        </text>
+      </g>
+      <g
+        class="stagger"
+        style="animation-delay: 600ms"
+        transform="translate(25, 25)"
+      >
+        <text class="stat bold" y="12.5">A-1 Pictures:</text>
+        <text class="stat bold" x="239.01" y="12.5" data-testid="data2">
+          25
+        </text>
+      </g>
+      <g
+        class="stagger"
+        style="animation-delay: 750ms"
+        transform="translate(25, 50)"
+      >
+        <text class="stat bold" y="12.5">Pink Pineapple:</text>
+        <text class="stat bold" x="239.01" y="12.5" data-testid="data3">
+          23
+        </text>
+      </g>
+      <g
+        class="stagger"
+        style="animation-delay: 900ms"
+        transform="translate(25, 75)"
+      >
+        <text class="stat bold" y="12.5">8-bit:</text>
+        <text class="stat bold" x="239.01" y="12.5" data-testid="data4">
+          19
+        </text>
+      </g>
+      <g
+        class="stagger"
+        style="animation-delay: 1050ms"
+        transform="translate(25, 100)"
+      >
+        <text class="stat bold" y="12.5">SILVER LINK.:</text>
+        <text class="stat bold" x="239.01" y="12.5" data-testid="data5">
+          17
+        </text>
+      </g>
+    </g>
+  </g>
+  <script xmlns=""></script>
+</svg>

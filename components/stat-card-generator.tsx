@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { fetchAniListData } from "@/lib/anilist/client";
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
+import { StatCardPreview } from "@/components/stat-card-preview";
 
 interface StatCardGeneratorProps {
   isOpen: boolean;
@@ -71,11 +72,18 @@ export function StatCardGenerator({ isOpen, onClose }: StatCardGeneratorProps) {
   const [circleColor, setCircleColor] = useState(colorPresets.default[3]);
   const [selectedCards, setSelectedCards] = useState<string[]>([]);
   const [selectedPreset, setSelectedPreset] = useState("default");
+  const [allSelected, setAllSelected] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewType, setPreviewType] = useState("");
 
   const handleCheckboxChange = (id: string) => {
-    setSelectedCards((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
+    setSelectedCards((prev) => {
+      const newSelection = prev.includes(id)
+        ? prev.filter((item) => item !== id)
+        : [...prev, id];
+      setAllSelected(newSelection.length === statCardTypes.length);
+      return newSelection;
+    });
   };
 
   const handlePresetChange = (preset: string) => {
@@ -84,6 +92,20 @@ export function StatCardGenerator({ isOpen, onClose }: StatCardGeneratorProps) {
     setBackgroundColor(colorPresets[preset as keyof typeof colorPresets][1]);
     setTextColor(colorPresets[preset as keyof typeof colorPresets][2]);
     setCircleColor(colorPresets[preset as keyof typeof colorPresets][3]);
+  };
+
+  const handleSelectAll = () => {
+    if (allSelected) {
+      setSelectedCards([]);
+    } else {
+      setSelectedCards(statCardTypes.map((type) => type.id));
+    }
+    setAllSelected(!allSelected);
+  };
+
+  const handlePreview = (id: string) => {
+    setPreviewType(id);
+    setPreviewOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -129,7 +151,7 @@ export function StatCardGenerator({ isOpen, onClose }: StatCardGeneratorProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px] overflow-y-auto max-h-[calc(100vh-2rem)]">
+      <DialogContent className="sm:max-w-[600px] overflow-y-auto max-h-[calc(100vh-2rem)]">
         <DialogHeader>
           <DialogTitle>Generate Your Stat Cards</DialogTitle>
           <DialogDescription>
@@ -235,24 +257,73 @@ export function StatCardGenerator({ isOpen, onClose }: StatCardGeneratorProps) {
               </div>
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>Select Stat Cards to Generate</Label>
-            {statCardTypes.map((type) => (
-              <div key={type.id} className="flex items-center space-x-2">
-                <Checkbox
-                  id={type.id}
-                  checked={selectedCards.includes(type.id)}
-                  onCheckedChange={() => handleCheckboxChange(type.id)}
-                />
-                <Label htmlFor={type.id}>{type.label}</Label>
-              </div>
-            ))}
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <Label className="text-lg font-semibold">
+                Select Stat Cards to Generate
+              </Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleSelectAll}
+              >
+                {allSelected ? "Unselect All" : "Select All"}
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {statCardTypes.map((type) => (
+                <div
+                  key={type.id}
+                  className="flex items-start space-x-2 bg-secondary/50 rounded-lg p-3 transition-colors hover:bg-secondary"
+                >
+                  <Checkbox
+                    id={type.id}
+                    checked={selectedCards.includes(type.id)}
+                    onCheckedChange={() => handleCheckboxChange(type.id)}
+                    className="mt-1"
+                  />
+                  <div className="space-y-1 flex-grow">
+                    <Label
+                      htmlFor={type.id}
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      {type.label.split("(")[0].trim()}
+                    </Label>
+                    {type.label.includes("(") && (
+                      <p className="text-xs text-muted-foreground">
+                        ({type.label.split("(")[1].replace(")", "")})
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePreview(type.id)}
+                  >
+                    Preview
+                  </Button>
+                </div>
+              ))}
+            </div>
           </div>
           <Button type="submit" className="w-full">
             Generate Stat Cards
           </Button>
         </form>
       </DialogContent>
+      <StatCardPreview
+        isOpen={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        cardType={previewType}
+        colors={{
+          title: titleColor,
+          background: backgroundColor,
+          text: textColor,
+          circle: circleColor,
+        }}
+      />
     </Dialog>
   );
 }
