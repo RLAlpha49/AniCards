@@ -33,43 +33,51 @@ export default function HomePage() {
 
       <section className="mb-16">
         <h2 className="text-3xl font-semibold mb-8 text-center">Features</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="flex flex-wrap justify-center gap-6">
           <FeatureCard
+            className="w-full md:w-[400px]"
             icon={BarChart2}
             title="Comprehensive Stats"
             description="View detailed statistics about your anime and manga, including watch time, episode count, and score distribution."
           />
           <FeatureCard
+            className="w-full md:w-[400px]"
             icon={Users}
             title="Social Insights"
             description="Track your Anilist social activity, including followers, following, and engagement metrics."
           />
           <FeatureCard
+            className="w-full md:w-[400px]"
             icon={BookOpen}
             title="Manga Analysis"
             description="Dive deep into your manga reading habits with chapter and volume counts, mean scores, and more."
           />
           <FeatureCard
+            className="w-full md:w-[400px]"
             icon={Tag}
             title="Genre & Tag Breakdown"
             description="Discover your top anime and manga genres and tags to understand your preferences better."
           />
           <FeatureCard
+            className="w-full md:w-[400px]"
             icon={Mic}
             title="Voice Actor Highlights"
             description="Find out which voice actors appear most frequently in your favorite anime."
           />
           <FeatureCard
+            className="w-full md:w-[400px]"
             icon={Building2}
             title="Studio Insights"
             description="See which animation studios produce your most-watched anime."
           />
           <FeatureCard
+            className="w-full md:w-[400px]"
             icon={User}
             title="Staff Spotlight"
             description="Identify the directors, writers, and other staff members behind your favorite works."
           />
           <FeatureCard
+            className="w-full md:w-[400px]"
             icon={BookType}
             title="Manga Creator Focus"
             description="Explore the mangaka and staff responsible for your top-rated manga."
@@ -94,11 +102,12 @@ interface FeatureCardProps {
   icon: React.ElementType
   title: string
   description: string
+  className?: string
 }
 
-function FeatureCard({ icon: Icon, title, description }: FeatureCardProps) {
+function FeatureCard({ icon: Icon, title, description, className }: FeatureCardProps) {
   return (
-    <Card>
+    <Card className={`${className || ''}`}>
       <CardHeader>
         <Icon className="h-10 w-10 mb-2 text-primary" />
         <CardTitle className="text-xl">{title}</CardTitle>
