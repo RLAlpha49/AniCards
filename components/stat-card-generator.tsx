@@ -110,42 +110,61 @@ export function StatCardGenerator({ isOpen, onClose }: StatCardGeneratorProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
+  
     try {
       // Get user ID first
-      const userIdData = await fetchAniListData<{
-        User: { id: number } | null;
-      }>(USER_ID_QUERY, {
-        userName: username,
+      const userIdData = await fetchAniListData<{ User: { id: number } | null }>(USER_ID_QUERY, {
+        userName: username
       });
-
+  
       if (!userIdData?.User?.id) {
         alert("User not found");
         return;
       }
-
-      // Get all stats
-      const statsData = await fetchAniListData(USER_STATS_QUERY, {
+  
+      const statsData = await fetchAniListData<{
+        User: {
+          statistics: any;
+          stats: any;
+        };
+        followersPage: any;
+        followingPage: any;
+        threadsPage: any;
+        threadCommentsPage: any;
+        reviewsPage: any;
+      }>(USER_STATS_QUERY, {
         userName: username,
-        userId: userIdData.User.id,
+        userId: userIdData.User.id
       });
-
-      // Process the data and combine with form settings
-      const payload = {
-        username,
-        titleColor,
-        backgroundColor,
-        textColor,
-        circleColor,
-        selectedCards,
-        stats: statsData,
-      };
-
-      console.log("Generated Card Data:", payload);
+  
+      const response = await fetch('/api/store-cards', {
+        method: 'POST',
+        headers: new Headers({
+          'Content-Type': 'application/json',
+          'Authorization': process.env.API_SECRET_TOKEN || ''
+        }),
+        body: JSON.stringify({
+          username,
+          titleColor,
+          backgroundColor,
+          textColor,
+          circleColor,
+          selectedCards,
+          stats: statsData
+        })
+      });
+  
+      if (!response.ok) {
+        throw new Error('Failed to store card');
+      }
+  
+      const result = await response.json();
+      console.log('Stored card with ID:', result.id);
       onClose();
+      
     } catch (error) {
-      console.error("Submission failed:", error);
-      alert("Failed to generate cards. Please try again.");
+      console.error('Submission failed:', error);
+      alert('Failed to save card. Please try again.');
     }
   };
 

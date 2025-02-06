@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  env: {
+    MONGODB_URI: process.env.MONGODB_URI,
+    API_SECRET_TOKEN: process.env.API_SECRET_TOKEN
+  }
 };
 
 export default nextConfig;
