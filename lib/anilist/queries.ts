@@ -77,6 +77,7 @@ export const USER_STATS_QUERY = `
       }
       stats {
         activityHistory {
+          date
           amount
         }
       }

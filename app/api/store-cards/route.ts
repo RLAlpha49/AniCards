@@ -36,6 +36,16 @@ export async function POST(request: Request) {
 	}
 
 	try {
+		const { statsData } = await request.json();
+
+		// Check for error in statsData before processing
+		if (statsData?.error) {
+			return NextResponse.json(
+				{ error: "Invalid data: " + statsData.error },
+				{ status: 400 }
+			);
+		}
+
 		const client = new MongoClient(process.env.MONGODB_URI!, {
 			serverApi: {
 				version: ServerApiVersion.v1,
@@ -125,7 +135,7 @@ export async function POST(request: Request) {
 			isNewDocument: updateResult.upsertedId !== null,
 		});
 	} catch (error) {
-		console.error("Database error:", error);
+		console.error("Card storage failed:", error);
 		return NextResponse.json({ error: "Card storage failed" }, { status: 500 });
 	}
 }
