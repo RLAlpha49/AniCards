@@ -5,8 +5,22 @@ import { Redis } from "@upstash/redis";
 
 const ratelimit = new Ratelimit({
 	redis: Redis.fromEnv(),
-	limiter: Ratelimit.slidingWindow(5, "10 s"),
+	limiter: Ratelimit.slidingWindow(10, "10 s"),
 });
+
+interface CardConfig {
+	cardName: string;
+	titleColor: string;
+	backgroundColor: string;
+	textColor: string;
+	circleColor: string;
+}
+
+interface CardsDocument {
+	userId: number;
+	cards: CardConfig[];
+	updatedAt: Date;
+}
 
 export async function POST(request: Request) {
 	const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
@@ -17,15 +31,8 @@ export async function POST(request: Request) {
 	}
 
 	const authToken = request.headers.get("Authorization");
-	const data = await request.json();
-
-	// Basic validation
 	if (!authToken || authToken !== `Bearer ${process.env.API_AUTH_TOKEN}`) {
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-	}
-
-	if (!data.username || !data.selectedCards?.length) {
-		return NextResponse.json({ error: "Invalid data" }, { status: 400 });
 	}
 
 	try {
@@ -36,39 +43,89 @@ export async function POST(request: Request) {
 				deprecationErrors: true,
 			},
 		});
-		const db = client.db("main");
+		const db = client.db("anicards");
+		const { userId, cards: incomingCards } = await request.json();
+		const now = new Date();
 
-		const result = await db.collection("cards").updateOne(
-			{ userId: data.userId },
+		const updateResult = await db.collection<CardsDocument>("cards").updateOne(
+			{ userId },
+			[
+				{
+					$set: {
+						cards: {
+							$concatArrays: [
+								// Update existing cards
+								{
+									$map: {
+										input: { $ifNull: ["$cards", []] },
+										as: "existingCard",
+										in: {
+											$mergeObjects: [
+												"$$existingCard",
+												{
+													$arrayElemAt: [
+														{
+															$filter: {
+																input: incomingCards,
+																as: "incoming",
+																cond: {
+																	$eq: [
+																		"$$incoming.cardName",
+																		"$$existingCard.cardName",
+																	],
+																},
+															},
+														},
+														0,
+													],
+												},
+											],
+										},
+									},
+								},
+								// Add new cards with generated IDs
+								{
+									$map: {
+										input: {
+											$filter: {
+												input: incomingCards,
+												as: "incoming",
+												cond: {
+													$not: {
+														$in: [
+															"$$incoming.cardName",
+															{ $ifNull: ["$cards.cardName", []] },
+														],
+													},
+												},
+											},
+										},
+										as: "newCard",
+										in: {
+											$mergeObjects: ["$$newCard"],
+										},
+									},
+								},
+							],
+						},
+						updatedAt: now,
+						userId: { $ifNull: ["$userId", userId] },
+					},
+				},
+			],
 			{
-				$set: {
-					username: data.username,
-					titleColor: data.titleColor,
-					backgroundColor: data.backgroundColor,
-					textColor: data.textColor,
-					circleColor: data.circleColor,
-					selectedCards: data.selectedCards,
-					stats: data.stats,
-					updatedAt: new Date(),
-				},
-				$setOnInsert: {
-					createdAt: new Date(),
-					ip: ip,
-					userId: data.userId,
-				},
-			},
-			{ upsert: true }
+				upsert: true,
+				arrayFilters: undefined,
+			}
 		);
-
-		await client.close();
 
 		return NextResponse.json({
 			success: true,
-			id: result.upsertedId || data.userId,
-			existed: result.matchedCount > 0,
+			updatedCount: updateResult.modifiedCount,
+			isNewDocument: updateResult.upsertedId !== null,
 		});
 	} catch (error) {
 		console.error("Database error:", error);
-		return NextResponse.json({ error: "Database operation failed" }, { status: 500 });
+		return NextResponse.json({ error: "Card storage failed" }, { status: 500 });
 	}
 }

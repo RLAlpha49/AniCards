@@ -128,7 +128,8 @@ export function StatCardGenerator({ isOpen, onClose }: StatCardGeneratorProps) {
 
 			const statsData = await statsResponse.json();
 
-			const response = await fetch("/api/store-cards", {
+			// First store user data
+			const userResponse = await fetch("/api/store-users", {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
@@ -137,22 +138,30 @@ export function StatCardGenerator({ isOpen, onClose }: StatCardGeneratorProps) {
 				body: JSON.stringify({
 					userId: userIdData.User.id,
 					username,
-					titleColor,
-					backgroundColor,
-					textColor,
-					circleColor,
-					selectedCards,
 					stats: statsData,
 				}),
 			});
 
-			if (!response.ok) {
-				throw new Error("Failed to store card");
-			}
+			if (!userResponse.ok) throw new Error("Failed to store user");
 
-			const result = await response.json();
-			console.log("Stored card with ID:", result.id);
-			onClose();
+			// Then store card data
+			await fetch("/api/store-cards", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${process.env.API_AUTH_TOKEN}`,
+				},
+				body: JSON.stringify({
+					userId: userIdData.User.id,
+					cards: selectedCards.map((cardName) => ({
+						cardName,
+						titleColor,
+						backgroundColor,
+						textColor,
+						circleColor,
+					})),
+				}),
+			});
 		} catch (error) {
 			console.error("Submission failed:", error);
 			alert("Failed to save card. Please try again.");
