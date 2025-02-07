@@ -10,12 +10,6 @@ interface StatCardPreviewProps {
   isOpen: boolean;
   onClose: () => void;
   cardType: string;
-  colors: {
-    title: string;
-    background: string;
-    text: string;
-    circle: string;
-  };
 }
 
 const cardImages: { [key: string]: string } = {
@@ -51,7 +45,6 @@ export function StatCardPreview({
   isOpen,
   onClose,
   cardType,
-  colors,
 }: StatCardPreviewProps) {
   const imageSrc = cardImages[cardType] || "/placeholder.svg";
 

@@ -7,8 +7,8 @@ export const USER_ID_QUERY = `
 `;
 
 export const USER_STATS_QUERY = `
-  query ($userName: String, $userId: Int!) {
-    User(name: $userName) {
+  query ($userId: Int!) {
+    User(id: $userId) {
       statistics {
         anime {
           count
@@ -85,25 +85,40 @@ export const USER_STATS_QUERY = `
       pageInfo {
         total
       }
+      followers(userId: $userId) {
+        id
+      }
     }
     followingPage: Page(perPage: 1) {
       pageInfo {
         total
+      }
+      following(userId: $userId) {
+        id
       }
     }
     threadsPage: Page {
       pageInfo {
         total
       }
+      threads(userId: $userId) {
+        id
+      }
     }
     threadCommentsPage: Page(perPage: 1) {
       pageInfo {
         total
       }
+      threadComments(userId: $userId) {
+        id
+      }
     }
     reviewsPage: Page(perPage: 1) {
       pageInfo {
         total
+      }
+      reviews(userId: $userId) {
+        id
       }
     }
   }
