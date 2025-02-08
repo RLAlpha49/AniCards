@@ -23,6 +23,7 @@ import {
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
 import { StatCardPreview } from "@/components/stat-card-preview";
 import { cn } from "@/lib/utils";
+import { LoadingOverlay } from "@/components/loading-spinner";
 
 interface StatCardGeneratorProps {
 	isOpen: boolean;
@@ -72,6 +73,7 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 	const [allSelected, setAllSelected] = useState(false);
 	const [previewOpen, setPreviewOpen] = useState(false);
 	const [previewType, setPreviewType] = useState("");
+	const [loading, setLoading] = useState(false);
 	const router = useRouter();
 
 	const handleCheckboxChange = (id: string) => {
@@ -108,6 +110,7 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
+		setLoading(true);
 
 		try {
 			const userIdResponse = await fetch("/api/anilist", {
@@ -173,14 +176,17 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 		} catch (error) {
 			console.error("Submission failed:", error);
 			alert("Failed to save card. Please try again.");
+		} finally {
+			setLoading(false);
 		}
 	};
 
 	return (
 		<Dialog open={isOpen} onOpenChange={onClose}>
+			{loading && <LoadingOverlay text="Creating your stat cards..." />}
 			<DialogContent
 				className={cn(
-					"sm:max-w-[600px] overflow-y-auto max-h-[calc(100vh-2rem)]",
+					"sm:max-w-[600px] overflow-y-auto max-h-[calc(100vh-2rem)] z-50",
 					className
 				)}
 			>

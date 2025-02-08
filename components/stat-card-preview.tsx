@@ -1,5 +1,9 @@
+"use client";
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import Image from "next/image";
+import { useState } from "react";
+import { LoadingSpinner } from "@/components/loading-spinner";
 
 interface StatCardPreviewProps {
 	isOpen: boolean;
@@ -36,11 +40,11 @@ export const displayNames: { [key: string]: string } = {
 };
 
 export function StatCardPreview({ isOpen, onClose, cardType }: StatCardPreviewProps) {
-	const imageSrc = cardImages[cardType] || "/placeholder.svg";
+	const [isLoading, setIsLoading] = useState(true);
 
 	return (
 		<Dialog open={isOpen} onOpenChange={onClose}>
-			<DialogContent className="sm:max-w-[425px]">
+			<DialogContent className="sm:max-w-[425px] z-[100]">
 				<DialogHeader>
 					<DialogTitle>
 						Stat Card Preview: {displayNames[cardType] || cardType}
@@ -48,13 +52,24 @@ export function StatCardPreview({ isOpen, onClose, cardType }: StatCardPreviewPr
 				</DialogHeader>
 				<div className="relative w-full max-w-[400px] max-h-[300px] mx-auto">
 					<div className="relative w-full h-full p-4">
+						{isLoading && (
+							<div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-50">
+								<LoadingSpinner
+									className="text-primary"
+									text="Loading preview..."
+								/>
+							</div>
+						)}
 						<Image
-							src={imageSrc}
+							src={cardImages[cardType] || "/placeholder.svg"}
 							alt={`Preview of ${cardType} stat card`}
 							width={800}
 							height={600}
-							className="object-contain w-full h-full"
+							className="object-contain w-full h-full relative z-10"
 							quality={100}
+							onLoadStart={() => setIsLoading(true)}
+							onLoad={() => setIsLoading(false)}
+							onError={() => setIsLoading(false)}
 						/>
 					</div>
 				</div>
