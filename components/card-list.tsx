@@ -21,7 +21,7 @@ interface CardListProps {
 export function CardList({ cardTypes }: CardListProps) {
 	const [copied, setCopied] = useState<string | null>(null);
 	const svgLinks = cardTypes.map((card) => card.svgUrl);
-	const anilistBioLinks = cardTypes.map((card) => `img150("${card.svgUrl}")`);
+	const anilistBioLinks = cardTypes.map((card) => `img150(${card.svgUrl})`);
 
 	const handleCopyLinks = async (type: "svg" | "anilist") => {
 		const links = type === "svg" ? svgLinks : anilistBioLinks;
