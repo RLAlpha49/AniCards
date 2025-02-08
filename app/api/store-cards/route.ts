@@ -2,25 +2,12 @@ import { NextResponse } from "next/server";
 import { MongoClient, ServerApiVersion } from "mongodb";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
+import { CardsDocument } from "@/lib/types/card";
 
 const ratelimit = new Ratelimit({
 	redis: Redis.fromEnv(),
 	limiter: Ratelimit.slidingWindow(10, "10 s"),
 });
-
-interface CardConfig {
-	cardName: string;
-	titleColor: string;
-	backgroundColor: string;
-	textColor: string;
-	circleColor: string;
-}
-
-interface CardsDocument {
-	userId: number;
-	cards: CardConfig[];
-	updatedAt: Date;
-}
 
 export async function POST(request: Request) {
 	const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
@@ -36,9 +23,9 @@ export async function POST(request: Request) {
 	}
 
 	try {
-		const { statsData } = await request.json();
+		const body = await request.json();
+		const { statsData, userId, cards: incomingCards } = body;
 
-		// Check for error in statsData before processing
 		if (statsData?.error) {
 			return NextResponse.json(
 				{ error: "Invalid data: " + statsData.error },
@@ -54,7 +41,6 @@ export async function POST(request: Request) {
 			},
 		});
 		const db = client.db("anicards");
-		const { userId, cards: incomingCards } = await request.json();
 		const now = new Date();
 
 		const updateResult = await db.collection<CardsDocument>("cards").updateOne(

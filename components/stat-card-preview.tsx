@@ -8,7 +8,8 @@ interface StatCardPreviewProps {
 }
 
 const cardImages: { [key: string]: string } = {
-	animeStats: "/images/preview-anime-stats.svg",
+	animeStats: "http://localhost:3000/api/card.svg?cardType=animeStats&userId=542244",
+	// animeStats: "/images/preview-anime-stats.svg",
 	socialStats: "/images/preview-social-stats.svg",
 	mangaStats: "/images/preview-manga-stats.svg",
 	animeGenres: "/images/preview-anime-genres.svg",

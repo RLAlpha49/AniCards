@@ -2,20 +2,12 @@ import { NextResponse } from "next/server";
 import { MongoClient, ServerApiVersion } from "mongodb";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
+import { UserDocument } from "@/lib/types/card";
 
 const ratelimit = new Ratelimit({
 	redis: Redis.fromEnv(),
 	limiter: Ratelimit.slidingWindow(5, "10 s"),
 });
-
-interface UserDocument {
-	userId: number;
-	username: string;
-	stats: unknown;
-	createdAt: Date;
-	updatedAt: Date;
-	ip: string;
-}
 
 export async function POST(request: Request) {
 	const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
