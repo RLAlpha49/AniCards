@@ -16,17 +16,17 @@ export const USER_STATS_QUERY = `
           minutesWatched
           meanScore
           standardDeviation
-          genres(limit: 6, sort: COUNT_DESC) {
+          genres(limit: 5, sort: COUNT_DESC) {
             genre
             count
           }
-          tags(limit: 6, sort: COUNT_DESC) {
+          tags(limit: 5, sort: COUNT_DESC) {
             tag {
               name
             }
             count
           }
-          voiceActors(limit: 6, sort: COUNT_DESC) {
+          voiceActors(limit: 5, sort: COUNT_DESC) {
             voiceActor {
               name {
                 full
@@ -34,13 +34,13 @@ export const USER_STATS_QUERY = `
             }
             count
           }
-          studios(limit: 6, sort: COUNT_DESC) {
+          studios(limit: 5, sort: COUNT_DESC) {
             studio {
               name
             }
             count
           }
-          staff(limit: 6, sort: COUNT_DESC) {
+          staff(limit: 5, sort: COUNT_DESC) {
             staff {
               name {
                 full
@@ -55,17 +55,17 @@ export const USER_STATS_QUERY = `
           volumesRead
           meanScore
           standardDeviation
-          genres(limit: 6, sort: COUNT_DESC) {
+          genres(limit: 5, sort: COUNT_DESC) {
             genre
             count
           }
-          tags(limit: 6, sort: COUNT_DESC) {
+          tags(limit: 5, sort: COUNT_DESC) {
             tag {
               name
             }
             count
           }
-          staff(limit: 6, sort: COUNT_DESC) {
+          staff(limit: 5, sort: COUNT_DESC) {
             staff {
               name {
                 full

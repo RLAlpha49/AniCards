@@ -10,14 +10,14 @@ export interface CardConfig {
 // User stats structure
 export interface UserStats {
 	username: string;
-    User: {
-        statistics: {
-            anime: AnimeStats;
-            manga: MangaStats;
-        };
-        stats?: { activityHistory: { date: number; amount: number }[] };
-    };
-    social?: SocialStats;
+	User: {
+		statistics: {
+			anime: AnimeStats;
+			manga: MangaStats;
+		};
+		stats?: { activityHistory: { date: number; amount: number }[] };
+	};
+	social?: SocialStats;
 }
 
 export interface AnimeStats {
@@ -46,11 +46,12 @@ export interface MangaStats {
 }
 
 export interface SocialStats {
-	followersPage?: { pageInfo: { total: number }; followers: { id: number } };
-	followingPage?: { pageInfo: { total: number }; following: { id: number } };
-	threadsPage?: { pageInfo: { total: number }; threads: { id: number } };
-	threadCommentsPage?: { pageInfo: { total: number }; threadComments: { id: number } };
-	reviewsPage?: { pageInfo: { total: number }; reviews: { id: number } };
+	followersPage: { pageInfo: { total: number }; followers: { id: number } };
+	followingPage: { pageInfo: { total: number }; following: { id: number } };
+	threadsPage: { pageInfo: { total: number }; threads: { id: number } };
+	threadCommentsPage: { pageInfo: { total: number }; threadComments: { id: number } };
+	reviewsPage: { pageInfo: { total: number }; reviews: { id: number } };
+	activityHistory?: { date: number; amount: number }[];
 }
 
 // Database document types

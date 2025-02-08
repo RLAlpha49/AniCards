@@ -7,6 +7,8 @@ import { animeStatsTemplate } from "@/lib/svg-templates/anime-stats";
 import { CardConfig, UserStats } from "@/lib/types/card";
 import { calculateMilestones } from "@/lib/utils/milestones";
 import { mangaStatsTemplate } from "@/lib/svg-templates/manga-stats";
+import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
+import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats";
 
 const ratelimit = new Ratelimit({
 	redis: Redis.fromEnv(),
@@ -27,6 +29,14 @@ const ALLOWED_CARD_TYPES = new Set([
 	"mangaTags",
 	"mangaStaff",
 ]);
+
+type CategoryKey = "genres" | "tags" | "voiceactors" | "studios" | "staff";
+
+type GenreItem = { genre: string; count: number };
+type TagItem = { tag: { name: string }; count: number };
+type VoiceActorItem = { voiceActor: { name: { full: string } }; count: number };
+type StudioItem = { studio: { name: string }; count: number };
+type StaffItem = { staff: { name: { full: string } }; count: number };
 
 function svgError(message: string) {
 	return `<?xml version="1.0" encoding="UTF-8"?>
@@ -86,7 +96,7 @@ function generateCardSVG(cardConfig: CardConfig, userStats: any) {
 		case "mangaStats":
 			const chaptersRead = userStats.stats.User.statistics.manga.chaptersRead;
 			milestoneData = calculateMilestones(chaptersRead);
-			
+
 			svgContent = mangaStatsTemplate({
 				username: userStats.username,
 				styles: {
@@ -97,10 +107,93 @@ function generateCardSVG(cardConfig: CardConfig, userStats: any) {
 				},
 				stats: {
 					...userStats.stats.User.statistics.manga,
-					...milestoneData
-				}
+					...milestoneData,
+				},
 			});
 			break;
+
+		case "socialStats":
+			svgContent = socialStatsTemplate({
+				username: userStats.username,
+				styles: {
+					titleColor: cardConfig.titleColor,
+					backgroundColor: cardConfig.backgroundColor,
+					textColor: cardConfig.textColor,
+					circleColor: cardConfig.circleColor,
+				},
+				stats: userStats.stats,
+				activityHistory: userStats.stats.User.stats.activityHistory,
+			});
+			break;
+
+		case "animeGenres":
+		case "animeTags":
+		case "animeVoiceActors":
+		case "animeStudios":
+		case "animeStaff":
+		case "mangaGenres":
+		case "mangaTags":
+		case "mangaStaff":
+			const isAnime = cardConfig.cardName.startsWith("anime");
+			const categoryMap: Record<CategoryKey, string> = {
+				genres: "genres",
+				tags: "tags",
+				voiceactors: "voiceActors",
+				studios: "studios",
+				staff: "staff",
+			};
+			const categoryKey =
+				categoryMap[
+					cardConfig.cardName
+						.replace(isAnime ? "anime" : "manga", "")
+						.toLowerCase() as CategoryKey
+				];
+			const stats = isAnime
+				? userStats.stats.User.statistics.anime
+				: userStats.stats.User.statistics.manga;
+
+			const items =
+				stats[categoryKey]
+					?.slice(0, 5)
+					.map((item: GenreItem | TagItem | VoiceActorItem | StudioItem | StaffItem) => {
+						switch (categoryKey) {
+							case "genres":
+								return { name: (item as GenreItem).genre, count: item.count };
+							case "tags":
+								return { name: (item as TagItem).tag.name, count: item.count };
+							case "voiceActors":
+								return {
+									name: (item as VoiceActorItem).voiceActor.name.full,
+									count: item.count,
+								};
+							case "studios":
+								return {
+									name: (item as StudioItem).studio.name,
+									count: item.count,
+								};
+							case "staff":
+								return {
+									name: (item as StaffItem).staff.name.full,
+									count: item.count,
+								};
+							default:
+								return { name: "", count: 0 };
+						}
+					}) || [];
+
+			svgContent = extraAnimeMangaStatsTemplate({
+				username: userStats.username,
+				styles: {
+					titleColor: cardConfig.titleColor,
+					backgroundColor: cardConfig.backgroundColor,
+					textColor: cardConfig.textColor,
+					circleColor: cardConfig.circleColor,
+				},
+				format: isAnime ? "anime" : "manga",
+				stats: items,
+			});
+			break;
+
 		default:
 			throw new Error("Unsupported card type");
 	}

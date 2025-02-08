@@ -9,16 +9,16 @@ interface StatCardPreviewProps {
 
 const cardImages: { [key: string]: string } = {
 	animeStats: "http://localhost:3000/api/card.svg?cardType=animeStats&userId=542244",
-	socialStats: "/images/preview-social-stats.svg",
+	socialStats: "http://localhost:3000/api/card.svg?cardType=socialStats&userId=542244",
 	mangaStats: "http://localhost:3000/api/card.svg?cardType=mangaStats&userId=542244",
-	animeGenres: "/images/preview-anime-genres.svg",
-	animeTags: "/images/preview-anime-tags.svg",
-	animeVoiceActors: "/images/preview-anime-voice-actors.svg",
-	animeStudios: "/images/preview-anime-studios.svg",
-	animeStaff: "/images/preview-anime-staff.svg",
-	mangaGenres: "/images/preview-manga-genres.svg",
-	mangaTags: "/images/preview-manga-tags.svg",
-	mangaStaff: "/images/preview-manga-staff.svg",
+	animeGenres: "http://localhost:3000/api/card.svg?cardType=animeGenres&userId=542244",
+	animeTags: "http://localhost:3000/api/card.svg?cardType=animeTags&userId=542244",
+	animeVoiceActors: "http://localhost:3000/api/card.svg?cardType=animeVoiceActors&userId=542244",
+	animeStudios: "http://localhost:3000/api/card.svg?cardType=animeStudios&userId=542244",
+	animeStaff: "http://localhost:3000/api/card.svg?cardType=animeStaff&userId=542244",
+	mangaGenres: "http://localhost:3000/api/card.svg?cardType=mangaGenres&userId=542244",
+	mangaTags: "http://localhost:3000/api/card.svg?cardType=mangaTags&userId=542244",
+	mangaStaff: "http://localhost:3000/api/card.svg?cardType=mangaStaff&userId=542244",
 };
 
 const displayNames: { [key: string]: string } = {
