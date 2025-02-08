@@ -1,6 +1,6 @@
-import { AnimeStats } from "@/lib/types/card";
+import { MangaStats } from "@/lib/types/card";
 
-export const animeStatsTemplate = (data: {
+export const mangaStatsTemplate = (data: {
 	username: string;
 	styles: {
 		titleColor: string;
@@ -8,7 +8,7 @@ export const animeStatsTemplate = (data: {
 		textColor: string;
 		circleColor: string;
 	};
-	stats: AnimeStats & {
+	stats: MangaStats & {
 		previousMilestone: number;
 		currentMilestone: number;
 		dasharray: string;
@@ -25,10 +25,10 @@ export const animeStatsTemplate = (data: {
   aria-labelledby="desc-id"
   style="overflow: visible"
 >
-  <title id="title-id">${data.username}'s Anime Stats</title>
+  <title id="title-id">${data.username}'s Manga Stats</title>
   <desc id="desc-id">
-    Count: ${data.stats.count}, Episodes Watched: ${data.stats.episodesWatched},
-    Minutes Watched: ${data.stats.minutesWatched}, 
+    Count: ${data.stats.count}, Chapters Read: ${data.stats.chaptersRead},
+    Volumes Read: ${data.stats.volumesRead}, 
     Mean Score: ${data.stats.meanScore},
     Standard Deviation: ${data.stats.standardDeviation}
   </desc>
@@ -105,23 +105,23 @@ export const animeStatsTemplate = (data: {
     }
   </style>
   <rect
+    data-testid="card-bg"
     x="0.5"
     y="0.5"
     rx="4.5"
     height="99%"
     stroke="#e4e2e2"
     width="449"
-    fill="${data.styles.backgroundColor}"
+    fill="#141321"
     stroke-opacity="1"
   />
   <g data-testid="card-title" transform="translate(25, 35)">
     <g transform="translate(0, 0)">
       <text x="0" y="0" class="header" data-testid="header">
-        ${data.username}'s Anime Stats
+        ${data.username}'s Manga Stats
       </text>
     </g>
   </g>
-
   <g data-testid="main-card-body" transform="translate(0, 55)">
     <g transform="translate(375, 37.5)">
       <text
@@ -146,7 +146,7 @@ export const animeStatsTemplate = (data: {
         font-size="15"
         style="animation: scaleInAnimation 0.5s"
       >
-        ${data.stats.episodesWatched}
+        ${data.stats.chaptersRead}
       </text>
       <text
         x="-10"
@@ -158,7 +158,7 @@ export const animeStatsTemplate = (data: {
         font-size="15"
         style="animation: scaleInAnimation 0.5s"
       >
-        Episodes Watched
+        Chapters Read
       </text>
       <circle class="rank-circle-rim" cx="-10" cy="8" r="40"></circle>
       <circle class="rank-circle" cx="-10" cy="8" r="40"></circle>
@@ -180,14 +180,14 @@ export const animeStatsTemplate = (data: {
           style="animation-delay: 600ms"
           transform="translate(25, 25)"
         >
-          <text class="stat bold" y="12.5">Episodes Watched:</text>
+          <text class="stat bold" y="12.5">Chapters Read:</text>
           <text
             class="stat bold"
             x="199.01"
             y="12.5"
-            data-testid="episodesWatched"
+            data-testid="chaptersRead"
           >
-            ${data.stats.episodesWatched}
+            ${data.stats.chaptersRead}
           </text>
         </g>
         <g
@@ -195,14 +195,9 @@ export const animeStatsTemplate = (data: {
           style="animation-delay: 750ms"
           transform="translate(25, 50)"
         >
-          <text class="stat bold" y="12.5">Minutes Watched:</text>
-          <text
-            class="stat bold"
-            x="199.01"
-            y="12.5"
-            data-testid="minutesWatched"
-          >
-            ${data.stats.minutesWatched}
+          <text class="stat bold" y="12.5">Volumes Read:</text>
+          <text class="stat bold" x="199.01" y="12.5" data-testid="volumesRead">
+            ${data.stats.volumesRead}
           </text>
         </g>
         <g

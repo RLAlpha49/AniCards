@@ -6,6 +6,7 @@ import { ServerApiVersion } from "mongodb";
 import { animeStatsTemplate } from "@/lib/svg-templates/anime-stats";
 import { CardConfig, UserStats } from "@/lib/types/card";
 import { calculateMilestones } from "@/lib/utils/milestones";
+import { mangaStatsTemplate } from "@/lib/svg-templates/manga-stats";
 
 const ratelimit = new Ratelimit({
 	redis: Redis.fromEnv(),
@@ -59,13 +60,15 @@ function generateCardSVG(cardConfig: CardConfig, userStats: any) {
 	if (!cardConfig || !userStats?.stats?.User?.statistics?.anime) {
 		throw new Error("Missing card configuration or stats data");
 	}
-
-	const episodesWatched = userStats.stats.User.statistics.anime.episodesWatched;
-	const milestoneData = calculateMilestones(episodesWatched);
+	let milestoneData;
+	let svgContent: string;
 
 	switch (cardConfig.cardName) {
 		case "animeStats":
-			return animeStatsTemplate({
+			const episodesWatched = userStats.stats.User.statistics.anime.episodesWatched;
+			milestoneData = calculateMilestones(episodesWatched);
+
+			svgContent = animeStatsTemplate({
 				username: userStats.username,
 				styles: {
 					titleColor: cardConfig.titleColor,
@@ -78,11 +81,31 @@ function generateCardSVG(cardConfig: CardConfig, userStats: any) {
 					...milestoneData,
 				},
 			});
+			break;
 
-		// Add other card type cases here
+		case "mangaStats":
+			const chaptersRead = userStats.stats.User.statistics.manga.chaptersRead;
+			milestoneData = calculateMilestones(chaptersRead);
+			
+			svgContent = mangaStatsTemplate({
+				username: userStats.username,
+				styles: {
+					titleColor: cardConfig.titleColor,
+					backgroundColor: cardConfig.backgroundColor,
+					textColor: cardConfig.textColor,
+					circleColor: cardConfig.circleColor,
+				},
+				stats: {
+					...userStats.stats.User.statistics.manga,
+					...milestoneData
+				}
+			});
+			break;
 		default:
 			throw new Error("Unsupported card type");
 	}
+
+	return svgContent;
 }
 
 export async function GET(request: Request) {
@@ -141,7 +164,8 @@ export async function GET(request: Request) {
 		const cardConfig = cardDoc.cards.find((c: CardConfig) => c.cardName === cardType);
 
 		try {
-			return new Response(generateCardSVG(cardConfig, userDoc as unknown as UserStats), {
+			const svgContent = generateCardSVG(cardConfig, userDoc as unknown as UserStats);
+			return new Response(svgContent, {
 				headers: {
 					"Content-Type": "image/svg+xml",
 					"Cache-Control": "public, max-age=3600, stale-while-revalidate=86400",

@@ -32,9 +32,6 @@ export interface AnimeStats {
 	voice_actors?: { voice_actor: { name: { full: string } }; count: number }[];
 	studios?: { studio: { name: string }; count: number }[];
 	staff?: { staff: { name: { full: string } }; count: number }[];
-	dasharray?: string;
-	dashoffset?: string;
-	currentMilestone?: number;
 }
 
 export interface MangaStats {

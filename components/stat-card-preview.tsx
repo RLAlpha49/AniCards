@@ -9,13 +9,11 @@ interface StatCardPreviewProps {
 
 const cardImages: { [key: string]: string } = {
 	animeStats: "http://localhost:3000/api/card.svg?cardType=animeStats&userId=542244",
-	// animeStats: "/images/preview-anime-stats.svg",
 	socialStats: "/images/preview-social-stats.svg",
-	mangaStats: "/images/preview-manga-stats.svg",
+	mangaStats: "http://localhost:3000/api/card.svg?cardType=mangaStats&userId=542244",
 	animeGenres: "/images/preview-anime-genres.svg",
 	animeTags: "/images/preview-anime-tags.svg",
 	animeVoiceActors: "/images/preview-anime-voice-actors.svg",
-
 	animeStudios: "/images/preview-anime-studios.svg",
 	animeStaff: "/images/preview-anime-staff.svg",
 	mangaGenres: "/images/preview-manga-genres.svg",
