@@ -21,7 +21,7 @@ const cardImages: { [key: string]: string } = {
 	mangaStaff: "http://localhost:3000/api/card.svg?cardType=mangaStaff&userId=542244",
 };
 
-const displayNames: { [key: string]: string } = {
+export const displayNames: { [key: string]: string } = {
 	animeStats: "Anime Stats",
 	socialStats: "Social Stats",
 	mangaStats: "Manga Stats",

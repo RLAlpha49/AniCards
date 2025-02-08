@@ -6,7 +6,7 @@ import { CardsDocument } from "@/lib/types/card";
 
 const ratelimit = new Ratelimit({
 	redis: Redis.fromEnv(),
-	limiter: Ratelimit.slidingWindow(10, "10 s"),
+	limiter: Ratelimit.slidingWindow(5, "10 s"),
 });
 
 export async function POST(request: Request) {

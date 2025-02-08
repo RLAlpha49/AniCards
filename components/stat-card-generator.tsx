@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
 	Dialog,
 	DialogContent,
@@ -69,6 +70,7 @@ export function StatCardGenerator({ isOpen, onClose }: StatCardGeneratorProps) {
 	const [allSelected, setAllSelected] = useState(false);
 	const [previewOpen, setPreviewOpen] = useState(false);
 	const [previewType, setPreviewType] = useState("");
+	const router = useRouter();
 
 	const handleCheckboxChange = (id: string) => {
 		setSelectedCards((prev) => {
@@ -145,7 +147,7 @@ export function StatCardGenerator({ isOpen, onClose }: StatCardGeneratorProps) {
 			if (!userResponse.ok) throw new Error("Failed to store user");
 
 			// Then store card data
-			await fetch("/api/store-cards", {
+			const cardResponse = await fetch("/api/store-cards", {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
@@ -162,6 +164,10 @@ export function StatCardGenerator({ isOpen, onClose }: StatCardGeneratorProps) {
 					})),
 				}),
 			});
+
+			if (!cardResponse.ok) throw new Error("Failed to store cards");
+
+			router.push(`/user?userId=${userIdData.User.id}`);
 		} catch (error) {
 			console.error("Submission failed:", error);
 			alert("Failed to save card. Please try again.");
