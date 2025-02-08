@@ -37,8 +37,8 @@ export function Card({ type, svgUrl }: CardProps) {
 				<Image
 					src={svgUrl || "/placeholder.svg"}
 					alt={type}
-					layout="fill"
-					objectFit="contain"
+					fill
+					style={{ objectFit: "contain" }}
 				/>
 			</div>
 			<div className="flex space-x-2">

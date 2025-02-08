@@ -3,20 +3,16 @@ import { displayNames } from "@/components/stat-card-preview";
 
 export const dynamic = "force-dynamic";
 
-export default async function UserPage({
-	searchParams,
-}: Readonly<{ searchParams: { userId?: string } }>) {
-	searchParams = await searchParams;
+export default async function UserPage(props: { searchParams: Promise<{ userId?: string }> }) {
+	const searchParams = await props.searchParams;
 	if (!searchParams.userId) {
 		return <div className="container mx-auto p-4">Missing user ID parameter</div>;
 	}
 
 	const userId = searchParams.userId;
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	let userData: any = null;
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	let cards: any[] = [];
+	let userData: { username?: string } | null = null;
+	let cards: Array<{ cardName: string }> = [];
 
 	try {
 		const userRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user?userId=${userId}`);
@@ -35,7 +31,7 @@ export default async function UserPage({
 		}
 		const cardsData = await cardsRes.json();
 		cards = cardsData[0]?.cards || [];
-	} catch (error: unknown) {
+	} catch (error) {
 		console.error("Fetch error:", error);
 		return (
 			<div className="container mx-auto p-4">
@@ -56,7 +52,9 @@ export default async function UserPage({
 	return (
 		<div className="container mx-auto p-4">
 			<h1 className="text-3xl font-bold mb-8 text-center">
-				{userData.username}&apos;s Generated Cards
+				{userData?.username
+					? `${userData.username}'s Generated Cards`
+					: "User's Generated Cards"}
 			</h1>
 
 			{cardTypes.length > 0 ? (
