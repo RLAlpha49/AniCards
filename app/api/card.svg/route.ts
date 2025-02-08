@@ -60,6 +60,9 @@ function svgHeaders() {
 	return {
 		"Content-Type": "image/svg+xml",
 		"Cache-Control": "public, max-age=86400, stale-while-revalidate=86400",
+		"Access-Control-Allow-Origin": "https://anilist.co",
+		"Access-Control-Allow-Methods": "GET",
+		Vary: "Origin",
 	};
 }
 
@@ -67,6 +70,9 @@ function errorHeaders() {
 	return {
 		"Content-Type": "image/svg+xml",
 		"Cache-Control": "no-store, max-age=0, must-revalidate",
+		"Access-Control-Allow-Origin": "https://anilist.co",
+		"Access-Control-Allow-Methods": "GET",
+		Vary: "Origin",
 	};
 }
 
