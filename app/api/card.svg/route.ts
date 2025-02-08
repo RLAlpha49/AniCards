@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { MongoClient } from "mongodb";
@@ -60,8 +59,14 @@ function svgError(message: string) {
 function svgHeaders() {
 	return {
 		"Content-Type": "image/svg+xml",
-		"Cache-Control": "public, max-age=60",
-		"Access-Control-Allow-Origin": "*",
+		"Cache-Control": "public, max-age=86400, stale-while-revalidate=86400",
+	};
+}
+
+function errorHeaders() {
+	return {
+		"Content-Type": "image/svg+xml",
+		"Cache-Control": "no-store, max-age=0, must-revalidate",
 	};
 }
 
@@ -206,7 +211,10 @@ export async function GET(request: Request) {
 	const { success } = await ratelimit.limit(ip);
 
 	if (!success) {
-		return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+		return new Response(svgError("Too many requests - try again later"), {
+			headers: errorHeaders(),
+			status: 429,
+		});
 	}
 
 	const { searchParams } = new URL(request.url);
@@ -216,15 +224,15 @@ export async function GET(request: Request) {
 	try {
 		if (!userId || !cardType) {
 			return new Response(svgError("Missing user ID or card type"), {
-				headers: svgHeaders(),
-				status: 400,
+				headers: errorHeaders(),
+				status: 200,
 			});
 		}
 
 		if (!ALLOWED_CARD_TYPES.has(cardType)) {
 			return new Response(svgError("Invalid card type"), {
-				headers: svgHeaders(),
-				status: 400,
+				headers: errorHeaders(),
+				status: 200,
 			});
 		}
 
@@ -249,7 +257,7 @@ export async function GET(request: Request) {
 
 		if (!cardDoc || !userDoc) {
 			return new Response(svgError("User data not found"), {
-				headers: svgHeaders(),
+				headers: errorHeaders(),
 				status: 200,
 			});
 		}
@@ -259,22 +267,19 @@ export async function GET(request: Request) {
 		try {
 			const svgContent = generateCardSVG(cardConfig, userDoc as unknown as UserStats);
 			return new Response(svgContent, {
-				headers: {
-					"Content-Type": "image/svg+xml",
-					"Cache-Control": "public, max-age=3600, stale-while-revalidate=86400",
-				},
+				headers: svgHeaders(),
 			});
 		} catch (error) {
 			console.error("Card generation failed:", error);
 			return new Response(svgError("Server Error"), {
-				headers: svgHeaders(),
+				headers: errorHeaders(),
 				status: 200,
 			});
 		}
 	} catch (error) {
 		console.error("Card generation failed:", error);
 		return new Response(svgError("Server Error"), {
-			headers: svgHeaders(),
+			headers: errorHeaders(),
 			status: 200,
 		});
 	}
