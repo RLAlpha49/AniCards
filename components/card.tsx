@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { svgToPng, copyToClipboard } from "@/lib/utils";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { cn } from "@/lib/utils";
+import { displayNames } from "./stat-card-preview";
 
 interface CardProps {
 	type: string;
@@ -36,7 +37,7 @@ export function Card({ type, svgUrl }: CardProps) {
 	return (
 		<div className="relative">
 			<div className="border-2 dark:border-gray-300 border-gray-800 rounded-lg p-4 space-y-4 hover:shadow-lg hover:border-blue-500 transition duration-300">
-				<h3 className="text-lg font-semibold">{type}</h3>
+				<h3 className="text-lg font-semibold">{displayNames[type] || type}</h3>
 				<div className="relative aspect-video">
 					<Image
 						src={svgUrl || "/placeholder.svg"}
