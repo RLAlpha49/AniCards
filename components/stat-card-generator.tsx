@@ -22,11 +22,14 @@ import {
 } from "@/components/ui/select";
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
 import { StatCardPreview } from "@/components/stat-card-preview";
+import { cn } from "@/lib/utils";
 
 interface StatCardGeneratorProps {
 	isOpen: boolean;
 	onClose: () => void;
+	className?: string;
 }
+
 
 const statCardTypes = [
 	{
@@ -59,7 +62,7 @@ const colorPresets = {
 	lavender: ["#7c3aed", "#ede9fe", "#1e1b4b", "#7c3aed"],
 };
 
-export function StatCardGenerator({ isOpen, onClose }: StatCardGeneratorProps) {
+export function StatCardGenerator({ isOpen, onClose, className }: StatCardGeneratorProps) {
 	const [username, setUsername] = useState("");
 	const [titleColor, setTitleColor] = useState(colorPresets.default[0]);
 	const [backgroundColor, setBackgroundColor] = useState(colorPresets.default[1]);
@@ -176,7 +179,7 @@ export function StatCardGenerator({ isOpen, onClose }: StatCardGeneratorProps) {
 
 	return (
 		<Dialog open={isOpen} onOpenChange={onClose}>
-			<DialogContent className="sm:max-w-[600px] overflow-y-auto max-h-[calc(100vh-2rem)]">
+			<DialogContent className={cn("sm:max-w-[600px] overflow-y-auto max-h-[calc(100vh-2rem)]", className)}>
 				<DialogHeader>
 					<DialogTitle>Generate Your Stat Cards</DialogTitle>
 					<DialogDescription>

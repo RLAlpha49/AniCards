@@ -107,7 +107,13 @@ export default function HomePage() {
 				</Button>
 			</section>
 
-			<StatCardGenerator isOpen={isGeneratorOpen} onClose={() => setIsGeneratorOpen(false)} />
+			<StatCardGenerator
+				isOpen={isGeneratorOpen}
+				onClose={() => setIsGeneratorOpen(false)}
+				className={`transition-opacity duration-300 ${
+					isGeneratorOpen ? "opacity-100" : "opacity-0"
+				}`}
+			/>
 		</div>
 	);
 }

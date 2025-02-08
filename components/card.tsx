@@ -31,7 +31,7 @@ export function Card({ type, svgUrl }: CardProps) {
 	const anilistBioLink = `img150("${svgUrl}")`;
 
 	return (
-		<div className="border rounded-lg p-4 space-y-4">
+		<div className="border-2 dark:border-gray-300 border-gray-800 rounded-lg p-4 space-y-4 hover:shadow-lg hover:border-blue-500 transition duration-300">
 			<h3 className="text-lg font-semibold">{type}</h3>
 			<div className="relative aspect-video">
 				<Image
