@@ -30,7 +30,6 @@ interface StatCardGeneratorProps {
 	className?: string;
 }
 
-
 const statCardTypes = [
 	{
 		id: "animeStats",
@@ -38,7 +37,7 @@ const statCardTypes = [
 	},
 	{
 		id: "socialStats",
-		label: "Social Stats (Total Activities (30 Days), Followers, Following, Thread Posts/Comments, Reviews)",
+		label: "Social Stats (Total Activities, Followers, Following, Thread Posts/Comments, Reviews)",
 	},
 	{
 		id: "mangaStats",
@@ -179,7 +178,12 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 
 	return (
 		<Dialog open={isOpen} onOpenChange={onClose}>
-			<DialogContent className={cn("sm:max-w-[600px] overflow-y-auto max-h-[calc(100vh-2rem)]", className)}>
+			<DialogContent
+				className={cn(
+					"sm:max-w-[600px] overflow-y-auto max-h-[calc(100vh-2rem)]",
+					className
+				)}
+			>
 				<DialogHeader>
 					<DialogTitle>Generate Your Stat Cards</DialogTitle>
 					<DialogDescription>
@@ -212,78 +216,60 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 						</Select>
 					</div>
 					<div className="grid grid-cols-2 gap-4">
-						<div>
-							<Label htmlFor="titleColor">Title Color</Label>
-							<div className="flex items-center space-x-2">
-								<Input
-									id="titleColor"
-									type="color"
-									value={titleColor}
-									onChange={(e) => setTitleColor(e.target.value)}
-									className="w-12 h-12 p-1 rounded"
-								/>
-								<Input
-									type="text"
-									value={titleColor}
-									onChange={(e) => setTitleColor(e.target.value)}
-									className="flex-grow"
-								/>
-							</div>
-						</div>
-						<div>
-							<Label htmlFor="backgroundColor">Background Color</Label>
-							<div className="flex items-center space-x-2">
-								<Input
-									id="backgroundColor"
-									type="color"
-									value={backgroundColor}
-									onChange={(e) => setBackgroundColor(e.target.value)}
-									className="w-12 h-12 p-1 rounded"
-								/>
-								<Input
-									type="text"
-									value={backgroundColor}
-									onChange={(e) => setBackgroundColor(e.target.value)}
-									className="flex-grow"
-								/>
-							</div>
-						</div>
-						<div>
-							<Label htmlFor="textColor">Text Color</Label>
-							<div className="flex items-center space-x-2">
-								<Input
-									id="textColor"
-									type="color"
-									value={textColor}
-									onChange={(e) => setTextColor(e.target.value)}
-									className="w-12 h-12 p-1 rounded"
-								/>
-								<Input
-									type="text"
-									value={textColor}
-									onChange={(e) => setTextColor(e.target.value)}
-									className="flex-grow"
-								/>
-							</div>
-						</div>
-						<div>
-							<Label htmlFor="circleColor">Circle Color</Label>
-							<div className="flex items-center space-x-2">
-								<Input
-									id="circleColor"
-									type="color"
-									value={circleColor}
-									onChange={(e) => setCircleColor(e.target.value)}
-									className="w-12 h-12 p-1 rounded"
-								/>
-								<Input
-									type="text"
-									value={circleColor}
-									onChange={(e) => setCircleColor(e.target.value)}
-									className="flex-grow"
-								/>
-							</div>
-						</div>
+						{[titleColor, backgroundColor, textColor, circleColor].map(
+							(color, index) => (
+								<div key={index} className="space-y-2">
+									<Label
+										htmlFor={
+											[
+												"titleColor",
+												"backgroundColor",
+												"textColor",
+												"circleColor",
+											][index]
+										}
+									>
+										{["Title", "Background", "Text", "Circle"][index]} Color
+									</Label>
+									<div className="flex items-center space-x-2">
+										<Input
+											id={
+												[
+													"titleColor",
+													"backgroundColor",
+													"textColor",
+													"circleColor",
+												][index]
+											}
+											type="color"
+											value={color}
+											onChange={(e) =>
+												[
+													setTitleColor,
+													setBackgroundColor,
+													setTextColor,
+													setCircleColor,
+												][index](e.target.value)
+											}
+											className="w-12 h-12 p-1 rounded transition-transform duration-200 hover:scale-105 transform-gpu cursor-pointer"
+										/>
+										<Input
+											type="text"
+											value={color}
+											onChange={(e) =>
+												[
+													setTitleColor,
+													setBackgroundColor,
+													setTextColor,
+													setCircleColor,
+												][index](e.target.value)
+											}
+											className="flex-grow transition-all duration-200 focus:ring-2 focus:ring-primary"
+										/>
+									</div>
+								</div>
+							)
+						)}
 					</div>
 					<div className="space-y-4">
 						<div className="flex justify-between items-center">
@@ -300,27 +286,34 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 							</Button>
 						</div>
 						<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-							{statCardTypes.map((type) => (
+							{statCardTypes.map((type, index) => (
 								<div
 									key={type.id}
-									className="flex items-start space-x-2 bg-secondary/50 rounded-lg p-3 transition-colors hover:bg-secondary"
+									className={cn(
+										"flex items-start space-x-2 bg-secondary/50 rounded-lg p-3",
+										"transition-all duration-300 hover:bg-secondary hover:shadow-lg",
+										"hover:-translate-y-1 cursor-pointer group",
+										"animate-in fade-in-up fill-mode-backwards",
+										selectedCards.includes(type.id) ? "ring-2 ring-primary" : ""
+									)}
+									style={{ animationDelay: `${index * 50}ms` }}
 								>
 									<Checkbox
 										id={type.id}
 										checked={selectedCards.includes(type.id)}
 										onCheckedChange={() => handleCheckboxChange(type.id)}
-										className="mt-1"
+										className="mt-1 transition-all duration-200 scale-90 group-hover:scale-100 checked:scale-110 focus:ring-2 focus:ring-primary"
 									/>
 									<div className="space-y-1 flex-grow">
 										<Label
 											htmlFor={type.id}
 											className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
 										>
-											{type.label.split("(")[0].trim()}
+											{type.label.split(" (")[0]}
 										</Label>
 										{type.label.includes("(") && (
-											<p className="text-xs text-muted-foreground">
-												({type.label.split("(")[1].replace(")", "")})
+											<p className="text-xs text-muted-foreground transition-opacity duration-200 group-hover:opacity-100">
+												{type.label.match(/\((.*)\)/)?.[1]}
 											</p>
 										)}
 									</div>
@@ -329,6 +322,8 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 										variant="outline"
 										size="sm"
 										onClick={() => handlePreview(type.id)}
+										className="transition-all duration-200 hover:bg-primary hover:text-primary-foreground scale-90 group-hover:scale-100"
+										title={`Preview ${type.label.split(" (")[0]} card`}
 									>
 										Preview
 									</Button>
@@ -336,7 +331,10 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 							))}
 						</div>
 					</div>
-					<Button type="submit" className="w-full">
+					<Button
+						type="submit"
+						className="w-full transition-transform duration-200 hover:scale-[1.02] transform-gpu"
+					>
 						Generate Stat Cards
 					</Button>
 				</form>
