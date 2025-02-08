@@ -4,6 +4,9 @@
 
 @layer base {
   :root {
+    --foreground-rgb: 0, 0, 0;
+    --background-start-rgb: 214, 219, 220;
+    --background-end-rgb: 255, 255, 255;
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
     --card: 0 0% 100%;
@@ -32,25 +35,28 @@
   }
 
   .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
+    --foreground-rgb: 230, 230, 255;
+    --background-start-rgb: 10, 25, 47;
+    --background-end-rgb: 10, 25, 47;
+    --background: 210 50% 10%;
+    --foreground: 210 50% 90%;
+    --card: 210 50% 15%;
+    --card-foreground: 210 50% 90%;
+    --popover: 210 50% 15%;
+    --popover-foreground: 210 50% 90%;
+    --primary: 210 50% 90%;
+    --primary-foreground: 210 50% 10%;
+    --secondary: 210 50% 20%;
+    --secondary-foreground: 210 50% 90%;
+    --muted: 210 50% 20%;
+    --muted-foreground: 210 50% 70%;
+    --accent: 210 50% 20%;
+    --accent-foreground: 210 50% 90%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
+    --border: 210 50% 20%;
+    --input: 210 50% 20%;
+    --ring: 210 50% 70%;
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
@@ -59,10 +65,16 @@
   }
 }
 
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(to bottom, transparent, rgb(var(--background-end-rgb))) rgb(var(--background-start-rgb));
+}
+
 @layer base {
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
   }
