@@ -25,6 +25,8 @@ import { StatCardPreview } from "@/components/stat-card-preview";
 import { cn } from "@/lib/utils";
 import { LoadingOverlay } from "@/components/loading-spinner";
 import { ErrorPopup } from "@/components/error-popup";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Info } from "lucide-react";
 
 interface StatCardGeneratorProps {
 	isOpen: boolean;
@@ -61,6 +63,7 @@ const colorPresets = {
 	ocean: ["#00b4d8", "#03045e", "#caf0f8", "#00b4d8"],
 	forest: ["#2d6a4f", "#081c15", "#d8f3dc", "#2d6a4f"],
 	lavender: ["#7c3aed", "#ede9fe", "#1e1b4b", "#7c3aed"],
+	custom: ["", "", "", ""],
 };
 
 export function StatCardGenerator({ isOpen, onClose, className }: StatCardGeneratorProps) {
@@ -92,10 +95,12 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 
 	const handlePresetChange = (preset: string) => {
 		setSelectedPreset(preset);
-		setTitleColor(colorPresets[preset as keyof typeof colorPresets][0]);
-		setBackgroundColor(colorPresets[preset as keyof typeof colorPresets][1]);
-		setTextColor(colorPresets[preset as keyof typeof colorPresets][2]);
-		setCircleColor(colorPresets[preset as keyof typeof colorPresets][3]);
+		if (preset !== "custom") {
+			setTitleColor(colorPresets[preset as keyof typeof colorPresets][0]);
+			setBackgroundColor(colorPresets[preset as keyof typeof colorPresets][1]);
+			setTextColor(colorPresets[preset as keyof typeof colorPresets][2]);
+			setCircleColor(colorPresets[preset as keyof typeof colorPresets][3]);
+		}
 	};
 
 	const handleSelectAll = () => {
@@ -276,6 +281,7 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 								<SelectItem value="ocean">Ocean</SelectItem>
 								<SelectItem value="forest">Forest</SelectItem>
 								<SelectItem value="lavender">Lavender</SelectItem>
+								<SelectItem value="custom">Custom</SelectItem>
 							</SelectContent>
 						</Select>
 					</div>
@@ -307,27 +313,29 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 											}
 											type="color"
 											value={color}
-											onChange={(e) =>
+											onChange={(e) => {
 												[
 													setTitleColor,
 													setBackgroundColor,
 													setTextColor,
 													setCircleColor,
-												][index](e.target.value)
-											}
+												][index](e.target.value);
+												setSelectedPreset("custom");
+											}}
 											className="w-12 h-12 p-1 rounded transition-transform duration-200 hover:scale-105 transform-gpu cursor-pointer"
 										/>
 										<Input
 											type="text"
 											value={color}
-											onChange={(e) =>
+											onChange={(e) => {
 												[
 													setTitleColor,
 													setBackgroundColor,
 													setTextColor,
 													setCircleColor,
-												][index](e.target.value)
-											}
+												][index](e.target.value);
+												setSelectedPreset("custom");
+											}}
 											className="flex-grow transition-all duration-200 focus:ring-2 focus:ring-primary"
 										/>
 									</div>
@@ -401,6 +409,29 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 					>
 						Generate Stat Cards
 					</Button>
+					<Alert className="border-blue-500 bg-blue-500/10">
+						<Info className="h-5 w-5 text-blue-500" />
+						<div className="ml-3">
+							<AlertTitle className="text-blue-500 text-lg">Update Notice</AlertTitle>
+							<AlertDescription className="text-foreground">
+								<div className="space-y-2">
+									<p>
+										SVGs are cached for 24 hours. If your changes don&apos;t
+										appear:
+									</p>
+									<ul className="list-disc pl-6">
+										<li>
+											Hard refresh with <kbd>Ctrl</kbd>+<kbd>F5</kbd>{" "}
+											(Windows) or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+
+											<kbd>R</kbd> (Mac)
+										</li>
+										<li>Clear browser cache</li>
+										<li>Wait up to 24 hours for cache expiration</li>
+									</ul>
+								</div>
+							</AlertDescription>
+						</div>
+					</Alert>
 				</form>
 			</DialogContent>
 			<ErrorPopup

@@ -220,7 +220,7 @@ export async function GET(request: Request) {
 	if (!success) {
 		return new Response(svgError("Too many requests - try again later"), {
 			headers: errorHeaders(),
-			status: 429,
+			status: 200,
 		});
 	}
 

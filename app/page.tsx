@@ -59,8 +59,8 @@ export default function HomePage() {
 					animate={{ opacity: 1, y: 0 }}
 					transition={{ duration: 0.5, delay: 0.6 }}
 				>
-					Anicards is an innovative app that transforms your Anilist data into beautiful,
-					shareable stat cards. It provides a unique way to visualize your anime and manga
+					Anicards is an app that transforms your Anilist data into beautiful, shareable
+					stat cards. It provides a unique way to visualize your anime and manga
 					consumption habits, preferences, and social activity.
 				</motion.p>
 				<motion.div
@@ -105,13 +105,13 @@ export default function HomePage() {
 							icon: Tag,
 							title: "Genre & Tag Breakdown",
 							description:
-								"Discover your top anime and manga genres and tags to understand your preferences better.",
+								"Discover your top anime and manga genres and tags to understand your preferences better",
 						},
 						{
 							icon: Mic,
 							title: "Voice Actor Highlights",
 							description:
-								"Find out which voice actors appear most frequently in your favorite anime.",
+								"Find out which voice actors appear most frequently in your anime.",
 						},
 						{
 							icon: Building2,
@@ -123,13 +123,13 @@ export default function HomePage() {
 							icon: User,
 							title: "Staff Spotlight",
 							description:
-								"Identify the directors, writers, and other staff members behind your favorite works.",
+								"Identify the directors, writers, and other staff members behind your anime.",
 						},
 						{
 							icon: BookType,
 							title: "Manga Creator Focus",
 							description:
-								"Explore the mangaka and staff responsible for your top-rated manga.",
+								"Explore the mangaka and staff responsible for your manga.",
 						},
 					].map((feature, index) => (
 						<motion.div

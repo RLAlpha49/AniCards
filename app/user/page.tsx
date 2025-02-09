@@ -3,6 +3,8 @@ import { CardList } from "@/components/card-list";
 import { displayNames } from "@/components/stat-card-preview";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Info } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -61,11 +63,29 @@ export default async function UserPage(props: {
 
 	return (
 		<div className="container mx-auto p-4">
-			<h1 className="text-3xl font-bold mb-8 text-center">
+			<h1 className="text-3xl font-bold mb-4 text-center">
 				{userData?.username
 					? `${userData.username}'s Generated Cards`
 					: "User's Generated Cards"}
 			</h1>
+
+			{cardTypes.length > 0 && (
+				<Alert className="mb-6 max-w-2xl mx-auto border-blue-500">
+					<Info className="h-4 w-4 text-blue-500" />
+					<AlertTitle className="text-blue-500">Cache Notice</AlertTitle>
+					<AlertDescription className="text-foreground">
+						SVGs are cached for 24 hours. If updates aren&apos;t visible, try:
+						<ul className="list-disc pl-6 mt-2">
+							<li>
+								Hard refresh (<kbd>Ctrl</kbd>+<kbd>F5</kbd> or <kbd>Cmd</kbd>+
+								<kbd>Shift</kbd>+<kbd>R</kbd>)
+							</li>
+							<li>Clearing browser cache</li>
+							<li>Waiting up to 24 hours</li>
+						</ul>
+					</AlertDescription>
+				</Alert>
+			)}
 
 			{cardTypes.length > 0 ? (
 				<div className="flex flex-col items-center gap-6">
