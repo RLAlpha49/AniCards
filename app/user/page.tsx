@@ -1,50 +1,58 @@
+import { redirect } from "next/navigation";
 import { CardList } from "@/components/card-list";
 import { displayNames } from "@/components/stat-card-preview";
 
 export const dynamic = "force-dynamic";
 
-export default async function UserPage(props: { searchParams: Promise<{ userId?: string }> }) {
-	const searchParams = await props.searchParams;
-	if (!searchParams.userId) {
-		return <div className="container mx-auto p-4">Missing user ID parameter</div>;
+export default async function UserPage(props: {
+	searchParams: Promise<{
+		userId?: string;
+		username?: string;
+		cards?: string;
+	}>;
+}) {
+	const params = await props.searchParams;
+
+	// Redirect to lookup if no userId
+	if (!params.userId) {
+		redirect("/user/lookup");
 	}
 
-	const userId = searchParams.userId;
-
-	let userData: { username?: string } | null = null;
-	let cards: Array<{ cardName: string }> = [];
+	// Parse pre-loaded data if available
+	let userData = null;
+	let cards = [];
 
 	try {
-		const userRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user?userId=${userId}`);
-		if (!userRes.ok) {
-			const error = await userRes.json();
-			throw new Error(error.error || "Failed to fetch user");
-		}
-		userData = await userRes.json();
+		if (params.username && params.cards) {
+			userData = {
+				userId: params.userId,
+				username: params.username,
+			};
 
-		const cardsRes = await fetch(
-			`${process.env.NEXT_PUBLIC_API_URL}/api/cards?userId=${userId}`
-		);
-		if (!cardsRes.ok) {
-			const error = await cardsRes.json();
-			throw new Error(error.error || "Failed to fetch cards");
+			cards = JSON.parse(params.cards).map((cardName: string) => ({
+				cardName,
+			}));
+		} else if (params.userId) {
+			// Fallback to API calls if no pre-loaded data
+			const [userRes, cardsRes] = await Promise.all([
+				fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user?userId=${params.userId}`),
+				fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cards?userId=${params.userId}`),
+			]);
+
+			userData = await userRes.json();
+			const cardsData = await cardsRes.json();
+			cards = cardsData[0]?.cards || [];
 		}
-		const cardsData = await cardsRes.json();
-		cards = cardsData[0]?.cards || [];
 	} catch (error) {
-		console.error("Fetch error:", error);
-		return (
-			<div className="container mx-auto p-4">
-				{error instanceof Error ? error.message : "Error loading data"}
-			</div>
-		);
+		console.error("Data loading error:", error);
+		return <div className="container mx-auto p-4">Error loading data</div>;
 	}
 
-	const cardTypes = cards.map((card) => {
+	const cardTypes = cards.map((card: { cardName: string }) => {
 		const displayName = displayNames[card.cardName] || card.cardName;
 		return {
 			type: displayName,
-			svgUrl: `${process.env.NEXT_PUBLIC_API_URL}/api/card.svg?cardType=${card.cardName}&userId=${userId}`,
+			svgUrl: `${process.env.NEXT_PUBLIC_API_URL}/api/card.svg?cardType=${card.cardName}&userId=${params.userId}`,
 			rawType: card.cardName,
 		};
 	});

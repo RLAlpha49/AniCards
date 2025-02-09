@@ -135,44 +135,51 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 
 			const statsData = await statsResponse.json();
 
-			// First store user data
-			const userResponse = await fetch("/api/store-users", {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${process.env.API_AUTH_TOKEN}`,
-				},
-				body: JSON.stringify({
-					userId: userIdData.User.id,
-					username,
-					stats: statsData,
+			// Store user and cards
+			const [userResponse, cardResponse] = await Promise.all([
+				fetch("/api/store-users", {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${process.env.API_AUTH_TOKEN}`,
+					},
+					body: JSON.stringify({
+						userId: userIdData.User.id,
+						username,
+						stats: statsData,
+					}),
 				}),
-			});
-
-			if (!userResponse.ok) throw new Error("Failed to store user");
-
-			// Then store card data
-			const cardResponse = await fetch("/api/store-cards", {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${process.env.API_AUTH_TOKEN}`,
-				},
-				body: JSON.stringify({
-					userId: userIdData.User.id,
-					cards: selectedCards.map((cardName) => ({
-						cardName,
-						titleColor,
-						backgroundColor,
-						textColor,
-						circleColor,
-					})),
+				fetch("/api/store-cards", {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${process.env.API_AUTH_TOKEN}`,
+					},
+					body: JSON.stringify({
+						userId: userIdData.User.id,
+						cards: selectedCards.map((cardName) => ({
+							cardName,
+							titleColor,
+							backgroundColor,
+							textColor,
+							circleColor,
+						})),
+					}),
 				}),
-			});
+			]);
 
-			if (!cardResponse.ok) throw new Error("Failed to store cards");
+			if (!userResponse.ok || !cardResponse.ok) {
+				throw new Error("Failed to store data");
+			}
 
-			router.push(`/user?userId=${userIdData.User.id}`);
+			// Modified navigation section
+			router.push(
+				`/user?${new URLSearchParams({
+					userId: userIdData.User.id,
+					username: username,
+					cards: JSON.stringify(selectedCards),
+				})}`
+			);
 		} catch (error) {
 			console.error("Submission failed:", error);
 			alert("Failed to save card. Please try again.");
