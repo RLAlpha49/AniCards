@@ -6,7 +6,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
 		textColor: string;
 		circleColor: string;
 	};
-	format: "anime" | "manga";
+	format: string;
 	stats: { name: string; count: number }[];
 }) => `
     <svg
@@ -18,7 +18,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
   role="img"
   aria-labelledby="desc-id"
 >
-  <title id="title-id">${data.username}'s ${data.format} Stats</title>
+  <title id="title-id">${data.username}'s ${data.format}</title>
   <desc id="desc-id">
     ${data.stats.map((stat) => `${stat.name}: ${stat.count}`).join(", ")}
   </desc>
@@ -67,7 +67,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
   <g data-testid="card-title" transform="translate(25, 35)">
     <g transform="translate(0, 0)">
       <text x="0" y="0" class="header" data-testid="header">
-        ${data.username}'s ${data.format} Stats
+        ${data.username}'s ${data.format}
       </text>
     </g>
   </g>

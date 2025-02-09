@@ -8,11 +8,11 @@ import { mangaStatsTemplate } from "@/lib/svg-templates/manga-stats";
 import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
 import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats";
 import { extractErrorInfo } from "@/lib/utils";
-
 const ratelimit = new Ratelimit({
 	redis: Redis.fromEnv(),
 	limiter: Ratelimit.slidingWindow(15, "10 s"),
 });
+
 
 const ALLOWED_CARD_TYPES = new Set([
 	"animeStats",
@@ -28,6 +28,20 @@ const ALLOWED_CARD_TYPES = new Set([
 	"mangaTags",
 	"mangaStaff",
 ]);
+
+const displayNames: { [key: string]: string } = {
+	animeStats: "Anime Stats",
+	socialStats: "Social Stats",
+	mangaStats: "Manga Stats",
+	animeGenres: "Anime Genres",
+	animeTags: "Anime Tags",
+	animeVoiceActors: "Anime Voice Actors",
+	animeStudios: "Anime Studios",
+	animeStaff: "Anime Staff",
+	mangaGenres: "Manga Genres",
+	mangaTags: "Manga Tags",
+	mangaStaff: "Manga Staff",
+};
 
 type CategoryKey = "genres" | "tags" | "voiceactors" | "studios" | "staff";
 
@@ -200,11 +214,10 @@ function generateCardSVG(cardConfig: CardConfig, userStats: any) {
 					textColor: cardConfig.textColor,
 					circleColor: cardConfig.circleColor,
 				},
-				format: isAnime ? "anime" : "manga",
+				format: displayNames[cardConfig.cardName],
 				stats: items,
 			});
 			break;
-
 		default:
 			throw new Error("Unsupported card type");
 	}
