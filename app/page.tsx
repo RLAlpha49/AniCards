@@ -13,6 +13,7 @@ import {
 	Building2,
 	User,
 	BookType,
+	Clock,
 } from "lucide-react";
 import { StatCardGenerator } from "@/components/stat-card-generator";
 import { motion } from "framer-motion";
@@ -87,7 +88,7 @@ export default function HomePage() {
 							icon: BarChart2,
 							title: "Comprehensive Stats",
 							description:
-								"View detailed statistics about your anime and manga, including watch time, episode count, and score distribution.",
+								"View detailed statistics about your anime and manga, including watch time, episode count, etc.",
 						},
 						{
 							icon: Users,
@@ -99,7 +100,7 @@ export default function HomePage() {
 							icon: BookOpen,
 							title: "Manga Analysis",
 							description:
-								"Dive deep into your manga reading habits with chapter and volume counts, mean scores, and more.",
+								"Dive deep into your manga reading habits with chapter and volume counts, mean scores, etc.",
 						},
 						{
 							icon: Tag,
@@ -118,6 +119,12 @@ export default function HomePage() {
 							title: "Studio Insights",
 							description:
 								"See which animation studios produce your most-watched anime.",
+						},
+						{
+							icon: Clock,
+							title: "Daily Updates",
+							description:
+								"Your stats are automatically updated every day at 12:00 AM UTC.",
 						},
 						{
 							icon: User,
