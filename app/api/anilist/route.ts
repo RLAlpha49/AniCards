@@ -3,14 +3,20 @@ import { NextResponse } from "next/server";
 export async function POST(request: Request) {
 	const startTime = Date.now();
 	let operationName = "unknown";
+	let userIdentifier = "not_provided";
 
 	try {
 		const { query, variables } = await request.json();
 
-		operationName = query.match(/query\s+(\w+)/)?.[1] || "anonymous_query";
-		const anilistUserId = variables?.userId ? String(variables.userId) : "unknown";
+		operationName = query.match(/(query|mutation)\s+(\w+)/)?.[2] || "anonymous_operation";
 
-		console.log(`🔵 AniList Request: ${operationName} for user ${anilistUserId}`);
+		if (operationName === "GetUserId") {
+			userIdentifier = variables?.userName ? String(variables.userName) : "no_username";
+		} else if (operationName === "GetUserStats") {
+			userIdentifier = variables?.userId ? String(variables.userId) : "no_userid";
+		}
+
+		console.log(`🔵 AniList Request: ${operationName} for ${userIdentifier}`);
 
 		const response = await fetch("https://graphql.anilist.co", {
 			method: "POST",
@@ -23,7 +29,9 @@ export async function POST(request: Request) {
 		});
 
 		const duration = Date.now() - startTime;
-		console.log(`🟢 AniList Response: ${operationName} [${response.status}] ${duration}ms`);
+		console.log(
+			`🟢 AniList Response: ${operationName} [${response.status}] ${duration}ms | Identifier: ${userIdentifier}`
+		);
 
 		if (!response.ok) {
 			console.error(`🔴 AniList Error: ${operationName} HTTP ${response.status}`);
@@ -40,7 +48,9 @@ export async function POST(request: Request) {
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	} catch (error: any) {
 		const duration = Date.now() - startTime;
-		console.error(`🔴 AniList Failed: ${operationName} [${duration}ms] - ${error.message}`);
+		console.error(
+			`🔴 AniList Failed: ${operationName} [${duration}ms] | Identifier: ${userIdentifier} - ${error.message}`
+		);
 		return NextResponse.json({ error: "Failed to fetch AniList data" }, { status: 500 });
 	}
 }

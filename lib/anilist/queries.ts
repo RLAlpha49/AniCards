@@ -1,5 +1,5 @@
 export const USER_ID_QUERY = `
-  query ($userName: String) {
+  query GetUserId($userName: String) {
     User(name: $userName) {
       id
     }
@@ -7,7 +7,7 @@ export const USER_ID_QUERY = `
 `;
 
 export const USER_STATS_QUERY = `
-  query ($userId: Int!) {
+  query GetUserStats($userId: Int!) {
     User(id: $userId) {
       statistics {
         anime {

@@ -38,7 +38,7 @@ export async function GET(request: Request) {
 		const duration = Date.now() - startTime;
 
 		console.log(
-			`✅ [Cards API] Found ${cards.length} cards for user ${numericUserId} [${duration}ms]`
+			`✅ [Cards API] Found ${cards[0].cards.length} cards for user ${numericUserId} [${duration}ms]`
 		);
 		return NextResponse.json(cards);
 	} catch (error) {
