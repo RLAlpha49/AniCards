@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AniCards - AniList Statistics Cards
 
-## Getting Started
+Generate beautiful, customizable statistic cards for your AniList profile. Share your anime and manga consumption data in an attractive visual format.
 
-First, run the development server:
+## ✨ Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- **10+ Card Types**: Track anime stats, manga progress, social activity, genres, staff, and more
+- **Custom Designs**: Choose from preset themes or create your own color combinations
+- **Dynamic SVGs**: Sharable vector graphics with animations and progress indicators
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🐛 Issues & Feature Requests
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Found a bug or have an idea for improvement? We'd love to hear it!
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 🎨 Card Style Requests
 
-## Learn More
+**I especially encourage design submissions!** Have an idea for:
 
-To learn more about Next.js, take a look at the following resources:
+- New color schemes/themes 🎨
+- Creative layout concepts 🖼️
+- Animated elements ✨
+- New card types 📊
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Submit your design concepts (sketches, Figma files, or detailed descriptions) and I'll work to implement them!
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 📝 How to Report
 
-## Deploy on Vercel
+1. Check existing [issues](https://github.com/RLAlpha49/AniCards/issues)
+2. If unavailable, [open a new issue](https://github.com/RLAlpha49/AniCards/issues/new)
+3. Include:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+   - Detailed description
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+   - Visual examples (screenshots/mockups) if possible
+   - Expected behavior
+   - For bugs: steps to reproduce
+
+## 🤝 Contributing
+
+I welcome contributions! Here's how:
+
+1. Fork the repository
+2. Create your feature branch:
+
+    ```bash
+    git checkout -b feature/amazing-feature
+    ```
+
+3. Commit changes:
+
+    ```bash
+    git commit -m 'Add some amazing feature'
+    ```
+
+4. Push to branch:
+
+    ```bash
+    git push origin feature/amazing-feature
+    ```
+
+5. Open a Pull Request
+
+## 📄 License
+
+Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
+
+---
+
+**Disclaimer**: This project is not affiliated with AniList.co. Use of AniList's API is subject to their terms of service.
