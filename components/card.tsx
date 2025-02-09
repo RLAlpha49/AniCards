@@ -32,7 +32,7 @@ export function Card({ type, svgUrl }: CardProps) {
 	};
 
 	const svgLink = svgUrl;
-	const anilistBioLink = `img150("${svgUrl}")`;
+	const anilistBioLink = `img150(${svgUrl})`;
 
 	return (
 		<div className="relative">
