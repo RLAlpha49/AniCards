@@ -1,7 +1,6 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
-import { MongoClient } from "mongodb";
-import { ServerApiVersion } from "mongodb";
+import { MongoClient, ServerApiVersion } from "mongodb";
 import { animeStatsTemplate } from "@/lib/svg-templates/anime-stats";
 import { CardConfig, UserStats } from "@/lib/types/card";
 import { calculateMilestones } from "@/lib/utils/milestones";
@@ -213,6 +212,7 @@ function generateCardSVG(cardConfig: CardConfig, userStats: any) {
 }
 
 export async function GET(request: Request) {
+	const startTime = Date.now();
 	const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
 	const { success } = await ratelimit.limit(ip);
 
@@ -227,21 +227,36 @@ export async function GET(request: Request) {
 	const userId = searchParams.get("userId");
 	const cardType = searchParams.get("cardType");
 
+	console.log(`🖼️ [Card SVG] Request for ${cardType} card - User ID: ${userId}`);
+
+	if (!userId || !cardType) {
+		const missingParam = !userId ? "userId" : "cardType";
+		console.warn(`⚠️ [Card SVG] Missing parameter: ${missingParam}`);
+		return new Response(svgError("Missing parameters"), {
+			headers: errorHeaders(),
+			status: 200,
+		});
+	}
+
+	if (!ALLOWED_CARD_TYPES.has(cardType)) {
+		console.warn(`⚠️ [Card SVG] Invalid card type: ${cardType}`);
+		return new Response(svgError("Invalid card type"), {
+			headers: errorHeaders(),
+			status: 200,
+		});
+	}
+
+	const numericUserId = parseInt(userId);
+	if (isNaN(numericUserId)) {
+		console.warn(`⚠️ [Card SVG] Invalid user ID format: ${userId}`);
+		return new Response(svgError("Invalid user ID"), {
+			headers: errorHeaders(),
+			status: 200,
+		});
+	}
+
 	try {
-		if (!userId || !cardType) {
-			return new Response(svgError("Missing user ID or card type"), {
-				headers: errorHeaders(),
-				status: 200,
-			});
-		}
-
-		if (!ALLOWED_CARD_TYPES.has(cardType)) {
-			return new Response(svgError("Invalid card type"), {
-				headers: errorHeaders(),
-				status: 200,
-			});
-		}
-
+		console.log(`🔍 [Card SVG] Fetching data for user ${numericUserId}`);
 		const client = new MongoClient(process.env.MONGODB_URI!, {
 			serverApi: {
 				version: ServerApiVersion.v1,
@@ -253,15 +268,16 @@ export async function GET(request: Request) {
 
 		const [cardDoc, userDoc] = await Promise.all([
 			db.collection("cards").findOne({
-				userId: parseInt(userId),
+				userId: numericUserId,
 				"cards.cardName": cardType,
 			}),
 			db.collection("users").findOne({
-				userId: parseInt(userId),
+				userId: numericUserId,
 			}),
 		]);
 
 		if (!cardDoc || !userDoc) {
+			console.warn(`⚠️ [Card SVG] User ${numericUserId} not found`);
 			return new Response(svgError("User data not found"), {
 				headers: errorHeaders(),
 				status: 200,
@@ -270,13 +286,20 @@ export async function GET(request: Request) {
 
 		const cardConfig = cardDoc.cards.find((c: CardConfig) => c.cardName === cardType);
 
+		console.log(`🎨 [Card SVG] Generating ${cardType} SVG for user ${numericUserId}`);
 		try {
 			const svgContent = generateCardSVG(cardConfig, userDoc as unknown as UserStats);
+			const duration = Date.now() - startTime;
+			console.log(
+				`✅ [Card SVG] Rendered ${cardType} card for ${numericUserId} [${duration}ms]`
+			);
 			return new Response(svgContent, {
 				headers: svgHeaders(),
 			});
 		} catch (error) {
 			console.error("Card generation failed:", error);
+			const duration = Date.now() - startTime;
+			console.error(`🔥 [Card SVG] Error after ${duration}ms:`, error);
 			return new Response(svgError("Server Error"), {
 				headers: errorHeaders(),
 				status: 200,
@@ -284,6 +307,8 @@ export async function GET(request: Request) {
 		}
 	} catch (error) {
 		console.error("Card generation failed:", error);
+		const duration = Date.now() - startTime;
+		console.error(`🔥 [Card SVG] Error after ${duration}ms:`, error);
 		return new Response(svgError("Server Error"), {
 			headers: errorHeaders(),
 			status: 200,

@@ -10,23 +10,31 @@ const ratelimit = new Ratelimit({
 });
 
 export async function POST(request: Request) {
+	const startTime = Date.now();
 	const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
-	const { success } = await ratelimit.limit(ip);
+	console.log(`🔵 [Store Cards] Request from IP: ${ip}`);
 
+	const { success } = await ratelimit.limit(ip);
 	if (!success) {
+		console.warn(`⚠️ [Store Cards] Rate limited IP: ${ip}`);
 		return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 	}
 
 	const authToken = request.headers.get("Authorization");
 	if (!authToken || authToken !== `Bearer ${process.env.API_AUTH_TOKEN}`) {
+		console.warn(`⚠️ [Store Cards] Invalid auth token from IP: ${ip}`);
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
 
 	try {
 		const body = await request.json();
 		const { statsData, userId, cards: incomingCards } = body;
+		console.log(
+			`🔍 [Store Cards] Processing user ${userId} with ${incomingCards?.length || 0} cards`
+		);
 
 		if (statsData?.error) {
+			console.warn(`⚠️ [Store Cards] Invalid data for user ${userId}: ${statsData.error}`);
 			return NextResponse.json(
 				{ error: "Invalid data: " + statsData.error },
 				{ status: 400 }
@@ -43,6 +51,7 @@ export async function POST(request: Request) {
 		const db = client.db("anicards");
 		const now = new Date();
 
+		console.log(`🔄 [Store Cards] Updating cards for user ${userId}`);
 		const updateResult = await db.collection<CardsDocument>("cards").updateOne(
 			{ userId },
 			[
@@ -115,13 +124,22 @@ export async function POST(request: Request) {
 			}
 		);
 
+		const duration = Date.now() - startTime;
+		const isNewDoc = updateResult.upsertedId !== null;
+		console.log(
+			`✅ [Store Cards] ${isNewDoc ? "Created" : "Updated"} cards for user ${userId} (${
+				updateResult.modifiedCount
+			} modified) [${duration}ms]`
+		);
+
 		return NextResponse.json({
 			success: true,
 			updatedCount: updateResult.modifiedCount,
-			isNewDocument: updateResult.upsertedId !== null,
+			isNewDocument: isNewDoc,
 		});
 	} catch (error) {
-		console.error("Card storage failed:", error);
+		const duration = Date.now() - startTime;
+		console.error(`🔴 [Store Cards] Error after ${duration}ms:`, error);
 		return NextResponse.json({ error: "Card storage failed" }, { status: 500 });
 	}
 }

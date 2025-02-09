@@ -10,15 +10,19 @@ const ratelimit = new Ratelimit({
 });
 
 export async function POST(request: Request) {
+	const startTime = Date.now();
 	const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
-	const { success } = await ratelimit.limit(ip);
+	console.log(`🔵 [Store Users] Request from IP: ${ip}`);
 
+	const { success } = await ratelimit.limit(ip);
 	if (!success) {
+		console.warn(`⚠️ [Store Users] Rate limited IP: ${ip}`);
 		return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 	}
 
 	const authToken = request.headers.get("Authorization");
 	if (!authToken || authToken !== `Bearer ${process.env.API_AUTH_TOKEN}`) {
+		console.warn(`⚠️ [Store Users] Invalid auth token from IP: ${ip}`);
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
 
@@ -32,6 +36,10 @@ export async function POST(request: Request) {
 		});
 		const db = client.db("anicards");
 		const data = await request.json();
+
+		console.log(
+			`🔍 [Store Users] Processing user ${data.userId} (${data.username || "no username"})`
+		);
 
 		const userResult = await db.collection<UserDocument>("users").updateOne(
 			{ userId: data.userId },
@@ -51,14 +59,23 @@ export async function POST(request: Request) {
 		);
 
 		await client.close();
+		const duration = Date.now() - startTime;
+
+		const isNewUser = userResult.upsertedId !== null;
+		console.log(
+			`✅ [Store Users] ${isNewUser ? "Created" : "Updated"} user ${
+				data.userId
+			} [${duration}ms]`
+		);
 
 		return NextResponse.json({
 			success: true,
 			userId: data.userId,
-			isNewUser: userResult.upsertedId !== null,
+			isNewUser: isNewUser,
 		});
 	} catch (error) {
-		console.error("Database error:", error);
+		const duration = Date.now() - startTime;
+		console.error(`🔴 [Store Users] Error after ${duration}ms:`, error);
 		return NextResponse.json({ error: "User storage failed" }, { status: 500 });
 	}
 }
