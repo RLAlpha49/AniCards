@@ -48,11 +48,6 @@ export const extraAnimeMangaStatsTemplate = (data: {
       animation: fadeInAnimation 0.3s ease-in-out forwards;
     }
 
-    @supports (-moz-appearance: auto) {
-      .header { font-size: 15.5px; }
-      .stat { font-size: 12px; }
-    }
-
     @keyframes fadeInAnimation {
       from { opacity: 0; }
       to { opacity: 1; }
@@ -83,8 +78,8 @@ export const extraAnimeMangaStatsTemplate = (data: {
       <g class="stagger" style="animation-delay: ${450 + index * 150}ms" transform="translate(25, ${
 				index * 25
 			})">
-        <text class="stat bold" y="12.5">${stat.name}:</text>
-        <text class="stat bold" x="199.01" y="12.5">${stat.count}</text>
+        <text class="stat.bold" y="12.5">${stat.name}:</text>
+        <text class="stat.bold" x="199.01" y="12.5">${stat.count}</text>
       </g>
     `
 		)

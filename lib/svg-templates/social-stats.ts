@@ -73,11 +73,6 @@ export const socialStatsTemplate = (data: {
       animation: fadeInAnimation 0.3s ease-in-out forwards;
     }
 
-    @supports (-moz-appearance: auto) {
-      .header { font-size: 15.5px; }
-      .stat { font-size: 12px; }
-    }
-
     @keyframes fadeInAnimation {
       from { opacity: 0; }
       to { opacity: 1; }
@@ -108,9 +103,9 @@ export const socialStatsTemplate = (data: {
         style="animation-delay: 450ms"
         transform="translate(25, 0)"
       >
-        <text class="stat bold" y="12.5">Total Followers:</text>
+        <text class="stat.bold" y="12.5">Total Followers:</text>
         <text
-          class="stat bold"
+          class="stat.bold"
           x="199.01"
           y="12.5"
           data-testid="totalFollowers"
@@ -123,9 +118,9 @@ export const socialStatsTemplate = (data: {
         style="animation-delay: 600ms"
         transform="translate(25, 25)"
       >
-        <text class="stat bold" y="12.5">Total Following:</text>
+        <text class="stat.bold" y="12.5">Total Following:</text>
         <text
-          class="stat bold"
+          class="stat.bold"
           x="199.01"
           y="12.5"
           data-testid="totalFollowing"
@@ -138,8 +133,8 @@ export const socialStatsTemplate = (data: {
         style="animation-delay: 750ms"
         transform="translate(25, 50)"
       >
-        <text class="stat bold" y="12.5">Total Activity (${daysDifference} Days):</text>
-        <text class="stat bold" x="199.01" y="12.5" data-testid="totalActivity">
+        <text class="stat.bold" y="12.5">Total Activity (${daysDifference} Days):</text>
+        <text class="stat.bold" x="199.01" y="12.5" data-testid="totalActivity">
           ${totalActivity}
         </text>
       </g>
@@ -148,9 +143,9 @@ export const socialStatsTemplate = (data: {
         style="animation-delay: 900ms"
         transform="translate(25, 75)"
       >
-        <text class="stat bold" y="12.5">Thread Posts/Comments:</text>
+        <text class="stat.bold" y="12.5">Thread Posts/Comments:</text>
         <text
-          class="stat bold"
+          class="stat.bold"
           x="199.01"
           y="12.5"
           data-testid="threadPostsCommentsCount"
@@ -163,8 +158,8 @@ export const socialStatsTemplate = (data: {
         style="animation-delay: 1050ms"
         transform="translate(25, 100)"
       >
-        <text class="stat bold" y="12.5">Total Reviews:</text>
-        <text class="stat bold" x="199.01" y="12.5" data-testid="totalReviews">
+        <text class="stat.bold" y="12.5">Total Reviews:</text>
+        <text class="stat.bold" x="199.01" y="12.5" data-testid="totalReviews">
           ${data.stats.reviewsPage.pageInfo.total}
         </text>
       </g>

@@ -6,22 +6,21 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export async function svgToPng(svgUrl: string): Promise<string> {
-	const response = await fetch(svgUrl);
-	const svgText = await response.text();
+	try {
+		const response = await fetch("/api/convert", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({ svgUrl }),
+		});
 
-	const img = new Image();
-	img.src = `data:image/svg+xml;base64,${btoa(svgText)}`;
-
-	return new Promise((resolve) => {
-		img.onload = () => {
-			const canvas = document.createElement("canvas");
-			canvas.width = img.width;
-			canvas.height = img.height;
-			const ctx = canvas.getContext("2d");
-			ctx?.drawImage(img, 0, 0);
-			resolve(canvas.toDataURL("image/png"));
-		};
-	});
+		const { pngDataUrl } = await response.json();
+		return pngDataUrl;
+	} catch (error) {
+		console.error("Conversion failed:", error);
+		throw error;
+	}
 }
 
 export function copyToClipboard(text: string): Promise<void> {

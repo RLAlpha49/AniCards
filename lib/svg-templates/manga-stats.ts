@@ -84,11 +84,6 @@ export const mangaStatsTemplate = (data: {
       animation: rankAnimation 1s forwards ease-in-out;
     }
 
-    @supports (-moz-appearance: auto) {
-      .header { font-size: 15.5px; }
-      .stat { font-size: 12px; }
-    }
-
     @keyframes rankAnimation {
       from { stroke-dashoffset: ${data.stats.dasharray}; }
       to { stroke-dashoffset: ${data.stats.dashoffset}; }
@@ -170,8 +165,8 @@ export const mangaStatsTemplate = (data: {
           style="animation-delay: 450ms"
           transform="translate(25, 0)"
         >
-          <text class="stat bold" y="12.5">Count:</text>
-          <text class="stat bold" x="199.01" y="12.5" data-testid="count">
+          <text class="stat.bold" y="12.5">Count:</text>
+          <text class="stat.bold" x="199.01" y="12.5" data-testid="count">
             ${data.stats.count}
           </text>
         </g>
@@ -180,9 +175,9 @@ export const mangaStatsTemplate = (data: {
           style="animation-delay: 600ms"
           transform="translate(25, 25)"
         >
-          <text class="stat bold" y="12.5">Chapters Read:</text>
+          <text class="stat.bold" y="12.5">Chapters Read:</text>
           <text
-            class="stat bold"
+            class="stat.bold"
             x="199.01"
             y="12.5"
             data-testid="chaptersRead"
@@ -195,8 +190,8 @@ export const mangaStatsTemplate = (data: {
           style="animation-delay: 750ms"
           transform="translate(25, 50)"
         >
-          <text class="stat bold" y="12.5">Volumes Read:</text>
-          <text class="stat bold" x="199.01" y="12.5" data-testid="volumesRead">
+          <text class="stat.bold" y="12.5">Volumes Read:</text>
+          <text class="stat.bold" x="199.01" y="12.5" data-testid="volumesRead">
             ${data.stats.volumesRead}
           </text>
         </g>
@@ -205,8 +200,8 @@ export const mangaStatsTemplate = (data: {
           style="animation-delay: 900ms"
           transform="translate(25, 75)"
         >
-          <text class="stat bold" y="12.5">Mean Score:</text>
-          <text class="stat bold" x="199.01" y="12.5" data-testid="meanScore">
+          <text class="stat.bold" y="12.5">Mean Score:</text>
+          <text class="stat.bold" x="199.01" y="12.5" data-testid="meanScore">
             ${data.stats.meanScore}
           </text>
         </g>
@@ -215,9 +210,9 @@ export const mangaStatsTemplate = (data: {
           style="animation-delay: 1050ms"
           transform="translate(25, 100)"
         >
-          <text class="stat bold" y="12.5">Standard Deviation:</text>
+          <text class="stat.bold" y="12.5">Standard Deviation:</text>
           <text
-            class="stat bold"
+            class="stat.bold"
             x="199.01"
             y="12.5"
             data-testid="standardDeviation"
