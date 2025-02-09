@@ -4,6 +4,7 @@ import { ServerApiVersion } from "mongodb";
 import { UserStats } from "@/lib/types/card";
 import { extractErrorInfo } from "@/lib/utils";
 
+// API endpoint for fetching user data from MongoDB
 export async function GET(request: Request) {
 	const startTime = Date.now();
 	const { searchParams } = new URL(request.url);
@@ -11,11 +12,13 @@ export async function GET(request: Request) {
 
 	console.log(`🔵 [User API] Request received for userId: ${userId}`);
 
+	// Validate required user ID parameter
 	if (!userId) {
 		console.warn("⚠️ [User API] Missing user ID parameter");
 		return NextResponse.json({ error: "Missing user ID parameter" }, { status: 400 });
 	}
 
+	// Convert to numeric ID and validate format
 	const numericUserId = parseInt(userId);
 	if (isNaN(numericUserId)) {
 		console.warn(`⚠️ [User API] Invalid user ID format: ${userId}`);
@@ -24,6 +27,7 @@ export async function GET(request: Request) {
 
 	try {
 		console.log(`🔍 [User API] Querying database for user ${numericUserId}`);
+		// Configure MongoDB client with strict API versioning
 		const client = new MongoClient(process.env.MONGODB_URI!, {
 			serverApi: {
 				version: ServerApiVersion.v1,
@@ -33,6 +37,7 @@ export async function GET(request: Request) {
 		});
 
 		const db = client.db("anicards");
+		// Find user while excluding sensitive/irrelevant fields
 		const userData = (await db
 			.collection("users")
 			.findOne(
@@ -43,6 +48,7 @@ export async function GET(request: Request) {
 		await client.close();
 		const duration = Date.now() - startTime;
 
+		// Handle user not found scenario
 		if (!userData) {
 			console.warn(`⚠️ [User API] User ${numericUserId} not found [${duration}ms]`);
 			return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -54,8 +60,9 @@ export async function GET(request: Request) {
 		return NextResponse.json(userData);
 	} catch (error) {
 		const duration = Date.now() - startTime;
+		// Handle MongoDB-specific errors
 		if (error instanceof MongoServerError) {
-			error = extractErrorInfo(error);
+			error = extractErrorInfo(error); // Simplify error structure
 		}
 		console.error(
 			`🔴 [User API] Database error for user ${numericUserId} [${duration}ms]:`,

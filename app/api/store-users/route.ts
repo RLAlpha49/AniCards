@@ -10,11 +10,13 @@ const ratelimit = new Ratelimit({
 	limiter: Ratelimit.slidingWindow(5, "10 s"),
 });
 
+// API endpoint for storing/updating user data with rate limiting
 export async function POST(request: Request) {
 	const startTime = Date.now();
 	const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
 	console.log(`🔵 [Store Users] Request from IP: ${ip}`);
 
+	// Rate limiting configuration (5 requests/10 seconds per IP)
 	const { success } = await ratelimit.limit(ip);
 	if (!success) {
 		console.warn(`⚠️ [Store Users] Rate limited IP: ${ip}`);
@@ -22,6 +24,7 @@ export async function POST(request: Request) {
 	}
 
 	const authToken = request.headers.get("Authorization");
+	// Validate API authorization token
 	if (!authToken || authToken !== `Bearer ${process.env.API_AUTH_TOKEN}`) {
 		console.warn(`⚠️ [Store Users] Invalid auth token from IP: ${ip}`);
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -42,6 +45,7 @@ export async function POST(request: Request) {
 			`🔍 [Store Users] Processing user ${data.userId} (${data.username || "no username"})`
 		);
 
+		// MongoDB update/insert operation
 		const userResult = await db.collection<UserDocument>("users").updateOne(
 			{ userId: data.userId },
 			{
@@ -62,6 +66,7 @@ export async function POST(request: Request) {
 		await client.close();
 		const duration = Date.now() - startTime;
 
+		// Determine if user was created or updated
 		const isNewUser = userResult.upsertedId !== null;
 		console.log(
 			`✅ [Store Users] ${isNewUser ? "Created" : "Updated"} user ${
@@ -76,6 +81,7 @@ export async function POST(request: Request) {
 		});
 	} catch (error) {
 		const duration = Date.now() - startTime;
+		// Handle MongoDB validation errors
 		if (error instanceof MongoServerError) {
 			error = extractErrorInfo(error);
 		}

@@ -18,21 +18,30 @@ interface CardListProps {
 	cardTypes: CardType[];
 }
 
+// Component for displaying a grid of cards with copyable SVG links
 export function CardList({ cardTypes }: CardListProps) {
+	// Track which type of link was copied last (svg/anilist)
 	const [copied, setCopied] = useState<string | null>(null);
+
+	// Generate different link formats for copy functionality
 	const svgLinks = cardTypes.map((card) => card.svgUrl);
 	const anilistBioLinks = cardTypes.map((card) => `img150(${card.svgUrl})`);
 
-	const handleCopyLinks = async (type: "svg" | "anilist") => {
-		const links = type === "svg" ? svgLinks : anilistBioLinks;
+	// Extract userId from the first card's svgUrl
+	const userId = new URL(svgLinks[0]).searchParams.get("userId");
+	const statsLink = `[<h1>Stats</h1>](https://anicards.alpha49.com/user?userId=${userId})`;
 
-		await copyToClipboard(links.join("\n"));
+	// Handle bulk copy operations for different link formats
+	const handleCopyLinks = async (type: "svg" | "anilist") => {
+		const links = type === "svg" ? svgLinks : [statsLink, ...anilistBioLinks];
+		await copyToClipboard(links.join("\n")); // Join array with newlines
 		setCopied(type);
-		setTimeout(() => setCopied(null), 2000);
+		setTimeout(() => setCopied(null), 2000); // Reset copied state after 2s
 	};
 
 	return (
 		<div className="flex flex-col items-center space-y-4">
+			{/* Popover for bulk copy operations */}
 			<Popover>
 				<PopoverTrigger asChild>
 					<Button variant="outline">
@@ -41,34 +50,31 @@ export function CardList({ cardTypes }: CardListProps) {
 				</PopoverTrigger>
 				<PopoverContent className="w-80">
 					<div className="space-y-2">
+						{/* SVG links copy section */}
 						<div>
 							<p className="text-sm font-medium">SVG Link</p>
 							<div className="flex mt-1">
-								<input
+								<input /* Read-only field for link preview */
 									className="flex-grow px-3 py-2 border rounded-l-md text-sm"
 									value={svgLinks.join("\n")}
 									readOnly
 								/>
-								<Button
-									className="rounded-l-none"
-									onClick={() => handleCopyLinks("svg")}
-								>
+								<Button onClick={() => handleCopyLinks("svg")}>
 									{copied === "svg" ? <Check className="h-4 w-4" /> : "Copy"}
 								</Button>
 							</div>
 						</div>
+
+						{/* Anilist bio format copy section */}
 						<div>
 							<p className="text-sm font-medium">Anilist Bio Example</p>
 							<div className="flex mt-1">
 								<input
 									className="flex-grow px-3 py-2 border rounded-l-md text-sm"
-									value={anilistBioLinks.join("\n")}
+									value={[...anilistBioLinks, statsLink].join("\n")}
 									readOnly
 								/>
-								<Button
-									className="rounded-l-none"
-									onClick={() => handleCopyLinks("anilist")}
-								>
+								<Button onClick={() => handleCopyLinks("anilist")}>
 									{copied === "anilist" ? <Check className="h-4 w-4" /> : "Copy"}
 								</Button>
 							</div>
@@ -76,6 +82,8 @@ export function CardList({ cardTypes }: CardListProps) {
 					</div>
 				</PopoverContent>
 			</Popover>
+
+			{/* Grid of card components */}
 			<div className="flex flex-wrap justify-center gap-6">
 				{cardTypes.map((card) => (
 					<Card key={card.rawType} {...card} />

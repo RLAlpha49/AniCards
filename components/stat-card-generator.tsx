@@ -34,9 +34,15 @@ interface StatCardGeneratorProps {
 	className?: string;
 }
 
+/*
+ * Configuration objects:
+ * - statCardTypes: List of stat card types with their labels and IDs
+ * - colorPresets: List of color presets with their labels and colors
+ */
 const statCardTypes = [
 	{
 		id: "animeStats",
+
 		label: "Anime Stats (Count, Episodes Watched, Minutes Watched, Mean Score, Standard Deviation)",
 	},
 	{
@@ -66,7 +72,9 @@ const colorPresets = {
 	custom: ["", "", "", ""],
 };
 
+// Main component for generating customizable AniList stat cards
 export function StatCardGenerator({ isOpen, onClose, className }: StatCardGeneratorProps) {
+	// State management for form inputs and UI states
 	const [username, setUsername] = useState("");
 	const [titleColor, setTitleColor] = useState(colorPresets.default[0]);
 	const [backgroundColor, setBackgroundColor] = useState(colorPresets.default[1]);
@@ -95,11 +103,11 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 
 	const handlePresetChange = (preset: string) => {
 		setSelectedPreset(preset);
+		// Apply preset colors unless custom is selected
 		if (preset !== "custom") {
-			setTitleColor(colorPresets[preset as keyof typeof colorPresets][0]);
-			setBackgroundColor(colorPresets[preset as keyof typeof colorPresets][1]);
-			setTextColor(colorPresets[preset as keyof typeof colorPresets][2]);
-			setCircleColor(colorPresets[preset as keyof typeof colorPresets][3]);
+			[setTitleColor, setBackgroundColor, setTextColor, setCircleColor].forEach(
+				(setter, index) => setter(colorPresets[preset as keyof typeof colorPresets][index])
+			);
 		}
 	};
 
@@ -132,9 +140,8 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 
 		try {
 			// Validation checks
-			if (!username.trim()) {
-				throw new Error("Please enter your AniList username");
-			}
+			if (!username.trim()) throw new Error("Please enter your AniList username");
+			if (selectedCards.length === 0) throw new Error("Please select at least one stat card");
 
 			const colors = [titleColor, backgroundColor, textColor, circleColor];
 			if (colors.some((color) => !color)) {
@@ -145,6 +152,7 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 				throw new Error("Please select at least one stat card");
 			}
 
+			// Fetch AniList user data
 			const userIdResponse = await fetch("/api/anilist", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -154,7 +162,7 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 				}),
 			});
 
-			// Handle API errors
+			// Error handling for API responses
 			if (!userIdResponse.ok) {
 				const errorData = await userIdResponse.json();
 				throw new Error(errorData.error || `HTTP error! status: ${userIdResponse.status}`);
@@ -179,7 +187,7 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 
 			const statsData = await statsResponse.json();
 
-			// Store user and cards
+			// Store user data and card preferences
 			const [userResponse, cardResponse] = await Promise.all([
 				fetch("/api/store-users", {
 					method: "POST",
@@ -216,7 +224,7 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 				throw new Error("Failed to store data");
 			}
 
-			// Modified navigation section
+			// Redirect to user page with generated cards
 			router.push(
 				`/user?${new URLSearchParams({
 					userId: userIdData.User.id,
@@ -225,8 +233,8 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 				})}`
 			);
 		} catch (error) {
+			// Specialized error handling for common API issues
 			if (error instanceof Error) {
-				// Handle rate limit error specifically
 				if (error.message.includes("Rate limited")) {
 					setErrorTitle("Rate Limited");
 					setErrorDescription("AniList API is rate limited. Please try again later.");
@@ -271,7 +279,9 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 
 	return (
 		<Dialog open={isOpen} onOpenChange={onClose}>
+			{/* Loading overlay during API calls */}
 			{loading && <LoadingOverlay text="Creating your stat cards..." />}
+
 			<DialogContent
 				className={cn(
 					"sm:max-w-[600px] overflow-y-auto max-h-[calc(100vh-2rem)] z-50",
@@ -284,7 +294,9 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 						Enter your details and select the stat cards you want to generate.
 					</DialogDescription>
 				</DialogHeader>
+
 				<form onSubmit={handleSubmit} className="space-y-4">
+					{/* Username input section */}
 					<div>
 						<Label htmlFor="username">Username</Label>
 						<Input
@@ -294,6 +306,8 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 							placeholder="Your Anilist username"
 						/>
 					</div>
+
+					{/* Color preset selector */}
 					<div>
 						<Label htmlFor="colorPreset">Color Preset</Label>
 						<Select onValueChange={handlePresetChange} value={selectedPreset}>
@@ -310,6 +324,8 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 							</SelectContent>
 						</Select>
 					</div>
+
+					{/* Color picker grid */}
 					<div className="grid grid-cols-2 gap-4">
 						{[titleColor, backgroundColor, textColor, circleColor].map(
 							(color, index) => (
@@ -368,6 +384,8 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 							)
 						)}
 					</div>
+
+					{/* Card selection grid with animations */}
 					<div className="space-y-4">
 						<div className="flex justify-between items-center">
 							<Label className="text-lg font-semibold">
@@ -395,6 +413,7 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 									)}
 									style={{ animationDelay: `${index * 50}ms` }}
 								>
+									{/* Checkbox and card details */}
 									<Checkbox
 										id={type.id}
 										checked={selectedCards.includes(type.id)}
@@ -428,6 +447,8 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 							))}
 						</div>
 					</div>
+
+					{/* Form submission and cache notice */}
 					<Button
 						type="submit"
 						className="w-full transition-transform duration-200 hover:scale-[1.02] transform-gpu"
@@ -439,6 +460,7 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 						<div className="ml-3">
 							<AlertTitle className="text-blue-500 text-lg">Update Notice</AlertTitle>
 							<AlertDescription className="text-foreground">
+								{/* Cache information for users */}
 								<div className="space-y-2">
 									<p>
 										SVGs are cached for 24 hours. If your changes don&apos;t
@@ -459,6 +481,8 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 					</Alert>
 				</form>
 			</DialogContent>
+
+			{/* Error and preview modals */}
 			<ErrorPopup
 				isOpen={isErrorOpen}
 				onClose={() => setIsErrorOpen(false)}

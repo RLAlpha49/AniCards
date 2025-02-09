@@ -20,10 +20,11 @@ import { motion } from "framer-motion";
 import type React from "react";
 
 export default function HomePage() {
-	const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
+	const [isGeneratorOpen, setIsGeneratorOpen] = useState(false); // Controls modal visibility
 
 	return (
 		<div className="container mx-auto px-4 py-8">
+			{/* Animated header section with gradient text */}
 			<header className="text-center mb-16">
 				<motion.div
 					initial={{ opacity: 0, y: -20 }}
@@ -45,6 +46,7 @@ export default function HomePage() {
 				</motion.p>
 			</header>
 
+			{/* Main call-to-action section */}
 			<section className="mb-16 text-center max-w-3xl mx-auto">
 				<motion.h2
 					className="text-3xl font-semibold mb-4"
@@ -80,10 +82,12 @@ export default function HomePage() {
 				</motion.div>
 			</section>
 
+			{/* Features grid section */}
 			<section className="mb-16">
 				<h2 className="text-3xl font-semibold mb-8 text-center">Features</h2>
 				<div className="flex flex-wrap justify-center gap-6">
 					{[
+						// Feature configuration array - easily modifiable to add/remove features
 						{
 							icon: BarChart2,
 							title: "Comprehensive Stats",
@@ -145,13 +149,13 @@ export default function HomePage() {
 							initial={{ opacity: 0, y: 20, scale: 0.95 }}
 							animate={{ opacity: 1, y: 0, scale: 1 }}
 							transition={{
-								type: "spring",
-								stiffness: 100,
-								damping: 20,
-								delay: 0.1 * index,
+								type: "spring", // Spring animation for bouncy effect
+								stiffness: 100, // Controls spring tension
+								damping: 20, // Controls spring friction
+								delay: 0.1 * index, // Staggered animation delay
 							}}
 							whileHover={{
-								scale: 1.02,
+								scale: 1.02, // Hover scale effect
 								transition: { duration: 0.2 },
 							}}
 						>
@@ -166,6 +170,7 @@ export default function HomePage() {
 				</div>
 			</section>
 
+			{/* Final CTA section */}
 			<section className="text-center max-w-3xl mx-auto">
 				<motion.h2
 					className="text-3xl font-semibold mb-6"
@@ -191,6 +196,7 @@ export default function HomePage() {
 				</motion.div>
 			</section>
 
+			{/* Stat card generator modal/dialog */}
 			<StatCardGenerator
 				isOpen={isGeneratorOpen}
 				onClose={() => setIsGeneratorOpen(false)}
@@ -202,8 +208,9 @@ export default function HomePage() {
 	);
 }
 
+// FeatureCard component props interface
 interface FeatureCardProps {
-	icon: React.ElementType;
+	icon: React.ElementType; // Lucide React icon component
 	title: string;
 	description: string;
 	className?: string;
@@ -212,12 +219,15 @@ interface FeatureCardProps {
 function FeatureCard({ icon: Icon, title, description, className }: FeatureCardProps) {
 	return (
 		<motion.div whileHover={{ y: -5 }}>
+			{" "}
+			{/* Lift effect on hover */}
 			<Card className={`${className || ""} relative overflow-hidden group`}>
+				{/* Animated gradient overlay on hover */}
 				<motion.div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 				<CardHeader>
 					<motion.div
 						className="inline-block"
-						whileHover={{ rotate: 15, scale: 1.1 }}
+						whileHover={{ rotate: 15, scale: 1.1 }} // Icon animation
 						transition={{ type: "spring" }}
 					>
 						<Icon className="h-10 w-10 mb-2 text-primary transition-colors duration-300 group-hover:text-blue-600" />
@@ -227,7 +237,7 @@ function FeatureCard({ icon: Icon, title, description, className }: FeatureCardP
 				<CardContent>
 					<motion.p
 						className="text-muted-foreground"
-						whileHover={{ color: "hsl(var(--foreground))" }}
+						whileHover={{ color: "hsl(var(--foreground))" }} // Text color change on hover
 					>
 						{description}
 					</motion.p>

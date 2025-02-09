@@ -10,6 +10,7 @@ const ratelimit = new Ratelimit({
 	limiter: Ratelimit.slidingWindow(5, "10 s"),
 });
 
+// API endpoint for storing/updating user card configurations
 export async function POST(request: Request) {
 	const startTime = Date.now();
 	const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
@@ -50,9 +51,9 @@ export async function POST(request: Request) {
 			},
 		});
 		const db = client.db("anicards");
-		const now = new Date();
 
 		console.log(`🔄 [Store Cards] Updating cards for user ${userId}`);
+		// Complex MongoDB array update using aggregation pipeline
 		const updateResult = await db.collection<CardsDocument>("cards").updateOne(
 			{ userId },
 			[
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
 					$set: {
 						cards: {
 							$concatArrays: [
-								// Update existing cards
+								// Merge existing cards with updated values
 								{
 									$map: {
 										input: { $ifNull: ["$cards", []] },
@@ -68,6 +69,7 @@ export async function POST(request: Request) {
 										in: {
 											$mergeObjects: [
 												"$$existingCard",
+												// Find matching incoming card data
 												{
 													$arrayElemAt: [
 														{
@@ -89,7 +91,7 @@ export async function POST(request: Request) {
 										},
 									},
 								},
-								// Add new cards with generated IDs
+								// Add new cards that don't exist yet
 								{
 									$map: {
 										input: {
@@ -107,42 +109,48 @@ export async function POST(request: Request) {
 											},
 										},
 										as: "newCard",
-										in: {
-											$mergeObjects: ["$$newCard"],
-										},
+										in: { $mergeObjects: ["$$newCard"] },
 									},
 								},
 							],
 						},
-						updatedAt: now,
-						userId: { $ifNull: ["$userId", userId] },
+						updatedAt: new Date(),
+						userId: { $ifNull: ["$userId", userId] }, // Fallback for upsert
 					},
 				},
 			],
-			{
-				upsert: true,
-				arrayFilters: undefined,
-			}
+			{ upsert: true } // Create document if it doesn't exist
 		);
 
+		// Track request duration for performance monitoring
 		const duration = Date.now() - startTime;
+
+		// Determine if document was newly created
 		const isNewDoc = updateResult.upsertedId !== null;
+
+		// Log operation outcome with performance metrics
 		console.log(
 			`✅ [Store Cards] ${isNewDoc ? "Created" : "Updated"} cards for user ${userId} (${
 				updateResult.modifiedCount
 			} modified) [${duration}ms]`
 		);
 
+		// Return standardized success response
 		return NextResponse.json({
 			success: true,
-			updatedCount: updateResult.modifiedCount,
-			isNewDocument: isNewDoc,
+			updatedCount: updateResult.modifiedCount, // Number of modified documents
+			isNewDocument: isNewDoc, // Flag for new document creation
 		});
 	} catch (error) {
+		// Track request duration for performance monitoring
 		const duration = Date.now() - startTime;
+
+		// Handle MongoDB-specific validation errors
 		if (error instanceof MongoServerError) {
-			error = extractErrorInfo(error);
+			error = extractErrorInfo(error); // Simplify complex error structure
 		}
+
+		// Return generic error to client with server error status
 		console.error(`🔴 [Store Cards] Error after ${duration}ms:`, error);
 		return NextResponse.json({ error: "Card storage failed" }, { status: 500 });
 	}

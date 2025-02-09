@@ -6,16 +6,15 @@ import { motion } from "framer-motion";
 import { Sun, Moon } from "lucide-react";
 
 export default function DarkModeToggle() {
+	// Prevent hydration mismatch by checking mount state
 	const [mounted, setMounted] = useState(false);
 	const { theme, setTheme } = useTheme();
 
 	useEffect(() => {
-		setMounted(true);
+		setMounted(true); // Component has mounted (client-side)
 	}, []);
 
-	if (!mounted) {
-		return null;
-	}
+	if (!mounted) return null; // Don't render until mounted
 
 	return (
 		<motion.button
@@ -24,14 +23,21 @@ export default function DarkModeToggle() {
 			animate={{ backgroundColor: theme === "dark" ? "#4B5563" : "#D1D5DB" }}
 			transition={{ duration: 0.3 }}
 		>
+			{/* Sun and Moon icons positioned absolutely */}
 			<Sun className="h-5 w-5 text-yellow-500" />
 			<Moon className="h-5 w-5 text-gray-800" />
+
+			{/* Animated toggle thumb */}
 			<motion.div
 				className="absolute bg-white w-5 h-5 rounded-full shadow-md"
 				animate={{
-					x: theme === "dark" ? 26 : 2,
+					x: theme === "dark" ? 26 : 2, // Slide position based on theme
 				}}
-				transition={{ type: "spring", stiffness: 700, damping: 30 }}
+				transition={{
+					type: "spring", // Bouncy animation
+					stiffness: 700, // Spring tension
+					damping: 30, // Spring friction
+				}}
 			/>
 		</motion.button>
 	);

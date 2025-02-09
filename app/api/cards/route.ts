@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { MongoClient, MongoServerError, ServerApiVersion } from "mongodb";
 import { extractErrorInfo } from "@/lib/utils";
 
+// API endpoint for retrieving user card configurations
 export async function GET(request: Request) {
 	const startTime = Date.now();
 	const { searchParams } = new URL(request.url);
@@ -9,11 +10,13 @@ export async function GET(request: Request) {
 
 	console.log(`🔵 [Cards API] Request received for userId: ${userId}`);
 
+	// Validate required user ID parameter
 	if (!userId) {
 		console.warn("⚠️ [Cards API] Missing user ID parameter");
 		return NextResponse.json({ error: "Missing user ID parameter" }, { status: 400 });
 	}
 
+	// Convert and validate numeric user ID
 	const numericUserId = parseInt(userId);
 	if (isNaN(numericUserId)) {
 		console.warn(`⚠️ [Cards API] Invalid user ID format: ${userId}`);
@@ -22,6 +25,7 @@ export async function GET(request: Request) {
 
 	try {
 		console.log(`🔍 [Cards API] Querying cards for user ${numericUserId}`);
+		// Initialize MongoDB client with strict API versioning
 		const client = new MongoClient(process.env.MONGODB_URI!, {
 			serverApi: {
 				version: ServerApiVersion.v1,
@@ -30,20 +34,33 @@ export async function GET(request: Request) {
 			},
 		});
 
+		// Query database with field projection
 		const db = client.db("anicards");
 		const cards = await db
 			.collection("cards")
-			.find({ userId: numericUserId }, { projection: { _id: 0, updatedAt: 0, userId: 0 } })
+			.find(
+				{ userId: numericUserId },
+				{
+					projection: {
+						_id: 0, // Exclude MongoDB ID
+						updatedAt: 0, // Exclude internal timestamp
+						userId: 0, // Exclude redundant user ID
+					},
+				}
+			)
 			.toArray();
+
 		await client.close();
 		const duration = Date.now() - startTime;
 
 		console.log(
 			`✅ [Cards API] Found ${cards[0].cards.length} cards for user ${numericUserId} [${duration}ms]`
 		);
+		// Return formatted response
 		return NextResponse.json(cards);
 	} catch (error) {
 		const duration = Date.now() - startTime;
+		// Handle MongoDB-specific errors
 		if (error instanceof MongoServerError) {
 			error = extractErrorInfo(error);
 		}
