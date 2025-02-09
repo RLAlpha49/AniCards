@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { MongoClient, ServerApiVersion } from "mongodb";
+import { MongoClient, MongoServerError, ServerApiVersion } from "mongodb";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { UserDocument } from "@/lib/types/card";
+import { extractErrorInfo } from "@/lib/utils";
 
 const ratelimit = new Ratelimit({
 	redis: Redis.fromEnv(),
@@ -75,6 +76,9 @@ export async function POST(request: Request) {
 		});
 	} catch (error) {
 		const duration = Date.now() - startTime;
+		if (error instanceof MongoServerError) {
+			error = extractErrorInfo(error);
+		}
 		console.error(`🔴 [Store Users] Error after ${duration}ms:`, error);
 		return NextResponse.json({ error: "User storage failed" }, { status: 500 });
 	}

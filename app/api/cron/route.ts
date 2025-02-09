@@ -1,6 +1,7 @@
-import { MongoClient } from "mongodb";
+import { MongoClient, MongoServerError } from "mongodb";
 import { ServerApiVersion } from "mongodb";
 import { USER_STATS_QUERY } from "@/lib/anilist/queries";
+import { extractErrorInfo } from "@/lib/utils";
 
 const ANILIST_RATE_LIMIT = 10;
 const DELAY_MS = 60000;
@@ -126,6 +127,9 @@ export async function GET(request: Request) {
 		});
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	} catch (error: any) {
+		if (error instanceof MongoServerError) {
+			error = extractErrorInfo(error);
+		}
 		console.error(`💥 Cron job failed: ${error.message}`);
 		return new Response("Cron job failed", { status: 500 });
 	}

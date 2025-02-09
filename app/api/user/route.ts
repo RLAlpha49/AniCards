@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { MongoClient } from "mongodb";
+import { MongoClient, MongoServerError } from "mongodb";
 import { ServerApiVersion } from "mongodb";
 import { UserStats } from "@/lib/types/card";
+import { extractErrorInfo } from "@/lib/utils";
 
 export async function GET(request: Request) {
 	const startTime = Date.now();
@@ -53,6 +54,9 @@ export async function GET(request: Request) {
 		return NextResponse.json(userData);
 	} catch (error) {
 		const duration = Date.now() - startTime;
+		if (error instanceof MongoServerError) {
+			error = extractErrorInfo(error);
+		}
 		console.error(
 			`🔴 [User API] Database error for user ${numericUserId} [${duration}ms]:`,
 			error

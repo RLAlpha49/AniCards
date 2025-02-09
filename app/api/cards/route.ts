@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { MongoClient, ServerApiVersion } from "mongodb";
+import { MongoClient, MongoServerError, ServerApiVersion } from "mongodb";
+import { extractErrorInfo } from "@/lib/utils";
 
 export async function GET(request: Request) {
 	const startTime = Date.now();
@@ -43,6 +44,9 @@ export async function GET(request: Request) {
 		return NextResponse.json(cards);
 	} catch (error) {
 		const duration = Date.now() - startTime;
+		if (error instanceof MongoServerError) {
+			error = extractErrorInfo(error);
+		}
 		console.error(
 			`🔴 [Cards API] Error fetching cards for user ${numericUserId} [${duration}ms]:`,
 			error

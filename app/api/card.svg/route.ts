@@ -1,12 +1,13 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
-import { MongoClient, ServerApiVersion } from "mongodb";
+import { MongoClient, MongoServerError, ServerApiVersion } from "mongodb";
 import { animeStatsTemplate } from "@/lib/svg-templates/anime-stats";
 import { CardConfig, UserStats } from "@/lib/types/card";
 import { calculateMilestones } from "@/lib/utils/milestones";
 import { mangaStatsTemplate } from "@/lib/svg-templates/manga-stats";
 import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
 import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats";
+import { extractErrorInfo } from "@/lib/utils";
 
 const ratelimit = new Ratelimit({
 	redis: Redis.fromEnv(),
@@ -306,6 +307,9 @@ export async function GET(request: Request) {
 			});
 		}
 	} catch (error) {
+		if (error instanceof MongoServerError) {
+			error = extractErrorInfo(error);
+		}
 		console.error("Card generation failed:", error);
 		const duration = Date.now() - startTime;
 		console.error(`🔥 [Card SVG] Error after ${duration}ms:`, error);
