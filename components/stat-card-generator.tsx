@@ -154,6 +154,12 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 				}),
 			});
 
+			// Handle API errors
+			if (!userIdResponse.ok) {
+				const errorData = await userIdResponse.json();
+				throw new Error(errorData.error || `HTTP error! status: ${userIdResponse.status}`);
+			}
+
 			const userIdData = await userIdResponse.json();
 
 			const statsResponse = await fetch("/api/anilist", {
@@ -164,6 +170,12 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 					variables: { userId: userIdData.User.id },
 				}),
 			});
+
+			// Handle API errors for stats response
+			if (!statsResponse.ok) {
+				const errorData = await statsResponse.json();
+				throw new Error(errorData.error || `HTTP error! status: ${statsResponse.status}`);
+			}
 
 			const statsData = await statsResponse.json();
 
@@ -214,7 +226,18 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 			);
 		} catch (error) {
 			if (error instanceof Error) {
-				if (error.message.includes("User not found")) {
+				// Handle rate limit error specifically
+				if (error.message.includes("Rate limited")) {
+					setErrorTitle("Rate Limited");
+					setErrorDescription("AniList API is rate limited. Please try again later.");
+				}
+				// Handle server errors
+				else if (error.message.includes("Internal server error")) {
+					setErrorTitle("Server Error");
+					setErrorDescription(
+						"AniList API is experiencing issues. Please try again later."
+					);
+				} else if (error.message.includes("User not found")) {
 					setErrorTitle("User Not Found");
 					setErrorDescription(`No AniList user found with username: ${username}`);
 				} else {
@@ -232,7 +255,9 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 							setErrorDescription(error.message);
 							break;
 						default:
-							handleError(error);
+							// Show raw error message for other API errors
+							setErrorTitle("API Error");
+							setErrorDescription(error.message);
 					}
 				}
 				setIsErrorOpen(true);

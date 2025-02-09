@@ -1,6 +1,26 @@
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
+	if (process.env.NODE_ENV === "development") {
+		const testHeader = request.headers.get("X-Test-Status");
+		if (testHeader === "429") {
+			console.log("⚠️ Simulating 429 response for testing");
+			return NextResponse.json(
+				{ error: "Rate limited (test simulation)" },
+				{ 
+					status: 429,
+					headers: { "Retry-After": "60" }
+				}
+			);
+		} else if (testHeader === "500") {
+			console.log("⚠️ Simulating 500 response for testing");
+			return NextResponse.json(
+				{ error: "Internal server error (test simulation)" },
+				{ status: 500 }
+			);
+		}
+	}
+
 	const startTime = Date.now();
 	let operationName = "unknown";
 	let userIdentifier = "not_provided";
@@ -24,6 +44,9 @@ export async function POST(request: Request) {
 				"Content-Type": "application/json",
 				Accept: "application/json",
 				Authorization: `Bearer ${process.env.ANILIST_TOKEN}`,
+				...(process.env.NODE_ENV === "development" && {
+					"X-Test-Status": request.headers.get("X-Test-Status") || "",
+				}),
 			},
 			body: JSON.stringify({ query, variables }),
 		});
