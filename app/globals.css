@@ -5,7 +5,7 @@
 @layer base {
   :root {
     --foreground-rgb: 0, 0, 0;
-    --background-start-rgb: 214, 219, 220;
+    --background-start-rgb: 210, 215, 215;
     --background-end-rgb: 255, 255, 255;
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
@@ -37,11 +37,12 @@
   .dark {
     --foreground-rgb: 230, 230, 255;
     --background-start-rgb: 10, 25, 47;
-    --background-end-rgb: 10, 25, 47;
+    --background-end-rgb: 20, 40, 65;
     --background: 210 50% 10%;
     --foreground: 210 50% 90%;
     --card: 210 50% 15%;
     --card-foreground: 210 50% 90%;
+
     --popover: 210 50% 15%;
     --popover-foreground: 210 50% 90%;
     --primary: 210 50% 90%;
@@ -68,6 +69,9 @@
 body {
   color: rgb(var(--foreground-rgb));
   background: linear-gradient(to bottom, transparent, rgb(var(--background-end-rgb))) rgb(var(--background-start-rgb));
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 @layer base {

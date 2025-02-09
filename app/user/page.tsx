@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { CardList } from "@/components/card-list";
 import { displayNames } from "@/components/stat-card-preview";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
@@ -66,8 +68,30 @@ export default async function UserPage(props: {
 			</h1>
 
 			{cardTypes.length > 0 ? (
-				<div className="flex justify-center">
-					<CardList cardTypes={cardTypes} />
+				<div className="flex flex-col items-center gap-6">
+					{params.cards && cardTypes.length < 11 && (
+						<div className="flex gap-4">
+							<Link
+								href={{
+									pathname: "/user",
+									query: {
+										userId: params.userId,
+										username: params.username,
+									},
+								}}
+							>
+								<Button
+									variant="outline"
+									className="transition-transform duration-200 hover:scale-105"
+								>
+									View All Generated Cards
+								</Button>
+							</Link>
+						</div>
+					)}
+					<div className="flex justify-center">
+						<CardList cardTypes={cardTypes} />
+					</div>
 				</div>
 			) : (
 				<div className="text-gray-500 text-center py-8">No cards found for this user</div>

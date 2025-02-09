@@ -24,6 +24,7 @@ import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
 import { StatCardPreview } from "@/components/stat-card-preview";
 import { cn } from "@/lib/utils";
 import { LoadingOverlay } from "@/components/loading-spinner";
+import { ErrorPopup } from "@/components/error-popup";
 
 interface StatCardGeneratorProps {
 	isOpen: boolean;
@@ -74,6 +75,9 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 	const [previewOpen, setPreviewOpen] = useState(false);
 	const [previewType, setPreviewType] = useState("");
 	const [loading, setLoading] = useState(false);
+	const [isErrorOpen, setIsErrorOpen] = useState(false);
+	const [errorTitle, setErrorTitle] = useState("");
+	const [errorDescription, setErrorDescription] = useState("");
 	const router = useRouter();
 
 	const handleCheckboxChange = (id: string) => {
@@ -108,11 +112,34 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 		setPreviewOpen(true);
 	};
 
+	const handleError = (error: unknown) => {
+		console.error("Submission failed:", error);
+		setIsErrorOpen(true);
+		setErrorTitle("Generation Failed");
+		setErrorDescription(
+			error instanceof Error ? error.message : "Failed to save card. Please try again."
+		);
+	};
+
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		setLoading(true);
 
 		try {
+			// Validation checks
+			if (!username.trim()) {
+				throw new Error("Please enter your AniList username");
+			}
+
+			const colors = [titleColor, backgroundColor, textColor, circleColor];
+			if (colors.some((color) => !color)) {
+				throw new Error("All color fields must be filled");
+			}
+
+			if (selectedCards.length === 0) {
+				throw new Error("Please select at least one stat card");
+			}
+
 			const userIdResponse = await fetch("/api/anilist", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -181,8 +208,32 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 				})}`
 			);
 		} catch (error) {
-			console.error("Submission failed:", error);
-			alert("Failed to save card. Please try again.");
+			if (error instanceof Error) {
+				if (error.message.includes("User not found")) {
+					setErrorTitle("User Not Found");
+					setErrorDescription(`No AniList user found with username: ${username}`);
+				} else {
+					switch (error.message) {
+						case "Please enter your AniList username":
+							setErrorTitle("Username Required");
+							setErrorDescription(error.message);
+							break;
+						case "All color fields must be filled":
+							setErrorTitle("Color Selection Required");
+							setErrorDescription(error.message);
+							break;
+						case "Please select at least one stat card":
+							setErrorTitle("No Cards Selected");
+							setErrorDescription(error.message);
+							break;
+						default:
+							handleError(error);
+					}
+				}
+				setIsErrorOpen(true);
+			} else {
+				handleError(error);
+			}
 		} finally {
 			setLoading(false);
 		}
@@ -352,6 +403,12 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 					</Button>
 				</form>
 			</DialogContent>
+			<ErrorPopup
+				isOpen={isErrorOpen}
+				onClose={() => setIsErrorOpen(false)}
+				title={errorTitle}
+				description={errorDescription}
+			/>
 			<StatCardPreview
 				isOpen={previewOpen}
 				onClose={() => setPreviewOpen(false)}
