@@ -83,7 +83,7 @@ export async function GET(request: Request) {
 									.collection("users")
 									.updateOne(
 										{ userId: user.userId },
-										{ $set: { stats: statsData.data, lastUpdated: new Date() } }
+										{ $set: { stats: statsData.data, updatedAt: new Date() } }
 									);
 								console.log(`${userLogPrefix}: Successfully updated database`);
 								break;
