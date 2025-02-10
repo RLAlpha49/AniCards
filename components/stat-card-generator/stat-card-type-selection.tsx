@@ -1,0 +1,86 @@
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+
+export interface CardType {
+	id: string;
+	label: string;
+}
+
+interface StatCardTypeSelectionProps {
+	cardTypes: CardType[];
+	selectedCards: string[];
+	allSelected: boolean;
+	onToggle: (id: string) => void;
+	onSelectAll: () => void;
+	onPreview: (id: string) => void;
+}
+
+export function StatCardTypeSelection({
+	cardTypes,
+	selectedCards,
+	allSelected,
+	onToggle,
+	onSelectAll,
+	onPreview,
+}: StatCardTypeSelectionProps) {
+	return (
+		<div className="space-y-4">
+			<div className="flex justify-between items-center">
+				<Label className="text-lg font-semibold">Select Stat Cards to Generate</Label>
+				<Button type="button" variant="outline" size="sm" onClick={onSelectAll}>
+					{allSelected ? "Unselect All" : "Select All"}
+				</Button>
+			</div>
+			<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+				{cardTypes.map((type, index) => (
+					<div
+						key={type.id}
+						className={cn(
+							"flex items-start space-x-2 bg-secondary/50 rounded-lg p-3",
+							"transition-all duration-300 hover:bg-secondary hover:shadow-lg",
+							"hover:-translate-y-1 cursor-pointer group",
+							"animate-in fade-in-up fill-mode-backwards",
+							selectedCards.includes(type.id) ? "ring-2 ring-primary" : ""
+						)}
+						style={{ animationDelay: `${index * 50}ms` }}
+					>
+						<Checkbox
+							id={type.id}
+							checked={selectedCards.includes(type.id)}
+							onCheckedChange={() => onToggle(type.id)}
+							className="mt-1 transition-all duration-200 scale-90 group-hover:scale-100 checked:scale-110 focus:ring-2 focus:ring-primary"
+						/>
+						<div className="space-y-1 flex-grow">
+							<Label
+								htmlFor={type.id}
+								className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+							>
+								{type.label.split(" (")[0]}
+							</Label>
+							{type.label.includes("(") && (
+								<p className="text-xs text-muted-foreground transition-opacity duration-200 group-hover:opacity-100">
+									{type.label.match(/\((.*)\)/)?.[1]}
+								</p>
+							)}
+						</div>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={(e) => {
+								e.stopPropagation();
+								onPreview(type.id);
+							}}
+							className="transition-all duration-200 hover:bg-primary hover:text-primary-foreground scale-90 group-hover:scale-100"
+							title={`Preview ${type.label.split(" (")[0]} card`}
+						>
+							Preview
+						</Button>
+					</div>
+				))}
+			</div>
+		</div>
+	);
+}

@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { svgToPng, copyToClipboard } from "@/lib/utils";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { cn } from "@/lib/utils";
-import { displayNames } from "./stat-card-preview";
+import { displayNames } from "../stat-card-generator/stat-card-preview";
 
 interface CardProps {
 	type: string;

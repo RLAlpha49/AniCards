@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import { CardList } from "@/components/card-list";
-import { displayNames } from "@/components/stat-card-preview";
+import { CardList } from "@/components/user/card-list";
+import { displayNames } from "@/components/stat-card-generator/stat-card-preview";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";

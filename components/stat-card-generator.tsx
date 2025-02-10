@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import {
 	Dialog,
 	DialogContent,
@@ -9,25 +8,19 @@ import {
 	DialogTitle,
 	DialogDescription,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
-import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
-import { StatCardPreview } from "@/components/stat-card-preview";
-import { cn } from "@/lib/utils";
 import { LoadingOverlay } from "@/components/loading-spinner";
 import { ErrorPopup } from "@/components/error-popup";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Info } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { StatCardPreview } from "@/components/stat-card-generator/stat-card-preview";
 import { animeStatsTemplate } from "@/lib/svg-templates/anime-stats";
+import { ColorPresetSelector } from "@/components/stat-card-generator/color-preset-selector";
+import { ColorPickerGroup } from "@/components/stat-card-generator/color-picker-group";
+import { LivePreview } from "@/components/stat-card-generator/live-preview";
+import { StatCardTypeSelection } from "@/components/stat-card-generator/stat-card-type-selection";
+import { UpdateNotice } from "@/components/stat-card-generator/update-notice";
+import { UserDetailsForm } from "@/components/stat-card-generator/user-details-form";
+import { useStatCardSubmit } from "@/hooks/use-stat-card-submit";
 
 interface StatCardGeneratorProps {
 	isOpen: boolean;
@@ -43,7 +36,6 @@ interface StatCardGeneratorProps {
 const statCardTypes = [
 	{
 		id: "animeStats",
-
 		label: "Anime Stats (Count, Episodes Watched, Minutes Watched, Mean Score, Standard Deviation)",
 	},
 	{
@@ -105,7 +97,6 @@ const colorPresets = {
 	custom: { colors: ["", "", "", ""], mode: "custom" },
 };
 
-// Main component for generating customizable AniList stat cards
 export function StatCardGenerator({ isOpen, onClose, className }: StatCardGeneratorProps) {
 	// State management for form inputs and UI states
 	const [username, setUsername] = useState("");
@@ -118,11 +109,9 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 	const [allSelected, setAllSelected] = useState(false);
 	const [previewOpen, setPreviewOpen] = useState(false);
 	const [previewType, setPreviewType] = useState("");
-	const [loading, setLoading] = useState(false);
-	const [isErrorOpen, setIsErrorOpen] = useState(false);
-	const [errorTitle, setErrorTitle] = useState("");
-	const [errorDescription, setErrorDescription] = useState("");
-	const router = useRouter();
+
+	// Use our custom hook for managing submission
+	const { loading, error, submit } = useStatCardSubmit();
 
 	// Static preview data
 	const previewData = {
@@ -184,163 +173,58 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 		setPreviewOpen(true);
 	};
 
-	const handleError = (error: unknown) => {
-		console.error("Submission failed:", error);
-		setIsErrorOpen(true);
-		setErrorTitle("Generation Failed");
-		setErrorDescription(
-			error instanceof Error ? error.message : "Failed to save card. Please try again."
-		);
-	};
-
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
-		setLoading(true);
-
-		try {
-			// Validation checks
-			if (!username.trim()) throw new Error("Please enter your AniList username");
-			if (selectedCards.length === 0) throw new Error("Please select at least one stat card");
-
-			const colors = [titleColor, backgroundColor, textColor, circleColor];
-			if (colors.some((color) => !color)) {
-				throw new Error("All color fields must be filled");
-			}
-
-			if (selectedCards.length === 0) {
-				throw new Error("Please select at least one stat card");
-			}
-
-			// Fetch AniList user data
-			const userIdResponse = await fetch("/api/anilist", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					query: USER_ID_QUERY,
-					variables: { userName: username },
-				}),
-			});
-
-			// Error handling for API responses
-			if (!userIdResponse.ok) {
-				const errorData = await userIdResponse.json();
-				throw new Error(errorData.error || `HTTP error! status: ${userIdResponse.status}`);
-			}
-
-			const userIdData = await userIdResponse.json();
-
-			const statsResponse = await fetch("/api/anilist", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					query: USER_STATS_QUERY,
-					variables: { userId: userIdData.User.id },
-				}),
-			});
-
-			// Handle API errors for stats response
-			if (!statsResponse.ok) {
-				const errorData = await statsResponse.json();
-				throw new Error(errorData.error || `HTTP error! status: ${statsResponse.status}`);
-			}
-
-			const statsData = await statsResponse.json();
-
-			// Store user data and card preferences
-			const [userResponse, cardResponse] = await Promise.all([
-				fetch("/api/store-users", {
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${process.env.API_AUTH_TOKEN}`,
-					},
-					body: JSON.stringify({
-						userId: userIdData.User.id,
-						username,
-						stats: statsData,
-					}),
-				}),
-				fetch("/api/store-cards", {
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${process.env.API_AUTH_TOKEN}`,
-					},
-					body: JSON.stringify({
-						userId: userIdData.User.id,
-						cards: selectedCards.map((cardName) => ({
-							cardName,
-							titleColor,
-							backgroundColor,
-							textColor,
-							circleColor,
-						})),
-					}),
-				}),
-			]);
-
-			if (!userResponse.ok || !cardResponse.ok) {
-				throw new Error("Failed to store data");
-			}
-
-			// Redirect to user page with generated cards
-			router.push(
-				`/user?${new URLSearchParams({
-					userId: userIdData.User.id,
-					username: username,
-					cards: JSON.stringify(selectedCards),
-				})}`
-			);
-		} catch (error) {
-			// Specialized error handling for common API issues
-			if (error instanceof Error) {
-				if (error.message.includes("Rate limited")) {
-					setErrorTitle("Rate Limited");
-					setErrorDescription("AniList API is rate limited. Please try again later.");
-				}
-				// Handle server errors
-				else if (error.message.includes("Internal server error")) {
-					setErrorTitle("Server Error");
-					setErrorDescription(
-						"AniList API is experiencing issues. Please try again later."
-					);
-				} else if (error.message.includes("User not found")) {
-					setErrorTitle("User Not Found");
-					setErrorDescription(`No AniList user found with username: ${username}`);
-				} else {
-					switch (error.message) {
-						case "Please enter your AniList username":
-							setErrorTitle("Username Required");
-							setErrorDescription(error.message);
-							break;
-						case "All color fields must be filled":
-							setErrorTitle("Color Selection Required");
-							setErrorDescription(error.message);
-							break;
-						case "Please select at least one stat card":
-							setErrorTitle("No Cards Selected");
-							setErrorDescription(error.message);
-							break;
-						default:
-							// Show raw error message for other API errors
-							setErrorTitle("API Error");
-							setErrorDescription(error.message);
-					}
-				}
-				setIsErrorOpen(true);
-			} else {
-				handleError(error);
-			}
-		} finally {
-			setLoading(false);
-		}
+		await submit({
+			username,
+			selectedCards,
+			colors: [titleColor, backgroundColor, textColor, circleColor],
+		});
 	};
+
+	// Prepare configuration for the color pickers
+	const colorPickers = [
+		{
+			id: "titleColor",
+			label: "Title",
+			value: titleColor,
+			onChange: (value: string) => {
+				setTitleColor(value);
+				setSelectedPreset("custom");
+			},
+		},
+		{
+			id: "backgroundColor",
+			label: "Background",
+			value: backgroundColor,
+			onChange: (value: string) => {
+				setBackgroundColor(value);
+				setSelectedPreset("custom");
+			},
+		},
+		{
+			id: "textColor",
+			label: "Text",
+			value: textColor,
+			onChange: (value: string) => {
+				setTextColor(value);
+				setSelectedPreset("custom");
+			},
+		},
+		{
+			id: "circleColor",
+			label: "Circle",
+			value: circleColor,
+			onChange: (value: string) => {
+				setCircleColor(value);
+				setSelectedPreset("custom");
+			},
+		},
+	];
 
 	return (
 		<Dialog open={isOpen} onOpenChange={onClose}>
-			{/* Loading overlay during API calls */}
 			{loading && <LoadingOverlay text="Creating your stat cards..." />}
-
 			<DialogContent
 				className={cn(
 					"sm:max-w-[600px] overflow-y-auto max-h-[calc(100vh-2rem)] z-50",
@@ -353,239 +237,51 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 						Enter your details and select the stat cards you want to generate.
 					</DialogDescription>
 				</DialogHeader>
-
 				<form onSubmit={handleSubmit} className="space-y-4">
-					{/* Username input section */}
-					<div>
-						<Label htmlFor="username">Username</Label>
-						<Input
-							id="username"
-							value={username}
-							onChange={(e) => setUsername(e.target.value)}
-							placeholder="Your Anilist username"
-						/>
-					</div>
+					{/* User Details */}
+					<UserDetailsForm username={username} onUsernameChange={setUsername} />
 
-					{/* Color preset selector */}
-					<div>
-						<Label htmlFor="colorPreset">Color Preset</Label>
-						<Select onValueChange={handlePresetChange} value={selectedPreset}>
-							<SelectTrigger>
-								<SelectValue placeholder="Select a color preset" />
-							</SelectTrigger>
-							<SelectContent>
-								{Object.entries(colorPresets)
-									.sort(([aKey, aVal], [bKey, bVal]) => {
-										const fixedOrder = [
-											"default",
-											"anilistLight",
-											"anilistDark",
-										];
-										const aFixedIndex = fixedOrder.indexOf(aKey);
-										const bFixedIndex = fixedOrder.indexOf(bKey);
-										if (aFixedIndex !== -1 || bFixedIndex !== -1) {
-											if (aFixedIndex !== -1 && bFixedIndex !== -1) {
-												return aFixedIndex - bFixedIndex;
-											}
-											return aFixedIndex !== -1 ? -1 : 1;
-										}
-										// Always push custom to the end.
-										if (aKey === "custom") return 1;
-										if (bKey === "custom") return -1;
-										// If both presets have the same mode, maintain current order.
-										if (aVal.mode === bVal.mode) return 0;
-										// Light mode presets come first.
-										return aVal.mode === "light" ? -1 : 1;
-									})
-									.map(([key, { mode }]) => (
-										<SelectItem key={key} value={key}>
-											{`${key.charAt(0).toUpperCase() + key.slice(1)} (${
-												mode === "light"
-													? "Light Mode"
-													: mode === "dark"
-													? "Dark Mode"
-													: "Custom"
-											})`}
-										</SelectItem>
-									))}
-							</SelectContent>
-						</Select>
-					</div>
+					{/* Color Preset Selector */}
+					<ColorPresetSelector
+						selectedPreset={selectedPreset}
+						presets={colorPresets}
+						onPresetChange={handlePresetChange}
+					/>
 
-					{/* Color picker grid */}
-					<div className="grid grid-cols-2 gap-4">
-						{[titleColor, backgroundColor, textColor, circleColor].map(
-							(color, index) => (
-								<div key={index} className="space-y-2">
-									<Label
-										htmlFor={
-											[
-												"titleColor",
-												"backgroundColor",
-												"textColor",
-												"circleColor",
-											][index]
-										}
-									>
-										{["Title", "Background", "Text", "Circle"][index]} Color
-									</Label>
-									<div className="flex items-center space-x-2">
-										<Input
-											id={
-												[
-													"titleColor",
-													"backgroundColor",
-													"textColor",
-													"circleColor",
-												][index]
-											}
-											type="color"
-											value={color}
-											onChange={(e) => {
-												[
-													setTitleColor,
-													setBackgroundColor,
-													setTextColor,
-													setCircleColor,
-												][index](e.target.value);
-												setSelectedPreset("custom");
-											}}
-											className="w-12 h-12 p-1 rounded transition-transform duration-200 hover:scale-105 transform-gpu cursor-pointer"
-										/>
-										<Input
-											type="text"
-											value={color}
-											onChange={(e) => {
-												[
-													setTitleColor,
-													setBackgroundColor,
-													setTextColor,
-													setCircleColor,
-												][index](e.target.value);
-												setSelectedPreset("custom");
-											}}
-											className="flex-grow transition-all duration-200 focus:ring-2 focus:ring-primary"
-										/>
-									</div>
-								</div>
-							)
-						)}
-					</div>
+					{/* Color Picker Grid */}
+					<ColorPickerGroup pickers={colorPickers} />
 
-					{/* Live preview section */}
-					<div className="space-y-2">
-						<Label>Live Preview</Label>
-						<div className="p-4 rounded-lg border backdrop-blur-sm flex justify-center">
-							<div dangerouslySetInnerHTML={{ __html: previewSVG }} />
-						</div>
-						<p className="text-xs text-muted-foreground">
-							Preview updates automatically with color changes
-						</p>
-					</div>
+					{/* Live Preview */}
+					<LivePreview previewSVG={previewSVG} />
 
-					{/* Card selection grid with animations */}
-					<div className="space-y-4">
-						<div className="flex justify-between items-center">
-							<Label className="text-lg font-semibold">
-								Select Stat Cards to Generate
-							</Label>
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								onClick={handleSelectAll}
-							>
-								{allSelected ? "Unselect All" : "Select All"}
-							</Button>
-						</div>
-						<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-							{statCardTypes.map((type, index) => (
-								<div
-									key={type.id}
-									className={cn(
-										"flex items-start space-x-2 bg-secondary/50 rounded-lg p-3",
-										"transition-all duration-300 hover:bg-secondary hover:shadow-lg",
-										"hover:-translate-y-1 cursor-pointer group",
-										"animate-in fade-in-up fill-mode-backwards",
-										selectedCards.includes(type.id) ? "ring-2 ring-primary" : ""
-									)}
-									style={{ animationDelay: `${index * 50}ms` }}
-								>
-									{/* Checkbox and card details */}
-									<Checkbox
-										id={type.id}
-										checked={selectedCards.includes(type.id)}
-										onCheckedChange={() => handleCheckboxChange(type.id)}
-										className="mt-1 transition-all duration-200 scale-90 group-hover:scale-100 checked:scale-110 focus:ring-2 focus:ring-primary"
-									/>
-									<div className="space-y-1 flex-grow">
-										<Label
-											htmlFor={type.id}
-											className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-										>
-											{type.label.split(" (")[0]}
-										</Label>
-										{type.label.includes("(") && (
-											<p className="text-xs text-muted-foreground transition-opacity duration-200 group-hover:opacity-100">
-												{type.label.match(/\((.*)\)/)?.[1]}
-											</p>
-										)}
-									</div>
-									<Button
-										type="button"
-										variant="outline"
-										size="sm"
-										onClick={() => handlePreview(type.id)}
-										className="transition-all duration-200 hover:bg-primary hover:text-primary-foreground scale-90 group-hover:scale-100"
-										title={`Preview ${type.label.split(" (")[0]} card`}
-									>
-										Preview
-									</Button>
-								</div>
-							))}
-						</div>
-					</div>
+					{/* Stat Card Selection Grid */}
+					<StatCardTypeSelection
+						cardTypes={statCardTypes}
+						selectedCards={selectedCards}
+						allSelected={allSelected}
+						onToggle={handleCheckboxChange}
+						onSelectAll={handleSelectAll}
+						onPreview={handlePreview}
+					/>
 
-					{/* Form submission and cache notice */}
+					{/* Form Submission */}
 					<Button
 						type="submit"
 						className="w-full transition-transform duration-200 hover:scale-[1.02] transform-gpu"
 					>
 						Generate Stat Cards
 					</Button>
-					<Alert className="border-blue-500 bg-blue-500/10">
-						<Info className="h-5 w-5 text-blue-500" />
-						<div className="ml-3">
-							<AlertTitle className="text-blue-500 text-lg">Update Notice</AlertTitle>
-							<AlertDescription className="text-foreground">
-								{/* Cache information for users */}
-								<div className="space-y-2">
-									<p>
-										SVGs are cached for 24 hours. If your changes don&apos;t
-										appear:
-									</p>
-									<ul className="list-disc pl-6">
-										<li>
-											Hard refresh with <kbd>Ctrl</kbd>+<kbd>F5</kbd>{" "}
-											(Windows) or <kbd>Cmd</kbd>+<kbd>Shift</kbd>+
-											<kbd>R</kbd> (Mac)
-										</li>
-										<li>Clear browser cache</li>
-										<li>Wait up to 24 hours for cache expiration</li>
-									</ul>
-								</div>
-							</AlertDescription>
-						</div>
-					</Alert>
+
+					{/* Update Notice */}
+					<UpdateNotice />
 				</form>
 			</DialogContent>
 
-			{/* Error and preview modals */}
 			<ErrorPopup
-				isOpen={isErrorOpen}
-				onClose={() => setIsErrorOpen(false)}
-				title={errorTitle}
-				description={errorDescription}
+				isOpen={!!error}
+				onClose={() => {}}
+				title="Submission Error"
+				description={error?.message || "An error occurred."}
 			/>
 			<StatCardPreview
 				isOpen={previewOpen}
