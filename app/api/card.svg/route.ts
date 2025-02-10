@@ -8,7 +8,7 @@ import { mangaStatsTemplate } from "@/lib/svg-templates/manga-stats";
 import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
 import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats";
 import { extractErrorInfo } from "@/lib/utils";
-import clientPromise from "@/lib/utils/mongodb";
+import { connectToDatabase } from "@/lib/utils/mongodb";
 
 // Rate limiter setup using Upstash Redis
 const ratelimit = new Ratelimit({
@@ -310,9 +310,19 @@ export async function GET(request: Request) {
 
 	try {
 		console.log(`🔍 [Card SVG] Fetching data for user ${numericUserId}`);
-		// Initialize MongoDB client
-		const client = await clientPromise;
-		const db = client.db("anicards");
+		// Establish connection with type safety
+		const mongooseInstance = await connectToDatabase();
+
+		// Verify connection state
+		if (mongooseInstance.connection.readyState !== 1) {
+			throw new Error("MongoDB connection not ready");
+		}
+
+		// Access database with proper typing
+		const db = mongooseInstance.connection.db;
+		if (!db) {
+			throw new Error("Database instance not available");
+		}
 
 		// Fetch card config and user data in parallel
 		const [cardDoc, userDoc] = await Promise.all([

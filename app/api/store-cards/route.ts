@@ -4,7 +4,7 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { CardsDocument } from "@/lib/types/card";
 import { extractErrorInfo } from "@/lib/utils";
-import clientPromise from "@/lib/utils/mongodb";
+import { connectToDatabase } from "@/lib/utils/mongodb";
 
 const ratelimit = new Ratelimit({
 	redis: Redis.fromEnv(),
@@ -44,8 +44,19 @@ export async function POST(request: Request) {
 			);
 		}
 
-		const client = await clientPromise;
-		const db = client.db("anicards");
+		// Establish connection with type safety
+		const mongooseInstance = await connectToDatabase();
+
+		// Verify connection state
+		if (mongooseInstance.connection.readyState !== 1) {
+			throw new Error("MongoDB connection not ready");
+		}
+
+		// Access database with proper typing
+		const db = mongooseInstance.connection.db;
+		if (!db) {
+			throw new Error("Database instance not available");
+		}
 
 		console.log(`🔄 [Store Cards] Updating cards for user ${userId}`);
 		// Complex MongoDB array update using aggregation pipeline

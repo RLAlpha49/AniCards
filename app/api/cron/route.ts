@@ -1,7 +1,7 @@
 import { MongoServerError } from "mongodb";
 import { USER_STATS_QUERY } from "@/lib/anilist/queries";
 import { extractErrorInfo } from "@/lib/utils";
-import clientPromise from "@/lib/utils/mongodb";
+import { connectToDatabase } from "@/lib/utils/mongodb";
 // Background job for batch updating user stats from AniList
 
 export async function GET(request: Request) {
@@ -13,8 +13,19 @@ export async function GET(request: Request) {
 			return new Response("Unauthorized", { status: 401 });
 		}
 
-		const client = await clientPromise;
-		const db = client.db("anicards");
+		// Establish connection with type safety
+		const mongooseInstance = await connectToDatabase();
+
+		// Verify connection state
+		if (mongooseInstance.connection.readyState !== 1) {
+			throw new Error("MongoDB connection not ready");
+		}
+
+		// Access database with proper typing
+		const db = mongooseInstance.connection.db;
+		if (!db) {
+			throw new Error("Database instance not available");
+		}
 		const users = await db.collection("users").find().toArray();
 		const totalUsers = users.length;
 		let processedCount = 0;

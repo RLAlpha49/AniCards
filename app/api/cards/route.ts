@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { MongoServerError } from "mongodb";
 import { extractErrorInfo } from "@/lib/utils";
-import clientPromise from "@/lib/utils/mongodb";
-
+import { connectToDatabase } from "@/lib/utils/mongodb";
 
 // API endpoint for retrieving user card configurations
 export async function GET(request: Request) {
@@ -27,8 +26,21 @@ export async function GET(request: Request) {
 
 	try {
 		console.log(`🔍 [Cards API] Querying cards for user ${numericUserId}`);
-		const client = await clientPromise;
-		const db = client.db("anicards");
+		// Establish connection with type safety
+		const mongooseInstance = await connectToDatabase();
+		
+		// Verify connection state
+		if (mongooseInstance.connection.readyState !== 1) {
+			throw new Error("MongoDB connection not ready");
+		}
+
+		// Access database with proper typing
+		const db = mongooseInstance.connection.db;
+		if (!db) {
+			throw new Error("Database instance not available");
+		}
+
+		// Use the db instance
 		const cards = await db
 			.collection("cards")
 			.find(

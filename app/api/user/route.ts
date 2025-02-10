@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { MongoServerError } from "mongodb";
 import { UserStats } from "@/lib/types/card";
 import { extractErrorInfo } from "@/lib/utils";
-import clientPromise from "@/lib/utils/mongodb";
+import { connectToDatabase } from "@/lib/utils/mongodb";
 
 // API endpoint for fetching user data from MongoDB
 export async function GET(request: Request) {
@@ -27,10 +27,19 @@ export async function GET(request: Request) {
 
 	try {
 		console.log(`🔍 [User API] Querying database for user ${numericUserId}`);
-		// Configure MongoDB client with strict API versioning
-		const client = await clientPromise;
+		// Establish connection with type safety
+		const mongooseInstance = await connectToDatabase();
 
-		const db = client.db("anicards");
+		// Verify connection state
+		if (mongooseInstance.connection.readyState !== 1) {
+			throw new Error("MongoDB connection not ready");
+		}
+
+		// Access database with proper typing
+		const db = mongooseInstance.connection.db;
+		if (!db) {
+			throw new Error("Database instance not available");
+		}
 		// Find user while excluding sensitive/irrelevant fields
 		const userData = (await db
 			.collection("users")
