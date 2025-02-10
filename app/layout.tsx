@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import Header from "@/components/header";
-import { Analytics } from "@vercel/analytics/react";
+import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
 // Font configuration using Next.js's font optimization
@@ -15,6 +15,7 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
 	variable: "--font-geist-mono", // CSS variable for monospace font
 	subsets: ["latin"],
+	
 });
 
 export const metadata: Metadata = {

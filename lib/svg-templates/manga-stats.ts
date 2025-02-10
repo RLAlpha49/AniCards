@@ -1,4 +1,5 @@
 import { MangaStats } from "@/lib/types/card";
+import { calculateDynamicFontSize } from "../utils";
 
 export const mangaStatsTemplate = (data: {
 	username: string;
@@ -36,7 +37,9 @@ export const mangaStatsTemplate = (data: {
     /* stylelint-disable selector-class-pattern, keyframes-name-pattern */
     .header { 
       fill: ${data.styles.titleColor};
-      font: 600 18px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${calculateDynamicFontSize(
+			`${data.username}'s Manga Stats`
+		)}px 'Segoe UI', Ubuntu, Sans-Serif;
       animation: fadeInAnimation 0.8s ease-in-out forwards;
     }
     

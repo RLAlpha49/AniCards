@@ -1,3 +1,5 @@
+import { calculateDynamicFontSize } from "../utils";
+
 export const extraAnimeMangaStatsTemplate = (data: {
 	username: string;
 	styles: {
@@ -26,7 +28,9 @@ export const extraAnimeMangaStatsTemplate = (data: {
     /* stylelint-disable selector-class-pattern, keyframes-name-pattern */
     .header { 
       fill: ${data.styles.titleColor};
-      font: 600 18px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${calculateDynamicFontSize(
+			`${data.username}'s ${data.format}`
+		)}px 'Segoe UI', Ubuntu, Sans-Serif;
       animation: fadeInAnimation 0.8s ease-in-out forwards;
     }
     

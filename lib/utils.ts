@@ -73,3 +73,27 @@ export function extractErrorInfo(error: any): any {
 
 	return previousErrInfo;
 }
+
+/**
+ * Calculates a dynamic font size based on text length and width constraints
+ * @param text - The text to calculate the font size for
+ * @param initialFontSize - The initial font size to start with
+ * @param maxWidth - The maximum width the text can occupy
+ * @param minFontSize - The minimum font size to ensure text is readable
+ * @returns The calculated font size as a string
+ */
+export const calculateDynamicFontSize = (
+	text: string,
+	initialFontSize = 18,
+	maxWidth = 220,
+	minFontSize = 8
+) => {
+	let fontSize = initialFontSize;
+	// Dynamic multiplier: Longer text gets smaller multiplier to account for average character width
+	const charWidthMultiplier = Math.max(0.4, 0.6 - text.length * 0.003);
+	
+	while (text.length * fontSize * charWidthMultiplier > maxWidth && fontSize > minFontSize) {
+		fontSize -= 0.1;
+	}
+	return fontSize.toFixed(1);
+};
