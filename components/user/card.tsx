@@ -84,7 +84,11 @@ export function Card({ type, svgUrl }: CardProps) {
 											value={svgLink}
 											readOnly
 										/>
-										<Button onClick={() => handleCopy(svgLink, "svg")}>
+										<Button
+											onClick={() => handleCopy(svgLink, "svg")}
+											className="px-3 py-2 border rounded-l-none text-sm"
+											style={{ height: "auto" }}
+										>
 											{copied === "svg" ? (
 												<Check className="h-4 w-4" />
 											) : (
@@ -105,6 +109,8 @@ export function Card({ type, svgUrl }: CardProps) {
 										/>
 										<Button
 											onClick={() => handleCopy(anilistBioLink, "anilist")}
+											className="px-3 py-2 border rounded-l-none text-sm"
+											style={{ height: "auto" }}
 										>
 											{copied === "anilist" ? (
 												<Check className="h-4 w-4" />

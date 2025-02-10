@@ -54,12 +54,16 @@ export function CardList({ cardTypes }: CardListProps) {
 						<div>
 							<p className="text-sm font-medium">SVG Link</p>
 							<div className="flex mt-1">
-								<input /* Read-only field for link preview */
+								<input
 									className="flex-grow px-3 py-2 border rounded-l-md text-sm"
 									value={svgLinks.join("\n")}
 									readOnly
 								/>
-								<Button onClick={() => handleCopyLinks("svg")}>
+								<Button
+									onClick={() => handleCopyLinks("svg")}
+									className="px-3 py-2 border rounded-l-none text-sm"
+									style={{ height: "auto" }}
+								>
 									{copied === "svg" ? <Check className="h-4 w-4" /> : "Copy"}
 								</Button>
 							</div>
@@ -74,9 +78,14 @@ export function CardList({ cardTypes }: CardListProps) {
 									value={[...anilistBioLinks, statsLink].join("\n")}
 									readOnly
 								/>
-								<Button onClick={() => handleCopyLinks("anilist")}>
+								<Button
+									onClick={() => handleCopyLinks("anilist")}
+									className="px-3 py-2 border rounded-l-none text-sm"
+									style={{ height: "auto" }}
+								>
 									{copied === "anilist" ? <Check className="h-4 w-4" /> : "Copy"}
 								</Button>
+
 							</div>
 						</div>
 					</div>
