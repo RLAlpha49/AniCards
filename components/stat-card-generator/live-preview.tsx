@@ -1,10 +1,11 @@
 import { Label } from "@/components/ui/label";
+import React from "react";
 
 interface LivePreviewProps {
 	previewSVG: string;
 }
 
-export function LivePreview({ previewSVG }: LivePreviewProps) {
+export const LivePreview = React.memo(function LivePreview({ previewSVG }: LivePreviewProps) {
 	return (
 		<div className="space-y-2">
 			<Label>Live Preview</Label>
@@ -16,4 +17,4 @@ export function LivePreview({ previewSVG }: LivePreviewProps) {
 			</p>
 		</div>
 	);
-}
+});
