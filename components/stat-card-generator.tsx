@@ -27,6 +27,7 @@ import { LoadingOverlay } from "@/components/loading-spinner";
 import { ErrorPopup } from "@/components/error-popup";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Info } from "lucide-react";
+import { animeStatsTemplate } from "@/lib/svg-templates/anime-stats";
 
 interface StatCardGeneratorProps {
 	isOpen: boolean;
@@ -90,6 +91,31 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 	const [errorTitle, setErrorTitle] = useState("");
 	const [errorDescription, setErrorDescription] = useState("");
 	const router = useRouter();
+
+	// Static preview data
+	const previewData = {
+		username: "PreviewUser",
+		styles: {
+			titleColor,
+			backgroundColor,
+			textColor,
+			circleColor,
+		},
+		stats: {
+			count: 456,
+			episodesWatched: 1234,
+			minutesWatched: 45678,
+			meanScore: 85.6,
+			standardDeviation: 12.3,
+			previousMilestone: 1000,
+			currentMilestone: 1500,
+			dasharray: "251.2",
+			dashoffset: "175.84",
+		},
+	};
+
+	// Generate preview SVG
+	const previewSVG = animeStatsTemplate(previewData);
 
 	const handleCheckboxChange = (id: string) => {
 		setSelectedCards((prev) => {
@@ -383,6 +409,17 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 								</div>
 							)
 						)}
+					</div>
+
+					{/* Live preview section */}
+					<div className="space-y-2">
+						<Label>Live Preview</Label>
+						<div className="p-4 rounded-lg border backdrop-blur-sm flex justify-center">
+							<div dangerouslySetInnerHTML={{ __html: previewSVG }} />
+						</div>
+						<p className="text-xs text-muted-foreground">
+							Preview updates automatically with color changes
+						</p>
 					</div>
 
 					{/* Card selection grid with animations */}
