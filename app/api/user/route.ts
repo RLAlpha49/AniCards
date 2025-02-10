@@ -39,7 +39,6 @@ export async function GET(request: Request) {
 				{ projection: { _id: 0, createdAt: 0, ip: 0, updatedAt: 0 } }
 			)) as unknown as UserStats;
 
-		await client.close();
 		const duration = Date.now() - startTime;
 
 		// Handle user not found scenario

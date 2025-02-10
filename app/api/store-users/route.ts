@@ -58,7 +58,6 @@ export async function POST(request: Request) {
 			{ upsert: true }
 		);
 
-		await client.close();
 		const duration = Date.now() - startTime;
 
 		// Determine if user was created or updated

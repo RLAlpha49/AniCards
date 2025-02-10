@@ -23,6 +23,8 @@ if (process.env.NODE_ENV === "development") {
 				strict: true,
 				deprecationErrors: true,
 			},
+			maxPoolSize: 1, // Single connection in development
+			minPoolSize: 1,
 		});
 		global._mongoClientPromise = client.connect();
 	}
@@ -35,6 +37,10 @@ if (process.env.NODE_ENV === "development") {
 			strict: true,
 			deprecationErrors: true,
 		},
+		maxPoolSize: 10, // Connection pool size
+		minPoolSize: 2,   // Keep at least 2 connections warm
+		connectTimeoutMS: 30000, // 30 seconds connection timeout
+		socketTimeoutMS: 60000,  // 60 seconds socket timeout
 	});
 	clientPromise = client.connect();
 }
