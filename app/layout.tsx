@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import Header from "@/components/header";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 // Font configuration using Next.js's font optimization
 const geistSans = Geist({
@@ -36,6 +38,8 @@ export default function RootLayout({
 				<Providers>
 					<Header />
 					{children}
+					<Analytics />
+					<SpeedInsights />
 				</Providers>
 			</body>
 		</html>
