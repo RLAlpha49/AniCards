@@ -14,35 +14,43 @@ declare global {
 let client: MongoClient;
 let clientPromise: Promise<MongoClient>;
 
-if (process.env.NODE_ENV === "development") {
-	// In development mode, use a global variable to preserve the connection
-	if (!global._mongoClientPromise) {
-		client = new MongoClient(uri, {
-			serverApi: {
-				version: ServerApiVersion.v1,
-				strict: true,
-				deprecationErrors: true,
-			},
-			maxPoolSize: 1, // Single connection in development
-			minPoolSize: 1,
-		});
-		global._mongoClientPromise = client.connect();
-	}
-	clientPromise = global._mongoClientPromise;
-} else {
-	// In production mode, create a new connection
+// Always use singleton pattern
+if (!global._mongoClientPromise) {
 	client = new MongoClient(uri, {
 		serverApi: {
 			version: ServerApiVersion.v1,
 			strict: true,
 			deprecationErrors: true,
 		},
-		maxPoolSize: 10, // Connection pool size
-		minPoolSize: 2,   // Keep at least 2 connections warm
-		connectTimeoutMS: 30000, // 30 seconds connection timeout
-		socketTimeoutMS: 60000,  // 60 seconds socket timeout
+		maxPoolSize: 1, // Force single connection
+		minPoolSize: 1,
+		connectTimeoutMS: 30000,
+		socketTimeoutMS: 60000,
+		heartbeatFrequencyMS: 30000, // Keep connection alive
 	});
-	clientPromise = client.connect();
+
+	// Add error handling for production
+	client.on("serverClosed", () => {
+		console.log("MongoDB connection closed - resetting client");
+		global._mongoClientPromise = client.connect(); // Auto-reconnect
+	});
+
+	global._mongoClientPromise = client.connect();
 }
+
+// eslint-disable-next-line prefer-const
+clientPromise = global._mongoClientPromise;
+
+// Add connection verification
+clientPromise
+	.then((connectedClient) => {
+		console.log("MongoDB connection established");
+		connectedClient.on("error", (err) => {
+			console.error("MongoDB connection error:", err);
+		});
+	})
+	.catch((err) => {
+		console.error("MongoDB connection failed:", err);
+	});
 
 export default clientPromise;
