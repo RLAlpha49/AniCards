@@ -65,22 +65,54 @@ const statCardTypes = [
 ];
 
 const colorPresets = {
-	default: ["#fe428e", "#141321", "#a9fef7", "#fe428e"],
-	sunset: ["#ff7e5f", "#feb47b", "#ffffff", "#ff7e5f"],
-	ocean: ["#00b4d8", "#03045e", "#caf0f8", "#00b4d8"],
-	forest: ["#2d6a4f", "#081c15", "#d8f3dc", "#2d6a4f"],
-	lavender: ["#7c3aed", "#ede9fe", "#1e1b4b", "#7c3aed"],
-	custom: ["", "", "", ""],
+	default: { colors: ["#fe428e", "#141321", "#a9fef7", "#fe428e"], mode: "dark" },
+	anilistLight: {
+		colors: ["#3cc8ff", "#FFFFFF", "#333333", "#3cc8ff"],
+		mode: "light",
+	},
+	anilistDark: {
+		colors: ["#3cc8ff", "#0b1622", "#E8E8E8", "#3cc8ff"],
+		mode: "dark",
+	},
+	sunset: { colors: ["#ff7e5f", "#fff7ed", "#431407", "#ff7e5f"], mode: "light" },
+	ocean: { colors: ["#00b4d8", "#f0f9ff", "#03045e", "#00b4d8"], mode: "light" },
+	forest: { colors: ["#2d6a4f", "#f0fdf4", "#052e16", "#2d6a4f"], mode: "light" },
+	lavender: { colors: ["#7c3aed", "#f5f3ff", "#1e1b4b", "#7c3aed"], mode: "light" },
+	midnight: { colors: ["#8b5cf6", "#0f172a", "#e2e8f0", "#8b5cf6"], mode: "dark" },
+	coral: { colors: ["#ff6b6b", "#ffe8e8", "#2d3436", "#ff6b6b"], mode: "light" },
+	aurora: { colors: ["#10b981", "#042f2e", "#a7f3d0", "#10b981"], mode: "dark" },
+	rosegold: { colors: ["#fb7185", "#fff1f2", "#4c0519", "#fb7185"], mode: "light" },
+	galaxy: { colors: ["#818cf8", "#1e1b4b", "#c7d2fe", "#818cf8"], mode: "dark" },
+	citrus: { colors: ["#f59e0b", "#431407", "#fde68a", "#f59e0b"], mode: "dark" },
+	twilight: { colors: ["#c084fc", "#1e1b4b", "#e9d5ff", "#c084fc"], mode: "dark" },
+	seafoam: { colors: ["#2dd4bf", "#042f2e", "#ccfbf1", "#2dd4bf"], mode: "dark" },
+	monochromeGray: { colors: ["#6b7280", "#f9fafb", "#1f2937", "#9ca3af"], mode: "light" },
+	darkModeBlue: { colors: ["#93c5fd", "#0f172a", "#e2e8f0", "#60a5fa"], mode: "dark" },
+	earthyGreen: { colors: ["#84cc16", "#fefce8", "#374151", "#a3e635"], mode: "light" },
+	purpleDusk: { colors: ["#c084fc", "#4a044a", "#f3e8ff", "#a855f7"], mode: "dark" },
+	redAlert: { colors: ["#ef4444", "#000000", "#f8fafc", "#dc2626"], mode: "dark" },
+	goldStandard: { colors: ["#facc15", "#111827", "#f0f0f0", "#eab308"], mode: "dark" },
+	cyberpunk: { colors: ["#ff4081", "#121212", "#00ffff", "#ff80ab"], mode: "dark" },
+	pastelDreams: { colors: ["#a78bfa", "#f0fdfa", "#4b5563", "#c4b5fd"], mode: "light" },
+	vintageSepia: { colors: ["#a97142", "#f5e1da", "#5c4033", "#a97142"], mode: "light" },
+	synthwave: { colors: ["#ff4ea1", "#2a2a72", "#f1f1f1", "#ff4ea1"], mode: "dark" },
+	solarizedLight: { colors: ["#b58900", "#fdf6e3", "#657b83", "#268bd2"], mode: "light" },
+	mint: { colors: ["#00b894", "#dfe6e9", "#2d3436", "#00b894"], mode: "light" },
+	bubblegum: { colors: ["#ff6f91", "#ffe2e2", "#3f3f3f", "#ff6f91"], mode: "light" },
+	stardust: { colors: ["#e0aaff", "#0d0d3f", "#ffffff", "#e0aaff"], mode: "dark" },
+	oceanBreeze: { colors: ["#00bcd4", "#e0f7fa", "#00796b", "#00bcd4"], mode: "light" },
+	fire: { colors: ["#ff4500", "#fff5f5", "#8b0000", "#ff4500"], mode: "light" },
+	custom: { colors: ["", "", "", ""], mode: "custom" },
 };
 
 // Main component for generating customizable AniList stat cards
 export function StatCardGenerator({ isOpen, onClose, className }: StatCardGeneratorProps) {
 	// State management for form inputs and UI states
 	const [username, setUsername] = useState("");
-	const [titleColor, setTitleColor] = useState(colorPresets.default[0]);
-	const [backgroundColor, setBackgroundColor] = useState(colorPresets.default[1]);
-	const [textColor, setTextColor] = useState(colorPresets.default[2]);
-	const [circleColor, setCircleColor] = useState(colorPresets.default[3]);
+	const [titleColor, setTitleColor] = useState(colorPresets.default.colors[0]);
+	const [backgroundColor, setBackgroundColor] = useState(colorPresets.default.colors[1]);
+	const [textColor, setTextColor] = useState(colorPresets.default.colors[2]);
+	const [circleColor, setCircleColor] = useState(colorPresets.default.colors[3]);
 	const [selectedCards, setSelectedCards] = useState<string[]>([]);
 	const [selectedPreset, setSelectedPreset] = useState("default");
 	const [allSelected, setAllSelected] = useState(false);
@@ -132,7 +164,8 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 		// Apply preset colors unless custom is selected
 		if (preset !== "custom") {
 			[setTitleColor, setBackgroundColor, setTextColor, setCircleColor].forEach(
-				(setter, index) => setter(colorPresets[preset as keyof typeof colorPresets][index])
+				(setter, index) =>
+					setter(colorPresets[preset as keyof typeof colorPresets].colors[index])
 			);
 		}
 	};
@@ -341,12 +374,40 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 								<SelectValue placeholder="Select a color preset" />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="default">Default</SelectItem>
-								<SelectItem value="sunset">Sunset</SelectItem>
-								<SelectItem value="ocean">Ocean</SelectItem>
-								<SelectItem value="forest">Forest</SelectItem>
-								<SelectItem value="lavender">Lavender</SelectItem>
-								<SelectItem value="custom">Custom</SelectItem>
+								{Object.entries(colorPresets)
+									.sort(([aKey, aVal], [bKey, bVal]) => {
+										const fixedOrder = [
+											"default",
+											"anilistLight",
+											"anilistDark",
+										];
+										const aFixedIndex = fixedOrder.indexOf(aKey);
+										const bFixedIndex = fixedOrder.indexOf(bKey);
+										if (aFixedIndex !== -1 || bFixedIndex !== -1) {
+											if (aFixedIndex !== -1 && bFixedIndex !== -1) {
+												return aFixedIndex - bFixedIndex;
+											}
+											return aFixedIndex !== -1 ? -1 : 1;
+										}
+										// Always push custom to the end.
+										if (aKey === "custom") return 1;
+										if (bKey === "custom") return -1;
+										// If both presets have the same mode, maintain current order.
+										if (aVal.mode === bVal.mode) return 0;
+										// Light mode presets come first.
+										return aVal.mode === "light" ? -1 : 1;
+									})
+									.map(([key, { mode }]) => (
+										<SelectItem key={key} value={key}>
+											{`${key.charAt(0).toUpperCase() + key.slice(1)} (${
+												mode === "light"
+													? "Light Mode"
+													: mode === "dark"
+													? "Dark Mode"
+													: "Custom"
+											})`}
+										</SelectItem>
+									))}
 							</SelectContent>
 						</Select>
 					</div>
