@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { MongoClient, MongoServerError } from "mongodb";
-import { ServerApiVersion } from "mongodb";
+import { MongoServerError } from "mongodb";
 import { UserStats } from "@/lib/types/card";
 import { extractErrorInfo } from "@/lib/utils";
+import clientPromise from "@/lib/utils/mongodb";
 
 // API endpoint for fetching user data from MongoDB
 export async function GET(request: Request) {
@@ -28,13 +28,7 @@ export async function GET(request: Request) {
 	try {
 		console.log(`🔍 [User API] Querying database for user ${numericUserId}`);
 		// Configure MongoDB client with strict API versioning
-		const client = new MongoClient(process.env.MONGODB_URI!, {
-			serverApi: {
-				version: ServerApiVersion.v1,
-				strict: true,
-				deprecationErrors: true,
-			},
-		});
+		const client = await clientPromise;
 
 		const db = client.db("anicards");
 		// Find user while excluding sensitive/irrelevant fields

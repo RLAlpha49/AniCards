@@ -1,6 +1,6 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
-import { MongoClient, MongoServerError, ServerApiVersion } from "mongodb";
+import { MongoServerError } from "mongodb";
 import { animeStatsTemplate } from "@/lib/svg-templates/anime-stats";
 import { CardConfig, UserStats } from "@/lib/types/card";
 import { calculateMilestones } from "@/lib/utils/milestones";
@@ -8,6 +8,7 @@ import { mangaStatsTemplate } from "@/lib/svg-templates/manga-stats";
 import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
 import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats";
 import { extractErrorInfo } from "@/lib/utils";
+import clientPromise from "@/lib/utils/mongodb";
 
 // Rate limiter setup using Upstash Redis
 const ratelimit = new Ratelimit({
@@ -310,13 +311,7 @@ export async function GET(request: Request) {
 	try {
 		console.log(`🔍 [Card SVG] Fetching data for user ${numericUserId}`);
 		// Initialize MongoDB client
-		const client = new MongoClient(process.env.MONGODB_URI!, {
-			serverApi: {
-				version: ServerApiVersion.v1,
-				strict: true,
-				deprecationErrors: true,
-			},
-		});
+		const client = await clientPromise;
 		const db = client.db("anicards");
 
 		// Fetch card config and user data in parallel

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { MongoClient, MongoServerError, ServerApiVersion } from "mongodb";
+import { MongoServerError } from "mongodb";
 import { extractErrorInfo } from "@/lib/utils";
+import clientPromise from "@/lib/utils/mongodb";
+
 
 // API endpoint for retrieving user card configurations
 export async function GET(request: Request) {
@@ -25,16 +27,7 @@ export async function GET(request: Request) {
 
 	try {
 		console.log(`🔍 [Cards API] Querying cards for user ${numericUserId}`);
-		// Initialize MongoDB client with strict API versioning
-		const client = new MongoClient(process.env.MONGODB_URI!, {
-			serverApi: {
-				version: ServerApiVersion.v1,
-				strict: true,
-				deprecationErrors: true,
-			},
-		});
-
-		// Query database with field projection
+		const client = await clientPromise;
 		const db = client.db("anicards");
 		const cards = await db
 			.collection("cards")
@@ -50,7 +43,6 @@ export async function GET(request: Request) {
 			)
 			.toArray();
 
-		await client.close();
 		const duration = Date.now() - startTime;
 
 		console.log(

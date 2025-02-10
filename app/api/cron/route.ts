@@ -1,9 +1,9 @@
-import { MongoClient, MongoServerError } from "mongodb";
-import { ServerApiVersion } from "mongodb";
+import { MongoServerError } from "mongodb";
 import { USER_STATS_QUERY } from "@/lib/anilist/queries";
 import { extractErrorInfo } from "@/lib/utils";
-
+import clientPromise from "@/lib/utils/mongodb";
 // Background job for batch updating user stats from AniList
+
 export async function GET(request: Request) {
 	try {
 		// Authorization check
@@ -13,14 +13,7 @@ export async function GET(request: Request) {
 			return new Response("Unauthorized", { status: 401 });
 		}
 
-		const client = new MongoClient(process.env.MONGODB_URI!, {
-			serverApi: {
-				version: ServerApiVersion.v1,
-				strict: true,
-				deprecationErrors: true,
-			},
-		});
-
+		const client = await clientPromise;
 		const db = client.db("anicards");
 		const users = await db.collection("users").find().toArray();
 		const totalUsers = users.length;
