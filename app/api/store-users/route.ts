@@ -8,7 +8,7 @@ import { connectToDatabase } from "@/lib/utils/mongodb";
 
 const ratelimit = new Ratelimit({
 	redis: Redis.fromEnv(),
-	limiter: Ratelimit.slidingWindow(1, "1 s"),
+	limiter: Ratelimit.slidingWindow(5, "5 s"),
 });
 
 // API endpoint for storing/updating user data with rate limiting
