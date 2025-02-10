@@ -4,5 +4,14 @@
 			"path": "/api/cron",
 			"schedule": "0 0 * * *"
 		}
+	],
+	"headers": [
+		{
+			"source": "/api/card.svg",
+			"headers": [
+				{ "key": "CDN-Cache-Control", "value": "no-store" },
+				{ "key": "Edge-Cache-Control", "value": "no-store" }
+			]
+		}
 	]
 }
