@@ -13,7 +13,7 @@ import { connectToDatabase } from "@/lib/utils/mongodb";
 // Rate limiter setup using Upstash Redis
 const ratelimit = new Ratelimit({
 	redis: Redis.fromEnv(),
-	limiter: Ratelimit.slidingWindow(15, "10 s"), // Allow 15 requests per 10 seconds
+	limiter: Ratelimit.slidingWindow(100, "10 s"), // Allow 100 requests per 10 seconds
 });
 
 // Set of allowed card types for validation
