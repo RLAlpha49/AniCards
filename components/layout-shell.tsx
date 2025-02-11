@@ -1,0 +1,49 @@
+"use client";
+
+import React from "react";
+import Header from "@/components/header";
+import { AppSidebar } from "@/components/sidebar";
+import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
+import Footer from "@/components/footer";
+
+export function LayoutShell({ children }: { children: React.ReactNode }) {
+	return (
+		<SidebarProvider
+			defaultOpen={false}
+			style={
+				{
+					"--sidebar-width": "10rem",
+					"--sidebar-width-mobile": "6rem",
+				} as React.CSSProperties
+			}
+		>
+			<LayoutShellContent>{children}</LayoutShellContent>
+		</SidebarProvider>
+	);
+}
+
+function LayoutShellContent({ children }: { children: React.ReactNode }) {
+	const { open, toggleSidebar } = useSidebar();
+
+	return (
+		<div
+			className="flex flex-col min-h-screen transition-all duration-300 ease-in-out"
+			style={{ width: "100%" }}
+		>
+			{/* Header now spans full width and takes priority */}
+			<Header onSidebarToggle={toggleSidebar} sidebarOpen={open} />
+			<div className="flex flex-1 transition-all duration-300 ease-in-out">
+				<div
+					className={`sidebar-container overflow-hidden transition-all duration-300 border-r dark:border-gray-700 ease-in-out !bg-white dark:!bg-gray-800`}
+					style={{
+						height: `calc(100% + 84.8px)`,
+					}}
+				>
+					<AppSidebar />
+				</div>
+				<main className="flex-1 p-4">{children}</main>
+			</div>
+			<Footer />
+		</div>
+	);
+}

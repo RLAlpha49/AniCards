@@ -1,8 +1,20 @@
+"use client";
+
+import React from "react";
 import Link from "next/link";
+import { useSidebar } from "@/components/ui/sidebar";
 
 export default function Footer() {
+	const { open } = useSidebar();
+	const sidebarWidth = open ? "calc(10rem)" : "calc(3.25rem - 4px)";
+
 	return (
-		<footer className="bg-white dark:bg-gray-800 text-center p-4 border-t border-gray-200 dark:border-gray-700">
+		<footer
+			style={{
+				marginLeft: `calc(${sidebarWidth})`,
+			}}
+			className="bg-white dark:bg-gray-800 text-center p-4 border-t border-gray-200 dark:border-gray-700"
+		>
 			<div className="mb-2 space-x-4">
 				<Link
 					href="https://anilist.co/user/Alpha49"
@@ -13,7 +25,7 @@ export default function Footer() {
 					AniList Profile
 				</Link>
 				<Link
-					href="https://discord.com/invite/yourDiscord"
+					href="https://discordid.netlify.app/?id=251479989378220044"
 					target="_blank"
 					rel="noopener noreferrer"
 					className="text-blue-600 hover:underline"

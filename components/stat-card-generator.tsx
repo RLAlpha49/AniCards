@@ -227,7 +227,7 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 			{loading && <LoadingOverlay text="Creating your stat cards..." />}
 			<DialogContent
 				className={cn(
-					"sm:max-w-[600px] overflow-y-auto max-h-[calc(100vh-2rem)] z-50",
+					"sm:max-w-[600px] overflow-y-auto max-h-[calc(100vh-9rem)] z-50",
 					className
 				)}
 			>
