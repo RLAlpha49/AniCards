@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { MongoServerError } from "mongodb";
-import { UserStats } from "@/lib/types/card";
-import { extractErrorInfo } from "@/lib/utils";
-import { connectToDatabase } from "@/lib/utils/mongodb";
+import { Redis } from "@upstash/redis";
+import { UserRecord } from "@/lib/types/records";
+import { safeParse } from "@/lib/utils";
 
-// API endpoint for fetching user data from MongoDB
+// API endpoint for fetching user data from Redis
 export async function GET(request: Request) {
 	const startTime = Date.now();
 	const { searchParams } = new URL(request.url);
@@ -26,50 +25,24 @@ export async function GET(request: Request) {
 	}
 
 	try {
-		console.log(`🔍 [User API] Querying database for user ${numericUserId}`);
-		// Establish connection with type safety
-		const mongooseInstance = await connectToDatabase();
-
-		// Verify connection state
-		if (mongooseInstance.connection.readyState !== 1) {
-			throw new Error("MongoDB connection not ready");
-		}
-
-		// Access database with proper typing
-		const db = mongooseInstance.connection.db;
-		if (!db) {
-			throw new Error("Database instance not available");
-		}
-		// Find user while excluding sensitive/irrelevant fields
-		const userData = (await db
-			.collection("users")
-			.findOne(
-				{ userId: numericUserId },
-				{ projection: { _id: 0, createdAt: 0, ip: 0, updatedAt: 0 } }
-			)) as unknown as UserStats;
-
+		const redisClient = Redis.fromEnv();
+		const key = `user:${numericUserId}`;
+		const userDataRaw = await redisClient.get(key);
 		const duration = Date.now() - startTime;
 
-		// Handle user not found scenario
-		if (!userData) {
+		if (!userDataRaw) {
 			console.warn(`⚠️ [User API] User ${numericUserId} not found [${duration}ms]`);
 			return NextResponse.json({ error: "User not found" }, { status: 404 });
 		}
 
+		const userData: UserRecord = safeParse<UserRecord>(userDataRaw);
 		console.log(
 			`✅ [User API] Successfully returned data for user ${numericUserId} [${duration}ms]`
 		);
 		return NextResponse.json(userData);
 	} catch (error) {
 		const duration = Date.now() - startTime;
-		// Handle MongoDB-specific errors
-		if (error instanceof MongoServerError) {
-			error = extractErrorInfo(error); // Simplify error structure
-		}
-		console.error(
-			`🔴 [User API] Database error for user ${numericUserId} [${duration}ms]:`,
-			error
-		);
+		console.error(`🔴 [User API] Error for user ${numericUserId} [${duration}ms]:`, error);
 		return NextResponse.json({ error: "Failed to fetch user data" }, { status: 500 });
 	}
 }

@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
-import { MongoServerError } from "mongodb";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
-import { CardsDocument } from "@/lib/types/card";
-import { extractErrorInfo } from "@/lib/utils";
-import { connectToDatabase } from "@/lib/utils/mongodb";
+import { CardsRecord } from "@/lib/types/records";
 
+const redisClient = Redis.fromEnv();
 const ratelimit = new Ratelimit({
-	redis: Redis.fromEnv(),
+	redis: redisClient,
 	limiter: Ratelimit.slidingWindow(5, "5 s"),
 });
 
@@ -44,119 +42,26 @@ export async function POST(request: Request) {
 			);
 		}
 
-		// Establish connection with type safety
-		const mongooseInstance = await connectToDatabase();
+		// Use a Redis key to store the user's card configurations
+		const cardsKey = `cards:${userId}`;
+		const cardData: CardsRecord = {
+			userId,
+			cards: incomingCards,
+			updatedAt: new Date().toISOString(),
+		};
 
-		// Verify connection state
-		if (mongooseInstance.connection.readyState !== 1) {
-			throw new Error("MongoDB connection not ready");
-		}
+		// Save card configuration to Redis
+		await redisClient.set(cardsKey, JSON.stringify(cardData));
 
-		// Access database with proper typing
-		const db = mongooseInstance.connection.db;
-		if (!db) {
-			throw new Error("Database instance not available");
-		}
-
-		console.log(`🔄 [Store Cards] Updating cards for user ${userId}`);
-		// Complex MongoDB array update using aggregation pipeline
-		const updateResult = await db.collection<CardsDocument>("cards").updateOne(
-			{ userId },
-			[
-				{
-					$set: {
-						cards: {
-							$concatArrays: [
-								// Merge existing cards with updated values
-								{
-									$map: {
-										input: { $ifNull: ["$cards", []] },
-										as: "existingCard",
-										in: {
-											$mergeObjects: [
-												"$$existingCard",
-												// Find matching incoming card data
-												{
-													$arrayElemAt: [
-														{
-															$filter: {
-																input: incomingCards,
-																as: "incoming",
-																cond: {
-																	$eq: [
-																		"$$incoming.cardName",
-																		"$$existingCard.cardName",
-																	],
-																},
-															},
-														},
-														0,
-													],
-												},
-											],
-										},
-									},
-								},
-								// Add new cards that don't exist yet
-								{
-									$map: {
-										input: {
-											$filter: {
-												input: incomingCards,
-												as: "incoming",
-												cond: {
-													$not: {
-														$in: [
-															"$$incoming.cardName",
-															{ $ifNull: ["$cards.cardName", []] },
-														],
-													},
-												},
-											},
-										},
-										as: "newCard",
-										in: { $mergeObjects: ["$$newCard"] },
-									},
-								},
-							],
-						},
-						updatedAt: new Date(),
-						userId: { $ifNull: ["$userId", userId] }, // Fallback for upsert
-					},
-				},
-			],
-			{ upsert: true } // Create document if it doesn't exist
-		);
-
-		// Track request duration for performance monitoring
 		const duration = Date.now() - startTime;
+		console.log(`✅ [Store Cards] Stored cards for user ${userId} [${duration}ms]`);
 
-		// Determine if document was newly created
-		const isNewDoc = updateResult.upsertedId !== null;
-
-		// Log operation outcome with performance metrics
-		console.log(
-			`✅ [Store Cards] ${isNewDoc ? "Created" : "Updated"} cards for user ${userId} (${
-				updateResult.modifiedCount
-			} modified) [${duration}ms]`
-		);
-
-		// Return standardized success response
 		return NextResponse.json({
 			success: true,
-			updatedCount: updateResult.modifiedCount, // Number of modified documents
-			isNewDocument: isNewDoc, // Flag for new document creation
+			userId,
 		});
 	} catch (error) {
-		// Track request duration for performance monitoring
 		const duration = Date.now() - startTime;
-
-		// Handle MongoDB-specific validation errors
-		if (error instanceof MongoServerError) {
-			error = extractErrorInfo(error); // Simplify complex error structure
-		}
-
-		// Return generic error to client with server error status
 		console.error(`🔴 [Store Cards] Error after ${duration}ms:`, error);
 		return NextResponse.json({ error: "Card storage failed" }, { status: 500 });
 	}

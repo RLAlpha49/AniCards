@@ -106,3 +106,17 @@ export function formatBytes(bytes: number, decimals = 2) {
 	const i = Math.floor(Math.log(bytes) / Math.log(k));
 	return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
 }
+
+// Helper function to safely retrieve parsed data from Redis.
+export function safeParse<T>(data: unknown): T {
+	if (typeof data === "string") {
+		try {
+			return JSON.parse(data);
+		} catch (error) {
+			console.error("Failed to parse JSON:", data);
+			throw error;
+		}
+	}
+	// Assume that if it isn't a string then it's already parsed.
+	return data as T;
+}

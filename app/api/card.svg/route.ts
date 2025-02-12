@@ -7,13 +7,15 @@ import { calculateMilestones } from "@/lib/utils/milestones";
 import { mangaStatsTemplate } from "@/lib/svg-templates/manga-stats";
 import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
 import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats";
-import { extractErrorInfo } from "@/lib/utils";
-import { connectToDatabase } from "@/lib/utils/mongodb";
+import { extractErrorInfo, safeParse } from "@/lib/utils";
+import { UserRecord } from "@/lib/types/records";
+import { CardsRecord } from "@/lib/types/records";
 
 // Rate limiter setup using Upstash Redis
+const redisClient = Redis.fromEnv();
 const ratelimit = new Ratelimit({
-	redis: Redis.fromEnv(),
-	limiter: Ratelimit.slidingWindow(100, "10 s"), // Allow 100 requests per 10 seconds
+	redis: redisClient,
+	limiter: Ratelimit.slidingWindow(100, "10 s"),
 });
 
 // Set of allowed card types for validation
@@ -24,7 +26,6 @@ const ALLOWED_CARD_TYPES = new Set([
 	"animeGenres",
 	"animeTags",
 	"animeVoiceActors",
-	"animeStudios",
 	"animeStudios",
 	"animeStaff",
 	"mangaGenres",
@@ -310,35 +311,13 @@ export async function GET(request: Request) {
 
 	try {
 		console.log(`🔍 [Card SVG] Fetching data for user ${numericUserId}`);
-		// Establish connection with type safety
-		const mongooseInstance = await connectToDatabase();
-
-		// Verify connection state
-		if (mongooseInstance.connection.readyState !== 1) {
-			throw new Error("MongoDB connection not ready");
-		}
-
-		// Access database with proper typing
-		const db = mongooseInstance.connection.db;
-		if (!db) {
-			throw new Error("Database instance not available");
-		}
-
-		// Fetch card config and user data in parallel
-		const [cardDoc, userDoc] = await Promise.all([
-			db.collection("cards").findOne({
-				// Find card document for user and card type
-				userId: numericUserId,
-				"cards.cardName": cardType, // Match specific card type within cards array
-			}),
-			db.collection("users").findOne({
-				// Find user document
-				userId: numericUserId,
-			}),
+		// Retrieve the cards and user data from Redis
+		const [cardsDataStr, userDataStr] = await Promise.all([
+			redisClient.get(`cards:${numericUserId}`),
+			redisClient.get(`user:${numericUserId}`),
 		]);
 
-		// Check if card config or user data was not found
-		if (!cardDoc || !userDoc) {
+		if (!cardsDataStr || !userDataStr) {
 			console.warn(`⚠️ [Card SVG] User ${numericUserId} not found`);
 			return new Response(svgError("User data not found"), {
 				headers: errorHeaders(), // Use error headers (no-cache)
@@ -346,8 +325,20 @@ export async function GET(request: Request) {
 			});
 		}
 
-		// Extract specific card configuration from card document
+		const cardDoc: CardsRecord = safeParse<CardsRecord>(cardsDataStr);
+		const userDoc: UserRecord = safeParse<UserRecord>(userDataStr);
+
+		// Find the specific card configuration from the stored cards data
 		const cardConfig = cardDoc.cards.find((c: CardConfig) => c.cardName === cardType);
+		if (!cardConfig) {
+			console.warn(
+				`⚠️ [Card SVG] Card config for ${cardType} not found for user ${numericUserId}`
+			);
+			return new Response(svgError("Card config not found"), {
+				headers: errorHeaders(),
+				status: 200,
+			});
+		}
 
 		console.log(`🎨 [Card SVG] Generating ${cardType} SVG for user ${numericUserId}`);
 		try {

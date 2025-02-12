@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { MongoServerError } from "mongodb";
-import { extractErrorInfo } from "@/lib/utils";
-import { connectToDatabase } from "@/lib/utils/mongodb";
+import { Redis } from "@upstash/redis";
+import { CardsRecord } from "@/lib/types/records";
+import { safeParse } from "@/lib/utils";
 
 // API endpoint for retrieving user card configurations
 export async function GET(request: Request) {
@@ -25,53 +25,26 @@ export async function GET(request: Request) {
 	}
 
 	try {
-		console.log(`🔍 [Cards API] Querying cards for user ${numericUserId}`);
-		// Establish connection with type safety
-		const mongooseInstance = await connectToDatabase();
-		
-		// Verify connection state
-		if (mongooseInstance.connection.readyState !== 1) {
-			throw new Error("MongoDB connection not ready");
-		}
-
-		// Access database with proper typing
-		const db = mongooseInstance.connection.db;
-		if (!db) {
-			throw new Error("Database instance not available");
-		}
-
-		// Use the db instance
-		const cards = await db
-			.collection("cards")
-			.find(
-				{ userId: numericUserId },
-				{
-					projection: {
-						_id: 0, // Exclude MongoDB ID
-						updatedAt: 0, // Exclude internal timestamp
-						userId: 0, // Exclude redundant user ID
-					},
-				}
-			)
-			.toArray();
-
+		const redisClient = Redis.fromEnv();
+		const key = `cards:${numericUserId}`;
+		const cardDataStr = await redisClient.get(key);
 		const duration = Date.now() - startTime;
 
+		if (!cardDataStr) {
+			console.warn(
+				`⚠️ [Cards API] Cards for user ${numericUserId} not found [${duration}ms]`
+			);
+			return NextResponse.json({ error: "Cards not found" }, { status: 404 });
+		}
+
+		const cardData: CardsRecord = safeParse<CardsRecord>(cardDataStr);
 		console.log(
-			`✅ [Cards API] Found ${cards[0].cards.length} cards for user ${numericUserId} [${duration}ms]`
+			`✅ [Cards API] Successfully returned card data for user ${numericUserId} [${duration}ms]`
 		);
-		// Return formatted response
-		return NextResponse.json(cards);
+		return NextResponse.json(cardData);
 	} catch (error) {
 		const duration = Date.now() - startTime;
-		// Handle MongoDB-specific errors
-		if (error instanceof MongoServerError) {
-			error = extractErrorInfo(error);
-		}
-		console.error(
-			`🔴 [Cards API] Error fetching cards for user ${numericUserId} [${duration}ms]:`,
-			error
-		);
+		console.error(`🔴 [Cards API] Error for user ${numericUserId} [${duration}ms]:`, error);
 		return NextResponse.json({ error: "Failed to fetch cards" }, { status: 500 });
 	}
 }
