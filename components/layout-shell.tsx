@@ -7,9 +7,17 @@ import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import Footer from "@/components/footer";
 
 export function LayoutShell({ children }: { children: React.ReactNode }) {
+	const defaultOpen =
+		typeof window !== "undefined"
+			? (() => {
+					const saved = localStorage.getItem("anicards-sidebarDefaultOpen");
+					return saved ? JSON.parse(saved).value : false;
+			  })()
+			: false;
+
 	return (
 		<SidebarProvider
-			defaultOpen={false}
+			defaultOpen={defaultOpen}
 			style={
 				{
 					"--sidebar-width": "10rem",

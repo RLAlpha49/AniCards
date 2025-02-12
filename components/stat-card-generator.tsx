@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
 	Dialog,
 	DialogContent,
@@ -21,6 +21,12 @@ import { StatCardTypeSelection } from "@/components/stat-card-generator/stat-car
 import { UpdateNotice } from "@/components/stat-card-generator/update-notice";
 import { UserDetailsForm } from "@/components/stat-card-generator/user-details-form";
 import { useStatCardSubmit } from "@/hooks/use-stat-card-submit";
+import {
+	loadDefaultSettings,
+	getPresetColors,
+	saveDefaultPreset,
+	saveDefaultCardTypes,
+} from "@/lib/data";
 
 interface StatCardGeneratorProps {
 	isOpen: boolean;
@@ -33,7 +39,7 @@ interface StatCardGeneratorProps {
  * - statCardTypes: List of stat card types with their labels and IDs
  * - colorPresets: List of color presets with their labels and colors
  */
-const statCardTypes = [
+export const statCardTypes = [
 	{
 		id: "animeStats",
 		label: "Anime Stats (Count, Episodes Watched, Minutes Watched, Mean Score, Standard Deviation)",
@@ -56,7 +62,7 @@ const statCardTypes = [
 	{ id: "mangaStaff", label: "Manga Staff (Top 5 Count)" },
 ];
 
-const colorPresets = {
+export const colorPresets = {
 	default: { colors: ["#fe428e", "#141321", "#a9fef7", "#fe428e"], mode: "dark" },
 	anilistLight: {
 		colors: ["#3cc8ff", "#FFFFFF", "#333333", "#3cc8ff"],
@@ -113,6 +119,21 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 	// Use our custom hook for managing submission
 	const { loading, error, submit } = useStatCardSubmit();
 
+	// Load defaults on component mount
+	useEffect(() => {
+		const defaults = loadDefaultSettings();
+		const presetColors = getPresetColors(defaults.colorPreset);
+
+		setSelectedPreset(defaults.colorPreset);
+		setSelectedCards(defaults.defaultCards);
+		setAllSelected(defaults.defaultCards.length === statCardTypes.length);
+
+		// Apply color preset
+		[setTitleColor, setBackgroundColor, setTextColor, setCircleColor].forEach((setter, index) =>
+			setter(presetColors[index])
+		);
+	}, []);
+
 	// Static preview data
 	const previewData = {
 		username: "PreviewUser",
@@ -143,6 +164,7 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 			const newSelection = prev.includes(id)
 				? prev.filter((item) => item !== id)
 				: [...prev, id];
+			saveDefaultCardTypes(newSelection);
 			setAllSelected(newSelection.length === statCardTypes.length);
 			return newSelection;
 		});
@@ -150,6 +172,7 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 
 	const handlePresetChange = (preset: string) => {
 		setSelectedPreset(preset);
+		saveDefaultPreset(preset);
 		// Apply preset colors unless custom is selected
 		if (preset !== "custom") {
 			[setTitleColor, setBackgroundColor, setTextColor, setCircleColor].forEach(
@@ -162,8 +185,11 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 	const handleSelectAll = () => {
 		if (allSelected) {
 			setSelectedCards([]);
+			saveDefaultCardTypes([]);
 		} else {
-			setSelectedCards(statCardTypes.map((type) => type.id));
+			const allIds = statCardTypes.map((type) => type.id);
+			setSelectedCards(allIds);
+			saveDefaultCardTypes(allIds);
 		}
 		setAllSelected(!allSelected);
 	};

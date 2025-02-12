@@ -112,3 +112,13 @@ body {
 	position: static;
 	top: 0;
 }
+
+.settings-container {
+	width: 80%;
+}
+
+@media (min-width: 1100px) {
+	.settings-container {
+		max-width: 50%;
+	}
+}

@@ -91,9 +91,18 @@ export const calculateDynamicFontSize = (
 	let fontSize = initialFontSize;
 	// Dynamic multiplier: Longer text gets smaller multiplier to account for average character width
 	const charWidthMultiplier = Math.max(0.4, 0.6 - text.length * 0.003);
-	
+
 	while (text.length * fontSize * charWidthMultiplier > maxWidth && fontSize > minFontSize) {
 		fontSize -= 0.1;
 	}
 	return fontSize.toFixed(1);
 };
+
+export function formatBytes(bytes: number, decimals = 2) {
+	if (bytes === 0) return "0 Bytes";
+	const k = 1024;
+	const dm = decimals < 0 ? 0 : decimals;
+	const sizes = ["Bytes", "KB", "MB", "GB"];
+	const i = Math.floor(Math.log(bytes) / Math.log(k));
+	return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
+}
