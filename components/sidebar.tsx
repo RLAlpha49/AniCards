@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Mail, Search, Settings, File, User } from "lucide-react";
+import { Home, Mail, Settings, File, User } from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar";
 
 import {
@@ -18,7 +18,6 @@ import {
 const navItems = [
 	{ title: "Home", icon: Home, href: "/" },
 	{ title: "Profile", icon: User, href: "/profile" },
-	{ title: "User", icon: Search, href: "/user/lookup" },
 	{ title: "Contact", icon: Mail, href: "/contact" },
 	{ title: "Settings", icon: Settings, href: "/settings" },
 	{ title: "License", icon: File, href: "/license" },

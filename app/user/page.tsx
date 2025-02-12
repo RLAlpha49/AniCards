@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { CardList } from "@/components/user/card-list";
 import { displayNames } from "@/components/stat-card-generator/stat-card-preview";
 import Link from "next/link";
@@ -20,17 +19,12 @@ export default async function UserPage(props: {
 	// Await the search parameters passed to the page
 	const params = await props.searchParams;
 
-	// Redirect to user lookup page if userId is not provided in search params
-	if (!params.userId) {
-		redirect("/user/lookup");
-	}
-
 	// Initialize variables to store user data and cards
 	let userData = null;
 	let cards = [];
 
 	try {
-		// Check if username and cards are pre-loaded in search params (from lookup page)
+		// Check if username and cards are pre-loaded in search params
 		if (params.username && params.cards) {
 			// Use pre-loaded data to avoid extra API calls
 			userData = {
