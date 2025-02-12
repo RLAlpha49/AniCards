@@ -132,6 +132,11 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 		[setTitleColor, setBackgroundColor, setTextColor, setCircleColor].forEach((setter, index) =>
 			setter(presetColors[index])
 		);
+
+		// Load default username from local storage
+		const savedUsernameData = localStorage.getItem("anicards-defaultUsername");
+		const defaultUsername = savedUsernameData ? JSON.parse(savedUsernameData).value : "";
+		setUsername(defaultUsername);
 	}, []);
 
 	// Static preview data

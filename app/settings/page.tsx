@@ -3,31 +3,25 @@
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { useSidebar } from "@/components/ui/sidebar";
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { colorPresets, statCardTypes } from "@/components/stat-card-generator";
+import { useSidebar } from "@/components/ui/sidebar";
 import { getSiteSpecificCache, clearSiteCache } from "@/lib/data";
-import { formatBytes } from "@/lib/utils";
+import { ThemePreferences } from "@/components/settings/theme-preferences";
+import { SidebarBehavior } from "@/components/settings/sidebar-behavior";
+import { CacheManagement, CacheItem } from "@/components/settings/cache-management";
+import { DefaultCardSettings } from "@/components/settings/default-card-settings";
+import { ResetSettings } from "@/components/settings/reset-settings";
+import { DefaultUsernameSettings } from "@/components/settings/default-username";
 
 export default function SettingsPage() {
 	const { setTheme, theme, themes } = useTheme();
 	const { open, setOpen } = useSidebar();
 	const [mounted, setMounted] = useState(false);
 	const [sidebarDefault, setSidebarDefault] = useState(open);
-	const [cachedItems, setCachedItems] = useState<ReturnType<typeof getSiteSpecificCache>>([]);
+	const [cachedItems, setCachedItems] = useState<CacheItem[]>([]);
 	const [defaultPreset, setDefaultPreset] = useState("default");
 	const [defaultCardTypes, setDefaultCardTypes] = useState<string[]>([]);
+	const [defaultUsername, setDefaultUsername] = useState("");
 	const [cacheVersion, setCacheVersion] = useState(0);
 
 	// Listen for local storage changes from other tabs
@@ -56,16 +50,21 @@ export default function SettingsPage() {
 
 		const savedPresetString = localStorage.getItem("anicards-defaultColorPreset");
 		const presetValue = savedPresetString ? JSON.parse(savedPresetString).value : "default";
-		console.log(presetValue);
 		setDefaultPreset(presetValue);
 
 		const savedCardTypesString = localStorage.getItem("anicards-defaultCardTypes");
 		const cardTypesValue = savedCardTypesString ? JSON.parse(savedCardTypesString).value : [];
 		setDefaultCardTypes(cardTypesValue);
+
+		// Load the default username
+		const savedUsernameString = localStorage.getItem("anicards-defaultUsername");
+		const usernameValue = savedUsernameString ? JSON.parse(savedUsernameString).value : "";
+		setDefaultUsername(usernameValue);
 	}, [cacheVersion]);
 
 	if (!mounted) return null;
 
+	// Handlers for the settings (passed as props)
 	const handleThemeChange = (value: string) => {
 		setTheme(value);
 	};
@@ -78,7 +77,6 @@ export default function SettingsPage() {
 		localStorage.setItem("anicards-sidebarDefaultOpen", JSON.stringify(data));
 		setSidebarDefault(checked);
 		setOpen(checked);
-		// Update cacheVersion to trigger a reload of local storage items
 		setCacheVersion((v) => v + 1);
 	};
 
@@ -94,7 +92,6 @@ export default function SettingsPage() {
 		};
 		setDefaultPreset(value);
 		localStorage.setItem("anicards-defaultColorPreset", JSON.stringify(data));
-		// Trigger update of cached items
 		setCacheVersion((v) => v + 1);
 	};
 
@@ -110,7 +107,6 @@ export default function SettingsPage() {
 
 		setDefaultCardTypes(newTypes);
 		localStorage.setItem("anicards-defaultCardTypes", JSON.stringify(data));
-		// Trigger update of cached items
 		setCacheVersion((v) => v + 1);
 	};
 
@@ -120,41 +116,53 @@ export default function SettingsPage() {
 	};
 
 	const handleToggleAllCardTypes = () => {
-		if (defaultCardTypes.length === statCardTypes.length) {
-			// Unselect all card types
-			const data = {
-				value: [],
-				lastModified: new Date().toISOString(),
-			};
-			setDefaultCardTypes([]);
-			localStorage.setItem("anicards-defaultCardTypes", JSON.stringify(data));
-			setCacheVersion((v) => v + 1);
+		// Check if all card types are selected (statCardTypes is imported in DefaultCardSettings)
+		// This comparison assumes that statCardTypes is available and that each card type has a unique "id".
+		// If all types are selected, unselect all; otherwise, select all.
+		let allTypes: string[] = [];
+		// Dynamically require statCardTypes if needed. Here we mimic that check by comparing array lengths.
+		if (
+			defaultCardTypes.length ===
+			// eslint-disable-next-line @typescript-eslint/no-require-imports
+			require("@/components/stat-card-generator").statCardTypes.length
+		) {
+			allTypes = [];
 		} else {
-			// Select all card types
-			const allTypes = statCardTypes.map((type) => type.id);
-			const data = {
-				value: allTypes,
-				lastModified: new Date().toISOString(),
-			};
-			setDefaultCardTypes(allTypes);
-			localStorage.setItem("anicards-defaultCardTypes", JSON.stringify(data));
-			setCacheVersion((v) => v + 1);
+			// eslint-disable-next-line @typescript-eslint/no-require-imports
+			allTypes = require("@/components/stat-card-generator").statCardTypes.map(
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				(type: any) => type.id
+			);
 		}
+		const data = {
+			value: allTypes,
+			lastModified: new Date().toISOString(),
+		};
+		setDefaultCardTypes(allTypes);
+		localStorage.setItem("anicards-defaultCardTypes", JSON.stringify(data));
+		setCacheVersion((v) => v + 1);
 	};
 
-	// New: Reset Settings handler
 	const handleResetSettings = () => {
-		// Remove all keys that store app settings
 		const keysToRemove = [
 			"anicards-sidebarDefaultOpen",
 			"anicards-defaultColorPreset",
 			"anicards-defaultCardTypes",
-			// Add any additional keys if necessary
+			"anicards-defaultUsername",
 		];
 		keysToRemove.forEach((key) => localStorage.removeItem(key));
-		// Optionally, clear cached data if desired
 		clearSiteCache();
-		// Trigger a state update so that the UI reflects the reset
+		setCacheVersion((v) => v + 1);
+	};
+
+	// New handler for default username change
+	const handleDefaultUsernameChange = (value: string) => {
+		const data = {
+			value,
+			lastModified: new Date().toISOString(),
+		};
+		setDefaultUsername(value);
+		localStorage.setItem("anicards-defaultUsername", JSON.stringify(data));
 		setCacheVersion((v) => v + 1);
 	};
 
@@ -184,200 +192,39 @@ export default function SettingsPage() {
 						</motion.div>
 					</CardHeader>
 					<CardContent className="space-y-6 p-6">
-						<motion.div
-							className="space-y-8"
-							initial={{ opacity: 0 }}
-							animate={{ opacity: 1 }}
-							transition={{ delay: 0.2 }}
-						>
-							<motion.div
-								initial={{ opacity: 0, y: 10 }}
-								animate={{ opacity: 1, y: 0 }}
-								transition={{ delay: 0.3 }}
-								className="space-y-4"
-							>
-								<Label className="text-lg font-medium">Theme Preferences</Label>
-								<Select value={theme} onValueChange={handleThemeChange}>
-									<SelectTrigger className="w-full max-w-[300px] bg-accent/40">
-										<SelectValue placeholder="Select theme" />
-									</SelectTrigger>
-									<SelectContent className="rounded-lg">
-										{themes.map((t) => (
-											<SelectItem
-												key={t}
-												value={t}
-												className="transition-colors hover:bg-accent/40"
-											>
-												{t.charAt(0).toUpperCase() + t.slice(1)}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</motion.div>
+						<div className="space-y-8">
+							<ThemePreferences
+								theme={theme || "system"}
+								themes={themes}
+								onThemeChange={handleThemeChange}
+							/>
 
-							<motion.div
-								initial={{ opacity: 0, y: 10 }}
-								animate={{ opacity: 1, y: 0 }}
-								transition={{ delay: 0.4 }}
-								className="space-y-4"
-							>
-								<Label className="text-lg font-medium">Sidebar Behavior</Label>
-								<div className="flex items-center justify-between p-4 bg-accent/40 rounded-lg">
-									<div>
-										<p className="font-medium">Default State</p>
-										<p className="text-sm text-muted-foreground">
-											{sidebarDefault ? "Expanded" : "Collapsed"} by default
-										</p>
-									</div>
-									<Switch
-										checked={sidebarDefault}
-										onCheckedChange={handleSidebarDefaultChange}
-										className="data-[state=checked]:bg-primary data-[state=unchecked]:bg-input transition-colors"
-									/>
-								</div>
-							</motion.div>
+							<SidebarBehavior
+								sidebarDefault={sidebarDefault}
+								onSidebarChange={handleSidebarDefaultChange}
+							/>
 
-							<motion.div
-								initial={{ opacity: 0, y: 10 }}
-								animate={{ opacity: 1, y: 0 }}
-								transition={{ delay: 0.6 }}
-								className="space-y-4"
-							>
-								<Label className="text-lg font-medium">Cache Management</Label>
-								<div className="p-4 bg-accent/40 rounded-lg space-y-4">
-									<div className="flex items-center justify-between">
-										<div>
-											<p className="font-medium">Cached Data</p>
-											<p className="text-sm text-muted-foreground">
-												{cachedItems.length > 0
-													? `Storing ${cachedItems.length} items`
-													: "No cached data found"}
-											</p>
-										</div>
-										<Button
-											variant="destructive"
-											onClick={handleClearCache}
-											disabled={cachedItems.length === 0}
-										>
-											Clear All Cache
-										</Button>
-									</div>
-									{cachedItems.length > 0 && (
-										<div className="text-sm space-y-1">
-											{cachedItems.map((item) => (
-												<div
-													key={item.key}
-													className="flex items-center justify-between"
-												>
-													<div className="flex-1">
-														<span className="text-muted-foreground">
-															{item.key}
-														</span>
-														<span className="text-xs text-muted-foreground/50 ml-2">
-															({formatBytes(item.size)})
-														</span>
-													</div>
-													<div className="flex items-center space-x-2">
-														<span className="text-xs text-muted-foreground/70">
-															{new Date(
-																item.lastModified
-															).toLocaleDateString()}
-														</span>
-														<Button
-															variant="destructive"
-															size="sm"
-															onClick={() =>
-																handleDeleteCacheItem(item.key)
-															}
-														>
-															Delete
-														</Button>
-													</div>
-												</div>
-											))}
-										</div>
-									)}
-								</div>
-							</motion.div>
+							<DefaultUsernameSettings
+								defaultUsername={defaultUsername}
+								onUsernameChange={handleDefaultUsernameChange}
+							/>
 
-							<motion.div
-								initial={{ opacity: 0, y: 10 }}
-								animate={{ opacity: 1, y: 0 }}
-								transition={{ delay: 0.8 }}
-								className="space-y-4"
-							>
-								<Label className="text-lg font-medium">Default Card Settings</Label>
-								<div className="space-y-6 p-4 bg-accent/40 rounded-lg">
-									<Select
-										value={defaultPreset}
-										onValueChange={handlePresetChange}
-									>
-										<SelectTrigger className="w-full max-w-[300px] bg-background">
-											<SelectValue placeholder="Select color preset" />
-										</SelectTrigger>
-										<SelectContent>
-											{Object.keys(colorPresets).map((preset) => (
-												<SelectItem key={preset} value={preset}>
-													{preset.charAt(0).toUpperCase() +
-														preset.slice(1)}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
+							<CacheManagement
+								cachedItems={cachedItems}
+								onClearCache={handleClearCache}
+								onDeleteCacheItem={handleDeleteCacheItem}
+							/>
 
-									<div className="space-y-2">
-										<Label>Default Card Types</Label>
-										<div className="flex mb-2">
-											<Button
-												variant="outline"
-												size="sm"
-												onClick={handleToggleAllCardTypes}
-											>
-												{defaultCardTypes.length === statCardTypes.length
-													? "Unselect All"
-													: "Select All"}
-											</Button>
-										</div>
-										<div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-											{statCardTypes.map((type) => (
-												<div
-													key={type.id}
-													className="flex items-center space-x-2"
-												>
-													<Checkbox
-														id={type.id}
-														checked={defaultCardTypes.includes(type.id)}
-														onCheckedChange={() =>
-															handleCardTypeToggle(type.id)
-														}
-													/>
-													<Label htmlFor={type.id} className="text-sm">
-														{type.label.split(" (")[0]}
-													</Label>
-												</div>
-											))}
-										</div>
-									</div>
-								</div>
-							</motion.div>
+							<DefaultCardSettings
+								defaultPreset={defaultPreset}
+								onPresetChange={handlePresetChange}
+								defaultCardTypes={defaultCardTypes}
+								onToggleCardType={handleCardTypeToggle}
+								onToggleAllCardTypes={handleToggleAllCardTypes}
+							/>
 
-							<motion.div
-								initial={{ opacity: 0, y: 10 }}
-								animate={{ opacity: 1, y: 0 }}
-								transition={{ delay: 1 }}
-								className="space-y-4"
-							>
-								<Label className="text-lg font-medium">Reset Settings</Label>
-								<div className="p-4 bg-accent/40 rounded-lg flex flex-col space-y-2">
-									<Button variant="destructive" onClick={handleResetSettings}>
-										Reset to Default Settings
-									</Button>
-									<p className="text-xs text-muted-foreground">
-										This will reset theme, sidebar behavior, and card settings.
-									</p>
-								</div>
-							</motion.div>
-						</motion.div>
+							<ResetSettings onReset={handleResetSettings} />
+						</div>
 					</CardContent>
 				</Card>
 			</motion.div>

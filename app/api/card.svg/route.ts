@@ -1,13 +1,12 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
-import { MongoServerError } from "mongodb";
 import { animeStatsTemplate } from "@/lib/svg-templates/anime-stats";
 import { CardConfig, UserStats } from "@/lib/types/card";
 import { calculateMilestones } from "@/lib/utils/milestones";
 import { mangaStatsTemplate } from "@/lib/svg-templates/manga-stats";
 import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
 import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats";
-import { extractErrorInfo, safeParse } from "@/lib/utils";
+import { safeParse } from "@/lib/utils";
 import { UserRecord } from "@/lib/types/records";
 import { CardsRecord } from "@/lib/types/records";
 
@@ -364,10 +363,6 @@ export async function GET(request: Request) {
 			});
 		}
 	} catch (error) {
-		// MongoDB connection or query error
-		if (error instanceof MongoServerError) {
-			error = extractErrorInfo(error); // Extract simplified error info
-		}
 		console.error("Card generation failed:", error);
 		const duration = Date.now() - startTime; // Calculate error duration
 		console.error(`🔥 [Card SVG] Error after ${duration}ms:`, error);
