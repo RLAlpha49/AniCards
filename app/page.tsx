@@ -20,7 +20,7 @@ import { motion } from "framer-motion";
 import type React from "react";
 
 export default function HomePage() {
-	const [isGeneratorOpen, setIsGeneratorOpen] = useState(false); // Controls modal visibility
+	const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
 
 	return (
 		<div className="container mx-auto px-4 py-8">
