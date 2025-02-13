@@ -122,6 +122,7 @@ function generateCardSVG(cardConfig: CardConfig, userStats: any) {
 			// Generate SVG content using animeStatsTemplate
 			svgContent = animeStatsTemplate({
 				username: userStats.username,
+				variant: cardConfig.variation as "default" | "vertical",
 				styles: {
 					// Card styles from config
 					titleColor: cardConfig.titleColor,
@@ -146,6 +147,7 @@ function generateCardSVG(cardConfig: CardConfig, userStats: any) {
 			// Generate SVG content using mangaStatsTemplate
 			svgContent = mangaStatsTemplate({
 				username: userStats.username,
+				variant: cardConfig.variation as "default" | "vertical",
 				styles: {
 					// Card styles from config
 					titleColor: cardConfig.titleColor,

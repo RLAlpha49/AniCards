@@ -38,14 +38,23 @@ export const statCardTypes = [
 	{
 		id: "animeStats",
 		label: "Anime Stats (Count, Episodes Watched, Minutes Watched, Mean Score, Standard Deviation)",
+		variations: [
+			{ id: "default", label: "Default" },
+			{ id: "vertical", label: "Vertical" },
+		],
 	},
 	{
 		id: "socialStats",
 		label: "Social Stats (Total Activities, Followers, Following, Thread Posts/Comments, Reviews)",
+		variations: [{ id: "default", label: "Default" }],
 	},
 	{
 		id: "mangaStats",
 		label: "Manga Stats (Count, Chapters Read, Volumes Read, Mean Score, Standard Deviation)",
+		variations: [
+			{ id: "default", label: "Default" },
+			{ id: "vertical", label: "Vertical" },
+		],
 	},
 	{
 		id: "animeGenres",
@@ -63,9 +72,21 @@ export const statCardTypes = [
 			{ id: "pie", label: "Pie Chart" },
 		],
 	},
-	{ id: "animeVoiceActors", label: "Anime Voice Actors (Top 5 Count)" },
-	{ id: "animeStudios", label: "Anime Studios (Top 5 Count)" },
-	{ id: "animeStaff", label: "Anime Staff (Top 5 Count)" },
+	{
+		id: "animeVoiceActors",
+		label: "Anime Voice Actors (Top 5 Count)",
+		variations: [{ id: "default", label: "Default" }],
+	},
+	{
+		id: "animeStudios",
+		label: "Anime Studios (Top 5 Count)",
+		variations: [{ id: "default", label: "Default" }],
+	},
+	{
+		id: "animeStaff",
+		label: "Anime Staff (Top 5 Count)",
+		variations: [{ id: "default", label: "Default" }],
+	},
 	{
 		id: "mangaGenres",
 		label: "Manga Genres (Top 5 Count)",
@@ -82,7 +103,11 @@ export const statCardTypes = [
 			{ id: "pie", label: "Pie Chart" },
 		],
 	},
-	{ id: "mangaStaff", label: "Manga Staff (Top 5 Count)" },
+	{
+		id: "mangaStaff",
+		label: "Manga Staff (Top 5 Count)",
+		variations: [{ id: "default", label: "Default" }],
+	},
 ];
 
 export const colorPresets = {

@@ -3,6 +3,7 @@ import { calculateDynamicFontSize } from "../utils";
 
 export const mangaStatsTemplate = (data: {
 	username: string;
+	variant?: "default" | "vertical";
 	styles: {
 		titleColor: string;
 		backgroundColor: string;
@@ -18,9 +19,11 @@ export const mangaStatsTemplate = (data: {
 }) => `
 <svg
   xmlns="http://www.w3.org/2000/svg"
-  width="450"
-  height="195"
-  viewBox="0 0 450 195"
+  width="${data.variant === "vertical" ? 260 : 450}"
+  height="${data.variant === "vertical" ? 350 : 195}"
+  viewBox="0 0 ${data.variant === "vertical" ? 260 : 450} ${
+	data.variant === "vertical" ? 350 : 195
+}"
   fill="none"
   role="img"
   aria-labelledby="desc-id"
@@ -109,8 +112,8 @@ export const mangaStatsTemplate = (data: {
     rx="4.5"
     height="99%"
     stroke="#e4e2e2"
-    width="449"
-    fill="#141321"
+    width="${data.variant === "vertical" ? 259 : 449}"
+    fill="${data.styles.backgroundColor}"
     stroke-opacity="1"
   />
   <g data-testid="card-title" transform="translate(25, 35)">
@@ -121,6 +124,72 @@ export const mangaStatsTemplate = (data: {
     </g>
   </g>
   <g data-testid="main-card-body" transform="translate(0, 55)">
+    ${
+		data.variant === "vertical"
+			? `
+    <g transform="translate(230, 140)">
+      <text x="-100" y="-130" class="milestone" text-anchor="middle">${data.stats.currentMilestone}</text>
+      <text x="-100" y="-70" class="chapters-read" text-anchor="middle">${data.stats.chaptersRead}</text>
+      <text x="-100" y="-10" class="label" text-anchor="middle">Chapters Read</text>
+      <circle class="rank-circle-rim" cx="-100" cy="-72" r="40"></circle>
+      <circle class="rank-circle" style="transform-origin: -100px -72px" cx="-100" cy="-72" r="40"></circle>
+    </g>
+    <svg x="0" y="0">
+      <g transform="translate(0, 150)">
+        <g
+          class="stagger"
+          style="animation-delay: 450ms"
+          transform="translate(25, 0)"
+        >
+          <text class="stat.bold" y="12.5">Count:</text>
+          <text class="stat.bold" x="160" y="12.5" data-testid="count">
+            ${data.stats.count}
+          </text>
+        </g>
+        <g
+          class="stagger"
+          style="animation-delay: 600ms"
+          transform="translate(25, 25)"
+        >
+          <text class="stat.bold" y="12.5">Chapters Read:</text>
+          <text class="stat.bold" x="160" y="12.5" data-testid="chaptersRead">
+            ${data.stats.chaptersRead}
+          </text>
+        </g>
+        <g
+          class="stagger"
+          style="animation-delay: 750ms"
+          transform="translate(25, 50)"
+        >
+          <text class="stat.bold" y="12.5">Volumes Read:</text>
+          <text class="stat.bold" x="160" y="12.5" data-testid="volumesRead">
+            ${data.stats.volumesRead}
+          </text>
+        </g>
+        <g
+          class="stagger"
+          style="animation-delay: 900ms"
+          transform="translate(25, 75)"
+        >
+          <text class="stat.bold" y="12.5">Mean Score:</text>
+          <text class="stat.bold" x="160" y="12.5" data-testid="meanScore">
+            ${data.stats.meanScore}
+          </text>
+        </g>
+        <g
+          class="stagger"
+          style="animation-delay: 1050ms"
+          transform="translate(25, 100)"
+        >
+          <text class="stat.bold" y="12.5">Standard Deviation:</text>
+          <text class="stat.bold" x="160" y="12.5" data-testid="standardDeviation">
+            ${data.stats.standardDeviation}
+          </text>
+        </g>
+      </g>
+    </svg>
+    `
+			: `
     <g transform="translate(375, 37.5)">
       <text
         x="-10"
@@ -225,6 +294,8 @@ export const mangaStatsTemplate = (data: {
         </g>
       </g>
     </svg>
+    `
+	}
   </g>
 </svg>
 `;
