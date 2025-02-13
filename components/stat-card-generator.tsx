@@ -134,6 +134,7 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 	const [textColor, setTextColor] = useState(colorPresets.default.colors[2]);
 	const [circleColor, setCircleColor] = useState(colorPresets.default.colors[3]);
 	const [selectedCards, setSelectedCards] = useState<string[]>([]);
+	const [selectedCardVariants, setSelectedCardVariants] = useState<Record<string, string>>({});
 	const [selectedPreset, setSelectedPreset] = useState("default");
 	const [previewOpen, setPreviewOpen] = useState(false);
 	const [previewType, setPreviewType] = useState("");
@@ -148,12 +149,22 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 		const presetColors = getPresetColors(defaults.colorPreset);
 
 		setSelectedPreset(defaults.colorPreset);
-		setSelectedCards(defaults.defaultCards);
-
 		// Apply color preset
 		[setTitleColor, setBackgroundColor, setTextColor, setCircleColor].forEach((setter, index) =>
 			setter(presetColors[index])
 		);
+
+		// Normalize default cards:
+		const uniqueCards = new Set<string>();
+		const defaultVariants: Record<string, string> = {};
+		defaults.defaultCards.forEach((cardId) => {
+			const [base, variant] = cardId.split("-");
+			uniqueCards.add(base);
+			// Use a non-"default" variant if present (or simply use what's provided)
+			defaultVariants[base] = variant || "default";
+		});
+		setSelectedCards(Array.from(uniqueCards));
+		setSelectedCardVariants(defaultVariants);
 
 		// Load default username from local storage
 		const savedUsernameData = localStorage.getItem("anicards-defaultUsername");
@@ -161,9 +172,8 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 		setUsername(defaultUsername);
 	}, []);
 
-	// Instead of keeping a separate state for "allSelected," compute it based on the selections:
 	const allSelected = useMemo(
-		() => statCardTypes.every((type) => selectedCards.some((c) => c.startsWith(type.id))),
+		() => statCardTypes.every((type) => selectedCards.includes(type.id)),
 		[selectedCards]
 	);
 
@@ -192,59 +202,66 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 	// Generate preview SVG
 	const previewSVG = animeStatsTemplate(previewData);
 
-	const handleCheckboxChange = (id: string) => {
-		setSelectedCards((prev) => {
-			const newSelection = prev.includes(id)
-				? prev.filter((item) => item !== id)
-				: [...prev, id];
-			return newSelection;
-		});
+	const handleToggleCard = (id: string) => {
+		if (selectedCards.includes(id)) {
+			// Remove the card from the selection and also remove any associated variant.
+			setSelectedCards(selectedCards.filter((item) => item !== id));
+			setSelectedCardVariants((prev) => {
+				const newObj = { ...prev };
+				delete newObj[id];
+				return newObj;
+			});
+		} else {
+			setSelectedCards([...selectedCards, id]);
+		}
 	};
 
-	const handlePresetChange = (preset: string) => {
-		setSelectedPreset(preset);
-		if (preset !== "custom") {
-			[setTitleColor, setBackgroundColor, setTextColor, setCircleColor].forEach(
-				(setter, index) =>
-					setter(colorPresets[preset as keyof typeof colorPresets].colors[index])
-			);
-		}
+	// Handle changes in the variant for a card type that supports variants.
+	const handleVariantChange = (cardType: string, variant: string) => {
+		setSelectedCardVariants((old) => ({
+			...old,
+			[cardType]: variant,
+		}));
 	};
 
 	const handleSelectAll = () => {
-		if (allSelected) {
-			setSelectedCards([]);
-		} else {
-			const allIds = statCardTypes.map(
-				(type) => `${type.id}${type.variations ? "-default" : ""}`
-			);
-			setSelectedCards(allIds);
-		}
+		// Select all card types (base ids)
+		const allIds = statCardTypes.map((type) => type.id);
+		setSelectedCards(allIds);
+		// For cards with variants, default to "default" if not already set.
+		setSelectedCardVariants((old) => {
+			const newObj = { ...old };
+			statCardTypes.forEach((type) => {
+				if (type.variations) {
+					if (!newObj[type.id]) newObj[type.id] = "default";
+				}
+			});
+			return newObj;
+		});
 	};
 
-	const handlePreview = (id: string) => {
-		console.log(id);
-		// Split the id into card type and query string
-		const [cardType, query] = id.split("?");
-		// Default variation is 'default'
-		let variation = "default";
-		// If there is a query string, extract the variation parameter
-		console.log(query);
-		if (query) {
-			const params = new URLSearchParams(query);
-			variation = params.get("variation") || "default";
-		}
+	// Preview expects the base card id and its currently selected variant.
+	const handlePreview = (cardType: string, variant: string) => {
 		setPreviewType(cardType);
-		console.log(variation);
-		setPreviewVariation(variation);
+		setPreviewVariation(variant || "default");
 		setPreviewOpen(true);
 	};
 
+	// When submitting, we reassemble the selectedCards array. For card types with variants,
+	// we append the variant suffix only if it is not "default". (If it is "default", we leave it off.)
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
+		const finalSelectedCards = selectedCards.map((card) => {
+			const type = statCardTypes.find((t) => t.id === card);
+			if (type?.variations) {
+				const variant = selectedCardVariants[card] || "default";
+				return variant !== "default" ? `${card}-${variant}` : card;
+			}
+			return card;
+		});
 		await submit({
 			username,
-			selectedCards,
+			selectedCards: finalSelectedCards,
 			colors: [titleColor, backgroundColor, textColor, circleColor],
 		});
 	};
@@ -312,7 +329,23 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 					<ColorPresetSelector
 						selectedPreset={selectedPreset}
 						presets={colorPresets}
-						onPresetChange={handlePresetChange}
+						onPresetChange={(preset) => {
+							setSelectedPreset(preset);
+							if (preset !== "custom") {
+								[
+									setTitleColor,
+									setBackgroundColor,
+									setTextColor,
+									setCircleColor,
+								].forEach((setter, index) =>
+									setter(
+										colorPresets[preset as keyof typeof colorPresets].colors[
+											index
+										]
+									)
+								);
+							}
+						}}
 					/>
 
 					{/* Color Picker Grid */}
@@ -325,9 +358,11 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 					<StatCardTypeSelection
 						cardTypes={statCardTypes}
 						selectedCards={selectedCards}
+						selectedCardVariants={selectedCardVariants}
 						allSelected={allSelected}
-						onToggle={handleCheckboxChange}
+						onToggle={handleToggleCard}
 						onSelectAll={handleSelectAll}
+						onVariantChange={handleVariantChange}
 						onPreview={handlePreview}
 					/>
 

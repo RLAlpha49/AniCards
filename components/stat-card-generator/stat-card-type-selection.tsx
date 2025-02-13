@@ -19,18 +19,22 @@ export interface CardType {
 interface StatCardTypeSelectionProps {
 	cardTypes: CardType[];
 	selectedCards: string[];
+	selectedCardVariants: Record<string, string>;
 	allSelected: boolean;
 	onToggle: (id: string) => void;
 	onSelectAll: () => void;
-	onPreview: (id: string) => void;
+	onVariantChange: (cardType: string, variant: string) => void;
+	onPreview: (cardType: string, variant: string) => void;
 }
 
 export function StatCardTypeSelection({
 	cardTypes,
 	selectedCards,
+	selectedCardVariants,
 	allSelected,
 	onToggle,
 	onSelectAll,
+	onVariantChange,
 	onPreview,
 }: StatCardTypeSelectionProps) {
 	return (
@@ -43,10 +47,9 @@ export function StatCardTypeSelection({
 			</div>
 			<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 				{cardTypes.map((type, index) => {
-					const currentVariation =
-						selectedCards.find((c) => c.startsWith(type.id))?.split("-")[1] ||
-						"default";
-
+					const currentVariation = type.variations
+						? selectedCardVariants[type.id] || "default"
+						: "";
 					return (
 						<div
 							key={type.id}
@@ -55,26 +58,18 @@ export function StatCardTypeSelection({
 								"transition-all duration-300 hover:bg-secondary hover:shadow-lg",
 								"hover:-translate-y-1 cursor-pointer group",
 								"animate-in fade-in-up fill-mode-backwards",
-								selectedCards.some((c) => c.startsWith(type.id))
-									? "ring-2 ring-primary"
-									: ""
+								selectedCards.includes(type.id) ? "ring-2 ring-primary" : ""
 							)}
 							style={{ animationDelay: `${index * 50}ms` }}
+							onClick={() => onToggle(type.id)}
 						>
 							<div className="flex items-center w-full space-x-2">
 								<Checkbox
 									id={type.id}
-									checked={selectedCards.some((c) => c.startsWith(type.id))}
-									onCheckedChange={(checked) => {
-										if (checked) {
-											onToggle(
-												`${type.id}-${type.variations?.[0].id || "default"}`
-											);
-										} else {
-											selectedCards
-												.filter((c) => c.startsWith(type.id))
-												.forEach((c) => onToggle(c));
-										}
+									checked={selectedCards.includes(type.id)}
+									onClick={(e) => e.stopPropagation()}
+									onCheckedChange={() => {
+										onToggle(type.id);
 									}}
 									className="mt-1 transition-all duration-200 scale-90 group-hover:scale-100 checked:scale-110 focus:ring-2 focus:ring-primary"
 								/>
@@ -98,11 +93,7 @@ export function StatCardTypeSelection({
 										<Select
 											value={currentVariation}
 											onValueChange={(value) => {
-												const existing = selectedCards.find((c) =>
-													c.startsWith(type.id)
-												);
-												if (existing) onToggle(existing);
-												onToggle(`${type.id}-${value}`);
+												onVariantChange(type.id, value);
 											}}
 										>
 											<SelectTrigger className="w-[120px] h-8 px-2">
@@ -129,10 +120,7 @@ export function StatCardTypeSelection({
 										size="sm"
 										onClick={(e) => {
 											e.stopPropagation();
-											const [cardName, variation] = type.id.split("-");
-											onPreview(
-												`${cardName}?variation=${variation || "default"}`
-											);
+											onPreview(type.id, currentVariation);
 										}}
 										className="transition-all duration-200 hover:bg-primary hover:text-primary-foreground scale-90 group-hover:scale-100"
 										title={`Preview ${type.label} card`}
