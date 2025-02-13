@@ -9,27 +9,8 @@ interface StatCardPreviewProps {
 	isOpen: boolean;
 	onClose: () => void;
 	cardType: string;
+	variation?: string;
 }
-
-/*
- * Configuration objects:
- * - cardImages: Demo URLs for each card type (using sample user ID 542244)
- * - displayNames: User-friendly names for card types
-*/
-const cardImages: { [key: string]: string } = {
-	animeStats: "http://anicards.alpha49.com/api/card.svg?cardType=animeStats&userId=542244",
-	socialStats: "http://anicards.alpha49.com/api/card.svg?cardType=socialStats&userId=542244",
-	mangaStats: "http://anicards.alpha49.com/api/card.svg?cardType=mangaStats&userId=542244",
-	animeGenres: "http://anicards.alpha49.com/api/card.svg?cardType=animeGenres&userId=542244",
-	animeTags: "http://anicards.alpha49.com/api/card.svg?cardType=animeTags&userId=542244",
-	animeVoiceActors:
-		"http://anicards.alpha49.com/api/card.svg?cardType=animeVoiceActors&userId=542244",
-	animeStudios: "http://anicards.alpha49.com/api/card.svg?cardType=animeStudios&userId=542244",
-	animeStaff: "http://anicards.alpha49.com/api/card.svg?cardType=animeStaff&userId=542244",
-	mangaGenres: "http://anicards.alpha49.com/api/card.svg?cardType=mangaGenres&userId=542244",
-	mangaTags: "http://anicards.alpha49.com/api/card.svg?cardType=mangaTags&userId=542244",
-	mangaStaff: "http://anicards.alpha49.com/api/card.svg?cardType=mangaStaff&userId=542244",
-};
 
 export const displayNames: { [key: string]: string } = {
 	animeStats: "Anime Stats",
@@ -46,16 +27,28 @@ export const displayNames: { [key: string]: string } = {
 };
 
 // Component for previewing different types of stat cards in a dialog
-export function StatCardPreview({ isOpen, onClose, cardType }: StatCardPreviewProps) {
+export function StatCardPreview({ isOpen, onClose, cardType, variation }: StatCardPreviewProps) {
 	const [isLoading, setIsLoading] = useState(true);
+
+	// Use the provided variation or default to "default"
+	const effectiveVariation = variation ?? "default";
+
+	// Build the preview URL with separate query parameters.
+	const baseUrl = "http://anicards.alpha49.com/api/card.svg";
+	const urlParams = new URLSearchParams({
+		cardType,
+		userId: "542244",
+		variation: effectiveVariation,
+	});
+	const previewUrl = `${baseUrl}?${urlParams.toString()}`;
 
 	return (
 		<Dialog open={isOpen} onOpenChange={onClose}>
 			<DialogContent className="sm:max-w-[425px] z-[100]">
 				<DialogHeader>
 					<DialogTitle>
-						{/* Fallback to raw cardType if display name not found */}
-						Stat Card Preview: {displayNames[cardType] || cardType}
+						Stat Card Preview: {displayNames[cardType] || cardType} (
+						{effectiveVariation})
 					</DialogTitle>
 				</DialogHeader>
 
@@ -71,8 +64,8 @@ export function StatCardPreview({ isOpen, onClose, cardType }: StatCardPreviewPr
 							</div>
 						)}
 						<Image
-							src={cardImages[cardType] || "/placeholder.svg"}
-							alt={`Preview of ${cardType} stat card`}
+							src={previewUrl}
+							alt={`Preview of ${cardType} stat card (${effectiveVariation})`}
 							width={800}
 							height={600}
 							className="object-contain w-full h-full relative z-10"

@@ -137,6 +137,7 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 	const [selectedPreset, setSelectedPreset] = useState("default");
 	const [previewOpen, setPreviewOpen] = useState(false);
 	const [previewType, setPreviewType] = useState("");
+	const [previewVariation, setPreviewVariation] = useState("");
 
 	// Use our custom hook for managing submission
 	const { loading, error, submit, clearError } = useStatCardSubmit();
@@ -222,7 +223,20 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 	};
 
 	const handlePreview = (id: string) => {
-		setPreviewType(id);
+		console.log(id);
+		// Split the id into card type and query string
+		const [cardType, query] = id.split("?");
+		// Default variation is 'default'
+		let variation = "default";
+		// If there is a query string, extract the variation parameter
+		console.log(query);
+		if (query) {
+			const params = new URLSearchParams(query);
+			variation = params.get("variation") || "default";
+		}
+		setPreviewType(cardType);
+		console.log(variation);
+		setPreviewVariation(variation);
 		setPreviewOpen(true);
 	};
 
@@ -340,6 +354,7 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 				isOpen={previewOpen}
 				onClose={() => setPreviewOpen(false)}
 				cardType={previewType}
+				variation={previewVariation}
 			/>
 		</Dialog>
 	);
