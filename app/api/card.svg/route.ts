@@ -1,14 +1,13 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
-import { animeStatsTemplate } from "@/lib/svg-templates/anime-stats";
 import { CardConfig, UserStats } from "@/lib/types/card";
 import { calculateMilestones } from "@/lib/utils/milestones";
-import { mangaStatsTemplate } from "@/lib/svg-templates/manga-stats";
 import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
 import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats";
 import { safeParse } from "@/lib/utils";
 import { UserRecord } from "@/lib/types/records";
 import { CardsRecord } from "@/lib/types/records";
+import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
 
 // Rate limiter setup using Upstash Redis
 const redisClient = Redis.fromEnv();
@@ -99,7 +98,7 @@ function errorHeaders() {
 
 // Function to generate SVG content based on card configuration and user stats
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function generateCardSVG(cardConfig: CardConfig, userStats: any) {
+function generateCardSVG(cardConfig: CardConfig, userStats: any, variant: "default" | "vertical") {
 	// Basic validation: card config and user stats must be present
 	if (!cardConfig || !userStats?.stats?.User?.statistics?.anime) {
 		throw new Error("Missing card configuration or stats data");
@@ -120,9 +119,10 @@ function generateCardSVG(cardConfig: CardConfig, userStats: any) {
 			milestoneData = calculateMilestones(episodesWatched); // Calculate milestones based on episodes watched
 
 			// Generate SVG content using animeStatsTemplate
-			svgContent = animeStatsTemplate({
+			svgContent = mediaStatsTemplate({
+				mediaType: "anime",
 				username: userStats.username,
-				variant: cardConfig.variation as "default" | "vertical",
+				variant: variant,
 				styles: {
 					// Card styles from config
 					titleColor: cardConfig.titleColor,
@@ -145,9 +145,10 @@ function generateCardSVG(cardConfig: CardConfig, userStats: any) {
 			milestoneData = calculateMilestones(chaptersRead); // Calculate milestones based on chapters read
 
 			// Generate SVG content using mangaStatsTemplate
-			svgContent = mangaStatsTemplate({
+			svgContent = mediaStatsTemplate({
+				mediaType: "manga",
 				username: userStats.username,
-				variant: cardConfig.variation as "default" | "vertical",
+				variant: variant,
 				styles: {
 					// Card styles from config
 					titleColor: cardConfig.titleColor,
@@ -281,8 +282,9 @@ export async function GET(request: Request) {
 
 	// Extract parameters from URL search params
 	const { searchParams } = new URL(request.url);
-	const userId = searchParams.get("userId"); // User ID parameter
-	const cardType = searchParams.get("cardType"); // Card type parameter
+	const userId = searchParams.get("userId");
+	const cardType = searchParams.get("cardType");
+	const variant = searchParams.get("variation") === "vertical" ? "vertical" : "default";
 
 	console.log(`🖼️  [Card SVG] Request for ${cardType} card - User ID: ${userId}`);
 
@@ -347,10 +349,16 @@ export async function GET(request: Request) {
 			});
 		}
 
-		console.log(`🎨 [Card SVG] Generating ${cardType} SVG for user ${numericUserId}`);
+		console.log(
+			`🎨 [Card SVG] Generating ${cardType} (${variant}) SVG for user ${numericUserId}`
+		);
 		try {
 			// Generate SVG content using generateCardSVG function
-			const svgContent = generateCardSVG(cardConfig, userDoc as unknown as UserStats);
+			const svgContent = generateCardSVG(
+				cardConfig,
+				userDoc as unknown as UserStats,
+				variant
+			);
 			const duration = Date.now() - startTime; // Calculate generation duration
 			console.log(
 				`✅ [Card SVG] Rendered ${cardType} card for ${numericUserId} [${duration}ms]`

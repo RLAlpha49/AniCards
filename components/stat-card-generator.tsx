@@ -13,7 +13,7 @@ import { LoadingOverlay } from "@/components/loading-spinner";
 import { ErrorPopup } from "@/components/error-popup";
 import { cn } from "@/lib/utils";
 import { StatCardPreview } from "@/components/stat-card-generator/stat-card-preview";
-import { animeStatsTemplate } from "@/lib/svg-templates/anime-stats";
+import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
 import { ColorPresetSelector } from "@/components/stat-card-generator/color-preset-selector";
 import { ColorPickerGroup } from "@/components/stat-card-generator/color-picker-group";
 import { LivePreview } from "@/components/stat-card-generator/live-preview";
@@ -204,6 +204,7 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 
 	// Static preview data
 	const previewData = {
+		mediaType: "anime" as const,
 		username: "PreviewUser",
 		styles: {
 			titleColor,
@@ -225,7 +226,7 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 	};
 
 	// Generate preview SVG
-	const previewSVG = animeStatsTemplate(previewData);
+	const previewSVG = mediaStatsTemplate(previewData);
 
 	const handleToggleCard = (id: string) => {
 		if (selectedCards.includes(id)) {
