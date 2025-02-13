@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
 	Dialog,
 	DialogContent,
@@ -21,12 +21,7 @@ import { StatCardTypeSelection } from "@/components/stat-card-generator/stat-car
 import { UpdateNotice } from "@/components/stat-card-generator/update-notice";
 import { UserDetailsForm } from "@/components/stat-card-generator/user-details-form";
 import { useStatCardSubmit } from "@/hooks/use-stat-card-submit";
-import {
-	loadDefaultSettings,
-	getPresetColors,
-	saveDefaultPreset,
-	saveDefaultCardTypes,
-} from "@/lib/data";
+import { loadDefaultSettings, getPresetColors } from "@/lib/data";
 
 interface StatCardGeneratorProps {
 	isOpen: boolean;
@@ -140,7 +135,6 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 	const [circleColor, setCircleColor] = useState(colorPresets.default.colors[3]);
 	const [selectedCards, setSelectedCards] = useState<string[]>([]);
 	const [selectedPreset, setSelectedPreset] = useState("default");
-	const [allSelected, setAllSelected] = useState(false);
 	const [previewOpen, setPreviewOpen] = useState(false);
 	const [previewType, setPreviewType] = useState("");
 
@@ -154,7 +148,6 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 
 		setSelectedPreset(defaults.colorPreset);
 		setSelectedCards(defaults.defaultCards);
-		setAllSelected(defaults.defaultCards.length === statCardTypes.length);
 
 		// Apply color preset
 		[setTitleColor, setBackgroundColor, setTextColor, setCircleColor].forEach((setter, index) =>
@@ -166,6 +159,12 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 		const defaultUsername = savedUsernameData ? JSON.parse(savedUsernameData).value : "";
 		setUsername(defaultUsername);
 	}, []);
+
+	// Instead of keeping a separate state for "allSelected," compute it based on the selections:
+	const allSelected = useMemo(
+		() => statCardTypes.every((type) => selectedCards.some((c) => c.startsWith(type.id))),
+		[selectedCards]
+	);
 
 	// Static preview data
 	const previewData = {
@@ -197,16 +196,12 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 			const newSelection = prev.includes(id)
 				? prev.filter((item) => item !== id)
 				: [...prev, id];
-			saveDefaultCardTypes(newSelection);
-			setAllSelected(newSelection.length === statCardTypes.length);
 			return newSelection;
 		});
 	};
 
 	const handlePresetChange = (preset: string) => {
 		setSelectedPreset(preset);
-		saveDefaultPreset(preset);
-		// Apply preset colors unless custom is selected
 		if (preset !== "custom") {
 			[setTitleColor, setBackgroundColor, setTextColor, setCircleColor].forEach(
 				(setter, index) =>
@@ -218,13 +213,12 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 	const handleSelectAll = () => {
 		if (allSelected) {
 			setSelectedCards([]);
-			saveDefaultCardTypes([]);
 		} else {
-			const allIds = statCardTypes.map((type) => type.id);
+			const allIds = statCardTypes.map(
+				(type) => `${type.id}${type.variations ? "-default" : ""}`
+			);
 			setSelectedCards(allIds);
-			saveDefaultCardTypes(allIds);
 		}
-		setAllSelected(!allSelected);
 	};
 
 	const handlePreview = (id: string) => {
