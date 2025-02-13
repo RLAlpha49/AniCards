@@ -19,49 +19,72 @@ export default async function UserPage(props: {
 	// Await the search parameters passed to the page
 	const params = await props.searchParams;
 
-	// Initialize variables to store user data and cards
-	let userData = null;
-	let cards = [];
+	let userData: { userId: string; username?: string } | null = null;
+	let cards: Array<{ cardName: string }> = [];
+	let resolvedUserId = "";
 
 	try {
-		// Check if username and cards are pre-loaded in search params
-		if (params.username && params.cards) {
-			// Use pre-loaded data to avoid extra API calls
-			userData = {
-				userId: params.userId,
-				username: params.username,
-			};
-
-			// Parse the JSON string of cards from search params
-			cards = JSON.parse(params.cards).map((cardName: string) => ({
-				cardName,
-			}));
+		/*
+		Logic:
+			- If cards are preloaded (via params.cards) and either a userId or username is provided:
+				• If userId is available, use it.
+				• Otherwise, fetch the user data using the supplied username.
+			- If only userId is provided (with no preloaded cards), use it to fetch user data and cards.
+			- If only username is provided, first fetch the user data (which returns a userId)
+			then fetch the cards using that userId.
+		*/
+		if (params.cards && (params.userId || params.username)) {
+			if (params.userId) {
+				resolvedUserId = params.userId;
+				userData = {
+					userId: params.userId,
+					username: params.username,
+				};
+			} else if (params.username) {
+				const userRes = await fetch(
+					`${process.env.NEXT_PUBLIC_API_URL}/api/user?username=${params.username}`
+				);
+				userData = await userRes.json();
+				resolvedUserId = userData?.userId as string;
+			}
+			// Pre-loaded cards; assume cards is a JSON encoded string.
+			cards = JSON.parse(params.cards).map((cardName: string) => ({ cardName }));
 		} else if (params.userId) {
-			// If no pre-loaded data, fetch user and card data from APIs
+			// If userId is present (and no preloaded cards), use it to fetch data.
+			resolvedUserId = params.userId;
 			const [userRes, cardsRes] = await Promise.all([
 				fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/user?userId=${params.userId}`),
 				fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/cards?userId=${params.userId}`),
 			]);
-
-			// Parse JSON responses from API calls
 			userData = await userRes.json();
 			const cardsData = await cardsRes.json();
-			// Extract card list from the cardsData, default to empty array if not found
-			cards = cardsData[0]?.cards || [];
+			cards = cardsData.cards || [];
+		} else if (params.username) {
+			// Only username is provided. Fetch the user data first to get the userId.
+			const userRes = await fetch(
+				`${process.env.NEXT_PUBLIC_API_URL}/api/user?username=${params.username}`
+			);
+			userData = await userRes.json();
+			resolvedUserId = userData?.userId as string;
+			const cardsRes = await fetch(
+				`${process.env.NEXT_PUBLIC_API_URL}/api/cards?userId=${resolvedUserId}`
+			);
+			const cardsData = await cardsRes.json();
+			cards = cardsData.cards || [];
 		}
 	} catch (error) {
-		// Handle errors during data loading (either parsing or API calls)
 		console.error("Data loading error:", error);
 		return <div className="container mx-auto p-4">Error loading data</div>;
 	}
 
 	// Transform card data into format suitable for CardList component
 	const cardTypes = cards.map((card: { cardName: string }) => {
-		// Get display name for card type, fallback to cardName if not found in displayNames
+		// Get display name for card type (fallback to cardName if not found)
 		const displayName = displayNames[card.cardName] || card.cardName;
 		return {
-			type: displayName, // User-friendly display name for the card
-			svgUrl: `${process.env.NEXT_PUBLIC_API_URL}/api/card.svg?cardType=${card.cardName}&userId=${params.userId}`, // URL to fetch SVG for the card
+			type: displayName, // Display name for the card
+			// URL to fetch SVG for the card; uses resolvedUserId
+			svgUrl: `${process.env.NEXT_PUBLIC_API_URL}/api/card.svg?cardType=${card.cardName}&userId=${resolvedUserId}`,
 			rawType: card.cardName, // Raw card name for internal use
 		};
 	});
@@ -69,13 +92,11 @@ export default async function UserPage(props: {
 	return (
 		<div className="container mx-auto p-4">
 			<h1 className="text-3xl font-bold mb-4 text-center">
-				{/* Display username in heading if available, otherwise generic text */}
 				{userData?.username
 					? `${userData.username}'s Generated Cards`
 					: "User's Generated Cards"}
 			</h1>
 
-			{/* Display cache notice and credit request if cards are present */}
 			{cardTypes.length > 0 && (
 				<>
 					<Alert className="mb-6 max-w-xl mx-auto border-blue-500">
@@ -110,7 +131,7 @@ export default async function UserPage(props: {
 							</a>{" "}
 							or the{" "}
 							<a
-								href={`${process.env.NEXT_PUBLIC_API_URL}`}
+								href={process.env.NEXT_PUBLIC_API_URL}
 								target="_blank"
 								rel="noopener noreferrer"
 								className="text-green-600 hover:underline"
@@ -123,18 +144,16 @@ export default async function UserPage(props: {
 				</>
 			)}
 
-			{/* Conditionally render card list or "no cards found" message */}
 			{cardTypes.length > 0 ? (
 				<div className="flex flex-col items-center gap-6">
-					{/* Conditionally render "View All Cards" button if cards are pre-loaded and less than 11 */}
 					{params.cards && cardTypes.length < 11 && (
 						<div className="flex gap-4">
 							<Link
 								href={{
 									pathname: "/user",
 									query: {
-										userId: params.userId,
-										username: params.username,
+										userId: resolvedUserId,
+										username: userData?.username,
 									},
 								}}
 							>
@@ -148,7 +167,6 @@ export default async function UserPage(props: {
 						</div>
 					)}
 					<div className="flex justify-center">
-						{/* Render the CardList component to display the cards */}
 						<CardList cardTypes={cardTypes} />
 					</div>
 				</div>

@@ -69,6 +69,13 @@ export async function POST(request: Request) {
 		// Save (or update) the user data in Redis
 		await redisClient.set(userKey, JSON.stringify(userData));
 
+		// Create/update the username index if a username is provided.
+		if (data.username) {
+			const normalizedUsername = data.username.trim().toLowerCase();
+			const usernameIndexKey = `username:${normalizedUsername}`;
+			await redisClient.set(usernameIndexKey, data.userId.toString());
+		}
+
 		const duration = Date.now() - startTime;
 		console.log(`✅ [Store Users] Stored user ${data.userId} [${duration}ms]`);
 
