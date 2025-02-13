@@ -1,0 +1,6 @@
+User-agent: *
+Disallow: /api/
+Disallow: /_next/
+Allow: /
+
+Sitemap: https://anicards.alpha49.com/sitemap.xml
