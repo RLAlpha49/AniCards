@@ -117,7 +117,7 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 	const [previewType, setPreviewType] = useState("");
 
 	// Use our custom hook for managing submission
-	const { loading, error, submit } = useStatCardSubmit();
+	const { loading, error, submit, clearError } = useStatCardSubmit();
 
 	// Load defaults on component mount
 	useEffect(() => {
@@ -310,7 +310,7 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 
 			<ErrorPopup
 				isOpen={!!error}
-				onClose={() => {}}
+				onClose={clearError}
 				title="Submission Error"
 				description={error?.message || "An error occurred."}
 			/>

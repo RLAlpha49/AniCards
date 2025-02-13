@@ -54,7 +54,7 @@ export function useStatCardSubmit() {
 			const statsData = await statsResponse.json();
 
 			// Store user and card data simultaneously
-			const [userResponse, cardResponse] = await Promise.all([
+			await Promise.all([
 				fetch("/api/store-users", {
 					method: "POST",
 					headers: {
@@ -87,10 +87,6 @@ export function useStatCardSubmit() {
 				}),
 			]);
 
-			if (!userResponse.ok || !cardResponse.ok) {
-				throw new Error("Failed to store data");
-			}
-
 			router.push(
 				`/user?${new URLSearchParams({
 					userId: userIdData.User.id,
@@ -107,5 +103,8 @@ export function useStatCardSubmit() {
 		}
 	};
 
-	return { loading, error, submit };
+	// New function to clear the error state
+	const clearError = () => setError(null);
+
+	return { loading, error, submit, clearError };
 }
