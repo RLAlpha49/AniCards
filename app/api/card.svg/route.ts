@@ -107,8 +107,12 @@ function generateCardSVG(cardConfig: CardConfig, userStats: any) {
 	let milestoneData;
 	let svgContent: string;
 
+	// Extract base card type and possible variation
+	const [baseCardType] = cardConfig.cardName.split("-");
+	const showPieChart = cardConfig.variation === "pie";
+
 	// Switch logic to handle different card types
-	switch (cardConfig.cardName) {
+	switch (baseCardType) {
 		// Anime Stats Card
 		case "animeStats":
 			// Extract episodes watched for milestone calculation
@@ -184,7 +188,7 @@ function generateCardSVG(cardConfig: CardConfig, userStats: any) {
 		case "mangaTags":
 		case "mangaStaff":
 			// Determine if it's an anime or manga card
-			const isAnime = cardConfig.cardName.startsWith("anime");
+			const isAnime = baseCardType.startsWith("anime");
 			// Map card name parts to stat category keys
 			const categoryMap: Record<CategoryKey, string> = {
 				genres: "genres",
@@ -193,12 +197,12 @@ function generateCardSVG(cardConfig: CardConfig, userStats: any) {
 				studios: "studios",
 				staff: "staff",
 			};
-			// Extract category key from card name
+			// Extract category key from base card name
 			const categoryKey =
 				categoryMap[
-					cardConfig.cardName
-						.replace(isAnime ? "anime" : "manga", "") // Remove "anime" or "manga" prefix
-						.toLowerCase() as CategoryKey // Convert to lowercase and cast to CategoryKey
+					baseCardType
+						.replace(isAnime ? "anime" : "manga", "")
+						.toLowerCase() as CategoryKey
 				];
 			// Select anime or manga stats based on card type
 			const stats = isAnime
@@ -246,8 +250,9 @@ function generateCardSVG(cardConfig: CardConfig, userStats: any) {
 					textColor: cardConfig.textColor,
 					circleColor: cardConfig.circleColor,
 				},
-				format: displayNames[cardConfig.cardName], // Display name for the card type
-				stats: items, // Top 5 items for the category
+				format: displayNames[baseCardType],
+				stats: items,
+				showPieChart: showPieChart,
 			});
 			break;
 		// Default case for unsupported card types
@@ -290,7 +295,8 @@ export async function GET(request: Request) {
 	}
 
 	// Validate cardType against allowed types
-	if (!ALLOWED_CARD_TYPES.has(cardType)) {
+	const [baseCardType] = cardType.split("-");
+	if (!ALLOWED_CARD_TYPES.has(baseCardType)) {
 		console.warn(`⚠️ [Card SVG] Invalid card type: ${cardType}`);
 		return new Response(svgError("Invalid card type"), {
 			headers: errorHeaders(), // Use error headers (no-cache)

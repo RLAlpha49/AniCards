@@ -52,13 +52,41 @@ export const statCardTypes = [
 		id: "mangaStats",
 		label: "Manga Stats (Count, Chapters Read, Volumes Read, Mean Score, Standard Deviation)",
 	},
-	{ id: "animeGenres", label: "Anime Genres (Top 5 Count)" },
-	{ id: "animeTags", label: "Anime Tags (Top 5 Count)" },
+	{
+		id: "animeGenres",
+		label: "Anime Genres (Top 5 Count)",
+		variations: [
+			{ id: "default", label: "Default" },
+			{ id: "pie", label: "Pie Chart" },
+		],
+	},
+	{
+		id: "animeTags",
+		label: "Anime Tags (Top 5 Count)",
+		variations: [
+			{ id: "default", label: "Default" },
+			{ id: "pie", label: "Pie Chart" },
+		],
+	},
 	{ id: "animeVoiceActors", label: "Anime Voice Actors (Top 5 Count)" },
 	{ id: "animeStudios", label: "Anime Studios (Top 5 Count)" },
 	{ id: "animeStaff", label: "Anime Staff (Top 5 Count)" },
-	{ id: "mangaGenres", label: "Manga Genres (Top 5 Count)" },
-	{ id: "mangaTags", label: "Manga Tags (Top 5 Count)" },
+	{
+		id: "mangaGenres",
+		label: "Manga Genres (Top 5 Count)",
+		variations: [
+			{ id: "default", label: "Default" },
+			{ id: "pie", label: "Pie Chart" },
+		],
+	},
+	{
+		id: "mangaTags",
+		label: "Manga Tags (Top 5 Count)",
+		variations: [
+			{ id: "default", label: "Default" },
+			{ id: "pie", label: "Pie Chart" },
+		],
+	},
 	{ id: "mangaStaff", label: "Manga Staff (Top 5 Count)" },
 ];
 

@@ -1,3 +1,4 @@
+import { CardConfig } from "@/lib/types/records";
 import { NextResponse } from "next/server";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
@@ -46,7 +47,14 @@ export async function POST(request: Request) {
 		const cardsKey = `cards:${userId}`;
 		const cardData: CardsRecord = {
 			userId,
-			cards: incomingCards,
+			cards: incomingCards.map((card: CardConfig) => ({
+				cardName: card.cardName,
+				variation: card.variation || "default",
+				titleColor: card.titleColor,
+				backgroundColor: card.backgroundColor,
+				textColor: card.textColor,
+				circleColor: card.circleColor,
+			})),
 			updatedAt: new Date().toISOString(),
 		};
 

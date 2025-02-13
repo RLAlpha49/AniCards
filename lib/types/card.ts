@@ -1,6 +1,7 @@
 // Card configuration type
 export interface CardConfig {
 	cardName: string;
+	variation?: string;
 	titleColor: string;
 	backgroundColor: string;
 	textColor: string;

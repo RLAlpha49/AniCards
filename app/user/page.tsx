@@ -20,7 +20,7 @@ export default async function UserPage(props: {
 	const params = await props.searchParams;
 
 	let userData: { userId: string; username?: string } | null = null;
-	let cards: Array<{ cardName: string }> = [];
+	let cards: Array<{ cardName: string; variation?: string }> = [];
 	let resolvedUserId = "";
 
 	try {
@@ -48,7 +48,12 @@ export default async function UserPage(props: {
 				resolvedUserId = userData?.userId as string;
 			}
 			// Pre-loaded cards; assume cards is a JSON encoded string.
-			cards = JSON.parse(params.cards).map((cardName: string) => ({ cardName }));
+			cards = JSON.parse(params.cards).map(
+				(card: { cardName: string; variation?: string }) => ({
+					cardName: card.cardName,
+					variation: card.variation || "default",
+				})
+			);
 		} else if (params.userId) {
 			// If userId is present (and no preloaded cards), use it to fetch data.
 			resolvedUserId = params.userId;
@@ -78,13 +83,13 @@ export default async function UserPage(props: {
 	}
 
 	// Transform card data into format suitable for CardList component
-	const cardTypes = cards.map((card: { cardName: string }) => {
+	const cardTypes = cards.map((card: { cardName: string; variation?: string }) => {
 		// Get display name for card type (fallback to cardName if not found)
 		const displayName = displayNames[card.cardName] || card.cardName;
 		return {
 			type: displayName, // Display name for the card
 			// URL to fetch SVG for the card; uses resolvedUserId
-			svgUrl: `${process.env.NEXT_PUBLIC_API_URL}/api/card.svg?cardType=${card.cardName}&userId=${resolvedUserId}`,
+			svgUrl: `${process.env.NEXT_PUBLIC_API_URL}/api/card.svg?cardType=${card.cardName}&userId=${resolvedUserId}&variation=${card.variation}`,
 			rawType: card.cardName, // Raw card name for internal use
 		};
 	});

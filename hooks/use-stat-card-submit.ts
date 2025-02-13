@@ -75,14 +75,20 @@ export function useStatCardSubmit() {
 					},
 					body: JSON.stringify({
 						userId: userIdData.User.id,
-						cards: selectedCards.map((cardName) => ({
-							cardName,
-							// Assuming colors follows the order: title, background, text, circle
-							titleColor: colors[0],
-							backgroundColor: colors[1],
-							textColor: colors[2],
-							circleColor: colors[3],
-						})),
+						cards: selectedCards.map((cardId) => {
+							const [cardName, variation] = cardId.includes("-")
+								? cardId.split("-")
+								: [cardId, "default"];
+
+							return {
+								cardName,
+								variation,
+								titleColor: colors[0],
+								backgroundColor: colors[1],
+								textColor: colors[2],
+								circleColor: colors[3],
+							};
+						}),
 					}),
 				}),
 			]);
@@ -91,7 +97,12 @@ export function useStatCardSubmit() {
 				`/user?${new URLSearchParams({
 					userId: userIdData.User.id,
 					username,
-					cards: JSON.stringify(selectedCards),
+					cards: JSON.stringify(
+						selectedCards.map((card) => {
+							const [cardName, variation] = card.split("-");
+							return variation ? { cardName, variation } : { cardName };
+						})
+					),
 				})}`
 			);
 		} catch (err) {

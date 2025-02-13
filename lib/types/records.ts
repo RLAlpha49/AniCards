@@ -149,6 +149,7 @@ export interface UserRecord {
  * Adjust properties based on your actual card config schema.
  */
 export interface CardConfig {
+	variation: string;
 	// A unique name identifier for the card (used for picking the right template)
 	cardName: string;
 	// Color for the title in the card template.
@@ -166,7 +167,7 @@ export interface CardConfig {
  */
 export interface CardsRecord {
 	// The user identifier that this record belongs to.
-	userId: string;
+	userId: number;
 	// An array of card configurations.
 	cards: CardConfig[];
 	// The timestamp at which the record was last updated in ISO format.
