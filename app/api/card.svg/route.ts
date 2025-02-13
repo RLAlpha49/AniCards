@@ -277,7 +277,7 @@ export async function GET(request: Request) {
 	const userId = searchParams.get("userId"); // User ID parameter
 	const cardType = searchParams.get("cardType"); // Card type parameter
 
-	console.log(`🖼️ [Card SVG] Request for ${cardType} card - User ID: ${userId}`);
+	console.log(`🖼️  [Card SVG] Request for ${cardType} card - User ID: ${userId}`);
 
 	// Parameter validation: userId and cardType are required
 	if (!userId || !cardType) {

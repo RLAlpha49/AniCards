@@ -113,12 +113,14 @@ body {
 	top: 0;
 }
 
-.settings-container {
+.settings-container,
+.search-container {
 	width: 80%;
 }
 
 @media (min-width: 1100px) {
-	.settings-container {
+	.settings-container,
+	.search-container {
 		max-width: 50%;
 	}
 }
