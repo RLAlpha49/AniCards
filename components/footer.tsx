@@ -1,18 +1,31 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSidebar } from "@/components/ui/sidebar";
 
 export default function Footer() {
 	const { open } = useSidebar();
 	const sidebarWidth = open ? "calc(10rem)" : "calc(3.25rem - 4px)";
+	const [marginLeft, setMarginLeft] = useState("0");
+
+	useEffect(() => {
+		const updateMargin = () => {
+			if (window.innerWidth < 768) {
+				setMarginLeft("0");
+			} else {
+				setMarginLeft(`calc(${sidebarWidth})`);
+			}
+		};
+
+		updateMargin();
+		window.addEventListener("resize", updateMargin);
+		return () => window.removeEventListener("resize", updateMargin);
+	}, [sidebarWidth]);
 
 	return (
 		<footer
-			style={{
-				marginLeft: `calc(${sidebarWidth})`,
-			}}
+			style={{ marginLeft }}
 			className="bg-white dark:bg-gray-800 text-center p-4 border-t border-gray-200 dark:border-gray-700"
 		>
 			<div className="mb-2 space-x-4">
