@@ -83,13 +83,15 @@ export default async function UserPage(props: {
 	}
 
 	// Transform card data into format suitable for CardList component
+	console.log(cards);
 	const cardTypes = cards.map((card: { cardName: string; variation?: string }) => {
+		const variation = card.variation || "default";
 		// Get display name for card type (fallback to cardName if not found)
 		const displayName = displayNames[card.cardName] || card.cardName;
 		return {
 			type: displayName, // Display name for the card
-			// URL to fetch SVG for the card; uses resolvedUserId
-			svgUrl: `${process.env.NEXT_PUBLIC_API_URL}/api/card.svg?cardType=${card.cardName}&userId=${resolvedUserId}&variation=${card.variation}`,
+			// URL to fetch SVG for the card; uses resolvedUserId and ensures the variation query string is correctly added
+			svgUrl: `${process.env.NEXT_PUBLIC_API_URL}/api/card.svg?cardType=${card.cardName}&userId=${resolvedUserId}&variation=${variation}`,
 			rawType: card.cardName, // Raw card name for internal use
 		};
 	});
