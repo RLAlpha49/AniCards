@@ -128,7 +128,7 @@ export default async function UserPage(props: {
 							If you found this tool useful, please consider crediting in your bio
 							with{" "}
 							<a
-								href="https://x.com/Alpha49"
+								href="https://anilist.co/user/Alpha49"
 								target="_blank"
 								rel="noopener noreferrer"
 								className="text-green-600 hover:underline"
