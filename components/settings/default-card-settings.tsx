@@ -41,7 +41,7 @@ export function DefaultCardSettings({
 			<Label className="text-lg font-medium">Default Card Settings</Label>
 			<div className="space-y-6 p-4 bg-accent/40 rounded-lg">
 				<Select value={defaultPreset} onValueChange={onPresetChange}>
-					<SelectTrigger className="w-full max-w-[300px] bg-background">
+					<SelectTrigger className="w-full max-w-[300px] bg-background/60">
 						<SelectValue placeholder="Select color preset" />
 					</SelectTrigger>
 					<SelectContent>
@@ -84,7 +84,7 @@ export function DefaultCardSettings({
 											value={currentVariant}
 											onValueChange={(value) => onVariantChange(type.id, value)}
 										>
-											<SelectTrigger className="w-full h-8">
+											<SelectTrigger className="w-full h-8 bg-background/60">
 												<SelectValue placeholder="Variant" />
 											</SelectTrigger>
 											<SelectContent>
