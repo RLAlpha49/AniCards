@@ -8,12 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Info } from "lucide-react";
+import { LoadingOverlay } from "@/components/loading-spinner";
 
 export default function UserLookupPage() {
 	const router = useRouter();
 	const [userId, setUserId] = useState("");
 	const [username, setUsername] = useState("");
 	const [error, setError] = useState("");
+	const [loading, setLoading] = useState(false);
 
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
@@ -22,6 +24,8 @@ export default function UserLookupPage() {
 			setError("Please enter either a User ID or Username");
 			return;
 		}
+
+		setLoading(true);
 
 		const params = new URLSearchParams();
 		if (userId) params.set("userId", userId);
@@ -32,6 +36,7 @@ export default function UserLookupPage() {
 
 	return (
 		<div className="container flex flex-col items-center justify-center mx-auto px-4 py-12 max-w-2xl">
+			{loading && <LoadingOverlay text="Loading..." />}
 			<motion.header
 				className="text-center mb-12"
 				initial={{ opacity: 0, y: -20 }}
