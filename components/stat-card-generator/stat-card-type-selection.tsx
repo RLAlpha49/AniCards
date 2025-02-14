@@ -47,8 +47,8 @@ export function StatCardTypeSelection({
 			</div>
 			<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 				{cardTypes.map((type, index) => {
-					const currentVariation = selectedCardVariants[type.id] || 
-						(type.variations ? "default" : "");
+					const currentVariation =
+						selectedCardVariants[type.id] || (type.variations ? "default" : "");
 					return (
 						<div
 							key={type.id}
@@ -60,7 +60,6 @@ export function StatCardTypeSelection({
 								selectedCards.includes(type.id) ? "ring-2 ring-primary" : ""
 							)}
 							style={{ animationDelay: `${index * 50}ms` }}
-							onClick={() => onToggle(type.id)}
 						>
 							<div className="flex items-center w-full space-x-2">
 								<Checkbox
@@ -95,7 +94,7 @@ export function StatCardTypeSelection({
 												onVariantChange(type.id, value);
 											}}
 										>
-											<SelectTrigger className="w-[120px] h-8 px-2">
+											<SelectTrigger className="w-[120px] h-8 px-2 bg-background/60">
 												<SelectValue placeholder="Variation" />
 											</SelectTrigger>
 											<SelectContent>
