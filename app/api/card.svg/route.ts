@@ -97,8 +97,12 @@ function errorHeaders() {
 }
 
 // Function to generate SVG content based on card configuration and user stats
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function generateCardSVG(cardConfig: CardConfig, userStats: any, variant: "default" | "vertical") {
+function generateCardSVG(
+	cardConfig: CardConfig,
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	userStats: any,
+	variant: "default" | "vertical" | "pie"
+) {
 	// Basic validation: card config and user stats must be present
 	if (!cardConfig || !userStats?.stats?.User?.statistics?.anime) {
 		throw new Error("Missing card configuration or stats data");
@@ -108,7 +112,7 @@ function generateCardSVG(cardConfig: CardConfig, userStats: any, variant: "defau
 
 	// Extract base card type and possible variation
 	const [baseCardType] = cardConfig.cardName.split("-");
-	const showPieChart = cardConfig.variation === "pie";
+	const showPieChart = variant === "pie";
 
 	// Switch logic to handle different card types
 	switch (baseCardType) {
@@ -122,7 +126,7 @@ function generateCardSVG(cardConfig: CardConfig, userStats: any, variant: "defau
 			svgContent = mediaStatsTemplate({
 				mediaType: "anime",
 				username: userStats.username,
-				variant: variant,
+				variant: variant as "default" | "vertical",
 				styles: {
 					// Card styles from config
 					titleColor: cardConfig.titleColor,
@@ -148,7 +152,7 @@ function generateCardSVG(cardConfig: CardConfig, userStats: any, variant: "defau
 			svgContent = mediaStatsTemplate({
 				mediaType: "manga",
 				username: userStats.username,
-				variant: variant,
+				variant: variant as "default" | "vertical",
 				styles: {
 					// Card styles from config
 					titleColor: cardConfig.titleColor,
@@ -284,7 +288,9 @@ export async function GET(request: Request) {
 	const { searchParams } = new URL(request.url);
 	const userId = searchParams.get("userId");
 	const cardType = searchParams.get("cardType");
-	const variant = searchParams.get("variation") === "vertical" ? "vertical" : "default";
+	const variationParam = searchParams.get("variation");
+	const variant =
+		variationParam === "vertical" ? "vertical" : variationParam === "pie" ? "pie" : "default";
 
 	console.log(`🖼️  [Card SVG] Request for ${cardType} card - User ID: ${userId}`);
 

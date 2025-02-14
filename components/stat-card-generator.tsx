@@ -179,17 +179,13 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 			setter(presetColors[index])
 		);
 
-		// Normalize default cards:
-		const uniqueCards = new Set<string>();
-		const defaultVariants: Record<string, string> = {};
-		defaults.defaultCards.forEach((cardId) => {
-			const [base, variant] = cardId.split("-");
-			uniqueCards.add(base);
-			// Use a non-"default" variant if present (or simply use what's provided)
-			defaultVariants[base] = variant || "default";
-		});
-		setSelectedCards(Array.from(uniqueCards));
+		// Load default variants directly instead of parsing from card IDs
+		const savedVariantsData = localStorage.getItem("anicards-defaultVariants");
+		const defaultVariants = savedVariantsData ? JSON.parse(savedVariantsData).value : {};
 		setSelectedCardVariants(defaultVariants);
+
+		// Update card selection logic
+		setSelectedCards(defaults.defaultCards);
 
 		// Load default username from local storage
 		const savedUsernameData = localStorage.getItem("anicards-defaultUsername");
@@ -228,18 +224,13 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 	// Generate preview SVG
 	const previewSVG = mediaStatsTemplate(previewData);
 
-	const handleToggleCard = (id: string) => {
-		if (selectedCards.includes(id)) {
-			// Remove the card from the selection and also remove any associated variant.
-			setSelectedCards(selectedCards.filter((item) => item !== id));
-			setSelectedCardVariants((prev) => {
-				const newObj = { ...prev };
-				delete newObj[id];
-				return newObj;
-			});
-		} else {
-			setSelectedCards([...selectedCards, id]);
-		}
+	const handleToggleCard = (cardId: string) => {
+		const [baseId] = cardId.split('-'); // Always use base ID for selection
+		setSelectedCards(prev => 
+			prev.includes(baseId) 
+				? prev.filter(id => id !== baseId) 
+				: [...prev, baseId]
+		);
 	};
 
 	// Handle changes in the variant for a card type that supports variants.
@@ -267,9 +258,10 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 	};
 
 	// Preview expects the base card id and its currently selected variant.
-	const handlePreview = (cardType: string, variant: string) => {
+	const handlePreview = (cardType: string) => {
+		const variant = selectedCardVariants[cardType] || "default";
 		setPreviewType(cardType);
-		setPreviewVariation(variant || "default");
+		setPreviewVariation(variant);
 		setPreviewOpen(true);
 	};
 
@@ -277,14 +269,21 @@ export function StatCardGenerator({ isOpen, onClose, className }: StatCardGenera
 	// we append the variant suffix only if it is not "default". (If it is "default", we leave it off.)
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
-		const finalSelectedCards = selectedCards.map((card) => {
-			const type = statCardTypes.find((t) => t.id === card);
-			if (type?.variations) {
-				const variant = selectedCardVariants[card] || "default";
-				return variant !== "default" ? `${card}-${variant}` : card;
-			}
-			return card;
+		
+		// Create a Set to ensure unique card IDs
+		const uniqueCards = new Set(
+			selectedCards.map((card) => {
+				const [baseId] = card.split('-'); // Extract base ID without variant
+				return baseId;
+			})
+		);
+
+		// Convert back to array and apply variants
+		const finalSelectedCards = Array.from(uniqueCards).map((baseId) => {
+			const variant = selectedCardVariants[baseId] || "default";
+			return variant !== "default" ? `${baseId}-${variant}` : baseId;
 		});
+
 		await submit({
 			username,
 			selectedCards: finalSelectedCards,

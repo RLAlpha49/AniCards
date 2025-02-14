@@ -47,9 +47,8 @@ export function StatCardTypeSelection({
 			</div>
 			<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 				{cardTypes.map((type, index) => {
-					const currentVariation = type.variations
-						? selectedCardVariants[type.id] || "default"
-						: "";
+					const currentVariation = selectedCardVariants[type.id] || 
+						(type.variations ? "default" : "");
 					return (
 						<div
 							key={type.id}

@@ -16,16 +16,20 @@ interface DefaultCardSettingsProps {
 	defaultPreset: string;
 	onPresetChange: (value: string) => void;
 	defaultCardTypes: string[];
+	defaultVariants: Record<string, string>;
 	onToggleCardType: (cardType: string) => void;
 	onToggleAllCardTypes: () => void;
+	onVariantChange: (cardType: string, variant: string) => void;
 }
 
 export function DefaultCardSettings({
 	defaultPreset,
 	onPresetChange,
 	defaultCardTypes,
+	defaultVariants,
 	onToggleCardType,
 	onToggleAllCardTypes,
+	onVariantChange,
 }: DefaultCardSettingsProps) {
 	return (
 		<motion.div
@@ -59,18 +63,46 @@ export function DefaultCardSettings({
 						</Button>
 					</div>
 					<div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-						{statCardTypes.map((type) => (
-							<div key={type.id} className="flex items-center space-x-2">
-								<Checkbox
-									id={type.id}
-									checked={defaultCardTypes.includes(type.id)}
-									onCheckedChange={() => onToggleCardType(type.id)}
-								/>
-								<Label htmlFor={type.id} className="text-sm">
-									{type.label.split(" (")[0]}
-								</Label>
-							</div>
-						))}
+						{statCardTypes.map((type) => {
+							const hasVariants = type.variations && type.variations.length > 0;
+							const currentVariant = defaultVariants[type.id] || "default";
+							
+							return (
+								<div key={type.id} className="flex flex-col space-y-2">
+									<div className="flex items-center space-x-2">
+										<Checkbox
+											id={type.id}
+											checked={defaultCardTypes.includes(type.id)}
+											onCheckedChange={() => onToggleCardType(type.id)}
+										/>
+										<Label htmlFor={type.id} className="text-sm">
+											{type.label.split(" (")[0]}
+										</Label>
+									</div>
+									{hasVariants && defaultCardTypes.includes(type.id) && (
+										<Select
+											value={currentVariant}
+											onValueChange={(value) => onVariantChange(type.id, value)}
+										>
+											<SelectTrigger className="w-full h-8">
+												<SelectValue placeholder="Variant" />
+											</SelectTrigger>
+											<SelectContent>
+												{type.variations?.map((variation) => (
+													<SelectItem
+														key={variation.id}
+														value={variation.id}
+														className="text-xs"
+													>
+														{variation.label}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+									)}
+								</div>
+							);
+						})}
 					</div>
 				</div>
 			</div>

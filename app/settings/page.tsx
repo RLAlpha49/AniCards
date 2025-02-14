@@ -23,6 +23,7 @@ export default function SettingsPage() {
 	const [defaultCardTypes, setDefaultCardTypes] = useState<string[]>([]);
 	const [defaultUsername, setDefaultUsername] = useState("");
 	const [cacheVersion, setCacheVersion] = useState(0);
+	const [defaultVariants, setDefaultVariants] = useState<Record<string, string>>({});
 
 	// Listen for local storage changes from other tabs
 	useEffect(() => {
@@ -60,6 +61,11 @@ export default function SettingsPage() {
 		const savedUsernameString = localStorage.getItem("anicards-defaultUsername");
 		const usernameValue = savedUsernameString ? JSON.parse(savedUsernameString).value : "";
 		setDefaultUsername(usernameValue);
+
+		// Load default variants
+		const savedVariantsString = localStorage.getItem("anicards-defaultVariants");
+		const variantsValue = savedVariantsString ? JSON.parse(savedVariantsString).value : {};
+		setDefaultVariants(variantsValue);
 	}, [cacheVersion]);
 
 	if (!mounted) return null;
@@ -141,6 +147,12 @@ export default function SettingsPage() {
 		setDefaultCardTypes(allTypes);
 		localStorage.setItem("anicards-defaultCardTypes", JSON.stringify(data));
 		setCacheVersion((v) => v + 1);
+
+		// Reset variants when unselecting all
+		if (allTypes.length === 0) {
+			setDefaultVariants({});
+			localStorage.removeItem("anicards-defaultVariants");
+		}
 	};
 
 	const handleResetSettings = () => {
@@ -149,10 +161,12 @@ export default function SettingsPage() {
 			"anicards-defaultColorPreset",
 			"anicards-defaultCardTypes",
 			"anicards-defaultUsername",
+			"anicards-defaultVariants",
 		];
 		keysToRemove.forEach((key) => localStorage.removeItem(key));
 		clearSiteCache();
 		setCacheVersion((v) => v + 1);
+		setDefaultVariants({});
 	};
 
 	// New handler for default username change
@@ -163,6 +177,18 @@ export default function SettingsPage() {
 		};
 		setDefaultUsername(value);
 		localStorage.setItem("anicards-defaultUsername", JSON.stringify(data));
+		setCacheVersion((v) => v + 1);
+	};
+
+	// Add variant change handler
+	const handleVariantChange = (cardType: string, variant: string) => {
+		const newVariants = { ...defaultVariants, [cardType]: variant };
+		const data = {
+			value: newVariants,
+			lastModified: new Date().toISOString(),
+		};
+		setDefaultVariants(newVariants);
+		localStorage.setItem("anicards-defaultVariants", JSON.stringify(data));
 		setCacheVersion((v) => v + 1);
 	};
 
@@ -219,8 +245,10 @@ export default function SettingsPage() {
 								defaultPreset={defaultPreset}
 								onPresetChange={handlePresetChange}
 								defaultCardTypes={defaultCardTypes}
+								defaultVariants={defaultVariants}
 								onToggleCardType={handleCardTypeToggle}
 								onToggleAllCardTypes={handleToggleAllCardTypes}
+								onVariantChange={handleVariantChange}
 							/>
 
 							<ResetSettings onReset={handleResetSettings} />
