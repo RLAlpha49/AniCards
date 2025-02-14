@@ -21,7 +21,7 @@ export function ResetSettings({ onReset }: ResetSettingsProps) {
 					Reset to Default Settings
 				</Button>
 				<p className="text-xs text-muted-foreground">
-					This will reset theme, sidebar behavior, and card settings.
+					This will reset all settings.
 				</p>
 			</div>
 		</motion.div>
