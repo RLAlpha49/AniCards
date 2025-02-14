@@ -1,0 +1,44 @@
+// Define helper functions for coloring text using ANSI escape codes.
+const green = (text) => `\x1b[32m${text}\x1b[0m`;
+const red = (text) => `\x1b[31m${text}\x1b[0m`;
+//const yellow = (text) => `\x1b[33m${text}\x1b[0m`;
+
+class CustomReporter {
+	constructor(globalConfig, options) {
+		// Save config and options if necessary
+		this._globalConfig = globalConfig;
+		this._options = options;
+	}
+
+	// Called after each test file is executed
+	onTestResult(test, testResult) {
+		// Get a relative path for easier reading
+		const relativePath = testResult.testFilePath.replace(process.cwd() + "/", "");
+		// Use PASS if no failing tests, otherwise FAIL; color accordingly
+		const statusLabel = testResult.numFailingTests === 0 ? green("PASS") : red("FAIL");
+		console.log(`${statusLabel}  ${relativePath}`);
+
+		// Iterate over individual test cases
+		testResult.testResults.forEach((assertionResult) => {
+			// Use a green check mark for passed tests,
+			// use red for failed or pending tests.
+			const symbol =
+				assertionResult.status === "passed"
+					? green("√")
+					: red(assertionResult.status === "pending" ? "-" : "✕");
+
+			// Concatenate ancestor titles (the describe blocks) and test title
+			const fullTitle =
+				assertionResult.ancestorTitles.length > 0
+					? `${assertionResult.ancestorTitles.join(" ")} ${assertionResult.title}`
+					: assertionResult.title;
+
+			console.log(`  ${symbol} ${fullTitle} (${assertionResult.duration || 0} ms)`);
+		});
+
+		// Add an extra newline between files
+		console.log("");
+	}
+}
+
+module.exports = CustomReporter;

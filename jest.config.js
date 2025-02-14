@@ -5,4 +5,6 @@ module.exports = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
   },
+  silent: true,
+  reporters: ['<rootDir>/custom-reporter.js', 'summary'],
 };
