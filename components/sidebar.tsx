@@ -14,6 +14,7 @@ import {
 	SidebarGroup,
 	SidebarGroupContent,
 } from "@/components/ui/sidebar";
+import { useState, useEffect } from "react";
 
 const navItems = [
 	{ title: "Home", icon: Home, href: "/" },
@@ -27,6 +28,15 @@ const navItems = [
 export function AppSidebar() {
 	const pathname = usePathname();
 	const { open } = useSidebar();
+
+	const [mounted, setMounted] = useState(false);
+	useEffect(() => {
+		setMounted(true);
+	}, []);
+
+	if (!mounted) {
+		return null;
+	}
 
 	return (
 		<Sidebar collapsible="icon" className="sidebar" style={{ marginTop: "48px" }}>
