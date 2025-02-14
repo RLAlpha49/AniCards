@@ -51,6 +51,7 @@ export async function POST(request: Request) {
 			userId,
 			cards: incomingCards.map((card: CardConfig) => ({
 				cardName: card.cardName,
+				variation: card.variation,
 				titleColor: card.titleColor,
 				backgroundColor: card.backgroundColor,
 				textColor: card.textColor,

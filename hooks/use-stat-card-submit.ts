@@ -76,10 +76,11 @@ export function useStatCardSubmit() {
 					body: JSON.stringify({
 						userId: userIdData.User.id,
 						cards: selectedCards.map((cardId) => {
-							const [cardName] = cardId.includes("-") ? cardId.split("-") : [cardId];
-
+							const [cardName, rawVariation] = cardId.split("-");
+							const variation = rawVariation ? rawVariation : "default";
 							return {
 								cardName,
+								variation,
 								titleColor: colors[0],
 								backgroundColor: colors[1],
 								textColor: colors[2],
