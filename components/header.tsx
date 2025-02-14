@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import DarkModeToggle from "@/components/dark-mode-toggle";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -8,7 +11,16 @@ type HeaderProps = {
 };
 
 export default function Header({ onSidebarToggle, sidebarOpen }: HeaderProps) {
-	// Calculate the sidebar width using the same logic as in Footer.
+	const [mounted, setMounted] = useState(false);
+
+	useEffect(() => {
+		setMounted(true);
+	}, []);
+
+	if (!mounted) {
+		return null;
+	}
+
 	const sidebarWidth = sidebarOpen ? "calc(10rem)" : "calc(3.25rem - 4px)";
 
 	return (
