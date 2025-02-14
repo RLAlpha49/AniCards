@@ -83,7 +83,6 @@ export default async function UserPage(props: {
 	}
 
 	// Transform card data into format suitable for CardList component
-	console.log(cards);
 	const cardTypes = cards.map((card: { cardName: string; variation?: string }) => {
 		const variation = card.variation || "default";
 		// Get display name for card type (fallback to cardName if not found)
