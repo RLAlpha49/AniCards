@@ -69,7 +69,27 @@ export async function POST(request: Request) {
 		// Handle API response errors
 		if (!response.ok) {
 			console.error(`🔴 AniList Error: ${operationName} HTTP ${response.status}`);
-			throw new Error(`HTTP error! status: ${response.status}`);
+			const retryAfter = response.headers.get("retry-after");
+			const retryAfterMsg = retryAfter ? ` (Retry-After: ${retryAfter})` : "";
+			// Try to parse error details from the response before throwing
+			const errorData = await response.json();
+			if (response.status === 429) {
+				throw new Error(
+					(errorData.error ||
+						`AniList API was rate limited - HTTP error! status: ${response.status}`) +
+						retryAfterMsg
+				);
+			} else if (response.status === 500) {
+				throw new Error(
+					(errorData.error ||
+						`AniList API server error - HTTP error! status: ${response.status}`) +
+						retryAfterMsg
+				);
+			} else {
+				throw new Error(
+					(errorData.error || `HTTP error! status: ${response.status}`) + retryAfterMsg
+				);
+			}
 		}
 
 		// Handle GraphQL errors
@@ -86,6 +106,13 @@ export async function POST(request: Request) {
 		console.error(
 			`🔴 AniList Failed: ${operationName} [${duration}ms] | Identifier: ${userIdentifier} - ${error.message}`
 		);
-		return NextResponse.json({ error: "Failed to fetch AniList data" }, { status: 500 });
+		// Try to detect the HTTP status code from the error message (if present)
+		const statusMatch = error.message && error.message.match(/status:\s?(\d+)/);
+		const statusCode = statusMatch ? parseInt(statusMatch[1], 10) : 500;
+		// Return the error details so the UI can show them
+		return NextResponse.json(
+			{ error: error.message || "Failed to fetch AniList data" },
+			{ status: statusCode }
+		);
 	}
 }
