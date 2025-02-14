@@ -5,11 +5,25 @@ import { NextRequest, NextResponse } from "next/server";
 
 // API endpoint for converting SVG to PNG with style fixes
 export async function POST(request: NextRequest) {
+	const startTime = Date.now();
+	const ip = request.headers.get("x-forwarded-for") || "unknown IP";
+	console.log(`🚀 [Convert API] Request received from ${ip}`);
+
 	try {
-		// Fetch and process SVG content
+		// 1. Parse input and fetch SVG content
 		const { svgUrl } = await request.json();
+		if (!svgUrl) {
+			console.warn(`⚠️ [Convert API] Missing 'svgUrl' parameter from ${ip}`);
+			return NextResponse.json({ error: "Missing svgUrl parameter" }, { status: 400 });
+		}
+		console.log(`🔍 [Convert API] Fetching SVG from: ${svgUrl}`);
 		const response = await fetch(svgUrl);
+		if (!response.ok) {
+			console.error(`🔥 [Convert API] Failed to fetch SVG. HTTP status: ${response.status}`);
+			return NextResponse.json({ error: "Failed to fetch SVG" }, { status: response.status });
+		}
 		let svgContent = await response.text();
+		console.log(`📝 [Convert API] Received SVG content (${svgContent.length} characters)`);
 
 		// 1. Fix rank circle animation properties
 		// Regex explanation:
@@ -23,6 +37,9 @@ export async function POST(request: NextRequest) {
 			// - stroke-dasharray: matches the CSS property
 			// - \s* allows whitespace after colon
 			// - ([^;]+) captures everything until semicolon
+			console.log(
+				`🎨 [Convert API] Found rank-circle styles, processing animation properties.`
+			);
 			const dashArray = rankCircleStyleMatch[1]
 				.match(/stroke-dasharray:\s*([^;]+)/)?.[1]
 				?.trim();
@@ -53,6 +70,9 @@ export async function POST(request: NextRequest) {
 					transform="rotate(-90deg)"
 					transform-origin="-10px 8px"`
 			);
+			console.log(`✅ [Convert API] Rank circle styles injected.`);
+		} else {
+			console.warn(`⚠️ [Convert API] No rank-circle styles found in SVG.`);
 		}
 
 		// 2. Normalize header styles
@@ -64,9 +84,16 @@ export async function POST(request: NextRequest) {
 		const headerColorMatch = svgContent.match(
 			/\[data-testid="card-title"\] text\s*{\s*fill:\s*(#[0-9a-f]+|[\w-]+)/i
 		);
-		const headerColor = headerColorMatch?.[1];
+		const headerColor = headerColorMatch?.[1] || "#000";
+		if (headerColorMatch) {
+			console.log(`🎨 [Convert API] Header color detected: ${headerColor}`);
+		} else {
+			console.warn(
+				`⚠️ [Convert API] Header color not detected, defaulting to ${headerColor}`
+			);
+		}
 
-		// Force consistent header typography
+		// 3. Force consistent header typography
 		svgContent = svgContent
 			// Regex explanation:
 			// - \.header matches class name
@@ -83,7 +110,7 @@ export async function POST(request: NextRequest) {
 				`<text$1fill="${headerColor}" font-family="Arial" font-size="18" font-weight="600"`
 			);
 
-		// 3. Remove animation artifacts
+		// 4. Remove animation artifacts
 		svgContent = svgContent
 			// Regex explanation:
 			// - opacity: 0;? matches opacity: 0;
@@ -98,13 +125,13 @@ export async function POST(request: NextRequest) {
 			// - class="stagger" matches class="stagger"
 			// Replace all class="stagger" attributes with an empty string
 			.replace(/class="stagger"/g, "");
+		console.log("🧹 [Convert API] Removed animation artifacts.");
 
-		// 4. Process CSS styles
+		// 5. Process CSS styles
 		// Regex explanation:
 		// - <style>([\s\S]*?)<\/style> matches the <style> tag and everything inside it
 		const styleMatch = svgContent.match(/<style>([\s\S]*?)<\/style>/);
 		let cssContent = styleMatch?.[1] || "";
-
 		cssContent =
 			cssContent
 				// Regex explanation:
@@ -157,8 +184,9 @@ export async function POST(request: NextRequest) {
 		// Regex explanation:
 		// - <style>([\s\S]*?)<\/style> matches the <style> tag and everything inside it
 		svgContent = svgContent.replace(/<style>[\s\S]*<\/style>/, `<style>${cssContent}</style>`);
+		console.log("🖌️ [Convert API] CSS styles normalized.");
 
-		// Final cleanup of animation artifacts
+		// 6. Final cleanup of animation attributes
 		svgContent = svgContent
 			// Regex explanation:
 			// - animation-delay:\s*\d+ms;? matches animation-delay properties
@@ -172,14 +200,27 @@ export async function POST(request: NextRequest) {
 			// - style="animation-delay: \d+ms" matches style attributes containing only animation-delay
 			// - Remove style attributes containing only animation-delay
 			.replace(/ style="animation-delay: \d+ms"/g, "");
+		console.log("🧼 [Convert API] Final SVG cleanup completed.");
 
-		// Convert to PNG using sharp
+		// 7. Convert the processed SVG to PNG using sharp
+		console.log("🔄 [Convert API] Converting SVG to PNG using sharp...");
 		const pngBuffer = await sharp(Buffer.from(svgContent)).png().toBuffer();
 		const pngDataUrl = `data:image/png;base64,${pngBuffer.toString("base64")}`;
+		const conversionDuration = Date.now() - startTime;
+		console.log(
+			`✅ [Convert API] SVG converted to PNG successfully in ${conversionDuration}ms`
+		);
 
 		return NextResponse.json({ pngDataUrl });
-	} catch (error) {
-		console.error("Conversion error:", error);
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	} catch (error: any) {
+		const errorDuration = Date.now() - startTime;
+		console.error(
+			`🔥 [Convert API] Conversion error after ${errorDuration}ms: ${error.message}`
+		);
+		if (error.stack) {
+			console.error(`💥 [Convert API] Stack Trace: ${error.stack}`);
+		}
 		return NextResponse.json({ error: "Conversion failed" }, { status: 500 });
 	}
 }

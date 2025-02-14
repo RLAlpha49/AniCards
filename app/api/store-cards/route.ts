@@ -14,11 +14,11 @@ const ratelimit = new Ratelimit({
 export async function POST(request: Request) {
 	const startTime = Date.now();
 	const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
-	console.log(`🔵 [Store Cards] Request from IP: ${ip}`);
+	console.log(`🚀 [Store Cards] Incoming request from IP: ${ip}`);
 
 	const { success } = await ratelimit.limit(ip);
 	if (!success) {
-		console.warn(`⚠️ [Store Cards] Rate limited IP: ${ip}`);
+		console.warn(`🚨 [Store Cards] Rate limited IP: ${ip}`);
 		return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 	}
 
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
 		const body = await request.json();
 		const { statsData, userId, cards: incomingCards } = body;
 		console.log(
-			`🔍 [Store Cards] Processing user ${userId} with ${incomingCards?.length || 0} cards`
+			`📝 [Store Cards] Processing user ${userId} with ${incomingCards?.length || 0} cards`
 		);
 
 		if (statsData?.error) {
@@ -45,6 +45,8 @@ export async function POST(request: Request) {
 
 		// Use a Redis key to store the user's card configurations
 		const cardsKey = `cards:${userId}`;
+		console.log(`📝 [Store Cards] Storing card configuration using key: ${cardsKey}`);
+
 		const cardData: CardsRecord = {
 			userId,
 			cards: incomingCards.map((card: CardConfig) => ({
@@ -61,15 +63,19 @@ export async function POST(request: Request) {
 		await redisClient.set(cardsKey, JSON.stringify(cardData));
 
 		const duration = Date.now() - startTime;
-		console.log(`✅ [Store Cards] Stored cards for user ${userId} [${duration}ms]`);
+		console.log(`✅ [Store Cards] Stored cards for user ${userId} in ${duration}ms`);
 
 		return NextResponse.json({
 			success: true,
 			userId,
 		});
-	} catch (error) {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	} catch (error: any) {
 		const duration = Date.now() - startTime;
-		console.error(`🔴 [Store Cards] Error after ${duration}ms:`, error);
+		console.error(`🔥 [Store Cards] Error after ${duration}ms: ${error.message}`);
+		if (error.stack) {
+			console.error(`💥 [Store Cards] Stack Trace: ${error.stack}`);
+		}
 		return NextResponse.json({ error: "Card storage failed" }, { status: 500 });
 	}
 }

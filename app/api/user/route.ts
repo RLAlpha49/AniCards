@@ -8,6 +8,9 @@ import { safeParse } from "@/lib/utils";
 // If only username is provided, it uses the username index to infer the userId.
 export async function GET(request: Request) {
 	const startTime = Date.now();
+	const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
+	console.log(`🚀 [User API] Received request from IP: ${ip}`);
+
 	const { searchParams } = new URL(request.url);
 	const userIdParam = searchParams.get("userId");
 	const usernameParam = searchParams.get("username");
@@ -31,11 +34,12 @@ export async function GET(request: Request) {
 			return NextResponse.json({ error: "Invalid userId parameter" }, { status: 400 });
 		}
 		key = `user:${numericUserId}`;
-		console.log(`🔵 [User API] Request received for userId: ${numericUserId}`);
+		console.log(`🚀 [User API] Request received for userId: ${numericUserId}`);
 	} else {
 		// Use the username parameter: normalize it and use the username index key.
 		const normalizedUsername = usernameParam!.trim().toLowerCase();
 		const usernameIndexKey = `username:${normalizedUsername}`;
+		console.log(`🔍 [User API] Searching user index for username: ${normalizedUsername}`);
 		const userIdFromIndex = await redisClient.get(usernameIndexKey);
 		if (!userIdFromIndex) {
 			console.warn(`⚠️ [User API] User not found for username: ${normalizedUsername}`);
@@ -50,7 +54,7 @@ export async function GET(request: Request) {
 		}
 		key = `user:${numericUserId}`;
 		console.log(
-			`🔵 [User API] Request received for username: ${normalizedUsername} (userId: ${numericUserId})`
+			`🚀 [User API] Request received for username: ${normalizedUsername} (userId: ${numericUserId})`
 		);
 	}
 
@@ -67,12 +71,15 @@ export async function GET(request: Request) {
 			`✅ [User API] Successfully fetched user data for user ${numericUserId} [${duration}ms]`
 		);
 		return NextResponse.json(userData);
-	} catch (error) {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	} catch (error: any) {
 		const duration = Date.now() - startTime;
 		console.error(
-			`🔴 [User API] Error fetching user data for key ${key} [${duration}ms]:`,
-			error
+			`🔥 [User API] Error fetching user data for key ${key} [${duration}ms]: ${error.message}`
 		);
+		if (error.stack) {
+			console.error(`💥 [User API] Stack Trace: ${error.stack}`);
+		}
 		return NextResponse.json({ error: "Failed to fetch user data" }, { status: 500 });
 	}
 }

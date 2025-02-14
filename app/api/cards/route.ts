@@ -8,8 +8,9 @@ export async function GET(request: Request) {
 	const startTime = Date.now();
 	const { searchParams } = new URL(request.url);
 	const userId = searchParams.get("userId");
-
-	console.log(`🔵 [Cards API] Request received for userId: ${userId}`);
+	// Log incoming request with client's IP address for additional traceability
+	const ip = request.headers.get("x-forwarded-for") || "unknown IP";
+	console.log(`🚀 [Cards API] New request from ${ip} for userId: ${userId}`);
 
 	// Validate required user ID parameter
 	if (!userId) {
@@ -25,6 +26,9 @@ export async function GET(request: Request) {
 	}
 
 	try {
+		console.log(
+			`🔍 [Cards API] Fetching card configuration from Redis for user ${numericUserId}`
+		);
 		const redisClient = Redis.fromEnv();
 		const key = `cards:${numericUserId}`;
 		const cardDataStr = await redisClient.get(key);
@@ -41,10 +45,23 @@ export async function GET(request: Request) {
 		console.log(
 			`✅ [Cards API] Successfully returned card data for user ${numericUserId} [${duration}ms]`
 		);
+
+		// Extra log if the response time is noticeably long
+		if (duration > 500) {
+			console.warn(
+				`⏳ [Cards API] Slow response time: ${duration}ms for user ${numericUserId}`
+			);
+		}
 		return NextResponse.json(cardData);
-	} catch (error) {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	} catch (error: any) {
 		const duration = Date.now() - startTime;
-		console.error(`🔴 [Cards API] Error for user ${numericUserId} [${duration}ms]:`, error);
+		console.error(
+			`🔥 [Cards API] Error for user ${numericUserId} [${duration}ms]: ${error.message}`
+		);
+		if (error.stack) {
+			console.error(`💥 [Cards API] Stack Trace: ${error.stack}`);
+		}
 		return NextResponse.json({ error: "Failed to fetch cards" }, { status: 500 });
 	}
 }

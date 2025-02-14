@@ -122,7 +122,7 @@ function generateCardSVG(
 			const episodesWatched = userStats.stats.User.statistics.anime.episodesWatched;
 			milestoneData = calculateMilestones(episodesWatched); // Calculate milestones based on episodes watched
 
-			// Generate SVG content using animeStatsTemplate
+			// Generate SVG content using mediaStatsTemplate for anime
 			svgContent = mediaStatsTemplate({
 				mediaType: "anime",
 				username: userStats.username,
@@ -148,7 +148,7 @@ function generateCardSVG(
 			const chaptersRead = userStats.stats.User.statistics.manga.chaptersRead;
 			milestoneData = calculateMilestones(chaptersRead); // Calculate milestones based on chapters read
 
-			// Generate SVG content using mangaStatsTemplate
+			// Generate SVG content using mediaStatsTemplate for manga
 			svgContent = mediaStatsTemplate({
 				mediaType: "manga",
 				username: userStats.username,
@@ -274,15 +274,19 @@ function generateCardSVG(
 export async function GET(request: Request) {
 	const startTime = Date.now(); // Start time for performance tracking
 	const ip = request.headers.get("x-forwarded-for") || "127.0.0.1"; // Get IP address for rate limiting
-	const { success } = await ratelimit.limit(ip); // Apply rate limit
 
-	// Rate limit exceeded - return error SVG
+	// Rate limiter check
+	const { success } = await ratelimit.limit(ip);
 	if (!success) {
+		console.warn(`🚨 [Card SVG] Rate limit exceeded for IP: ${ip}`);
 		return new Response(svgError("Too many requests - try again later"), {
 			headers: errorHeaders(), // Use error headers (no-cache)
 			status: 200, // Still return 200 OK to display error SVG
 		});
 	}
+
+	// Log the incoming request with additional details in production
+	console.log(`🔰 [Card SVG] New GET request from IP: ${ip} - URL: ${request.url}`);
 
 	// Extract parameters from URL search params
 	const { searchParams } = new URL(request.url);
@@ -332,8 +336,14 @@ export async function GET(request: Request) {
 			redisClient.get(`user:${numericUserId}`),
 		]);
 
+		// Log Redis fetch performance details
+		const redisFetchDuration = Date.now() - startTime;
+		console.log(
+			`⏱️ [Card SVG] Redis fetch completed in ${redisFetchDuration}ms for user ${numericUserId}`
+		);
+
 		if (!cardsDataStr || !userDataStr) {
-			console.warn(`⚠️ [Card SVG] User ${numericUserId} not found`);
+			console.warn(`⚠️ [Card SVG] User ${numericUserId} data not found in Redis`);
 			return new Response(svgError("User data not found"), {
 				headers: errorHeaders(), // Use error headers (no-cache)
 				status: 200, // Still return 200 OK to display error SVG
@@ -366,30 +376,44 @@ export async function GET(request: Request) {
 				variant
 			);
 			const duration = Date.now() - startTime; // Calculate generation duration
+			if (duration > 1500) {
+				console.warn(
+					`⏳ [Card SVG] Slow rendering detected: ${duration}ms for user ${numericUserId}`
+				);
+			}
 			console.log(
-				`✅ [Card SVG] Rendered ${cardType} card for ${numericUserId} [${duration}ms]`
+				`✅ [Card SVG] Rendered ${cardType} card for ${numericUserId} in ${duration}ms`
 			);
 			return new Response(svgContent, {
 				// Return SVG response
 				headers: svgHeaders(), // Use success headers (with cache)
 			});
-		} catch (error) {
-			// Error during card SVG generation
-			console.error("Card generation failed:", error);
-			const duration = Date.now() - startTime; // Calculate error duration
-			console.error(`🔥 [Card SVG] Error after ${duration}ms:`, error);
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		} catch (error: any) {
+			const duration = Date.now() - startTime;
+			console.error(
+				`🔥 [Card SVG] Error generating card for user ${numericUserId} after ${duration}ms:`,
+				error
+			);
+			if (error.stack) {
+				console.error(`💥 [Card SVG] Stack Trace: ${error.stack}`);
+			}
 			return new Response(svgError("Server Error"), {
-				// Return error SVG
 				headers: errorHeaders(), // Use error headers (no-cache)
 				status: 200, // Still return 200 OK to display error SVG
 			});
 		}
-	} catch (error) {
-		console.error("Card generation failed:", error);
-		const duration = Date.now() - startTime; // Calculate error duration
-		console.error(`🔥 [Card SVG] Error after ${duration}ms:`, error);
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	} catch (error: any) {
+		const duration = Date.now() - startTime;
+		console.error(
+			`🔥 [Card SVG] General error for user ${numericUserId} after ${duration}ms:`,
+			error
+		);
+		if (error.stack) {
+			console.error(`💥 [Card SVG] Stack Trace: ${error.stack}`);
+		}
 		return new Response(svgError("Server Error"), {
-			// Return error SVG
 			headers: errorHeaders(), // Use error headers (no-cache)
 			status: 200, // Still return 200 OK to display error SVG
 		});
