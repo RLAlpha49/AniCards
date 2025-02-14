@@ -286,7 +286,7 @@ export async function GET(request: Request) {
 	}
 
 	// Log the incoming request with additional details in production
-	console.log(`🔰 [Card SVG] New GET request from IP: ${ip} - URL: ${request.url}`);
+	console.log(`🚀 [Card SVG] New request from IP: ${ip} - URL: ${request.url}`);
 
 	// Extract parameters from URL search params
 	const { searchParams } = new URL(request.url);
@@ -296,7 +296,7 @@ export async function GET(request: Request) {
 	const variant =
 		variationParam === "vertical" ? "vertical" : variationParam === "pie" ? "pie" : "default";
 
-	console.log(`🖼️  [Card SVG] Request for ${cardType} card - User ID: ${userId}`);
+	console.log(`🖼️ [Card SVG] Request for ${cardType} card - User ID: ${userId}`);
 
 	// Parameter validation: userId and cardType are required
 	if (!userId || !cardType) {
@@ -335,12 +335,6 @@ export async function GET(request: Request) {
 			redisClient.get(`cards:${numericUserId}`),
 			redisClient.get(`user:${numericUserId}`),
 		]);
-
-		// Log Redis fetch performance details
-		const redisFetchDuration = Date.now() - startTime;
-		console.log(
-			`⏱️ [Card SVG] Redis fetch completed in ${redisFetchDuration}ms for user ${numericUserId}`
-		);
 
 		if (!cardsDataStr || !userDataStr) {
 			console.warn(`⚠️ [Card SVG] User ${numericUserId} data not found in Redis`);
