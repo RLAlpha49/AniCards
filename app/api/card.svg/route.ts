@@ -285,7 +285,6 @@ export async function GET(request: Request) {
 		});
 	}
 
-	// Log the incoming request with additional details in production
 	console.log(`🚀 [Card SVG] New request from IP: ${ip} - URL: ${request.url}`);
 
 	// Extract parameters from URL search params
@@ -303,17 +302,7 @@ export async function GET(request: Request) {
 		const missingParam = !userId ? "userId" : "cardType";
 		console.warn(`⚠️ [Card SVG] Missing parameter: ${missingParam}`);
 		return new Response(svgError("Missing parameters"), {
-			headers: errorHeaders(), // Use error headers (no-cache)
-			status: 200, // Still return 200 OK to display error SVG
-		});
-	}
-
-	// Validate cardType against allowed types
-	const [baseCardType] = cardType.split("-");
-	if (!ALLOWED_CARD_TYPES.has(baseCardType)) {
-		console.warn(`⚠️ [Card SVG] Invalid card type: ${cardType}`);
-		return new Response(svgError("Invalid card type"), {
-			headers: errorHeaders(), // Use error headers (no-cache)
+			headers: errorHeaders(),
 			status: 200, // Still return 200 OK to display error SVG
 		});
 	}
@@ -323,20 +312,30 @@ export async function GET(request: Request) {
 	if (isNaN(numericUserId)) {
 		console.warn(`⚠️ [Card SVG] Invalid user ID format: ${userId}`);
 		return new Response(svgError("Invalid user ID"), {
-			headers: errorHeaders(), // Use error headers (no-cache)
-			status: 200, // Still return 200 OK to display error SVG
+			headers: errorHeaders(),
+			status: 200,
+		});
+	}
+
+	// Validate cardType against allowed types
+	const [baseCardType] = cardType.split("-");
+	if (!ALLOWED_CARD_TYPES.has(baseCardType)) {
+		console.warn(`⚠️ [Card SVG] Invalid card type: ${cardType}`);
+		return new Response(svgError("Invalid card type"), {
+			headers: errorHeaders(),
+			status: 200,
 		});
 	}
 
 	try {
 		console.log(`🔍 [Card SVG] Fetching data for user ${numericUserId}`);
-		// Retrieve the cards and user data from Redis
 		const [cardsDataStr, userDataStr] = await Promise.all([
 			redisClient.get(`cards:${numericUserId}`),
 			redisClient.get(`user:${numericUserId}`),
 		]);
 
-		if (!cardsDataStr || !userDataStr) {
+		// Explicitly check if Redis returned nothing or "null"
+		if (!cardsDataStr || cardsDataStr === "null" || !userDataStr || userDataStr === "null") {
 			console.warn(`⚠️ [Card SVG] User ${numericUserId} data not found in Redis`);
 			return new Response(svgError("User data not found"), {
 				headers: errorHeaders(), // Use error headers (no-cache)

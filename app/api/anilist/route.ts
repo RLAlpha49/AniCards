@@ -88,14 +88,14 @@ export async function POST(request: Request) {
 			const errorData = await response.json();
 			if (response.status === 429) {
 				throw new Error(
-					(errorData.error ||
-						`AniList API was rate limited - HTTP error! status: ${response.status}`) +
+					(errorData.error || `AniList API was rate limited`) +
+						` - HTTP error! status: ${response.status}` +
 						retryAfterMsg
 				);
 			} else if (response.status === 500) {
 				throw new Error(
-					(errorData.error ||
-						`AniList API server error - HTTP error! status: ${response.status}`) +
+					(errorData.error || `AniList API server error`) +
+						` - HTTP error! status: ${response.status}` +
 						retryAfterMsg
 				);
 			} else {
