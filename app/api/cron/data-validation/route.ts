@@ -221,7 +221,19 @@ export async function POST(request: Request) {
 			console.warn("🛠️ [Data Validation Check] Issues found:", inconsistencies);
 		}
 
-		return new Response(JSON.stringify({ summary, details, issues: inconsistencies }), {
+		// Build the data validation report
+		const report = {
+			summary,
+			details,
+			issues: inconsistencies,
+			generatedAt: new Date().toISOString(),
+		};
+
+		// Save the validation report into the database (Redis list "data_validation:reports")
+		await redisClient.lpush("data_validation:reports", JSON.stringify(report));
+
+		// Return the report as the response
+		return new Response(JSON.stringify(report), {
 			status: 200,
 			headers: { "Content-Type": "application/json" },
 		});
