@@ -66,6 +66,15 @@ function validateCardsRecord(obj: any): string[] {
 	return issues;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function validateUsernameRecord(obj: any): string[] {
+	const issues: string[] = [];
+	if (typeof obj !== "number") {
+		issues.push("username record is not a number");
+	}
+	return issues;
+}
+
 export async function POST(request: Request) {
 	// Check for the required cron secret
 	const CRON_SECRET = process.env.CRON_SECRET;
@@ -87,7 +96,7 @@ export async function POST(request: Request) {
 		const redisClient = Redis.fromEnv();
 
 		// Define Redis key patterns to validate. Add more patterns as needed.
-		const patterns = ["user:*", "cards:*"];
+		const patterns = ["user:*", "cards:*", "username:*"];
 		let totalKeysChecked = 0;
 		let totalInconsistencies = 0;
 		const inconsistencies: Array<{ key: string; issues: string[] }> = [];
@@ -113,7 +122,7 @@ export async function POST(request: Request) {
 					// Attempt to safely parse the Redis value.
 					// eslint-disable-next-line @typescript-eslint/no-explicit-any
 					const parsed = safeParse<any>(valueStr);
-					if (!parsed) {
+					if (!parsed && parsed !== 0) {
 						totalInconsistencies++;
 						patternIssues++;
 						inconsistencies.push({ key, issues: ["Failed to parse JSON"] });
@@ -126,6 +135,8 @@ export async function POST(request: Request) {
 						issues.push(...validateUserRecord(parsed));
 					} else if (key.startsWith("cards:")) {
 						issues.push(...validateCardsRecord(parsed));
+					} else if (key.startsWith("username:")) {
+						issues.push(...validateUsernameRecord(parsed));
 					}
 					if (issues.length > 0) {
 						totalInconsistencies++;
