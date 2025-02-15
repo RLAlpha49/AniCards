@@ -8,6 +8,7 @@ const fakeRedisClient = {
 	keys: mockKeys,
 	get: mockGet,
 	set: mockSet,
+	incr: jest.fn(() => Promise.resolve(1)),
 };
 
 jest.mock("@upstash/redis", () => ({

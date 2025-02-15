@@ -11,6 +11,7 @@ jest.mock("@upstash/redis", () => {
 			fromEnv: jest.fn(() => ({
 				set: mockRedisSet,
 				get: mockRedisGet,
+				incr: jest.fn(() => Promise.resolve(1)),
 			})),
 		},
 	};

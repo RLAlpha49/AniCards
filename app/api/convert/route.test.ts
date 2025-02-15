@@ -2,6 +2,14 @@ import { POST } from "./route";
 import { NextRequest } from "next/server";
 import sharp from "sharp";
 
+jest.mock("@upstash/redis", () => ({
+	Redis: {
+		fromEnv: jest.fn(() => ({
+			incr: jest.fn(() => Promise.resolve(1)),
+		})),
+	},
+}));
+
 // Mocking "sharp" so we can simulate the PNG conversion.
 jest.mock("sharp", () => {
 	// Return a function that returns an object with a png() method.

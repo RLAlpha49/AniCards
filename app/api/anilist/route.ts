@@ -97,11 +97,11 @@ export async function POST(request: Request) {
 					: errorData.error || `HTTP error! status: ${response.status}`;
 
 			if (response.status === 429) {
-				throw new Error(`${errorMessage} - Rate limited${retryAfterMsg}`);
+				throw new Error(`HTTP error! status: ${response.status} - ${errorMessage} - Rate limited${retryAfterMsg}`);
 			} else if (response.status === 500) {
-				throw new Error(`${errorMessage} - Server error${retryAfterMsg}`);
+				throw new Error(`HTTP error! status: ${response.status} - ${errorMessage} - Server error${retryAfterMsg}`);
 			} else {
-				throw new Error(`${errorMessage}${retryAfterMsg}`);
+				throw new Error(`HTTP error! status: ${response.status} - ${errorMessage}${retryAfterMsg}`);
 			}
 		}
 

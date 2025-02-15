@@ -13,6 +13,7 @@ jest.mock("@upstash/redis", () => {
 		Redis: {
 			fromEnv: jest.fn(() => ({
 				get: mockRedisGet,
+				incr: jest.fn(() => Promise.resolve(1)),
 			})),
 		},
 	};
@@ -40,6 +41,16 @@ jest.mock("@/lib/svg-templates/media-stats", () => ({
 	mediaStatsTemplate: jest.fn(() => "<svg>Anime Stats</svg>"),
 }));
 
+// NEW: Added mock for social stats template.
+jest.mock("@/lib/svg-templates/social-stats", () => ({
+	socialStatsTemplate: jest.fn(() => "<svg>Social Stats</svg>"),
+}));
+
+// NEW: Added mock for extra anime/manga stats template.
+jest.mock("@/lib/svg-templates/extra-anime-manga-stats", () => ({
+	extraAnimeMangaStatsTemplate: jest.fn(() => "<svg>Extra Stats</svg>"),
+}));
+
 jest.mock("@/lib/utils", () => ({
 	safeParse: (str: string) => JSON.parse(str),
 	// Keep calculateMilestones from the dedicated module above.
@@ -62,9 +73,7 @@ describe("Card SVG GET Endpoint", () => {
 		mockLimit.mockResolvedValueOnce({ success: false });
 		mockRedisGet.mockClear();
 
-		const req = new Request(`${baseUrl}?userId=123&cardType=animeStats`, {
-			headers: { "x-forwarded-for": "127.0.0.1" },
-		});
+		const req = new Request(`${baseUrl}?userId=542244`);
 
 		const res = await GET(req);
 		expect(res.status).toBe(200);
@@ -74,9 +83,7 @@ describe("Card SVG GET Endpoint", () => {
 
 	it("should return error for missing parameters", async () => {
 		// Missing cardType.
-		const req = new Request(`${baseUrl}?userId=123`, {
-			headers: { "x-forwarded-for": "127.0.0.1" },
-		});
+		const req = new Request(`${baseUrl}?userId=542244`);
 
 		const res = await GET(req);
 		expect(res.status).toBe(200);
@@ -86,9 +93,7 @@ describe("Card SVG GET Endpoint", () => {
 
 	it("should return error for invalid card type", async () => {
 		// Provide a cardType that is not allowed.
-		const req = new Request(`${baseUrl}?userId=123&cardType=invalidType`, {
-			headers: { "x-forwarded-for": "127.0.0.1" },
-		});
+		const req = new Request(`${baseUrl}?userId=542244&cardType=invalidType`);
 
 		const res = await GET(req);
 		expect(res.status).toBe(200);
@@ -98,9 +103,7 @@ describe("Card SVG GET Endpoint", () => {
 
 	it("should return error for invalid user ID format", async () => {
 		// userId that cannot be parsed as a number.
-		const req = new Request(`${baseUrl}?userId=abc&cardType=animeStats`, {
-			headers: { "x-forwarded-for": "127.0.0.1" },
-		});
+		const req = new Request(`${baseUrl}?userId=abc&cardType=animeStats`);
 		const res = await GET(req);
 		expect(res.status).toBe(200);
 		const text = await getResponseText(res);
@@ -111,14 +114,12 @@ describe("Card SVG GET Endpoint", () => {
 		// Simulate Redis missing one of the keys.
 		mockRedisGet.mockResolvedValueOnce(null).mockResolvedValueOnce(
 			JSON.stringify({
-				userId: 123,
+				userId: 542244,
 				username: "testUser",
-				stats: { User: { statistics: { anime: { episodesWatched: 100 } } } },
+				stats: { User: { statistics: { anime: {} } } },
 			})
 		);
-		const req = new Request(`${baseUrl}?userId=123&cardType=animeStats`, {
-			headers: { "x-forwarded-for": "127.0.0.1" },
-		});
+		const req = new Request(`${baseUrl}?userId=542244&cardType=animeStats`);
 		const res = await GET(req);
 		expect(res.status).toBe(200);
 		const text = await getResponseText(res);
@@ -128,9 +129,9 @@ describe("Card SVG GET Endpoint", () => {
 	it("should return error when card config is not found", async () => {
 		// Return valid user record.
 		const userData = JSON.stringify({
-			userId: 123,
+			userId: 542244,
 			username: "testUser",
-			stats: { User: { statistics: { anime: { episodesWatched: 100 } } } },
+			stats: { User: { statistics: { anime: {} } } },
 		});
 		// Return a cards record that does not include the requested card config.
 		const cardsData = JSON.stringify({
@@ -146,9 +147,7 @@ describe("Card SVG GET Endpoint", () => {
 		});
 		mockRedisGet.mockResolvedValueOnce(cardsData).mockResolvedValueOnce(userData);
 
-		const req = new Request(`${baseUrl}?userId=123&cardType=animeStats`, {
-			headers: { "x-forwarded-for": "127.0.0.1" },
-		});
+		const req = new Request(`${baseUrl}?userId=542244&cardType=animeStats`);
 		const res = await GET(req);
 		expect(res.status).toBe(200);
 		const text = await getResponseText(res);
@@ -176,13 +175,7 @@ describe("Card SVG GET Endpoint", () => {
 			stats: {
 				User: {
 					statistics: {
-						anime: {
-							count: 426,
-							episodesWatched: 5474,
-							minutesWatched: 129587,
-							meanScore: 71.67,
-							standardDeviation: 12,
-						},
+						anime: {},
 					},
 				},
 			},
@@ -190,7 +183,6 @@ describe("Card SVG GET Endpoint", () => {
 		mockRedisGet.mockResolvedValueOnce(cardsData).mockResolvedValueOnce(userData);
 
 		const req = new Request(`${baseUrl}?userId=542244&cardType=animeStats&variation=default`);
-		console.log("req", req);
 		const res = await GET(req);
 		expect(res.status).toBe(200);
 		expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
@@ -231,12 +223,120 @@ describe("Card SVG GET Endpoint", () => {
 	it("should return server error when an outer error occurs", async () => {
 		// Simulate Redis throwing an error.
 		mockRedisGet.mockRejectedValueOnce(new Error("Redis error"));
-		const req = new Request(`${baseUrl}?userId=123&cardType=animeStats`, {
-			headers: { "x-forwarded-for": "127.0.0.1" },
-		});
+		const req = new Request(`${baseUrl}?userId=123&cardType=animeStats`);
 		const res = await GET(req);
 		expect(res.status).toBe(200);
 		const text = await getResponseText(res);
 		expect(text).toContain("Server Error");
+	});
+
+	// NEW: Test for social stats card SVG generation.
+	it("should successfully generate social stats SVG content", async () => {
+		const cardsData = JSON.stringify({
+			cards: [
+				{
+					cardName: "socialStats",
+					titleColor: "#123456",
+					backgroundColor: "#654321",
+					textColor: "#abcdef",
+					circleColor: "#fedcba",
+				},
+			],
+		});
+		const userData = JSON.stringify({
+			userId: 542244,
+			username: "socialUser",
+			stats: {
+				User: {
+					statistics: {
+						anime: {},
+						manga: {},
+					},
+					stats: {
+						activityHistory: [{}],
+					},
+				},
+				social: {},
+			},
+		});
+		mockRedisGet.mockResolvedValueOnce(cardsData).mockResolvedValueOnce(userData);
+
+		const req = new Request(`${baseUrl}?userId=542244&cardType=socialStats&variation=default`);
+		const res = await GET(req);
+		expect(res.status).toBe(200);
+		expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
+		const text = await getResponseText(res);
+		expect(text).toBe("<svg>Social Stats</svg>");
+	});
+
+	// NEW: Test for category-based card (animeGenres) SVG generation.
+	it("should successfully generate category-based SVG content for animeGenres", async () => {
+		const cardsData = JSON.stringify({
+			cards: [
+				{
+					cardName: "animeGenres",
+					titleColor: "#123456",
+					backgroundColor: "#654321",
+					textColor: "#abcdef",
+					circleColor: "#fedcba",
+				},
+			],
+		});
+		const userData = JSON.stringify({
+			userId: 542244,
+			username: "genreUser",
+			stats: {
+				User: {
+					statistics: {
+						anime: {
+							genres: [{}],
+						},
+					},
+				},
+			},
+		});
+		mockRedisGet.mockResolvedValueOnce(cardsData).mockResolvedValueOnce(userData);
+
+		const req = new Request(`${baseUrl}?userId=542244&cardType=animeGenres&variation=default`);
+		const res = await GET(req);
+		expect(res.status).toBe(200);
+		expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
+		const text = await getResponseText(res);
+		expect(text).toBe("<svg>Extra Stats</svg>");
+	});
+
+	// NEW: Test for vertical variation for an animeStats card.
+	it("should successfully generate vertical SVG content for animeStats", async () => {
+		const cardsData = JSON.stringify({
+			cards: [
+				{
+					cardName: "animeStats",
+					variation: "vertical",
+					titleColor: "#3cc8ff",
+					backgroundColor: "#0b1622",
+					textColor: "#E8E8E8",
+					circleColor: "#3cc8ff",
+				},
+			],
+		});
+		const userData = JSON.stringify({
+			userId: 542244,
+			username: "testUserVertical",
+			stats: {
+				User: {
+					statistics: {
+						anime: {},
+					},
+				},
+			},
+		});
+		mockRedisGet.mockResolvedValueOnce(cardsData).mockResolvedValueOnce(userData);
+
+		const req = new Request(`${baseUrl}?userId=542244&cardType=animeStats&variation=vertical`);
+		const res = await GET(req);
+		expect(res.status).toBe(200);
+		expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
+		const text = await getResponseText(res);
+		expect(text).toBe("<svg>Anime Stats</svg>");
 	});
 });

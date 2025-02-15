@@ -8,6 +8,13 @@ describe("AniList API Proxy Endpoint", () => {
 	beforeEach(() => {
 		jest.resetModules();
 		process.env = { ...originalEnv };
+		jest.mock("@upstash/redis", () => ({
+			Redis: {
+				fromEnv: jest.fn(() => ({
+					incr: jest.fn(() => Promise.resolve(1)),
+				})),
+			},
+		}));
 	});
 
 	afterEach(() => {
