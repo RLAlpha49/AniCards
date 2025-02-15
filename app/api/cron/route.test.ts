@@ -1,4 +1,4 @@
-import { GET } from "./route";
+import { POST } from "./route";
 
 // Set up mocks for @upstash/redis.
 const mockKeys = jest.fn();
@@ -20,7 +20,7 @@ jest.mock("@upstash/redis", () => ({
 const CRON_SECRET = "testsecret";
 process.env.CRON_SECRET = CRON_SECRET;
 
-describe("Cron API GET Endpoint", () => {
+describe("Cron API POST Endpoint", () => {
 	afterEach(() => {
 		jest.clearAllMocks();
 		jest.useRealTimers();
@@ -28,9 +28,9 @@ describe("Cron API GET Endpoint", () => {
 
 	it("should return 401 Unauthorized when the secret is missing or invalid", async () => {
 		const req = new Request("http://localhost/api/cron", {
-			headers: { Authorization: "Bearer wrongsecret" },
+			headers: { "x-cron-secret": "wrongsecret" },
 		});
-		const res = await GET(req);
+		const res = await POST(req);
 		expect(res.status).toBe(401);
 		const text = await res.text();
 		expect(text).toBe("Unauthorized");
@@ -40,9 +40,9 @@ describe("Cron API GET Endpoint", () => {
 		// Simulate no user keys found.
 		mockKeys.mockResolvedValueOnce([]);
 		const req = new Request("http://localhost/api/cron", {
-			headers: { Authorization: `Bearer ${CRON_SECRET}` },
+			headers: { "x-cron-secret": CRON_SECRET },
 		});
-		const res = await GET(req);
+		const res = await POST(req);
 		expect(res.status).toBe(200);
 		const text = await res.text();
 		expect(text).toBe("Updated 0/0 users successfully");
@@ -67,9 +67,9 @@ describe("Cron API GET Endpoint", () => {
 		mockSet.mockResolvedValue(true);
 
 		const req = new Request("http://localhost/api/cron", {
-			headers: { Authorization: `Bearer ${CRON_SECRET}` },
+			headers: { "x-cron-secret": CRON_SECRET },
 		});
-		const res = await GET(req);
+		const res = await POST(req);
 		expect(res.status).toBe(200);
 		const text = await res.text();
 		expect(text).toBe(`Updated ${userKeys.length}/${userKeys.length} users successfully`);
@@ -79,9 +79,9 @@ describe("Cron API GET Endpoint", () => {
 		// Simulate an error when fetching keys.
 		mockKeys.mockRejectedValueOnce(new Error("Redis error"));
 		const req = new Request("http://localhost/api/cron", {
-			headers: { Authorization: `Bearer ${CRON_SECRET}` },
+			headers: { "x-cron-secret": CRON_SECRET },
 		});
-		const res = await GET(req);
+		const res = await POST(req);
 		expect(res.status).toBe(500);
 		const text = await res.text();
 		expect(text).toBe("Cron job failed");
