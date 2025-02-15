@@ -14,7 +14,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
 }) => {
 	const svgWidth = data.showPieChart ? 340 : 280;
 	const viewBoxWidth = data.showPieChart ? 350 : 280;
-	const rectWidth = data.showPieChart ? 319 : 279;
+	const rectWidth = data.showPieChart ? 339 : 279;
 
 	const statsContentWithoutPie = data.stats
 		.map(
@@ -40,7 +40,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
 				data.styles.circleColor
 			)}" />
             <text class="stat" y="12.5">${stat.name}:</text>
-            <text class="stat" x="115" y="12.5">${stat.count}</text>
+            <text class="stat" x="125" y="12.5">${stat.count}</text>
           </g>
         `
 		)
@@ -86,7 +86,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
         <g transform="translate(45, 0)">
           ${statsContentWithPie}
         </g>
-        <g transform="translate(210, 20)">
+        <g transform="translate(225, 20)">
           ${pieChartContent}
         </g>
       `
