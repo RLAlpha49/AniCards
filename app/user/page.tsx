@@ -179,6 +179,15 @@ export default async function UserPage(props: {
 			) : (
 				<div className="text-gray-500 text-center py-8">No cards found for this user</div>
 			)}
+
+			{/* New button to view other projects */}
+			<div className="flex justify-center mt-8">
+				<Link href="/projects">
+					<Button variant="outline" className="transition-transform duration-200 hover:scale-105">
+						Check out My Other Projects
+					</Button>
+				</Link>
+			</div>
 		</div>
 	);
 }
