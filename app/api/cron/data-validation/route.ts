@@ -75,6 +75,34 @@ function validateUsernameRecord(obj: any): string[] {
 	return issues;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function validateAnalyticsMetric(val: any): string[] {
+	const issues: string[] = [];
+	if (typeof val !== "number") {
+		issues.push(`Expected a number but got ${typeof val}`);
+	}
+	return issues;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function validateAnalyticsReport(obj: any): string[] {
+	const issues: string[] = [];
+	if (typeof obj !== "object" || obj === null) {
+		issues.push("Report is not an object");
+		return issues;
+	}
+	if (!("generatedAt" in obj) || typeof obj.generatedAt !== "string") {
+		issues.push("generatedAt is missing or not a string");
+	}
+	if (!("raw_data" in obj) || typeof obj.raw_data !== "object" || obj.raw_data === null) {
+		issues.push("raw_data is missing or not an object");
+	}
+	if (!("summary" in obj) || typeof obj.summary !== "object" || obj.summary === null) {
+		issues.push("summary is missing or not an object");
+	}
+	return issues;
+}
+
 export async function POST(request: Request) {
 	// Check for the required cron secret
 	const CRON_SECRET = process.env.CRON_SECRET;
@@ -96,7 +124,7 @@ export async function POST(request: Request) {
 		const redisClient = Redis.fromEnv();
 
 		// Define Redis key patterns to validate. Add more patterns as needed.
-		const patterns = ["user:*", "cards:*", "username:*"];
+		const patterns = ["user:*", "cards:*", "username:*", "analytics:*"];
 		let totalKeysChecked = 0;
 		let totalInconsistencies = 0;
 		const inconsistencies: Array<{ key: string; issues: string[] }> = [];
@@ -110,8 +138,38 @@ export async function POST(request: Request) {
 
 			for (const key of keys) {
 				patternChecked++;
-				totalKeysChecked++;
+				// For analytics keys, we handle list types or single number values
 				try {
+					// Special handling for the "analytics:reports" key (a list of reports)
+					if (key === "analytics:reports") {
+						const listElements = await redisClient.lrange(key, 0, -1);
+						if (!listElements || listElements.length === 0) {
+							totalInconsistencies++;
+							patternIssues++;
+							inconsistencies.push({ key, issues: ["List is empty"] });
+						} else {
+							// Validate each report in the list
+							for (let i = 0; i < listElements.length; i++) {
+								const reportStr = listElements[i];
+								// eslint-disable-next-line @typescript-eslint/no-explicit-any
+								const parsedReport = safeParse<any>(reportStr);
+								const reportIssues = validateAnalyticsReport(parsedReport);
+								if (reportIssues.length > 0) {
+									totalInconsistencies++;
+									patternIssues++;
+									inconsistencies.push({
+										key: `${key}[${i}]`,
+										issues: reportIssues,
+									});
+								}
+								totalKeysChecked++;
+							}
+						}
+						continue;
+					}
+
+					// For all other keys, treat them as single value entries.
+					totalKeysChecked++;
 					const valueStr = await redisClient.get(key);
 					if (!valueStr) {
 						totalInconsistencies++;
@@ -119,17 +177,16 @@ export async function POST(request: Request) {
 						inconsistencies.push({ key, issues: ["Value is null or missing"] });
 						continue;
 					}
-					// Attempt to safely parse the Redis value.
+					// Parse the value
 					// eslint-disable-next-line @typescript-eslint/no-explicit-any
 					const parsed = safeParse<any>(valueStr);
-					if (!parsed && parsed !== 0) {
+					if ((parsed === null || parsed === undefined) && parsed !== 0) {
 						totalInconsistencies++;
 						patternIssues++;
 						inconsistencies.push({ key, issues: ["Failed to parse JSON"] });
 						continue;
 					}
 
-					// Validate record using the imported interfaces.
 					const issues: string[] = [];
 					if (key.startsWith("user:")) {
 						issues.push(...validateUserRecord(parsed));
@@ -137,7 +194,10 @@ export async function POST(request: Request) {
 						issues.push(...validateCardsRecord(parsed));
 					} else if (key.startsWith("username:")) {
 						issues.push(...validateUsernameRecord(parsed));
+					} else if (key.startsWith("analytics:")) {
+						issues.push(...validateAnalyticsMetric(parsed));
 					}
+
 					if (issues.length > 0) {
 						totalInconsistencies++;
 						patternIssues++;
