@@ -2,26 +2,49 @@ import { USER_STATS_QUERY } from "@/lib/anilist/queries";
 import { UserRecord } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
 import { Redis } from "@upstash/redis";
+import crypto from "crypto";
 
 // Background job for batch updating user stats from AniList
+export async function POST(request: Request) {
+	const QSTASH_SECRET = process.env.QSTASH_SECRET;
+	const qstashSignature = request.headers.get("x-qstash-signature");
 
-export async function GET(request: Request) {
-	try {
-		// Authorization check
-		const authHeader = request.headers.get("Authorization");
-		if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-			console.error("🔒 [Cron Job] Unauthorized cron job attempt: Missing or invalid secret");
+	if (QSTASH_SECRET) {
+		if (!qstashSignature) {
+			console.error("🔒 [Cron Job] Unauthorized: Missing QStash signature");
 			return new Response("Unauthorized", { status: 401 });
 		}
 
-		console.log("🛠️ [Cron Job] Authorized, starting background update...");
+		// Read the raw request body (as text) for signature verification.
+		const bodyText = await request.text();
+		const computedSignature = crypto
+			.createHmac("sha256", QSTASH_SECRET)
+			.update(bodyText)
+			.digest("hex");
+
+		if (computedSignature !== qstashSignature) {
+			console.error(
+				`Invalid QStash signature. Expected ${computedSignature} but got ${qstashSignature}`
+			);
+			return new Response("Unauthorized", { status: 401 });
+		}
+
+		// Rebuild the request with the body text so that downstream JSON parsing works.
+		request = new Request(request.url, {
+			...request,
+			body: bodyText,
+		});
+	}
+
+	try {
+		console.log("🛠️ [Cron Job] QStash authorized, starting background update...");
 
 		const redisClient = Redis.fromEnv();
 		const userKeys = await redisClient.keys("user:*");
 		const totalUsers = userKeys.length;
 		let processedCount = 0;
 
-		console.log(`🚀 [Cron Job] Starting cron job with ${totalUsers} users to process`);
+		console.log(`🚀 [Cron Job] Starting background update for ${totalUsers} users.`);
 
 		const ANILIST_RATE_LIMIT = 10; // Max requests per minute
 		const DELAY_MS = 60000; // 1 minute delay between batches
@@ -30,10 +53,11 @@ export async function GET(request: Request) {
 		while (processedCount < totalUsers) {
 			const batchStartTime = Date.now();
 			const batch = userKeys.slice(processedCount, processedCount + ANILIST_RATE_LIMIT);
+
 			console.log(
 				`🔧 [Cron Job] Processing batch ${
 					Math.floor(processedCount / ANILIST_RATE_LIMIT) + 1
-				}: Users ${processedCount + 1}-${processedCount + batch.length}`
+				}: Users ${processedCount + 1}–${processedCount + batch.length}`
 			);
 
 			await Promise.all(
