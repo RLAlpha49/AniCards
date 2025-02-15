@@ -128,7 +128,7 @@ export default function HomePage() {
 							icon: Clock,
 							title: "Daily Updates",
 							description:
-								"Your stats are automatically updated every day at 12:00 AM UTC.",
+								"Your stats are automatically updated every day at least once.",
 						},
 						{
 							icon: User,
