@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import { NextRequest, NextResponse } from "next/server";
+import { Redis } from "@upstash/redis";
 
 // TODO: Fix this shit, it's not working. That damn rank circle will be the death of me. It also somehow looks like shit compared to the svg.
 
@@ -14,12 +15,16 @@ export async function POST(request: NextRequest) {
 		const { svgUrl } = await request.json();
 		if (!svgUrl) {
 			console.warn(`⚠️ [Convert API] Missing 'svgUrl' parameter from ${ip}`);
+			const analyticsClient = Redis.fromEnv();
+			analyticsClient.incr("analytics:convert_api:failed_requests").catch(() => {});
 			return NextResponse.json({ error: "Missing svgUrl parameter" }, { status: 400 });
 		}
 		console.log(`🔍 [Convert API] Fetching SVG from: ${svgUrl}`);
 		const response = await fetch(svgUrl);
 		if (!response.ok) {
 			console.error(`🔥 [Convert API] Failed to fetch SVG. HTTP status: ${response.status}`);
+			const analyticsClient = Redis.fromEnv();
+			analyticsClient.incr("analytics:convert_api:failed_requests").catch(() => {});
 			return NextResponse.json({ error: "Failed to fetch SVG" }, { status: response.status });
 		}
 		let svgContent = await response.text();
@@ -210,7 +215,8 @@ export async function POST(request: NextRequest) {
 		console.log(
 			`✅ [Convert API] SVG converted to PNG successfully in ${conversionDuration}ms`
 		);
-
+		const analyticsClient = Redis.fromEnv();
+		analyticsClient.incr("analytics:convert_api:successful_requests").catch(() => {});
 		return NextResponse.json({ pngDataUrl });
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	} catch (error: any) {
@@ -221,6 +227,8 @@ export async function POST(request: NextRequest) {
 		if (error.stack) {
 			console.error(`💥 [Convert API] Stack Trace: ${error.stack}`);
 		}
+		const analyticsClient = Redis.fromEnv();
+		analyticsClient.incr("analytics:convert_api:failed_requests").catch(() => {});
 		return NextResponse.json({ error: "Conversion failed" }, { status: 500 });
 	}
 }

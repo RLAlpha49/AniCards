@@ -22,6 +22,8 @@ export async function GET(request: Request) {
 	const numericUserId = parseInt(userId);
 	if (isNaN(numericUserId)) {
 		console.warn(`⚠️ [Cards API] Invalid user ID format: ${userId}`);
+		const analyticsClient = Redis.fromEnv();
+		analyticsClient.incr("analytics:cards_api:failed_requests").catch(() => {});
 		return NextResponse.json({ error: "Invalid user ID format" }, { status: 400 });
 	}
 
@@ -52,6 +54,9 @@ export async function GET(request: Request) {
 				`⏳ [Cards API] Slow response time: ${duration}ms for user ${numericUserId}`
 			);
 		}
+		// Increment successful requests counter
+		const analyticsClient = Redis.fromEnv();
+		analyticsClient.incr("analytics:cards_api:successful_requests").catch(() => {});
 		return NextResponse.json(cardData);
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	} catch (error: any) {
@@ -62,6 +67,9 @@ export async function GET(request: Request) {
 		if (error.stack) {
 			console.error(`💥 [Cards API] Stack Trace: ${error.stack}`);
 		}
+		// Increment failed requests counter
+		const analyticsClient = Redis.fromEnv();
+		analyticsClient.incr("analytics:cards_api:failed_requests").catch(() => {});
 		return NextResponse.json({ error: "Failed to fetch cards" }, { status: 500 });
 	}
 }

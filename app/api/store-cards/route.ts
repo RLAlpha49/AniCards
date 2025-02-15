@@ -19,12 +19,16 @@ export async function POST(request: Request) {
 	const { success } = await ratelimit.limit(ip);
 	if (!success) {
 		console.warn(`🚨 [Store Cards] Rate limited IP: ${ip}`);
+		const analyticsClient = Redis.fromEnv();
+		analyticsClient.incr("analytics:store_cards:failed_requests").catch(() => {});
 		return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 	}
 
 	const authToken = request.headers.get("Authorization");
 	if (!authToken || authToken !== `Bearer ${process.env.API_AUTH_TOKEN}`) {
 		console.warn(`⚠️ [Store Cards] Invalid auth token from IP: ${ip}`);
+		const analyticsClient = Redis.fromEnv();
+		analyticsClient.incr("analytics:store_cards:failed_requests").catch(() => {});
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
 
@@ -37,6 +41,8 @@ export async function POST(request: Request) {
 
 		if (statsData?.error) {
 			console.warn(`⚠️ [Store Cards] Invalid data for user ${userId}: ${statsData.error}`);
+			const analyticsClient = Redis.fromEnv();
+			analyticsClient.incr("analytics:store_cards:failed_requests").catch(() => {});
 			return NextResponse.json(
 				{ error: "Invalid data: " + statsData.error },
 				{ status: 400 }
@@ -65,6 +71,8 @@ export async function POST(request: Request) {
 
 		const duration = Date.now() - startTime;
 		console.log(`✅ [Store Cards] Stored cards for user ${userId} in ${duration}ms`);
+		const analyticsClient = Redis.fromEnv();
+		analyticsClient.incr("analytics:store_cards:successful_requests").catch(() => {});
 
 		return NextResponse.json({
 			success: true,
@@ -77,6 +85,8 @@ export async function POST(request: Request) {
 		if (error.stack) {
 			console.error(`💥 [Store Cards] Stack Trace: ${error.stack}`);
 		}
+		const analyticsClient = Redis.fromEnv();
+		analyticsClient.incr("analytics:store_cards:failed_requests").catch(() => {});
 		return NextResponse.json({ error: "Card storage failed" }, { status: 500 });
 	}
 }

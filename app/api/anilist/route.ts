@@ -1,3 +1,4 @@
+import { Redis } from "@upstash/redis";
 import { NextResponse } from "next/server";
 
 // Proxy endpoint for AniList GraphQL API with testing simulations
@@ -82,26 +83,25 @@ export async function POST(request: Request) {
 			console.error(
 				`🔥 [AniList API] Anilist error: ${operationName} HTTP ${response.status}`
 			);
+			const analyticsClient = Redis.fromEnv();
+			analyticsClient.incr("analytics:anilist_api:failed_requests").catch(() => {});
+
 			const retryAfter = response.headers.get("retry-after");
 			const retryAfterMsg = retryAfter ? ` (Retry-After: ${retryAfter})` : "";
-			// Try to parse error details from the response before throwing
+
+			// Try to parse error details from the response
 			const errorData = await response.json();
+			const errorMessage =
+				typeof errorData.error === "object"
+					? JSON.stringify(errorData.error)
+					: errorData.error || `HTTP error! status: ${response.status}`;
+
 			if (response.status === 429) {
-				throw new Error(
-					(errorData.error || `AniList API was rate limited`) +
-						` - HTTP error! status: ${response.status}` +
-						retryAfterMsg
-				);
+				throw new Error(`${errorMessage} - Rate limited${retryAfterMsg}`);
 			} else if (response.status === 500) {
-				throw new Error(
-					(errorData.error || `AniList API server error`) +
-						` - HTTP error! status: ${response.status}` +
-						retryAfterMsg
-				);
+				throw new Error(`${errorMessage} - Server error${retryAfterMsg}`);
 			} else {
-				throw new Error(
-					(errorData.error || `HTTP error! status: ${response.status}`) + retryAfterMsg
-				);
+				throw new Error(`${errorMessage}${retryAfterMsg}`);
 			}
 		}
 
@@ -111,10 +111,14 @@ export async function POST(request: Request) {
 			console.error(
 				`🔥 [AniList API] Anilist GraphQL error: ${operationName} - ${json.errors[0].message}`
 			);
+			const analyticsClient = Redis.fromEnv();
+			analyticsClient.incr("analytics:anilist_api:failed_requests").catch(() => {});
 			throw new Error(json.errors[0].message);
 		}
 
 		console.log(`✅ [AniList API] Anilist operation ${operationName} completed successfully.`);
+		const analyticsClient = Redis.fromEnv();
+		analyticsClient.incr("analytics:anilist_api:successful_requests").catch(() => {});
 		return NextResponse.json(json.data);
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	} catch (error: any) {
@@ -129,6 +133,8 @@ export async function POST(request: Request) {
 		// Try to detect the HTTP status code from the error message (if present)
 		const statusMatch = error.message && error.message.match(/status:\s?(\d+)/);
 		const statusCode = statusMatch ? parseInt(statusMatch[1], 10) : 500;
+		const analyticsClient = Redis.fromEnv();
+		analyticsClient.incr("analytics:anilist_api:failed_requests").catch(() => {});
 		// Return the error details so the UI can show them
 		return NextResponse.json(
 			{ error: error.message || "Failed to fetch AniList data" },

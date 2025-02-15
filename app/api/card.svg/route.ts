@@ -279,6 +279,8 @@ export async function GET(request: Request) {
 	const { success } = await ratelimit.limit(ip);
 	if (!success) {
 		console.warn(`🚨 [Card SVG] Rate limit exceeded for IP: ${ip}`);
+		const analyticsClient = Redis.fromEnv();
+		analyticsClient.incr("analytics:card_svg:failed_requests").catch(() => {});
 		return new Response(svgError("Too many requests - try again later"), {
 			headers: errorHeaders(), // Use error headers (no-cache)
 			status: 200, // Still return 200 OK to display error SVG
@@ -301,6 +303,8 @@ export async function GET(request: Request) {
 	if (!userId || !cardType) {
 		const missingParam = !userId ? "userId" : "cardType";
 		console.warn(`⚠️ [Card SVG] Missing parameter: ${missingParam}`);
+		const analyticsClient = Redis.fromEnv();
+		analyticsClient.incr("analytics:card_svg:failed_requests").catch(() => {});
 		return new Response(svgError("Missing parameters"), {
 			headers: errorHeaders(),
 			status: 200, // Still return 200 OK to display error SVG
@@ -311,6 +315,8 @@ export async function GET(request: Request) {
 	const numericUserId = parseInt(userId);
 	if (isNaN(numericUserId)) {
 		console.warn(`⚠️ [Card SVG] Invalid user ID format: ${userId}`);
+		const analyticsClient = Redis.fromEnv();
+		analyticsClient.incr("analytics:card_svg:failed_requests").catch(() => {});
 		return new Response(svgError("Invalid user ID"), {
 			headers: errorHeaders(),
 			status: 200,
@@ -321,6 +327,8 @@ export async function GET(request: Request) {
 	const [baseCardType] = cardType.split("-");
 	if (!ALLOWED_CARD_TYPES.has(baseCardType)) {
 		console.warn(`⚠️ [Card SVG] Invalid card type: ${cardType}`);
+		const analyticsClient = Redis.fromEnv();
+		analyticsClient.incr("analytics:card_svg:failed_requests").catch(() => {});
 		return new Response(svgError("Invalid card type"), {
 			headers: errorHeaders(),
 			status: 200,
@@ -337,6 +345,11 @@ export async function GET(request: Request) {
 		// Explicitly check if Redis returned nothing or "null"
 		if (!cardsDataStr || cardsDataStr === "null" || !userDataStr || userDataStr === "null") {
 			console.warn(`⚠️ [Card SVG] User ${numericUserId} data not found in Redis`);
+			const analyticsClient = Redis.fromEnv();
+			analyticsClient.incr("analytics:card_svg:failed_requests").catch(() => {});
+			analyticsClient
+				.incr(`analytics:card_svg:failed_requests:${baseCardType}`)
+				.catch(() => {});
 			return new Response(svgError("User data not found"), {
 				headers: errorHeaders(), // Use error headers (no-cache)
 				status: 200, // Still return 200 OK to display error SVG
@@ -352,6 +365,11 @@ export async function GET(request: Request) {
 			console.warn(
 				`⚠️ [Card SVG] Card config for ${cardType} not found for user ${numericUserId}`
 			);
+			const analyticsClient = Redis.fromEnv();
+			analyticsClient.incr("analytics:card_svg:failed_requests").catch(() => {});
+			analyticsClient
+				.incr(`analytics:card_svg:failed_requests:${baseCardType}`)
+				.catch(() => {});
 			return new Response(svgError("Card config not found"), {
 				headers: errorHeaders(),
 				status: 200,
@@ -377,6 +395,13 @@ export async function GET(request: Request) {
 			console.log(
 				`✅ [Card SVG] Rendered ${cardType} card for ${numericUserId} in ${duration}ms`
 			);
+
+			const analyticsClient = Redis.fromEnv();
+			analyticsClient.incr("analytics:card_svg:successful_requests").catch(() => {});
+			analyticsClient
+				.incr(`analytics:card_svg:successful_requests:${baseCardType}`)
+				.catch(() => {});
+
 			return new Response(svgContent, {
 				// Return SVG response
 				headers: svgHeaders(), // Use success headers (with cache)
@@ -391,6 +416,11 @@ export async function GET(request: Request) {
 			if (error.stack) {
 				console.error(`💥 [Card SVG] Stack Trace: ${error.stack}`);
 			}
+			const analyticsClient = Redis.fromEnv();
+			analyticsClient.incr("analytics:card_svg:failed_requests").catch(() => {});
+			analyticsClient
+				.incr(`analytics:card_svg:failed_requests:${baseCardType}`)
+				.catch(() => {});
 			return new Response(svgError("Server Error"), {
 				headers: errorHeaders(), // Use error headers (no-cache)
 				status: 200, // Still return 200 OK to display error SVG
@@ -406,6 +436,8 @@ export async function GET(request: Request) {
 		if (error.stack) {
 			console.error(`💥 [Card SVG] Stack Trace: ${error.stack}`);
 		}
+		const analyticsClient = Redis.fromEnv();
+		analyticsClient.incr("analytics:card_svg:failed_requests").catch(() => {});
 		return new Response(svgError("Server Error"), {
 			headers: errorHeaders(), // Use error headers (no-cache)
 			status: 200, // Still return 200 OK to display error SVG

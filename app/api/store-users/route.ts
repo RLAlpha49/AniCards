@@ -20,6 +20,8 @@ export async function POST(request: Request) {
 	const { success } = await ratelimit.limit(ip);
 	if (!success) {
 		console.warn(`🚨 [Store Users] Rate limited IP: ${ip}`);
+		const analyticsClient = Redis.fromEnv();
+		analyticsClient.incr("analytics:store_users:failed_requests").catch(() => {});
 		return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 	}
 
@@ -27,6 +29,8 @@ export async function POST(request: Request) {
 	// Validate API authorization token
 	if (!authToken || authToken !== `Bearer ${process.env.API_AUTH_TOKEN}`) {
 		console.warn(`⚠️ [Store Users] Invalid auth token from IP: ${ip}`);
+		const analyticsClient = Redis.fromEnv();
+		analyticsClient.incr("analytics:store_users:failed_requests").catch(() => {});
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
 
@@ -87,6 +91,8 @@ export async function POST(request: Request) {
 		const duration = Date.now() - startTime;
 		console.log(`✅ [Store Users] Successfully stored user ${data.userId} [${duration}ms]`);
 
+		const analyticsClient = Redis.fromEnv();
+		analyticsClient.incr("analytics:store_users:successful_requests").catch(() => {});
 		return NextResponse.json({
 			success: true,
 			userId: data.userId,
@@ -98,6 +104,8 @@ export async function POST(request: Request) {
 		if (error.stack) {
 			console.error(`💥 [Store Users] Stack Trace: ${error.stack}`);
 		}
+		const analyticsClient = Redis.fromEnv();
+		analyticsClient.incr("analytics:store_users:failed_requests").catch(() => {});
 		return NextResponse.json({ error: "User storage failed" }, { status: 500 });
 	}
 }
