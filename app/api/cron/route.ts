@@ -2,38 +2,19 @@ import { USER_STATS_QUERY } from "@/lib/anilist/queries";
 import { UserRecord } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
 import { Redis } from "@upstash/redis";
-import crypto from "crypto";
 
 // Background job for batch updating user stats from AniList
 export async function POST(request: Request) {
-	const QSTASH_SECRET = process.env.QSTASH_SECRET;
-	const qstashSignature = request.headers.get("x-qstash-signature");
+	const CRON_SECRET = process.env.CRON_SECRET;
+	const cronSecretHeader = request.headers.get("x-cron-secret");
 
-	if (QSTASH_SECRET) {
-		if (!qstashSignature) {
-			console.error("🔒 [Cron Job] Unauthorized: Missing QStash signature");
+	if (CRON_SECRET) {
+		if (cronSecretHeader !== CRON_SECRET) {
+			console.error("🔒 [Cron Job] Unauthorized: Invalid Cron secret");
 			return new Response("Unauthorized", { status: 401 });
 		}
-
-		// Read the raw request body (as text) for signature verification.
-		const bodyText = await request.text();
-		const computedSignature = crypto
-			.createHmac("sha256", QSTASH_SECRET)
-			.update(bodyText)
-			.digest("hex");
-
-		if (computedSignature !== qstashSignature) {
-			console.error(
-				`Invalid QStash signature. Expected ${computedSignature} but got ${qstashSignature}`
-			);
-			return new Response("Unauthorized", { status: 401 });
-		}
-
-		// Rebuild the request with the body text so that downstream JSON parsing works.
-		request = new Request(request.url, {
-			...request,
-			body: bodyText,
-		});
+	} else {
+		console.warn("No CRON_SECRET env variable set. Skipping authorization check.");
 	}
 
 	try {
