@@ -23,123 +23,109 @@ export async function POST(request: Request) {
 		const redisClient = Redis.fromEnv();
 		const userKeys = await redisClient.keys("user:*");
 		const totalUsers = userKeys.length;
-		let processedCount = 0;
 
-		console.log(`🚀 [Cron Job] Starting background update for ${totalUsers} users.`);
+		// Fetch and parse user records from Redis
+		const userRecords = await Promise.all(
+			userKeys.map(async (key) => {
+				const userDataStr = await redisClient.get(key);
+				if (userDataStr) {
+					const user = safeParse<UserRecord>(userDataStr);
+					return { key, user };
+				} else {
+					return null;
+				}
+			})
+		);
 
-		const ANILIST_RATE_LIMIT = 10; // Max requests per minute
-		const DELAY_MS = 60000; // 1 minute delay between batches
+		// Filter out missing records
+		const validUsers = userRecords.filter(
+			(x): x is { key: string; user: UserRecord } => x !== null
+		);
 
-		// Process users in rate-limited batches
-		while (processedCount < totalUsers) {
-			const batchStartTime = Date.now();
-			const batch = userKeys.slice(processedCount, processedCount + ANILIST_RATE_LIMIT);
+		// Sort by updatedAt (oldest first)
+		validUsers.sort((a, b) => {
+			const dateA = new Date(a.user.updatedAt || 0).getTime();
+			const dateB = new Date(b.user.updatedAt || 0).getTime();
+			return dateA - dateB;
+		});
 
-			console.log(
-				`🔧 [Cron Job] Processing batch ${
-					Math.floor(processedCount / ANILIST_RATE_LIMIT) + 1
-				}: Users ${processedCount + 1}–${processedCount + batch.length}`
-			);
-
-			await Promise.all(
-				batch.map(async (key) => {
-					try {
-						const userDataStr = await redisClient.get(key);
-						if (userDataStr) {
-							const userData: UserRecord = safeParse<UserRecord>(userDataStr);
-							console.log(
-								`👤 [Cron Job] User ${userData.userId} (${
-									userData.username || "no username"
-								}): Starting update`
-							);
-
-							// Retry failed requests up to 3 times
-							let retries = 3;
-							while (retries > 0) {
-								try {
-									console.log(
-										`🔄 [Cron Job] User ${userData.userId}: Attempt ${
-											4 - retries
-										}/3 - Fetching AniList data`
-									);
-									const statsResponse = await fetch(
-										"https://graphql.anilist.co",
-										{
-											method: "POST",
-											headers: { "Content-Type": "application/json" },
-											body: JSON.stringify({
-												query: USER_STATS_QUERY,
-												variables: { userId: userData.userId },
-											}),
-										}
-									);
-
-									if (!statsResponse.ok) {
-										throw new Error(`HTTP ${statsResponse.status}`);
-									}
-
-									const statsData = await statsResponse.json();
-									userData.stats = statsData.data;
-									userData.updatedAt = new Date().toISOString();
-									await redisClient.set(key, JSON.stringify(userData));
-									console.log(
-										`✅ [Cron Job] User ${userData.userId}: Successfully updated`
-									);
-									break; // Break out of the retry loop on success
-									// eslint-disable-next-line @typescript-eslint/no-explicit-any
-								} catch (error: any) {
-									retries--;
-									if (error.stack) {
-										console.error(
-											`💥 [Cron Job] User ${userData.userId}: Error detail: ${error.stack}`
-										);
-									}
-									if (retries === 0) {
-										console.error(
-											`🔥 [Cron Job] User ${userData.userId}: Final attempt failed - ${error.message}`
-										);
-									} else {
-										console.warn(
-											`⚠️ [Cron Job] User ${userData.userId}: Retrying (${retries} left) - ${error.message}`
-										);
-									}
-								}
-							}
-						} else {
-							console.warn(`⚠️ [Cron Job] User data not found for key ${key}`);
-						}
-						// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					} catch (error: any) {
-						console.error(
-							`🔥 [Cron Job] Error processing key ${key}: ${error.message}`
-						);
-						if (error.stack) {
-							console.error(`💥 [Cron Job] Stack Trace: ${error.stack}`);
-						}
-					}
-				})
-			);
-
-			const batchDuration = Date.now() - batchStartTime;
-			console.log(
-				`✅ [Cron Job] Completed batch in ${batchDuration}ms. Total processed: ${
-					processedCount + batch.length
-				}/${totalUsers}`
-			);
-			processedCount += batch.length;
-
-			if (processedCount < totalUsers) {
-				console.log(
-					`⏳ [Cron Job] Waiting ${DELAY_MS / 1000} seconds before next batch...`
-				);
-				await new Promise((resolve) => setTimeout(resolve, DELAY_MS));
-			}
-		}
+		// Select the 10 oldest users
+		const ANILIST_RATE_LIMIT = 10;
+		const batch = validUsers.slice(0, ANILIST_RATE_LIMIT);
 
 		console.log(
-			`🎉 [Cron Job] Cron job completed successfully. Total updated: ${processedCount}/${totalUsers}`
+			`🚀 [Cron Job] Starting background update for ${batch.length} users (10 oldest out of ${totalUsers}).`
 		);
-		return new Response(`Updated ${processedCount}/${totalUsers} users successfully`, {
+
+		await Promise.all(
+			batch.map(async ({ key, user }) => {
+				try {
+					console.log(
+						`👤 [Cron Job] User ${user.userId} (${
+							user.username || "no username"
+						}): Starting update`
+					);
+
+					let retries = 3;
+					while (retries > 0) {
+						try {
+							console.log(
+								`🔄 [Cron Job] User ${user.userId}: Attempt ${
+									4 - retries
+								}/3 - Fetching AniList data`
+							);
+							const statsResponse = await fetch("https://graphql.anilist.co", {
+								method: "POST",
+								headers: { "Content-Type": "application/json" },
+								body: JSON.stringify({
+									query: USER_STATS_QUERY,
+									variables: { userId: user.userId },
+								}),
+							});
+
+							if (!statsResponse.ok) {
+								throw new Error(`HTTP ${statsResponse.status}`);
+							}
+
+							const statsData = await statsResponse.json();
+							user.stats = statsData.data;
+							user.updatedAt = new Date().toISOString();
+							await redisClient.set(key, JSON.stringify(user));
+							console.log(`✅ [Cron Job] User ${user.userId}: Successfully updated`);
+							break;
+							// eslint-disable-next-line @typescript-eslint/no-explicit-any
+						} catch (error: any) {
+							retries--;
+							if (error.stack) {
+								console.error(
+									`💥 [Cron Job] User ${user.userId}: Error detail: ${error.stack}`
+								);
+							}
+							if (retries === 0) {
+								console.error(
+									`🔥 [Cron Job] User ${user.userId}: Final attempt failed - ${error.message}`
+								);
+							} else {
+								console.warn(
+									`⚠️ [Cron Job] User ${user.userId}: Retrying (${retries} left) - ${error.message}`
+								);
+							}
+						}
+					}
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				} catch (error: any) {
+					console.error(`🔥 [Cron Job] Error processing key ${key}: ${error.message}`);
+					if (error.stack) {
+						console.error(`💥 [Cron Job] Stack Trace: ${error.stack}`);
+					}
+				}
+			})
+		);
+
+		console.log(
+			`🎉 [Cron Job] Cron job completed successfully. Processed ${batch.length} users out of total ${totalUsers} users.`
+		);
+		return new Response(`Updated ${batch.length}/${totalUsers} users successfully`, {
 			status: 200,
 		});
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
