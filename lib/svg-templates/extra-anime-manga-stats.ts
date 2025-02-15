@@ -13,7 +13,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
 	showPieChart?: boolean;
 }) => {
 	const svgWidth = data.showPieChart ? 340 : 280;
-	const viewBoxWidth = data.showPieChart ? 350 : 280;
+	const viewBoxWidth = data.showPieChart ? 340 : 280;
 	const rectWidth = data.showPieChart ? 339 : 279;
 
 	const statsContentWithoutPie = data.stats
