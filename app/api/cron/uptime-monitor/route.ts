@@ -23,7 +23,7 @@ export async function POST(request: Request) {
 		"/contact",
 		"/settings",
 		"/projects",
-		"/License",
+		"/license",
 		"/user?username=Alpha49",
 	];
 	const urls = routes.map((route) => `${baseUrl}${route}`);
