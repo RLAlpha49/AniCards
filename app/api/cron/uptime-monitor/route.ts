@@ -17,15 +17,7 @@ export async function POST(request: Request) {
 
 	// Define list of routes to monitor
 	const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://anicards.alpha49.com";
-	const routes = [
-		"/",
-		"/search",
-		"/contact",
-		"/settings",
-		"/projects",
-		"/license",
-		"/user?username=Alpha49",
-	];
+	const routes = ["/", "/search", "/contact", "/settings", "/projects", "/license"];
 	const urls = routes.map((route) => `${baseUrl}${route}`);
 
 	// Function to check a single route
