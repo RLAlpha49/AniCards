@@ -370,7 +370,7 @@ export async function GET(request: Request) {
 			analyticsClient
 				.incr(`analytics:card_svg:failed_requests:${baseCardType}`)
 				.catch(() => {});
-			return new Response(svgError("Card config not found"), {
+			return new Response(svgError("Card config not found. Try to regenerate the card."), {
 				headers: errorHeaders(),
 				status: 200,
 			});

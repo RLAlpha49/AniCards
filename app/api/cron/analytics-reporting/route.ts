@@ -71,8 +71,8 @@ export async function POST(request: Request) {
 			generatedAt: new Date().toISOString(),
 		};
 
-		// Save the report into the database.
-		await redisClient.lpush("analytics:reports", JSON.stringify(report));
+		// Save the report into the list by appending to the tail of the list.
+		await redisClient.rpush("analytics:reports", JSON.stringify(report));
 
 		const duration = Date.now() - startTime;
 		console.log(`🛠️ [Analytics & Reporting] Job completed in ${duration}ms`);
