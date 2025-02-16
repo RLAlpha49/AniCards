@@ -230,7 +230,7 @@ export async function POST(request: Request) {
 		};
 
 		// Save the validation report into the database (Redis list "data_validation:reports")
-		await redisClient.lpush("data_validation:reports", JSON.stringify(report));
+		await redisClient.rpush("data_validation:reports", JSON.stringify(report));
 
 		// Return the report as the response
 		return new Response(JSON.stringify(report), {
