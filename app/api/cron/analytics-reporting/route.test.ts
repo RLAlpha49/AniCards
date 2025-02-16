@@ -3,11 +3,11 @@ import { POST } from "./route";
 // Set up mocks for @upstash/redis.
 const mockKeys = jest.fn();
 const mockGet = jest.fn();
-const mockLpush = jest.fn();
+const mockRpush = jest.fn();
 const fakeRedisClient = {
 	keys: mockKeys,
 	get: mockGet,
-	lpush: mockLpush,
+	rpush: mockRpush,
 };
 
 jest.mock("@upstash/redis", () => ({
@@ -52,8 +52,8 @@ describe("Analytics & Reporting Cron API POST Endpoint", () => {
 			return Promise.resolve(null);
 		});
 
-		// Simulate lpush success.
-		mockLpush.mockResolvedValueOnce(1);
+		// Simulate rpush success.
+		mockRpush.mockResolvedValueOnce(1);
 
 		const req = new Request("http://localhost/api/cron/analytics-reporting", {
 			headers: { "x-cron-secret": CRON_SECRET },
@@ -79,8 +79,8 @@ describe("Analytics & Reporting Cron API POST Endpoint", () => {
 			"analytics:anilist_api:successful_requests": 200,
 		});
 
-		// Verify that lpush was called with the "analytics:reports" key.
-		expect(mockLpush).toHaveBeenCalledWith("analytics:reports", expect.any(String));
+		// Verify that rpush was called with the "analytics:reports" key.
+		expect(mockRpush).toHaveBeenCalledWith("analytics:reports", expect.any(String));
 	});
 
 	it("should return 500 and an error message if redis keys retrieval fails", async () => {

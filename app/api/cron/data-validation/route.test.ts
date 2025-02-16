@@ -4,13 +4,13 @@ import { POST } from "./route";
 const mockKeys = jest.fn();
 const mockGet = jest.fn();
 const mockLrange = jest.fn();
-const mockLpush = jest.fn();
+const mockRpush = jest.fn();
 
 const fakeRedisClient = {
 	keys: mockKeys,
 	get: mockGet,
 	lrange: mockLrange,
-	lpush: mockLpush,
+	rpush: mockRpush,
 };
 
 jest.mock("@upstash/redis", () => ({
@@ -112,7 +112,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
 		});
 
 		// Simulate successful report saving.
-		mockLpush.mockResolvedValue(1);
+		mockRpush.mockResolvedValue(1);
 
 		const req = new Request("http://localhost/api/cron/data-validation", {
 			headers: { "x-cron-secret": CRON_SECRET },
@@ -143,7 +143,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
 		expect(report.details["analytics:*"]).toEqual({ checked: 2, inconsistencies: 0 });
 
 		// Verify that the report was saved to the Redis list.
-		expect(mockLpush).toHaveBeenCalledWith("data_validation:reports", expect.any(String));
+		expect(mockRpush).toHaveBeenCalledWith("data_validation:reports", expect.any(String));
 	});
 
 	it("should return 500 and an error message if redis keys retrieval fails", async () => {

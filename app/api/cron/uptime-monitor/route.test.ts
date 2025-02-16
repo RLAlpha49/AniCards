@@ -34,15 +34,14 @@ describe("Uptime Monitor Cron API POST Endpoint", () => {
 		expect(res.status).toBe(200);
 		const json = await res.json();
 
+		expect(json.details.length).toBe(6);
+
 		// Expect a summary string and a details array.
 		expect(json).toHaveProperty("summary");
 		expect(json).toHaveProperty("details");
 
-		// The routes list in the endpoint has 7 endpoints, so details array should have length 7.
-		expect(json.details.length).toBe(7);
-
 		// Since all fetch calls return status 200, all endpoints are up.
-		expect(json.summary).toContain("7/7 endpoints are up");
+		expect(json.summary).toContain("6/6 endpoints are up");
 	});
 
 	it("should report failures when some endpoints fail", async () => {
@@ -63,15 +62,15 @@ describe("Uptime Monitor Cron API POST Endpoint", () => {
 		expect(res.status).toBe(200);
 		const json = await res.json();
 
-		// Expect details array with 7 entries.
-		expect(json.details.length).toBe(7);
+		// Expect details array with 6 entries.
+		expect(json.details.length).toBe(6);
 
 		// Determine success count manually.
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const successCount = json.details.filter((result: any) => result.ok).length;
-		// Since one route ("/contact") fails, 6 endpoints should be up.
-		expect(successCount).toBe(6);
-		expect(json.summary).toContain("6/7 endpoints are up");
+		// Since one route ("/contact") fails, 5 endpoints should be up out of 6.
+		expect(successCount).toBe(5);
+		expect(json.summary).toContain("5/6 endpoints are up");
 
 		// Verify that among the details, the route corresponding to "/contact" has ok === false.
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
