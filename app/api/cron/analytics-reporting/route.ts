@@ -23,7 +23,9 @@ export async function POST(request: Request) {
 
 		// Define Redis key patterns to fetch analytics data.
 		const analyticsPattern = "analytics:*";
-		const analyticsKeys = await redisClient.keys(analyticsPattern);
+		const analyticsKeysAll = await redisClient.keys(analyticsPattern);
+		// Exclude keys that are not stored as string counters (e.g., "analytics:reports")
+		const analyticsKeys = analyticsKeysAll.filter(key => key !== "analytics:reports");
 
 		// Object to store raw analytics data
 		const analyticsData: Record<string, number> = {};
