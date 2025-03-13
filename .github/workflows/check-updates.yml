@@ -1,0 +1,123 @@
+name: Check for Package Updates
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      update-packages:
+        description: "Automatically update package.json (creates PR)"
+        required: false
+        type: boolean
+        default: true
+  schedule:
+    - cron: "0 0 * * 1"
+
+jobs:
+  check-updates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PULL_REQUEST_TOKEN || secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm ci
+      - name: Install npm-check-updates and tools
+        run: |
+          npm install -g npm-check-updates
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Check for package updates
+        id: check-updates
+        run: |
+          # Capture ncu output
+          NCU_OUTPUT=$(ncu)
+
+          # Use echo to write to GITHUB_STEP_SUMMARY
+          echo "## 📦 Package Updates Available" >> $GITHUB_STEP_SUMMARY
+          echo "The following packages can be updated:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$NCU_OUTPUT" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "To update all packages, run: npm run update" >> $GITHUB_STEP_SUMMARY
+
+          # Capture JSON output for PR creation
+          UPDATE_INFO=$(ncu --jsonUpgraded)
+          echo "update_info<<EOF" >> $GITHUB_OUTPUT
+          echo "$UPDATE_INFO" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          # Check if there are updates
+          if [ "$(echo "$UPDATE_INFO" | jq 'length')" -gt 0 ]; then
+            echo "has_updates=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_updates=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for existing PR
+        id: check-pr
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.update-packages == true || github.event_name != 'workflow_dispatch') && steps.check-updates.outputs.has_updates == 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          PR_EXISTS=$(gh pr list --json number,title,headRefName --jq '.[] | select(.title == "chore: update npm dependencies" and (.headRefName | startswith("deps/update-packages"))) | .number')
+          if [ -n "$PR_EXISTS" ]; then
+            echo "Found existing PR #$PR_EXISTS"
+            echo "pr_exists=true" >> $GITHUB_OUTPUT
+            echo "pr_number=$PR_EXISTS" >> $GITHUB_OUTPUT
+            PR_BRANCH=$(gh pr view $PR_EXISTS --json headRefName --jq '.headRefName')
+            echo "pr_branch=$PR_BRANCH" >> $GITHUB_OUTPUT
+          else
+            echo "No existing PR found."
+            echo "pr_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout existing PR branch
+        if: ${{ steps.check-pr.outputs.pr_exists == 'true' }}
+        run: |
+          git fetch origin
+          git checkout ${{ steps.check-pr.outputs.pr_branch }} || git checkout -b ${{ steps.check-pr.outputs.pr_branch }}
+          git pull origin ${{ steps.check-pr.outputs.pr_branch }} || true
+
+      - name: Update packages
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.update-packages == true || github.event_name != 'workflow_dispatch') && steps.check-updates.outputs.has_updates == 'true' }}
+        run: |
+          # Update packages and install
+          ncu -u
+          npm install
+
+      - name: Commit changes to existing PR
+        if: ${{ steps.check-pr.outputs.pr_exists == 'true' && steps.check-updates.outputs.has_updates == 'true' }}
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add package.json package-lock.json
+          git diff --staged --quiet || git commit -m "chore: update npm dependencies"
+          git push origin ${{ steps.check-pr.outputs.pr_branch }}
+
+      - name: Create new Pull Request
+        if: ${{ steps.check-pr.outputs.pr_exists != 'true' && (github.event_name == 'workflow_dispatch' && inputs.update-packages == true || github.event_name != 'workflow_dispatch') && steps.check-updates.outputs.has_updates == 'true' }}
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.PULL_REQUEST_TOKEN || secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update npm dependencies"
+          title: "chore: update npm dependencies"
+          body: |
+            This PR updates npm dependencies to their latest versions.
+
+            ${{ github.event_name == 'workflow_dispatch' && 'Updated manually via GitHub Actions workflow dispatch.' || 'Updated automatically via GitHub Actions after detecting available updates.' }}
+
+            <details>
+            <summary>Package Updates</summary>
+
+            ```json
+            ${{ steps.check-updates.outputs.update_info }}
+            ```
+            </details>
+          branch: deps/update-packages
+          delete-branch: true
+          base: main

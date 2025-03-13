@@ -19,7 +19,7 @@ jobs:
             security-events: write
         strategy:
             matrix:
-                language: [javascript, typescript]
+                language: [typescript]
         steps:
             - name: Checkout repository
               uses: actions/checkout@v4
