@@ -101,7 +101,7 @@ jobs:
 
       - name: Create new Pull Request
         if: ${{ steps.check-pr.outputs.pr_exists != 'true' && (github.event_name == 'workflow_dispatch' && inputs.update-packages == true || github.event_name != 'workflow_dispatch') && steps.check-updates.outputs.has_updates == 'true' }}
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.PULL_REQUEST_TOKEN || secrets.GITHUB_TOKEN }}
           commit-message: "chore: update npm dependencies"
