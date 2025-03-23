@@ -710,6 +710,12 @@ jobs:
             exit 1
           fi
           
+          # Check if the branch is behind main
+          echo "[DEBUG] Checking if branch is behind main"
+          git fetch origin main:main
+          BEHIND_COUNT=$(git rev-list --count HEAD..main 2>/dev/null || echo "0")
+          echo "[DEBUG] Branch is behind main by $BEHIND_COUNT commit(s)"
+          
           # Check if PR already exists
           echo "[DEBUG] Checking if PR already exists"
           EXISTING_PR=$(gh pr list --base main --head "$PR_BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
@@ -722,135 +728,36 @@ jobs:
             echo "[DEBUG] No existing PR found - will create new PR"
           fi
           
+          # Try to get rate limit info
+          echo "[DEBUG] Checking GitHub API rate limit"
+          RATE_LIMIT=$(gh api rate_limit 2>/dev/null || echo "Failed to get rate limit info")
+          echo "[DEBUG] Rate limit info: $(echo "$RATE_LIMIT" | jq -r '.rate.remaining' 2>/dev/null || echo "Unknown") remaining"
+          
           echo "[INFO] Creating new PR from branch $PR_BRANCH"
 
           # Build PR body with package updates information
           PR_BODY_FILE=$(mktemp)
 
-          cat > "$PR_BODY_FILE" << EOF
-          ## 📦 Dependency Updates
-
-          This PR updates npm packages to their latest versions.
-
-          <details>
-          <summary>Latest Package Updates</summary>
-
-          \`\`\`json
-          EOF
-
-          # Flag to track if we successfully added package info
-          PACKAGE_INFO_ADDED=false
-
-          # Try to use UPDATE_INFO directly if it's valid JSON
-          if [ -n "$UPDATE_INFO" ] && echo "$UPDATE_INFO" | jq empty >/dev/null 2>&1; then
-            echo "$UPDATE_INFO" >> "$PR_BODY_FILE"
-            PACKAGE_INFO_ADDED=true
-          # If UPDATE_INFO isn't valid, extract package info from ACTUAL_CHANGES and format as JSON
-          elif [ -n "$ACTUAL_CHANGES" ]; then
-            # Create a temporary file to build the JSON object
-            TEMP_JSON=$(mktemp)
-            echo "{" > "$TEMP_JSON"
-            
-            FIRST_ENTRY=true
-            while IFS= read -r line; do
-              if [ -n "$line" ]; then
-                # Extract package name and version
-                if [[ "$line" =~ \"([^\"]+)\":[[:space:]]*\"([^\"]+)\" ]]; then
-                  PACKAGE="${BASH_REMATCH[1]}"
-                  VERSION="${BASH_REMATCH[2]}"
-                  
-                  # Add comma before all but the first entry
-                  if [ "$FIRST_ENTRY" = "true" ]; then
-                    FIRST_ENTRY=false
-                  else
-                    echo "," >> "$TEMP_JSON"
-                  fi
-                  
-                  # Write as JSON key-value pair
-                  echo "  \"$PACKAGE\": \"$VERSION\"" >> "$TEMP_JSON"
-                  PACKAGE_INFO_ADDED=true
-                fi
-              fi
-            done <<< "$ACTUAL_CHANGES"
-            
-            echo "}" >> "$TEMP_JSON"
-            
-            # Copy the built JSON to the PR body file
-            cat "$TEMP_JSON" >> "$PR_BODY_FILE"
-            
-            # Clean up
-            rm -f "$TEMP_JSON" 2>/dev/null || true
+          # Create a simpler PR body for testing
+          echo "[DEBUG] Creating simplified PR body for testing"
+          echo "## 📦 Dependency Updates" > "$PR_BODY_FILE"
+          echo "" >> "$PR_BODY_FILE"
+          echo "This PR updates npm packages to their latest versions." >> "$PR_BODY_FILE"
+          
+          # Debug the API endpoint
+          echo "[DEBUG] Testing API endpoint"
+          REPO_API_TEST=$(gh api repos/$(gh repo view --json nameWithOwner -q .nameWithOwner) 2>&1 || echo "API ERROR")
+          if [[ "$REPO_API_TEST" == *"API ERROR"* ]]; then
+            echo "[DEBUG] Error accessing repository API"
           else
-            # Log what's happening for debugging
-            echo "[INFO] No valid package info found. UPDATE_INFO empty: $([[ -z "$UPDATE_INFO" ]] && echo 'yes' || echo 'no')"
-            echo "[INFO] ACTUAL_CHANGES empty: $([[ -z "$ACTUAL_CHANGES" ]] && echo 'yes' || echo 'no')"
-            # Fallback to empty object
-            echo "{}" >> "$PR_BODY_FILE"
+            echo "[DEBUG] Successfully accessed repository API"
           fi
-
-          # If no valid package info was added, add error message
-          if [ "$PACKAGE_INFO_ADDED" != "true" ]; then
-            # Remove the empty JSON object we added as fallback
-            sed -i '$ d' "$PR_BODY_FILE"
-            # Add a more informative message
-            cat >> "$PR_BODY_FILE" << EOF
-          {
-            "note": "Package updates were detected, but the specific version information couldn't be extracted for display here. Please check the workflow logs for more details."
-          }
-          EOF
-          fi
-
-          # Close the code block
-          cat >> "$PR_BODY_FILE" << EOF
-          \`\`\`
-          </details>
-          EOF
-
-          # Check for incorporated Dependabot PRs
-          if [ -n "$INCORPORATED_PRS" ]; then
-            # Create a temp file for INCORPORATED_PRS to safely process
-            DEPENDABOT_FILE=$(mktemp)
-            echo "$INCORPORATED_PRS" > "$DEPENDABOT_FILE"
-            
-            # Build list of PRs, including both newly and previously incorporated
-            PR_LIST=$(jq -r '.[] | "- PR #\(.number): \(.title) \(.already_incorporated ? "(previously incorporated)" : "")"' "$DEPENDABOT_FILE" 2>/dev/null)
-            
-            if [ -n "$PR_LIST" ]; then
-              cat >> "$PR_BODY_FILE" << EOF
-
-          <details>
-          <summary>Incorporated Dependabot PRs</summary>
-
-          $PR_LIST
-          </details>
-          EOF
-            fi
-            
-            # Clean up
-            rm -f "$DEPENDABOT_FILE" 2>/dev/null || true
-          fi
-
-          cat >> "$PR_BODY_FILE" << EOF
-
-          This PR was automatically created by the dependency update workflow.
-          EOF
           
-          echo "[DEBUG] PR body file created, content length: $(wc -l < "$PR_BODY_FILE") lines"
-          
-          # Debug remote branches
-          echo "[DEBUG] List of remote branches:"
-          git branch -r
-
-          # Debug available scopes for PR creation
-          echo "[DEBUG] Testing PR creation permissions"
-          PR_TEST=$(gh api repos/$(gh repo view --json nameWithOwner -q .nameWithOwner)/pulls -X GET 2>&1 || echo "API ERROR: $?")
-          echo "[DEBUG] PR API test: ${PR_TEST:0:200}..." # Truncate to avoid large output
-
           # Create the PR using the GitHub CLI with error capture
-          echo "[DEBUG] Attempting to create PR"
+          echo "[DEBUG] Attempting to create PR with minimal options"
           PR_RESULT=$(gh pr create \
             --title "chore: update npm dependencies" \
-            --body-file "$PR_BODY_FILE" \
+            --body "Dependency Updates" \
             --base main \
             --head "$PR_BRANCH" 2>&1)
             
@@ -871,23 +778,32 @@ jobs:
             echo "[ERROR] Failed to create pull request"
             echo "[ERROR] Error message: $PR_RESULT"
             
-            # Try alternative approach with REST API
-            echo "[DEBUG] Trying alternative PR creation method with API"
-            API_RESPONSE=$(gh api repos/$(gh repo view --json nameWithOwner -q .nameWithOwner)/pulls -X POST -F title="chore: update npm dependencies" -F head="$PR_BRANCH" -F base=main -F body="$(cat "$PR_BODY_FILE")" 2>&1)
-            API_STATUS=$?
+            # Try direct API approach
+            echo "[DEBUG] Trying direct API for PR creation"
+            REPO_INFO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+            echo "[DEBUG] Repository: $REPO_INFO"
             
-            echo "[DEBUG] API response status: $API_STATUS"
-            echo "[DEBUG] API response: ${API_RESPONSE:0:200}..." # Truncate to avoid large output
-            
-            if [ $API_STATUS -eq 0 ]; then
-              PR_URL=$(echo "$API_RESPONSE" | jq -r .html_url)
-              echo "[SUCCESS] Pull request created with API: $PR_URL"
-              echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+            # Create PR using curl for maximum diagnostics
+            echo "[DEBUG] Attempting PR creation via curl"
+            CURL_RESULT=$(curl -v -X POST \
+              -H "Authorization: token $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/$REPO_INFO/pulls" \
+              -d "{\"title\":\"chore: update npm dependencies\",\"head\":\"$PR_BRANCH\",\"base\":\"main\",\"body\":\"Dependency Updates\"}" 2>&1)
               
-              PR_NUMBER=$(echo "$API_RESPONSE" | jq -r .number)
-              echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+            echo "[DEBUG] curl output: ${CURL_RESULT:0:500}..." # First 500 chars
+            
+            # If everything above fails, try the simplest gh pr creation
+            echo "[DEBUG] Trying one more time with gh pr create and minimal options"
+            FINAL_ATTEMPT=$(gh pr create --title "Update Dependencies" --body "Updates" --base main --head "$PR_BRANCH" 2>&1)
+            FINAL_STATUS=$?
+            
+            if [ $FINAL_STATUS -eq 0 ]; then
+              echo "[SUCCESS] Final attempt succeeded: $FINAL_ATTEMPT"
+              echo "pr_url=$FINAL_ATTEMPT" >> $GITHUB_OUTPUT
             else
-              echo "[ERROR] Both PR creation methods failed"
+              echo "[ERROR] All PR creation attempts failed"
+              echo "[ERROR] Final error: $FINAL_ATTEMPT"
               exit 1
             fi
           fi
