@@ -687,6 +687,10 @@ jobs:
           echo "[DEBUG] PR_BRANCH: $PR_BRANCH"
           echo "[DEBUG] Token type: ${GITHUB_TOKEN:0:3}...${GITHUB_TOKEN: -4} (first/last chars only)"
           
+          # Configure git identity if not already done
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          
           # Check token scopes
           echo "[DEBUG] Checking token permissions"
           TOKEN_INFO=$(gh auth status 2>&1 || echo "Failed to get token info")
@@ -710,11 +714,37 @@ jobs:
             exit 1
           fi
           
+          # Make sure we're on the PR branch
+          echo "[DEBUG] Ensuring we're on the PR branch"
+          CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+          if [ "$CURRENT_BRANCH" != "$PR_BRANCH" ]; then
+            echo "[DEBUG] Currently on $CURRENT_BRANCH, switching to $PR_BRANCH"
+            git checkout "$PR_BRANCH"
+          else
+            echo "[DEBUG] Already on $PR_BRANCH"
+          fi
+          
           # Check if the branch is behind main
           echo "[DEBUG] Checking if branch is behind main"
-          git fetch origin main:main
-          BEHIND_COUNT=$(git rev-list --count HEAD..main 2>/dev/null || echo "0")
+          git fetch origin main
+          BEHIND_COUNT=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo "0")
           echo "[DEBUG] Branch is behind main by $BEHIND_COUNT commit(s)"
+          
+          # If branch is behind main, merge main into it
+          if [ "$BEHIND_COUNT" -gt 0 ]; then
+            echo "[DEBUG] Branch is behind main, updating by merging main"
+            # Try to merge main into the branch
+            if git merge --no-edit origin/main; then
+              echo "[DEBUG] Successfully merged main into $PR_BRANCH"
+              # Push the updated branch
+              git push origin "$PR_BRANCH"
+              echo "[DEBUG] Pushed updated branch to origin"
+            else
+              echo "[WARNING] Merge conflict when trying to update branch with main"
+              git merge --abort
+              echo "[DEBUG] Continuing without updating branch"
+            fi
+          fi
           
           # Check if PR already exists
           echo "[DEBUG] Checking if PR already exists"
@@ -735,29 +765,20 @@ jobs:
           
           echo "[INFO] Creating new PR from branch $PR_BRANCH"
 
-          # Build PR body with package updates information
-          PR_BODY_FILE=$(mktemp)
-
-          # Create a simpler PR body for testing
-          echo "[DEBUG] Creating simplified PR body for testing"
-          echo "## 📦 Dependency Updates" > "$PR_BODY_FILE"
-          echo "" >> "$PR_BODY_FILE"
-          echo "This PR updates npm packages to their latest versions." >> "$PR_BODY_FILE"
+          # Create a very simple PR body to avoid any potential formatting issues
+          echo "[DEBUG] Creating minimal PR body for test"
+          echo "Dependency Updates" > /tmp/pr_body.txt
           
-          # Debug the API endpoint
-          echo "[DEBUG] Testing API endpoint"
-          REPO_API_TEST=$(gh api repos/$(gh repo view --json nameWithOwner -q .nameWithOwner) 2>&1 || echo "API ERROR")
-          if [[ "$REPO_API_TEST" == *"API ERROR"* ]]; then
-            echo "[DEBUG] Error accessing repository API"
-          else
-            echo "[DEBUG] Successfully accessed repository API"
-          fi
+          # Debug the repo structure
+          echo "[DEBUG] Repository structure"
+          REPO_INFO=$(gh repo view --json nameWithOwner,isPrivate,defaultBranchRef -q '{name: .nameWithOwner, private: .isPrivate, default_branch: .defaultBranchRef.name}' 2>/dev/null || echo "Failed to get repo info")
+          echo "[DEBUG] Repository info: $REPO_INFO"
           
-          # Create the PR using the GitHub CLI with error capture
-          echo "[DEBUG] Attempting to create PR with minimal options"
-          PR_RESULT=$(gh pr create \
-            --title "chore: update npm dependencies" \
-            --body "Dependency Updates" \
+          # Create the PR using GitHub CLI with maximum verbosity
+          echo "[DEBUG] Attempting to create PR with maximum verbosity"
+          GH_DEBUG=1 PR_RESULT=$(gh pr create \
+            --title "Update Dependencies" \
+            --body-file /tmp/pr_body.txt \
             --base main \
             --head "$PR_BRANCH" 2>&1)
             
@@ -778,35 +799,50 @@ jobs:
             echo "[ERROR] Failed to create pull request"
             echo "[ERROR] Error message: $PR_RESULT"
             
-            # Try direct API approach
-            echo "[DEBUG] Trying direct API for PR creation"
-            REPO_INFO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
-            echo "[DEBUG] Repository: $REPO_INFO"
+            # Detailed error analysis
+            echo "[DEBUG] Examining error in detail"
+            if [[ "$PR_RESULT" == *"A pull request already exists"* ]]; then
+              echo "[DEBUG] A pull request already exists - trying to find it"
+              # Extract the PR number if mentioned in the error
+              PR_NUM=$(echo "$PR_RESULT" | grep -oP "pull request #\K\d+" || echo "")
+              if [ -n "$PR_NUM" ]; then
+                echo "[DEBUG] Found existing PR #$PR_NUM"
+                echo "pr_number=$PR_NUM" >> $GITHUB_OUTPUT
+                echo "pr_exists=true" >> $GITHUB_OUTPUT
+                exit 0
+              fi
+            fi
             
-            # Create PR using curl for maximum diagnostics
-            echo "[DEBUG] Attempting PR creation via curl"
-            CURL_RESULT=$(curl -v -X POST \
-              -H "Authorization: token $GITHUB_TOKEN" \
-              -H "Accept: application/vnd.github.v3+json" \
-              "https://api.github.com/repos/$REPO_INFO/pulls" \
-              -d "{\"title\":\"chore: update npm dependencies\",\"head\":\"$PR_BRANCH\",\"base\":\"main\",\"body\":\"Dependency Updates\"}" 2>&1)
+            # Try direct API approach if previous attempts failed
+            echo "[DEBUG] Trying direct GitHub API for PR creation"
+            REPO_NAME=$(gh repo view --json nameWithOwner -q '.nameWithOwner')
+            echo "[DEBUG] Repository: $REPO_NAME"
+            
+            echo "[DEBUG] Creating PR with GitHub API"
+            API_RESULT=$(gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              /repos/$REPO_NAME/pulls \
+              -f title="Update Dependencies" \
+              -f head="$PR_BRANCH" \
+              -f base="main" \
+              -f body="Dependency Updates" 2>&1)
               
-            echo "[DEBUG] curl output: ${CURL_RESULT:0:500}..." # First 500 chars
+            API_STATUS=$?
+            echo "[DEBUG] API call exit code: $API_STATUS"
+            echo "[DEBUG] API response: $API_RESULT"
             
-            # If everything above fails, try the simplest gh pr creation
-            echo "[DEBUG] Trying one more time with gh pr create and minimal options"
-            FINAL_ATTEMPT=$(gh pr create --title "Update Dependencies" --body "Updates" --base main --head "$PR_BRANCH" 2>&1)
-            FINAL_STATUS=$?
-            
-            if [ $FINAL_STATUS -eq 0 ]; then
-              echo "[SUCCESS] Final attempt succeeded: $FINAL_ATTEMPT"
-              echo "pr_url=$FINAL_ATTEMPT" >> $GITHUB_OUTPUT
+            if [ $API_STATUS -eq 0 ]; then
+              PR_URL=$(echo "$API_RESULT" | jq -r .html_url)
+              echo "[SUCCESS] Pull request created via API: $PR_URL"
+              echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+              
+              PR_NUMBER=$(echo "$API_RESULT" | jq -r .number)
+              echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
             else
               echo "[ERROR] All PR creation attempts failed"
-              echo "[ERROR] Final error: $FINAL_ATTEMPT"
+              echo "[ERROR] Final API error: $API_RESULT"
               exit 1
             fi
           fi
-
-          # Clean up
-          rm -f "$PR_BODY_FILE" 2>/dev/null || true
