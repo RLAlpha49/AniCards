@@ -12,6 +12,10 @@ on:
   schedule:
     - cron: "0 0 * * *"
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   check-updates:
     runs-on: ubuntu-latest
@@ -673,7 +677,7 @@ jobs:
         id: create-pr
         if: ${{ steps.push-changes.outputs.pr_branch != '' && steps.check-pr.outputs.pr_exists != 'true' }}
         env:
-          GITHUB_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_BRANCH: ${{ steps.push-changes.outputs.pr_branch }}
           INCORPORATED_PRS: ${{ steps.check-dependabot-incorporate.outputs.incorporated_prs }}
           UPDATE_INFO: ${{ steps.check-updates.outputs.update_info }}
@@ -687,6 +691,36 @@ jobs:
           echo "[DEBUG] Checking token permissions"
           TOKEN_INFO=$(gh auth status 2>&1 || echo "Failed to get token info")
           echo "[DEBUG] Token info: $TOKEN_INFO"
+          
+          # Check if the branch exists remotely
+          echo "[DEBUG] Checking if branch exists remotely"
+          if git ls-remote --exit-code --heads origin "$PR_BRANCH" &>/dev/null; then
+            echo "[DEBUG] Branch exists remotely - OK"
+          else
+            echo "[ERROR] Branch does not exist remotely - this will cause PR creation to fail"
+            exit 1
+          fi
+          
+          # Check if the branch has commits
+          echo "[DEBUG] Checking if branch has commits"
+          COMMIT_COUNT=$(git rev-list --count HEAD 2>/dev/null || echo "0")
+          echo "[DEBUG] Branch has $COMMIT_COUNT commit(s)"
+          if [ "$COMMIT_COUNT" -eq 0 ]; then
+            echo "[ERROR] Branch has no commits - this will cause PR creation to fail"
+            exit 1
+          fi
+          
+          # Check if PR already exists
+          echo "[DEBUG] Checking if PR already exists"
+          EXISTING_PR=$(gh pr list --base main --head "$PR_BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
+          if [ -n "$EXISTING_PR" ]; then
+            echo "[DEBUG] PR already exists with number: $EXISTING_PR"
+            echo "pr_number=$EXISTING_PR" >> $GITHUB_OUTPUT
+            echo "pr_exists=true" >> $GITHUB_OUTPUT
+            exit 0
+          else
+            echo "[DEBUG] No existing PR found - will create new PR"
+          fi
           
           echo "[INFO] Creating new PR from branch $PR_BRANCH"
 
