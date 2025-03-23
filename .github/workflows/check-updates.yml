@@ -12,10 +12,6 @@ on:
   schedule:
     - cron: "0 0 * * *"
 
-permissions:
-  contents: write
-  pull-requests: write
-
 jobs:
   check-updates:
     runs-on: ubuntu-latest
@@ -683,6 +679,15 @@ jobs:
           UPDATE_INFO: ${{ steps.check-updates.outputs.update_info }}
           ACTUAL_CHANGES: ${{ steps.update-packages.outputs.actual_changes }}
         run: |
+          echo "[DEBUG] Starting PR creation step"
+          echo "[DEBUG] PR_BRANCH: $PR_BRANCH"
+          echo "[DEBUG] Token type: ${GITHUB_TOKEN:0:3}...${GITHUB_TOKEN: -4} (first/last chars only)"
+          
+          # Check token scopes
+          echo "[DEBUG] Checking token permissions"
+          TOKEN_INFO=$(gh auth status 2>&1 || echo "Failed to get token info")
+          echo "[DEBUG] Token info: $TOKEN_INFO"
+          
           echo "[INFO] Creating new PR from branch $PR_BRANCH"
 
           # Build PR body with package updates information
@@ -795,15 +800,33 @@ jobs:
 
           This PR was automatically created by the dependency update workflow.
           EOF
+          
+          echo "[DEBUG] PR body file created, content length: $(wc -l < "$PR_BODY_FILE") lines"
+          
+          # Debug remote branches
+          echo "[DEBUG] List of remote branches:"
+          git branch -r
 
-          # Create the PR using the GitHub CLI
-          PR_URL=$(gh pr create \
+          # Debug available scopes for PR creation
+          echo "[DEBUG] Testing PR creation permissions"
+          PR_TEST=$(gh api repos/$(gh repo view --json nameWithOwner -q .nameWithOwner)/pulls -X GET 2>&1 || echo "API ERROR: $?")
+          echo "[DEBUG] PR API test: ${PR_TEST:0:200}..." # Truncate to avoid large output
+
+          # Create the PR using the GitHub CLI with error capture
+          echo "[DEBUG] Attempting to create PR"
+          PR_RESULT=$(gh pr create \
             --title "chore: update npm dependencies" \
             --body-file "$PR_BODY_FILE" \
             --base main \
-            --head "$PR_BRANCH")
+            --head "$PR_BRANCH" 2>&1)
             
-          if [ $? -eq 0 ]; then
+          PR_STATUS=$?
+          PR_URL=$PR_RESULT
+          
+          echo "[DEBUG] PR creation exit code: $PR_STATUS"
+          echo "[DEBUG] PR creation output: $PR_RESULT"
+          
+          if [ $PR_STATUS -eq 0 ]; then
             echo "[SUCCESS] Pull request created: $PR_URL"
             echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
             
@@ -812,7 +835,27 @@ jobs:
             echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
           else
             echo "[ERROR] Failed to create pull request"
-            exit 1
+            echo "[ERROR] Error message: $PR_RESULT"
+            
+            # Try alternative approach with REST API
+            echo "[DEBUG] Trying alternative PR creation method with API"
+            API_RESPONSE=$(gh api repos/$(gh repo view --json nameWithOwner -q .nameWithOwner)/pulls -X POST -F title="chore: update npm dependencies" -F head="$PR_BRANCH" -F base=main -F body="$(cat "$PR_BODY_FILE")" 2>&1)
+            API_STATUS=$?
+            
+            echo "[DEBUG] API response status: $API_STATUS"
+            echo "[DEBUG] API response: ${API_RESPONSE:0:200}..." # Truncate to avoid large output
+            
+            if [ $API_STATUS -eq 0 ]; then
+              PR_URL=$(echo "$API_RESPONSE" | jq -r .html_url)
+              echo "[SUCCESS] Pull request created with API: $PR_URL"
+              echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+              
+              PR_NUMBER=$(echo "$API_RESPONSE" | jq -r .number)
+              echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+            else
+              echo "[ERROR] Both PR creation methods failed"
+              exit 1
+            fi
           fi
 
           # Clean up
