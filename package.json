@@ -27,7 +27,7 @@
     "anilist-stat-cards": "file:",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "framer-motion": "^12.7.4",
+    "framer-motion": "^12.9.2",
     "lucide-react": "^0.503.0",
     "mongodb": "^6.16.0",
     "mongoose": "^8.13.2",
