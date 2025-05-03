@@ -2,26 +2,31 @@ import { SocialStats } from "@/lib/types/card";
 import { calculateDynamicFontSize } from "../utils";
 
 export const socialStatsTemplate = (data: {
-	username: string;
-	styles: {
-		titleColor: string;
-		backgroundColor: string;
-		textColor: string;
-		circleColor: string;
-	};
-	stats: SocialStats;
-	activityHistory: { date: number; amount: number }[];
+  username: string;
+  styles: {
+    titleColor: string;
+    backgroundColor: string;
+    textColor: string;
+    circleColor: string;
+  };
+  stats: SocialStats;
+  activityHistory: { date: number; amount: number }[];
 }) => {
-	// Calculate total activity amount
-	const totalActivity = data.activityHistory.reduce((acc, curr) => acc + curr.amount, 0);
+  // Calculate total activity amount
+  const totalActivity = data.activityHistory.reduce(
+    (acc, curr) => acc + curr.amount,
+    0,
+  );
 
-	// Calculate the number of days between the earliest and latest activity
-	const dates = data.activityHistory.map((entry) => entry.date * 1000);
-	const earliestDate = Math.min(...dates);
-	const latestDate = Math.max(...dates);
-	const daysDifference = Math.ceil((latestDate - earliestDate) / (1000 * 60 * 60 * 24));
+  // Calculate the number of days between the earliest and latest activity
+  const dates = data.activityHistory.map((entry) => entry.date * 1000);
+  const earliestDate = Math.min(...dates);
+  const latestDate = Math.max(...dates);
+  const daysDifference = Math.ceil(
+    (latestDate - earliestDate) / (1000 * 60 * 60 * 24),
+  );
 
-	return `
+  return `
 <svg
   xmlns="http://www.w3.org/2000/svg"
   width="280"
@@ -45,8 +50,8 @@ export const socialStatsTemplate = (data: {
     .header { 
       fill: ${data.styles.titleColor};
       font: 600 ${calculateDynamicFontSize(
-			`${data.username}'s Social Stats`
-		)}px 'Segoe UI', Ubuntu, Sans-Serif;
+        `${data.username}'s Social Stats`,
+      )}px 'Segoe UI', Ubuntu, Sans-Serif;
       animation: fadeInAnimation 0.8s ease-in-out forwards;
     }
 

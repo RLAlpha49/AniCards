@@ -4,55 +4,55 @@ import { calculateDynamicFontSize } from "../utils";
 type MediaType = "anime" | "manga";
 
 export const mediaStatsTemplate = (data: {
-	mediaType: MediaType;
-	username: string;
-	variant?: "default" | "vertical";
-	styles: {
-		titleColor: string;
-		backgroundColor: string;
-		textColor: string;
-		circleColor: string;
-	};
-	stats: (AnimeStats | MangaStats) & {
-		previousMilestone: number;
-		currentMilestone: number;
-		dasharray: string;
-		dashoffset: string;
-	};
+  mediaType: MediaType;
+  username: string;
+  variant?: "default" | "vertical";
+  styles: {
+    titleColor: string;
+    backgroundColor: string;
+    textColor: string;
+    circleColor: string;
+  };
+  stats: (AnimeStats | MangaStats) & {
+    previousMilestone: number;
+    currentMilestone: number;
+    dasharray: string;
+    dashoffset: string;
+  };
 }) => {
-	const config = {
-		anime: {
-			title: `${data.username}'s Anime Stats`,
-			mainStat: {
-				label: "Episodes Watched",
-				value: (data.stats as AnimeStats).episodesWatched,
-				secondary: {
-					label: "Minutes Watched",
-					value: (data.stats as AnimeStats).minutesWatched,
-				},
-			},
-		},
-		manga: {
-			title: `${data.username}'s Manga Stats`,
-			mainStat: {
-				label: "Chapters Read",
-				value: (data.stats as MangaStats).chaptersRead,
-				secondary: {
-					label: "Volumes Read",
-					value: (data.stats as MangaStats).volumesRead,
-				},
-			},
-		},
-	}[data.mediaType];
+  const config = {
+    anime: {
+      title: `${data.username}'s Anime Stats`,
+      mainStat: {
+        label: "Episodes Watched",
+        value: (data.stats as AnimeStats).episodesWatched,
+        secondary: {
+          label: "Minutes Watched",
+          value: (data.stats as AnimeStats).minutesWatched,
+        },
+      },
+    },
+    manga: {
+      title: `${data.username}'s Manga Stats`,
+      mainStat: {
+        label: "Chapters Read",
+        value: (data.stats as MangaStats).chaptersRead,
+        secondary: {
+          label: "Volumes Read",
+          value: (data.stats as MangaStats).volumesRead,
+        },
+      },
+    },
+  }[data.mediaType];
 
-	return `
+  return `
 <svg
   xmlns="http://www.w3.org/2000/svg"
   width="${data.variant === "vertical" ? 260 : 450}"
   height="${data.variant === "vertical" ? 350 : 195}"
   viewBox="0 0 ${data.variant === "vertical" ? 260 : 450} ${
-		data.variant === "vertical" ? 350 : 195
-	}"
+    data.variant === "vertical" ? 350 : 195
+  }"
   fill="none"
   role="img"
   aria-labelledby="desc-id"
@@ -140,15 +140,15 @@ export const mediaStatsTemplate = (data: {
   </g>
   <g data-testid="main-card-body" transform="translate(0, 55)">
     ${
-		data.variant === "vertical"
-			? `
+      data.variant === "vertical"
+        ? `
       <g transform="translate(230, 140)">
         <text x="-100" y="-130" class="milestone" text-anchor="middle">${
-			data.stats.currentMilestone
-		}</text>
+          data.stats.currentMilestone
+        }</text>
         <text x="-100" y="-70" class="main-stat" text-anchor="middle">${
-			config.mainStat.value
-		}</text>
+          config.mainStat.value
+        }</text>
         <text x="-100" y="-10" class="label" text-anchor="middle">${config.mainStat.label}</text>
         <circle class="rank-circle-rim" cx="-100" cy="-72" r="40"></circle>
         <circle class="rank-circle" style="transform-origin: -100px -72px" cx="-100" cy="-72" r="40"></circle>
@@ -156,17 +156,23 @@ export const mediaStatsTemplate = (data: {
       <svg x="0" y="0">
         <g transform="translate(0, 150)">
           ${[
-				{ label: "Count:", value: data.stats.count },
-				{ label: `${config.mainStat.label}:`, value: config.mainStat.value },
-				{
-					label: `${config.mainStat.secondary.label}:`,
-					value: config.mainStat.secondary.value,
-				},
-				{ label: "Mean Score:", value: data.stats.meanScore },
-				{ label: "Standard Deviation:", value: data.stats.standardDeviation },
-			]
-				.map(
-					(stat, index) => `
+            { label: "Count:", value: data.stats.count },
+            {
+              label: `${config.mainStat.label}:`,
+              value: config.mainStat.value,
+            },
+            {
+              label: `${config.mainStat.secondary.label}:`,
+              value: config.mainStat.secondary.value,
+            },
+            { label: "Mean Score:", value: data.stats.meanScore },
+            {
+              label: "Standard Deviation:",
+              value: data.stats.standardDeviation,
+            },
+          ]
+            .map(
+              (stat, index) => `
             <g
               class="stagger"
               style="animation-delay: ${450 + index * 150}ms"
@@ -175,17 +181,17 @@ export const mediaStatsTemplate = (data: {
               <text class="stat" y="12.5">${stat.label}</text>
               <text class="stat" x="160" y="12.5">${stat.value}</text>
             </g>
-          `
-				)
-				.join("")}
+          `,
+            )
+            .join("")}
         </g>
       </svg>
     `
-			: `
+        : `
       <g transform="translate(375, 37.5)">
         <text x="-10" y="-50" class="milestone" text-anchor="middle" fill="${
-			data.styles.circleColor
-		}">
+          data.styles.circleColor
+        }">
           ${data.stats.currentMilestone}
         </text>
         <text x="-10" y="10" class="main-stat" text-anchor="middle" fill="${data.styles.textColor}">
@@ -200,17 +206,23 @@ export const mediaStatsTemplate = (data: {
       <svg x="0" y="0">
         <g transform="translate(0, 0)">
           ${[
-				{ label: "Count:", value: data.stats.count },
-				{ label: `${config.mainStat.label}:`, value: config.mainStat.value },
-				{
-					label: `${config.mainStat.secondary.label}:`,
-					value: config.mainStat.secondary.value,
-				},
-				{ label: "Mean Score:", value: data.stats.meanScore },
-				{ label: "Standard Deviation:", value: data.stats.standardDeviation },
-			]
-				.map(
-					(stat, index) => `
+            { label: "Count:", value: data.stats.count },
+            {
+              label: `${config.mainStat.label}:`,
+              value: config.mainStat.value,
+            },
+            {
+              label: `${config.mainStat.secondary.label}:`,
+              value: config.mainStat.secondary.value,
+            },
+            { label: "Mean Score:", value: data.stats.meanScore },
+            {
+              label: "Standard Deviation:",
+              value: data.stats.standardDeviation,
+            },
+          ]
+            .map(
+              (stat, index) => `
             <g
               class="stagger"
               style="animation-delay: ${450 + index * 150}ms"
@@ -219,13 +231,13 @@ export const mediaStatsTemplate = (data: {
               <text class="stat" y="12.5">${stat.label}</text>
               <text class="stat" x="199.01" y="12.5">${stat.value}</text>
             </g>
-          `
-				)
-				.join("")}
+          `,
+            )
+            .join("")}
         </g>
       </svg>
     `
-	}
+    }
   </g>
 </svg>`;
 };

@@ -1,11 +1,11 @@
 {
-	"headers": [
-		{
-			"source": "/api/card.svg",
-			"headers": [
-				{ "key": "CDN-Cache-Control", "value": "no-store" },
-				{ "key": "Edge-Cache-Control", "value": "no-store" }
-			]
-		}
-	]
+  "headers": [
+    {
+      "source": "/api/card.svg",
+      "headers": [
+        { "key": "CDN-Cache-Control", "value": "no-store" },
+        { "key": "Edge-Cache-Control", "value": "no-store" }
+      ]
+    }
+  ]
 }

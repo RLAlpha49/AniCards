@@ -1,0 +1,39 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Project Structure Guide
+
+This project is organized as follows:
+
+- **[app/](mdc:app)**: Main Next.js application directory. Contains route handlers, pages, and API endpoints.
+  - **[api/](mdc:app/api)**: API route handlers (e.g., [anilist](mdc:app/api/anilist/route.ts), [card.svg](mdc:app/api/card.svg/route.ts), [cards](mdc:app/api/cards/route.ts), [convert](mdc:app/api/convert/route.ts), [store-cards](mdc:app/api/store-cards/route.ts), [store-users](mdc:app/api/store-users/route.ts), [user](mdc:app/api/user/route.ts)).
+  - **[StatCards/](mdc:app/StatCards)**: Backward compatibility, e.g., [StatCards/[username]/[key].svg/route.ts](mdc:app/StatCards/[username]/[key].svg/route.ts).
+  - **[contact/](mdc:app/contact/page.tsx)**, **[license/](mdc:app/license/page.tsx)**, **[projects/](mdc:app/projects/page.tsx)**, **[search/](mdc:app/search/page.tsx)**, **[settings/](mdc:app/settings/page.tsx)**, **[user/](mdc:app/user/page.tsx)**: Main app pages.
+  - **[sitemap.xml/route.ts](mdc:app/sitemap.xml/route.ts)**: Sitemap route handler.
+  - **[layout.tsx](mdc:app/layout.tsx)**, **[page.tsx](mdc:app/page.tsx)**: App-wide layout and root page.
+
+- **[components/](mdc:components)**: Reusable React components.
+  - **[settings/](mdc:components/settings)**: Settings-related UI components.
+  - **[stat-card-generator/](mdc:components/stat-card-generator)**: Stat card generator UI components.
+  - **[ui/](mdc:components/ui)**: General UI primitives (e.g., [button.tsx](mdc:components/ui/button.tsx), [sidebar.tsx](mdc:components/ui/sidebar.tsx)).
+  - **[user/](mdc:components/user)**: User-related UI components.
+
+- **[lib/](mdc:lib)**: Utility libraries and shared logic.
+  - **[anilist/](mdc:lib/anilist)**: AniList API integration.
+  - **[svg-templates/](mdc:lib/svg-templates)**: SVG template utilities.
+  - **[utils.ts](mdc:lib/utils.ts)**: General utility functions.
+
+- **[public/](mdc:public)**: Static assets (e.g., images).
+
+- **[types/](mdc:types)**: TypeScript type definitions.
+
+- **[.github/](mdc:.github)**: GitHub workflows and configuration.
+
+- **[README.md](mdc:README.md)**, **[package.json](mdc:package.json)**, **[tsconfig.json](mdc:tsconfig.json)**: Project documentation and configuration.
+
+
+
+
+Refer to the above directories and files for navigation and understanding of the codebase structure.

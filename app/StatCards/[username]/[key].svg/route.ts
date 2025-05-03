@@ -2,7 +2,7 @@
 // It returns an SVG message to let the user know that AniCards has been updated
 
 export async function GET() {
-	const svgContent = `
+  const svgContent = `
     <svg xmlns="http://www.w3.org/2000/svg" width="300" height="150">
       <rect width="100%" height="100%" fill="#0b1622"/>
       <text x="50%" y="25%" dominant-baseline="middle" text-anchor="middle"
@@ -17,11 +17,11 @@ export async function GET() {
     </svg>
   `;
 
-	return new Response(svgContent, {
-		status: 200,
-		headers: {
-			"Content-Type": "image/svg+xml",
-			"Cache-Control": "no-cache",
-		},
-	});
+  return new Response(svgContent, {
+    status: 200,
+    headers: {
+      "Content-Type": "image/svg+xml",
+      "Cache-Control": "no-cache",
+    },
+  });
 }

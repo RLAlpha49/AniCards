@@ -13,7 +13,7 @@ import { twMerge } from "tailwind-merge";
  * @returns A single merged string of class names.
  */
 export function cn(...inputs: ClassValue[]) {
-	return twMerge(clsx(inputs));
+  return twMerge(clsx(inputs));
 }
 
 /**
@@ -26,22 +26,22 @@ export function cn(...inputs: ClassValue[]) {
  * @throws Error when the conversion process or network request fails.
  */
 export async function svgToPng(svgUrl: string): Promise<string> {
-	try {
-		// Call the conversion API with the provided SVG URL.
-		const response = await fetch("/api/convert", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ svgUrl }),
-		});
+  try {
+    // Call the conversion API with the provided SVG URL.
+    const response = await fetch("/api/convert", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ svgUrl }),
+    });
 
-		// Extract and return the PNG data URL from the API response.
-		const { pngDataUrl } = await response.json();
-		return pngDataUrl;
-	} catch (error) {
-		// Log the error for debugging and rethrow it.
-		console.error("Conversion failed:", error);
-		throw error;
-	}
+    // Extract and return the PNG data URL from the API response.
+    const { pngDataUrl } = await response.json();
+    return pngDataUrl;
+  } catch (error) {
+    // Log the error for debugging and rethrow it.
+    console.error("Conversion failed:", error);
+    throw error;
+  }
 }
 
 /**
@@ -53,8 +53,8 @@ export async function svgToPng(svgUrl: string): Promise<string> {
  * @returns A Promise that resolves when the text is successfully copied.
  */
 export function copyToClipboard(text: string): Promise<void> {
-	// Utilize the browser's native clipboard API.
-	return navigator.clipboard.writeText(text);
+  // Utilize the browser's native clipboard API.
+  return navigator.clipboard.writeText(text);
 }
 
 /**
@@ -70,21 +70,24 @@ export function copyToClipboard(text: string): Promise<void> {
  * @returns The computed font size as a string rounded to one decimal place.
  */
 export const calculateDynamicFontSize = (
-	text: string,
-	initialFontSize = 18,
-	maxWidth = 220,
-	minFontSize = 8
+  text: string,
+  initialFontSize = 18,
+  maxWidth = 220,
+  minFontSize = 8,
 ) => {
-	let fontSize = initialFontSize;
-	// Calculate a dynamic multiplier that reduces effective width per character as the text length increases.
-	const charWidthMultiplier = Math.max(0.4, 0.6 - text.length * 0.003);
+  let fontSize = initialFontSize;
+  // Calculate a dynamic multiplier that reduces effective width per character as the text length increases.
+  const charWidthMultiplier = Math.max(0.4, 0.6 - text.length * 0.003);
 
-	// Iteratively decrease the font size until the resulting width is less than the maxWidth or until the minimum font size is reached.
-	while (text.length * fontSize * charWidthMultiplier > maxWidth && fontSize > minFontSize) {
-		fontSize -= 0.1;
-	}
-	// Return the final font size formatted to one decimal place.
-	return fontSize.toFixed(1);
+  // Iteratively decrease the font size until the resulting width is less than the maxWidth or until the minimum font size is reached.
+  while (
+    text.length * fontSize * charWidthMultiplier > maxWidth &&
+    fontSize > minFontSize
+  ) {
+    fontSize -= 0.1;
+  }
+  // Return the final font size formatted to one decimal place.
+  return fontSize.toFixed(1);
 };
 
 /**
@@ -97,14 +100,14 @@ export const calculateDynamicFontSize = (
  * @returns A formatted string representing the size (e.g., "1.23 MB").
  */
 export function formatBytes(bytes: number, decimals = 2) {
-	if (bytes === 0) return "0 Bytes";
-	const k = 1024;
-	const dm = decimals < 0 ? 0 : decimals;
-	const sizes = ["Bytes", "KB", "MB", "GB"];
-	// Determine the appropriate unit based on the logarithm of the byte count.
-	const i = Math.floor(Math.log(bytes) / Math.log(k));
-	// Calculate the size in the determined unit and format it.
-	return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
+  if (bytes === 0) return "0 Bytes";
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ["Bytes", "KB", "MB", "GB"];
+  // Determine the appropriate unit based on the logarithm of the byte count.
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  // Calculate the size in the determined unit and format it.
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
 }
 
 /**
@@ -118,16 +121,16 @@ export function formatBytes(bytes: number, decimals = 2) {
  * @throws Error if JSON.parse fails.
  */
 export function safeParse<T>(data: unknown): T {
-	if (typeof data === "string") {
-		try {
-			// Attempt to parse the data string as JSON.
-			return JSON.parse(data);
-		} catch (error) {
-			// Log the failure along with the data that caused the error.
-			console.error("Failed to parse JSON:", data);
-			throw error;
-		}
-	}
-	// If data is not a string, return it as is.
-	return data as T;
+  if (typeof data === "string") {
+    try {
+      // Attempt to parse the data string as JSON.
+      return JSON.parse(data);
+    } catch (error) {
+      // Log the failure along with the data that caused the error.
+      console.error("Failed to parse JSON:", data);
+      throw error;
+    }
+  }
+  // If data is not a string, return it as is.
+  return data as T;
 }

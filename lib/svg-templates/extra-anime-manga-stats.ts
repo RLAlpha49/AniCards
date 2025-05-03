@@ -1,68 +1,68 @@
 import { calculateDynamicFontSize } from "../utils";
 
 export const extraAnimeMangaStatsTemplate = (data: {
-	username: string;
-	styles: {
-		titleColor: string;
-		backgroundColor: string;
-		textColor: string;
-		circleColor: string;
-	};
-	format: string;
-	stats: { name: string; count: number }[];
-	showPieChart?: boolean;
+  username: string;
+  styles: {
+    titleColor: string;
+    backgroundColor: string;
+    textColor: string;
+    circleColor: string;
+  };
+  format: string;
+  stats: { name: string; count: number }[];
+  showPieChart?: boolean;
 }) => {
-	const svgWidth = data.showPieChart ? 340 : 280;
-	const viewBoxWidth = data.showPieChart ? 340 : 280;
-	const rectWidth = data.showPieChart ? 339 : 279;
+  const svgWidth = data.showPieChart ? 340 : 280;
+  const viewBoxWidth = data.showPieChart ? 340 : 280;
+  const rectWidth = data.showPieChart ? 339 : 279;
 
-	const statsContentWithoutPie = data.stats
-		.map(
-			(stat, index) => `
+  const statsContentWithoutPie = data.stats
+    .map(
+      (stat, index) => `
       <g class="stagger" style="animation-delay: ${450 + index * 150}ms" transform="translate(25, ${
-				index * 25
-			})">
+        index * 25
+      })">
         <text class="stat.bold" y="12.5">${stat.name}:</text>
         <text class="stat.bold" x="199.01" y="12.5">${stat.count}</text>
       </g>
-    `
-		)
-		.join("");
+    `,
+    )
+    .join("");
 
-	const statsContentWithPie = data.stats
-		.map(
-			(stat, index) => `
+  const statsContentWithPie = data.stats
+    .map(
+      (stat, index) => `
           <g class="stagger" style="animation-delay: ${
-				450 + index * 150
-			}ms" transform="translate(0, ${index * 25})">
+            450 + index * 150
+          }ms" transform="translate(0, ${index * 25})">
             <rect x="-20" y="2" width="12" height="12" fill="${getColorByIndex(
-				index,
-				data.styles.circleColor
-			)}" />
+              index,
+              data.styles.circleColor,
+            )}" />
             <text class="stat" y="12.5">${stat.name}:</text>
             <text class="stat" x="125" y="12.5">${stat.count}</text>
           </g>
-        `
-		)
-		.join("");
+        `,
+    )
+    .join("");
 
-	const pieChartContent = (() => {
-		const total = data.stats.reduce((acc, stat) => acc + stat.count, 0);
-		let currentAngle = 0;
-		return data.stats
-			.map((stat, index) => {
-				const angle = (stat.count / total) * 360;
-				const startAngle = currentAngle;
-				currentAngle += angle;
+  const pieChartContent = (() => {
+    const total = data.stats.reduce((acc, stat) => acc + stat.count, 0);
+    let currentAngle = 0;
+    return data.stats
+      .map((stat, index) => {
+        const angle = (stat.count / total) * 360;
+        const startAngle = currentAngle;
+        currentAngle += angle;
 
-				const cx = 40,
-					cy = 40,
-					r = 40;
-				const startRadians = ((startAngle - 90) * Math.PI) / 180;
-				const endRadians = ((currentAngle - 90) * Math.PI) / 180;
-				const largeArc = angle > 180 ? 1 : 0;
+        const cx = 40,
+          cy = 40,
+          r = 40;
+        const startRadians = ((startAngle - 90) * Math.PI) / 180;
+        const endRadians = ((currentAngle - 90) * Math.PI) / 180;
+        const largeArc = angle > 180 ? 1 : 0;
 
-				return `
+        return `
               <path
                 d="M ${cx} ${cy}
                   L ${cx + r * Math.cos(startRadians)} ${cy + r * Math.sin(startRadians)}
@@ -77,12 +77,12 @@ export const extraAnimeMangaStatsTemplate = (data: {
                 style="animation-delay: ${450 + index * 150}ms"
               />
             `;
-			})
-			.join("");
-	})();
+      })
+      .join("");
+  })();
 
-	const mainStatsContent = data.showPieChart
-		? `
+  const mainStatsContent = data.showPieChart
+    ? `
         <g transform="translate(45, 0)">
           ${statsContentWithPie}
         </g>
@@ -90,9 +90,9 @@ export const extraAnimeMangaStatsTemplate = (data: {
           ${pieChartContent}
         </g>
       `
-		: statsContentWithoutPie;
+    : statsContentWithoutPie;
 
-	return `
+  return `
     <svg
       xmlns="http://www.w3.org/2000/svg"
       width="${svgWidth}"
@@ -111,8 +111,8 @@ export const extraAnimeMangaStatsTemplate = (data: {
         .header { 
           fill: ${data.styles.titleColor};
           font: 600 ${calculateDynamicFontSize(
-				`${data.username}'s ${data.format}`
-			)}px 'Segoe UI', Ubuntu, Sans-Serif;
+            `${data.username}'s ${data.format}`,
+          )}px 'Segoe UI', Ubuntu, Sans-Serif;
           animation: fadeInAnimation 0.8s ease-in-out forwards;
         }
         
@@ -170,48 +170,48 @@ export const extraAnimeMangaStatsTemplate = (data: {
 };
 
 const getColorByIndex = (index: number, baseColor: string) => {
-	// Convert base color to HSL for easy manipulation
-	const hexToHSL = (hex: string) => {
-		const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)!;
-		const r = parseInt(result[1], 16) / 255;
-		const g = parseInt(result[2], 16) / 255;
-		const b = parseInt(result[3], 16) / 255;
+  // Convert base color to HSL for easy manipulation
+  const hexToHSL = (hex: string) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)!;
+    const r = parseInt(result[1], 16) / 255;
+    const g = parseInt(result[2], 16) / 255;
+    const b = parseInt(result[3], 16) / 255;
 
-		const max = Math.max(r, g, b),
-			min = Math.min(r, g, b);
-		let h = 0,
-			s = 0;
+    const max = Math.max(r, g, b),
+      min = Math.min(r, g, b);
+    let h = 0,
+      s = 0;
 
-		const l = (max + min) / 2;
+    const l = (max + min) / 2;
 
-		if (max !== min) {
-			const d = max - min;
-			s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-			switch (max) {
-				case r:
-					h = (g - b) / d + (g < b ? 6 : 0);
-					break;
-				case g:
-					h = (b - r) / d + 2;
-					break;
-				case b:
-					h = (r - g) / d + 4;
-					break;
-			}
-			h /= 6;
-		}
-		return [h * 360, s * 100, l * 100];
-	};
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r:
+          h = (g - b) / d + (g < b ? 6 : 0);
+          break;
+        case g:
+          h = (b - r) / d + 2;
+          break;
+        case b:
+          h = (r - g) / d + 4;
+          break;
+      }
+      h /= 6;
+    }
+    return [h * 360, s * 100, l * 100];
+  };
 
-	const [h, s, l] = hexToHSL(baseColor);
-	const variations = [
-		{ s: s * 0.8, l: l * 1.2 }, // Lightest
-		{ s: s, l: l }, // Base
-		{ s: s * 1.2, l: l * 0.8 },
-		{ s: s * 1.4, l: l * 0.6 },
-		{ s: s * 1.6, l: l * 0.4 }, // Darkest
-	];
+  const [h, s, l] = hexToHSL(baseColor);
+  const variations = [
+    { s: s * 0.8, l: l * 1.2 }, // Lightest
+    { s: s, l: l }, // Base
+    { s: s * 1.2, l: l * 0.8 },
+    { s: s * 1.4, l: l * 0.6 },
+    { s: s * 1.6, l: l * 0.4 }, // Darkest
+  ];
 
-	const variation = variations[index % variations.length];
-	return `hsl(${h}, ${Math.min(variation.s, 100)}%, ${Math.min(variation.l, 100)}%)`;
+  const variation = variations[index % variations.length];
+  return `hsl(${h}, ${Math.min(variation.s, 100)}%, ${Math.min(variation.l, 100)}%)`;
 };
