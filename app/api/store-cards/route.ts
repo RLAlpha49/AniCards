@@ -72,6 +72,7 @@ export async function POST(request: Request) {
         backgroundColor: card.backgroundColor,
         textColor: card.textColor,
         circleColor: card.circleColor,
+        showFavorites: card.showFavorites,
       })),
       updatedAt: new Date().toISOString(),
     };

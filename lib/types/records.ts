@@ -71,6 +71,22 @@ export interface UserStatistics {
 }
 
 export interface UserSection {
+  favourites: {
+    staff: {
+      nodes: {
+        id: number;
+        name: {
+          full: string;
+        };
+      }[];
+    };
+    studios: {
+      nodes: {
+        id: number;
+        name: string;
+      }[];
+    };
+  };
   statistics: UserStatistics;
 }
 
@@ -160,6 +176,8 @@ export interface CardConfig {
   textColor: string;
   // Circle color, for any circular elements in the card.
   circleColor: string;
+  // Whether to show favorites (pink heart) for this card
+  showFavorites?: boolean;
 }
 
 /**

@@ -15,6 +15,7 @@ interface StatCardPreviewProps {
   onClose: () => void;
   cardType: string;
   variation?: string;
+  showFavorites?: boolean;
 }
 
 export const displayNames: { [key: string]: string } = {
@@ -37,6 +38,7 @@ export function StatCardPreview({
   onClose,
   cardType,
   variation,
+  showFavorites = false,
 }: StatCardPreviewProps) {
   const [isLoading, setIsLoading] = useState(true);
 
@@ -50,6 +52,7 @@ export function StatCardPreview({
     userId: "542244",
     variation: effectiveVariation,
   });
+  if (showFavorites) urlParams.append("showFavorites", "true");
   const previewUrl = `${baseUrl}?${urlParams.toString()}`;
 
   return (
