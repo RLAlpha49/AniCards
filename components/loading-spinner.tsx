@@ -33,7 +33,7 @@ export function LoadingSpinner({
         transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
         className={cn(sizes[size], className, "drop-shadow-lg")}
       >
-        <svg className="w-full h-full" viewBox="0 0 24 24">
+        <svg className="h-full w-full" viewBox="0 0 24 24">
           {/* Define a gradient for the animated arc */}
           <defs>
             <linearGradient
@@ -100,7 +100,7 @@ export function LoadingOverlay({
   text = "Generating your cards...",
 }: LoadingOverlayProps) {
   return (
-    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-[999]">
+    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-background/80 backdrop-blur-sm">
       <div className="flex flex-col items-center gap-4">
         <LoadingSpinner size="lg" className="text-primary" />
         <motion.p

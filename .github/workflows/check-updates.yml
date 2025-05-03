@@ -681,7 +681,7 @@ jobs:
           # Configure git identity if not already done
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          
+
           # Make sure we're on the PR branch
           echo "[DEBUG] Ensuring we're on the PR branch"
           CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
@@ -691,13 +691,13 @@ jobs:
           else
             echo "[DEBUG] Already on $PR_BRANCH"
           fi
-          
+
           # Check if the branch is behind main
           echo "[DEBUG] Checking if branch is behind main"
           git fetch origin main
           BEHIND_COUNT=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo "0")
           echo "[DEBUG] Branch is behind main by $BEHIND_COUNT commit(s)"
-          
+
           # If branch is behind main, merge main into it
           if [ "$BEHIND_COUNT" -gt 0 ]; then
             echo "[DEBUG] Branch is behind main, updating by merging main"
