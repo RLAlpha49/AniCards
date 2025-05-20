@@ -96,12 +96,36 @@ function errorHeaders() {
   };
 }
 
+function getFavoritesForCardType(
+  favoritesData: unknown,
+  baseCardType: string,
+): string[] {
+  if (!favoritesData || typeof favoritesData !== "object") return [];
+  const fav = favoritesData as {
+    staff?: { nodes: { name: { full: string } }[] };
+    studios?: { nodes: { name: string }[] };
+    characters?: { nodes: { name: { full: string } }[] };
+  };
+  switch (baseCardType) {
+    case "animeVoiceActors":
+      return fav.characters?.nodes?.map((c) => c.name.full) ?? [];
+    case "animeStudios":
+      return fav.studios?.nodes?.map((s) => s.name) ?? [];
+    case "animeStaff":
+    case "mangaStaff":
+      return fav.staff?.nodes?.map((s) => s.name.full) ?? [];
+    default:
+      return [];
+  }
+}
+
 // Function to generate SVG content based on card configuration and user stats
 function generateCardSVG(
   cardConfig: CardConfig,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   userStats: any,
   variant: "default" | "vertical" | "pie",
+  favorites?: string[],
 ) {
   // Basic validation: card config and user stats must be present
   if (!cardConfig || !userStats?.stats?.User?.statistics?.anime) {
@@ -273,6 +297,7 @@ function generateCardSVG(
         format: displayNames[baseCardType],
         stats: items,
         showPieChart: showPieChart,
+        favorites: favorites,
       });
       break;
     // Default case for unsupported card types
@@ -307,6 +332,7 @@ export async function GET(request: Request) {
   const userId = searchParams.get("userId");
   const cardType = searchParams.get("cardType");
   const variationParam = searchParams.get("variation");
+  const showFavoritesParam = searchParams.get("showFavorites");
   const variant =
     variationParam === "vertical"
       ? "vertical"
@@ -389,7 +415,10 @@ export async function GET(request: Request) {
 
     // Find the specific card configuration from the stored cards data
     const cardConfig = cardDoc.cards.find(
-      (c: CardConfig) => c.cardName === cardType,
+      (c: CardConfig) =>
+        c.cardName === cardType &&
+        (c.variation === variationParam ||
+          (!variationParam && c.variation === "default")),
     );
     if (!cardConfig) {
       console.warn(
@@ -415,11 +444,33 @@ export async function GET(request: Request) {
       `🎨 [Card SVG] Generating ${cardType} (${variant}) SVG for user ${numericUserId}`,
     );
     try {
+      let favorites: string[] = [];
+      // Use showFavorites from the query param if present, otherwise fall back to card config
+      let useFavorites: boolean;
+      if (showFavoritesParam !== null) {
+        useFavorites = showFavoritesParam === "true";
+      } else {
+        useFavorites = !!cardConfig.showFavorites;
+      }
+      if (
+        useFavorites &&
+        [
+          "animeVoiceActors",
+          "animeStudios",
+          "animeStaff",
+          "mangaStaff",
+        ].includes(baseCardType)
+      ) {
+        // Use favorites from userDoc.stats.User.favourites
+        const favoritesData = userDoc?.stats?.User?.favourites ?? {};
+        favorites = getFavoritesForCardType(favoritesData, baseCardType);
+      }
       // Generate SVG content using generateCardSVG function
       const svgContent = generateCardSVG(
         cardConfig,
         userDoc as unknown as UserStats,
         variant,
+        favorites,
       );
       const duration = Date.now() - startTime; // Calculate generation duration
       if (duration > 1500) {

@@ -6,14 +6,28 @@ interface SubmitParams {
   username: string;
   selectedCards: string[];
   colors: string[];
+  showFavoritesByCard: Record<string, boolean>;
 }
+
+// Only these card types support showFavorites
+const FAVORITE_CARD_IDS = [
+  "animeVoiceActors",
+  "animeStudios",
+  "animeStaff",
+  "mangaStaff",
+];
 
 export function useStatCardSubmit() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const router = useRouter();
 
-  const submit = async ({ username, selectedCards, colors }: SubmitParams) => {
+  const submit = async ({
+    username,
+    selectedCards,
+    colors,
+    showFavoritesByCard,
+  }: SubmitParams) => {
     setLoading(true);
     setError(null);
 
@@ -85,7 +99,7 @@ export function useStatCardSubmit() {
             cards: selectedCards.map((cardId) => {
               const [cardName, rawVariation] = cardId.split("-");
               const variation = rawVariation ? rawVariation : "default";
-              return {
+              const baseConfig = {
                 cardName,
                 variation,
                 titleColor: colors[0],
@@ -93,6 +107,13 @@ export function useStatCardSubmit() {
                 textColor: colors[2],
                 circleColor: colors[3],
               };
+              if (FAVORITE_CARD_IDS.includes(cardName)) {
+                return {
+                  ...baseConfig,
+                  showFavorites: showFavoritesByCard[cardName] || false,
+                };
+              }
+              return baseConfig;
             }),
           }),
         }),

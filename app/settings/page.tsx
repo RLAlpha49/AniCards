@@ -29,6 +29,15 @@ export default function SettingsPage() {
   const [defaultVariants, setDefaultVariants] = useState<
     Record<string, string>
   >({});
+  const [defaultShowFavoritesByCard, setDefaultShowFavoritesByCard] = useState<
+    Record<string, boolean>
+  >(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("anicards-defaultShowFavoritesByCard");
+      if (saved) return JSON.parse(saved).value;
+    }
+    return {};
+  });
 
   // Listen for local storage changes from other tabs
   useEffect(() => {
@@ -89,6 +98,15 @@ export default function SettingsPage() {
       ? JSON.parse(savedVariantsString).value
       : {};
     setDefaultVariants(variantsValue);
+
+    // Load default show favorites by card
+    const savedShowFavoritesString = localStorage.getItem(
+      "anicards-defaultShowFavoritesByCard",
+    );
+    const showFavoritesValue = savedShowFavoritesString
+      ? JSON.parse(savedShowFavoritesString).value
+      : {};
+    setDefaultShowFavoritesByCard(showFavoritesValue);
   }, [cacheVersion]);
 
   if (!mounted) return null;
@@ -215,6 +233,22 @@ export default function SettingsPage() {
     setCacheVersion((v) => v + 1);
   };
 
+  // Handler for toggling show favorites default
+  const handleToggleShowFavoritesDefault = (cardId: string) => {
+    setDefaultShowFavoritesByCard((prev) => {
+      const updated = { ...prev, [cardId]: !prev[cardId] };
+      localStorage.setItem(
+        "anicards-defaultShowFavoritesByCard",
+        JSON.stringify({
+          value: updated,
+          lastModified: new Date().toISOString(),
+        }),
+      );
+      setCacheVersion((v) => v + 1);
+      return updated;
+    });
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -272,6 +306,8 @@ export default function SettingsPage() {
                 onToggleCardType={handleCardTypeToggle}
                 onToggleAllCardTypes={handleToggleAllCardTypes}
                 onVariantChange={handleVariantChange}
+                defaultShowFavoritesByCard={defaultShowFavoritesByCard}
+                onToggleShowFavoritesDefault={handleToggleShowFavoritesDefault}
               />
 
               <ResetSettings onReset={handleResetSettings} />

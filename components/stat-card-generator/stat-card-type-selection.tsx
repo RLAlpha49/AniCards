@@ -25,7 +25,16 @@ interface StatCardTypeSelectionProps {
   onSelectAll: () => void;
   onVariantChange: (cardType: string, variant: string) => void;
   onPreview: (cardType: string, variant: string) => void;
+  showFavoritesByCard: Record<string, boolean>;
+  onToggleShowFavorites: (cardId: string) => void;
 }
+
+const FAVORITE_CARD_IDS = [
+  "animeVoiceActors",
+  "animeStudios",
+  "animeStaff",
+  "mangaStaff",
+];
 
 export function StatCardTypeSelection({
   cardTypes,
@@ -36,6 +45,8 @@ export function StatCardTypeSelection({
   onSelectAll,
   onVariantChange,
   onPreview,
+  showFavoritesByCard,
+  onToggleShowFavorites,
 }: StatCardTypeSelectionProps) {
   return (
     <div className="space-y-4">
@@ -51,6 +62,8 @@ export function StatCardTypeSelection({
         {cardTypes.map((type, index) => {
           const currentVariation =
             selectedCardVariants[type.id] || (type.variations ? "default" : "");
+          const supportsFavorites = FAVORITE_CARD_IDS.includes(type.id);
+          const isFavorite = showFavoritesByCard[type.id];
           return (
             <div
               key={type.id}
@@ -74,6 +87,37 @@ export function StatCardTypeSelection({
                   className="mt-1 scale-90 transition-all duration-200 checked:scale-110 focus:ring-2 focus:ring-primary group-hover:scale-100"
                 />
                 <div className="flex-grow space-y-1">
+                  {supportsFavorites && (
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id={`show-favorites-${type.id}`}
+                        checked={!!showFavoritesByCard[type.id]}
+                        onCheckedChange={() => onToggleShowFavorites(type.id)}
+                        aria-label="Show Favorites"
+                        tabIndex={0}
+                        className="scale-90 transition-all duration-200 checked:scale-110 focus:ring-2 focus:ring-pink-500"
+                      />
+                      <Label
+                        htmlFor={`show-favorites-${type.id}`}
+                        className="cursor-pointer text-xs"
+                      >
+                        Show Favorites
+                      </Label>
+                      {isFavorite && (
+                        <svg
+                          className="inline-block h-4 w-4 align-middle text-pink-500"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                          aria-label="Favorited"
+                          tabIndex={0}
+                          role="img"
+                        >
+                          <title>Favorited</title>
+                          <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" />
+                        </svg>
+                      )}
+                    </div>
+                  )}
                   <Label
                     htmlFor={type.id}
                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"

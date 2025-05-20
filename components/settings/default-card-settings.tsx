@@ -12,6 +12,14 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { colorPresets, statCardTypes } from "@/components/stat-card-generator";
 
+// Only these card types support showFavorites
+const FAVORITE_CARD_IDS = [
+  "animeVoiceActors",
+  "animeStudios",
+  "animeStaff",
+  "mangaStaff",
+];
+
 interface DefaultCardSettingsProps {
   defaultPreset: string;
   onPresetChange: (value: string) => void;
@@ -20,6 +28,8 @@ interface DefaultCardSettingsProps {
   onToggleCardType: (cardType: string) => void;
   onToggleAllCardTypes: () => void;
   onVariantChange: (cardType: string, variant: string) => void;
+  defaultShowFavoritesByCard: Record<string, boolean>;
+  onToggleShowFavoritesDefault: (cardId: string) => void;
 }
 
 export function DefaultCardSettings({
@@ -30,6 +40,8 @@ export function DefaultCardSettings({
   onToggleCardType,
   onToggleAllCardTypes,
   onVariantChange,
+  defaultShowFavoritesByCard,
+  onToggleShowFavoritesDefault,
 }: DefaultCardSettingsProps) {
   return (
     <motion.div
@@ -79,6 +91,28 @@ export function DefaultCardSettings({
                       {type.label.split(" (")[0]}
                     </Label>
                   </div>
+                  {/* Show Favorites default toggle for eligible cards */}
+                  {FAVORITE_CARD_IDS.includes(type.id) &&
+                    defaultCardTypes.includes(type.id) && (
+                      <div className="ml-6 flex items-center space-x-2">
+                        <Checkbox
+                          id={`default-show-favorites-${type.id}`}
+                          checked={!!defaultShowFavoritesByCard[type.id]}
+                          onCheckedChange={() =>
+                            onToggleShowFavoritesDefault(type.id)
+                          }
+                          aria-label="Default Show Favorites"
+                          tabIndex={0}
+                          className="scale-90 transition-all duration-200 checked:scale-110 focus:ring-2 focus:ring-pink-500"
+                        />
+                        <Label
+                          htmlFor={`default-show-favorites-${type.id}`}
+                          className="cursor-pointer text-xs"
+                        >
+                          Show Favorites by Default
+                        </Label>
+                      </div>
+                    )}
                   {hasVariants && defaultCardTypes.includes(type.id) && (
                     <Select
                       value={currentVariant}

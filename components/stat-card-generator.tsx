@@ -22,6 +22,7 @@ import { UpdateNotice } from "@/components/stat-card-generator/update-notice";
 import { UserDetailsForm } from "@/components/stat-card-generator/user-details-form";
 import { useStatCardSubmit } from "@/hooks/use-stat-card-submit";
 import { loadDefaultSettings, getPresetColors } from "@/lib/data";
+import { useRouter } from "next/navigation";
 
 interface StatCardGeneratorProps {
   isOpen: boolean;
@@ -258,6 +259,9 @@ export function StatCardGenerator({
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewType, setPreviewType] = useState("");
   const [previewVariation, setPreviewVariation] = useState("");
+  const [showFavoritesByCard, setShowFavoritesByCard] = useState<
+    Record<string, boolean>
+  >({});
 
   // Use our custom hook for managing submission
   const { loading, error, submit, clearError } = useStatCardSubmit();
@@ -289,6 +293,15 @@ export function StatCardGenerator({
       ? JSON.parse(savedUsernameData).value
       : "";
     setUsername(defaultUsername);
+
+    // Load default showFavoritesByCard from localStorage
+    const savedShowFavorites = localStorage.getItem(
+      "anicards-defaultShowFavoritesByCard",
+    );
+    const showFavoritesDefaults = savedShowFavorites
+      ? JSON.parse(savedShowFavorites).value
+      : {};
+    setShowFavoritesByCard(showFavoritesDefaults);
   }, []);
 
   const allSelected = useMemo(
@@ -321,6 +334,8 @@ export function StatCardGenerator({
 
   // Generate preview SVG
   const previewSVG = mediaStatsTemplate(previewData);
+
+  const router = useRouter();
 
   const handleToggleCard = (cardId: string) => {
     const [baseId] = cardId.split("-"); // Always use base ID for selection
@@ -363,6 +378,14 @@ export function StatCardGenerator({
     setPreviewOpen(true);
   };
 
+  // Handler to toggle showFavorites for a specific card
+  const handleToggleShowFavorites = (cardId: string) => {
+    setShowFavoritesByCard((prev) => ({
+      ...prev,
+      [cardId]: !prev[cardId],
+    }));
+  };
+
   // When submitting, we reassemble the selectedCards array. For card types with variants,
   // we append the variant suffix only if it is not "default". (If it is "default", we leave it off.)
   const handleSubmit = async (e: React.FormEvent) => {
@@ -382,11 +405,26 @@ export function StatCardGenerator({
       return variant !== "default" ? `${baseId}-${variant}` : baseId;
     });
 
+    const showFavoritesConfig = Array.from(uniqueCards).reduce(
+      (acc, baseId) => {
+        acc[baseId] = !!showFavoritesByCard[baseId];
+        return acc;
+      },
+      {} as Record<string, boolean>,
+    );
+
     await submit({
       username,
       selectedCards: finalSelectedCards,
       colors: [titleColor, backgroundColor, textColor, circleColor],
+      showFavoritesByCard: showFavoritesConfig,
     });
+
+    // Build query params for navigation
+    const params = new URLSearchParams();
+    if (username) params.set("username", username);
+
+    router.push(`/user?${params.toString()}`);
   };
 
   // Prepare configuration for the color pickers
@@ -487,6 +525,8 @@ export function StatCardGenerator({
             onSelectAll={handleSelectAll}
             onVariantChange={handleVariantChange}
             onPreview={handlePreview}
+            showFavoritesByCard={showFavoritesByCard}
+            onToggleShowFavorites={handleToggleShowFavorites}
           />
 
           {/* Form Submission */}
@@ -513,6 +553,7 @@ export function StatCardGenerator({
         onClose={() => setPreviewOpen(false)}
         cardType={previewType}
         variation={previewVariation}
+        showFavorites={showFavoritesByCard[previewType]}
       />
     </Dialog>
   );

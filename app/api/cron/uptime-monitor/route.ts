@@ -31,9 +31,7 @@ export async function POST(request: Request) {
   const urls = routes.map((route) => `${baseUrl}${route}`);
 
   // Function to check a single route
-  async function checkRoute(
-    url: string,
-  ): Promise<{
+  async function checkRoute(url: string): Promise<{
     url: string;
     ok: boolean;
     status: number | null;

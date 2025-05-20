@@ -81,6 +81,22 @@ export const USER_STATS_QUERY = `
           amount
         }
       }
+      favourites {
+        staff {
+          nodes {
+            id
+            name {
+              full
+            }
+          }
+        }
+        studios {
+          nodes {
+            id
+            name
+          }
+        }
+      }
     }
     followersPage: Page(perPage: 1) {
       pageInfo {
@@ -120,6 +136,37 @@ export const USER_STATS_QUERY = `
       }
       reviews(userId: $userId) {
         id
+      }
+    }
+  }
+`;
+
+export const USER_FAVORITES_QUERY = `
+  query GetUserFavorites($userId: Int!) {
+    User(id: $userId) {
+      favourites {
+        staff {
+          nodes {
+            id
+            name {
+              full
+            }
+          }
+        }
+        studios {
+          nodes {
+            id
+            name
+          }
+        }
+        characters {
+          nodes {
+            id
+            name {
+              full
+            }
+          }
+        }
       }
     }
   }

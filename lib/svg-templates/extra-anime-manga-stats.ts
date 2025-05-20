@@ -11,22 +11,37 @@ export const extraAnimeMangaStatsTemplate = (data: {
   format: string;
   stats: { name: string; count: number }[];
   showPieChart?: boolean;
+  favorites?: string[];
 }) => {
   const svgWidth = data.showPieChart ? 340 : 280;
   const viewBoxWidth = data.showPieChart ? 340 : 280;
   const rectWidth = data.showPieChart ? 339 : 279;
 
+  // Only show hearts for these formats
+  const FAVORITE_FORMATS = [
+    "Anime Voice Actors",
+    "Anime Studios",
+    "Anime Staff",
+    "Manga Staff",
+  ];
+  const showFavorites = FAVORITE_FORMATS.includes(data.format);
+
+  const heartSVG =
+    '<svg x="-18" y="2" width="14" height="14" viewBox="0 0 20 20" fill="#fe428e" xmlns="http://www.w3.org/2000/svg"><path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"/></svg>';
+
   const statsContentWithoutPie = data.stats
-    .map(
-      (stat, index) => `
+    .map((stat, index) => {
+      const isFavorite = showFavorites && data.favorites?.includes(stat.name);
+      return `
       <g class="stagger" style="animation-delay: ${450 + index * 150}ms" transform="translate(25, ${
         index * 25
       })">
+        ${isFavorite ? heartSVG : ""}
         <text class="stat.bold" y="12.5">${stat.name}:</text>
         <text class="stat.bold" x="199.01" y="12.5">${stat.count}</text>
       </g>
-    `,
-    )
+    `;
+    })
     .join("");
 
   const statsContentWithPie = data.stats

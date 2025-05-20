@@ -17,7 +17,7 @@ export default function ProjectsPage() {
       name: "Kenmai to Anilist",
       description:
         "A simple application to update your Anilist entries from a Kenmai export file.",
-      url: "https://github.com/RLAlpha49/Anilist-Manga-Updater",
+      url: "https://github.com/RLAlpha49/KenmeiToAnilist",
     },
     {
       name: "AniSearch",

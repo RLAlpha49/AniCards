@@ -14,6 +14,7 @@ export default async function UserPage(props: {
     userId?: string;
     username?: string;
     cards?: string;
+    showFavorites?: string;
   }>;
 }) {
   // Await the search parameters passed to the page
