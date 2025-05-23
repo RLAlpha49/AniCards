@@ -202,10 +202,11 @@ describe("Card SVG GET Endpoint", () => {
       cards: [
         {
           cardName: "animeStats",
+          variation: "default",
           titleColor: "#000",
           backgroundColor: "#fff",
           textColor: "#333",
-          circleColor: "#f00",
+          circleColor: "f00",
         },
       ],
     });
@@ -219,7 +220,7 @@ describe("Card SVG GET Endpoint", () => {
       .mockResolvedValueOnce(cardsData)
       .mockResolvedValueOnce(userData);
 
-    const req = new Request(`${baseUrl}?userId=123&cardType=animeStats`, {
+    const req = new Request(`${baseUrl}?userId=123&cardType=animeStats&variation=default`, {
       headers: { "x-forwarded-for": "127.0.0.1" },
     });
     const res = await GET(req);
@@ -244,6 +245,7 @@ describe("Card SVG GET Endpoint", () => {
       cards: [
         {
           cardName: "socialStats",
+          variation: "default",
           titleColor: "#123456",
           backgroundColor: "#654321",
           textColor: "#abcdef",
@@ -261,10 +263,14 @@ describe("Card SVG GET Endpoint", () => {
             manga: {},
           },
           stats: {
-            activityHistory: [{}],
+            activityHistory: [{ date: 1, amount: 1 }],
           },
         },
-        social: {},
+        followersPage: { pageInfo: { total: 1 }, followers: [{ id: 1 }] },
+        followingPage: { pageInfo: { total: 1 }, following: [{ id: 1 }] },
+        threadsPage: { pageInfo: { total: 1 }, threads: [{ id: 1 }] },
+        threadCommentsPage: { pageInfo: { total: 1 }, threadComments: [{ id: 1 }] },
+        reviewsPage: { pageInfo: { total: 1 }, reviews: [{ id: 1 }] },
       },
     });
     mockRedisGet
@@ -287,6 +293,7 @@ describe("Card SVG GET Endpoint", () => {
       cards: [
         {
           cardName: "animeGenres",
+          variation: "default",
           titleColor: "#123456",
           backgroundColor: "#654321",
           textColor: "#abcdef",
@@ -301,7 +308,7 @@ describe("Card SVG GET Endpoint", () => {
         User: {
           statistics: {
             anime: {
-              genres: [{}],
+              genres: [{ genre: "Action", count: 10 }],
             },
           },
         },

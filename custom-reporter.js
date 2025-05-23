@@ -47,6 +47,14 @@ class CustomReporter {
       console.log(testResult.failureMessage);
     }
 
+    // For debugging purposes, print the console output, only when silent is false
+    if (!this._globalConfig.silent && testResult.console && testResult.console.length > 0) {
+      console.log("Console output:");
+      testResult.console.forEach(entry => {
+        console.log(entry.message);
+      });
+    }
+
     // Add an extra newline between files
     console.log("");
   }
