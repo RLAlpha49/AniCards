@@ -220,9 +220,12 @@ describe("Card SVG GET Endpoint", () => {
       .mockResolvedValueOnce(cardsData)
       .mockResolvedValueOnce(userData);
 
-    const req = new Request(`${baseUrl}?userId=123&cardType=animeStats&variation=default`, {
-      headers: { "x-forwarded-for": "127.0.0.1" },
-    });
+    const req = new Request(
+      `${baseUrl}?userId=123&cardType=animeStats&variation=default`,
+      {
+        headers: { "x-forwarded-for": "127.0.0.1" },
+      },
+    );
     const res = await GET(req);
     expect(res.status).toBe(200);
     const text = await getResponseText(res);
@@ -269,7 +272,10 @@ describe("Card SVG GET Endpoint", () => {
         followersPage: { pageInfo: { total: 1 }, followers: [{ id: 1 }] },
         followingPage: { pageInfo: { total: 1 }, following: [{ id: 1 }] },
         threadsPage: { pageInfo: { total: 1 }, threads: [{ id: 1 }] },
-        threadCommentsPage: { pageInfo: { total: 1 }, threadComments: [{ id: 1 }] },
+        threadCommentsPage: {
+          pageInfo: { total: 1 },
+          threadComments: [{ id: 1 }],
+        },
         reviewsPage: { pageInfo: { total: 1 }, reviews: [{ id: 1 }] },
       },
     });

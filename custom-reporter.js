@@ -48,9 +48,13 @@ class CustomReporter {
     }
 
     // For debugging purposes, print the console output, only when silent is false
-    if (!this._globalConfig.silent && testResult.console && testResult.console.length > 0) {
+    if (
+      !this._globalConfig.silent &&
+      testResult.console &&
+      testResult.console.length > 0
+    ) {
       console.log("Console output:");
-      testResult.console.forEach(entry => {
+      testResult.console.forEach((entry) => {
         console.log(entry.message);
       });
     }
