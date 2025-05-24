@@ -53,7 +53,7 @@ describe("Convert API POST Endpoint", () => {
         "Content-Type": "application/json",
         "x-forwarded-for": "127.0.0.1",
       },
-      body: JSON.stringify({ svgUrl: "http://example.com/fake.svg" }),
+      body: JSON.stringify({ svgUrl: "http://localhost/fake.svg" }),
     }) as unknown as NextRequest;
 
     // Mock fetch to simulate a failed response.
@@ -79,7 +79,7 @@ describe("Convert API POST Endpoint", () => {
         "Content-Type": "application/json",
         "x-forwarded-for": "127.0.0.1",
       },
-      body: JSON.stringify({ svgUrl: "http://example.com/dummy.svg" }),
+      body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
     }) as unknown as NextRequest;
 
     // Mock fetch to return the dummy SVG content.
@@ -107,7 +107,7 @@ describe("Convert API POST Endpoint", () => {
         "Content-Type": "application/json",
         "x-forwarded-for": "127.0.0.1",
       },
-      body: JSON.stringify({ svgUrl: "http://example.com/dummy.svg" }),
+      body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
     }) as unknown as NextRequest;
 
     global.fetch = jest.fn().mockResolvedValue({

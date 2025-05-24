@@ -67,6 +67,13 @@ describe("Cron API POST Endpoint", () => {
     });
     mockSet.mockResolvedValue(true);
 
+    // Mock global.fetch to always return a successful AniList response
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: { stats: "mocked" } }),
+    });
+
     const req = new Request("http://localhost/api/cron", {
       headers: { "x-cron-secret": CRON_SECRET },
     });

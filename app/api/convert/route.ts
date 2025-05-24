@@ -30,14 +30,22 @@ export async function POST(request: NextRequest) {
     try {
       parsedUrl = new URL(svgUrl);
     } catch {
-      console.warn(`⚠️ [Convert API] Invalid URL format for 'svgUrl' from ${ip}`);
+      console.warn(
+        `⚠️ [Convert API] Invalid URL format for 'svgUrl' from ${ip}`,
+      );
       return NextResponse.json(
         { error: "Invalid URL format" },
         { status: 400 },
       );
     }
 
-    const allowedDomains = ["example.com", "trusted.com"];
+    const allowedDomains: string[] = [
+      ...(process.env.NEXT_PUBLIC_API_URL
+        ? [new URL(process.env.NEXT_PUBLIC_API_URL).hostname]
+        : []),
+      "localhost",
+      "127.0.0.1",
+    ];
     if (!allowedDomains.includes(parsedUrl.hostname)) {
       console.warn(
         `⚠️ [Convert API] Unauthorized domain in 'svgUrl': ${parsedUrl.hostname} from ${ip}`,
