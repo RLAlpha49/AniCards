@@ -24,6 +24,30 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
+
+    // Validate the svgUrl
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(svgUrl);
+    } catch {
+      console.warn(`⚠️ [Convert API] Invalid URL format for 'svgUrl' from ${ip}`);
+      return NextResponse.json(
+        { error: "Invalid URL format" },
+        { status: 400 },
+      );
+    }
+
+    const allowedDomains = ["example.com", "trusted.com"];
+    if (!allowedDomains.includes(parsedUrl.hostname)) {
+      console.warn(
+        `⚠️ [Convert API] Unauthorized domain in 'svgUrl': ${parsedUrl.hostname} from ${ip}`,
+      );
+      return NextResponse.json(
+        { error: "Unauthorized domain" },
+        { status: 403 },
+      );
+    }
+
     console.log(`🔍 [Convert API] Fetching SVG from: ${svgUrl}`);
     const response = await fetch(svgUrl);
     if (!response.ok) {
