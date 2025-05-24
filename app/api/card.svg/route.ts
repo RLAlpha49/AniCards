@@ -333,12 +333,6 @@ export async function GET(request: Request) {
   const cardType = searchParams.get("cardType");
   const variationParam = searchParams.get("variation");
   const showFavoritesParam = searchParams.get("showFavorites");
-  const variant =
-    variationParam === "vertical"
-      ? "vertical"
-      : variationParam === "pie"
-        ? "pie"
-        : "default";
 
   console.log(
     `🖼️ [Card SVG] Request for ${cardType} card - User ID: ${userId}`,
@@ -415,10 +409,7 @@ export async function GET(request: Request) {
 
     // Find the specific card configuration from the stored cards data
     const cardConfig = cardDoc.cards.find(
-      (c: CardConfig) =>
-        c.cardName === cardType &&
-        (c.variation === variationParam ||
-          (!variationParam && c.variation === "default")),
+      (c: CardConfig) => c.cardName === cardType,
     );
     if (!cardConfig) {
       console.warn(
@@ -440,8 +431,12 @@ export async function GET(request: Request) {
       );
     }
 
+    // Determine the effective variation: URL param > config > default
+    const effectiveVariation =
+      variationParam || cardConfig.variation || "default";
+
     console.log(
-      `🎨 [Card SVG] Generating ${cardType} (${variant}) SVG for user ${numericUserId}`,
+      `🎨 [Card SVG] Generating ${cardType} (${effectiveVariation}) SVG for user ${numericUserId}`,
     );
     try {
       let favorites: string[] = [];
@@ -469,7 +464,7 @@ export async function GET(request: Request) {
       const svgContent = generateCardSVG(
         cardConfig,
         userDoc as unknown as UserStats,
-        variant,
+        effectiveVariation as "default" | "vertical" | "pie",
         favorites,
       );
       const duration = Date.now() - startTime; // Calculate generation duration
