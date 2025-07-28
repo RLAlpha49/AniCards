@@ -1,7 +1,5 @@
 name: Check for Package Updates
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       update-packages:
