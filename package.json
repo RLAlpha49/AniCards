@@ -23,7 +23,7 @@
     "@radix-ui/react-switch": "^1.2.5",
     "@radix-ui/react-tooltip": "^1.2.7",
     "@upstash/ratelimit": "^2.0.6",
-    "@upstash/redis": "^1.35.1",
+    "@upstash/redis": "^1.35.2",
     "@vercel/analytics": "^1.5.0",
     "@vercel/speed-insights": "^1.2.0",
     "anilist-stat-cards": "file:",
