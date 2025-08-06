@@ -23,6 +23,10 @@ import { UserDetailsForm } from "@/components/stat-card-generator/user-details-f
 import { useStatCardSubmit } from "@/hooks/use-stat-card-submit";
 import { loadDefaultSettings, getPresetColors } from "@/lib/data";
 import { useRouter } from "next/navigation";
+import {
+  trackCardGeneration,
+  trackUserSearch,
+} from "@/lib/utils/google-analytics";
 
 interface StatCardGeneratorProps {
   isOpen: boolean;
@@ -391,6 +395,11 @@ export function StatCardGenerator({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Track user search in Google Analytics
+    if (username) {
+      trackUserSearch(username);
+    }
+
     // Create a Set to ensure unique card IDs
     const uniqueCards = new Set(
       selectedCards.map((card) => {
@@ -412,6 +421,11 @@ export function StatCardGenerator({
       },
       {} as Record<string, boolean>,
     );
+
+    // Track card generation for each selected card type
+    finalSelectedCards.forEach((cardType) => {
+      trackCardGeneration(cardType);
+    });
 
     await submit({
       username,

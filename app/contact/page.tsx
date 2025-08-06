@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Github } from "lucide-react";
 import { siDiscord, siAnilist } from "simple-icons";
 import { motion } from "framer-motion";
+import { trackExternalLinkClick } from "@/lib/utils/google-analytics";
 
 // Custom component to render the Discord icon using Simple Icons.
 const SimpleDiscordIcon = ({ size = 32 }: { size?: number }) => (
@@ -40,6 +41,10 @@ const SimpleAniListIcon = ({ size = 32 }: { size?: number }) => (
 );
 
 export default function ContactPage() {
+  const handleSocialLinkClick = (platform: string) => {
+    trackExternalLinkClick(platform, "contact_page");
+  };
+
   return (
     <div className="container mx-auto max-w-4xl px-4 py-12">
       {/* Animated header section */}
@@ -84,14 +89,17 @@ export default function ContactPage() {
                 {
                   href: "https://discordid.netlify.app/?id=251479989378220044",
                   icon: SimpleDiscordIcon,
+                  name: "discord",
                 },
                 {
                   href: "https://github.com/RLAlpha49",
                   icon: Github,
+                  name: "github",
                 },
                 {
                   href: "https://anilist.co/user/Alpha49",
                   icon: SimpleAniListIcon,
+                  name: "anilist",
                 },
               ].map((link, index) => (
                 <Link
@@ -100,6 +108,7 @@ export default function ContactPage() {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="group rounded-full p-3 transition-all duration-300 hover:bg-muted/70 dark:hover:bg-muted/50"
+                  onClick={() => handleSocialLinkClick(link.name)}
                 >
                   <link.icon
                     size={40}
@@ -140,7 +149,11 @@ export default function ContactPage() {
                 variant="outline"
                 className="mx-auto w-full max-w-xs"
               >
-                <Link href="mailto:contact@alpha49.com" className="text-lg">
+                <Link
+                  href="mailto:contact@alpha49.com"
+                  className="text-lg"
+                  onClick={() => handleSocialLinkClick("email")}
+                >
                   contact@alpha49.com
                 </Link>
               </Button>

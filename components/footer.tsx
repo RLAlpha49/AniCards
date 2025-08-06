@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSidebar } from "@/components/ui/sidebar";
+import { trackExternalLinkClick } from "@/lib/utils/google-analytics";
 
 export default function Footer() {
   const { open } = useSidebar();
@@ -34,6 +35,7 @@ export default function Footer() {
           target="_blank"
           rel="noopener noreferrer"
           className="text-blue-600 hover:underline"
+          onClick={() => trackExternalLinkClick("anilist", "footer")}
         >
           AniList Profile
         </Link>
@@ -42,12 +44,14 @@ export default function Footer() {
           target="_blank"
           rel="noopener noreferrer"
           className="text-blue-600 hover:underline"
+          onClick={() => trackExternalLinkClick("discord", "footer")}
         >
           Discord
         </Link>
         <Link
           href="mailto:contact@alpha49.com"
           className="text-blue-600 hover:underline"
+          onClick={() => trackExternalLinkClick("email", "footer")}
         >
           Email
         </Link>
@@ -56,6 +60,7 @@ export default function Footer() {
           target="_blank"
           rel="noopener noreferrer"
           className="text-blue-600 hover:underline"
+          onClick={() => trackExternalLinkClick("github", "footer")}
         >
           GitHub
         </Link>

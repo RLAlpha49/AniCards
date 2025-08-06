@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
 import { motion } from "framer-motion";
 import { Sun, Moon } from "lucide-react";
+import { trackSettingsChanged } from "@/lib/utils/google-analytics";
 
 export default function DarkModeToggle() {
   // Prevent hydration mismatch by checking mount state
@@ -16,12 +17,18 @@ export default function DarkModeToggle() {
     setMounted(true); // Component has mounted (client-side)
   }, []);
 
+  const handleThemeToggle = () => {
+    const newTheme = currentTheme === "dark" ? "light" : "dark";
+    trackSettingsChanged(`theme_${newTheme}`);
+    setTheme(newTheme);
+  };
+
   if (!mounted) return null; // Don't render until mounted
 
   return (
     <motion.button
       className="relative flex h-7 w-14 items-center justify-between rounded-full bg-gray-300 p-1"
-      onClick={() => setTheme(currentTheme === "dark" ? "light" : "dark")}
+      onClick={handleThemeToggle}
       animate={{
         backgroundColor: currentTheme === "dark" ? "#4B5563" : "#D1D5DB",
       }}

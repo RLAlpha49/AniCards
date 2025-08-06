@@ -6,6 +6,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { trackColorPresetSelection } from "@/lib/utils/google-analytics";
 
 export interface ColorPresetSelectorProps {
   selectedPreset: string;
@@ -20,6 +21,10 @@ export function ColorPresetSelector({
   presets,
   onPresetChange,
 }: ColorPresetSelectorProps) {
+  const handlePresetChange = (preset: string) => {
+    trackColorPresetSelection(preset);
+    onPresetChange(preset);
+  };
   const sortedPresets = Object.entries(presets).sort(
     ([aKey, aVal], [bKey, bVal]) => {
       const fixedOrder = ["default", "anilistLight", "anilistDark"];
@@ -44,7 +49,7 @@ export function ColorPresetSelector({
   return (
     <div>
       <Label htmlFor="colorPreset">Color Preset</Label>
-      <Select onValueChange={onPresetChange} value={selectedPreset}>
+      <Select onValueChange={handlePresetChange} value={selectedPreset}>
         <SelectTrigger>
           <SelectValue placeholder="Select a color preset" />
         </SelectTrigger>

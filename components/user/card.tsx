@@ -11,6 +11,10 @@ import { svgToPng, copyToClipboard } from "@/lib/utils";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { cn } from "@/lib/utils";
 import { displayNames } from "../stat-card-generator/stat-card-preview";
+import {
+  trackCardDownload,
+  trackCopyAction,
+} from "@/lib/utils/google-analytics";
 
 interface CardProps {
   type: string;
@@ -25,6 +29,9 @@ export function Card({ type, svgUrl }: CardProps) {
 
   // Convert SVG to PNG and trigger download
   const handleDownload = async () => {
+    // Track the download event
+    trackCardDownload(type);
+
     const pngUrl = await svgToPng(svgUrl); // Utility function for conversion
     const link = document.createElement("a");
     link.href = pngUrl;
@@ -34,6 +41,7 @@ export function Card({ type, svgUrl }: CardProps) {
 
   // Generic copy handler for different link types
   const handleCopy = async (text: string, label: string) => {
+    trackCopyAction(`${label}_${type}`);
     await copyToClipboard(text);
     setCopied(label); // Show success feedback
     setTimeout(() => setCopied(null), 2000);

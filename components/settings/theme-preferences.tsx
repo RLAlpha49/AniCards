@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { trackSettingsChanged } from "@/lib/utils/google-analytics";
 
 interface ThemePreferencesProps {
   theme: string;
@@ -20,6 +21,11 @@ export function ThemePreferences({
   themes,
   onThemeChange,
 }: ThemePreferencesProps) {
+  const handleThemeChange = (value: string) => {
+    trackSettingsChanged(`theme-${value}`);
+    onThemeChange(value);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -28,7 +34,7 @@ export function ThemePreferences({
       className="space-y-4"
     >
       <Label className="text-lg font-medium">Theme Preferences</Label>
-      <Select value={theme} onValueChange={onThemeChange}>
+      <Select value={theme} onValueChange={handleThemeChange}>
         <SelectTrigger className="w-full max-w-[300px] bg-accent/40">
           <SelectValue placeholder="Select theme" />
         </SelectTrigger>

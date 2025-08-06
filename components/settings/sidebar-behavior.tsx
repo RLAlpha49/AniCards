@@ -2,6 +2,7 @@ import React from "react";
 import { motion } from "framer-motion";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { trackSettingsChanged } from "@/lib/utils/google-analytics";
 
 interface SidebarBehaviorProps {
   sidebarDefault: boolean;
@@ -12,6 +13,13 @@ export function SidebarBehavior({
   sidebarDefault,
   onSidebarChange,
 }: SidebarBehaviorProps) {
+  const handleSidebarChange = (checked: boolean) => {
+    trackSettingsChanged(
+      `sidebar_default_${checked ? "expanded" : "collapsed"}`,
+    );
+    onSidebarChange(checked);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -29,7 +37,7 @@ export function SidebarBehavior({
         </div>
         <Switch
           checked={sidebarDefault}
-          onCheckedChange={onSidebarChange}
+          onCheckedChange={handleSidebarChange}
           className="transition-colors data-[state=checked]:bg-primary data-[state=unchecked]:bg-input"
         />
       </div>

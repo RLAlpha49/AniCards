@@ -5,8 +5,10 @@ import { Providers } from "./providers";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import GithubCorner from "@/components/github-corner";
+import GoogleAnalytics from "@/components/google-analytics";
+import AnalyticsProvider from "@/components/analytics-provider";
 import { LayoutShell } from "@/components/layout-shell";
-import Script from "next/script";
+import { Suspense } from "react";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,31 +34,23 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      {/* 
-				Apply font variables to body for global access
-				antialiased: Enables font smoothing 
-			*/}
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {/* Google Analytics */}
-        <Script
-          strategy="afterInteractive"
-          src="https://www.googletagmanager.com/gtag/js?id=G-6ZX08Y2PJM"
-        />
-        <Script id="google-analytics" strategy="afterInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'G-6ZX08Y2PJM');
-          `}
-        </Script>
+        {process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID && (
+          <GoogleAnalytics
+            GA_TRACKING_ID={process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID}
+          />
+        )}
         <Providers>
-          <LayoutShell>
-            <GithubCorner />
-            {children}
-          </LayoutShell>
+          <Suspense fallback={<div>Loading...</div>}>
+            <AnalyticsProvider>
+              <LayoutShell>
+                <GithubCorner />
+                {children}
+              </LayoutShell>
+            </AnalyticsProvider>
+          </Suspense>
           <Analytics />
           <SpeedInsights />
         </Providers>

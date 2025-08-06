@@ -18,9 +18,19 @@ import {
 import { StatCardGenerator } from "@/components/stat-card-generator";
 import { motion } from "framer-motion";
 import type React from "react";
+import {
+  trackButtonClick,
+  trackDialogOpen,
+} from "@/lib/utils/google-analytics";
 
 export default function HomePage() {
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
+
+  const handleGetStartedClick = () => {
+    trackButtonClick("get_started", "homepage");
+    trackDialogOpen("stat_card_generator");
+    setIsGeneratorOpen(true);
+  };
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -73,7 +83,7 @@ export default function HomePage() {
         >
           <Button
             size="lg"
-            onClick={() => setIsGeneratorOpen(true)}
+            onClick={handleGetStartedClick}
             className="transform-gpu transition-transform duration-200 hover:scale-[1.02]"
           >
             Get Started
@@ -187,7 +197,7 @@ export default function HomePage() {
         >
           <Button
             size="lg"
-            onClick={() => setIsGeneratorOpen(true)}
+            onClick={handleGetStartedClick}
             className="transform-gpu transition-transform duration-200 hover:scale-[1.02]"
           >
             Create Your Anicards

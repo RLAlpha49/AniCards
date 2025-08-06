@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { trackError } from "@/lib/utils/google-analytics";
 
 interface ErrorPopupProps {
   isOpen: boolean;
@@ -26,6 +27,11 @@ export function ErrorPopup({
   description,
   className,
 }: ErrorPopupProps) {
+  // Track error when popup opens
+  if (isOpen) {
+    trackError(title, description);
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       {/* 

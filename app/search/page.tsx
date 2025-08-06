@@ -9,6 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Info } from "lucide-react";
 import { LoadingOverlay } from "@/components/loading-spinner";
+import {
+  trackFormSubmission,
+  trackNavigation,
+} from "@/lib/utils/google-analytics";
 
 export default function UserLookupPage() {
   const router = useRouter();
@@ -22,15 +26,18 @@ export default function UserLookupPage() {
 
     if (!userId && !username) {
       setError("Please enter either a User ID or Username");
+      trackFormSubmission("user_search", false);
       return;
     }
 
     setLoading(true);
+    trackFormSubmission("user_search", true);
 
     const params = new URLSearchParams();
     if (userId) params.set("userId", userId);
     if (username) params.set("username", username);
 
+    trackNavigation("user_page", "search_form");
     router.push(`/user?${params.toString()}`);
   };
 

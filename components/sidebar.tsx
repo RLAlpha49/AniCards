@@ -15,6 +15,7 @@ import {
   SidebarGroupContent,
 } from "@/components/ui/sidebar";
 import { useState, useEffect } from "react";
+import { trackNavigation } from "@/lib/utils/google-analytics";
 
 const navItems = [
   { title: "Home", icon: Home, href: "/" },
@@ -35,6 +36,10 @@ export function AppSidebar() {
     setMounted(true);
   }, []);
 
+  const handleNavClick = (item: (typeof navItems)[0]) => {
+    trackNavigation(item.title.toLowerCase(), "sidebar");
+  };
+
   if (!mounted) {
     return null;
   }
@@ -53,7 +58,7 @@ export function AppSidebar() {
               {navItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild isActive={pathname === item.href}>
-                    <Link href={item.href}>
+                    <Link href={item.href} onClick={() => handleNavClick(item)}>
                       <item.icon className="mr-2 h-4 w-4" />
                       {open && <span>{item.title}</span>}
                     </Link>

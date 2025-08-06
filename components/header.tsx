@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import DarkModeToggle from "@/components/dark-mode-toggle";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { trackSidebarToggle } from "@/lib/utils/google-analytics";
 
 type HeaderProps = {
   onSidebarToggle: (open: boolean) => void;
@@ -16,6 +17,12 @@ export default function Header({ onSidebarToggle, sidebarOpen }: HeaderProps) {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const handleSidebarToggle = () => {
+    const newState = !sidebarOpen;
+    trackSidebarToggle(newState ? "expand" : "collapse");
+    onSidebarToggle(newState);
+  };
 
   if (!mounted) {
     return null;
@@ -38,7 +45,7 @@ export default function Header({ onSidebarToggle, sidebarOpen }: HeaderProps) {
             }}
           >
             <SidebarTrigger
-              onClick={() => onSidebarToggle(!sidebarOpen)}
+              onClick={handleSidebarToggle}
               className="p-1 transition-opacity duration-300 ease-in-out focus:outline-none"
             />
           </SidebarProvider>

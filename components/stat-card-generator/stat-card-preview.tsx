@@ -9,6 +9,11 @@ import {
 import Image from "next/image";
 import { useState } from "react";
 import { LoadingSpinner } from "@/components/loading-spinner";
+import {
+  trackCardPreview,
+  trackDialogOpen,
+  trackDialogClose,
+} from "@/lib/utils/google-analytics";
 
 interface StatCardPreviewProps {
   isOpen: boolean;
@@ -42,6 +47,17 @@ export function StatCardPreview({
 }: StatCardPreviewProps) {
   const [isLoading, setIsLoading] = useState(true);
 
+  const handleClose = () => {
+    trackDialogClose("card_preview");
+    onClose();
+  };
+
+  // Track when preview opens
+  if (isOpen && cardType) {
+    trackCardPreview(cardType);
+    trackDialogOpen("card_preview");
+  }
+
   // Use the provided variation or default to "default"
   const effectiveVariation = variation ?? "default";
 
@@ -56,7 +72,7 @@ export function StatCardPreview({
   const previewUrl = `${baseUrl}?${urlParams.toString()}`;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="z-[100] sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>
