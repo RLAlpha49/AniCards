@@ -7,6 +7,7 @@ import { Github } from "lucide-react";
 import { siDiscord, siAnilist } from "simple-icons";
 import { motion } from "framer-motion";
 import { trackExternalLinkClick } from "@/lib/utils/google-analytics";
+import { usePageSEO } from "@/hooks/use-page-seo";
 
 // Custom component to render the Discord icon using Simple Icons.
 const SimpleDiscordIcon = ({ size = 32 }: { size?: number }) => (
@@ -41,6 +42,8 @@ const SimpleAniListIcon = ({ size = 32 }: { size?: number }) => (
 );
 
 export default function ContactPage() {
+  usePageSEO("contact");
+
   const handleSocialLinkClick = (platform: string) => {
     trackExternalLinkClick(platform, "contact_page");
   };

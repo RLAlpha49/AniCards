@@ -7,8 +7,11 @@ import { FileText, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { LoadingSpinner } from "@/components/loading-spinner";
+import { usePageSEO } from "@/hooks/use-page-seo";
 
 export default function LicensePage() {
+  usePageSEO("license");
+
   const [licenseText, setLicenseText] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

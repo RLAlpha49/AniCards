@@ -3,18 +3,55 @@ import { NextResponse } from "next/server";
 const BASE_URL =
   process.env.NEXT_PUBLIC_SITE_URL || "https://anicards.alpha49.com";
 
-// List your application's static routes here. Add or remove pages as needed.
-const staticPages = ["/", "/user", "/user/lookup", "/contact", "/license"];
+const pages = [
+  {
+    path: "/",
+    priority: 1.0,
+    changefreq: "daily" as const,
+  },
+  {
+    path: "/search",
+    priority: 0.9,
+    changefreq: "weekly" as const,
+  },
+  {
+    path: "/user",
+    priority: 0.8,
+    changefreq: "weekly" as const,
+  },
+  {
+    path: "/settings",
+    priority: 0.7,
+    changefreq: "weekly" as const,
+  },
+  {
+    path: "/projects",
+    priority: 0.6,
+    changefreq: "monthly" as const,
+  },
+  {
+    path: "/contact",
+    priority: 0.6,
+    changefreq: "yearly" as const,
+  },
+  {
+    path: "/license",
+    priority: 0.4,
+    changefreq: "yearly" as const,
+  },
+];
 
 export async function GET() {
-  const urls = staticPages
+  const lastmod = new Date().toISOString();
+
+  const urls = pages
     .map((page) => {
       return `
     <url>
-      <loc>${BASE_URL}${page}</loc>
-      <lastmod>${new Date().toISOString()}</lastmod>
-      <changefreq>weekly</changefreq>
-      <priority>0.8</priority>
+      <loc>${BASE_URL}${page.path}</loc>
+      <lastmod>${lastmod}</lastmod>
+      <changefreq>${page.changefreq}</changefreq>
+      <priority>${page.priority}</priority>
     </url>`;
     })
     .join("");

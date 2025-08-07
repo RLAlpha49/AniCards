@@ -9,6 +9,7 @@ import GoogleAnalytics from "@/components/google-analytics";
 import AnalyticsProvider from "@/components/analytics-provider";
 import { LayoutShell } from "@/components/layout-shell";
 import { Suspense } from "react";
+import { generateMetadata as createMetadata } from "@/lib/seo";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,11 +21,22 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "AniCards",
+export const metadata: Metadata = createMetadata({
+  title: "AniCards - Transform Your AniList Data into Beautiful Cards",
   description:
-    "Anicards is an app that transforms your Anilist data into beautiful, shareable stat cards. It provides a unique way to visualize your anime and manga consumption habits, preferences, and social activity.",
-};
+    "AniCards transforms your AniList data into beautiful, shareable stat cards. Visualize your anime and manga consumption habits, preferences, and social activity with stunning graphics.",
+  keywords: [
+    "anilist",
+    "anime",
+    "manga",
+    "stats",
+    "cards",
+    "visualization",
+    "otaku",
+    "weeb",
+  ],
+  canonical: "https://anicards.vercel.app",
+});
 
 // Root layout component for all pages
 export default function RootLayout({

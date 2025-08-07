@@ -4,9 +4,43 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Info } from "lucide-react";
+import { generateMetadata as createMetadata, seoConfigs } from "@/lib/seo";
+import type { Metadata } from "next";
 
 // Force dynamic rendering to ensure fresh data on each request
 export const dynamic = "force-dynamic";
+
+// Generate metadata dynamically based on the user
+export async function generateMetadata(props: {
+  searchParams: Promise<{
+    userId?: string;
+    username?: string;
+    cards?: string;
+    showFavorites?: string;
+  }>;
+}): Promise<Metadata> {
+  const searchParams = await props.searchParams;
+  const username = searchParams.username;
+
+  if (username) {
+    return createMetadata({
+      title: `${username}'s AniList Stats - AniCards`,
+      description: `View ${username}'s anime and manga statistics from AniList. Generate and download beautiful stat cards showcasing their viewing habits, preferences, and achievements.`,
+      keywords: [
+        `${username} anilist`,
+        `${username} anime stats`,
+        `${username} manga stats`,
+        "anilist profile",
+        "anime statistics",
+        "manga statistics",
+        "stat cards",
+      ],
+      canonical: `https://anicards.vercel.app/user?username=${username}`,
+    });
+  }
+
+  return createMetadata(seoConfigs.user);
+}
 
 // UserPage component to display generated cards for a user
 export default async function UserPage(props: {

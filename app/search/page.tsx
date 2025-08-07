@@ -13,8 +13,11 @@ import {
   trackFormSubmission,
   trackNavigation,
 } from "@/lib/utils/google-analytics";
+import { usePageSEO } from "@/hooks/use-page-seo";
 
 export default function UserLookupPage() {
+  usePageSEO("search");
+
   const router = useRouter();
   const [userId, setUserId] = useState("");
   const [username, setUsername] = useState("");

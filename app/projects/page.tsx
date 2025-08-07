@@ -4,8 +4,11 @@ import React from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { usePageSEO } from "@/hooks/use-page-seo";
 
 export default function ProjectsPage() {
+  usePageSEO("projects");
+
   const projects = [
     {
       name: "Anilist Custom List Manager",

@@ -15,8 +15,11 @@ import {
 import { DefaultCardSettings } from "@/components/settings/default-card-settings";
 import { ResetSettings } from "@/components/settings/reset-settings";
 import { DefaultUsernameSettings } from "@/components/settings/default-username";
+import { usePageSEO } from "@/hooks/use-page-seo";
 
 export default function SettingsPage() {
+  usePageSEO("settings");
+
   const { setTheme, theme, themes } = useTheme();
   const { open, setOpen } = useSidebar();
   const [mounted, setMounted] = useState(false);
