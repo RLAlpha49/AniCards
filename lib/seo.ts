@@ -76,10 +76,21 @@ export function generateMetadata(config: SEOConfig): Metadata {
 // SEO configurations for different pages
 export const seoConfigs = {
   home: {
-    title: "AniCards - Transform Your AniList Data into Beautiful Stat Cards",
+    title:
+      "AniList Stat Cards Generator - AniCards | Beautiful AniList Statistics",
     description:
-      "Create stunning, shareable anime and manga stat cards from your AniList profile. Visualize your consumption habits, preferences, and social activity with beautiful, customizable designs.",
+      "Generate stunning AniList stat cards from your anime and manga data. Create beautiful, shareable AniList statistics cards that visualize your consumption habits, preferences, and social activity.",
     keywords: [
+      "anilist stat cards",
+      "anilist statistics cards",
+      "anime stat cards",
+      "manga stat cards",
+      "anilist data visualization",
+      "anilist profile generator",
+      "anilist stats generator",
+      "anime statistics generator",
+      "manga statistics generator",
+      "anilist card maker",
       "anilist",
       "anime stats",
       "manga stats",

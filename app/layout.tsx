@@ -10,6 +10,7 @@ import AnalyticsProvider from "@/components/analytics-provider";
 import { LayoutShell } from "@/components/layout-shell";
 import { Suspense } from "react";
 import { generateMetadata as createMetadata } from "@/lib/seo";
+import { generateStructuredData, generateJsonLd } from "@/lib/structured-data";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -22,10 +23,19 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = createMetadata({
-  title: "AniCards - Transform Your AniList Data into Beautiful Cards",
+  title:
+    "AniCards - AniList Stat Cards Generator | Beautiful AniList Statistics",
   description:
-    "AniCards transforms your AniList data into beautiful, shareable stat cards. Visualize your anime and manga consumption habits, preferences, and social activity with stunning graphics.",
+    "Generate beautiful AniList stat cards from your anime and manga data. Create stunning, shareable AniList stat cards that visualize your consumption habits, preferences, and social activity with customizable designs.",
   keywords: [
+    "anilist stat cards",
+    "anilist statistics",
+    "anime stat cards",
+    "manga stat cards",
+    "anilist data visualization",
+    "anilist profile cards",
+    "anime statistics generator",
+    "manga statistics generator",
     "anilist",
     "anime",
     "manga",
@@ -35,7 +45,7 @@ export const metadata: Metadata = createMetadata({
     "otaku",
     "weeb",
   ],
-  canonical: "https://anicards.vercel.app",
+  canonical: "https://anicards.alpha49.com",
 });
 
 // Root layout component for all pages
@@ -44,8 +54,16 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const structuredData = generateStructuredData("home");
+
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={generateJsonLd(structuredData)}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
