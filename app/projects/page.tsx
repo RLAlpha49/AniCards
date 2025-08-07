@@ -46,7 +46,7 @@ export default function ProjectsPage() {
         <h1 className="inline-block bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-4xl font-bold leading-snug text-transparent">
           My Other Projects
         </h1>
-        <p className="mt-4 text-xl leading-snug text-muted-foreground">
+        <p className="mt-4 text-xl leading-snug text-gray-600 dark:text-gray-400">
           Check out some of my other projects below.
         </p>
       </motion.header>
@@ -61,7 +61,9 @@ export default function ProjectsPage() {
             className="w-1/2 rounded-lg border bg-background/50 p-6 shadow-sm transition-shadow hover:shadow-lg"
           >
             <h2 className="text-2xl font-semibold">{project.name}</h2>
-            <p className="mt-2 text-muted-foreground">{project.description}</p>
+            <p className="mt-2 text-gray-600 dark:text-gray-400">
+              {project.description}
+            </p>
             <div className="mt-4">
               <a
                 href={project.url}

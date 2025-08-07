@@ -33,7 +33,7 @@ export function CacheManagement({
         <div className="flex items-center justify-between">
           <div>
             <p className="font-medium">Cached Data</p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               {cachedItems.length > 0
                 ? `Storing ${cachedItems.length} items`
                 : "No cached data found"}
@@ -52,13 +52,15 @@ export function CacheManagement({
             {cachedItems.map((item) => (
               <div key={item.key} className="flex items-center justify-between">
                 <div className="flex-1">
-                  <span className="text-muted-foreground">{item.key}</span>
-                  <span className="ml-2 text-xs text-muted-foreground/50">
+                  <span className="text-gray-600 dark:text-gray-400">
+                    {item.key}
+                  </span>
+                  <span className="ml-2 text-xs text-gray-500 dark:text-gray-500">
                     ({formatBytes(item.size)})
                   </span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <span className="text-xs text-muted-foreground/70">
+                  <span className="text-xs text-gray-500 dark:text-gray-500">
                     {new Date(item.lastModified).toLocaleDateString()}
                   </span>
                   <Button

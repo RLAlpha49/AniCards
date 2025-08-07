@@ -57,7 +57,7 @@ export default function UserLookupPage() {
           Find User Stats
         </h1>
         <motion.p
-          className="mt-4 text-xl text-muted-foreground"
+          className="mt-4 text-xl text-gray-600 dark:text-gray-400"
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, delay: 0.3 }}
@@ -109,7 +109,7 @@ export default function UserLookupPage() {
               <Label htmlFor="username" className="text-lg">
                 Username
               </Label>
-              <span className="text-sm text-muted-foreground">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
                 Case insensitive
               </span>
             </div>
@@ -141,7 +141,7 @@ export default function UserLookupPage() {
       </motion.div>
 
       <motion.p
-        className="mt-6 text-center text-sm text-muted-foreground"
+        className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.8 }}

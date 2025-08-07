@@ -61,7 +61,7 @@ export default function ContactPage() {
           Get in Touch
         </h1>
         <motion.p
-          className="mt-4 text-xl text-muted-foreground"
+          className="mt-4 text-xl text-gray-600 dark:text-gray-400"
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, delay: 0.3 }}
@@ -112,6 +112,7 @@ export default function ContactPage() {
                   rel="noopener noreferrer"
                   className="group rounded-full p-3 transition-all duration-300 hover:bg-muted/70 dark:hover:bg-muted/50"
                   onClick={() => handleSocialLinkClick(link.name)}
+                  aria-label={`Visit my ${link.name} profile`}
                 >
                   <link.icon
                     size={40}
@@ -135,7 +136,7 @@ export default function ContactPage() {
           >
             <h2 className="mb-4 text-2xl font-semibold">Direct Contact</h2>
             <motion.p
-              className="mb-4 text-muted-foreground"
+              className="mb-4 text-gray-600 dark:text-gray-400"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, delay: 1 }}

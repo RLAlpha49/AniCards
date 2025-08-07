@@ -46,7 +46,7 @@ export default function HomePage() {
           </h1>
         </motion.div>
         <motion.p
-          className="mx-auto max-w-2xl text-xl text-muted-foreground"
+          className="mx-auto max-w-2xl text-xl text-gray-600 dark:text-gray-400"
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, delay: 0.3 }}
@@ -85,6 +85,7 @@ export default function HomePage() {
             size="lg"
             onClick={handleGetStartedClick}
             className="transform-gpu transition-transform duration-200 hover:scale-[1.02]"
+            aria-label="Open stat card generator to create your AniList cards"
           >
             Get Started
             <ChevronRight className="ml-2 h-5 w-5" />
@@ -199,6 +200,7 @@ export default function HomePage() {
             size="lg"
             onClick={handleGetStartedClick}
             className="transform-gpu transition-transform duration-200 hover:scale-[1.02]"
+            aria-label="Create your AniList stat cards - open card generator"
           >
             Create Your Anicards
             <ChevronRight className="ml-2 h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
@@ -251,7 +253,7 @@ function FeatureCard({
         </CardHeader>
         <CardContent>
           <motion.p
-            className="text-muted-foreground"
+            className="text-gray-600 dark:text-gray-400"
             whileHover={{ color: "hsl(var(--foreground))" }} // Text color change on hover
           >
             {description}

@@ -34,7 +34,7 @@ export default function Footer() {
           href="https://anilist.co/user/Alpha49"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-600 hover:underline"
+          className="text-blue-700 hover:text-blue-800 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
           onClick={() => trackExternalLinkClick("anilist", "footer")}
         >
           AniList Profile
@@ -43,14 +43,14 @@ export default function Footer() {
           href="https://discordid.netlify.app/?id=251479989378220044"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-600 hover:underline"
+          className="text-blue-700 hover:text-blue-800 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
           onClick={() => trackExternalLinkClick("discord", "footer")}
         >
           Discord
         </Link>
         <Link
           href="mailto:contact@alpha49.com"
-          className="text-blue-600 hover:underline"
+          className="text-blue-700 hover:text-blue-800 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
           onClick={() => trackExternalLinkClick("email", "footer")}
         >
           Email
@@ -59,17 +59,17 @@ export default function Footer() {
           href="https://github.com/RLAlpha49"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-600 hover:underline"
+          className="text-blue-700 hover:text-blue-800 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
           onClick={() => trackExternalLinkClick("github", "footer")}
         >
           GitHub
         </Link>
       </div>
-      <div className="text-sm text-gray-500">
+      <div className="text-sm text-gray-700 dark:text-gray-300">
         &copy; {new Date().getFullYear()} Anicards |{" "}
         <Link
           href="https://github.com/RLAlpha49/Anicards/blob/main/LICENSE"
-          className="hover:underline"
+          className="text-blue-700 hover:text-blue-800 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
           target="_blank"
           rel="noopener noreferrer"
         >

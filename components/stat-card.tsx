@@ -23,7 +23,7 @@ export function StatCard({
 				- Uses Lucide icons
 				- Muted color for visual hierarchy
 			*/}
-      <Icon className="h-6 w-6 text-muted-foreground" />
+      <Icon className="h-6 w-6 text-gray-600 dark:text-gray-400" />
 
       {/* Text content container */}
       <div className="space-y-1">

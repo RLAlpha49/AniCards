@@ -51,7 +51,7 @@ export default function LicensePage() {
         <h1 className="mb-4 inline-block bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-4xl font-bold text-transparent">
           Software License
         </h1>
-        <p className="text-xl text-muted-foreground">
+        <p className="text-xl text-gray-600 dark:text-gray-400">
           MIT License - Open Source Initiative
         </p>
       </motion.header>

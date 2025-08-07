@@ -77,14 +77,20 @@ export function Card({ type, svgUrl }: CardProps) {
 
         {/* Action buttons container */}
         <div className="flex space-x-2">
-          <Button onClick={handleDownload}>
+          <Button
+            onClick={handleDownload}
+            aria-label={`Download ${displayNames[type]} card as PNG image`}
+          >
             <Download className="mr-2 h-4 w-4" /> Download PNG
           </Button>
 
           {/* Popover for link copy options */}
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline">
+              <Button
+                variant="outline"
+                aria-label={`Copy ${displayNames[type]} card links in various formats`}
+              >
                 <Link className="mr-2 h-4 w-4" /> Copy Link
               </Button>
             </PopoverTrigger>
@@ -103,6 +109,7 @@ export function Card({ type, svgUrl }: CardProps) {
                       onClick={() => handleCopy(svgLink, "svg")}
                       className="rounded-l-none border px-3 py-2 text-sm"
                       style={{ height: "auto" }}
+                      aria-label="Copy SVG link to clipboard"
                     >
                       {copied === "svg" ? (
                         <Check className="h-4 w-4" />
@@ -126,6 +133,7 @@ export function Card({ type, svgUrl }: CardProps) {
                       onClick={() => handleCopy(anilistBioLink, "anilist")}
                       className="rounded-l-none border px-3 py-2 text-sm"
                       style={{ height: "auto" }}
+                      aria-label="Copy AniList bio format link to clipboard"
                     >
                       {copied === "anilist" ? (
                         <Check className="h-4 w-4" />

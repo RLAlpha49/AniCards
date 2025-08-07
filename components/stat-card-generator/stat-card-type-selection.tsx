@@ -54,7 +54,15 @@ export function StatCardTypeSelection({
         <Label className="text-lg font-semibold">
           Select Stat Cards to Generate
         </Label>
-        <Button type="button" variant="outline" size="sm" onClick={onSelectAll}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onSelectAll}
+          aria-label={
+            allSelected ? "Unselect all card types" : "Select all card types"
+          }
+        >
           {allSelected ? "Unselect All" : "Select All"}
         </Button>
       </div>
@@ -125,7 +133,7 @@ export function StatCardTypeSelection({
                     {type.label.split(" (")[0]}
                   </Label>
                   {type.label.includes("(") && (
-                    <p className="text-xs text-muted-foreground transition-opacity duration-200 group-hover:opacity-100">
+                    <p className="text-xs text-gray-600 transition-opacity duration-200 group-hover:opacity-100 dark:text-gray-400">
                       {type.label.match(/\((.*)\)/)?.[1]}
                     </p>
                   )}

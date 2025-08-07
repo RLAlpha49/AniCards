@@ -17,10 +17,14 @@ export function ResetSettings({ onReset }: ResetSettingsProps) {
     >
       <Label className="text-lg font-medium">Reset Settings</Label>
       <div className="flex flex-col space-y-2 rounded-lg bg-accent/40 p-4">
-        <Button variant="destructive" onClick={onReset}>
+        <Button
+          variant="destructive"
+          onClick={onReset}
+          aria-label="Reset all application settings to their default values"
+        >
           Reset to Default Settings
         </Button>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-gray-600 dark:text-gray-400">
           This will reset all settings.
         </p>
       </div>

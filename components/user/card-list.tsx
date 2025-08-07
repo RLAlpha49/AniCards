@@ -48,7 +48,10 @@ export function CardList({ cardTypes }: CardListProps) {
       {/* Popover for bulk copy operations */}
       <Popover>
         <PopoverTrigger asChild>
-          <Button variant="outline">
+          <Button
+            variant="outline"
+            aria-label="Copy all card links in bulk for multiple formats"
+          >
             <Link className="mr-2 h-4 w-4" /> Copy All Links
           </Button>
         </PopoverTrigger>
@@ -67,6 +70,7 @@ export function CardList({ cardTypes }: CardListProps) {
                   onClick={() => handleCopyLinks("svg")}
                   className="rounded-l-none border px-3 py-2 text-sm"
                   style={{ height: "auto" }}
+                  aria-label="Copy all SVG links to clipboard"
                 >
                   {copied === "svg" ? <Check className="h-4 w-4" /> : "Copy"}
                 </Button>
@@ -86,6 +90,7 @@ export function CardList({ cardTypes }: CardListProps) {
                   onClick={() => handleCopyLinks("anilist")}
                   className="rounded-l-none border px-3 py-2 text-sm"
                   style={{ height: "auto" }}
+                  aria-label="Copy all AniList bio format links to clipboard"
                 >
                   {copied === "anilist" ? (
                     <Check className="h-4 w-4" />

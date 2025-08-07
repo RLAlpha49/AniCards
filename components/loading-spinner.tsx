@@ -77,7 +77,7 @@ export function LoadingSpinner({
       {/* Optional animated loading text */}
       {text && (
         <motion.p
-          className="text-sm text-muted-foreground"
+          className="text-sm text-gray-600 dark:text-gray-400"
           initial={{ opacity: 0.5 }}
           animate={{ opacity: [0.5, 1, 0.5] }}
           transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
@@ -104,7 +104,7 @@ export function LoadingOverlay({
       <div className="flex flex-col items-center gap-4">
         <LoadingSpinner size="lg" className="text-primary" />
         <motion.p
-          className="text-muted-foreground"
+          className="text-gray-700 dark:text-gray-300"
           initial={{ opacity: 0.5 }}
           animate={{ opacity: [0.5, 1, 0.5] }}
           transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}

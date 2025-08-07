@@ -35,6 +35,7 @@ export function ColorPickerGroup({ pickers }: ColorPickerGroupProps) {
                 onChange={(e) => picker.onChange(e.target.value)}
                 className="h-12 w-12 transform-gpu cursor-pointer rounded p-1 transition-transform duration-200 hover:scale-105"
                 style={!valid ? { border: "2px solid red" } : {}}
+                aria-label={`${picker.label} color picker`}
               />
               <Input
                 type="text"
@@ -43,6 +44,8 @@ export function ColorPickerGroup({ pickers }: ColorPickerGroupProps) {
                 className={`flex-grow transition-all duration-200 focus:ring-2 focus:ring-primary ${
                   !valid ? "border-red-500" : ""
                 }`}
+                aria-label={`${picker.label} color hex code input`}
+                placeholder="#000000"
               />
             </div>
             {!valid && (

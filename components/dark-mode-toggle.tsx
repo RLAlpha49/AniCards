@@ -29,6 +29,9 @@ export default function DarkModeToggle() {
     <motion.button
       className="relative flex h-7 w-14 items-center justify-between rounded-full bg-gray-300 p-1"
       onClick={handleThemeToggle}
+      aria-label={`Switch to ${currentTheme === "dark" ? "light" : "dark"} mode`}
+      role="switch"
+      aria-checked={currentTheme === "dark"}
       animate={{
         backgroundColor: currentTheme === "dark" ? "#4B5563" : "#D1D5DB",
       }}

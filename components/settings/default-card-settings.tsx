@@ -68,7 +68,16 @@ export function DefaultCardSettings({
         <div className="space-y-2">
           <Label>Default Card Types</Label>
           <div className="mb-2 flex">
-            <Button variant="outline" size="sm" onClick={onToggleAllCardTypes}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onToggleAllCardTypes}
+              aria-label={
+                defaultCardTypes.length === statCardTypes.length
+                  ? "Unselect all card types"
+                  : "Select all card types"
+              }
+            >
               {defaultCardTypes.length === statCardTypes.length
                 ? "Unselect All"
                 : "Select All"}

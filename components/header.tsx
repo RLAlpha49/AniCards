@@ -47,6 +47,7 @@ export default function Header({ onSidebarToggle, sidebarOpen }: HeaderProps) {
             <SidebarTrigger
               onClick={handleSidebarToggle}
               className="p-1 transition-opacity duration-300 ease-in-out focus:outline-none"
+              aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
             />
           </SidebarProvider>
           <Link

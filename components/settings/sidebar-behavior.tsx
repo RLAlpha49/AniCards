@@ -31,7 +31,7 @@ export function SidebarBehavior({
       <div className="flex items-center justify-between rounded-lg bg-accent/40 p-4">
         <div>
           <p className="font-medium">Default State</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
             {sidebarDefault ? "Expanded" : "Collapsed"} by default
           </p>
         </div>

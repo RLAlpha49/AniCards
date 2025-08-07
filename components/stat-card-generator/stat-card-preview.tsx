@@ -107,7 +107,7 @@ export function StatCardPreview({
         </div>
 
         {/* Preview disclaimer */}
-        <div className="mt-4 text-center text-sm text-muted-foreground">
+        <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
           <p>
             This is a static preview. The actual card will use your Anilist data
             and selected colors.
