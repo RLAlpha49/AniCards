@@ -372,4 +372,124 @@ describe("Card SVG GET Endpoint", () => {
     const text = await getResponseText(res);
     expect(text).toBe("<svg>Anime Stats</svg>");
   });
+
+  // Test for compact variant for animeStats
+  it("should successfully generate compact SVG content for animeStats", async () => {
+    const cardsData = JSON.stringify({
+      cards: [
+        {
+          cardName: "animeStats",
+          variation: "compact",
+          titleColor: "#3cc8ff",
+          backgroundColor: "#0b1622",
+          textColor: "#E8E8E8",
+          circleColor: "#3cc8ff",
+        },
+      ],
+    });
+    const userData = JSON.stringify({
+      userId: 542244,
+      username: "testUserCompact",
+      stats: { User: { statistics: { anime: {} } } },
+    });
+    mockRedisGet
+      .mockResolvedValueOnce(cardsData)
+      .mockResolvedValueOnce(userData);
+    const req = new Request(
+      `${baseUrl}?userId=542244&cardType=animeStats&variation=compact`,
+    );
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
+    const text = await getResponseText(res);
+    expect(text).toBe("<svg>Anime Stats</svg>");
+  });
+
+  // Test for minimal variant for socialStats
+  it("should successfully generate minimal SVG content for socialStats", async () => {
+    const cardsData = JSON.stringify({
+      cards: [
+        {
+          cardName: "socialStats",
+          variation: "minimal",
+          titleColor: "#123456",
+          backgroundColor: "#654321",
+          textColor: "#abcdef",
+          circleColor: "#fedcba",
+        },
+      ],
+    });
+    const userData = JSON.stringify({
+      userId: 542244,
+      username: "socialUserMinimal",
+      stats: {
+        User: {
+          statistics: { anime: {}, manga: {} },
+          stats: { activityHistory: [{ date: 1, amount: 2 }] },
+        },
+        followersPage: { pageInfo: { total: 2 }, followers: [{ id: 1 }] },
+        followingPage: { pageInfo: { total: 3 }, following: [{ id: 1 }] },
+        threadsPage: { pageInfo: { total: 1 }, threads: [{ id: 1 }] },
+        threadCommentsPage: {
+          pageInfo: { total: 1 },
+          threadComments: [{ id: 1 }],
+        },
+        reviewsPage: { pageInfo: { total: 1 }, reviews: [{ id: 1 }] },
+      },
+    });
+    mockRedisGet
+      .mockResolvedValueOnce(cardsData)
+      .mockResolvedValueOnce(userData);
+    const req = new Request(
+      `${baseUrl}?userId=542244&cardType=socialStats&variation=minimal`,
+    );
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
+    const text = await getResponseText(res);
+    expect(text).toBe("<svg>Social Stats</svg>");
+  });
+
+  // Test for bar variant on animeGenres
+  it("should successfully generate bar variant for animeGenres", async () => {
+    const cardsData = JSON.stringify({
+      cards: [
+        {
+          cardName: "animeGenres",
+          variation: "bar",
+          titleColor: "#123456",
+          backgroundColor: "#654321",
+          textColor: "#abcdef",
+          circleColor: "#fedcba",
+        },
+      ],
+    });
+    const userData = JSON.stringify({
+      userId: 542244,
+      username: "genreBarUser",
+      stats: {
+        User: {
+          statistics: {
+            anime: {
+              genres: [
+                { genre: "Action", count: 10 },
+                { genre: "Drama", count: 5 },
+              ],
+            },
+          },
+        },
+      },
+    });
+    mockRedisGet
+      .mockResolvedValueOnce(cardsData)
+      .mockResolvedValueOnce(userData);
+    const req = new Request(
+      `${baseUrl}?userId=542244&cardType=animeGenres&variation=bar`,
+    );
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
+    const text = await getResponseText(res);
+    expect(text).toBe("<svg>Extra Stats</svg>");
+  });
 });
