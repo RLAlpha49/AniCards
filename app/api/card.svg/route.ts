@@ -124,7 +124,7 @@ function generateCardSVG(
   cardConfig: CardConfig,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   userStats: any,
-  variant: "default" | "vertical" | "pie",
+  variant: "default" | "vertical" | "pie" | "compact" | "minimal" | "bar",
   favorites?: string[],
 ) {
   // Basic validation: card config and user stats must be present
@@ -136,7 +136,7 @@ function generateCardSVG(
 
   // Extract base card type and possible variation
   const [baseCardType] = cardConfig.cardName.split("-");
-  const showPieChart = variant === "pie";
+  const showPieChart = variant === "pie"; // legacy flag kept for backward compatibility
 
   // Switch logic to handle different card types
   switch (baseCardType) {
@@ -151,7 +151,7 @@ function generateCardSVG(
       svgContent = mediaStatsTemplate({
         mediaType: "anime",
         username: userStats.username,
-        variant: variant as "default" | "vertical",
+        variant: variant as "default" | "vertical" | "compact" | "minimal",
         styles: {
           // Card styles from config
           titleColor: cardConfig.titleColor,
@@ -177,7 +177,7 @@ function generateCardSVG(
       svgContent = mediaStatsTemplate({
         mediaType: "manga",
         username: userStats.username,
-        variant: variant as "default" | "vertical",
+        variant: variant as "default" | "vertical" | "compact" | "minimal",
         styles: {
           // Card styles from config
           titleColor: cardConfig.titleColor,
@@ -198,6 +198,7 @@ function generateCardSVG(
       // Generate SVG content using socialStatsTemplate
       svgContent = socialStatsTemplate({
         username: userStats.username,
+        variant: variant as "default" | "compact" | "minimal",
         styles: {
           // Card styles from config
           titleColor: cardConfig.titleColor,
@@ -287,6 +288,7 @@ function generateCardSVG(
       // Generate SVG content using extraAnimeMangaStatsTemplate for category-based cards
       svgContent = extraAnimeMangaStatsTemplate({
         username: userStats.username,
+        variant: variant as "default" | "pie" | "bar",
         styles: {
           // Card styles from config
           titleColor: cardConfig.titleColor,

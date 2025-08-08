@@ -2,6 +2,7 @@ import { calculateDynamicFontSize } from "../utils";
 
 export const extraAnimeMangaStatsTemplate = (data: {
   username: string;
+  variant?: "default" | "pie" | "bar";
   styles: {
     titleColor: string;
     backgroundColor: string;
@@ -13,9 +14,13 @@ export const extraAnimeMangaStatsTemplate = (data: {
   showPieChart?: boolean;
   favorites?: string[];
 }) => {
-  const svgWidth = data.showPieChart ? 340 : 280;
-  const viewBoxWidth = data.showPieChart ? 340 : 280;
-  const rectWidth = data.showPieChart ? 339 : 279;
+  // Determine variant flags
+  const isPie = data.showPieChart || data.variant === "pie";
+  const isBar = data.variant === "bar";
+
+  const svgWidth = isPie ? 340 : isBar ? 360 : 280;
+  const viewBoxWidth = svgWidth;
+  const rectWidth = svgWidth - 1;
 
   // Only show hearts for these formats
   const FAVORITE_FORMATS = [
@@ -37,28 +42,30 @@ export const extraAnimeMangaStatsTemplate = (data: {
         index * 25
       })">
         ${isFavorite ? heartSVG : ""}
-        <text class="stat.bold" y="12.5">${stat.name}:</text>
-        <text class="stat.bold" x="199.01" y="12.5">${stat.count}</text>
+        <text class="stat bold" y="12.5">${stat.name}:</text>
+        <text class="stat bold" x="199.01" y="12.5">${stat.count}</text>
       </g>
     `;
     })
     .join("");
 
   const statsContentWithPie = data.stats
-    .map(
-      (stat, index) => `
-          <g class="stagger" style="animation-delay: ${
-            450 + index * 150
-          }ms" transform="translate(0, ${index * 25})">
-            <rect x="-20" y="2" width="12" height="12" fill="${getColorByIndex(
-              index,
-              data.styles.circleColor,
-            )}" />
-            <text class="stat" y="12.5">${stat.name}:</text>
-            <text class="stat" x="125" y="12.5">${stat.count}</text>
-          </g>
-        `,
-    )
+    .map((stat, index) => {
+      const isFavorite = showFavorites && data.favorites?.includes(stat.name);
+      const heartLegendSVG = heartSVG.replace('x="-18"', 'x="-36"');
+      return `
+        <g class="stagger" style="animation-delay: ${450 + index * 150}ms" transform="translate(0, ${
+          index * 25
+        })">
+          ${isFavorite ? heartLegendSVG : ""}
+          <rect x="-20" y="2" width="12" height="12" fill="${getColorByIndex(
+            index,
+            data.styles.circleColor,
+          )}" />
+          <text class="stat" y="12.5">${stat.name}:</text>
+          <text class="stat" x="125" y="12.5">${stat.count}</text>
+        </g>`;
+    })
     .join("");
 
   const pieChartContent = (() => {
@@ -96,7 +103,30 @@ export const extraAnimeMangaStatsTemplate = (data: {
       .join("");
   })();
 
-  const mainStatsContent = data.showPieChart
+  const barsContent = isBar
+    ? data.stats
+        .map((stat, index) => {
+          const max = Math.max(...data.stats.map((s) => s.count));
+          const barWidth = ((stat.count / max) * 140).toFixed(2);
+          const isFavorite =
+            showFavorites && data.favorites?.includes(stat.name);
+          return `
+              <g class="stagger" style="animation-delay: ${450 + index * 120}ms" transform="translate(0, ${
+                index * 26
+              })">
+                ${isFavorite ? heartSVG : ""}
+                <text class="stat" y="12">${stat.name}</text>
+                <rect x="120" y="2" width="${barWidth}" height="14" rx="3" fill="${getColorByIndex(
+                  index,
+                  data.styles.circleColor,
+                )}" />
+                <text class="stat" x="${125 + Number(barWidth)}" y="13">${stat.count}</text>
+              </g>`;
+        })
+        .join("")
+    : "";
+
+  const mainStatsContent = isPie
     ? `
         <g transform="translate(45, 0)">
           ${statsContentWithPie}
@@ -105,7 +135,9 @@ export const extraAnimeMangaStatsTemplate = (data: {
           ${pieChartContent}
         </g>
       `
-    : statsContentWithoutPie;
+    : isBar
+      ? `<g transform="translate(25, 0)">${barsContent}</g>`
+      : statsContentWithoutPie;
 
   return `
     <svg

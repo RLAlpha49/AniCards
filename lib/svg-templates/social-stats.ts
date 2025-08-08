@@ -3,6 +3,7 @@ import { calculateDynamicFontSize } from "../utils";
 
 export const socialStatsTemplate = (data: {
   username: string;
+  variant?: "default" | "compact" | "minimal";
   styles: {
     titleColor: string;
     backgroundColor: string;
@@ -26,12 +27,23 @@ export const socialStatsTemplate = (data: {
     (latestDate - earliestDate) / (1000 * 60 * 60 * 24),
   );
 
+  const dims = (() => {
+    switch (data.variant) {
+      case "compact":
+        return { w: 280, h: 160 };
+      case "minimal":
+        return { w: 280, h: 130 };
+      default:
+        return { w: 280, h: 195 };
+    }
+  })();
+
   return `
 <svg
   xmlns="http://www.w3.org/2000/svg"
-  width="280"
-  height="195"
-  viewBox="0 0 280 195"
+  width="${dims.w}"
+  height="${dims.h}"
+  viewBox="0 0 ${dims.w} ${dims.h}"
   fill="none"
   role="img"
   aria-labelledby="desc-id"
@@ -92,9 +104,9 @@ export const socialStatsTemplate = (data: {
     x="0.5"
     y="0.5"
     rx="4.5"
-    height="99%"
+    height="${dims.h - 1}"
     stroke="#e4e2e2"
-    width="279"
+    width="${dims.w - 1}"
     fill="#141321"
     stroke-opacity="1"
   />
@@ -106,73 +118,61 @@ export const socialStatsTemplate = (data: {
     </g>
   </g>
   <g data-testid="main-card-body" transform="translate(0, 55)">
-    <g transform="translate(0, 0)">
-      <g
-        class="stagger"
-        style="animation-delay: 450ms"
-        transform="translate(25, 0)"
-      >
-        <text class="stat.bold" y="12.5">Total Followers:</text>
-        <text
-          class="stat.bold"
-          x="199.01"
-          y="12.5"
-          data-testid="totalFollowers"
-        >
-          ${data.stats.followersPage.pageInfo.total}
-        </text>
-      </g>
-      <g
-        class="stagger"
-        style="animation-delay: 600ms"
-        transform="translate(25, 25)"
-      >
-        <text class="stat.bold" y="12.5">Total Following:</text>
-        <text
-          class="stat.bold"
-          x="199.01"
-          y="12.5"
-          data-testid="totalFollowing"
-        >
-          ${data.stats.followingPage.pageInfo.total}
-        </text>
-      </g>
-      <g
-        class="stagger"
-        style="animation-delay: 750ms"
-        transform="translate(25, 50)"
-      >
-        <text class="stat.bold" y="12.5">Total Activity (${daysDifference} Days):</text>
-        <text class="stat.bold" x="199.01" y="12.5" data-testid="totalActivity">
-          ${totalActivity}
-        </text>
-      </g>
-      <g
-        class="stagger"
-        style="animation-delay: 900ms"
-        transform="translate(25, 75)"
-      >
-        <text class="stat.bold" y="12.5">Thread Posts/Comments:</text>
-        <text
-          class="stat.bold"
-          x="199.01"
-          y="12.5"
-          data-testid="threadPostsCommentsCount"
-        >
-          ${data.stats.threadCommentsPage.pageInfo.total}
-        </text>
-      </g>
-      <g
-        class="stagger"
-        style="animation-delay: 1050ms"
-        transform="translate(25, 100)"
-      >
-        <text class="stat.bold" y="12.5">Total Reviews:</text>
-        <text class="stat.bold" x="199.01" y="12.5" data-testid="totalReviews">
-          ${data.stats.reviewsPage.pageInfo.total}
-        </text>
-      </g>
-    </g>
+    ${(() => {
+      const rows = [
+        {
+          id: "followers",
+          label: "Total Followers:",
+          value: data.stats.followersPage.pageInfo.total,
+        },
+        {
+          id: "following",
+          label: "Total Following:",
+          value: data.stats.followingPage.pageInfo.total,
+        },
+        {
+          id: "activity",
+          label: `Total Activity (${daysDifference} Days):`,
+          value: totalActivity,
+        },
+        {
+          id: "threads",
+          label: "Thread Posts/Comments:",
+          value: data.stats.threadCommentsPage.pageInfo.total,
+        },
+        {
+          id: "reviews",
+          label: "Total Reviews:",
+          value: data.stats.reviewsPage.pageInfo.total,
+        },
+      ];
+
+      let filtered = rows;
+      if (data.variant === "compact") {
+        // Remove reviews only
+        filtered = rows.filter((r) => r.id !== "reviews");
+      } else if (data.variant === "minimal") {
+        // Remove thread posts/comments AND reviews
+        filtered = rows.filter((r) => r.id !== "threads" && r.id !== "reviews");
+      }
+
+      return `
+        <g transform="translate(0, 0)">
+          ${filtered
+            .map(
+              (stat, index) => `
+            <g
+              class="stagger"
+              style="animation-delay: ${450 + index * 150}ms"
+              transform="translate(25, ${index * 25})"
+            >
+              <text class="stat.bold" y="12.5">${stat.label}</text>
+              <text class="stat.bold" x="199.01" y="12.5">${stat.value}</text>
+            </g>`,
+            )
+            .join("")}
+        </g>`;
+    })()}
   </g>
 </svg>
 `;
