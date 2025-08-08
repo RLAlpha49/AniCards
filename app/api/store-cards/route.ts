@@ -73,6 +73,8 @@ export async function POST(request: Request) {
         textColor: card.textColor,
         circleColor: card.circleColor,
         showFavorites: card.showFavorites,
+        useStatusColors: card.useStatusColors,
+        showPiePercentages: card.showPiePercentages,
       })),
       updatedAt: new Date().toISOString(),
     };

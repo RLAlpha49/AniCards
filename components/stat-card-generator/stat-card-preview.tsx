@@ -35,6 +35,16 @@ export const displayNames: { [key: string]: string } = {
   mangaGenres: "Manga Genres",
   mangaTags: "Manga Tags",
   mangaStaff: "Manga Staff",
+  animeStatusDistribution: "Anime Statuses",
+  mangaStatusDistribution: "Manga Statuses",
+  animeFormatDistribution: "Anime Formats",
+  mangaFormatDistribution: "Manga Formats",
+  animeScoreDistribution: "Anime Scores",
+  mangaScoreDistribution: "Manga Scores",
+  animeYearDistribution: "Anime Years",
+  mangaYearDistribution: "Manga Years",
+  animeCountry: "Anime Countries",
+  mangaCountry: "Manga Countries",
 };
 
 // Component for previewing different types of stat cards in a dialog

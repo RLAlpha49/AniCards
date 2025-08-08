@@ -6,6 +6,7 @@ export interface CardConfig {
   backgroundColor: string;
   textColor: string;
   circleColor: string;
+  useStatusColors?: boolean;
 }
 
 // User stats structure
@@ -33,6 +34,9 @@ export interface AnimeStats {
   voice_actors?: { voice_actor: { name: { full: string } }; count: number }[];
   studios?: { studio: { name: string }; count: number }[];
   staff?: { staff: { name: { full: string } }; count: number }[];
+  statuses?: { status: string; amount: number }[];
+  formats?: { format: string; count: number }[];
+  scores?: { score: number; count: number }[];
 }
 
 export interface MangaStats {
@@ -44,6 +48,9 @@ export interface MangaStats {
   genres?: { genre: string; count: number }[];
   tags?: { tag: { name: string }; count: number }[];
   staff?: { staff: { name: { full: string } }; count: number }[];
+  statuses?: { status: string; amount: number }[];
+  formats?: { format: string; count: number }[];
+  scores?: { score: number; count: number }[];
 }
 
 export interface SocialStats {

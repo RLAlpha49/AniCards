@@ -16,6 +16,26 @@ export const USER_STATS_QUERY = `
           minutesWatched
           meanScore
           standardDeviation
+          statuses(limit: 10, sort: COUNT_DESC) {
+            status
+            count
+          }
+          formats(limit: 5, sort: COUNT_DESC) {
+            format
+            count
+          }
+          scores(limit: 10, sort: COUNT_DESC) {
+            score
+            count
+          }
+          releaseYears(limit: 10, sort: COUNT_DESC) {
+            releaseYear
+            count
+          }
+          countries(limit: 10, sort: COUNT_DESC) {
+            country
+            count
+          }
           genres(limit: 5, sort: COUNT_DESC) {
             genre
             count
@@ -55,6 +75,26 @@ export const USER_STATS_QUERY = `
           volumesRead
           meanScore
           standardDeviation
+          statuses(limit: 10, sort: COUNT_DESC) {
+            status
+            count
+          }
+          formats(limit: 5, sort: COUNT_DESC) {
+            format
+            count
+          }
+          scores(limit: 10, sort: COUNT_DESC) {
+            score
+            count
+          }
+          releaseYears(limit: 10, sort: COUNT_DESC) {
+            releaseYear
+            count
+          }
+          countries(limit: 10, sort: COUNT_DESC) {
+            country
+            count
+          }
           genres(limit: 5, sort: COUNT_DESC) {
             genre
             count

@@ -82,7 +82,7 @@ export const statCardTypes = [
     variations: [
       { id: "default", label: "Default" },
       { id: "pie", label: "Pie Chart" },
-      { id: "bar", label: "Bar" },
+      { id: "bar", label: "Bar Chart" },
     ],
   },
   {
@@ -92,7 +92,7 @@ export const statCardTypes = [
     variations: [
       { id: "default", label: "Default" },
       { id: "pie", label: "Pie Chart" },
-      { id: "bar", label: "Bar" },
+      { id: "bar", label: "Bar Chart" },
     ],
   },
   {
@@ -102,7 +102,7 @@ export const statCardTypes = [
     variations: [
       { id: "default", label: "Default" },
       { id: "pie", label: "Pie Chart" },
-      { id: "bar", label: "Bar" },
+      { id: "bar", label: "Bar Chart" },
     ],
   },
   {
@@ -112,7 +112,7 @@ export const statCardTypes = [
     variations: [
       { id: "default", label: "Default" },
       { id: "pie", label: "Pie Chart" },
-      { id: "bar", label: "Bar" },
+      { id: "bar", label: "Bar Chart" },
     ],
   },
   {
@@ -122,7 +122,7 @@ export const statCardTypes = [
     variations: [
       { id: "default", label: "Default" },
       { id: "pie", label: "Pie Chart" },
-      { id: "bar", label: "Bar" },
+      { id: "bar", label: "Bar Chart" },
     ],
   },
   {
@@ -132,7 +132,7 @@ export const statCardTypes = [
     variations: [
       { id: "default", label: "Default" },
       { id: "pie", label: "Pie Chart" },
-      { id: "bar", label: "Bar" },
+      { id: "bar", label: "Bar Chart" },
     ],
   },
   {
@@ -142,7 +142,7 @@ export const statCardTypes = [
     variations: [
       { id: "default", label: "Default" },
       { id: "pie", label: "Pie Chart" },
-      { id: "bar", label: "Bar" },
+      { id: "bar", label: "Bar Chart" },
     ],
   },
   {
@@ -152,7 +152,103 @@ export const statCardTypes = [
     variations: [
       { id: "default", label: "Default" },
       { id: "pie", label: "Pie Chart" },
-      { id: "bar", label: "Bar" },
+      { id: "bar", label: "Bar Chart" },
+    ],
+  },
+  {
+    id: "animeStatusDistribution",
+    group: "Anime Breakdowns",
+    label: "Anime Status Distribution (Current, Completed, etc.)",
+    variations: [
+      { id: "default", label: "Default" },
+      { id: "pie", label: "Pie Chart" },
+      { id: "bar", label: "Bar Chart" },
+    ],
+  },
+  {
+    id: "mangaStatusDistribution",
+    group: "Manga Breakdowns",
+    label: "Manga Status Distribution (Current, Completed, etc.)",
+    variations: [
+      { id: "default", label: "Default" },
+      { id: "pie", label: "Pie Chart" },
+      { id: "bar", label: "Bar Chart" },
+    ],
+  },
+  {
+    id: "animeFormatDistribution",
+    group: "Anime Breakdowns",
+    label: "Anime Format Distribution",
+    variations: [
+      { id: "default", label: "Default" },
+      { id: "pie", label: "Pie Chart" },
+      { id: "bar", label: "Bar Chart" },
+    ],
+  },
+  {
+    id: "mangaFormatDistribution",
+    group: "Manga Breakdowns",
+    label: "Manga Format Distribution",
+    variations: [
+      { id: "default", label: "Default" },
+      { id: "pie", label: "Pie Chart" },
+      { id: "bar", label: "Bar Chart" },
+    ],
+  },
+  {
+    id: "animeScoreDistribution",
+    group: "Anime Breakdowns",
+    label: "Anime Score Distribution",
+    variations: [
+      { id: "default", label: "Vertical" },
+      { id: "horizontal", label: "Horizontal" },
+    ],
+  },
+  {
+    id: "mangaScoreDistribution",
+    group: "Manga Breakdowns",
+    label: "Manga Score Distribution",
+    variations: [
+      { id: "default", label: "Vertical" },
+      { id: "horizontal", label: "Horizontal" },
+    ],
+  },
+  {
+    id: "animeYearDistribution",
+    group: "Anime Breakdowns",
+    label: "Anime Year Distribution",
+    variations: [
+      { id: "default", label: "Vertical" },
+      { id: "horizontal", label: "Horizontal" },
+    ],
+  },
+  {
+    id: "mangaYearDistribution",
+    group: "Manga Breakdowns",
+    label: "Manga Year Distribution",
+    variations: [
+      { id: "default", label: "Vertical" },
+      { id: "horizontal", label: "Horizontal" },
+    ],
+  },
+  {
+    id: "animeCountry",
+    group: "Anime Breakdowns",
+    label: "Anime Country",
+    variations: [
+      { id: "default", label: "Default" },
+      { id: "pie", label: "Pie Chart" },
+      { id: "bar", label: "Bar Chart" },
+    ],
+  },
+  {
+    id: "mangaCountry",
+    group: "Manga Breakdowns",
+    label: "Manga Country",
+    variations: [
+      { id: "default", label: "Default" },
+      { id: "pie", label: "Pie Chart" },
+      { id: "bar", label: "Bar Chart" },
     ],
   },
 ];
@@ -305,6 +401,9 @@ export function StatCardGenerator({
   const [showFavoritesByCard, setShowFavoritesByCard] = useState<
     Record<string, boolean>
   >({});
+  const [useAnimeStatusColors, setUseAnimeStatusColors] = useState(false);
+  const [useMangaStatusColors, setUseMangaStatusColors] = useState(false);
+  const [showPiePercentages, setShowPiePercentages] = useState(false);
 
   // Use our custom hook for managing submission
   const { loading, error, submit, clearError } = useStatCardSubmit();
@@ -345,6 +444,32 @@ export function StatCardGenerator({
       ? JSON.parse(savedShowFavorites).value
       : {};
     setShowFavoritesByCard(showFavoritesDefaults);
+
+    // Load separate status color preferences
+    const savedAnimeStatusColors = localStorage.getItem(
+      "anicards-useAnimeStatusColors",
+    );
+    if (savedAnimeStatusColors) {
+      try {
+        setUseAnimeStatusColors(JSON.parse(savedAnimeStatusColors).value);
+      } catch {}
+    }
+    const savedMangaStatusColors = localStorage.getItem(
+      "anicards-useMangaStatusColors",
+    );
+    if (savedMangaStatusColors) {
+      try {
+        setUseMangaStatusColors(JSON.parse(savedMangaStatusColors).value);
+      } catch {}
+    }
+    const savedShowPiePercentages = localStorage.getItem(
+      "anicards-showPiePercentages",
+    );
+    if (savedShowPiePercentages) {
+      try {
+        setShowPiePercentages(JSON.parse(savedShowPiePercentages).value);
+      } catch {}
+    }
   }, []);
 
   const allSelected = useMemo(
@@ -429,6 +554,45 @@ export function StatCardGenerator({
     }));
   };
 
+  const handleToggleAnimeStatusColors = () => {
+    setUseAnimeStatusColors((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(
+          "anicards-useAnimeStatusColors",
+          JSON.stringify({ value: next }),
+        );
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleToggleMangaStatusColors = () => {
+    setUseMangaStatusColors((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(
+          "anicards-useMangaStatusColors",
+          JSON.stringify({ value: next }),
+        );
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleToggleShowPiePercentages = () => {
+    setShowPiePercentages((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(
+          "anicards-showPiePercentages",
+          JSON.stringify({ value: next }),
+        );
+      } catch {}
+      return next;
+    });
+  };
+
   // When submitting, we reassemble the selectedCards array. For card types with variants,
   // we append the variant suffix only if it is not "default". (If it is "default", we leave it off.)
   const handleSubmit = async (e: React.FormEvent) => {
@@ -471,6 +635,9 @@ export function StatCardGenerator({
       selectedCards: finalSelectedCards,
       colors: [titleColor, backgroundColor, textColor, circleColor],
       showFavoritesByCard: showFavoritesConfig,
+      showPiePercentages,
+      useAnimeStatusColors,
+      useMangaStatusColors,
     });
 
     // Build query params for navigation
@@ -581,6 +748,57 @@ export function StatCardGenerator({
             showFavoritesByCard={showFavoritesByCard}
             onToggleShowFavorites={handleToggleShowFavorites}
           />
+
+          {/* Group-specific Status Color Toggles */}
+          <div className="space-y-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 rounded-md border p-3">
+              <input
+                id="anime-status-colors"
+                type="checkbox"
+                checked={useAnimeStatusColors}
+                onChange={handleToggleAnimeStatusColors}
+                className="h-4 w-4 cursor-pointer accent-primary"
+              />
+              <label
+                htmlFor="anime-status-colors"
+                className="cursor-pointer select-none leading-tight"
+              >
+                Anime Status Distribution: Fixed colors (Current=Green,
+                Paused=Yellow, Completed=Blue, Dropped=Red, Planning=Gray)
+              </label>
+            </div>
+            <div className="flex items-center gap-2 rounded-md border p-3">
+              <input
+                id="manga-status-colors"
+                type="checkbox"
+                checked={useMangaStatusColors}
+                onChange={handleToggleMangaStatusColors}
+                className="h-4 w-4 cursor-pointer accent-primary"
+              />
+              <label
+                htmlFor="manga-status-colors"
+                className="cursor-pointer select-none leading-tight"
+              >
+                Manga Status Distribution: Fixed colors (Current=Green,
+                Paused=Yellow, Completed=Blue, Dropped=Red, Planning=Gray)
+              </label>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 rounded-md border p-3 text-xs text-muted-foreground">
+            <input
+              id="pie-percentages-toggle"
+              type="checkbox"
+              checked={showPiePercentages}
+              onChange={handleToggleShowPiePercentages}
+              className="h-4 w-4 cursor-pointer accent-primary"
+            />
+            <label
+              htmlFor="pie-percentages-toggle"
+              className="cursor-pointer select-none leading-tight"
+            >
+              Pie Charts: Show percentages in legends
+            </label>
+          </div>
 
           {/* Form Submission */}
           <Button

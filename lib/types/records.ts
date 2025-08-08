@@ -178,6 +178,10 @@ export interface CardConfig {
   circleColor: string;
   // Whether to show favorites (pink heart) for this card
   showFavorites?: boolean;
+  // Whether to use fixed status distribution colors (only meaningful for status distribution cards)
+  useStatusColors?: boolean;
+  // Whether to show percentages in pie chart legends (only meaningful for pie variants)
+  showPiePercentages?: boolean;
 }
 
 /**

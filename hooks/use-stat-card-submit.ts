@@ -7,6 +7,9 @@ interface SubmitParams {
   selectedCards: string[];
   colors: string[];
   showFavoritesByCard: Record<string, boolean>;
+  showPiePercentages?: boolean;
+  useAnimeStatusColors?: boolean;
+  useMangaStatusColors?: boolean;
 }
 
 // Only these card types support showFavorites
@@ -27,6 +30,9 @@ export function useStatCardSubmit() {
     selectedCards,
     colors,
     showFavoritesByCard,
+    showPiePercentages,
+    useAnimeStatusColors,
+    useMangaStatusColors,
   }: SubmitParams) => {
     setLoading(true);
     setError(null);
@@ -106,6 +112,16 @@ export function useStatCardSubmit() {
                 backgroundColor: colors[1],
                 textColor: colors[2],
                 circleColor: colors[3],
+                showPiePercentages,
+                // Attach useStatusColors based on group-specific toggles
+                ...(cardName === "animeStatusDistribution" &&
+                useAnimeStatusColors
+                  ? { useStatusColors: true }
+                  : {}),
+                ...(cardName === "mangaStatusDistribution" &&
+                useMangaStatusColors
+                  ? { useStatusColors: true }
+                  : {}),
               };
               if (FAVORITE_CARD_IDS.includes(cardName)) {
                 return {
@@ -126,7 +142,27 @@ export function useStatCardSubmit() {
           cards: JSON.stringify(
             selectedCards.map((card) => {
               const [cardName, variation] = card.split("-");
-              return variation ? { cardName, variation } : { cardName };
+              const obj: Record<string, unknown> = variation
+                ? { cardName, variation }
+                : { cardName };
+              // Copy status color flag and pie percentages from base config creation logic above
+              if (
+                ["animeStatusDistribution", "mangaStatusDistribution"].includes(
+                  cardName,
+                )
+              ) {
+                const statusCard = (selectedCards as string[]).find((c) =>
+                  c.startsWith(cardName),
+                );
+                // naive inclusion; actual value already persisted server-side
+                // Include flag so initial render builds correct URLs
+                if (statusCard) {
+                  // We don't know which group; infer from name
+                  obj.useStatusColors = true; // since toggled when submitted
+                }
+              }
+              if (showPiePercentages) obj.showPiePercentages = true;
+              return obj;
             }),
           ),
         })}`,

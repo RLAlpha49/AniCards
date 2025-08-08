@@ -17,6 +17,8 @@ export async function generateMetadata(props: {
     username?: string;
     cards?: string;
     showFavorites?: string;
+    animeStatusColors?: string;
+    mangaStatusColors?: string;
   }>;
 }): Promise<Metadata> {
   const searchParams = await props.searchParams;
@@ -123,15 +125,46 @@ export default async function UserPage(props: {
 
   // Transform card data into format suitable for CardList component
   const cardTypes = cards.map(
-    (card: { cardName: string; variation?: string }) => {
+    (card: {
+      cardName: string;
+      variation?: string;
+      useStatusColors?: boolean;
+      showPiePercentages?: boolean;
+    }) => {
       const variation = card.variation || "default";
-      // Get display name for card type (fallback to cardName if not found)
       const displayName = displayNames[card.cardName] || card.cardName;
+      const isStatusDist = [
+        "animeStatusDistribution",
+        "mangaStatusDistribution",
+      ].includes(card.cardName);
+      const isPieCapable = [
+        "animeGenres",
+        "animeTags",
+        "animeVoiceActors",
+        "animeStudios",
+        "animeStaff",
+        "mangaGenres",
+        "mangaTags",
+        "mangaStaff",
+        "animeFormatDistribution",
+        "mangaFormatDistribution",
+        "animeStatusDistribution",
+        "mangaStatusDistribution",
+        "animeCountry",
+        "mangaCountry",
+      ].includes(card.cardName);
+      const extraParams = [
+        isStatusDist && card.useStatusColors ? "statusColors=true" : null,
+        isPieCapable && card.showPiePercentages ? "piePercentages=true" : null,
+      ]
+        .filter(Boolean)
+        .join("&");
+      const svgUrlBase = `${process.env.NEXT_PUBLIC_API_URL}/api/card.svg?cardType=${card.cardName}&userId=${resolvedUserId}&variation=${variation}`;
+      const svgUrl = extraParams ? `${svgUrlBase}&${extraParams}` : svgUrlBase;
       return {
-        type: displayName, // Display name for the card
-        // URL to fetch SVG for the card; uses resolvedUserId and ensures the variation query string is correctly added
-        svgUrl: `${process.env.NEXT_PUBLIC_API_URL}/api/card.svg?cardType=${card.cardName}&userId=${resolvedUserId}&variation=${variation}`,
-        rawType: card.cardName, // Raw card name for internal use
+        type: displayName,
+        svgUrl,
+        rawType: card.cardName,
       };
     },
   );

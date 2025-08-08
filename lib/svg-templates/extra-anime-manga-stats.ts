@@ -13,6 +13,8 @@ export const extraAnimeMangaStatsTemplate = (data: {
   stats: { name: string; count: number }[];
   showPieChart?: boolean;
   favorites?: string[];
+  fixedStatusColors?: boolean;
+  showPiePercentages?: boolean;
 }) => {
   // Determine variant flags
   const isPie = data.showPieChart || data.variant === "pie";
@@ -49,21 +51,26 @@ export const extraAnimeMangaStatsTemplate = (data: {
     })
     .join("");
 
+  const totalForPie = data.stats.reduce((acc, s) => acc + s.count, 0) || 1;
   const statsContentWithPie = data.stats
     .map((stat, index) => {
       const isFavorite = showFavorites && data.favorites?.includes(stat.name);
       const heartLegendSVG = heartSVG.replace('x="-18"', 'x="-36"');
+      const fillColor = getStatColor(
+        index,
+        stat.name,
+        data.styles.circleColor,
+        data.fixedStatusColors && /Statuses$/.test(data.format),
+      );
+      const pct = ((stat.count / totalForPie) * 100).toFixed(0);
       return `
         <g class="stagger" style="animation-delay: ${450 + index * 150}ms" transform="translate(0, ${
           index * 25
         })">
           ${isFavorite ? heartLegendSVG : ""}
-          <rect x="-20" y="2" width="12" height="12" fill="${getColorByIndex(
-            index,
-            data.styles.circleColor,
-          )}" />
+          <rect x="-20" y="2" width="12" height="12" fill="${fillColor}" />
           <text class="stat" y="12.5">${stat.name}:</text>
-          <text class="stat" x="125" y="12.5">${stat.count}</text>
+          <text class="stat" x="125" y="12.5">${stat.count}${data.showPiePercentages ? ` (${pct}%)` : ""}</text>
         </g>`;
     })
     .join("");
@@ -91,7 +98,12 @@ export const extraAnimeMangaStatsTemplate = (data: {
                   A ${r} ${r} 0 ${largeArc} 1 
                   ${cx + r * Math.cos(endRadians)} ${cy + r * Math.sin(endRadians)}
                   Z"
-                fill="${getColorByIndex(index, data.styles.circleColor)}"
+                fill="${getStatColor(
+                  index,
+                  stat.name,
+                  data.styles.circleColor,
+                  data.fixedStatusColors && /Statuses$/.test(data.format),
+                )}"
                 stroke="${data.styles.backgroundColor}"
                 stroke-width="1.5"
                 stroke-linejoin="round"
@@ -131,7 +143,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
         <g transform="translate(45, 0)">
           ${statsContentWithPie}
         </g>
-        <g transform="translate(225, 20)">
+        <g transform="translate(240, 20)">
           ${pieChartContent}
         </g>
       `
@@ -261,4 +273,29 @@ const getColorByIndex = (index: number, baseColor: string) => {
 
   const variation = variations[index % variations.length];
   return `hsl(${h}, ${Math.min(variation.s, 100)}%, ${Math.min(variation.l, 100)}%)`;
+};
+
+// Derive color for a stat; if fixed status colors enabled and stat name matches known statuses, use mapping
+const getStatColor = (
+  index: number,
+  statName: string,
+  baseColor: string,
+  useFixed: boolean | undefined,
+) => {
+  if (useFixed) {
+    const key = statName.toLowerCase();
+    const map: Record<string, string> = {
+      current: "#16a34a", // green-600
+      watching: "#16a34a",
+      reading: "#16a34a",
+      paused: "#ca8a04", // yellow-600
+      completed: "#2563eb", // blue-600
+      dropped: "#dc2626", // red-600
+      planning: "#6b7280", // gray-500
+      planned: "#6b7280",
+      on_hold: "#ca8a04",
+    };
+    if (map[key]) return map[key];
+  }
+  return getColorByIndex(index, baseColor);
 };

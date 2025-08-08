@@ -4,6 +4,7 @@ import { CardConfig, UserStats } from "@/lib/types/card";
 import { calculateMilestones } from "@/lib/utils/milestones";
 import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
 import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats";
+import { distributionTemplate } from "@/lib/svg-templates/distribution";
 import { safeParse } from "@/lib/utils";
 import { UserRecord } from "@/lib/types/records";
 import { CardsRecord } from "@/lib/types/records";
@@ -29,6 +30,16 @@ const ALLOWED_CARD_TYPES = new Set([
   "mangaGenres",
   "mangaTags",
   "mangaStaff",
+  "animeStatusDistribution",
+  "mangaStatusDistribution",
+  "animeFormatDistribution",
+  "mangaFormatDistribution",
+  "animeScoreDistribution",
+  "mangaScoreDistribution",
+  "animeYearDistribution",
+  "mangaYearDistribution",
+  "animeCountry",
+  "mangaCountry",
 ]);
 
 // Display names for card types, used in templates
@@ -44,6 +55,16 @@ const displayNames: { [key: string]: string } = {
   mangaGenres: "Manga Genres",
   mangaTags: "Manga Tags",
   mangaStaff: "Manga Staff",
+  animeStatusDistribution: "Anime Statuses",
+  mangaStatusDistribution: "Manga Statuses",
+  animeFormatDistribution: "Anime Formats",
+  mangaFormatDistribution: "Manga Formats",
+  animeScoreDistribution: "Anime Scores",
+  mangaScoreDistribution: "Manga Scores",
+  animeYearDistribution: "Anime Years",
+  mangaYearDistribution: "Manga Years",
+  animeCountry: "Anime Countries",
+  mangaCountry: "Manga Countries",
 };
 
 // Type definitions for category keys and item types
@@ -300,8 +321,177 @@ function generateCardSVG(
         stats: items,
         showPieChart: showPieChart,
         favorites: favorites,
+        showPiePercentages: (
+          cardConfig as CardConfig & { showPiePercentages?: boolean }
+        ).showPiePercentages,
       });
       break;
+    case "animeStatusDistribution":
+    case "mangaStatusDistribution": {
+      const isAnimeSD = baseCardType.startsWith("anime");
+      const statusStats = isAnimeSD
+        ? userStats.stats.User.statistics.anime
+        : userStats.stats.User.statistics.manga;
+      const statsList = (statusStats.statuses || []).map(
+        (s: { status: string; count?: number; amount?: number }) => ({
+          name: s.status,
+          count: typeof s.amount === "number" ? s.amount : (s.count ?? 0),
+        }),
+      );
+      const mappedVariant = (
+        ["pie", "bar"].includes(variant) ? variant : "default"
+      ) as "default" | "pie" | "bar";
+      svgContent = extraAnimeMangaStatsTemplate({
+        username: userStats.username,
+        variant: mappedVariant,
+        styles: {
+          titleColor: cardConfig.titleColor,
+          backgroundColor: cardConfig.backgroundColor,
+          textColor: cardConfig.textColor,
+          circleColor: cardConfig.circleColor,
+        },
+        format: displayNames[baseCardType],
+        stats: statsList,
+        showPieChart: mappedVariant === "pie",
+        fixedStatusColors: !!cardConfig.useStatusColors,
+        showPiePercentages: (
+          cardConfig as CardConfig & { showPiePercentages?: boolean }
+        ).showPiePercentages,
+      });
+      break;
+    }
+    case "animeFormatDistribution":
+    case "mangaFormatDistribution": {
+      const isAnimeFmt = baseCardType.startsWith("anime");
+      const fmtStats = isAnimeFmt
+        ? userStats.stats.User.statistics.anime
+        : userStats.stats.User.statistics.manga;
+      const statsList = (fmtStats.formats || []).map(
+        (f: { format: string; count?: number }) => ({
+          name: f.format,
+          count: f.count ?? 0,
+        }),
+      );
+      const mappedVariant = (
+        ["pie", "bar"].includes(variant) ? variant : "default"
+      ) as "default" | "pie" | "bar";
+      svgContent = extraAnimeMangaStatsTemplate({
+        username: userStats.username,
+        variant: mappedVariant,
+        styles: {
+          titleColor: cardConfig.titleColor,
+          backgroundColor: cardConfig.backgroundColor,
+          textColor: cardConfig.textColor,
+          circleColor: cardConfig.circleColor,
+        },
+        format: displayNames[baseCardType],
+        stats: statsList,
+        showPieChart: mappedVariant === "pie",
+        showPiePercentages: (
+          cardConfig as CardConfig & { showPiePercentages?: boolean }
+        ).showPiePercentages,
+      });
+      break;
+    }
+    case "animeScoreDistribution":
+    case "mangaScoreDistribution": {
+      const isAnimeScore = baseCardType.startsWith("anime");
+      const scStats = isAnimeScore
+        ? userStats.stats.User.statistics.anime
+        : userStats.stats.User.statistics.manga;
+      const statsList = (scStats.scores || []).map(
+        (s: { score: number; count?: number }) => ({
+          name: String(s.score),
+          count: s.count ?? 0,
+        }),
+      );
+      const mappedVariant = (
+        ["default", "horizontal"].includes(variant) ? variant : "default"
+      ) as "default" | "horizontal";
+      svgContent = distributionTemplate({
+        username: userStats.username,
+        mediaType: isAnimeScore ? "anime" : "manga",
+        variant: mappedVariant,
+        kind: "score",
+        styles: {
+          titleColor: cardConfig.titleColor,
+          backgroundColor: cardConfig.backgroundColor,
+          textColor: cardConfig.textColor,
+          circleColor: cardConfig.circleColor,
+        },
+        data: statsList.map((s: { name: string; count: number }) => ({
+          value: Number(s.name),
+          count: s.count,
+        })),
+      });
+      break;
+    }
+    case "animeYearDistribution":
+    case "mangaYearDistribution": {
+      const isAnimeYear = baseCardType.startsWith("anime");
+      const yrStats = isAnimeYear
+        ? userStats.stats.User.statistics.anime
+        : userStats.stats.User.statistics.manga;
+      const statsList = (yrStats.releaseYears || []).map(
+        (s: { releaseYear: number; count?: number }) => ({
+          name: String(s.releaseYear),
+          count: s.count ?? 0,
+        }),
+      );
+      const mappedVariant = (
+        ["default", "horizontal"].includes(variant) ? variant : "default"
+      ) as "default" | "horizontal";
+      svgContent = distributionTemplate({
+        username: userStats.username,
+        mediaType: isAnimeYear ? "anime" : "manga",
+        variant: mappedVariant,
+        kind: "year",
+        styles: {
+          titleColor: cardConfig.titleColor,
+          backgroundColor: cardConfig.backgroundColor,
+          textColor: cardConfig.textColor,
+          circleColor: cardConfig.circleColor,
+        },
+        data: statsList.map((s: { name: string; count: number }) => ({
+          value: Number(s.name),
+          count: s.count,
+        })),
+      });
+      break;
+    }
+    case "animeCountry":
+    case "mangaCountry": {
+      const isAnime = baseCardType.startsWith("anime");
+      const statsRoot = isAnime
+        ? userStats.stats.User.statistics.anime
+        : userStats.stats.User.statistics.manga;
+      const list = (statsRoot.countries || []).map(
+        (c: { country: string; count?: number }) => ({
+          name: c.country || "Unknown",
+          count: c.count ?? 0,
+        }),
+      );
+      const mappedVariant = (
+        ["pie", "bar"].includes(variant) ? variant : "default"
+      ) as "default" | "pie" | "bar";
+      svgContent = extraAnimeMangaStatsTemplate({
+        username: userStats.username,
+        variant: mappedVariant,
+        styles: {
+          titleColor: cardConfig.titleColor,
+          backgroundColor: cardConfig.backgroundColor,
+          textColor: cardConfig.textColor,
+          circleColor: cardConfig.circleColor,
+        },
+        format: displayNames[baseCardType],
+        stats: list,
+        showPieChart: mappedVariant === "pie",
+        showPiePercentages: (
+          cardConfig as CardConfig & { showPiePercentages?: boolean }
+        ).showPiePercentages,
+      });
+      break;
+    }
     // Default case for unsupported card types
     default:
       throw new Error("Unsupported card type");
@@ -335,6 +525,8 @@ export async function GET(request: Request) {
   const cardType = searchParams.get("cardType");
   const variationParam = searchParams.get("variation");
   const showFavoritesParam = searchParams.get("showFavorites");
+  const statusColorsParam = searchParams.get("statusColors");
+  const piePercentagesParam = searchParams.get("piePercentages");
 
   console.log(
     `🖼️ [Card SVG] Request for ${cardType} card - User ID: ${userId}`,
@@ -463,8 +655,24 @@ export async function GET(request: Request) {
         favorites = getFavoritesForCardType(favoritesData, baseCardType);
       }
       // Generate SVG content using generateCardSVG function
+      // Inject statusColors flag into config for status distribution cards via query param
+      if (
+        statusColorsParam === "true" &&
+        ["animeStatusDistribution", "mangaStatusDistribution"].includes(
+          baseCardType,
+        )
+      ) {
+        (
+          cardConfig as CardConfig & { useStatusColors?: boolean }
+        ).useStatusColors = true;
+      }
+      if (piePercentagesParam === "true") {
+        (
+          cardConfig as CardConfig & { showPiePercentages?: boolean }
+        ).showPiePercentages = true;
+      }
       const svgContent = generateCardSVG(
-        cardConfig,
+        cardConfig as CardConfig,
         userDoc as unknown as UserStats,
         effectiveVariation as "default" | "vertical" | "pie",
         favorites,
