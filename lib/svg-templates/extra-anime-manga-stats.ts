@@ -127,12 +127,12 @@ export const extraAnimeMangaStatsTemplate = (data: {
                 index * 26
               })">
                 ${isFavorite ? heartSVG : ""}
-                <text class="stat" y="12">${stat.name}</text>
-                <rect x="120" y="2" width="${barWidth}" height="14" rx="3" fill="${getColorByIndex(
+                <text class="stat" y="12">${stat.name}:</text>
+                <rect x="150" y="2" width="${barWidth}" height="14" rx="3" fill="${getColorByIndex(
                   index,
                   data.styles.circleColor,
                 )}" />
-                <text class="stat" x="${125 + Number(barWidth)}" y="13">${stat.count}</text>
+                <text class="stat" x="${155 + Number(barWidth)}" y="13">${stat.count}</text>
               </g>`;
         })
         .join("")
