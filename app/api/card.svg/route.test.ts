@@ -56,9 +56,87 @@ jest.mock("@/lib/utils", () => ({
   // Keep calculateMilestones from the dedicated module above.
 }));
 
-// A helper function to extract text content from a Response.
+// Helper functions to reduce code duplication
 async function getResponseText(response: Response): Promise<string> {
   return response.text();
+}
+
+// Helper to create mock card data
+function createMockCardData(cardName: string, variation = "default") {
+  return JSON.stringify({
+    cards: [
+      {
+        cardName,
+        variation,
+        titleColor: "#3cc8ff",
+        backgroundColor: "#0b1622",
+        textColor: "#E8E8E8",
+        circleColor: "#3cc8ff",
+      },
+    ],
+  });
+}
+
+// Helper to create mock user data with different stat structures
+function createMockUserData(
+  userId: number,
+  username: string,
+  statsOverride?: Record<string, unknown>,
+) {
+  const defaultStats = {
+    User: {
+      statistics: {
+        anime: {},
+        manga: {},
+      },
+      stats: {
+        activityHistory: [{ date: 1, amount: 1 }],
+      },
+    },
+    followersPage: { pageInfo: { total: 1 }, followers: [{ id: 1 }] },
+    followingPage: { pageInfo: { total: 1 }, following: [{ id: 1 }] },
+    threadsPage: { pageInfo: { total: 1 }, threads: [{ id: 1 }] },
+    threadCommentsPage: {
+      pageInfo: { total: 1 },
+      threadComments: [{ id: 1 }],
+    },
+    reviewsPage: { pageInfo: { total: 1 }, reviews: [{ id: 1 }] },
+  };
+
+  return JSON.stringify({
+    userId,
+    username,
+    stats: statsOverride || defaultStats,
+  });
+}
+
+// Helper to create request URL
+function createRequestUrl(baseUrl: string, params: Record<string, string>) {
+  const url = new URL(baseUrl);
+  Object.entries(params).forEach(([key, value]) => {
+    url.searchParams.set(key, value);
+  });
+  return url.toString();
+}
+
+// Helper to setup successful mocks
+function setupSuccessfulMocks(cardsData: string, userData: string) {
+  mockRedisGet.mockResolvedValueOnce(cardsData).mockResolvedValueOnce(userData);
+}
+
+// Helper to validate successful SVG response
+async function expectSuccessfulSvgResponse(res: Response, expectedSvg: string) {
+  expect(res.status).toBe(200);
+  expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
+  const text = await getResponseText(res);
+  expect(text).toBe(expectedSvg);
+}
+
+// Helper to validate error response
+async function expectErrorResponse(res: Response, expectedError: string) {
+  expect(res.status).toBe(200);
+  const text = await getResponseText(res);
+  expect(text).toContain(expectedError);
 }
 
 describe("Card SVG GET Endpoint", () => {
@@ -73,66 +151,54 @@ describe("Card SVG GET Endpoint", () => {
     mockLimit.mockResolvedValueOnce({ success: false });
     mockRedisGet.mockClear();
 
-    const req = new Request(`${baseUrl}?userId=542244`);
+    const req = new Request(createRequestUrl(baseUrl, { userId: "542244" }));
 
     const res = await GET(req);
-    expect(res.status).toBe(200);
-    const text = await getResponseText(res);
-    expect(text).toContain("Too many requests - try again later");
+    await expectErrorResponse(res, "Too many requests - try again later");
   });
 
   it("should return error for missing parameters", async () => {
     // Missing cardType.
-    const req = new Request(`${baseUrl}?userId=542244`);
+    const req = new Request(createRequestUrl(baseUrl, { userId: "542244" }));
 
     const res = await GET(req);
-    expect(res.status).toBe(200);
-    const text = await getResponseText(res);
-    expect(text).toContain("Missing parameters");
+    await expectErrorResponse(res, "Missing parameters");
   });
 
   it("should return error for invalid card type", async () => {
     // Provide a cardType that is not allowed.
-    const req = new Request(`${baseUrl}?userId=542244&cardType=invalidType`);
+    const req = new Request(
+      createRequestUrl(baseUrl, { userId: "542244", cardType: "invalidType" }),
+    );
 
     const res = await GET(req);
-    expect(res.status).toBe(200);
-    const text = await getResponseText(res);
-    expect(text).toContain("Invalid card type");
+    await expectErrorResponse(res, "Invalid card type");
   });
 
   it("should return error for invalid user ID format", async () => {
     // userId that cannot be parsed as a number.
-    const req = new Request(`${baseUrl}?userId=abc&cardType=animeStats`);
+    const req = new Request(
+      createRequestUrl(baseUrl, { userId: "abc", cardType: "animeStats" }),
+    );
     const res = await GET(req);
-    expect(res.status).toBe(200);
-    const text = await getResponseText(res);
-    expect(text).toContain("Invalid user ID");
+    await expectErrorResponse(res, "Invalid user ID");
   });
 
   it("should return error if user data is not found in Redis", async () => {
     // Simulate Redis missing one of the keys.
-    mockRedisGet.mockResolvedValueOnce(null).mockResolvedValueOnce(
-      JSON.stringify({
-        userId: 542244,
-        username: "testUser",
-        stats: { User: { statistics: { anime: {} } } },
-      }),
+    const userData = createMockUserData(542244, "testUser");
+    mockRedisGet.mockResolvedValueOnce(null).mockResolvedValueOnce(userData);
+
+    const req = new Request(
+      createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
     );
-    const req = new Request(`${baseUrl}?userId=542244&cardType=animeStats`);
     const res = await GET(req);
-    expect(res.status).toBe(200);
-    const text = await getResponseText(res);
-    expect(text).toContain("User data not found");
+    await expectErrorResponse(res, "User data not found");
   });
 
   it("should return error when card config is not found", async () => {
     // Return valid user record.
-    const userData = JSON.stringify({
-      userId: 542244,
-      username: "testUser",
-      stats: { User: { statistics: { anime: {} } } },
-    });
+    const userData = createMockUserData(542244, "testUser");
     // Return a cards record that does not include the requested card config.
     const cardsData = JSON.stringify({
       cards: [
@@ -149,347 +215,203 @@ describe("Card SVG GET Endpoint", () => {
       .mockResolvedValueOnce(cardsData)
       .mockResolvedValueOnce(userData);
 
-    const req = new Request(`${baseUrl}?userId=542244&cardType=animeStats`);
+    const req = new Request(
+      createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
+    );
     const res = await GET(req);
-    expect(res.status).toBe(200);
-    const text = await getResponseText(res);
-    expect(text).toContain("Card config not found");
+    await expectErrorResponse(res, "Card config not found");
   });
 
   it("should successfully generate SVG content", async () => {
-    // Valid cards record with matching card config.
-    const cardsData = JSON.stringify({
-      cards: [
-        {
-          cardName: "animeStats",
-          variation: "default",
-          titleColor: "#3cc8ff",
-          backgroundColor: "#0b1622",
-          textColor: "#E8E8E8",
-          circleColor: "#3cc8ff",
-        },
-      ],
-    });
-    // Valid user record with proper stats.
-    const userData = JSON.stringify({
-      userId: 542244,
-      username: "testUser",
-      stats: {
-        User: {
-          statistics: {
-            anime: {},
-          },
+    const cardsData = createMockCardData("animeStats", "default");
+    const userData = createMockUserData(542244, "testUser", {
+      User: {
+        statistics: {
+          anime: {},
         },
       },
     });
-    mockRedisGet
-      .mockResolvedValueOnce(cardsData)
-      .mockResolvedValueOnce(userData);
+    setupSuccessfulMocks(cardsData, userData);
 
     const req = new Request(
-      `${baseUrl}?userId=542244&cardType=animeStats&variation=default`,
+      createRequestUrl(baseUrl, {
+        userId: "542244",
+        cardType: "animeStats",
+        variation: "default",
+      }),
     );
     const res = await GET(req);
-    expect(res.status).toBe(200);
-    expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
-    const text = await getResponseText(res);
-    expect(text).toBe("<svg>Anime Stats</svg>");
+    await expectSuccessfulSvgResponse(res, "<svg>Anime Stats</svg>");
   });
 
   it("should return server error when SVG generation fails (inner try)", async () => {
     // Provide a valid cards record.
-    const cardsData = JSON.stringify({
-      cards: [
-        {
-          cardName: "animeStats",
-          variation: "default",
-          titleColor: "#000",
-          backgroundColor: "#fff",
-          textColor: "#333",
-          circleColor: "f00",
-        },
-      ],
-    });
+    const cardsData = createMockCardData("animeStats", "default");
     // Provide a user record missing the required stats (will cause generateCardSVG to throw).
-    const userData = JSON.stringify({
-      userId: 123,
-      username: "testUser",
-      stats: {}, // missing User.statistics.anime
-    });
-    mockRedisGet
-      .mockResolvedValueOnce(cardsData)
-      .mockResolvedValueOnce(userData);
+    const userData = createMockUserData(123, "testUser", {}); // missing User.statistics.anime
+    setupSuccessfulMocks(cardsData, userData);
 
     const req = new Request(
-      `${baseUrl}?userId=123&cardType=animeStats&variation=default`,
+      createRequestUrl(baseUrl, {
+        userId: "123",
+        cardType: "animeStats",
+        variation: "default",
+      }),
       {
         headers: { "x-forwarded-for": "127.0.0.1" },
       },
     );
     const res = await GET(req);
-    expect(res.status).toBe(200);
-    const text = await getResponseText(res);
-    expect(text).toContain("Server Error");
+    await expectErrorResponse(res, "Server Error");
   });
 
   it("should return server error when an outer error occurs", async () => {
     // Simulate Redis throwing an error.
     mockRedisGet.mockRejectedValueOnce(new Error("Redis error"));
-    const req = new Request(`${baseUrl}?userId=123&cardType=animeStats`);
+    const req = new Request(
+      createRequestUrl(baseUrl, { userId: "123", cardType: "animeStats" }),
+    );
     const res = await GET(req);
-    expect(res.status).toBe(200);
-    const text = await getResponseText(res);
-    expect(text).toContain("Server Error");
+    await expectErrorResponse(res, "Server Error");
   });
 
   // NEW: Test for social stats card SVG generation.
   it("should successfully generate social stats SVG content", async () => {
-    const cardsData = JSON.stringify({
-      cards: [
-        {
-          cardName: "socialStats",
-          variation: "default",
-          titleColor: "#123456",
-          backgroundColor: "#654321",
-          textColor: "#abcdef",
-          circleColor: "#fedcba",
-        },
-      ],
-    });
-    const userData = JSON.stringify({
-      userId: 542244,
-      username: "socialUser",
-      stats: {
-        User: {
-          statistics: {
-            anime: {},
-            manga: {},
-          },
-          stats: {
-            activityHistory: [{ date: 1, amount: 1 }],
-          },
-        },
-        followersPage: { pageInfo: { total: 1 }, followers: [{ id: 1 }] },
-        followingPage: { pageInfo: { total: 1 }, following: [{ id: 1 }] },
-        threadsPage: { pageInfo: { total: 1 }, threads: [{ id: 1 }] },
-        threadCommentsPage: {
-          pageInfo: { total: 1 },
-          threadComments: [{ id: 1 }],
-        },
-        reviewsPage: { pageInfo: { total: 1 }, reviews: [{ id: 1 }] },
-      },
-    });
-    mockRedisGet
-      .mockResolvedValueOnce(cardsData)
-      .mockResolvedValueOnce(userData);
+    const cardsData = createMockCardData("socialStats", "default");
+    const userData = createMockUserData(542244, "socialUser");
+    setupSuccessfulMocks(cardsData, userData);
 
     const req = new Request(
-      `${baseUrl}?userId=542244&cardType=socialStats&variation=default`,
+      createRequestUrl(baseUrl, {
+        userId: "542244",
+        cardType: "socialStats",
+        variation: "default",
+      }),
     );
     const res = await GET(req);
-    expect(res.status).toBe(200);
-    expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
-    const text = await getResponseText(res);
-    expect(text).toBe("<svg>Social Stats</svg>");
+    await expectSuccessfulSvgResponse(res, "<svg>Social Stats</svg>");
   });
 
   // NEW: Test for category-based card (animeGenres) SVG generation.
   it("should successfully generate category-based SVG content for animeGenres", async () => {
-    const cardsData = JSON.stringify({
-      cards: [
-        {
-          cardName: "animeGenres",
-          variation: "default",
-          titleColor: "#123456",
-          backgroundColor: "#654321",
-          textColor: "#abcdef",
-          circleColor: "#fedcba",
-        },
-      ],
-    });
-    const userData = JSON.stringify({
-      userId: 542244,
-      username: "genreUser",
-      stats: {
-        User: {
-          statistics: {
-            anime: {
-              genres: [{ genre: "Action", count: 10 }],
-            },
+    const cardsData = createMockCardData("animeGenres", "default");
+    const userData = createMockUserData(542244, "genreUser", {
+      User: {
+        statistics: {
+          anime: {
+            genres: [{ genre: "Action", count: 10 }],
           },
         },
       },
     });
-    mockRedisGet
-      .mockResolvedValueOnce(cardsData)
-      .mockResolvedValueOnce(userData);
+    setupSuccessfulMocks(cardsData, userData);
 
     const req = new Request(
-      `${baseUrl}?userId=542244&cardType=animeGenres&variation=default`,
+      createRequestUrl(baseUrl, {
+        userId: "542244",
+        cardType: "animeGenres",
+        variation: "default",
+      }),
     );
     const res = await GET(req);
-    expect(res.status).toBe(200);
-    expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
-    const text = await getResponseText(res);
-    expect(text).toBe("<svg>Extra Stats</svg>");
+    await expectSuccessfulSvgResponse(res, "<svg>Extra Stats</svg>");
   });
 
   // NEW: Test for vertical variation for an animeStats card.
   it("should successfully generate vertical SVG content for animeStats", async () => {
-    const cardsData = JSON.stringify({
-      cards: [
-        {
-          cardName: "animeStats",
-          variation: "vertical",
-          titleColor: "#3cc8ff",
-          backgroundColor: "#0b1622",
-          textColor: "#E8E8E8",
-          circleColor: "#3cc8ff",
-        },
-      ],
-    });
-    const userData = JSON.stringify({
-      userId: 542244,
-      username: "testUserVertical",
-      stats: {
-        User: {
-          statistics: {
-            anime: {},
-          },
+    const cardsData = createMockCardData("animeStats", "vertical");
+    const userData = createMockUserData(542244, "testUserVertical", {
+      User: {
+        statistics: {
+          anime: {},
         },
       },
     });
-    mockRedisGet
-      .mockResolvedValueOnce(cardsData)
-      .mockResolvedValueOnce(userData);
+    setupSuccessfulMocks(cardsData, userData);
 
     const req = new Request(
-      `${baseUrl}?userId=542244&cardType=animeStats&variation=vertical`,
+      createRequestUrl(baseUrl, {
+        userId: "542244",
+        cardType: "animeStats",
+        variation: "vertical",
+      }),
     );
     const res = await GET(req);
-    expect(res.status).toBe(200);
-    expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
-    const text = await getResponseText(res);
-    expect(text).toBe("<svg>Anime Stats</svg>");
+    await expectSuccessfulSvgResponse(res, "<svg>Anime Stats</svg>");
   });
 
   // Test for compact variant for animeStats
   it("should successfully generate compact SVG content for animeStats", async () => {
-    const cardsData = JSON.stringify({
-      cards: [
-        {
-          cardName: "animeStats",
-          variation: "compact",
-          titleColor: "#3cc8ff",
-          backgroundColor: "#0b1622",
-          textColor: "#E8E8E8",
-          circleColor: "#3cc8ff",
-        },
-      ],
+    const cardsData = createMockCardData("animeStats", "compact");
+    const userData = createMockUserData(542244, "testUserCompact", {
+      User: { statistics: { anime: {} } },
     });
-    const userData = JSON.stringify({
-      userId: 542244,
-      username: "testUserCompact",
-      stats: { User: { statistics: { anime: {} } } },
-    });
-    mockRedisGet
-      .mockResolvedValueOnce(cardsData)
-      .mockResolvedValueOnce(userData);
-    const req = new Request(
-      `${baseUrl}?userId=542244&cardType=animeStats&variation=compact`,
-    );
-    const res = await GET(req);
-    expect(res.status).toBe(200);
-    expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
-    const text = await getResponseText(res);
-    expect(text).toBe("<svg>Anime Stats</svg>");
-  });
+    setupSuccessfulMocks(cardsData, userData);
 
-  // Test for minimal variant for socialStats
-  it("should successfully generate minimal SVG content for socialStats", async () => {
-    const cardsData = JSON.stringify({
-      cards: [
-        {
-          cardName: "socialStats",
-          variation: "minimal",
-          titleColor: "#123456",
-          backgroundColor: "#654321",
-          textColor: "#abcdef",
-          circleColor: "#fedcba",
-        },
-      ],
-    });
-    const userData = JSON.stringify({
-      userId: 542244,
-      username: "socialUserMinimal",
-      stats: {
-        User: {
-          statistics: { anime: {}, manga: {} },
-          stats: { activityHistory: [{ date: 1, amount: 2 }] },
-        },
-        followersPage: { pageInfo: { total: 2 }, followers: [{ id: 1 }] },
-        followingPage: { pageInfo: { total: 3 }, following: [{ id: 1 }] },
-        threadsPage: { pageInfo: { total: 1 }, threads: [{ id: 1 }] },
-        threadCommentsPage: {
-          pageInfo: { total: 1 },
-          threadComments: [{ id: 1 }],
-        },
-        reviewsPage: { pageInfo: { total: 1 }, reviews: [{ id: 1 }] },
-      },
-    });
-    mockRedisGet
-      .mockResolvedValueOnce(cardsData)
-      .mockResolvedValueOnce(userData);
     const req = new Request(
-      `${baseUrl}?userId=542244&cardType=socialStats&variation=minimal`,
+      createRequestUrl(baseUrl, {
+        userId: "542244",
+        cardType: "animeStats",
+        variation: "compact",
+      }),
     );
     const res = await GET(req);
-    expect(res.status).toBe(200);
-    expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
-    const text = await getResponseText(res);
-    expect(text).toBe("<svg>Social Stats</svg>");
+    await expectSuccessfulSvgResponse(res, "<svg>Anime Stats</svg>");
+  }); // Test for minimal variant for socialStats
+  it("should successfully generate minimal SVG content for socialStats", async () => {
+    const cardsData = createMockCardData("socialStats", "minimal");
+    const userData = createMockUserData(542244, "socialUserMinimal", {
+      User: {
+        statistics: { anime: {}, manga: {} },
+        stats: { activityHistory: [{ date: 1, amount: 2 }] },
+      },
+      followersPage: { pageInfo: { total: 2 }, followers: [{ id: 1 }] },
+      followingPage: { pageInfo: { total: 3 }, following: [{ id: 1 }] },
+      threadsPage: { pageInfo: { total: 1 }, threads: [{ id: 1 }] },
+      threadCommentsPage: {
+        pageInfo: { total: 1 },
+        threadComments: [{ id: 1 }],
+      },
+      reviewsPage: { pageInfo: { total: 1 }, reviews: [{ id: 1 }] },
+    });
+    setupSuccessfulMocks(cardsData, userData);
+
+    const req = new Request(
+      createRequestUrl(baseUrl, {
+        userId: "542244",
+        cardType: "socialStats",
+        variation: "minimal",
+      }),
+    );
+    const res = await GET(req);
+    await expectSuccessfulSvgResponse(res, "<svg>Social Stats</svg>");
   });
 
   // Test for bar variant on animeGenres
   it("should successfully generate bar variant for animeGenres", async () => {
-    const cardsData = JSON.stringify({
-      cards: [
-        {
-          cardName: "animeGenres",
-          variation: "bar",
-          titleColor: "#123456",
-          backgroundColor: "#654321",
-          textColor: "#abcdef",
-          circleColor: "#fedcba",
-        },
-      ],
-    });
-    const userData = JSON.stringify({
-      userId: 542244,
-      username: "genreBarUser",
-      stats: {
-        User: {
-          statistics: {
-            anime: {
-              genres: [
-                { genre: "Action", count: 10 },
-                { genre: "Drama", count: 5 },
-              ],
-            },
+    const cardsData = createMockCardData("animeGenres", "bar");
+    const userData = createMockUserData(542244, "genreBarUser", {
+      User: {
+        statistics: {
+          anime: {
+            genres: [
+              { genre: "Action", count: 10 },
+              { genre: "Drama", count: 5 },
+            ],
           },
         },
       },
     });
-    mockRedisGet
-      .mockResolvedValueOnce(cardsData)
-      .mockResolvedValueOnce(userData);
+    setupSuccessfulMocks(cardsData, userData);
+
     const req = new Request(
-      `${baseUrl}?userId=542244&cardType=animeGenres&variation=bar`,
+      createRequestUrl(baseUrl, {
+        userId: "542244",
+        cardType: "animeGenres",
+        variation: "bar",
+      }),
     );
     const res = await GET(req);
-    expect(res.status).toBe(200);
-    expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
-    const text = await getResponseText(res);
-    expect(text).toBe("<svg>Extra Stats</svg>");
+    await expectSuccessfulSvgResponse(res, "<svg>Extra Stats</svg>");
   });
 });

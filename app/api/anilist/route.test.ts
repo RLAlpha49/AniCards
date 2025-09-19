@@ -2,6 +2,101 @@ import { beforeEach, afterEach } from "node:test";
 
 import { POST } from "./route";
 
+// Helper functions to reduce code duplication
+const BASE_URL = "http://localhost/api/anilist";
+const DEFAULT_QUERY = "query GetUserStats { dummyField }";
+const DEFAULT_VARIABLES = { userId: 123 };
+
+// Helper to create a request with optional headers and body
+function createAniListRequest(
+  headers: Record<string, string> = {},
+  body?: object,
+): Request {
+  const requestBody = body ? JSON.stringify(body) : JSON.stringify({});
+
+  return new Request(BASE_URL, {
+    method: "POST",
+    headers: new Headers({
+      "Content-Type": "application/json",
+      ...headers,
+    }),
+    body: requestBody,
+  });
+}
+
+// Helper to setup environment for testing
+function setupEnvironment(nodeEnv: string, includeToken = false) {
+  (process.env as Record<string, string>).NODE_ENV = nodeEnv;
+  if (includeToken) {
+    process.env.ANILIST_TOKEN = "dummy-token";
+  }
+}
+
+// Helper to create GraphQL request body
+function createGraphQLBody(
+  query = DEFAULT_QUERY,
+  variables = DEFAULT_VARIABLES,
+) {
+  return { query, variables };
+}
+
+// Helper to mock fetch response
+function mockFetchResponse(
+  responseData: unknown,
+  options: {
+    ok?: boolean;
+    status?: number;
+    headers?: Record<string, string>;
+  } = {},
+) {
+  const { ok = true, status = 200, headers = {} } = options;
+
+  const fetchResponse = {
+    ok,
+    status,
+    json: jest.fn().mockResolvedValue(responseData),
+    headers: new Headers(headers),
+  };
+
+  global.fetch = jest.fn().mockResolvedValue(fetchResponse as unknown);
+  return fetchResponse;
+}
+
+// Helper to validate response
+async function expectResponse(
+  response: Response,
+  expectedStatus: number,
+  expectedData?:
+    | { error?: string; contains?: string }
+    | Record<string, unknown>,
+) {
+  expect(response.status).toBe(expectedStatus);
+
+  if (expectedData) {
+    const data = await response.json();
+    if (
+      typeof expectedData === "object" &&
+      expectedData !== null &&
+      "error" in expectedData
+    ) {
+      expect(data.error).toBe((expectedData as { error: string }).error);
+    } else if (
+      typeof expectedData === "object" &&
+      expectedData !== null &&
+      "contains" in expectedData
+    ) {
+      expect(data.error).toContain(
+        (expectedData as { contains: string }).contains,
+      );
+    } else {
+      expect(data).toEqual(expectedData);
+    }
+    return data;
+  }
+
+  return response;
+}
+
 describe("AniList API Proxy Endpoint", () => {
   const originalEnv = process.env;
 
@@ -23,136 +118,71 @@ describe("AniList API Proxy Endpoint", () => {
   });
 
   it("should simulate 429 rate limit error in development mode", async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (process.env as any).NODE_ENV = "development";
-    const request = new Request("http://localhost/api/anilist", {
-      method: "POST",
-      headers: new Headers({
-        "X-Test-Status": "429",
-      }),
-      // The body can be empty since the simulation happens before parsing.
-      body: JSON.stringify({}),
-    });
+    setupEnvironment("development");
 
+    const request = createAniListRequest({ "X-Test-Status": "429" });
     const response = await POST(request);
+
     expect(response.status).toBe(429);
     expect(response.headers.get("Retry-After")).toBe("60");
 
-    const data = await response.json();
-    expect(data.error).toBe("Rate limited (test simulation)");
+    await expectResponse(response, 429, {
+      error: "Rate limited (test simulation)",
+    });
   });
 
   it("should simulate 500 internal server error in development mode", async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (process.env as any).NODE_ENV = "development";
-    const request = new Request("http://localhost/api/anilist", {
-      method: "POST",
-      headers: new Headers({
-        "X-Test-Status": "500",
-      }),
-      body: JSON.stringify({}),
-    });
+    setupEnvironment("development");
 
+    const request = createAniListRequest({ "X-Test-Status": "500" });
     const response = await POST(request);
-    expect(response.status).toBe(500);
-    const data = await response.json();
-    expect(data.error).toBe("Internal server error (test simulation)");
+
+    await expectResponse(response, 500, {
+      error: "Internal server error (test simulation)",
+    });
   });
 
   it("should forward the request and return json data when AniList API responds successfully", async () => {
-    // Set non-development environment so simulations do not trigger.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (process.env as any).NODE_ENV = "production";
-    process.env.ANILIST_TOKEN = "dummy-token";
+    setupEnvironment("production", true);
 
-    // Prepare a dummy GraphQL query and variables.
-    const query = "query GetUserStats { dummyField }";
-    const variables = { userId: 123 };
-    const body = JSON.stringify({ query, variables });
+    const requestBody = createGraphQLBody();
+    const request = createAniListRequest({}, requestBody);
 
-    const request = new Request("http://localhost/api/anilist", {
-      method: "POST",
-      headers: new Headers({
-        "Content-Type": "application/json",
-      }),
-      body,
-    });
-
-    // Mock the global fetch to simulate AniList API response.
+    // Mock successful AniList API response
     const mockData = { data: { user: "testUser" } };
-    const fetchResponse = {
-      ok: true,
-      status: 200,
-      json: jest.fn().mockResolvedValue(mockData),
-      headers: new Headers(),
-    };
-    global.fetch = jest.fn().mockResolvedValue(fetchResponse as unknown);
+    mockFetchResponse(mockData);
 
     const response = await POST(request);
+
     expect(global.fetch).toHaveBeenCalledWith(
       "https://graphql.anilist.co",
       expect.any(Object),
     );
-    expect(response.status).toBe(200);
 
-    const data = await response.json();
-    expect(data).toEqual(mockData.data);
+    await expectResponse(response, 200, mockData.data);
   });
 
   it("should return an error when AniList API response has GraphQL errors", async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (process.env as any).NODE_ENV = "production";
-    process.env.ANILIST_TOKEN = "dummy-token";
+    setupEnvironment("production", true);
 
-    const query = "query GetUserStats { dummyField }";
-    const variables = { userId: 123 };
-    const body = JSON.stringify({ query, variables });
+    const requestBody = createGraphQLBody();
+    const request = createAniListRequest({}, requestBody);
 
-    const request = new Request("http://localhost/api/anilist", {
-      method: "POST",
-      headers: new Headers({
-        "Content-Type": "application/json",
-      }),
-      body,
-    });
-
-    // Simulate a successful HTTP response with GraphQL errors.
-    const fetchResponse = {
-      ok: true,
-      status: 200,
-      json: jest
-        .fn()
-        .mockResolvedValue({ errors: [{ message: "GraphQL error test" }] }),
-      headers: new Headers(),
-    };
-    global.fetch = jest.fn().mockResolvedValue(fetchResponse as unknown);
+    // Simulate GraphQL errors in response
+    const errorResponse = { errors: [{ message: "GraphQL error test" }] };
+    mockFetchResponse(errorResponse);
 
     const response = await POST(request);
-    // The endpoint catches the error and returns status 500.
-    expect(response.status).toBe(500);
-
-    const data = await response.json();
-    expect(data.error).toBe("GraphQL error test");
+    await expectResponse(response, 500, { error: "GraphQL error test" });
   });
 
   it("should handle non-ok responses from AniList API correctly", async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (process.env as any).NODE_ENV = "production";
-    process.env.ANILIST_TOKEN = "dummy-token";
+    setupEnvironment("production", true);
 
-    const query = "query GetUserStats { dummyField }";
-    const variables = { userId: 123 };
-    const body = JSON.stringify({ query, variables });
+    const requestBody = createGraphQLBody();
+    const request = createAniListRequest({}, requestBody);
 
-    const request = new Request("http://localhost/api/anilist", {
-      method: "POST",
-      headers: new Headers({
-        "Content-Type": "application/json",
-      }),
-      body,
-    });
-
-    // Simulate a non-ok response (for example, a rate limit from AniList).
+    // Simulate a non-ok response (for example, a rate limit from AniList)
     const fetchResponse = {
       ok: false,
       status: 429,
@@ -168,7 +198,7 @@ describe("AniList API Proxy Endpoint", () => {
     const response = await POST(request);
     expect(response.status).toBe(429);
     const data = await response.json();
-    // Should combine the error message with the retry header details.
+    // Should combine the error message with the retry header details
     expect(data.error).toContain("AniList API was rate limited");
     expect(data.error).toContain("Retry-After: 60");
   });

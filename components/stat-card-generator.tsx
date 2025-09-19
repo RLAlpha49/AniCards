@@ -37,219 +37,160 @@ interface StatCardGeneratorProps {
 /*
  * Configuration objects:
  * - statCardTypes: List of stat card types with their labels and IDs
- * - colorPresets: List of color presets with their labels and colors
  */
+const pieBarVariations = [
+  { id: "default", label: "Default" },
+  { id: "pie", label: "Pie Chart" },
+  { id: "bar", label: "Bar Chart" },
+];
+
+const verticalHorizontalVariations = [
+  { id: "default", label: "Vertical" },
+  { id: "horizontal", label: "Horizontal" },
+];
+
+const mainStatsVariations = [
+  { id: "default", label: "Default" },
+  { id: "vertical", label: "Vertical" },
+  { id: "compact", label: "Compact" },
+  { id: "minimal", label: "Minimal" },
+];
+
+const socialStatsVariations = [
+  { id: "default", label: "Default" },
+  { id: "compact", label: "Compact" },
+  { id: "minimal", label: "Minimal" },
+];
+
 export const statCardTypes = [
   {
     id: "animeStats",
     group: "Main Stats",
     label:
       "Anime Stats (Count, Episodes Watched, Minutes Watched, Mean Score, Standard Deviation)",
-    variations: [
-      { id: "default", label: "Default" },
-      { id: "vertical", label: "Vertical" },
-      { id: "compact", label: "Compact" },
-      { id: "minimal", label: "Minimal" },
-    ],
+    variations: mainStatsVariations,
   },
   {
     id: "mangaStats",
     group: "Main Stats",
     label:
       "Manga Stats (Count, Chapters Read, Volumes Read, Mean Score, Standard Deviation)",
-    variations: [
-      { id: "default", label: "Default" },
-      { id: "vertical", label: "Vertical" },
-      { id: "compact", label: "Compact" },
-      { id: "minimal", label: "Minimal" },
-    ],
+    variations: mainStatsVariations,
   },
   {
     id: "socialStats",
     group: "Main Stats",
     label:
       "Social Stats (Total Activities, Followers, Following, Thread Posts/Comments, Reviews)",
-    variations: [
-      { id: "default", label: "Default" },
-      { id: "compact", label: "Compact" },
-      { id: "minimal", label: "Minimal" },
-    ],
+    variations: socialStatsVariations,
   },
   {
     id: "animeGenres",
     group: "Anime Breakdowns",
     label: "Anime Genres (Top 5 Count)",
-    variations: [
-      { id: "default", label: "Default" },
-      { id: "pie", label: "Pie Chart" },
-      { id: "bar", label: "Bar Chart" },
-    ],
+    variations: pieBarVariations,
   },
   {
     id: "animeTags",
     group: "Anime Breakdowns",
     label: "Anime Tags (Top 5 Count)",
-    variations: [
-      { id: "default", label: "Default" },
-      { id: "pie", label: "Pie Chart" },
-      { id: "bar", label: "Bar Chart" },
-    ],
+    variations: pieBarVariations,
   },
   {
     id: "animeVoiceActors",
     group: "Anime Breakdowns",
     label: "Anime Voice Actors (Top 5 Count)",
-    variations: [
-      { id: "default", label: "Default" },
-      { id: "pie", label: "Pie Chart" },
-      { id: "bar", label: "Bar Chart" },
-    ],
+    variations: pieBarVariations,
   },
   {
     id: "animeStudios",
     group: "Anime Breakdowns",
     label: "Anime Studios (Top 5 Count)",
-    variations: [
-      { id: "default", label: "Default" },
-      { id: "pie", label: "Pie Chart" },
-      { id: "bar", label: "Bar Chart" },
-    ],
+    variations: pieBarVariations,
   },
   {
     id: "animeStaff",
     group: "Anime Breakdowns",
     label: "Anime Staff (Top 5 Count)",
-    variations: [
-      { id: "default", label: "Default" },
-      { id: "pie", label: "Pie Chart" },
-      { id: "bar", label: "Bar Chart" },
-    ],
+    variations: pieBarVariations,
   },
   {
     id: "mangaGenres",
     group: "Manga Breakdowns",
     label: "Manga Genres (Top 5 Count)",
-    variations: [
-      { id: "default", label: "Default" },
-      { id: "pie", label: "Pie Chart" },
-      { id: "bar", label: "Bar Chart" },
-    ],
+    variations: pieBarVariations,
   },
   {
     id: "mangaTags",
     group: "Manga Breakdowns",
     label: "Manga Tags (Top 5 Count)",
-    variations: [
-      { id: "default", label: "Default" },
-      { id: "pie", label: "Pie Chart" },
-      { id: "bar", label: "Bar Chart" },
-    ],
+    variations: pieBarVariations,
   },
   {
     id: "mangaStaff",
     group: "Manga Breakdowns",
     label: "Manga Staff (Top 5 Count)",
-    variations: [
-      { id: "default", label: "Default" },
-      { id: "pie", label: "Pie Chart" },
-      { id: "bar", label: "Bar Chart" },
-    ],
+    variations: pieBarVariations,
   },
   {
     id: "animeStatusDistribution",
     group: "Anime Breakdowns",
     label: "Anime Status Distribution (Current, Completed, etc.)",
-    variations: [
-      { id: "default", label: "Default" },
-      { id: "pie", label: "Pie Chart" },
-      { id: "bar", label: "Bar Chart" },
-    ],
+    variations: pieBarVariations,
   },
   {
     id: "mangaStatusDistribution",
     group: "Manga Breakdowns",
     label: "Manga Status Distribution (Current, Completed, etc.)",
-    variations: [
-      { id: "default", label: "Default" },
-      { id: "pie", label: "Pie Chart" },
-      { id: "bar", label: "Bar Chart" },
-    ],
+    variations: pieBarVariations,
   },
   {
     id: "animeFormatDistribution",
     group: "Anime Breakdowns",
     label: "Anime Format Distribution",
-    variations: [
-      { id: "default", label: "Default" },
-      { id: "pie", label: "Pie Chart" },
-      { id: "bar", label: "Bar Chart" },
-    ],
+    variations: pieBarVariations,
   },
   {
     id: "mangaFormatDistribution",
     group: "Manga Breakdowns",
     label: "Manga Format Distribution",
-    variations: [
-      { id: "default", label: "Default" },
-      { id: "pie", label: "Pie Chart" },
-      { id: "bar", label: "Bar Chart" },
-    ],
+    variations: pieBarVariations,
   },
   {
     id: "animeScoreDistribution",
     group: "Anime Breakdowns",
     label: "Anime Score Distribution",
-    variations: [
-      { id: "default", label: "Vertical" },
-      { id: "horizontal", label: "Horizontal" },
-    ],
+    variations: verticalHorizontalVariations,
   },
   {
     id: "mangaScoreDistribution",
     group: "Manga Breakdowns",
     label: "Manga Score Distribution",
-    variations: [
-      { id: "default", label: "Vertical" },
-      { id: "horizontal", label: "Horizontal" },
-    ],
+    variations: verticalHorizontalVariations,
   },
   {
     id: "animeYearDistribution",
     group: "Anime Breakdowns",
     label: "Anime Year Distribution",
-    variations: [
-      { id: "default", label: "Vertical" },
-      { id: "horizontal", label: "Horizontal" },
-    ],
+    variations: verticalHorizontalVariations,
   },
   {
     id: "mangaYearDistribution",
     group: "Manga Breakdowns",
     label: "Manga Year Distribution",
-    variations: [
-      { id: "default", label: "Vertical" },
-      { id: "horizontal", label: "Horizontal" },
-    ],
+    variations: verticalHorizontalVariations,
   },
   {
     id: "animeCountry",
     group: "Anime Breakdowns",
     label: "Anime Country",
-    variations: [
-      { id: "default", label: "Default" },
-      { id: "pie", label: "Pie Chart" },
-      { id: "bar", label: "Bar Chart" },
-    ],
+    variations: pieBarVariations,
   },
   {
     id: "mangaCountry",
     group: "Manga Breakdowns",
     label: "Manga Country",
-    variations: [
-      { id: "default", label: "Default" },
-      { id: "pie", label: "Pie Chart" },
-      { id: "bar", label: "Bar Chart" },
-    ],
+    variations: pieBarVariations,
   },
 ];
 

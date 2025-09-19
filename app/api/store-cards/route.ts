@@ -1,55 +1,44 @@
 import { CardConfig, CardsRecord } from "@/lib/types/records";
 import { NextResponse } from "next/server";
-import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
-
-const redisClient = Redis.fromEnv();
-const ratelimit = new Ratelimit({
-  redis: redisClient,
-  limiter: Ratelimit.slidingWindow(5, "5 s"),
-});
+import {
+  checkRateLimit,
+  validateAuth,
+  incrementAnalytics,
+  logRequest,
+  handleError,
+  logSuccess,
+  redisClient,
+} from "@/lib/api-utils";
 
 // API endpoint for storing/updating user card configurations
-export async function POST(request: Request) {
+export async function POST(request: Request): Promise<NextResponse> {
   const startTime = Date.now();
   const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
-  console.log(`🚀 [Store Cards] Incoming request from IP: ${ip}`);
+  const endpoint = "Store Cards";
 
-  const { success } = await ratelimit.limit(ip);
-  if (!success) {
-    console.warn(`🚨 [Store Cards] Rate limited IP: ${ip}`);
-    const analyticsClient = Redis.fromEnv();
-    analyticsClient
-      .incr("analytics:store_cards:failed_requests")
-      .catch(() => {});
-    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
-  }
+  logRequest(endpoint, ip);
 
+  // Check rate limit
+  const rateLimitResponse = await checkRateLimit(ip, endpoint);
+  if (rateLimitResponse) return rateLimitResponse;
+
+  // Validate authentication
   const authToken = request.headers.get("Authorization");
-  if (!authToken || authToken !== `Bearer ${process.env.API_AUTH_TOKEN}`) {
-    console.warn(`⚠️ [Store Cards] Invalid auth token from IP: ${ip}`);
-    const analyticsClient = Redis.fromEnv();
-    analyticsClient
-      .incr("analytics:store_cards:failed_requests")
-      .catch(() => {});
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const authResponse = validateAuth(authToken, ip, endpoint);
+  if (authResponse) return authResponse;
 
   try {
     const body = await request.json();
     const { statsData, userId, cards: incomingCards } = body;
     console.log(
-      `📝 [Store Cards] Processing user ${userId} with ${incomingCards?.length || 0} cards`,
+      `📝 [${endpoint}] Processing user ${userId} with ${incomingCards?.length || 0} cards`,
     );
 
     if (statsData?.error) {
       console.warn(
-        `⚠️ [Store Cards] Invalid data for user ${userId}: ${statsData.error}`,
+        `⚠️ [${endpoint}] Invalid data for user ${userId}: ${statsData.error}`,
       );
-      const analyticsClient = Redis.fromEnv();
-      analyticsClient
-        .incr("analytics:store_cards:failed_requests")
-        .catch(() => {});
+      await incrementAnalytics("analytics:store_cards:failed_requests");
       return NextResponse.json(
         { error: "Invalid data: " + statsData.error },
         { status: 400 },
@@ -59,7 +48,7 @@ export async function POST(request: Request) {
     // Use a Redis key to store the user's card configurations
     const cardsKey = `cards:${userId}`;
     console.log(
-      `📝 [Store Cards] Storing card configuration using key: ${cardsKey}`,
+      `📝 [${endpoint}] Storing card configuration using key: ${cardsKey}`,
     );
 
     const cardData: CardsRecord = {
@@ -82,31 +71,19 @@ export async function POST(request: Request) {
     await redisClient.set(cardsKey, JSON.stringify(cardData));
 
     const duration = Date.now() - startTime;
-    console.log(
-      `✅ [Store Cards] Stored cards for user ${userId} in ${duration}ms`,
-    );
-    const analyticsClient = Redis.fromEnv();
-    analyticsClient
-      .incr("analytics:store_cards:successful_requests")
-      .catch(() => {});
+    logSuccess(endpoint, userId, duration, "Stored cards");
+    await incrementAnalytics("analytics:store_cards:successful_requests");
 
     return NextResponse.json({
       success: true,
       userId,
     });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
-    const duration = Date.now() - startTime;
-    console.error(
-      `🔥 [Store Cards] Error after ${duration}ms: ${error.message}`,
+  } catch (error) {
+    return handleError(
+      error as Error,
+      endpoint,
+      startTime,
+      "analytics:store_cards:failed_requests",
     );
-    if (error.stack) {
-      console.error(`💥 [Store Cards] Stack Trace: ${error.stack}`);
-    }
-    const analyticsClient = Redis.fromEnv();
-    analyticsClient
-      .incr("analytics:store_cards:failed_requests")
-      .catch(() => {});
-    return NextResponse.json({ error: "Card storage failed" }, { status: 500 });
   }
 }

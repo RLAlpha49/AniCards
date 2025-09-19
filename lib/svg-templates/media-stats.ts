@@ -3,6 +3,54 @@ import { calculateDynamicFontSize } from "../utils";
 
 type MediaType = "anime" | "manga";
 
+// Helper function to render circle progress indicator
+function renderCircle(
+  cx: number,
+  cy: number,
+  radius: number,
+  strokeColor: string,
+  scaledDasharray: string,
+  scaledDashoffset: string,
+  strokeWidth: number = 6,
+): string {
+  return `
+    <circle class="rank-circle-rim" cx="${cx}" cy="${cy}" r="${radius}" fill="none" stroke="${strokeColor}" stroke-opacity="0.2" stroke-width="${strokeWidth}"></circle>
+    <g transform="rotate(-90 ${cx} ${cy})">
+      <circle class="rank-circle" cx="${cx}" cy="${cy}" r="${radius}" stroke-width="${strokeWidth}" stroke-dasharray="${scaledDasharray}" stroke-dashoffset="${scaledDashoffset}"></circle>
+    </g>
+  `;
+}
+
+// Helper function to render stats list
+function renderStatsList(
+  stats: Array<{ label: string; value: number | undefined }>,
+  transform: string = "translate(25, 0)",
+  xOffset: number = 160,
+  ySpacing: number = 25,
+  animationDelay: number = 450,
+  animationIncrement: number = 150,
+): string {
+  return `
+    <g transform="${transform}">
+      ${stats
+        .filter((stat) => stat.value !== undefined)
+        .map(
+          (stat, index) => `
+        <g
+          class="stagger"
+          style="animation-delay: ${animationDelay + index * animationIncrement}ms"
+          transform="translate(25, ${index * ySpacing})"
+        >
+          <text class="stat" y="12.5">${stat.label}</text>
+          <text class="stat" x="${xOffset}" y="12.5">${stat.value}</text>
+        </g>
+      `,
+        )
+        .join("")}
+    </g>
+  `;
+}
+
 // Helper function to generate variant-specific content
 function getVariantContent(
   data: {
@@ -36,84 +84,45 @@ function getVariantContent(
   scaledDashoffset: string,
 ): string {
   if (data.variant === "vertical") {
+    const stats = [
+      { label: "Count:", value: data.stats.count },
+      { label: `${config.mainStat.label}:`, value: config.mainStat.value },
+      {
+        label: `${config.mainStat.secondary.label}:`,
+        value: config.mainStat.secondary.value,
+      },
+      { label: "Mean Score:", value: data.stats.meanScore },
+      { label: "Standard Deviation:", value: data.stats.standardDeviation },
+    ];
+
     return `
       <g transform="translate(230, 140)">
         <text x="-100" y="-130" class="milestone" text-anchor="middle">${data.stats.currentMilestone}</text>
         <text x="-100" y="-70" class="main-stat" text-anchor="middle">${config.mainStat.value}</text>
         <text x="-100" y="-10" class="label" text-anchor="middle">${config.mainStat.label}</text>
-        <circle class="rank-circle-rim" cx="-100" cy="-72" r="40" fill="none" stroke="${data.styles.circleColor}" stroke-opacity="0.2" stroke-width="6"></circle>
-        <g transform="rotate(-90 -100 -72)">
-          <circle class="rank-circle" cx="-100" cy="-72" r="40" stroke-dasharray="${scaledDasharray}" stroke-dashoffset="${scaledDashoffset}"></circle>
-        </g>
+        ${renderCircle(-100, -72, 40, data.styles.circleColor, scaledDasharray, scaledDashoffset)}
       </g>
       <svg x="0" y="0">
-        <g transform="translate(0, 150)">
-          ${[
-            { label: "Count:", value: data.stats.count },
-            {
-              label: `${config.mainStat.label}:`,
-              value: config.mainStat.value,
-            },
-            {
-              label: `${config.mainStat.secondary.label}:`,
-              value: config.mainStat.secondary.value,
-            },
-            { label: "Mean Score:", value: data.stats.meanScore },
-            {
-              label: "Standard Deviation:",
-              value: data.stats.standardDeviation,
-            },
-          ]
-            .map(
-              (stat, index) => `
-            <g
-              class="stagger"
-              style="animation-delay: ${450 + index * 150}ms"
-              transform="translate(25, ${index * 25})"
-            >
-              <text class="stat" y="12.5">${stat.label}</text>
-              <text class="stat" x="160" y="12.5">${stat.value}</text>
-            </g>
-          `,
-            )
-            .join("")}
-        </g>
+        ${renderStatsList(stats, "translate(0, 150)")}
       </svg>
     `;
   } else if (data.variant === "compact") {
+    const stats = [
+      { label: "Count:", value: data.stats.count },
+      {
+        label: `${config.mainStat.secondary.label}:`,
+        value: config.mainStat.secondary.value,
+      },
+      { label: "Mean Score:", value: data.stats.meanScore },
+    ];
+
     return `
       <g transform="translate(${dims.w - 50}, 20)">
         <text x="-10" y="15" class="main-stat" text-anchor="middle" fill="${data.styles.textColor}" font-size="16">${config.mainStat.value}</text>
-        <circle class="rank-circle-rim" cx="-10" cy="10" r="30" fill="none" stroke="${data.styles.textColor}" stroke-opacity="0.2" stroke-width="5"></circle>
-        <g transform="rotate(-90 -10 10)">
-          <circle class="rank-circle" cx="-10" cy="10" r="30" stroke-width="5" stroke-dasharray="${scaledDasharray}" stroke-dashoffset="${scaledDashoffset}"></circle>
-        </g>
+        ${renderCircle(-10, 10, 30, data.styles.textColor, scaledDasharray, scaledDashoffset, 5)}
       </g>
       <svg x="0" y="0">
-        <g transform="translate(0, 0)">
-          ${[
-            { label: "Count:", value: data.stats.count },
-            {
-              label: `${config.mainStat.secondary.label}:`,
-              value: config.mainStat.secondary.value,
-            },
-            { label: "Mean Score:", value: data.stats.meanScore },
-          ]
-            .filter((s) => s.value !== undefined)
-            .map(
-              (stat, index) => `
-            <g
-              class="stagger"
-              style="animation-delay: ${450 + index * 120}ms"
-              transform="translate(25, ${index * 22})"
-            >
-              <text class="stat" y="12.5">${stat.label}</text>
-              <text class="stat" x="120" y="12.5">${stat.value}</text>
-            </g>
-          `,
-            )
-            .join("")}
-        </g>
+        ${renderStatsList(stats, "translate(0, 0)", 120, 22, 450, 120)}
       </svg>
     `;
   } else if (data.variant === "minimal") {
@@ -121,14 +130,22 @@ function getVariantContent(
       <g transform="translate(${Math.round(dims.w / 2)}, 20)">
         <text x="0" y="5" class="main-stat" text-anchor="middle" fill="${data.styles.textColor}" font-size="16">${config.mainStat.value}</text>
         <text x="0" y="50" class="label" text-anchor="middle" fill="${data.styles.circleColor}" font-size="14">${config.mainStat.label}</text>
-        <circle class="rank-circle-rim" cx="0" cy="0" r="28" fill="none" stroke="${data.styles.textColor}" stroke-opacity="0.2" stroke-width="5"></circle>
-        <g transform="rotate(-90 0 0)">
-          <circle class="rank-circle" cx="0" cy="0" r="28" stroke-width="5" stroke-dasharray="${scaledDasharray}" stroke-dashoffset="${scaledDashoffset}"></circle>
-        </g>
+        ${renderCircle(0, 0, 28, data.styles.textColor, scaledDasharray, scaledDashoffset, 5)}
       </g>
     `;
   } else {
     // Default variant
+    const stats = [
+      { label: "Count:", value: data.stats.count },
+      { label: `${config.mainStat.label}:`, value: config.mainStat.value },
+      {
+        label: `${config.mainStat.secondary.label}:`,
+        value: config.mainStat.secondary.value,
+      },
+      { label: "Mean Score:", value: data.stats.meanScore },
+      { label: "Standard Deviation:", value: data.stats.standardDeviation },
+    ];
+
     return `
       <g transform="translate(375, 37.5)">
         <text x="-10" y="-50" class="milestone" text-anchor="middle" fill="${data.styles.circleColor}">
@@ -140,43 +157,10 @@ function getVariantContent(
         <text x="-10" y="70" class="label" text-anchor="middle" fill="${data.styles.circleColor}">
           ${config.mainStat.label}
         </text>
-        <circle class="rank-circle-rim" cx="-10" cy="8" r="40" fill="none" stroke="${data.styles.textColor}" stroke-opacity="0.2" stroke-width="6"></circle>
-        <g transform="rotate(-90 -10 8)">
-          <circle class="rank-circle" cx="-10" cy="8" r="40" stroke-dasharray="${scaledDasharray}" stroke-dashoffset="${scaledDashoffset}"></circle>
-        </g>
+        ${renderCircle(-10, 8, 40, data.styles.textColor, scaledDasharray, scaledDashoffset)}
       </g>
       <svg x="0" y="0">
-        <g transform="translate(0, 0)">
-          ${[
-            { label: "Count:", value: data.stats.count },
-            {
-              label: `${config.mainStat.label}:`,
-              value: config.mainStat.value,
-            },
-            {
-              label: `${config.mainStat.secondary.label}:`,
-              value: config.mainStat.secondary.value,
-            },
-            { label: "Mean Score:", value: data.stats.meanScore },
-            {
-              label: "Standard Deviation:",
-              value: data.stats.standardDeviation,
-            },
-          ]
-            .map(
-              (stat, index) => `
-            <g
-              class="stagger"
-              style="animation-delay: ${450 + index * 150}ms"
-              transform="translate(25, ${index * 25})"
-            >
-              <text class="stat" y="12.5">${stat.label}</text>
-              <text class="stat" x="199.01" y="12.5">${stat.value}</text>
-            </g>
-          `,
-            )
-            .join("")}
-        </g>
+        ${renderStatsList(stats, "translate(0, 0)", 199.01)}
       </svg>
     `;
   }

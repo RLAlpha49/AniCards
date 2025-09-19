@@ -20,52 +20,79 @@ jest.mock("@upstash/redis", () => ({
 const CRON_SECRET = "testsecret";
 process.env.CRON_SECRET = CRON_SECRET;
 
+// Helper functions to reduce code duplication
+const BASE_URL = "http://localhost/api/cron/analytics-reporting";
+
+// Helper to create request with cron secret
+function createCronRequest(secret = CRON_SECRET): Request {
+  return new Request(BASE_URL, {
+    headers: { "x-cron-secret": secret },
+  });
+}
+
+// Helper to validate error response
+async function expectErrorResponse(
+  response: Response,
+  expectedStatus: number,
+  expectedText: string,
+) {
+  expect(response.status).toBe(expectedStatus);
+  const text = await response.text();
+  expect(text).toBe(expectedText);
+}
+
+// Helper to validate successful analytics report
+async function expectSuccessfulReport(response: Response) {
+  expect(response.status).toBe(200);
+  const report = await response.json();
+
+  // Report should contain required properties
+  expect(report).toHaveProperty("summary");
+  expect(report).toHaveProperty("raw_data");
+  expect(report).toHaveProperty("generatedAt");
+
+  return report;
+}
+
+// Helper to setup successful analytics mocks
+function setupSuccessfulAnalyticsMocks() {
+  // Simulate Redis returning analytics keys
+  mockKeys.mockResolvedValueOnce([
+    "analytics:visits",
+    "analytics:anilist_api:successful_requests",
+  ]);
+
+  // Simulate Redis get responses for each key
+  mockGet.mockImplementation((key: string) => {
+    if (key === "analytics:visits") {
+      return Promise.resolve("100");
+    } else if (key === "analytics:anilist_api:successful_requests") {
+      return Promise.resolve("200");
+    }
+    return Promise.resolve(null);
+  });
+
+  // Simulate rpush success
+  mockRpush.mockResolvedValueOnce(1);
+}
+
 describe("Analytics & Reporting Cron API POST Endpoint", () => {
   afterEach(() => {
     jest.clearAllMocks();
   });
 
   it("should return 401 Unauthorized when cron secret is missing or invalid", async () => {
-    const req = new Request("http://localhost/api/cron/analytics-reporting", {
-      headers: { "x-cron-secret": "wrongsecret" },
-    });
+    const req = createCronRequest("wrongsecret");
     const res = await POST(req);
-    expect(res.status).toBe(401);
-    const text = await res.text();
-    expect(text).toBe("Unauthorized");
+    await expectErrorResponse(res, 401, "Unauthorized");
   });
 
   it("should generate analytics report successfully", async () => {
-    // Simulate Redis returning two analytics keys.
-    mockKeys.mockResolvedValueOnce([
-      "analytics:visits",
-      "analytics:anilist_api:successful_requests",
-    ]);
+    setupSuccessfulAnalyticsMocks();
 
-    // Simulate Redis get responses for each key.
-    mockGet.mockImplementation((key: string) => {
-      if (key === "analytics:visits") {
-        return Promise.resolve("100");
-      } else if (key === "analytics:anilist_api:successful_requests") {
-        return Promise.resolve("200");
-      }
-      return Promise.resolve(null);
-    });
-
-    // Simulate rpush success.
-    mockRpush.mockResolvedValueOnce(1);
-
-    const req = new Request("http://localhost/api/cron/analytics-reporting", {
-      headers: { "x-cron-secret": CRON_SECRET },
-    });
+    const req = createCronRequest();
     const res = await POST(req);
-    expect(res.status).toBe(200);
-    const report = await res.json();
-
-    // Report should contain summary, raw_data, and generatedAt.
-    expect(report).toHaveProperty("summary");
-    expect(report).toHaveProperty("raw_data");
-    expect(report).toHaveProperty("generatedAt");
+    const report = await expectSuccessfulReport(res);
 
     // Verify the summary.
     // "analytics:visits" is split into ["analytics", "visits"] so summary.visits should be 100.
@@ -89,12 +116,9 @@ describe("Analytics & Reporting Cron API POST Endpoint", () => {
   it("should return 500 and an error message if redis keys retrieval fails", async () => {
     // Simulate failure when fetching keys.
     mockKeys.mockRejectedValueOnce(new Error("Redis error"));
-    const req = new Request("http://localhost/api/cron/analytics-reporting", {
-      headers: { "x-cron-secret": CRON_SECRET },
-    });
+
+    const req = createCronRequest();
     const res = await POST(req);
-    expect(res.status).toBe(500);
-    const text = await res.text();
-    expect(text).toBe("Analytics and reporting job failed");
+    await expectErrorResponse(res, 500, "Analytics and reporting job failed");
   });
 });
