@@ -2,31 +2,19 @@ import { NextResponse } from "next/server";
 import { UserRecord } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
 import {
-  checkRateLimit,
-  validateAuth,
   incrementAnalytics,
-  logRequest,
   handleError,
   logSuccess,
   redisClient,
+  initializeApiRequest,
 } from "@/lib/api-utils";
 
 // API endpoint for storing/updating user data using Redis as the persistent store
 export async function POST(request: Request): Promise<NextResponse> {
-  const startTime = Date.now();
-  const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
-  const endpoint = "Store Users";
+  const init = await initializeApiRequest(request, "Store Users");
+  if (init.errorResponse) return init.errorResponse;
 
-  logRequest(endpoint, ip);
-
-  // Check rate limit
-  const rateLimitResponse = await checkRateLimit(ip, endpoint);
-  if (rateLimitResponse) return rateLimitResponse;
-
-  // Validate authentication
-  const authToken = request.headers.get("Authorization");
-  const authResponse = validateAuth(authToken, ip, endpoint);
-  if (authResponse) return authResponse;
+  const { startTime, ip, endpoint } = init;
 
   try {
     const data = await request.json();

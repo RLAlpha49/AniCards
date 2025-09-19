@@ -1,31 +1,19 @@
 import { CardConfig, CardsRecord } from "@/lib/types/records";
 import { NextResponse } from "next/server";
 import {
-  checkRateLimit,
-  validateAuth,
   incrementAnalytics,
-  logRequest,
   handleError,
   logSuccess,
   redisClient,
+  initializeApiRequest,
 } from "@/lib/api-utils";
 
 // API endpoint for storing/updating user card configurations
 export async function POST(request: Request): Promise<NextResponse> {
-  const startTime = Date.now();
-  const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
-  const endpoint = "Store Cards";
+  const init = await initializeApiRequest(request, "Store Cards");
+  if (init.errorResponse) return init.errorResponse;
 
-  logRequest(endpoint, ip);
-
-  // Check rate limit
-  const rateLimitResponse = await checkRateLimit(ip, endpoint);
-  if (rateLimitResponse) return rateLimitResponse;
-
-  // Validate authentication
-  const authToken = request.headers.get("Authorization");
-  const authResponse = validateAuth(authToken, ip, endpoint);
-  if (authResponse) return authResponse;
+  const { startTime, endpoint } = init;
 
   try {
     const body = await request.json();

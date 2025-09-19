@@ -118,3 +118,37 @@ export function validateRequestData(
   }
   return null;
 }
+
+// Common API initialization and validation
+export interface ApiInitResult {
+  startTime: number;
+  ip: string;
+  endpoint: string;
+  errorResponse?: NextResponse<ApiError>;
+}
+
+export async function initializeApiRequest(
+  request: Request,
+  endpointName: string,
+): Promise<ApiInitResult> {
+  const startTime = Date.now();
+  const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
+  const endpoint = endpointName;
+
+  logRequest(endpoint, ip);
+
+  // Check rate limit
+  const rateLimitResponse = await checkRateLimit(ip, endpoint);
+  if (rateLimitResponse) {
+    return { startTime, ip, endpoint, errorResponse: rateLimitResponse };
+  }
+
+  // Validate authentication
+  const authToken = request.headers.get("Authorization");
+  const authResponse = validateAuth(authToken, ip, endpoint);
+  if (authResponse) {
+    return { startTime, ip, endpoint, errorResponse: authResponse };
+  }
+
+  return { startTime, ip, endpoint };
+}

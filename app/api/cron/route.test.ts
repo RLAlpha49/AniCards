@@ -4,10 +4,12 @@ import { POST } from "./route";
 const mockKeys = jest.fn();
 const mockGet = jest.fn();
 const mockSet = jest.fn();
+const mockDel = jest.fn();
 const fakeRedisClient = {
   keys: mockKeys,
   get: mockGet,
   set: mockSet,
+  del: mockDel,
   incr: jest.fn(() => Promise.resolve(1)),
 };
 
@@ -46,7 +48,7 @@ describe("Cron API POST Endpoint", () => {
     const res = await POST(req);
     expect(res.status).toBe(200);
     const text = await res.text();
-    expect(text).toBe("Updated 0/0 users successfully");
+    expect(text).toBe("Updated 0/0 users successfully. Failed: 0, Removed: 0");
     expect(mockKeys).toHaveBeenCalledWith("user:*");
   });
 
@@ -56,16 +58,23 @@ describe("Cron API POST Endpoint", () => {
     mockKeys.mockResolvedValueOnce(userKeys);
     // For each key, simulate valid and distinct user data and a successful update.
     mockGet.mockImplementation((key: string) => {
+      // Check if this is a failure tracking key
+      if (key.startsWith("failed_updates:")) {
+        return Promise.resolve(null); // No previous failures
+      }
+      // User data key
       const id = key.split(":")[1];
       return Promise.resolve(
         JSON.stringify({
-          userId: Number(id),
+          userId: id,
           username: `user${id}`,
           stats: { dummy: Number(id) },
+          updatedAt: new Date(2024, 0, 1).toISOString(), // Old date to ensure selection
         }),
       );
     });
     mockSet.mockResolvedValue(true);
+    mockDel.mockResolvedValue(1); // Mock successful deletion for clearing failure tracking
 
     // Mock global.fetch to always return a successful AniList response
     global.fetch = jest.fn().mockResolvedValue({
@@ -81,7 +90,7 @@ describe("Cron API POST Endpoint", () => {
     expect(res.status).toBe(200);
     const text = await res.text();
     expect(text).toBe(
-      `Updated ${userKeys.length}/${userKeys.length} users successfully`,
+      `Updated ${userKeys.length}/${userKeys.length} users successfully. Failed: 0, Removed: 0`,
     );
   });
 
@@ -95,5 +104,90 @@ describe("Cron API POST Endpoint", () => {
     expect(res.status).toBe(500);
     const text = await res.text();
     expect(text).toBe("Cron job failed");
+  });
+
+  it("should track 404 failures and remove users after 3 failures", async () => {
+    // Simulate 1 user that will get 404 errors
+    const userKeys = ["user:123"];
+    mockKeys.mockResolvedValueOnce(userKeys);
+
+    mockGet.mockImplementation((key: string) => {
+      if (key.startsWith("failed_updates:")) {
+        return Promise.resolve("2"); // User already has 2 failures
+      }
+      // User data key
+      return Promise.resolve(
+        JSON.stringify({
+          userId: "123",
+          username: "failing_user",
+          stats: { dummy: 1 },
+          updatedAt: new Date(2024, 0, 1).toISOString(),
+        }),
+      );
+    });
+
+    mockSet.mockResolvedValue(true);
+    mockDel.mockResolvedValue(1);
+
+    // Mock global.fetch to return 404 errors (user not found on AniList)
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({ error: "User not found" }),
+    });
+
+    const req = new Request("http://localhost/api/cron", {
+      headers: { "x-cron-secret": CRON_SECRET },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toBe("Updated 0/1 users successfully. Failed: 1, Removed: 1");
+
+    // Verify that both user data and failure tracking were deleted (user removed)
+    expect(mockDel).toHaveBeenCalledWith("user:123");
+    expect(mockDel).toHaveBeenCalledWith("failed_updates:123");
+  });
+
+  it("should track 404 failures without removing user before 3rd failure", async () => {
+    // Simulate 1 user that will get 404 errors but only has 1 failure so far
+    const userKeys = ["user:456"];
+    mockKeys.mockResolvedValueOnce(userKeys);
+
+    mockGet.mockImplementation((key: string) => {
+      if (key.startsWith("failed_updates:")) {
+        return Promise.resolve("1"); // User has 1 previous failure
+      }
+      // User data key
+      return Promise.resolve(
+        JSON.stringify({
+          userId: "456",
+          username: "failing_user_2",
+          stats: { dummy: 1 },
+          updatedAt: new Date(2024, 0, 1).toISOString(),
+        }),
+      );
+    });
+
+    mockSet.mockResolvedValue(true);
+
+    // Mock global.fetch to return 404 errors
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({ error: "User not found" }),
+    });
+
+    const req = new Request("http://localhost/api/cron", {
+      headers: { "x-cron-secret": CRON_SECRET },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toBe("Updated 0/1 users successfully. Failed: 1, Removed: 0");
+
+    // Verify that failure count was incremented to 2 but user was not removed
+    expect(mockSet).toHaveBeenCalledWith("failed_updates:456", 2);
+    expect(mockDel).not.toHaveBeenCalledWith("user:456");
   });
 });
