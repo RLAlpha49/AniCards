@@ -129,9 +129,9 @@ export async function POST(request: NextRequest) {
       // - Replace with visibility: visible
       .replace(/visibility:\s*hidden/g, "visibility: visible")
       // Regex explanation:
-      // - [^{}]*{\s*} matches empty CSS rulesets
-      // - Replace with an empty string
-      .replace(/[^{}]*{\s*}/g, "");
+      // - [.#a-zA-Z0-9_\-\s,>:\[\]="']+ matches a selector (class, id, element, etc.)
+      // - {\s*} matches empty ruleset with optional whitespace
+      .replace(/([.#a-zA-Z0-9_\-\s,>:[\]="']+){\s*}/g, "");
 
     // Rebuild SVG with processed styles
     // Regex explanation:

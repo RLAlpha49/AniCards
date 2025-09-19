@@ -221,7 +221,13 @@ export function StatCardTypeSelection({
                             </Label>
                             {type.label.includes("(") && (
                               <p className="text-xs text-gray-600 transition-opacity duration-200 group-hover:opacity-100 dark:text-gray-400">
-                                {RegExp(/\((.*)\)/).exec(type.label)?.[1]}
+                                {(() => {
+                                  const start = type.label.indexOf("(");
+                                  const end = type.label.indexOf(")", start);
+                                  return start !== -1 && end !== -1
+                                    ? type.label.substring(start + 1, end)
+                                    : "";
+                                })()}
                               </p>
                             )}
                             {type.variations && (
