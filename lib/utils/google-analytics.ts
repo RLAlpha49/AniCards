@@ -16,8 +16,9 @@ declare global {
 
 // Log page views
 export const pageview = (url: string) => {
-  if (typeof window !== "undefined" && window.gtag) {
-    window.gtag("config", process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID!, {
+  const gaId = process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
+  if (typeof window !== "undefined" && window.gtag && gaId) {
+    window.gtag("config", gaId, {
       page_path: url,
     });
   }
