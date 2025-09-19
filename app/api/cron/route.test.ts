@@ -144,8 +144,9 @@ describe("Cron API POST Endpoint", () => {
     const text = await res.text();
     expect(text).toBe("Updated 0/1 users successfully. Failed: 1, Removed: 1");
 
-    // Verify that both user data and failure tracking were deleted (user removed)
+    // Verify that user data, failure tracking, and card configs were deleted (user removed)
     expect(mockDel).toHaveBeenCalledWith("user:123");
     expect(mockDel).toHaveBeenCalledWith("failed_updates:123");
+    expect(mockDel).toHaveBeenCalledWith("cards:123");
   });
 });

@@ -75,8 +75,12 @@ async function handleFailureTracking(
   );
 
   if (newFailureCount >= 3) {
-    await redisClient.del(userKey);
-    await redisClient.del(failureKey);
+    const cardsKey = `cards:${userId}`;
+    await Promise.all([
+      redisClient.del(userKey), // Remove user data
+      redisClient.del(failureKey), // Remove failure tracking
+      redisClient.del(cardsKey), // Remove user's card configurations
+    ]);
     console.log(
       `🗑️ [Cron Job] User ${userId}: Removed from database after 3 failed attempts`,
     );
