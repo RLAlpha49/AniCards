@@ -45,14 +45,16 @@ export async function generateMetadata(props: {
 }
 
 // UserPage component to display generated cards for a user
-export default async function UserPage(props: {
-  searchParams: Promise<{
-    userId?: string;
-    username?: string;
-    cards?: string;
-    showFavorites?: string;
-  }>;
-}) {
+export default async function UserPage(
+  props: Readonly<{
+    searchParams: Promise<{
+      userId?: string;
+      username?: string;
+      cards?: string;
+      showFavorites?: string;
+    }>;
+  }>,
+) {
   // Await the search parameters passed to the page
   const params = await props.searchParams;
 
@@ -217,7 +219,7 @@ export default async function UserPage(props: {
                 className="text-green-600 hover:underline"
               >
                 website
-              </a>
+              </a>{" "}
               .
             </AlertDescription>
           </Alert>

@@ -1,5 +1,5 @@
-import { beforeEach } from "node:test";
-import { afterEach } from "node:test";
+import { beforeEach, afterEach } from "node:test";
+
 import { POST } from "./route";
 
 describe("AniList API Proxy Endpoint", () => {

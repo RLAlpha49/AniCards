@@ -7,7 +7,7 @@ interface ResetSettingsProps {
   onReset: () => void;
 }
 
-export function ResetSettings({ onReset }: ResetSettingsProps) {
+export function ResetSettings({ onReset }: Readonly<ResetSettingsProps>) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}

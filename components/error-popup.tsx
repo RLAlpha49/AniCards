@@ -26,7 +26,7 @@ export function ErrorPopup({
   title,
   description,
   className,
-}: ErrorPopupProps) {
+}: Readonly<ErrorPopupProps>) {
   // Track error when popup opens
   if (isOpen) {
     trackError(title, description);

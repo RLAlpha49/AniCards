@@ -54,7 +54,7 @@ export default function ProjectsPage() {
       <div className="grid justify-items-center gap-6">
         {projects.map((project, index) => (
           <motion.div
-            key={index}
+            key={project.url}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}

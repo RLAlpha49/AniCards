@@ -20,7 +20,7 @@ export function CacheManagement({
   cachedItems,
   onClearCache,
   onDeleteCacheItem,
-}: CacheManagementProps) {
+}: Readonly<CacheManagementProps>) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}

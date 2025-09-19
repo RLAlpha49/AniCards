@@ -6,8 +6,8 @@ import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
 import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats";
 import { distributionTemplate } from "@/lib/svg-templates/distribution";
 import { safeParse } from "@/lib/utils";
-import { UserRecord } from "@/lib/types/records";
-import { CardsRecord } from "@/lib/types/records";
+import { UserRecord, CardsRecord } from "@/lib/types/records";
+
 import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
 
 // Rate limiter setup using Upstash Redis
@@ -68,12 +68,13 @@ const displayNames: { [key: string]: string } = {
 };
 
 // Type definitions for category keys and item types
-type CategoryKey = "genres" | "tags" | "voiceactors" | "studios" | "staff";
 type GenreItem = { genre: string; count: number };
 type TagItem = { tag: { name: string }; count: number };
 type VoiceActorItem = { voiceActor: { name: { full: string } }; count: number };
 type StudioItem = { studio: { name: string }; count: number };
 type StaffItem = { staff: { name: { full: string } }; count: number };
+
+type PieBarVariant = "default" | "pie" | "bar";
 
 // Function to generate SVG error response
 function svgError(message: string) {
@@ -140,99 +141,346 @@ function getFavoritesForCardType(
   }
 }
 
+// Common interface for card generation parameters
+interface CardGenerationParams {
+  cardConfig: CardConfig;
+  userStats: UserStatsData;
+  variant: string;
+  favorites?: string[];
+}
+
+interface UserStatsData {
+  username: string;
+  stats: {
+    User: {
+      statistics: {
+        anime: Record<string, unknown>;
+        manga: Record<string, unknown>;
+      };
+      stats: {
+        activityHistory: unknown[];
+      };
+    };
+  } & Record<string, unknown>;
+}
+
+// Extract common styles from card config
+function extractStyles(cardConfig: CardConfig) {
+  return {
+    titleColor: cardConfig.titleColor,
+    backgroundColor: cardConfig.backgroundColor,
+    textColor: cardConfig.textColor,
+    circleColor: cardConfig.circleColor,
+  };
+}
+
+// Handle anime/manga stats cards
+function generateStatsCard(
+  params: CardGenerationParams,
+  mediaType: "anime" | "manga",
+): string {
+  const { cardConfig, userStats, variant } = params;
+  const stats = userStats.stats.User.statistics[mediaType];
+  const countProperty =
+    mediaType === "anime" ? "episodesWatched" : "chaptersRead";
+  const milestoneData = calculateMilestones(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (stats as any)[countProperty] as number,
+  );
+
+  return mediaStatsTemplate({
+    mediaType,
+    username: userStats.username,
+    variant: variant as "default" | "vertical" | "compact" | "minimal",
+    styles: extractStyles(cardConfig),
+    stats: { ...stats, ...milestoneData },
+  });
+}
+
+// Handle social stats card
+function generateSocialStatsCard(params: CardGenerationParams): string {
+  const { cardConfig, userStats, variant } = params;
+
+  return socialStatsTemplate({
+    username: userStats.username,
+    variant: variant as "default" | "compact" | "minimal",
+    styles: extractStyles(cardConfig),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    stats: userStats.stats as any,
+    activityHistory: userStats.stats.User.stats.activityHistory as {
+      date: number;
+      amount: number;
+    }[],
+  });
+}
+
+// Map category items to consistent format
+function mapCategoryItem(
+  item: GenreItem | TagItem | VoiceActorItem | StudioItem | StaffItem,
+  categoryKey: string,
+): { name: string; count: number } {
+  switch (categoryKey) {
+    case "genres":
+      return { name: (item as GenreItem).genre, count: item.count };
+    case "tags":
+      return { name: (item as TagItem).tag.name, count: item.count };
+    case "voiceActors":
+      return {
+        name: (item as VoiceActorItem).voiceActor.name.full,
+        count: item.count,
+      };
+    case "studios":
+      return { name: (item as StudioItem).studio.name, count: item.count };
+    case "staff":
+      return { name: (item as StaffItem).staff.name.full, count: item.count };
+    default:
+      return { name: "", count: 0 };
+  }
+}
+
+// Handle category-based cards (genres, tags, voice actors, studios, staff)
+function generateCategoryCard(
+  params: CardGenerationParams,
+  baseCardType: string,
+): string {
+  const { cardConfig, userStats, variant, favorites } = params;
+  const isAnime = baseCardType.startsWith("anime");
+
+  const categoryMap: Record<string, string> = {
+    genres: "genres",
+    tags: "tags",
+    voiceactors: "voiceActors",
+    studios: "studios",
+    staff: "staff",
+  };
+
+  const categoryKey =
+    categoryMap[
+      baseCardType.replace(isAnime ? "anime" : "manga", "").toLowerCase()
+    ];
+  const stats = isAnime
+    ? userStats.stats.User.statistics.anime
+    : userStats.stats.User.statistics.manga;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const categoryData = (stats as any)[categoryKey] as unknown[];
+  const items = Array.isArray(categoryData)
+    ? categoryData
+        .slice(0, 5)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((item: unknown) => mapCategoryItem(item as any, categoryKey))
+    : [];
+
+  return extraAnimeMangaStatsTemplate({
+    username: userStats.username,
+    variant: variant as "default" | "pie" | "bar",
+    styles: extractStyles(cardConfig),
+    format: displayNames[baseCardType],
+    stats: items,
+    showPieChart: variant === "pie",
+    favorites,
+    showPiePercentages: (
+      cardConfig as CardConfig & { showPiePercentages?: boolean }
+    ).showPiePercentages,
+  });
+}
+
+// Handle status distribution cards
+function generateStatusDistributionCard(
+  params: CardGenerationParams,
+  baseCardType: string,
+): string {
+  const { cardConfig, userStats, variant } = params;
+  const isAnime = baseCardType.startsWith("anime");
+  const statusStats = isAnime
+    ? userStats.stats.User.statistics.anime
+    : userStats.stats.User.statistics.manga;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const statusesData = (statusStats as any).statuses as unknown[];
+  const statsList = Array.isArray(statusesData)
+    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      statusesData.map((s: any) => ({
+        name: s.status,
+        count: typeof s.amount === "number" ? s.amount : (s.count ?? 0),
+      }))
+    : [];
+
+  const mappedVariant = (
+    ["pie", "bar"].includes(variant) ? variant : "default"
+  ) as PieBarVariant;
+
+  return extraAnimeMangaStatsTemplate({
+    username: userStats.username,
+    variant: mappedVariant,
+    styles: extractStyles(cardConfig),
+    format: displayNames[baseCardType],
+    stats: statsList,
+    showPieChart: mappedVariant === "pie",
+    fixedStatusColors: !!(
+      cardConfig as CardConfig & { useStatusColors?: boolean }
+    ).useStatusColors,
+    showPiePercentages: (
+      cardConfig as CardConfig & { showPiePercentages?: boolean }
+    ).showPiePercentages,
+  });
+}
+
+// Handle format distribution cards
+function generateFormatDistributionCard(
+  params: CardGenerationParams,
+  baseCardType: string,
+): string {
+  const { cardConfig, userStats, variant } = params;
+  const isAnime = baseCardType.startsWith("anime");
+  const fmtStats = isAnime
+    ? userStats.stats.User.statistics.anime
+    : userStats.stats.User.statistics.manga;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const formatsData = (fmtStats as any).formats as unknown[];
+  const statsList = Array.isArray(formatsData)
+    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      formatsData.map((f: any) => ({
+        name: f.format,
+        count: f.count ?? 0,
+      }))
+    : [];
+
+  const mappedVariant = (
+    ["pie", "bar"].includes(variant) ? variant : "default"
+  ) as PieBarVariant;
+
+  return extraAnimeMangaStatsTemplate({
+    username: userStats.username,
+    variant: mappedVariant,
+    styles: extractStyles(cardConfig),
+    format: displayNames[baseCardType],
+    stats: statsList,
+    showPieChart: mappedVariant === "pie",
+    showPiePercentages: (
+      cardConfig as CardConfig & { showPiePercentages?: boolean }
+    ).showPiePercentages,
+  });
+}
+
+// Handle score/year distribution cards
+function generateDistributionCard(
+  params: CardGenerationParams,
+  baseCardType: string,
+  kind: "score" | "year",
+): string {
+  const { cardConfig, userStats, variant } = params;
+  const isAnime = baseCardType.startsWith("anime");
+  const stats = isAnime
+    ? userStats.stats.User.statistics.anime
+    : userStats.stats.User.statistics.manga;
+
+  const dataProperty = kind === "score" ? "scores" : "releaseYears";
+  const valueProperty = kind === "score" ? "score" : "releaseYear";
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const distributionData = (stats as any)[dataProperty] as unknown[];
+  const statsList = Array.isArray(distributionData)
+    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      distributionData.map((s: any) => ({
+        name: String(s[valueProperty]),
+        count: s.count ?? 0,
+      }))
+    : [];
+
+  const mappedVariant = (
+    ["default", "horizontal"].includes(variant) ? variant : "default"
+  ) as "default" | "horizontal";
+
+  return distributionTemplate({
+    username: userStats.username,
+    mediaType: isAnime ? "anime" : "manga",
+    variant: mappedVariant,
+    kind,
+    styles: extractStyles(cardConfig),
+    data: statsList.map((s: { name: string; count: number }) => ({
+      value: Number(s.name),
+      count: s.count,
+    })),
+  });
+}
+
+// Handle country distribution cards
+function generateCountryCard(
+  params: CardGenerationParams,
+  baseCardType: string,
+): string {
+  const { cardConfig, userStats, variant } = params;
+  const isAnime = baseCardType.startsWith("anime");
+  const statsRoot = isAnime
+    ? userStats.stats.User.statistics.anime
+    : userStats.stats.User.statistics.manga;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const countriesData = (statsRoot as any).countries as unknown[];
+  const list = Array.isArray(countriesData)
+    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      countriesData.map((c: any) => ({
+        name: c.country || "Unknown",
+        count: c.count ?? 0,
+      }))
+    : [];
+
+  const mappedVariant = (
+    ["pie", "bar"].includes(variant) ? variant : "default"
+  ) as PieBarVariant;
+
+  return extraAnimeMangaStatsTemplate({
+    username: userStats.username,
+    variant: mappedVariant,
+    styles: extractStyles(cardConfig),
+    format: displayNames[baseCardType],
+    stats: list,
+    showPieChart: mappedVariant === "pie",
+    showPiePercentages: (
+      cardConfig as CardConfig & { showPiePercentages?: boolean }
+    ).showPiePercentages,
+  });
+}
+
 // Function to generate SVG content based on card configuration and user stats
 function generateCardSVG(
   cardConfig: CardConfig,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userStats: any,
+  userStats: unknown,
   variant: "default" | "vertical" | "pie" | "compact" | "minimal" | "bar",
   favorites?: string[],
 ) {
   // Basic validation: card config and user stats must be present
-  if (!cardConfig || !userStats?.stats?.User?.statistics?.anime) {
+  if (!cardConfig || !userStats || typeof userStats !== "object") {
     throw new Error("Missing card configuration or stats data");
   }
-  let milestoneData;
-  let svgContent: string;
 
-  // Extract base card type and possible variation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const userStatsTyped = userStats as any;
+  if (!userStatsTyped?.stats?.User?.statistics?.anime) {
+    throw new Error("Missing card configuration or stats data");
+  }
+
   const [baseCardType] = cardConfig.cardName.split("-");
-  const showPieChart = variant === "pie"; // legacy flag kept for backward compatibility
+  const params: CardGenerationParams = {
+    cardConfig,
+    userStats: userStatsTyped,
+    variant,
+    favorites,
+  };
 
-  // Switch logic to handle different card types
+  // Handle different card types using dedicated functions
   switch (baseCardType) {
-    // Anime Stats Card
     case "animeStats":
-      // Extract episodes watched for milestone calculation
-      const episodesWatched =
-        userStats.stats.User.statistics.anime.episodesWatched;
-      milestoneData = calculateMilestones(episodesWatched); // Calculate milestones based on episodes watched
+      return generateStatsCard(params, "anime");
 
-      // Generate SVG content using mediaStatsTemplate for anime
-      svgContent = mediaStatsTemplate({
-        mediaType: "anime",
-        username: userStats.username,
-        variant: variant as "default" | "vertical" | "compact" | "minimal",
-        styles: {
-          // Card styles from config
-          titleColor: cardConfig.titleColor,
-          backgroundColor: cardConfig.backgroundColor,
-          textColor: cardConfig.textColor,
-          circleColor: cardConfig.circleColor,
-        },
-        stats: {
-          // Anime stats and milestones
-          ...userStats.stats.User.statistics.anime,
-          ...milestoneData,
-        },
-      });
-      break;
-
-    // Manga Stats Card
     case "mangaStats":
-      // Extract chapters read for milestone calculation
-      const chaptersRead = userStats.stats.User.statistics.manga.chaptersRead;
-      milestoneData = calculateMilestones(chaptersRead); // Calculate milestones based on chapters read
+      return generateStatsCard(params, "manga");
 
-      // Generate SVG content using mediaStatsTemplate for manga
-      svgContent = mediaStatsTemplate({
-        mediaType: "manga",
-        username: userStats.username,
-        variant: variant as "default" | "vertical" | "compact" | "minimal",
-        styles: {
-          // Card styles from config
-          titleColor: cardConfig.titleColor,
-          backgroundColor: cardConfig.backgroundColor,
-          textColor: cardConfig.textColor,
-          circleColor: cardConfig.circleColor,
-        },
-        stats: {
-          // Manga stats and milestones
-          ...userStats.stats.User.statistics.manga,
-          ...milestoneData,
-        },
-      });
-      break;
-
-    // Social Stats Card
     case "socialStats":
-      // Generate SVG content using socialStatsTemplate
-      svgContent = socialStatsTemplate({
-        username: userStats.username,
-        variant: variant as "default" | "compact" | "minimal",
-        styles: {
-          // Card styles from config
-          titleColor: cardConfig.titleColor,
-          backgroundColor: cardConfig.backgroundColor,
-          textColor: cardConfig.textColor,
-          circleColor: cardConfig.circleColor,
-        },
-        stats: userStats.stats, // User stats data
-        activityHistory: userStats.stats.User.stats.activityHistory, // Activity history for social stats
-      });
-      break;
+      return generateSocialStatsCard(params);
 
-    // Category-based Cards (Genres, Tags, Voice Actors, Studios, Staff)
     case "animeGenres":
     case "animeTags":
     case "animeVoiceActors":
@@ -241,306 +489,60 @@ function generateCardSVG(
     case "mangaGenres":
     case "mangaTags":
     case "mangaStaff":
-      // Determine if it's an anime or manga card
-      const isAnime = baseCardType.startsWith("anime");
-      // Map card name parts to stat category keys
-      const categoryMap: Record<CategoryKey, string> = {
-        genres: "genres",
-        tags: "tags",
-        voiceactors: "voiceActors",
-        studios: "studios",
-        staff: "staff",
-      };
-      // Extract category key from base card name
-      const categoryKey =
-        categoryMap[
-          baseCardType
-            .replace(isAnime ? "anime" : "manga", "")
-            .toLowerCase() as CategoryKey
-        ];
-      // Select anime or manga stats based on card type
-      const stats = isAnime
-        ? userStats.stats.User.statistics.anime
-        : userStats.stats.User.statistics.manga;
+      return generateCategoryCard(params, baseCardType);
 
-      // Extract top 5 items from the selected category
-      const items =
-        stats[categoryKey]
-          ?.slice(0, 5) // Get top 5 items
-          .map(
-            (
-              item:
-                | GenreItem
-                | TagItem
-                | VoiceActorItem
-                | StudioItem
-                | StaffItem,
-            ) => {
-              // Map item structure based on category
-              switch (categoryKey) {
-                case "genres":
-                  return { name: (item as GenreItem).genre, count: item.count };
-                case "tags":
-                  return {
-                    name: (item as TagItem).tag.name,
-                    count: item.count,
-                  };
-                case "voiceActors":
-                  return {
-                    name: (item as VoiceActorItem).voiceActor.name.full,
-                    count: item.count,
-                  };
-                case "studios":
-                  return {
-                    name: (item as StudioItem).studio.name,
-                    count: item.count,
-                  };
-                case "staff":
-                  return {
-                    name: (item as StaffItem).staff.name.full,
-                    count: item.count,
-                  };
-                default:
-                  return { name: "", count: 0 }; // Default case to avoid errors
-              }
-            },
-          ) || []; // Default to empty array if category stats are missing
-
-      // Generate SVG content using extraAnimeMangaStatsTemplate for category-based cards
-      svgContent = extraAnimeMangaStatsTemplate({
-        username: userStats.username,
-        variant: variant as "default" | "pie" | "bar",
-        styles: {
-          // Card styles from config
-          titleColor: cardConfig.titleColor,
-          backgroundColor: cardConfig.backgroundColor,
-          textColor: cardConfig.textColor,
-          circleColor: cardConfig.circleColor,
-        },
-        format: displayNames[baseCardType],
-        stats: items,
-        showPieChart: showPieChart,
-        favorites: favorites,
-        showPiePercentages: (
-          cardConfig as CardConfig & { showPiePercentages?: boolean }
-        ).showPiePercentages,
-      });
-      break;
     case "animeStatusDistribution":
-    case "mangaStatusDistribution": {
-      const isAnimeSD = baseCardType.startsWith("anime");
-      const statusStats = isAnimeSD
-        ? userStats.stats.User.statistics.anime
-        : userStats.stats.User.statistics.manga;
-      const statsList = (statusStats.statuses || []).map(
-        (s: { status: string; count?: number; amount?: number }) => ({
-          name: s.status,
-          count: typeof s.amount === "number" ? s.amount : (s.count ?? 0),
-        }),
-      );
-      const mappedVariant = (
-        ["pie", "bar"].includes(variant) ? variant : "default"
-      ) as "default" | "pie" | "bar";
-      svgContent = extraAnimeMangaStatsTemplate({
-        username: userStats.username,
-        variant: mappedVariant,
-        styles: {
-          titleColor: cardConfig.titleColor,
-          backgroundColor: cardConfig.backgroundColor,
-          textColor: cardConfig.textColor,
-          circleColor: cardConfig.circleColor,
-        },
-        format: displayNames[baseCardType],
-        stats: statsList,
-        showPieChart: mappedVariant === "pie",
-        fixedStatusColors: !!cardConfig.useStatusColors,
-        showPiePercentages: (
-          cardConfig as CardConfig & { showPiePercentages?: boolean }
-        ).showPiePercentages,
-      });
-      break;
-    }
+    case "mangaStatusDistribution":
+      return generateStatusDistributionCard(params, baseCardType);
+
     case "animeFormatDistribution":
-    case "mangaFormatDistribution": {
-      const isAnimeFmt = baseCardType.startsWith("anime");
-      const fmtStats = isAnimeFmt
-        ? userStats.stats.User.statistics.anime
-        : userStats.stats.User.statistics.manga;
-      const statsList = (fmtStats.formats || []).map(
-        (f: { format: string; count?: number }) => ({
-          name: f.format,
-          count: f.count ?? 0,
-        }),
-      );
-      const mappedVariant = (
-        ["pie", "bar"].includes(variant) ? variant : "default"
-      ) as "default" | "pie" | "bar";
-      svgContent = extraAnimeMangaStatsTemplate({
-        username: userStats.username,
-        variant: mappedVariant,
-        styles: {
-          titleColor: cardConfig.titleColor,
-          backgroundColor: cardConfig.backgroundColor,
-          textColor: cardConfig.textColor,
-          circleColor: cardConfig.circleColor,
-        },
-        format: displayNames[baseCardType],
-        stats: statsList,
-        showPieChart: mappedVariant === "pie",
-        showPiePercentages: (
-          cardConfig as CardConfig & { showPiePercentages?: boolean }
-        ).showPiePercentages,
-      });
-      break;
-    }
+    case "mangaFormatDistribution":
+      return generateFormatDistributionCard(params, baseCardType);
+
     case "animeScoreDistribution":
-    case "mangaScoreDistribution": {
-      const isAnimeScore = baseCardType.startsWith("anime");
-      const scStats = isAnimeScore
-        ? userStats.stats.User.statistics.anime
-        : userStats.stats.User.statistics.manga;
-      const statsList = (scStats.scores || []).map(
-        (s: { score: number; count?: number }) => ({
-          name: String(s.score),
-          count: s.count ?? 0,
-        }),
-      );
-      const mappedVariant = (
-        ["default", "horizontal"].includes(variant) ? variant : "default"
-      ) as "default" | "horizontal";
-      svgContent = distributionTemplate({
-        username: userStats.username,
-        mediaType: isAnimeScore ? "anime" : "manga",
-        variant: mappedVariant,
-        kind: "score",
-        styles: {
-          titleColor: cardConfig.titleColor,
-          backgroundColor: cardConfig.backgroundColor,
-          textColor: cardConfig.textColor,
-          circleColor: cardConfig.circleColor,
-        },
-        data: statsList.map((s: { name: string; count: number }) => ({
-          value: Number(s.name),
-          count: s.count,
-        })),
-      });
-      break;
-    }
+    case "mangaScoreDistribution":
+      return generateDistributionCard(params, baseCardType, "score");
+
     case "animeYearDistribution":
-    case "mangaYearDistribution": {
-      const isAnimeYear = baseCardType.startsWith("anime");
-      const yrStats = isAnimeYear
-        ? userStats.stats.User.statistics.anime
-        : userStats.stats.User.statistics.manga;
-      const statsList = (yrStats.releaseYears || []).map(
-        (s: { releaseYear: number; count?: number }) => ({
-          name: String(s.releaseYear),
-          count: s.count ?? 0,
-        }),
-      );
-      const mappedVariant = (
-        ["default", "horizontal"].includes(variant) ? variant : "default"
-      ) as "default" | "horizontal";
-      svgContent = distributionTemplate({
-        username: userStats.username,
-        mediaType: isAnimeYear ? "anime" : "manga",
-        variant: mappedVariant,
-        kind: "year",
-        styles: {
-          titleColor: cardConfig.titleColor,
-          backgroundColor: cardConfig.backgroundColor,
-          textColor: cardConfig.textColor,
-          circleColor: cardConfig.circleColor,
-        },
-        data: statsList.map((s: { name: string; count: number }) => ({
-          value: Number(s.name),
-          count: s.count,
-        })),
-      });
-      break;
-    }
+    case "mangaYearDistribution":
+      return generateDistributionCard(params, baseCardType, "year");
+
     case "animeCountry":
-    case "mangaCountry": {
-      const isAnime = baseCardType.startsWith("anime");
-      const statsRoot = isAnime
-        ? userStats.stats.User.statistics.anime
-        : userStats.stats.User.statistics.manga;
-      const list = (statsRoot.countries || []).map(
-        (c: { country: string; count?: number }) => ({
-          name: c.country || "Unknown",
-          count: c.count ?? 0,
-        }),
-      );
-      const mappedVariant = (
-        ["pie", "bar"].includes(variant) ? variant : "default"
-      ) as "default" | "pie" | "bar";
-      svgContent = extraAnimeMangaStatsTemplate({
-        username: userStats.username,
-        variant: mappedVariant,
-        styles: {
-          titleColor: cardConfig.titleColor,
-          backgroundColor: cardConfig.backgroundColor,
-          textColor: cardConfig.textColor,
-          circleColor: cardConfig.circleColor,
-        },
-        format: displayNames[baseCardType],
-        stats: list,
-        showPieChart: mappedVariant === "pie",
-        showPiePercentages: (
-          cardConfig as CardConfig & { showPiePercentages?: boolean }
-        ).showPiePercentages,
-      });
-      break;
-    }
-    // Default case for unsupported card types
+    case "mangaCountry":
+      return generateCountryCard(params, baseCardType);
+
     default:
       throw new Error("Unsupported card type");
   }
-
-  return svgContent; // Return generated SVG content
 }
 
-// Main GET handler for card SVG generation
-export async function GET(request: Request) {
-  const startTime = Date.now(); // Start time for performance tracking
-  const ip = request.headers.get("x-forwarded-for") || "127.0.0.1"; // Get IP address for rate limiting
+// Interface for validated request parameters
+interface ValidatedParams {
+  userId: string;
+  cardType: string;
+  numericUserId: number;
+  baseCardType: string;
+  variationParam: string | null;
+  showFavoritesParam: string | null;
+  statusColorsParam: string | null;
+  piePercentagesParam: string | null;
+}
 
-  // Rate limiter check
-  const { success } = await ratelimit.limit(ip);
-  if (!success) {
-    console.warn(`🚨 [Card SVG] Rate limit exceeded for IP: ${ip}`);
-    const analyticsClient = Redis.fromEnv();
-    analyticsClient.incr("analytics:card_svg:failed_requests").catch(() => {});
-    return new Response(svgError("Too many requests - try again later"), {
-      headers: errorHeaders(), // Use error headers (no-cache)
-      status: 200, // Still return 200 OK to display error SVG
-    });
-  }
-
-  console.log(`🚀 [Card SVG] New request from IP: ${ip} - URL: ${request.url}`);
-
-  // Extract parameters from URL search params
+// Extract and validate request parameters
+function extractAndValidateParams(
+  request: Request,
+): ValidatedParams | Response {
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get("userId");
   const cardType = searchParams.get("cardType");
-  const variationParam = searchParams.get("variation");
-  const showFavoritesParam = searchParams.get("showFavorites");
-  const statusColorsParam = searchParams.get("statusColors");
-  const piePercentagesParam = searchParams.get("piePercentages");
-
-  console.log(
-    `🖼️ [Card SVG] Request for ${cardType} card - User ID: ${userId}`,
-  );
 
   // Parameter validation: userId and cardType are required
   if (!userId || !cardType) {
     const missingParam = !userId ? "userId" : "cardType";
     console.warn(`⚠️ [Card SVG] Missing parameter: ${missingParam}`);
-    const analyticsClient = Redis.fromEnv();
-    analyticsClient.incr("analytics:card_svg:failed_requests").catch(() => {});
     return new Response(svgError("Missing parameters"), {
       headers: errorHeaders(),
-      status: 200, // Still return 200 OK to display error SVG
+      status: 200,
     });
   }
 
@@ -548,8 +550,6 @@ export async function GET(request: Request) {
   const numericUserId = parseInt(userId);
   if (isNaN(numericUserId)) {
     console.warn(`⚠️ [Card SVG] Invalid user ID format: ${userId}`);
-    const analyticsClient = Redis.fromEnv();
-    analyticsClient.incr("analytics:card_svg:failed_requests").catch(() => {});
     return new Response(svgError("Invalid user ID"), {
       headers: errorHeaders(),
       status: 200,
@@ -560,182 +560,244 @@ export async function GET(request: Request) {
   const [baseCardType] = cardType.split("-");
   if (!ALLOWED_CARD_TYPES.has(baseCardType)) {
     console.warn(`⚠️ [Card SVG] Invalid card type: ${cardType}`);
-    const analyticsClient = Redis.fromEnv();
-    analyticsClient.incr("analytics:card_svg:failed_requests").catch(() => {});
     return new Response(svgError("Invalid card type"), {
       headers: errorHeaders(),
       status: 200,
     });
   }
 
-  try {
-    console.log(`🔍 [Card SVG] Fetching data for user ${numericUserId}`);
-    const [cardsDataStr, userDataStr] = await Promise.all([
-      redisClient.get(`cards:${numericUserId}`),
-      redisClient.get(`user:${numericUserId}`),
-    ]);
+  return {
+    userId,
+    cardType,
+    numericUserId,
+    baseCardType,
+    variationParam: searchParams.get("variation"),
+    showFavoritesParam: searchParams.get("showFavorites"),
+    statusColorsParam: searchParams.get("statusColors"),
+    piePercentagesParam: searchParams.get("piePercentages"),
+  };
+}
 
-    // Explicitly check if Redis returned nothing or "null"
-    if (
-      !cardsDataStr ||
-      cardsDataStr === "null" ||
-      !userDataStr ||
-      userDataStr === "null"
-    ) {
-      console.warn(
-        `⚠️ [Card SVG] User ${numericUserId} data not found in Redis`,
-      );
-      const analyticsClient = Redis.fromEnv();
-      analyticsClient
-        .incr("analytics:card_svg:failed_requests")
-        .catch(() => {});
-      analyticsClient
-        .incr(`analytics:card_svg:failed_requests:${baseCardType}`)
-        .catch(() => {});
-      return new Response(svgError("User data not found"), {
-        headers: errorHeaders(), // Use error headers (no-cache)
-        status: 200, // Still return 200 OK to display error SVG
-      });
-    }
+// Handle analytics tracking for failed requests
+async function trackFailedRequest(baseCardType?: string): Promise<void> {
+  const analyticsClient = Redis.fromEnv();
+  analyticsClient.incr("analytics:card_svg:failed_requests").catch(() => {});
+  if (baseCardType) {
+    analyticsClient
+      .incr(`analytics:card_svg:failed_requests:${baseCardType}`)
+      .catch(() => {});
+  }
+}
 
-    const cardDoc: CardsRecord = safeParse<CardsRecord>(cardsDataStr);
-    const userDoc: UserRecord = safeParse<UserRecord>(userDataStr);
+// Handle analytics tracking for successful requests
+async function trackSuccessfulRequest(baseCardType: string): Promise<void> {
+  const analyticsClient = Redis.fromEnv();
+  analyticsClient
+    .incr("analytics:card_svg:successful_requests")
+    .catch(() => {});
+  analyticsClient
+    .incr(`analytics:card_svg:successful_requests:${baseCardType}`)
+    .catch(() => {});
+}
 
-    // Find the specific card configuration from the stored cards data
-    const cardConfig = cardDoc.cards.find(
-      (c: CardConfig) => c.cardName === cardType,
+// Fetch and validate user data from Redis
+async function fetchUserData(
+  numericUserId: number,
+  baseCardType: string,
+): Promise<{ cardDoc: CardsRecord; userDoc: UserRecord } | Response> {
+  console.log(`🔍 [Card SVG] Fetching data for user ${numericUserId}`);
+
+  const [cardsDataStr, userDataStr] = await Promise.all([
+    redisClient.get(`cards:${numericUserId}`),
+    redisClient.get(`user:${numericUserId}`),
+  ]);
+
+  // Check if Redis returned valid data
+  if (
+    !cardsDataStr ||
+    cardsDataStr === "null" ||
+    !userDataStr ||
+    userDataStr === "null"
+  ) {
+    console.warn(`⚠️ [Card SVG] User ${numericUserId} data not found in Redis`);
+    await trackFailedRequest(baseCardType);
+    return new Response(svgError("User data not found"), {
+      headers: errorHeaders(),
+      status: 200,
+    });
+  }
+
+  const cardDoc: CardsRecord = safeParse<CardsRecord>(cardsDataStr);
+  const userDoc: UserRecord = safeParse<UserRecord>(userDataStr);
+
+  return { cardDoc, userDoc };
+}
+
+// Process card configuration and apply query parameters
+function processCardConfig(
+  cardDoc: CardsRecord,
+  params: ValidatedParams,
+  userDoc: UserRecord,
+):
+  | { cardConfig: CardConfig; effectiveVariation: string; favorites: string[] }
+  | Response {
+  const { cardType, numericUserId, baseCardType } = params;
+
+  // Find the specific card configuration
+  const cardConfig = cardDoc.cards.find(
+    (c: CardConfig) => c.cardName === cardType,
+  );
+
+  if (!cardConfig) {
+    console.warn(
+      `⚠️ [Card SVG] Card config for ${cardType} not found for user ${numericUserId}`,
     );
-    if (!cardConfig) {
-      console.warn(
-        `⚠️ [Card SVG] Card config for ${cardType} not found for user ${numericUserId}`,
-      );
-      const analyticsClient = Redis.fromEnv();
-      analyticsClient
-        .incr("analytics:card_svg:failed_requests")
-        .catch(() => {});
-      analyticsClient
-        .incr(`analytics:card_svg:failed_requests:${baseCardType}`)
-        .catch(() => {});
-      return new Response(
-        svgError("Card config not found. Try to regenerate the card."),
-        {
-          headers: errorHeaders(),
-          status: 200,
-        },
-      );
+    return new Response(
+      svgError("Card config not found. Try to regenerate the card."),
+      {
+        headers: errorHeaders(),
+        status: 200,
+      },
+    );
+  }
+
+  // Determine effective variation
+  const effectiveVariation =
+    params.variationParam || cardConfig.variation || "default";
+
+  // Process favorites
+  let favorites: string[] = [];
+  const useFavorites =
+    params.showFavoritesParam !== null
+      ? params.showFavoritesParam === "true"
+      : !!cardConfig.showFavorites;
+
+  if (
+    useFavorites &&
+    ["animeVoiceActors", "animeStudios", "animeStaff", "mangaStaff"].includes(
+      baseCardType,
+    )
+  ) {
+    const favoritesData = userDoc?.stats?.User?.favourites ?? {};
+    favorites = getFavoritesForCardType(favoritesData, baseCardType);
+  }
+
+  // Apply query parameter modifications to card config
+  if (
+    params.statusColorsParam === "true" &&
+    ["animeStatusDistribution", "mangaStatusDistribution"].includes(
+      baseCardType,
+    )
+  ) {
+    (cardConfig as CardConfig & { useStatusColors?: boolean }).useStatusColors =
+      true;
+  }
+
+  if (params.piePercentagesParam === "true") {
+    (
+      cardConfig as CardConfig & { showPiePercentages?: boolean }
+    ).showPiePercentages = true;
+  }
+
+  return { cardConfig, effectiveVariation, favorites };
+}
+
+// Main GET handler for card SVG generation
+export async function GET(request: Request) {
+  const startTime = Date.now();
+  const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
+
+  // Rate limiter check
+  const { success } = await ratelimit.limit(ip);
+  if (!success) {
+    console.warn(`🚨 [Card SVG] Rate limit exceeded for IP: ${ip}`);
+    await trackFailedRequest();
+    return new Response(svgError("Too many requests - try again later"), {
+      headers: errorHeaders(),
+      status: 200,
+    });
+  }
+
+  console.log(`🚀 [Card SVG] New request from IP: ${ip} - URL: ${request.url}`);
+
+  // Extract and validate parameters
+  const paramsResult = extractAndValidateParams(request);
+  if (paramsResult instanceof Response) {
+    await trackFailedRequest();
+    return paramsResult;
+  }
+
+  const params = paramsResult;
+  console.log(
+    `🖼️ [Card SVG] Request for ${params.cardType} card - User ID: ${params.userId}`,
+  );
+
+  try {
+    // Fetch user data from Redis
+    const dataResult = await fetchUserData(
+      params.numericUserId,
+      params.baseCardType,
+    );
+    if (dataResult instanceof Response) {
+      return dataResult;
     }
 
-    // Determine the effective variation: URL param > config > default
-    const effectiveVariation =
-      variationParam || cardConfig.variation || "default";
+    const { cardDoc, userDoc } = dataResult;
+
+    // Process card configuration and apply parameters
+    const configResult = processCardConfig(cardDoc, params, userDoc);
+    if (configResult instanceof Response) {
+      await trackFailedRequest(params.baseCardType);
+      return configResult;
+    }
+
+    const { cardConfig, effectiveVariation, favorites } = configResult;
 
     console.log(
-      `🎨 [Card SVG] Generating ${cardType} (${effectiveVariation}) SVG for user ${numericUserId}`,
+      `🎨 [Card SVG] Generating ${params.cardType} (${effectiveVariation}) SVG for user ${params.numericUserId}`,
     );
-    try {
-      let favorites: string[] = [];
-      // Use showFavorites from the query param if present, otherwise fall back to card config
-      let useFavorites: boolean;
-      if (showFavoritesParam !== null) {
-        useFavorites = showFavoritesParam === "true";
-      } else {
-        useFavorites = !!cardConfig.showFavorites;
-      }
-      if (
-        useFavorites &&
-        [
-          "animeVoiceActors",
-          "animeStudios",
-          "animeStaff",
-          "mangaStaff",
-        ].includes(baseCardType)
-      ) {
-        // Use favorites from userDoc.stats.User.favourites
-        const favoritesData = userDoc?.stats?.User?.favourites ?? {};
-        favorites = getFavoritesForCardType(favoritesData, baseCardType);
-      }
-      // Generate SVG content using generateCardSVG function
-      // Inject statusColors flag into config for status distribution cards via query param
-      if (
-        statusColorsParam === "true" &&
-        ["animeStatusDistribution", "mangaStatusDistribution"].includes(
-          baseCardType,
-        )
-      ) {
-        (
-          cardConfig as CardConfig & { useStatusColors?: boolean }
-        ).useStatusColors = true;
-      }
-      if (piePercentagesParam === "true") {
-        (
-          cardConfig as CardConfig & { showPiePercentages?: boolean }
-        ).showPiePercentages = true;
-      }
-      const svgContent = generateCardSVG(
-        cardConfig as CardConfig,
-        userDoc as unknown as UserStats,
-        effectiveVariation as "default" | "vertical" | "pie",
-        favorites,
-      );
-      const duration = Date.now() - startTime; // Calculate generation duration
-      if (duration > 1500) {
-        console.warn(
-          `⏳ [Card SVG] Slow rendering detected: ${duration}ms for user ${numericUserId}`,
-        );
-      }
-      console.log(
-        `✅ [Card SVG] Rendered ${cardType} card for ${numericUserId} in ${duration}ms`,
-      );
 
-      const analyticsClient = Redis.fromEnv();
-      analyticsClient
-        .incr("analytics:card_svg:successful_requests")
-        .catch(() => {});
-      analyticsClient
-        .incr(`analytics:card_svg:successful_requests:${baseCardType}`)
-        .catch(() => {});
+    // Generate SVG content
+    const svgContent = generateCardSVG(
+      cardConfig,
+      userDoc as unknown as UserStats,
+      effectiveVariation as "default" | "vertical" | "pie",
+      favorites,
+    );
 
-      return new Response(svgContent, {
-        // Return SVG response
-        headers: svgHeaders(), // Use success headers (with cache)
-      });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (error: any) {
-      const duration = Date.now() - startTime;
-      console.error(
-        `🔥 [Card SVG] Error generating card for user ${numericUserId} after ${duration}ms:`,
-        error,
-      );
-      if (error.stack) {
-        console.error(`💥 [Card SVG] Stack Trace: ${error.stack}`);
-      }
-      const analyticsClient = Redis.fromEnv();
-      analyticsClient
-        .incr("analytics:card_svg:failed_requests")
-        .catch(() => {});
-      analyticsClient
-        .incr(`analytics:card_svg:failed_requests:${baseCardType}`)
-        .catch(() => {});
-      return new Response(svgError("Server Error"), {
-        headers: errorHeaders(), // Use error headers (no-cache)
-        status: 200, // Still return 200 OK to display error SVG
-      });
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
     const duration = Date.now() - startTime;
+    if (duration > 1500) {
+      console.warn(
+        `⏳ [Card SVG] Slow rendering detected: ${duration}ms for user ${params.numericUserId}`,
+      );
+    }
+
+    console.log(
+      `✅ [Card SVG] Rendered ${params.cardType} card for ${params.numericUserId} in ${duration}ms`,
+    );
+
+    await trackSuccessfulRequest(params.baseCardType);
+
+    return new Response(svgContent, {
+      headers: svgHeaders(),
+    });
+  } catch (error: unknown) {
+    const duration = Date.now() - startTime;
+
     console.error(
-      `🔥 [Card SVG] General error for user ${numericUserId} after ${duration}ms:`,
+      `🔥 [Card SVG] Error generating card for user ${params.numericUserId} after ${duration}ms:`,
       error,
     );
-    if (error.stack) {
+
+    if (error instanceof Error && error.stack) {
       console.error(`💥 [Card SVG] Stack Trace: ${error.stack}`);
     }
-    const analyticsClient = Redis.fromEnv();
-    analyticsClient.incr("analytics:card_svg:failed_requests").catch(() => {});
+
+    await trackFailedRequest(params.baseCardType);
+
     return new Response(svgError("Server Error"), {
-      headers: errorHeaders(), // Use error headers (no-cache)
-      status: 200, // Still return 200 OK to display error SVG
+      headers: errorHeaders(),
+      status: 200,
     });
   }
 }

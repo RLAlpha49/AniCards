@@ -50,7 +50,7 @@ export function StatCardTypeSelection({
   onPreview,
   showFavoritesByCard,
   onToggleShowFavorites,
-}: StatCardTypeSelectionProps) {
+}: Readonly<StatCardTypeSelectionProps>) {
   const grouped = useMemo(() => {
     return cardTypes.reduce<{
       order: string[];
@@ -205,7 +205,7 @@ export function StatCardTypeSelection({
                                     viewBox="0 0 20 20"
                                     aria-label="Favorited"
                                     tabIndex={0}
-                                    role="img"
+                                    aria-hidden="false"
                                   >
                                     <title>Favorited</title>
                                     <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" />
@@ -221,7 +221,7 @@ export function StatCardTypeSelection({
                             </Label>
                             {type.label.includes("(") && (
                               <p className="text-xs text-gray-600 transition-opacity duration-200 group-hover:opacity-100 dark:text-gray-400">
-                                {type.label.match(/\((.*)\)/)?.[1]}
+                                {RegExp(/\((.*)\)/).exec(type.label)?.[1]}
                               </p>
                             )}
                             {type.variations && (

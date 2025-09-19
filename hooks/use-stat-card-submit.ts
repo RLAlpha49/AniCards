@@ -104,7 +104,7 @@ export function useStatCardSubmit() {
             userId: userIdData.User.id,
             cards: selectedCards.map((cardId) => {
               const [cardName, rawVariation] = cardId.split("-");
-              const variation = rawVariation ? rawVariation : "default";
+              const variation = rawVariation || "default";
               const baseConfig = {
                 cardName,
                 variation,
@@ -151,7 +151,7 @@ export function useStatCardSubmit() {
                   cardName,
                 )
               ) {
-                const statusCard = (selectedCards as string[]).find((c) =>
+                const statusCard = selectedCards.find((c) =>
                   c.startsWith(cardName),
                 );
                 // naive inclusion; actual value already persisted server-side

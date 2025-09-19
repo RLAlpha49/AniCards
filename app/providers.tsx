@@ -4,7 +4,9 @@ import { ThemeProvider } from "next-themes";
 import type React from "react";
 
 // Wrapper component for theme management using next-themes
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <ThemeProvider
       attribute="class" // Use CSS class-based theming (dark/light classes)

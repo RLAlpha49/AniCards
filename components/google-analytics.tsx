@@ -6,7 +6,7 @@ interface GoogleAnalyticsProps {
 
 export default function GoogleAnalytics({
   GA_TRACKING_ID,
-}: GoogleAnalyticsProps) {
+}: Readonly<GoogleAnalyticsProps>) {
   return (
     <>
       <Script

@@ -20,7 +20,7 @@ export function ColorPresetSelector({
   selectedPreset,
   presets,
   onPresetChange,
-}: ColorPresetSelectorProps) {
+}: Readonly<ColorPresetSelectorProps>) {
   const handlePresetChange = (preset: string) => {
     trackColorPresetSelection(preset);
     onPresetChange(preset);
@@ -54,17 +54,19 @@ export function ColorPresetSelector({
           <SelectValue placeholder="Select a color preset" />
         </SelectTrigger>
         <SelectContent>
-          {sortedPresets.map(([key, { mode }]) => (
-            <SelectItem key={key} value={key}>
-              {`${key.charAt(0).toUpperCase() + key.slice(1)} (${
-                mode === "light"
-                  ? "Light Mode"
-                  : mode === "dark"
-                    ? "Dark Mode"
-                    : "Custom"
-              })`}
-            </SelectItem>
-          ))}
+          {sortedPresets.map(([key, { mode }]) => {
+            let modeLabel = "Custom";
+            if (mode === "light") {
+              modeLabel = "Light Mode";
+            } else if (mode === "dark") {
+              modeLabel = "Dark Mode";
+            }
+            return (
+              <SelectItem key={key} value={key}>
+                {`${key.charAt(0).toUpperCase() + key.slice(1)} (${modeLabel})`}
+              </SelectItem>
+            );
+          })}
         </SelectContent>
       </Select>
     </div>

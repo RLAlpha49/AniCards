@@ -16,7 +16,7 @@ export function LoadingSpinner({
   size = "md",
   className,
   text,
-}: LoadingSpinnerProps) {
+}: Readonly<LoadingSpinnerProps>) {
   // Size variants for different usage contexts
   const sizes = {
     sm: "h-4 w-4", // Small - for inline loading
@@ -98,7 +98,7 @@ interface LoadingOverlayProps {
  */
 export function LoadingOverlay({
   text = "Generating your cards...",
-}: LoadingOverlayProps) {
+}: Readonly<LoadingOverlayProps>) {
   return (
     <div className="fixed inset-0 z-[999] flex items-center justify-center bg-background/80 backdrop-blur-sm">
       <div className="flex flex-col items-center gap-4">

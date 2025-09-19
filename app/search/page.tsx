@@ -133,8 +133,7 @@ export default function UserLookupPage() {
               size="lg"
               className="w-full text-lg transition-transform hover:scale-[1.02]"
             >
-              View Stats
-              <span className="ml-2">→</span>
+              View Stats <span className="ml-2">→</span>
             </Button>
           </motion.div>
         </form>

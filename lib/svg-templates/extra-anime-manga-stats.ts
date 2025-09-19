@@ -20,7 +20,14 @@ export const extraAnimeMangaStatsTemplate = (data: {
   const isPie = data.showPieChart || data.variant === "pie";
   const isBar = data.variant === "bar";
 
-  const svgWidth = isPie ? 340 : isBar ? 360 : 280;
+  let svgWidth: number;
+  if (isPie) {
+    svgWidth = 340;
+  } else if (isBar) {
+    svgWidth = 360;
+  } else {
+    svgWidth = 280;
+  }
   const viewBoxWidth = svgWidth;
   const rectWidth = svgWidth - 1;
 
@@ -60,7 +67,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
         index,
         stat.name,
         data.styles.circleColor,
-        data.fixedStatusColors && /Statuses$/.test(data.format),
+        data.fixedStatusColors && data.format.endsWith("Statuses"),
       );
       const pct = ((stat.count / totalForPie) * 100).toFixed(0);
       return `
@@ -102,7 +109,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
                   index,
                   stat.name,
                   data.styles.circleColor,
-                  data.fixedStatusColors && /Statuses$/.test(data.format),
+                  data.fixedStatusColors && data.format.endsWith("Statuses"),
                 )}"
                 stroke="${data.styles.backgroundColor}"
                 stroke-width="1.5"
@@ -138,18 +145,21 @@ export const extraAnimeMangaStatsTemplate = (data: {
         .join("")
     : "";
 
-  const mainStatsContent = isPie
-    ? `
+  let mainStatsContent: string;
+  if (isPie) {
+    mainStatsContent = `
         <g transform="translate(45, 0)">
           ${statsContentWithPie}
         </g>
         <g transform="translate(240, 20)">
           ${pieChartContent}
         </g>
-      `
-    : isBar
-      ? `<g transform="translate(25, 0)">${barsContent}</g>`
-      : statsContentWithoutPie;
+      `;
+  } else if (isBar) {
+    mainStatsContent = `<g transform="translate(25, 0)">${barsContent}</g>`;
+  } else {
+    mainStatsContent = statsContentWithoutPie;
+  }
 
   return `
     <svg

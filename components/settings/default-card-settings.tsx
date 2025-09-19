@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
-import { AnimatePresence, motion as m } from "framer-motion";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion as m, motion } from "framer-motion";
+
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -43,7 +43,7 @@ export function DefaultCardSettings({
   onVariantChange,
   defaultShowFavoritesByCard,
   onToggleShowFavoritesDefault,
-}: DefaultCardSettingsProps) {
+}: Readonly<DefaultCardSettingsProps>) {
   // Group computation (stable ordering as defined in statCardTypes array)
   const groups = useMemo(() => {
     return statCardTypes.reduce<{

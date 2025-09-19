@@ -20,7 +20,7 @@ export function ThemePreferences({
   theme,
   themes,
   onThemeChange,
-}: ThemePreferencesProps) {
+}: Readonly<ThemePreferencesProps>) {
   const handleThemeChange = (value: string) => {
     trackSettingsChanged(`theme-${value}`);
     onThemeChange(value);

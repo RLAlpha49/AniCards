@@ -14,7 +14,7 @@ export function StatCard({
   icon: Icon,
   title,
   description,
-}: StatCardProps) {
+}: Readonly<StatCardProps>) {
   return (
     // Flex container for icon and text alignment
     <div className={cn("flex items-center space-x-4", className)}>

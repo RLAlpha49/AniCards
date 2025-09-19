@@ -7,9 +7,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { svgToPng, copyToClipboard } from "@/lib/utils";
+import { svgToPng, copyToClipboard, cn } from "@/lib/utils";
 import { LoadingSpinner } from "@/components/loading-spinner";
-import { cn } from "@/lib/utils";
+
 import { displayNames } from "../stat-card-generator/stat-card-preview";
 import {
   trackCardDownload,
@@ -22,7 +22,7 @@ interface CardProps {
 }
 
 // Component for individual stat card display with download/copy actions
-export function Card({ type, svgUrl }: CardProps) {
+export function Card({ type, svgUrl }: Readonly<CardProps>) {
   // Track copied state and image loading status
   const [copied, setCopied] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);

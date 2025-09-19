@@ -12,7 +12,7 @@ interface SidebarBehaviorProps {
 export function SidebarBehavior({
   sidebarDefault,
   onSidebarChange,
-}: SidebarBehaviorProps) {
+}: Readonly<SidebarBehaviorProps>) {
   const handleSidebarChange = (checked: boolean) => {
     trackSettingsChanged(
       `sidebar_default_${checked ? "expanded" : "collapsed"}`,

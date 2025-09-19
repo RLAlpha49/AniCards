@@ -39,6 +39,35 @@ export default function LicensePage() {
     fetchLicense();
   }, []);
 
+  let content: React.ReactNode;
+  if (isLoading) {
+    content = (
+      <div className="flex justify-center p-8">
+        <LoadingSpinner text="Loading license..." />
+      </div>
+    );
+  } else if (error) {
+    content = (
+      <Alert variant="destructive" className="mb-4">
+        <AlertCircle className="h-4 w-4" />
+        <span>{error}</span>
+        <Button
+          variant="outline"
+          className="ml-4"
+          onClick={() => window.location.reload()}
+        >
+          Retry
+        </Button>
+      </Alert>
+    );
+  } else {
+    content = (
+      <pre className="max-w-full overflow-x-auto whitespace-pre-wrap rounded-lg border border-gray-200 bg-gray-50 p-4 font-mono text-sm dark:border-gray-700 dark:bg-gray-900">
+        {licenseText}
+      </pre>
+    );
+  }
+
   return (
     <div className="container mx-auto max-w-3xl px-4 py-8">
       {/* Animated header section */}
@@ -79,27 +108,7 @@ export default function LicensePage() {
           </Button>
         </div>
 
-        {isLoading ? (
-          <div className="flex justify-center p-8">
-            <LoadingSpinner text="Loading license..." />
-          </div>
-        ) : error ? (
-          <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <span>{error}</span>
-            <Button
-              variant="outline"
-              className="ml-4"
-              onClick={() => window.location.reload()}
-            >
-              Retry
-            </Button>
-          </Alert>
-        ) : (
-          <pre className="max-w-full overflow-x-auto whitespace-pre-wrap rounded-lg border border-gray-200 bg-gray-50 p-4 font-mono text-sm dark:border-gray-700 dark:bg-gray-900">
-            {licenseText}
-          </pre>
-        )}
+        {content}
       </motion.div>
     </div>
   );

@@ -10,7 +10,8 @@ export function useGoogleAnalytics() {
 
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID) {
-      const url = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
+      const queryString = searchParams.toString();
+      const url = pathname + (queryString ? "?" + queryString : "");
       pageview(url);
     }
   }, [pathname, searchParams]);

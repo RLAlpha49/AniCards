@@ -18,7 +18,7 @@ function isValidHex(color: string): boolean {
   return /^#([A-Fa-f0-9]{3}|[A-Fa-f0-9]{6})$/.test(color);
 }
 
-export function ColorPickerGroup({ pickers }: ColorPickerGroupProps) {
+export function ColorPickerGroup({ pickers }: Readonly<ColorPickerGroupProps>) {
   return (
     <div className="grid grid-cols-2 gap-4">
       {pickers.map((picker) => {

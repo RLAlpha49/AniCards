@@ -9,7 +9,7 @@ export interface UserDetailsFormProps {
 export function UserDetailsForm({
   username,
   onUsernameChange,
-}: UserDetailsFormProps) {
+}: Readonly<UserDetailsFormProps>) {
   return (
     <div>
       <Label htmlFor="username">Username</Label>

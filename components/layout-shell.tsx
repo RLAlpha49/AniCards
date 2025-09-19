@@ -6,7 +6,9 @@ import { AppSidebar } from "@/components/sidebar";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import Footer from "@/components/footer";
 
-export function LayoutShell({ children }: { children: React.ReactNode }) {
+export function LayoutShell({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   const defaultOpen =
     typeof window !== "undefined"
       ? (() => {
@@ -30,7 +32,9 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function LayoutShellContent({ children }: { children: React.ReactNode }) {
+function LayoutShellContent({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   const { open, toggleSidebar } = useSidebar();
 
   return (

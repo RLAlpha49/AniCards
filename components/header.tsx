@@ -11,7 +11,10 @@ type HeaderProps = {
   sidebarOpen: boolean;
 };
 
-export default function Header({ onSidebarToggle, sidebarOpen }: HeaderProps) {
+export default function Header({
+  onSidebarToggle,
+  sidebarOpen,
+}: Readonly<HeaderProps>) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {

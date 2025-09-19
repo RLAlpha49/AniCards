@@ -379,7 +379,7 @@ export function StatCardGenerator({
   isOpen,
   onClose,
   className,
-}: StatCardGeneratorProps) {
+}: Readonly<StatCardGeneratorProps>) {
   // State management for form inputs and UI states
   const [username, setUsername] = useState("");
   const [titleColor, setTitleColor] = useState(colorPresets.default.colors[0]);

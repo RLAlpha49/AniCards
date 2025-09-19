@@ -1,8 +1,7 @@
-import { CardConfig } from "@/lib/types/records";
+import { CardConfig, CardsRecord } from "@/lib/types/records";
 import { NextResponse } from "next/server";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
-import { CardsRecord } from "@/lib/types/records";
 
 const redisClient = Redis.fromEnv();
 const ratelimit = new Ratelimit({

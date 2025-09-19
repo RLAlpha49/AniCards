@@ -10,7 +10,7 @@ interface DefaultUsernameSettingsProps {
 export function DefaultUsernameSettings({
   defaultUsername,
   onUsernameChange,
-}: DefaultUsernameSettingsProps) {
+}: Readonly<DefaultUsernameSettingsProps>) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}

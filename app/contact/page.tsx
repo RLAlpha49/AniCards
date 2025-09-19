@@ -3,43 +3,14 @@
 import React from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Github } from "lucide-react";
-import { siDiscord, siAnilist } from "simple-icons";
 import { motion } from "framer-motion";
 import { trackExternalLinkClick } from "@/lib/utils/google-analytics";
 import { usePageSEO } from "@/hooks/use-page-seo";
-
-// Custom component to render the Discord icon using Simple Icons.
-const SimpleDiscordIcon = ({ size = 32 }: { size?: number }) => (
-  <svg
-    className="transition-transform group-hover:scale-110"
-    role="img"
-    xmlns="http://www.w3.org/2000/svg"
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill={`#${siDiscord.hex}`}
-  >
-    <title>{siDiscord.title}</title>
-    <path d={siDiscord.path} />
-  </svg>
-);
-
-// Custom component to render the AniList icon using Simple Icons.
-const SimpleAniListIcon = ({ size = 32 }: { size?: number }) => (
-  <svg
-    className="transition-transform group-hover:scale-110"
-    role="img"
-    xmlns="http://www.w3.org/2000/svg"
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill={`#${siAnilist.hex}`}
-  >
-    <title>{siAnilist.title}</title>
-    <path d={siAnilist.path} />
-  </svg>
-);
+import {
+  SimpleDiscordIcon,
+  SimpleGithubIcon,
+  SimpleAniListIcon,
+} from "@/components/icons/simple-icons";
 
 export default function ContactPage() {
   usePageSEO("contact");
@@ -96,17 +67,18 @@ export default function ContactPage() {
                 },
                 {
                   href: "https://github.com/RLAlpha49",
-                  icon: Github,
+                  icon: SimpleGithubIcon,
                   name: "github",
+                  iconClass: "text-black dark:text-white",
                 },
                 {
                   href: "https://anilist.co/user/Alpha49",
                   icon: SimpleAniListIcon,
                   name: "anilist",
                 },
-              ].map((link, index) => (
+              ].map((link) => (
                 <Link
-                  key={index}
+                  key={link.name}
                   href={link.href}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -116,7 +88,7 @@ export default function ContactPage() {
                 >
                   <link.icon
                     size={40}
-                    className="transition-transform group-hover:scale-110"
+                    className={`transition-transform group-hover:scale-110 ${link.iconClass || ""}`}
                   />
                 </Link>
               ))}

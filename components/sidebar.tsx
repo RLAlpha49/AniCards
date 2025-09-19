@@ -2,9 +2,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Mail, Settings, File, Search, Folder } from "lucide-react";
-import { useSidebar } from "@/components/ui/sidebar";
-
 import {
+  useSidebar,
   Sidebar,
   SidebarContent,
   SidebarMenu,
@@ -14,6 +13,7 @@ import {
   SidebarGroup,
   SidebarGroupContent,
 } from "@/components/ui/sidebar";
+
 import { useState, useEffect } from "react";
 import { trackNavigation } from "@/lib/utils/google-analytics";
 

@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     // 2. Process CSS styles
     // Regex explanation:
     // - <style>([\s\S]*?)<\/style> matches the <style> tag and everything inside it
-    const styleMatch = svgContent.match(/<style>([\s\S]*?)<\/style>/);
+    const styleMatch = RegExp(/<style>([\s\S]*?)<\/style>/).exec(svgContent);
     let cssContent = styleMatch?.[1] || "";
     cssContent = cssContent
       // Regex explanation:

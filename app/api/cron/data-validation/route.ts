@@ -1,6 +1,26 @@
 import { Redis } from "@upstash/redis";
 import { safeParse } from "@/lib/utils";
 
+// Helper function for cron authorization
+function checkCronAuthorization(request: Request): Response | null {
+  const CRON_SECRET = process.env.CRON_SECRET;
+  const cronSecretHeader = request.headers.get("x-cron-secret");
+
+  if (CRON_SECRET) {
+    if (cronSecretHeader !== CRON_SECRET) {
+      console.error(
+        "🔒 [Data Validation Check] Unauthorized: Invalid Cron secret",
+      );
+      return new Response("Unauthorized", { status: 401 });
+    }
+  } else {
+    console.warn(
+      "No CRON_SECRET env variable set. Skipping authorization check.",
+    );
+  }
+  return null;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function validateUserRecord(obj: any): string[] {
   const issues: string[] = [];
@@ -113,22 +133,139 @@ function validateAnalyticsReport(obj: any): string[] {
   return issues;
 }
 
-export async function POST(request: Request) {
-  // Check for the required cron secret
-  const CRON_SECRET = process.env.CRON_SECRET;
-  const cronSecretHeader = request.headers.get("x-cron-secret");
+// Helper function to validate analytics reports list
+async function validateAnalyticsReportsList(
+  redisClient: Redis,
+  key: string,
+  inconsistencies: Array<{ key: string; issues: string[] }>,
+): Promise<{ keysChecked: number; issuesFound: number }> {
+  const listElements = await redisClient.lrange(key, 0, -1);
 
-  if (CRON_SECRET) {
-    if (cronSecretHeader !== CRON_SECRET) {
-      console.error(
-        "🔒 [Data Validation Check] Unauthorized: Invalid Cron secret",
-      );
-      return new Response("Unauthorized", { status: 401 });
+  if (!listElements || listElements.length === 0) {
+    inconsistencies.push({ key, issues: ["List is empty"] });
+    return { keysChecked: 0, issuesFound: 1 };
+  }
+
+  let keysChecked = 0;
+  let issuesFound = 0;
+
+  for (let i = 0; i < listElements.length; i++) {
+    const reportStr = listElements[i];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const parsedReport = safeParse<any>(reportStr);
+    const reportIssues = validateAnalyticsReport(parsedReport);
+
+    if (reportIssues.length > 0) {
+      issuesFound++;
+      inconsistencies.push({
+        key: `${key}[${i}]`,
+        issues: reportIssues,
+      });
     }
-  } else {
-    console.warn(
-      "No CRON_SECRET env variable set. Skipping authorization check.",
-    );
+    keysChecked++;
+  }
+
+  return { keysChecked, issuesFound };
+}
+
+// Helper function to validate individual key
+async function validateIndividualKey(
+  redisClient: Redis,
+  key: string,
+  inconsistencies: Array<{ key: string; issues: string[] }>,
+): Promise<{ keysChecked: number; issuesFound: number }> {
+  const valueStr = await redisClient.get(key);
+
+  if (!valueStr) {
+    inconsistencies.push({ key, issues: ["Value is null or missing"] });
+    return { keysChecked: 1, issuesFound: 1 };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const parsed = safeParse<any>(valueStr);
+  if ((parsed === null || parsed === undefined) && parsed !== 0) {
+    inconsistencies.push({ key, issues: ["Failed to parse JSON"] });
+    return { keysChecked: 1, issuesFound: 1 };
+  }
+
+  const issues: string[] = [];
+  if (key.startsWith("user:")) {
+    issues.push(...validateUserRecord(parsed));
+  } else if (key.startsWith("cards:")) {
+    issues.push(...validateCardsRecord(parsed));
+  } else if (key.startsWith("username:")) {
+    issues.push(...validateUsernameRecord(parsed));
+  } else if (key.startsWith("analytics:")) {
+    issues.push(...validateAnalyticsMetric(parsed));
+  }
+
+  if (issues.length > 0) {
+    inconsistencies.push({ key, issues });
+    return { keysChecked: 1, issuesFound: 1 };
+  }
+
+  return { keysChecked: 1, issuesFound: 0 };
+}
+
+// Helper function to validate keys for a pattern
+async function validatePatternKeys(
+  redisClient: Redis,
+  pattern: string,
+  inconsistencies: Array<{ key: string; issues: string[] }>,
+): Promise<{ checked: number; inconsistencies: number }> {
+  const keys = await redisClient.keys(pattern);
+  let patternChecked = 0;
+  let patternIssues = 0;
+
+  for (const key of keys) {
+    try {
+      let result;
+
+      if (key === "analytics:reports") {
+        result = await validateAnalyticsReportsList(
+          redisClient,
+          key,
+          inconsistencies,
+        );
+      } else {
+        result = await validateIndividualKey(redisClient, key, inconsistencies);
+      }
+
+      patternChecked += result.keysChecked;
+      patternIssues += result.issuesFound;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      patternIssues++;
+      inconsistencies.push({ key, issues: [error.message] });
+    }
+  }
+
+  return { checked: patternChecked, inconsistencies: patternIssues };
+}
+
+// Helper function to create and save validation report
+async function createAndSaveReport(
+  redisClient: Redis,
+  summary: string,
+  details: Record<string, { checked: number; inconsistencies: number }>,
+  inconsistencies: Array<{ key: string; issues: string[] }>,
+): Promise<Record<string, unknown>> {
+  const report = {
+    summary,
+    details,
+    issues: inconsistencies,
+    generatedAt: new Date().toISOString(),
+  };
+
+  await redisClient.rpush("data_validation:reports", JSON.stringify(report));
+  return report;
+}
+
+export async function POST(request: Request) {
+  // Check authorization
+  const authError = checkCronAuthorization(request);
+  if (authError) {
+    return authError;
   }
 
   const startTime = Date.now();
@@ -136,8 +273,6 @@ export async function POST(request: Request) {
 
   try {
     const redisClient = Redis.fromEnv();
-
-    // Define Redis key patterns to validate. Add more patterns as needed.
     const patterns = ["user:*", "cards:*", "username:*", "analytics:*"];
     let totalKeysChecked = 0;
     let totalInconsistencies = 0;
@@ -147,90 +282,16 @@ export async function POST(request: Request) {
       { checked: number; inconsistencies: number }
     > = {};
 
-    // Iterate over each pattern and check keys.
+    // Validate keys for each pattern
     for (const pattern of patterns) {
-      const keys = await redisClient.keys(pattern);
-      let patternChecked = 0;
-      let patternIssues = 0;
-
-      for (const key of keys) {
-        patternChecked++;
-        // For analytics keys, we handle list types or single number values
-        try {
-          // Special handling for the "analytics:reports" key (a list of reports)
-          if (key === "analytics:reports") {
-            const listElements = await redisClient.lrange(key, 0, -1);
-            if (!listElements || listElements.length === 0) {
-              totalInconsistencies++;
-              patternIssues++;
-              inconsistencies.push({ key, issues: ["List is empty"] });
-            } else {
-              // Validate each report in the list
-              for (let i = 0; i < listElements.length; i++) {
-                const reportStr = listElements[i];
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const parsedReport = safeParse<any>(reportStr);
-                const reportIssues = validateAnalyticsReport(parsedReport);
-                if (reportIssues.length > 0) {
-                  totalInconsistencies++;
-                  patternIssues++;
-                  inconsistencies.push({
-                    key: `${key}[${i}]`,
-                    issues: reportIssues,
-                  });
-                }
-                totalKeysChecked++;
-              }
-            }
-            continue;
-          }
-
-          // For all other keys, treat them as single value entries.
-          totalKeysChecked++;
-          const valueStr = await redisClient.get(key);
-          if (!valueStr) {
-            totalInconsistencies++;
-            patternIssues++;
-            inconsistencies.push({ key, issues: ["Value is null or missing"] });
-            continue;
-          }
-          // Parse the value
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const parsed = safeParse<any>(valueStr);
-          if ((parsed === null || parsed === undefined) && parsed !== 0) {
-            totalInconsistencies++;
-            patternIssues++;
-            inconsistencies.push({ key, issues: ["Failed to parse JSON"] });
-            continue;
-          }
-
-          const issues: string[] = [];
-          if (key.startsWith("user:")) {
-            issues.push(...validateUserRecord(parsed));
-          } else if (key.startsWith("cards:")) {
-            issues.push(...validateCardsRecord(parsed));
-          } else if (key.startsWith("username:")) {
-            issues.push(...validateUsernameRecord(parsed));
-          } else if (key.startsWith("analytics:")) {
-            issues.push(...validateAnalyticsMetric(parsed));
-          }
-
-          if (issues.length > 0) {
-            totalInconsistencies++;
-            patternIssues++;
-            inconsistencies.push({ key, issues });
-          }
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } catch (error: any) {
-          totalInconsistencies++;
-          patternIssues++;
-          inconsistencies.push({ key, issues: [error.message] });
-        }
-      }
-      details[pattern] = {
-        checked: patternChecked,
-        inconsistencies: patternIssues,
-      };
+      const result = await validatePatternKeys(
+        redisClient,
+        pattern,
+        inconsistencies,
+      );
+      details[pattern] = result;
+      totalKeysChecked += result.checked;
+      totalInconsistencies += result.inconsistencies;
     }
 
     const duration = Date.now() - startTime;
@@ -241,18 +302,14 @@ export async function POST(request: Request) {
       console.warn("🛠️ [Data Validation Check] Issues found:", inconsistencies);
     }
 
-    // Build the data validation report
-    const report = {
+    // Create and save the validation report
+    const report = await createAndSaveReport(
+      redisClient,
       summary,
       details,
-      issues: inconsistencies,
-      generatedAt: new Date().toISOString(),
-    };
+      inconsistencies,
+    );
 
-    // Save the validation report into the database (Redis list "data_validation:reports")
-    await redisClient.rpush("data_validation:reports", JSON.stringify(report));
-
-    // Return the report as the response
     return new Response(JSON.stringify(report), {
       status: 200,
       headers: { "Content-Type": "application/json" },

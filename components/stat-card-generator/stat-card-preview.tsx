@@ -54,7 +54,7 @@ export function StatCardPreview({
   cardType,
   variation,
   showFavorites = false,
-}: StatCardPreviewProps) {
+}: Readonly<StatCardPreviewProps>) {
   const [isLoading, setIsLoading] = useState(true);
 
   const handleClose = () => {
@@ -72,7 +72,7 @@ export function StatCardPreview({
   const effectiveVariation = variation ?? "default";
 
   // Build the preview URL with separate query parameters.
-  const baseUrl = "http://anicards.alpha49.com/api/card.svg";
+  const baseUrl = "https://anicards.alpha49.com/api/card.svg";
   const urlParams = new URLSearchParams({
     cardType,
     userId: "542244",

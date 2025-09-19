@@ -9,8 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Check } from "lucide-react";
-import { Link } from "lucide-react";
+import { Check, Link } from "lucide-react";
 
 interface CardType {
   type: string;
@@ -23,7 +22,7 @@ interface CardListProps {
 }
 
 // Component for displaying a grid of cards with copyable SVG links
-export function CardList({ cardTypes }: CardListProps) {
+export function CardList({ cardTypes }: Readonly<CardListProps>) {
   // Track which type of link was copied last (svg/anilist)
   const [copied, setCopied] = useState<string | null>(null);
 

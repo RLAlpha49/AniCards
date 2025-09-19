@@ -233,7 +233,7 @@ function FeatureCard({
   title,
   description,
   className,
-}: FeatureCardProps) {
+}: Readonly<FeatureCardProps>) {
   return (
     <motion.div whileHover={{ y: -5 }}>
       {" "}

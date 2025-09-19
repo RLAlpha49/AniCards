@@ -1,7 +1,6 @@
 // Define helper functions for coloring text using ANSI escape codes.
 const green = (text) => `\x1b[32m${text}\x1b[0m`;
 const red = (text) => `\x1b[31m${text}\x1b[0m`;
-//const yellow = (text) => `\x1b[33m${text}\x1b[0m`;
 
 class CustomReporter {
   constructor(globalConfig, options) {
@@ -27,10 +26,9 @@ class CustomReporter {
       testResult.testResults.forEach((assertionResult) => {
         // Use a green check mark for passed tests,
         // use red for failed or pending tests.
+        let failSymbol = assertionResult.status === "pending" ? "-" : "✕";
         const symbol =
-          assertionResult.status === "passed"
-            ? green("√")
-            : red(assertionResult.status === "pending" ? "-" : "✕");
+          assertionResult.status === "passed" ? green("√") : red(failSymbol);
 
         // Concatenate ancestor titles (the describe blocks) and test title
         const fullTitle =
