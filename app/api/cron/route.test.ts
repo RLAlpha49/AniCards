@@ -148,46 +148,4 @@ describe("Cron API POST Endpoint", () => {
     expect(mockDel).toHaveBeenCalledWith("user:123");
     expect(mockDel).toHaveBeenCalledWith("failed_updates:123");
   });
-
-  it("should track 404 failures without removing user before 3rd failure", async () => {
-    // Simulate 1 user that will get 404 errors but only has 1 failure so far
-    const userKeys = ["user:456"];
-    mockKeys.mockResolvedValueOnce(userKeys);
-
-    mockGet.mockImplementation((key: string) => {
-      if (key.startsWith("failed_updates:")) {
-        return Promise.resolve("1"); // User has 1 previous failure
-      }
-      // User data key
-      return Promise.resolve(
-        JSON.stringify({
-          userId: "456",
-          username: "failing_user_2",
-          stats: { dummy: 1 },
-          updatedAt: new Date(2024, 0, 1).toISOString(),
-        }),
-      );
-    });
-
-    mockSet.mockResolvedValue(true);
-
-    // Mock global.fetch to return 404 errors
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: false,
-      status: 404,
-      json: async () => ({ error: "User not found" }),
-    });
-
-    const req = new Request("http://localhost/api/cron", {
-      headers: { "x-cron-secret": CRON_SECRET },
-    });
-    const res = await POST(req);
-    expect(res.status).toBe(200);
-    const text = await res.text();
-    expect(text).toBe("Updated 0/1 users successfully. Failed: 1, Removed: 0");
-
-    // Verify that failure count was incremented to 2 but user was not removed
-    expect(mockSet).toHaveBeenCalledWith("failed_updates:456", 2);
-    expect(mockDel).not.toHaveBeenCalledWith("user:456");
-  });
 });

@@ -34,6 +34,19 @@ process.env.API_AUTH_TOKEN = "testtoken";
 // Import the module under test after the mocks above are defined.
 import { POST } from "./route";
 
+// Helper function to create test requests
+function createTestRequest(reqBody: object, authToken?: string): Request {
+  return new Request("http://localhost/api/store-users", {
+    method: "POST",
+    headers: {
+      "x-forwarded-for": "127.0.0.1",
+      ...(authToken !== undefined && { Authorization: `Bearer ${authToken}` }),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(reqBody),
+  });
+}
+
 describe("Store Users API POST Endpoint", () => {
   afterEach(() => {
     jest.clearAllMocks();
@@ -44,15 +57,7 @@ describe("Store Users API POST Endpoint", () => {
     mockLimit.mockResolvedValueOnce({ success: false });
 
     const reqBody = { userId: 1, username: "user1", stats: { score: 10 } };
-    const req = new Request("http://localhost/api/store-users", {
-      method: "POST",
-      headers: {
-        "x-forwarded-for": "127.0.0.1",
-        Authorization: `Bearer ${process.env.API_AUTH_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(reqBody),
-    });
+    const req = createTestRequest(reqBody, process.env.API_AUTH_TOKEN);
 
     const res = await POST(req);
     expect(res.status).toBe(429);
@@ -64,14 +69,7 @@ describe("Store Users API POST Endpoint", () => {
     mockLimit.mockResolvedValueOnce({ success: true });
 
     const reqBody = { userId: 1, username: "user1", stats: { score: 10 } };
-    const req = new Request("http://localhost/api/store-users", {
-      method: "POST",
-      headers: {
-        "x-forwarded-for": "127.0.0.1",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(reqBody),
-    });
+    const req = createTestRequest(reqBody); // No auth token provided
 
     const res = await POST(req);
     expect(res.status).toBe(401);
@@ -83,15 +81,7 @@ describe("Store Users API POST Endpoint", () => {
     mockLimit.mockResolvedValueOnce({ success: true });
 
     const reqBody = { userId: 1, username: "user1", stats: { score: 10 } };
-    const req = new Request("http://localhost/api/store-users", {
-      method: "POST",
-      headers: {
-        "x-forwarded-for": "127.0.0.1",
-        Authorization: "Bearer invalidtoken",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(reqBody),
-    });
+    const req = createTestRequest(reqBody, "invalidtoken");
 
     const res = await POST(req);
     expect(res.status).toBe(401);
@@ -108,15 +98,7 @@ describe("Store Users API POST Endpoint", () => {
     mockRedisSet.mockResolvedValueOnce(true); // For username index.
 
     const reqBody = { userId: 1, username: "UserOne", stats: { score: 10 } };
-    const req = new Request("http://localhost/api/store-users", {
-      method: "POST",
-      headers: {
-        "x-forwarded-for": "127.0.0.1",
-        Authorization: `Bearer ${process.env.API_AUTH_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(reqBody),
-    });
+    const req = createTestRequest(reqBody, process.env.API_AUTH_TOKEN);
 
     const res = await POST(req);
     expect(res.status).toBe(200);
@@ -152,15 +134,7 @@ describe("Store Users API POST Endpoint", () => {
     mockRedisSet.mockResolvedValueOnce(true);
 
     const reqBody = { userId: 2, stats: { score: 20 } };
-    const req = new Request("http://localhost/api/store-users", {
-      method: "POST",
-      headers: {
-        "x-forwarded-for": "127.0.0.1",
-        Authorization: `Bearer ${process.env.API_AUTH_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(reqBody),
-    });
+    const req = createTestRequest(reqBody, process.env.API_AUTH_TOKEN);
 
     const res = await POST(req);
     expect(res.status).toBe(200);
@@ -189,15 +163,7 @@ describe("Store Users API POST Endpoint", () => {
     mockRedisSet.mockResolvedValueOnce(true); // For updating username index.
 
     const reqBody = { userId: 1, username: "NewName", stats: { score: 100 } };
-    const req = new Request("http://localhost/api/store-users", {
-      method: "POST",
-      headers: {
-        "x-forwarded-for": "127.0.0.1",
-        Authorization: `Bearer ${process.env.API_AUTH_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(reqBody),
-    });
+    const req = createTestRequest(reqBody, process.env.API_AUTH_TOKEN);
 
     const res = await POST(req);
     expect(res.status).toBe(200);
@@ -217,15 +183,7 @@ describe("Store Users API POST Endpoint", () => {
     mockRedisSet.mockRejectedValueOnce(new Error("Redis failure"));
 
     const reqBody = { userId: 3, username: "user3", stats: { score: 30 } };
-    const req = new Request("http://localhost/api/store-users", {
-      method: "POST",
-      headers: {
-        "x-forwarded-for": "127.0.0.1",
-        Authorization: `Bearer ${process.env.API_AUTH_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(reqBody),
-    });
+    const req = createTestRequest(reqBody, process.env.API_AUTH_TOKEN);
 
     const res = await POST(req);
     expect(res.status).toBe(500);

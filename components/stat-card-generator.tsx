@@ -36,7 +36,7 @@ interface StatCardGeneratorProps {
 
 /*
  * Configuration objects:
- * - statCardTypes: List of stat card types with their labels and IDs
+ * - Reusable variation patterns for different card types
  */
 const pieBarVariations = [
   { id: "default", label: "Default" },
@@ -62,136 +62,109 @@ const socialStatsVariations = [
   { id: "minimal", label: "Minimal" },
 ];
 
-export const statCardTypes = [
-  {
-    id: "animeStats",
-    group: "Main Stats",
-    label:
-      "Anime Stats (Count, Episodes Watched, Minutes Watched, Mean Score, Standard Deviation)",
-    variations: mainStatsVariations,
-  },
-  {
-    id: "mangaStats",
-    group: "Main Stats",
-    label:
-      "Manga Stats (Count, Chapters Read, Volumes Read, Mean Score, Standard Deviation)",
-    variations: mainStatsVariations,
-  },
-  {
-    id: "socialStats",
-    group: "Main Stats",
-    label:
-      "Social Stats (Total Activities, Followers, Following, Thread Posts/Comments, Reviews)",
-    variations: socialStatsVariations,
-  },
-  {
-    id: "animeGenres",
-    group: "Anime Breakdowns",
-    label: "Anime Genres (Top 5 Count)",
-    variations: pieBarVariations,
-  },
-  {
-    id: "animeTags",
-    group: "Anime Breakdowns",
-    label: "Anime Tags (Top 5 Count)",
-    variations: pieBarVariations,
-  },
-  {
-    id: "animeVoiceActors",
-    group: "Anime Breakdowns",
-    label: "Anime Voice Actors (Top 5 Count)",
-    variations: pieBarVariations,
-  },
-  {
-    id: "animeStudios",
-    group: "Anime Breakdowns",
-    label: "Anime Studios (Top 5 Count)",
-    variations: pieBarVariations,
-  },
-  {
-    id: "animeStaff",
-    group: "Anime Breakdowns",
-    label: "Anime Staff (Top 5 Count)",
-    variations: pieBarVariations,
-  },
-  {
-    id: "mangaGenres",
-    group: "Manga Breakdowns",
-    label: "Manga Genres (Top 5 Count)",
-    variations: pieBarVariations,
-  },
-  {
-    id: "mangaTags",
-    group: "Manga Breakdowns",
-    label: "Manga Tags (Top 5 Count)",
-    variations: pieBarVariations,
-  },
-  {
-    id: "mangaStaff",
-    group: "Manga Breakdowns",
-    label: "Manga Staff (Top 5 Count)",
-    variations: pieBarVariations,
-  },
+// Helper function to create card type objects with consistent structure
+const createCardType = (
+  id: string,
+  group: string,
+  label: string,
+  variations: typeof pieBarVariations,
+) => ({
+  id,
+  group,
+  label,
+  variations,
+});
+
+// Helper arrays for similar card types to reduce repetition
+const animeBreakdownCards = [
+  { id: "animeGenres", label: "Anime Genres (Top 5 Count)" },
+  { id: "animeTags", label: "Anime Tags (Top 5 Count)" },
+  { id: "animeVoiceActors", label: "Anime Voice Actors (Top 5 Count)" },
+  { id: "animeStudios", label: "Anime Studios (Top 5 Count)" },
+  { id: "animeStaff", label: "Anime Staff (Top 5 Count)" },
   {
     id: "animeStatusDistribution",
-    group: "Anime Breakdowns",
     label: "Anime Status Distribution (Current, Completed, etc.)",
-    variations: pieBarVariations,
   },
+  { id: "animeFormatDistribution", label: "Anime Format Distribution" },
+  { id: "animeCountry", label: "Anime Country" },
+];
+
+const mangaBreakdownCards = [
+  { id: "mangaGenres", label: "Manga Genres (Top 5 Count)" },
+  { id: "mangaTags", label: "Manga Tags (Top 5 Count)" },
+  { id: "mangaStaff", label: "Manga Staff (Top 5 Count)" },
   {
     id: "mangaStatusDistribution",
-    group: "Manga Breakdowns",
     label: "Manga Status Distribution (Current, Completed, etc.)",
-    variations: pieBarVariations,
   },
-  {
-    id: "animeFormatDistribution",
-    group: "Anime Breakdowns",
-    label: "Anime Format Distribution",
-    variations: pieBarVariations,
-  },
-  {
-    id: "mangaFormatDistribution",
-    group: "Manga Breakdowns",
-    label: "Manga Format Distribution",
-    variations: pieBarVariations,
-  },
+  { id: "mangaFormatDistribution", label: "Manga Format Distribution" },
+  { id: "mangaCountry", label: "Manga Country" },
+];
+
+const distributionCards = [
   {
     id: "animeScoreDistribution",
-    group: "Anime Breakdowns",
     label: "Anime Score Distribution",
-    variations: verticalHorizontalVariations,
+    group: "Anime Breakdowns",
   },
   {
     id: "mangaScoreDistribution",
-    group: "Manga Breakdowns",
     label: "Manga Score Distribution",
-    variations: verticalHorizontalVariations,
+    group: "Manga Breakdowns",
   },
   {
     id: "animeYearDistribution",
-    group: "Anime Breakdowns",
     label: "Anime Year Distribution",
-    variations: verticalHorizontalVariations,
+    group: "Anime Breakdowns",
   },
   {
     id: "mangaYearDistribution",
-    group: "Manga Breakdowns",
     label: "Manga Year Distribution",
-    variations: verticalHorizontalVariations,
-  },
-  {
-    id: "animeCountry",
-    group: "Anime Breakdowns",
-    label: "Anime Country",
-    variations: pieBarVariations,
-  },
-  {
-    id: "mangaCountry",
     group: "Manga Breakdowns",
-    label: "Manga Country",
-    variations: pieBarVariations,
   },
+];
+
+export const statCardTypes = [
+  // Main Stats Cards
+  createCardType(
+    "animeStats",
+    "Main Stats",
+    "Anime Stats (Count, Episodes Watched, Minutes Watched, Mean Score, Standard Deviation)",
+    mainStatsVariations,
+  ),
+  createCardType(
+    "mangaStats",
+    "Main Stats",
+    "Manga Stats (Count, Chapters Read, Volumes Read, Mean Score, Standard Deviation)",
+    mainStatsVariations,
+  ),
+  createCardType(
+    "socialStats",
+    "Main Stats",
+    "Social Stats (Total Activities, Followers, Following, Thread Posts/Comments, Reviews)",
+    socialStatsVariations,
+  ),
+
+  // Anime Breakdown Cards (with pie/bar variations)
+  ...animeBreakdownCards.map((card) =>
+    createCardType(card.id, "Anime Breakdowns", card.label, pieBarVariations),
+  ),
+
+  // Manga Breakdown Cards (with pie/bar variations)
+  ...mangaBreakdownCards.map((card) =>
+    createCardType(card.id, "Manga Breakdowns", card.label, pieBarVariations),
+  ),
+
+  // Distribution Cards (with vertical/horizontal variations)
+  ...distributionCards.map((card) =>
+    createCardType(
+      card.id,
+      card.group,
+      card.label,
+      verticalHorizontalVariations,
+    ),
+  ),
 ];
 
 export const colorPresets = {
