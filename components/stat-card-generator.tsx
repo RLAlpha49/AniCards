@@ -437,19 +437,24 @@ export function StatCardGenerator({
   };
 
   const handleSelectAll = () => {
-    // Select all card types (base ids)
-    const allIds = statCardTypes.map((type) => type.id);
-    setSelectedCards(allIds);
-    // For cards with variants, default to "default" if not already set.
-    setSelectedCardVariants((old) => {
-      const newObj = { ...old };
-      statCardTypes.forEach((type) => {
-        if (type.variations) {
-          if (!newObj[type.id]) newObj[type.id] = "default";
-        }
+    if (allSelected) {
+      // Unselect all cards
+      setSelectedCards([]);
+    } else {
+      // Select all card types (base ids)
+      const allIds = statCardTypes.map((type) => type.id);
+      setSelectedCards(allIds);
+      // For cards with variants, default to "default" if not already set.
+      setSelectedCardVariants((old) => {
+        const newObj = { ...old };
+        statCardTypes.forEach((type) => {
+          if (type.variations) {
+            if (!newObj[type.id]) newObj[type.id] = "default";
+          }
+        });
+        return newObj;
       });
-      return newObj;
-    });
+    }
   };
 
   // Preview expects the base card id and its currently selected variant.
@@ -544,7 +549,7 @@ export function StatCardGenerator({
       trackCardGeneration(cardType);
     });
 
-    await submit({
+    const result = await submit({
       username,
       selectedCards: finalSelectedCards,
       colors: [titleColor, backgroundColor, textColor, circleColor],
@@ -554,11 +559,42 @@ export function StatCardGenerator({
       useMangaStatusColors,
     });
 
-    // Build query params for navigation
-    const params = new URLSearchParams();
-    if (username) params.set("username", username);
+    // Only navigate if submission was successful
+    if (result.success && result.userId) {
+      // Build navigation URL with full parameters
+      const params = new URLSearchParams({
+        userId: result.userId,
+        username,
+        cards: JSON.stringify(
+          finalSelectedCards.map((card) => {
+            const [cardName, variation] = card.split("-");
+            const obj: Record<string, unknown> = variation
+              ? { cardName, variation }
+              : { cardName };
+            // Copy status color flag and pie percentages from base config creation logic above
+            if (
+              ["animeStatusDistribution", "mangaStatusDistribution"].includes(
+                cardName,
+              )
+            ) {
+              const statusCard = finalSelectedCards.find((c) =>
+                c.startsWith(cardName),
+              );
+              // naive inclusion; actual value already persisted server-side
+              // Include flag so initial render builds correct URLs
+              if (statusCard) {
+                // We don't know which group; infer from name
+                obj.useStatusColors = true; // since toggled when submitted
+              }
+            }
+            if (showPiePercentages) obj.showPiePercentages = true;
+            return obj;
+          }),
+        ),
+      });
 
-    router.push(`/user?${params.toString()}`);
+      router.push(`/user?${params.toString()}`);
+    }
   };
 
   // Prepare configuration for the color pickers
@@ -606,125 +642,277 @@ export function StatCardGenerator({
       {loading && <LoadingOverlay text="Creating your stat cards..." />}
       <DialogContent
         className={cn(
-          "z-50 max-h-[calc(100vh-9rem)] overflow-y-auto sm:max-w-[600px]",
+          "z-50 max-h-[calc(100vh-6rem)] overflow-y-auto sm:max-w-[800px] lg:max-w-[900px] xl:max-w-[1000px]",
+          "bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-gray-800 dark:to-blue-950",
+          "rounded-2xl border-2 border-blue-100/50 shadow-2xl dark:border-blue-900/30",
           className,
         )}
       >
-        <DialogHeader>
-          <DialogTitle>Generate Your Stat Cards</DialogTitle>
-          <DialogDescription>
-            Enter your details and select the stat cards you want to generate.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* User Details */}
-          <UserDetailsForm username={username} onUsernameChange={setUsername} />
+        <div className="relative z-10">
+          <DialogHeader className="-m-6 mb-0 rounded-t-2xl border-b border-blue-100/30 bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-pink-500/5 p-6 pb-8 dark:border-blue-800/30 dark:from-blue-600/10 dark:via-purple-600/10 dark:to-pink-600/10">
+            <div className="space-y-3 text-center">
+              <DialogTitle className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-3xl font-bold text-transparent">
+                Generate Your Stat Cards ✨
+              </DialogTitle>
+              <DialogDescription className="mx-auto max-w-2xl text-lg leading-relaxed text-gray-600 dark:text-gray-300">
+                Create beautiful, personalized visualizations of your AniList
+                statistics with customizable themes and layouts.
+              </DialogDescription>
+            </div>
+          </DialogHeader>
 
-          {/* Color Preset Selector */}
-          <ColorPresetSelector
-            selectedPreset={selectedPreset}
-            presets={colorPresets}
-            onPresetChange={(preset) => {
-              setSelectedPreset(preset);
-              if (preset !== "custom") {
-                [
-                  setTitleColor,
-                  setBackgroundColor,
-                  setTextColor,
-                  setCircleColor,
-                ].forEach((setter, index) =>
-                  setter(
-                    colorPresets[preset as keyof typeof colorPresets].colors[
-                      index
-                    ],
-                  ),
+          <form onSubmit={handleSubmit} className="space-y-8 pt-8">
+            {/* Step 1: User Details Section */}
+            <div className="rounded-2xl border border-blue-100/50 bg-gradient-to-r from-blue-50 to-indigo-50 p-6 shadow-sm transition-shadow duration-300 hover:shadow-md dark:border-blue-900/30 dark:from-blue-950/40 dark:to-indigo-950/40">
+              <div className="mb-5 flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-sm font-semibold text-white">
+                  1
+                </div>
+                <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
+                  Enter Your AniList Username
+                </h3>
+                <div className="h-px flex-1 bg-gradient-to-r from-blue-200 to-transparent dark:from-blue-800"></div>
+              </div>
+              <UserDetailsForm
+                username={username}
+                onUsernameChange={setUsername}
+              />
+            </div>
+
+            {/* Step 2: Color Customization Section */}
+            <div className="rounded-2xl border border-purple-100/50 bg-gradient-to-r from-purple-50 to-pink-50 p-6 shadow-sm transition-shadow duration-300 hover:shadow-md dark:border-purple-900/30 dark:from-purple-950/40 dark:to-pink-950/40">
+              <div className="mb-5 flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-500 text-sm font-semibold text-white">
+                  2
+                </div>
+                <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
+                  Customize Your Colors
+                </h3>
+                <div className="h-px flex-1 bg-gradient-to-r from-purple-200 to-transparent dark:from-purple-800"></div>
+              </div>
+
+              {/* Color Preset Selector */}
+              <div className="mb-4">
+                <ColorPresetSelector
+                  selectedPreset={selectedPreset}
+                  presets={colorPresets}
+                  onPresetChange={(preset) => {
+                    setSelectedPreset(preset);
+                    if (preset !== "custom") {
+                      [
+                        setTitleColor,
+                        setBackgroundColor,
+                        setTextColor,
+                        setCircleColor,
+                      ].forEach((setter, index) =>
+                        setter(
+                          colorPresets[preset as keyof typeof colorPresets]
+                            .colors[index],
+                        ),
+                      );
+                    }
+                  }}
+                />
+              </div>
+
+              {/* Color Picker Grid */}
+              <ColorPickerGroup pickers={colorPickers} />
+
+              {/* Live Preview */}
+              <div className="mt-4">
+                <LivePreview previewSVG={previewSVG} />
+              </div>
+            </div>
+
+            {/* Step 3: Card Selection Section */}
+            <div className="rounded-2xl border border-green-100/50 bg-gradient-to-r from-green-50 to-emerald-50 p-6 shadow-sm transition-shadow duration-300 hover:shadow-md dark:border-green-900/30 dark:from-green-950/40 dark:to-emerald-950/40">
+              <div className="mb-5 flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-sm font-semibold text-white">
+                  3
+                </div>
+                <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
+                  Choose Your Stat Cards
+                </h3>
+                <div className="h-px flex-1 bg-gradient-to-r from-green-200 to-transparent dark:from-green-800"></div>
+              </div>
+              <StatCardTypeSelection
+                cardTypes={statCardTypes}
+                selectedCards={selectedCards}
+                selectedCardVariants={selectedCardVariants}
+                allSelected={allSelected}
+                onToggle={handleToggleCard}
+                onSelectAll={handleSelectAll}
+                onVariantChange={handleVariantChange}
+                onPreview={handlePreview}
+                showFavoritesByCard={showFavoritesByCard}
+                onToggleShowFavorites={handleToggleShowFavorites}
+              />
+            </div>
+
+            {/* Step 4: Advanced Options Section */}
+            <div className="rounded-2xl border border-orange-100/50 bg-gradient-to-r from-orange-50 to-red-50 p-6 shadow-sm transition-shadow duration-300 hover:shadow-md dark:border-orange-900/30 dark:from-orange-950/40 dark:to-red-950/40">
+              <div className="mb-5 flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-500 text-sm font-semibold text-white">
+                  4
+                </div>
+                <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
+                  Advanced Options
+                </h3>
+                <div className="h-px flex-1 bg-gradient-to-r from-orange-200 to-transparent dark:from-orange-800"></div>
+                <span className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                  Optional
+                </span>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* Status Color Toggles */}
+                <div className="space-y-4">
+                  <h4 className="flex items-center gap-2 font-medium text-gray-700 dark:text-gray-300">
+                    <span>🎨 Status Color Overrides</span>
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 rounded-xl border border-gray-200/50 bg-white/70 p-4 transition-colors duration-200 hover:border-blue-300/50 dark:border-gray-700/50 dark:bg-gray-800/70 dark:hover:border-blue-600/50">
+                      <input
+                        id="anime-status-colors"
+                        type="checkbox"
+                        checked={useAnimeStatusColors}
+                        onChange={handleToggleAnimeStatusColors}
+                        className="h-4 w-4 cursor-pointer rounded accent-blue-500"
+                      />
+                      <label
+                        htmlFor="anime-status-colors"
+                        className="cursor-pointer select-none text-sm leading-tight text-gray-700 dark:text-gray-300"
+                      >
+                        <span className="font-medium">
+                          Anime Status Distribution:
+                        </span>{" "}
+                        Use fixed status colors
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-3 rounded-xl border border-gray-200/50 bg-white/70 p-4 transition-colors duration-200 hover:border-blue-300/50 dark:border-gray-700/50 dark:bg-gray-800/70 dark:hover:border-blue-600/50">
+                      <input
+                        id="manga-status-colors"
+                        type="checkbox"
+                        checked={useMangaStatusColors}
+                        onChange={handleToggleMangaStatusColors}
+                        className="h-4 w-4 cursor-pointer rounded accent-blue-500"
+                      />
+                      <label
+                        htmlFor="manga-status-colors"
+                        className="cursor-pointer select-none text-sm leading-tight text-gray-700 dark:text-gray-300"
+                      >
+                        <span className="font-medium">
+                          Manga Status Distribution:
+                        </span>{" "}
+                        Use fixed status colors
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="flex items-center gap-2 font-medium text-gray-700 dark:text-gray-300">
+                    <span>📊 Chart Options</span>
+                  </h4>
+                  <div className="flex items-center gap-3 rounded-xl border border-gray-200/50 bg-white/70 p-4 transition-colors duration-200 hover:border-blue-300/50 dark:border-gray-700/50 dark:bg-gray-800/70 dark:hover:border-blue-600/50">
+                    <input
+                      id="pie-percentages-toggle"
+                      type="checkbox"
+                      checked={showPiePercentages}
+                      onChange={handleToggleShowPiePercentages}
+                      className="h-4 w-4 cursor-pointer rounded accent-blue-500"
+                    />
+                    <label
+                      htmlFor="pie-percentages-toggle"
+                      className="cursor-pointer select-none text-sm leading-tight text-gray-700 dark:text-gray-300"
+                    >
+                      <span className="font-medium">Pie Charts:</span> Show
+                      percentages in legends
+                    </label>
+                  </div>
+
+                  <div className="rounded-lg border border-blue-200/30 bg-blue-50/50 p-3 dark:border-blue-800/30 dark:bg-blue-950/20">
+                    <div className="flex items-start gap-2 text-xs text-blue-700 dark:text-blue-300">
+                      <span className="text-sm">ℹ️</span>
+                      <div>
+                        <p className="mb-1 font-medium">Status Color Guide:</p>
+                        <p className="leading-relaxed">
+                          Current=🟢, Paused=🟡, Completed=🔵, Dropped=🔴,
+                          Planning=⚪
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Generate Button & Status */}
+            <div className="space-y-4 pt-6">
+              <div className="flex items-center justify-between rounded-xl border border-gray-200/50 bg-gradient-to-r from-gray-50 to-gray-100 p-4 dark:border-gray-600/50 dark:from-gray-800 dark:to-gray-700">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-lg font-bold text-white">
+                    ✨
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-800 dark:text-gray-200">
+                      Ready to Generate
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {(() => {
+                        let cardText;
+                        if (selectedCards.length > 0) {
+                          cardText =
+                            selectedCards.length === 1
+                              ? "1 card selected"
+                              : `${selectedCards.length} cards selected`;
+                        } else {
+                          cardText = "No cards selected";
+                        }
+                        return (
+                          <>
+                            {cardText}
+                            {username && ` • ${username}`}
+                          </>
+                        );
+                      })()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {(() => {
+                let buttonLabel;
+                if (selectedCards.length === 0) {
+                  buttonLabel = <>🚫 Select Cards to Continue</>;
+                } else if (!username.trim()) {
+                  buttonLabel = <>👤 Enter Username to Continue</>;
+                } else {
+                  buttonLabel = (
+                    <>
+                      🚀 Generate {selectedCards.length} Stat Card
+                      {selectedCards.length === 1 ? "" : "s"}
+                    </>
+                  );
+                }
+                return (
+                  <Button
+                    type="submit"
+                    disabled={selectedCards.length === 0 || !username.trim()}
+                    className="w-full transform-gpu rounded-2xl bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 px-8 py-6 text-xl font-semibold text-white shadow-lg transition-all duration-200 hover:scale-[1.02] hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 hover:shadow-xl disabled:cursor-not-allowed disabled:from-gray-400 disabled:via-gray-500 disabled:to-gray-600 disabled:hover:scale-100"
+                  >
+                    {buttonLabel}
+                  </Button>
                 );
-              }
-            }}
-          />
-
-          {/* Color Picker Grid */}
-          <ColorPickerGroup pickers={colorPickers} />
-
-          {/* Live Preview */}
-          <LivePreview previewSVG={previewSVG} />
-
-          {/* Stat Card Selection Grid */}
-          <StatCardTypeSelection
-            cardTypes={statCardTypes}
-            selectedCards={selectedCards}
-            selectedCardVariants={selectedCardVariants}
-            allSelected={allSelected}
-            onToggle={handleToggleCard}
-            onSelectAll={handleSelectAll}
-            onVariantChange={handleVariantChange}
-            onPreview={handlePreview}
-            showFavoritesByCard={showFavoritesByCard}
-            onToggleShowFavorites={handleToggleShowFavorites}
-          />
-
-          {/* Group-specific Status Color Toggles */}
-          <div className="space-y-2 text-xs text-muted-foreground">
-            <div className="flex items-center gap-2 rounded-md border p-3">
-              <input
-                id="anime-status-colors"
-                type="checkbox"
-                checked={useAnimeStatusColors}
-                onChange={handleToggleAnimeStatusColors}
-                className="h-4 w-4 cursor-pointer accent-primary"
-              />
-              <label
-                htmlFor="anime-status-colors"
-                className="cursor-pointer select-none leading-tight"
-              >
-                Anime Status Distribution: Fixed colors (Current=Green,
-                Paused=Yellow, Completed=Blue, Dropped=Red, Planning=Gray)
-              </label>
+              })()}
             </div>
-            <div className="flex items-center gap-2 rounded-md border p-3">
-              <input
-                id="manga-status-colors"
-                type="checkbox"
-                checked={useMangaStatusColors}
-                onChange={handleToggleMangaStatusColors}
-                className="h-4 w-4 cursor-pointer accent-primary"
-              />
-              <label
-                htmlFor="manga-status-colors"
-                className="cursor-pointer select-none leading-tight"
-              >
-                Manga Status Distribution: Fixed colors (Current=Green,
-                Paused=Yellow, Completed=Blue, Dropped=Red, Planning=Gray)
-              </label>
+
+            {/* Update Notice */}
+            <div className="border-t border-gray-200/50 pt-6 dark:border-gray-700/50">
+              <UpdateNotice />
             </div>
-          </div>
-          <div className="flex items-center gap-2 rounded-md border p-3 text-xs text-muted-foreground">
-            <input
-              id="pie-percentages-toggle"
-              type="checkbox"
-              checked={showPiePercentages}
-              onChange={handleToggleShowPiePercentages}
-              className="h-4 w-4 cursor-pointer accent-primary"
-            />
-            <label
-              htmlFor="pie-percentages-toggle"
-              className="cursor-pointer select-none leading-tight"
-            >
-              Pie Charts: Show percentages in legends
-            </label>
-          </div>
-
-          {/* Form Submission */}
-          <Button
-            type="submit"
-            className="w-full transform-gpu transition-transform duration-200 hover:scale-[1.02]"
-          >
-            Generate Stat Cards
-          </Button>
-
-          {/* Update Notice */}
-          <UpdateNotice />
-        </form>
+          </form>
+        </div>
       </DialogContent>
 
       <ErrorPopup

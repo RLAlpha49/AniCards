@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
 
 interface SubmitParams {
@@ -23,7 +22,6 @@ const FAVORITE_CARD_IDS = [
 export function useStatCardSubmit() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const router = useRouter();
 
   const submit = async ({
     username,
@@ -33,7 +31,7 @@ export function useStatCardSubmit() {
     showPiePercentages,
     useAnimeStatusColors,
     useMangaStatusColors,
-  }: SubmitParams) => {
+  }: SubmitParams): Promise<{ success: boolean; userId?: string }> => {
     setLoading(true);
     setError(null);
 
@@ -135,44 +133,14 @@ export function useStatCardSubmit() {
         }),
       ]);
 
-      router.push(
-        `/user?${new URLSearchParams({
-          userId: userIdData.User.id,
-          username,
-          cards: JSON.stringify(
-            selectedCards.map((card) => {
-              const [cardName, variation] = card.split("-");
-              const obj: Record<string, unknown> = variation
-                ? { cardName, variation }
-                : { cardName };
-              // Copy status color flag and pie percentages from base config creation logic above
-              if (
-                ["animeStatusDistribution", "mangaStatusDistribution"].includes(
-                  cardName,
-                )
-              ) {
-                const statusCard = selectedCards.find((c) =>
-                  c.startsWith(cardName),
-                );
-                // naive inclusion; actual value already persisted server-side
-                // Include flag so initial render builds correct URLs
-                if (statusCard) {
-                  // We don't know which group; infer from name
-                  obj.useStatusColors = true; // since toggled when submitted
-                }
-              }
-              if (showPiePercentages) obj.showPiePercentages = true;
-              return obj;
-            }),
-          ),
-        })}`,
-      );
+      setLoading(false);
+      return { success: true, userId: userIdData.User.id };
     } catch (err) {
+      setLoading(false);
       if (err instanceof Error) {
         setError(err);
       }
-    } finally {
-      setLoading(false);
+      return { success: false };
     }
   };
 

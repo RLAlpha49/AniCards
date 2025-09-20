@@ -47,23 +47,38 @@ export function ColorPresetSelector({
   );
 
   return (
-    <div>
-      <Label htmlFor="colorPreset">Color Preset</Label>
+    <div className="space-y-3">
+      <Label
+        htmlFor="colorPreset"
+        className="text-sm font-medium text-gray-700 dark:text-gray-300"
+      >
+        Color Preset ✨
+      </Label>
       <Select onValueChange={handlePresetChange} value={selectedPreset}>
-        <SelectTrigger>
+        <SelectTrigger className="border-purple-200/50 bg-white transition-all duration-200 hover:border-purple-300 focus:border-purple-400 dark:border-purple-700/50 dark:bg-gray-800 dark:hover:border-purple-600 dark:focus:border-purple-500">
           <SelectValue placeholder="Select a color preset" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="border-purple-200/50 bg-white dark:border-purple-700/50 dark:bg-gray-800">
           {sortedPresets.map(([key, { mode }]) => {
             let modeLabel = "Custom";
+            let icon = "🎨";
             if (mode === "light") {
               modeLabel = "Light Mode";
+              icon = "☀️";
             } else if (mode === "dark") {
               modeLabel = "Dark Mode";
+              icon = "🌙";
             }
             return (
-              <SelectItem key={key} value={key}>
-                {`${key.charAt(0).toUpperCase() + key.slice(1)} (${modeLabel})`}
+              <SelectItem
+                key={key}
+                value={key}
+                className="transition-colors duration-200 hover:bg-purple-50/70 focus:bg-purple-100/70 dark:hover:bg-purple-900/30 dark:focus:bg-purple-900/50"
+              >
+                <span className="flex items-center gap-2">
+                  {icon}
+                  {`${key.charAt(0).toUpperCase() + key.slice(1)} (${modeLabel})`}
+                </span>
               </SelectItem>
             );
           })}
