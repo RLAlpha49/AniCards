@@ -31,17 +31,15 @@ export default function Header({
     return null;
   }
 
-  const sidebarWidth = sidebarOpen ? "calc(10rem)" : "calc(3.25rem - 4px)";
-
   return (
-    <header className="relative z-50 bg-white transition-colors duration-300 ease-in-out dark:bg-gray-800">
-      <div className="flex items-center justify-between p-2">
+    <header className="relative z-50 border-b border-blue-100/50 bg-gradient-to-r from-blue-50/80 via-white/90 to-indigo-50/80 shadow-lg backdrop-blur-md transition-all duration-300 ease-in-out dark:border-blue-900/30 dark:from-slate-900/90 dark:via-gray-800/95 dark:to-blue-950/90">
+      <div className="flex items-center justify-between p-3 px-4 pl-1.5">
         <div className="flex items-center gap-4">
           <SidebarProvider
             style={{
               minHeight: "0px",
-              width: "32px",
-              height: "32px",
+              width: "36px",
+              height: "36px",
               display: "flex",
               justifyContent: "center",
               alignItems: "center",
@@ -49,24 +47,21 @@ export default function Header({
           >
             <SidebarTrigger
               onClick={handleSidebarToggle}
-              className="p-1 transition-opacity duration-300 ease-in-out focus:outline-none"
+              className="rounded-lg bg-blue-100/50 p-2 transition-all duration-200 ease-in-out hover:bg-blue-200/70 focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:bg-blue-900/30 dark:hover:bg-blue-800/50"
               aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
             />
           </SidebarProvider>
           <Link
             href="/"
-            className="text-2xl font-bold text-gray-800 transition-opacity duration-300 ease-in-out dark:text-white"
+            className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-2xl font-bold text-transparent transition-all duration-300 ease-in-out hover:from-blue-700 hover:via-purple-700 hover:to-pink-700"
           >
-            Anicards
+            AniCards
           </Link>
         </div>
-        <DarkModeToggle />
+        <div className="flex items-center gap-3">
+          <DarkModeToggle />
+        </div>
       </div>
-      {/* Animated border element that cuts off the left portion by the sidebar's width */}
-      <div
-        style={{ marginLeft: sidebarWidth }}
-        className="border-b border-gray-200 transition-all duration-200 ease-linear dark:border-gray-700"
-      />
     </header>
   );
 }

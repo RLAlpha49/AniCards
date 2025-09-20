@@ -46,14 +46,14 @@ function LayoutShellContent({
       <Header onSidebarToggle={toggleSidebar} sidebarOpen={open} />
       <div className="flex flex-1 transition-all duration-300 ease-in-out">
         <div
-          className={`sidebar-container overflow-hidden border-r !bg-white transition-all duration-300 ease-in-out dark:border-gray-700 dark:!bg-gray-800`}
+          className={`sidebar-container overflow-hidden border-r !bg-white transition-all duration-300 ease-in-out dark:border-gray-700 dark:!bg-slate-900/90`}
           style={{
-            height: `calc(100% + 84.8px)`,
+            height: `calc(100% + 137.8px)`,
           }}
         >
           <AppSidebar />
         </div>
-        <main className="flex-1 p-4">{children}</main>
+        <main className="flex-1">{children}</main>
       </div>
       <Footer />
     </div>
