@@ -2,7 +2,6 @@
 
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { motion } from "framer-motion";
 import { useSidebar } from "@/components/ui/sidebar";
 import { getSiteSpecificCache, clearSiteCache } from "@/lib/data";
@@ -253,32 +252,33 @@ export default function SettingsPage() {
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="settings-container mx-auto max-w-3xl px-4 py-8"
-    >
-      <motion.div
-        initial={{ scale: 0.95 }}
-        animate={{ scale: 1 }}
-        transition={{ type: "spring", stiffness: 100, damping: 10 }}
-      >
-        <Card className="rounded-xl shadow-lg">
-          <CardHeader className="overflow-visible">
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="overflow-visible"
-            >
-              <CardTitle className="bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-3xl font-bold leading-snug text-transparent">
-                Application Settings
-              </CardTitle>
-            </motion.div>
-          </CardHeader>
-          <CardContent className="space-y-6 p-6">
-            <div className="space-y-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-blue-950 dark:to-indigo-950">
+      <div className="container mx-auto px-4 py-12">
+        {/* Hero Section */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="mb-12 text-center"
+        >
+          <h1 className="mb-4 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-4xl font-bold text-transparent md:text-5xl">
+            Application Settings
+          </h1>
+          <p className="mx-auto max-w-2xl text-lg text-gray-600 dark:text-gray-300">
+            Customize your AniCards experience with these personalization
+            options and preferences.
+          </p>
+        </motion.div>
+
+        {/* Settings Container */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="mx-auto max-w-4xl"
+        >
+          <div className="rounded-2xl border border-white/20 bg-white/10 p-8 shadow-xl backdrop-blur-sm dark:border-gray-700/30 dark:bg-gray-800/20 md:p-12">
+            <div className="space-y-12">
               <ThemePreferences
                 theme={theme || "system"}
                 themes={themes}
@@ -315,9 +315,9 @@ export default function SettingsPage() {
 
               <ResetSettings onReset={handleResetSettings} />
             </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-    </motion.div>
+          </div>
+        </motion.div>
+      </div>
+    </div>
   );
 }
