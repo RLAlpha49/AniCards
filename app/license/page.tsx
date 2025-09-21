@@ -87,7 +87,7 @@ export default function LicensePage() {
         transition={{ duration: 0.5 }}
         className="rounded-2xl border-2 border-gray-200/50 bg-gradient-to-br from-gray-50 to-gray-100/50 p-6 shadow-inner backdrop-blur-sm dark:border-gray-700/50 dark:from-gray-900 dark:to-gray-800/50"
       >
-        <pre className="max-h-96 overflow-auto whitespace-pre-wrap font-mono text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+        <pre className="overflow-auto whitespace-pre-wrap font-mono text-sm leading-relaxed text-gray-700 dark:text-gray-300">
           {licenseText}
         </pre>
       </motion.div>
@@ -180,43 +180,7 @@ export default function LicensePage() {
                 </Button>
               </div>
             </div>
-
             {content}
-
-            {/* Additional Information */}
-            {!isLoading && !error && (
-              <motion.div
-                className="mt-8 grid gap-6 md:grid-cols-2"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.6, delay: 0.5 }}
-              >
-                <div className="rounded-2xl border border-green-200/50 bg-gradient-to-r from-green-50 to-emerald-50 p-6 dark:border-green-800/50 dark:from-green-950/20 dark:to-emerald-950/20">
-                  <h3 className="mb-3 flex items-center gap-2 font-bold text-green-800 dark:text-green-200">
-                    <span className="text-xl">✅</span>
-                    <span>What You Can Do</span>
-                  </h3>
-                  <ul className="space-y-2 text-sm text-green-700 dark:text-green-300">
-                    <li>• Use this software commercially</li>
-                    <li>• Modify and distribute the code</li>
-                    <li>• Use it privately for any purpose</li>
-                    <li>• Include it in larger works</li>
-                  </ul>
-                </div>
-
-                <div className="rounded-2xl border border-orange-200/50 bg-gradient-to-r from-orange-50 to-yellow-50 p-6 dark:border-orange-800/50 dark:from-orange-950/20 dark:to-yellow-950/20">
-                  <h3 className="mb-3 flex items-center gap-2 font-bold text-orange-800 dark:text-orange-200">
-                    <span className="text-xl">⚠️</span>
-                    <span>Requirements</span>
-                  </h3>
-                  <ul className="space-y-2 text-sm text-orange-700 dark:text-orange-300">
-                    <li>• Include the original license</li>
-                    <li>• Include the copyright notice</li>
-                    <li>• Document any significant changes</li>
-                  </ul>
-                </div>
-              </motion.div>
-            )}
           </div>
         </motion.div>
 
