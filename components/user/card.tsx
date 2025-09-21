@@ -52,36 +52,56 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
   const anilistBioLink = `img150(${svgUrl})`; // Anilist-specific image syntax
 
   return (
-    <div className="relative">
-      {/* Card container with hover effects */}
-      <div className="space-y-4 rounded-lg border-2 border-gray-800 p-4 transition duration-300 hover:border-blue-500 hover:shadow-lg dark:border-gray-300">
-        <h3 className="text-lg font-semibold">
-          {displayNames[type] || type} {/* Use display name if available */}
-        </h3>
+    <div className="group relative">
+      <div className="rounded-2xl border border-white/20 bg-white/10 p-6 shadow-xl backdrop-blur-sm transition-all duration-300 hover:border-white/30 hover:bg-white/15 hover:shadow-2xl dark:border-gray-700/30 dark:bg-gray-800/20 dark:hover:border-gray-600/40 dark:hover:bg-gray-700/30">
+        {/* Card Header */}
+        <div className="mb-4">
+          <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+            {displayNames[type] || type}
+          </h3>
+          <div className="mt-1 h-1 w-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500"></div>
+        </div>
 
-        {/* Image container with loading state */}
-        <div className="relative aspect-video">
+        <div className="relative mb-6 overflow-hidden rounded-xl bg-gray-100/50 dark:bg-gray-800/50">
           <Image
             src={svgUrl || "/placeholder.svg"}
             alt={type}
-            fill
-            style={{ objectFit: "contain" }}
+            width={400}
+            height={600}
+            style={{
+              width: "100%",
+              height: "auto",
+              maxWidth: "400px",
+            }}
             onLoad={() => setIsLoading(false)}
             onError={() => setIsLoading(false)}
             className={cn(
-              "h-[210px] w-[150px]",
-              isLoading ? "invisible" : "visible",
+              "transition-opacity duration-300",
+              isLoading ? "opacity-0" : "opacity-100",
             )}
           />
+
+          {/* Loading overlay */}
+          {isLoading && (
+            <div className="absolute inset-0 flex min-h-[200px] items-center justify-center">
+              <LoadingSpinner
+                size="md"
+                className="text-blue-500"
+                text="Loading card..."
+              />
+            </div>
+          )}
         </div>
 
         {/* Action buttons container */}
-        <div className="flex space-x-2">
+        <div className="flex gap-3">
           <Button
             onClick={handleDownload}
+            className="flex-1 bg-gradient-to-r from-green-600 to-green-700 text-white transition-all duration-300 hover:from-green-700 hover:to-green-800 hover:shadow-lg"
             aria-label={`Download ${displayNames[type]} card as PNG image`}
           >
-            <Download className="mr-2 h-4 w-4" /> Download PNG
+            <Download className="mr-2 h-4 w-4" />
+            Download
           </Button>
 
           {/* Popover for link copy options */}
@@ -89,56 +109,89 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
+                className="flex-1 border-blue-200 text-blue-600 transition-all duration-300 hover:border-blue-300 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:border-blue-600 dark:hover:bg-blue-900/20"
                 aria-label={`Copy ${displayNames[type]} card links in various formats`}
               >
-                <Link className="mr-2 h-4 w-4" /> Copy Link
+                <Link className="mr-2 h-4 w-4" />
+                Copy Link
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-80">
-              {/* SVG link copy section */}
-              <div className="space-y-2">
-                <div>
-                  <p className="text-sm font-medium">SVG Link</p>
-                  <div className="mt-1 flex">
-                    <input /* Read-only input for link display */
-                      className="flex-grow rounded-l-md border px-3 py-2 text-sm"
+            <PopoverContent className="w-80 border-white/20 bg-white/90 backdrop-blur-md dark:border-gray-600/30 dark:bg-gray-800/90">
+              <div className="space-y-4">
+                <div className="mb-3">
+                  <h4 className="font-semibold text-gray-900 dark:text-white">
+                    Copy Options
+                  </h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    Choose the format that works best for you
+                  </p>
+                </div>
+
+                {/* SVG link copy section */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      Direct SVG Link
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200/50 bg-gray-50/50 p-3 dark:border-gray-700/50 dark:bg-gray-800/50">
+                    <input
+                      className="w-full border-none bg-transparent text-xs text-gray-600 outline-none dark:text-gray-400"
                       value={svgLink}
                       readOnly
                     />
                     <Button
                       onClick={() => handleCopy(svgLink, "svg")}
-                      className="rounded-l-none border px-3 py-2 text-sm"
-                      style={{ height: "auto" }}
+                      size="sm"
+                      className="mt-2 w-full"
                       aria-label="Copy SVG link to clipboard"
                     >
                       {copied === "svg" ? (
-                        <Check className="h-4 w-4" />
+                        <>
+                          <Check className="mr-2 h-4 w-4" />
+                          Copied!
+                        </>
                       ) : (
-                        "Copy"
+                        <>
+                          <Link className="mr-2 h-4 w-4" />
+                          Copy SVG Link
+                        </>
                       )}
                     </Button>
                   </div>
                 </div>
 
                 {/* Anilist bio format copy section */}
-                <div>
-                  <p className="text-sm font-medium">Anilist Bio Example</p>
-                  <div className="mt-1 flex">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      AniList Bio Format
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200/50 bg-gray-50/50 p-3 dark:border-gray-700/50 dark:bg-gray-800/50">
                     <input
-                      className="flex-grow rounded-l-md border px-3 py-2 text-sm"
+                      className="w-full border-none bg-transparent text-xs text-gray-600 outline-none dark:text-gray-400"
                       value={anilistBioLink}
                       readOnly
                     />
                     <Button
                       onClick={() => handleCopy(anilistBioLink, "anilist")}
-                      className="rounded-l-none border px-3 py-2 text-sm"
-                      style={{ height: "auto" }}
+                      size="sm"
+                      className="mt-2 w-full"
                       aria-label="Copy AniList bio format link to clipboard"
                     >
                       {copied === "anilist" ? (
-                        <Check className="h-4 w-4" />
+                        <>
+                          <Check className="mr-2 h-4 w-4" />
+                          Copied!
+                        </>
                       ) : (
-                        "Copy"
+                        <>
+                          <Link className="mr-2 h-4 w-4" />
+                          Copy AniList Format
+                        </>
                       )}
                     </Button>
                   </div>
@@ -148,17 +201,6 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
           </Popover>
         </div>
       </div>
-
-      {/* Loading overlay */}
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <LoadingSpinner
-            size="md"
-            className="text-primary/50"
-            text="Loading card..."
-          />
-        </div>
-      )}
     </div>
   );
 }

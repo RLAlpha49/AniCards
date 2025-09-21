@@ -10,6 +10,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Check, Link } from "lucide-react";
+import { motion } from "framer-motion";
 
 interface CardType {
   type: string;
@@ -30,8 +31,10 @@ export function CardList({ cardTypes }: Readonly<CardListProps>) {
   const svgLinks = cardTypes.map((card) => card.svgUrl);
   const anilistBioLinks = cardTypes.map((card) => `img150(${card.svgUrl})`);
 
-  // Extract userId from the first card's svgUrl
-  const userId = new URL(svgLinks[0]).searchParams.get("userId");
+  // Extract userId from the first card's svgUrl using URLSearchParams
+  const firstCardUrl = svgLinks[0];
+  const urlParams = new URLSearchParams(firstCardUrl.split("?")[1]);
+  const userId = urlParams.get("userId");
   const statsLink = `[<h1>Stats</h1>](https://anicards.alpha49.com/user?userId=${userId})`;
 
   // Handle bulk copy operations for different link formats
@@ -43,70 +46,138 @@ export function CardList({ cardTypes }: Readonly<CardListProps>) {
   };
 
   return (
-    <div className="flex flex-col items-center space-y-4">
-      {/* Popover for bulk copy operations */}
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            aria-label="Copy all card links in bulk for multiple formats"
-          >
-            <Link className="mr-2 h-4 w-4" /> Copy All Links
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-80">
-          <div className="space-y-2">
-            {/* SVG links copy section */}
-            <div>
-              <p className="text-sm font-medium">SVG Link</p>
-              <div className="mt-1 flex">
-                <input
-                  className="flex-grow rounded-l-md border px-3 py-2 text-sm"
-                  value={svgLinks.join("\n")}
-                  readOnly
-                />
-                <Button
-                  onClick={() => handleCopyLinks("svg")}
-                  className="rounded-l-none border px-3 py-2 text-sm"
-                  style={{ height: "auto" }}
-                  aria-label="Copy all SVG links to clipboard"
-                >
-                  {copied === "svg" ? <Check className="h-4 w-4" /> : "Copy"}
-                </Button>
-              </div>
+    <div className="mx-auto w-full max-w-7xl">
+      {/* Header Section with Copy Links */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="mb-8 flex justify-center"
+      >
+        <div className="rounded-2xl border border-white/20 bg-white/10 p-6 backdrop-blur-sm dark:border-gray-700/30 dark:bg-gray-800/20">
+          <div className="flex items-center gap-4">
+            <div className="rounded-lg bg-gradient-to-r from-blue-500 to-purple-500 p-2">
+              <Link className="h-5 w-5 text-white" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Export Your Cards
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Copy links in different formats for sharing
+              </p>
             </div>
 
-            {/* Anilist bio format copy section */}
-            <div>
-              <p className="text-sm font-medium">Anilist Bio Example</p>
-              <div className="mt-1 flex">
-                <input
-                  className="flex-grow rounded-l-md border px-3 py-2 text-sm"
-                  value={[...anilistBioLinks, statsLink].join("\n")}
-                  readOnly
-                />
+            <Popover>
+              <PopoverTrigger asChild>
                 <Button
-                  onClick={() => handleCopyLinks("anilist")}
-                  className="rounded-l-none border px-3 py-2 text-sm"
-                  style={{ height: "auto" }}
-                  aria-label="Copy all AniList bio format links to clipboard"
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-lg"
+                  aria-label="Copy all card links in bulk for multiple formats"
                 >
-                  {copied === "anilist" ? (
-                    <Check className="h-4 w-4" />
-                  ) : (
-                    "Copy"
-                  )}
+                  <Link className="mr-2 h-4 w-4" />
+                  Copy All Links
                 </Button>
-              </div>
-            </div>
+              </PopoverTrigger>
+              <PopoverContent className="w-96 border-white/20 bg-white/90 backdrop-blur-md dark:border-gray-600/30 dark:bg-gray-800/90">
+                <div className="space-y-4">
+                  <div className="mb-4">
+                    <h4 className="font-semibold text-gray-900 dark:text-white">
+                      Export Options
+                    </h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      Choose the format that works best for your needs
+                    </p>
+                  </div>
+
+                  {/* SVG links copy section */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        Direct SVG Links
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-gray-200/50 bg-gray-50/50 p-3 dark:border-gray-700/50 dark:bg-gray-800/50">
+                      <textarea
+                        className="w-full resize-none border-none bg-transparent text-xs text-gray-600 outline-none dark:text-gray-400"
+                        value={svgLinks.join("\n")}
+                        readOnly
+                        rows={3}
+                      />
+                      <Button
+                        onClick={() => handleCopyLinks("svg")}
+                        size="sm"
+                        className="mt-2 w-full"
+                        aria-label="Copy all SVG links to clipboard"
+                      >
+                        {copied === "svg" ? (
+                          <>
+                            <Check className="mr-2 h-4 w-4" />
+                            Copied!
+                          </>
+                        ) : (
+                          <>
+                            <Link className="mr-2 h-4 w-4" />
+                            Copy SVG Links
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Anilist bio format copy section */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        AniList Bio Format
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-gray-200/50 bg-gray-50/50 p-3 dark:border-gray-700/50 dark:bg-gray-800/50">
+                      <textarea
+                        className="w-full resize-none border-none bg-transparent text-xs text-gray-600 outline-none dark:text-gray-400"
+                        value={[statsLink, ...anilistBioLinks].join("\n")}
+                        readOnly
+                        rows={4}
+                      />
+                      <Button
+                        onClick={() => handleCopyLinks("anilist")}
+                        size="sm"
+                        className="mt-2 w-full"
+                        aria-label="Copy all AniList bio format links to clipboard"
+                      >
+                        {copied === "anilist" ? (
+                          <>
+                            <Check className="mr-2 h-4 w-4" />
+                            Copied!
+                          </>
+                        ) : (
+                          <>
+                            <Link className="mr-2 h-4 w-4" />
+                            Copy AniList Format
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
-        </PopoverContent>
-      </Popover>
+        </div>
+      </motion.div>
 
-      {/* Grid of card components */}
-      <div className="flex flex-wrap justify-center gap-6">
-        {cardTypes.map((card) => (
-          <Card key={card.rawType} {...card} />
+      {/* Cards Grid */}
+      <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {cardTypes.map((card, index) => (
+          <motion.div
+            key={card.rawType}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: index * 0.1 }}
+          >
+            <Card {...card} />
+          </motion.div>
         ))}
       </div>
     </div>
