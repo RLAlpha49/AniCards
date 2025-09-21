@@ -1,9 +1,11 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import Image from "next/image";
+import { Skeleton } from "@/components/ui/skeleton";
+import Link from "next/link";
 import {
   BarChart2,
   Users,
@@ -26,6 +28,65 @@ import {
   trackButtonClick,
   trackDialogOpen,
 } from "@/lib/utils/google-analytics";
+
+// Image component with skeleton loading
+type ImageWithSkeletonProps = {
+  src: string;
+  alt: string;
+  className: string;
+  style?: React.CSSProperties;
+};
+
+const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
+  src,
+  alt,
+  className,
+  style,
+}) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    // Fallback timeout to show content even if onLoad doesn't fire
+    const fallbackTimer = setTimeout(() => {
+      if (!isLoaded && !hasError) {
+        setIsLoaded(true);
+      }
+    }, 0);
+
+    return () => clearTimeout(fallbackTimer);
+  }, [isLoaded, hasError]);
+
+  const handleLoad = () => {
+    setIsLoaded(true);
+  };
+
+  const handleError = () => {
+    setHasError(true);
+  };
+
+  return (
+    <div className="relative h-full w-full">
+      {!isLoaded && !hasError && (
+        <Skeleton className="absolute inset-0 h-full w-full rounded-lg" />
+      )}
+      <img
+        src={src}
+        alt={alt}
+        className={`${className} ${isLoaded ? "opacity-100" : "opacity-0"} transition-opacity duration-300`}
+        style={style}
+        loading="lazy"
+        onLoad={handleLoad}
+        onError={handleError}
+      />
+      {hasError && (
+        <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
+          <span className="text-sm text-gray-500">Failed to load</span>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function HomePage() {
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
@@ -99,6 +160,7 @@ export default function HomePage() {
                     size="lg"
                     className="border-2 px-8 py-4 text-base font-semibold hover:bg-gray-50 dark:hover:bg-gray-800"
                     onClick={() => {
+                      trackButtonClick("see_examples", "homepage");
                       document
                         .getElementById("preview-showcase")
                         ?.scrollIntoView({
@@ -163,11 +225,9 @@ export default function HomePage() {
                       className="overflow-hidden rounded-lg shadow-2xl"
                       style={{ width: "450px", height: "195px" }}
                     >
-                      <Image
-                        src="/examples/anime-stats.png"
+                      <ImageWithSkeleton
+                        src="https://anicards.alpha49.com/api/card.svg?cardType=animeStats&userId=542244&variation=default"
                         alt="Example Anime Statistics Card"
-                        width={450}
-                        height={195}
                         className="h-full w-full object-contain"
                         style={{ borderRadius: "8px" }}
                       />
@@ -192,11 +252,9 @@ export default function HomePage() {
                       className="overflow-hidden rounded-lg opacity-80 shadow-xl"
                       style={{ width: "340px", height: "200px" }}
                     >
-                      <Image
-                        src="/examples/anime-genres-pie.png"
+                      <ImageWithSkeleton
+                        src="https://anicards.alpha49.com/api/card.svg?cardType=animeGenres&userId=542244&variation=pie"
                         alt="Example Genre Distribution Card"
-                        width={340}
-                        height={200}
                         className="h-full w-full object-contain"
                         style={{ borderRadius: "8px" }}
                       />
@@ -220,11 +278,9 @@ export default function HomePage() {
                       className="overflow-hidden rounded-lg opacity-80 shadow-xl"
                       style={{ width: "280px", height: "195px" }}
                     >
-                      <Image
-                        src="/examples/social-stats.png"
+                      <ImageWithSkeleton
+                        src="https://anicards.alpha49.com/api/card.svg?cardType=socialStats&userId=542244&variation=default"
                         alt="Example Social Activity Card"
-                        width={280}
-                        height={195}
                         className="h-full w-full object-contain"
                         style={{ borderRadius: "8px" }}
                       />
@@ -293,87 +349,99 @@ export default function HomePage() {
             >
               <h2 className="mb-4 text-3xl font-bold text-gray-900 dark:text-white lg:text-4xl">
                 Choose from{" "}
-                <span className="text-blue-600">10+ Card Types</span>
+                <span className="text-blue-600">20+ Card Types & Variants</span>
               </h2>
               <p className="mx-auto mb-8 max-w-2xl text-lg text-gray-600 dark:text-gray-300">
                 From basic stats to detailed breakdowns - visualize every aspect
-                of your anime and manga journey
+                of your anime and manga journey with multiple layout options
               </p>
               <div className="text-sm text-gray-500 dark:text-gray-400">
-                ✨ All examples show real AniCards data • Click &ldquo;Create
-                Your Cards&rdquo; to generate live versions
+                ✨ All examples show live AniCards data from user{" "}
+                <a
+                  href="https://anilist.co/user/Alpha49"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-200 hover:text-blue-900 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-800/70 dark:hover:text-white"
+                  aria-label="View Alpha49's AniList profile"
+                >
+                  @Alpha49
+                </a>{" "}
+                •
+                <Link
+                  href="/examples"
+                  className="ml-1 font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                >
+                  View all card types & variants →
+                </Link>
               </div>
             </motion.div>
 
             {/* Card Gallery - Grid Layout */}
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {[
-                {
-                  title: "Anime Statistics",
-                  description:
-                    "Complete overview of your anime watching journey",
-                  imagePath: "/examples/anime-stats.png",
-                  dimensions: { width: 450, height: 195 },
-                  category: "Main Stats",
-                  color: "blue",
-                },
-                {
-                  title: "Social Activity",
-                  description: "Community engagement and social metrics",
-                  imagePath: "/examples/social-stats.png",
-                  dimensions: { width: 280, height: 195 },
-                  category: "Social",
-                  color: "green",
-                },
-                {
-                  title: "Genre Distribution",
-                  description: "Beautiful pie chart of your favorite genres",
-                  imagePath: "/examples/anime-genres-pie.png",
-                  dimensions: { width: 340, height: 195 },
-                  category: "Analysis",
-                  color: "purple",
-                },
-                {
-                  title: "Manga Statistics",
-                  description: "Comprehensive manga reading statistics",
-                  imagePath: "/examples/manga-stats.png",
-                  dimensions: { width: 450, height: 195 },
-                  category: "Main Stats",
-                  color: "pink",
-                },
-                {
-                  title: "Voice Actors",
-                  description: "Most frequent voice actors in your anime",
-                  imagePath: "/examples/voice-actors.png",
-                  dimensions: { width: 280, height: 195 },
-                  category: "Deep Dive",
-                  color: "orange",
-                },
-                {
-                  title: "Score Distribution",
-                  description: "How you rate anime with detailed charts",
-                  imagePath: "/examples/score-distribution.png",
-                  dimensions: { width: 350, height: 165 },
-                  category: "Analysis",
-                  color: "indigo",
-                },
-                {
-                  title: "Anime Studios",
-                  description: "Your favorite animation studios",
-                  imagePath: "/examples/anime-studios.png",
-                  dimensions: { width: 280, height: 195 },
-                  category: "Deep Dive",
-                  color: "teal",
-                },
-                {
-                  title: "Manga Genres",
-                  description: "Manga genre preferences breakdown",
-                  imagePath: "/examples/manga-genres-pie.png",
-                  dimensions: { width: 340, height: 195 },
-                  category: "Analysis",
-                  color: "violet",
-                },
-              ].map((cardType, index) => (
+              {(() => {
+                const BASE_URL = "https://anicards.alpha49.com/api/card.svg";
+                const USER_ID = "542244";
+
+                return [
+                  {
+                    title: "Anime Statistics",
+                    description:
+                      "Complete overview of your anime watching journey",
+                    apiUrl: `${BASE_URL}?cardType=animeStats&userId=${USER_ID}&variation=default`,
+                    category: "Main Stats",
+                    color: "blue",
+                  },
+                  {
+                    title: "Social Activity",
+                    description: "Community engagement and social metrics",
+                    apiUrl: `${BASE_URL}?cardType=socialStats&userId=${USER_ID}&variation=default`,
+                    category: "Social",
+                    color: "green",
+                  },
+                  {
+                    title: "Genre Distribution",
+                    description: "Beautiful pie chart of your favorite genres",
+                    apiUrl: `${BASE_URL}?cardType=animeGenres&userId=${USER_ID}&variation=pie`,
+                    category: "Analysis",
+                    color: "purple",
+                  },
+                  {
+                    title: "Manga Statistics",
+                    description: "Comprehensive manga reading statistics",
+                    apiUrl: `${BASE_URL}?cardType=mangaStats&userId=${USER_ID}&variation=default`,
+                    category: "Main Stats",
+                    color: "pink",
+                  },
+                  {
+                    title: "Voice Actors",
+                    description: "Most frequent voice actors in your anime",
+                    apiUrl: `${BASE_URL}?cardType=animeVoiceActors&userId=${USER_ID}&variation=default`,
+                    category: "Deep Dive",
+                    color: "orange",
+                  },
+                  {
+                    title: "Score Distribution",
+                    description: "How you rate anime with detailed charts",
+                    apiUrl: `${BASE_URL}?cardType=animeScoreDistribution&userId=${USER_ID}&variation=default`,
+                    category: "Analysis",
+                    color: "indigo",
+                  },
+                  {
+                    title: "Anime Studios",
+                    description: "Your favorite animation studios",
+                    apiUrl: `${BASE_URL}?cardType=animeStudios&userId=${USER_ID}&variation=default`,
+                    category: "Deep Dive",
+                    color: "teal",
+                  },
+                  {
+                    title: "Manga Genres",
+                    description: "Manga genre preferences breakdown",
+                    apiUrl: `${BASE_URL}?cardType=mangaGenres&userId=${USER_ID}&variation=pie`,
+                    category: "Analysis",
+                    color: "violet",
+                  },
+                ];
+              })().map((cardType, index) => (
                 <motion.div
                   key={cardType.title}
                   initial={{ opacity: 0, y: 20 }}
@@ -384,19 +452,15 @@ export default function HomePage() {
                 >
                   <Card className="h-full transform-gpu overflow-hidden border-2 transition-all duration-300 hover:scale-[1.02] hover:border-blue-300 hover:shadow-xl dark:hover:border-blue-700">
                     <CardContent className="flex h-full flex-col p-0">
-                      {/* PNG Image Display */}
+                      {/* Live API SVG Display */}
                       <div className="relative flex flex-1 items-center justify-center p-6">
-                        <Image
-                          src={cardType.imagePath}
-                          alt={`${cardType.title} Example`}
-                          width={cardType.dimensions.width}
-                          height={cardType.dimensions.height}
+                        <ImageWithSkeleton
+                          src={cardType.apiUrl}
+                          alt={`${cardType.title} Live Example`}
                           className="h-auto w-full max-w-full rounded-lg object-contain"
                           style={{
                             maxHeight: "200px",
-                            aspectRatio: `${cardType.dimensions.width} / ${cardType.dimensions.height}`,
                           }}
-                          loading="lazy"
                         />
                       </div>
 
@@ -414,14 +478,13 @@ export default function HomePage() {
                         {/* Action Footer */}
                         <div className="flex items-center justify-between border-t border-gray-100 pt-2 dark:border-gray-700">
                           <div className="flex items-center space-x-2">
-                            <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+                            <div className="h-2 w-2 rounded-full bg-green-500"></div>
                             <span className="text-xs text-gray-500">
-                              Example Data
+                              Live Data
                             </span>
                           </div>
-                          <span className="font-mono text-xs text-gray-500">
-                            {cardType.dimensions.width}×
-                            {cardType.dimensions.height}
+                          <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                            {cardType.category}
                           </span>
                         </div>
                       </div>
@@ -480,21 +543,34 @@ export default function HomePage() {
 
               <div className="mb-8 rounded-2xl bg-gradient-to-r from-blue-50 to-purple-50 p-8 dark:from-blue-900/20 dark:to-purple-900/20">
                 <p className="mb-4 text-gray-600 dark:text-gray-400">
-                  <strong>Ready to see your own data?</strong> These are just
-                  examples - create your personalized cards with your actual
-                  AniList statistics!
+                  <strong>Ready to see your own data?</strong> These are live
+                  examples using real AniList data - create your personalized
+                  cards with your actual statistics!
                 </p>
               </div>
 
-              <Button
-                size="lg"
-                onClick={handleGetStartedClick}
-                className="transform-gpu bg-gradient-to-r from-blue-600 to-purple-600 px-8 py-4 text-lg font-semibold transition-all duration-200 hover:scale-[1.02] hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
-              >
-                <Play className="mr-2 h-5 w-5" />
-                Create Your Live Cards
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
+              <div className="flex flex-col items-center space-y-4 sm:flex-row sm:justify-center sm:space-x-6 sm:space-y-0">
+                <Button
+                  size="lg"
+                  onClick={handleGetStartedClick}
+                  className="transform-gpu bg-gradient-to-r from-blue-600 to-purple-600 px-8 py-4 text-lg font-semibold transition-all duration-200 hover:scale-[1.02] hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
+                >
+                  <Play className="mr-2 h-5 w-5" />
+                  Create Your Live Cards
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
+
+                <Link href="/examples">
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="border-2 px-8 py-4 text-lg font-semibold hover:bg-gray-50 dark:hover:bg-gray-800"
+                  >
+                    <BarChart2 className="mr-2 h-5 w-5" />
+                    View All Examples
+                  </Button>
+                </Link>
+              </div>
             </motion.div>
           </div>
         </div>

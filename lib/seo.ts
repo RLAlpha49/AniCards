@@ -123,6 +123,24 @@ export const seoConfigs = {
     canonical: `${SITE_URL}/search`,
   },
 
+  examples: {
+    title: "All Card Examples - AniCards",
+    description:
+      "Explore all available AniCards types and variants with real examples. View anime statistics, social metrics, genre distributions, voice actor insights, studio breakdowns, and more.",
+    keywords: [
+      "anilist card examples",
+      "anime stat card examples",
+      "manga stat card examples",
+      "anilist statistics examples",
+      "anime data visualization examples",
+      "card types",
+      "stat card variants",
+      "anilist card gallery",
+      "anime cards showcase",
+    ],
+    canonical: `${SITE_URL}/examples`,
+  },
+
   contact: {
     title: "Contact Us - AniCards",
     description:

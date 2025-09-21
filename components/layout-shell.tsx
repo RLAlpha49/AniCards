@@ -42,18 +42,30 @@ function LayoutShellContent({
       className="flex min-h-screen flex-col transition-all duration-300 ease-in-out"
       style={{ width: "100%" }}
     >
-      {/* Header now spans full width and takes priority */}
-      <Header onSidebarToggle={toggleSidebar} sidebarOpen={open} />
-      <div className="flex flex-1 transition-all duration-300 ease-in-out">
+      {/* Fixed Header */}
+      <div className="fixed top-0 z-50 w-full">
+        <Header onSidebarToggle={toggleSidebar} sidebarOpen={open} />
+      </div>
+
+      <div className="flex flex-1 pt-[61px]">
+        {/* Fixed Sidebar */}
         <div
-          className={`sidebar-container overflow-hidden border-r !bg-white transition-all duration-300 ease-in-out dark:border-gray-700 dark:!bg-slate-900/90`}
+          className={`sidebar-container fixed left-0 top-[61px] z-40 overflow-hidden border-r !bg-white transition-all duration-300 ease-in-out dark:border-gray-700 dark:!bg-slate-900/90`}
           style={{
-            height: `calc(100% + 137.8px)`,
+            height: `calc(100% - 61px)`,
+            width: open ? "10rem" : "3rem",
           }}
         >
           <AppSidebar />
         </div>
-        <main className="flex-1">{children}</main>
+        <main
+          className="flex-1 transition-all duration-300 ease-in-out"
+          style={{
+            marginLeft: open ? "10rem" : "3rem",
+          }}
+        >
+          {children}
+        </main>
       </div>
       <Footer />
     </div>

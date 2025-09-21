@@ -1,7 +1,15 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Mail, Settings, File, Search, Folder } from "lucide-react";
+import {
+  Home,
+  Mail,
+  Settings,
+  File,
+  Search,
+  Folder,
+  Grid3X3,
+} from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -18,6 +26,7 @@ import { trackNavigation } from "@/lib/utils/google-analytics";
 
 const navItems = [
   { title: "Home", icon: Home, href: "/" },
+  { title: "Examples", icon: Grid3X3, href: "/examples" },
   { title: "Search", icon: Search, href: "/search" },
   //{ title: "Profile", icon: User, href: "/profile" },
   { title: "Contact", icon: Mail, href: "/contact" },
@@ -46,7 +55,7 @@ export function AppSidebar() {
     <Sidebar
       collapsible="icon"
       className="sidebar relative border-r border-blue-100/50 backdrop-blur-md dark:border-blue-900/30"
-      style={{ marginTop: "48px" }}
+      style={{ marginTop: "-15px" }}
     >
       {/* Full gradient background */}
       <div className="pointer-events-none absolute inset-0 h-full w-full"></div>
