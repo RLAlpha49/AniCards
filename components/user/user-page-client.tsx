@@ -22,6 +22,45 @@ interface CardData {
   showPiePercentages?: boolean;
 }
 
+// Validation helpers
+const isValidUserId = (userId: string | null): userId is string => {
+  if (!userId) return false;
+  // userId should be numeric string from AniList
+  return /^\d+$/.test(userId);
+};
+
+const isValidUsername = (username: string | null): username is string => {
+  if (!username) return false;
+  // Username can contain letters, numbers, underscores, hyphens (AniList standard)
+  return /^[a-zA-Z0-9_-]{2,}$/.test(username);
+};
+
+// Helper to load and validate cards from parameter
+const parseAndValidateCards = (cardsParam: string): CardData[] => {
+  try {
+    const parsedCards = JSON.parse(cardsParam);
+
+    if (!Array.isArray(parsedCards)) {
+      throw new TypeError("Cards parameter must be an array");
+    }
+
+    return parsedCards.filter((card) => {
+      if (typeof card !== "object" || card === null) {
+        console.warn("Invalid card object:", card);
+        return false;
+      }
+      if (typeof card.cardName !== "string" || !card.cardName) {
+        console.warn("Card missing required cardName:", card);
+        return false;
+      }
+      return true;
+    });
+  } catch (error_) {
+    console.error("Failed to parse cards parameter:", error_);
+    throw error_;
+  }
+};
+
 // Client component for the interactive user page
 export function UserPageClient() {
   const searchParams = useSearchParams();
@@ -34,21 +73,43 @@ export function UserPageClient() {
   useEffect(() => {
     const loadUserData = async () => {
       try {
-        const userId = searchParams.get("userId");
-        const username = searchParams.get("username");
+        let userId = searchParams.get("userId");
+        let username = searchParams.get("username");
         const cardsParam = searchParams.get("cards");
+
+        // Validate parameters before using them
+        if (!isValidUserId(userId)) {
+          userId = null;
+        }
+        if (!isValidUsername(username)) {
+          username = null;
+        }
 
         let resolvedUserData: UserData | null = null;
         let resolvedCards: CardData[] = [];
 
+        // Try to parse cards if provided
+        if (cardsParam) {
+          try {
+            resolvedCards = parseAndValidateCards(cardsParam);
+          } catch (error_) {
+            console.error("Failed to parse cards parameter:", error_);
+            setError("Invalid card configuration. Please try again.");
+            setLoading(false);
+            return;
+          }
+        }
+
+        // Load user data and cards based on parameters
         if (cardsParam && (userId || username)) {
           if (userId) {
             resolvedUserData = { userId, username: username || undefined };
           } else if (username) {
-            const userRes = await fetch(`/api/user?username=${username}`);
+            const userRes = await fetch(
+              `/api/user?username=${encodeURIComponent(username)}`,
+            );
             resolvedUserData = await userRes.json();
           }
-          resolvedCards = JSON.parse(cardsParam);
         } else if (userId) {
           const [userRes, cardsRes] = await Promise.all([
             fetch(`/api/user?userId=${userId}`),
@@ -59,7 +120,9 @@ export function UserPageClient() {
           resolvedCards = cardsData.cards || [];
           setShowAllCards(true);
         } else if (username) {
-          const userRes = await fetch(`/api/user?username=${username}`);
+          const userRes = await fetch(
+            `/api/user?username=${encodeURIComponent(username)}`,
+          );
           resolvedUserData = await userRes.json();
           if (resolvedUserData?.userId) {
             const cardsRes = await fetch(
@@ -147,6 +210,24 @@ export function UserPageClient() {
       rawType: card.cardName,
     };
   });
+
+  // Guard: Ensure userData is present before rendering URLs
+  if (!userData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-blue-950 dark:to-indigo-950">
+        <div className="container mx-auto flex min-h-screen items-center justify-center px-4">
+          <div className="text-center">
+            <h1 className="mb-4 text-2xl font-bold text-gray-900 dark:text-white">
+              Invalid User
+            </h1>
+            <p className="text-gray-600 dark:text-gray-300">
+              Unable to load user data. Please try again.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-blue-950 dark:to-indigo-950">
