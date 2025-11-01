@@ -17,6 +17,21 @@ export async function POST(request: Request): Promise<NextResponse> {
   const { startTime, ip, endpoint } = init;
 
   try {
+    // Server-side validation: requests must originate from same origin or internal requests
+    // The rate limiting from initializeApiRequest provides additional protection
+    const origin = request.headers.get("origin");
+    const isInternalRequest = !origin || origin === process.env.NEXT_PUBLIC_APP_URL;
+
+    if (process.env.NODE_ENV === "production" && !isInternalRequest) {
+      console.warn(
+        `🔐 [${endpoint}] Suspicious cross-origin request from: ${origin}`,
+      );
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 },
+      );
+    }
+
     const data = await request.json();
     console.log(
       `📝 [${endpoint}] Processing user ${data.userId} (${data.username || "no username"})`,

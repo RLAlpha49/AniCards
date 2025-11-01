@@ -143,12 +143,5 @@ export async function initializeApiRequest(
     return { startTime, ip, endpoint, errorResponse: rateLimitResponse };
   }
 
-  // Validate authentication
-  const authToken = request.headers.get("Authorization");
-  const authResponse = validateAuth(authToken, ip, endpoint);
-  if (authResponse) {
-    return { startTime, ip, endpoint, errorResponse: authResponse };
-  }
-
   return { startTime, ip, endpoint };
 }

@@ -84,7 +84,6 @@ export function useStatCardSubmit() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.API_AUTH_TOKEN}`,
           },
           body: JSON.stringify({
             userId: userIdData.User.id,
@@ -96,7 +95,6 @@ export function useStatCardSubmit() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.API_AUTH_TOKEN}`,
           },
           body: JSON.stringify({
             userId: userIdData.User.id,
