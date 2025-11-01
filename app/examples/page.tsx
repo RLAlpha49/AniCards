@@ -55,7 +55,7 @@ export function CardWithSkeleton({
       if (!isLoaded && !hasError) {
         setIsLoaded(true);
       }
-    }, 0); // 3 second fallback
+    }, 2000);
 
     return () => clearTimeout(fallbackTimer);
   }, [isLoaded, hasError]);
