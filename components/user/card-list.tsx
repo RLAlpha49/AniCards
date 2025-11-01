@@ -31,11 +31,24 @@ export function CardList({ cardTypes }: Readonly<CardListProps>) {
   const svgLinks = cardTypes.map((card) => card.svgUrl);
   const anilistBioLinks = cardTypes.map((card) => `img150(${card.svgUrl})`);
 
-  // Extract userId from the first card's svgUrl using URLSearchParams
+  // Extract userId from the first card's svgUrl using URL/URLSearchParams
   const firstCardUrl = svgLinks[0];
-  const urlParams = new URLSearchParams(firstCardUrl.split("?")[1]);
-  const userId = urlParams.get("userId");
-  const statsLink = `[<h1>Stats</h1>](https://anicards.alpha49.com/user?userId=${userId})`;
+  let userId: string | null = null;
+
+  if (firstCardUrl) {
+    try {
+      const origin = globalThis.window?.location.origin ?? "http://localhost";
+      const url = new URL(firstCardUrl, origin);
+      userId = url.searchParams.get("userId");
+    } catch {
+      // Gracefully handle malformed URLs
+      userId = null;
+    }
+  }
+
+  const statsLink = userId
+    ? `[<h1>Stats</h1>](https://anicards.alpha49.com/user?userId=${userId})`
+    : "";
 
   // Handle bulk copy operations for different link formats
   const handleCopyLinks = async (type: "svg" | "anilist") => {
