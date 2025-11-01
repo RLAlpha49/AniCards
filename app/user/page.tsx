@@ -8,18 +8,19 @@ import { LoadingSpinner } from "@/components/loading-spinner";
 export const dynamic = "force-dynamic";
 
 // Generate metadata dynamically based on the user
-export async function generateMetadata(props: {
-  searchParams: Promise<{
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: {
     userId?: string;
     username?: string;
     cards?: string;
     showFavorites?: string;
     animeStatusColors?: string;
     mangaStatusColors?: string;
-  }>;
+  };
 }): Promise<Metadata> {
-  const searchParams = await props.searchParams;
-  const username = searchParams.username;
+  const { username } = searchParams;
 
   if (username) {
     return createMetadata({
