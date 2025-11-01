@@ -29,6 +29,46 @@ import {
   trackDialogOpen,
 } from "@/lib/utils/google-analytics";
 
+// Color mapping to avoid dynamic Tailwind class generation
+const COLOR_MAP: Record<string, { bg: string; text: string }> = {
+  blue: {
+    bg: "bg-blue-100 dark:bg-blue-900/20",
+    text: "text-blue-600 dark:text-blue-400",
+  },
+  green: {
+    bg: "bg-green-100 dark:bg-green-900/20",
+    text: "text-green-600 dark:text-green-400",
+  },
+  purple: {
+    bg: "bg-purple-100 dark:bg-purple-900/20",
+    text: "text-purple-600 dark:text-purple-400",
+  },
+  pink: {
+    bg: "bg-pink-100 dark:bg-pink-900/20",
+    text: "text-pink-600 dark:text-pink-400",
+  },
+  orange: {
+    bg: "bg-orange-100 dark:bg-orange-900/20",
+    text: "text-orange-600 dark:text-orange-400",
+  },
+  indigo: {
+    bg: "bg-indigo-100 dark:bg-indigo-900/20",
+    text: "text-indigo-600 dark:text-indigo-400",
+  },
+  yellow: {
+    bg: "bg-yellow-100 dark:bg-yellow-900/20",
+    text: "text-yellow-600 dark:text-yellow-400",
+  },
+  violet: {
+    bg: "bg-violet-100 dark:bg-violet-900/20",
+    text: "text-violet-600 dark:text-violet-400",
+  },
+  cyan: {
+    bg: "bg-cyan-100 dark:bg-cyan-900/20",
+    text: "text-cyan-600 dark:text-cyan-400",
+  },
+};
+
 // Image component with skeleton loading
 type ImageWithSkeletonProps = {
   src: string;
@@ -52,7 +92,7 @@ const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
       if (!isLoaded && !hasError) {
         setIsLoaded(true);
       }
-    }, 0);
+    }, 2000);
 
     return () => clearTimeout(fallbackTimer);
   }, [isLoaded, hasError]);
@@ -662,38 +702,39 @@ export default function HomePage() {
                     "Generate optimized SVG cards that work perfectly across all social media platforms.",
                   color: "cyan",
                 },
-              ].map((feature, index) => (
-                <motion.div
-                  key={feature.title}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: index * 0.1 }}
-                  viewport={{ once: true }}
-                  className="group"
-                >
-                  <Card className="h-full overflow-hidden border-0 shadow-lg transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl">
-                    <CardContent className="p-8">
-                      <motion.div
-                        className={`inline-flex rounded-xl p-3 bg-${feature.color}-100 dark:bg-${feature.color}-900/20 mb-6`}
-                        whileHover={{ scale: 1.1, rotate: 5 }}
-                        transition={{ duration: 0.2 }}
-                      >
-                        <feature.icon
-                          className={`h-8 w-8 text-${feature.color}-600 dark:text-${feature.color}-400`}
-                        />
-                      </motion.div>
+              ].map((feature, index) => {
+                const colors = COLOR_MAP[feature.color] || COLOR_MAP.blue;
+                return (
+                  <motion.div
+                    key={feature.title}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: index * 0.1 }}
+                    viewport={{ once: true }}
+                    className="group"
+                  >
+                    <Card className="h-full overflow-hidden border-0 shadow-lg transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl">
+                      <CardContent className="p-8">
+                        <motion.div
+                          className={`inline-flex rounded-xl p-3 ${colors.bg} mb-6`}
+                          whileHover={{ scale: 1.1, rotate: 5 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <feature.icon className={`h-8 w-8 ${colors.text}`} />
+                        </motion.div>
 
-                      <h3 className="mb-3 text-xl font-bold text-gray-900 dark:text-white">
-                        {feature.title}
-                      </h3>
+                        <h3 className="mb-3 text-xl font-bold text-gray-900 dark:text-white">
+                          {feature.title}
+                        </h3>
 
-                      <p className="mb-6 text-gray-600 dark:text-gray-300">
-                        {feature.description}
-                      </p>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
+                        <p className="mb-6 text-gray-600 dark:text-gray-300">
+                          {feature.description}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                );
+              })}
             </div>
           </div>
         </div>
