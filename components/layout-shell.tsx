@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Header from "@/components/header";
 import { AppSidebar } from "@/components/sidebar";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
@@ -9,13 +9,19 @@ import Footer from "@/components/footer";
 export function LayoutShell({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const defaultOpen =
-    typeof window !== "undefined"
-      ? (() => {
-          const saved = localStorage.getItem("anicards-sidebarDefaultOpen");
-          return saved ? JSON.parse(saved).value : false;
-        })()
-      : false;
+  // Initialize with deterministic value to prevent hydration mismatch
+  const [defaultOpen, setDefaultOpen] = useState(false);
+
+  // Read from localStorage in useEffect after hydration
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("anicards-sidebarDefaultOpen");
+      setDefaultOpen(saved ? JSON.parse(saved).value : false);
+    } catch {
+      // Gracefully handle localStorage errors
+      setDefaultOpen(false);
+    }
+  }, []);
 
   return (
     <SidebarProvider
