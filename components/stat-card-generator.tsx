@@ -571,21 +571,13 @@ export function StatCardGenerator({
             const obj: Record<string, unknown> = variation
               ? { cardName, variation }
               : { cardName };
-            // Copy status color flag and pie percentages from base config creation logic above
+            const isAnimeStatus = cardName === "animeStatusDistribution";
+            const isMangaStatus = cardName === "mangaStatusDistribution";
             if (
-              ["animeStatusDistribution", "mangaStatusDistribution"].includes(
-                cardName,
-              )
+              (isAnimeStatus && useAnimeStatusColors) ||
+              (isMangaStatus && useMangaStatusColors)
             ) {
-              const statusCard = finalSelectedCards.find((c) =>
-                c.startsWith(cardName),
-              );
-              // naive inclusion; actual value already persisted server-side
-              // Include flag so initial render builds correct URLs
-              if (statusCard) {
-                // We don't know which group; infer from name
-                obj.useStatusColors = true; // since toggled when submitted
-              }
+              obj.useStatusColors = true;
             }
             if (showPiePercentages) obj.showPiePercentages = true;
             return obj;
