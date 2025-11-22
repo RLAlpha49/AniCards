@@ -4,11 +4,17 @@ import { CardList } from "@/components/user/card-list";
 import { displayNames } from "@/components/stat-card-generator/stat-card-preview";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Info } from "lucide-react";
+import { Info, Sparkles, ArrowRight, ExternalLink } from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { LoadingSpinner } from "@/components/loading-spinner";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 interface UserData {
   userId: string;
@@ -149,7 +155,7 @@ export function UserPageClient() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-blue-950 dark:to-indigo-950">
+      <div className="relative min-h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
         <div className="container mx-auto flex min-h-screen items-center justify-center px-4">
           <LoadingSpinner size="lg" text="Loading user data..." />
         </div>
@@ -159,7 +165,7 @@ export function UserPageClient() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-blue-950 dark:to-indigo-950">
+      <div className="relative min-h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
         <div className="container mx-auto flex min-h-screen items-center justify-center px-4">
           <div className="text-center">
             <h1 className="mb-4 text-2xl font-bold text-gray-900 dark:text-white">
@@ -214,7 +220,7 @@ export function UserPageClient() {
   // Guard: Ensure userData is present before rendering URLs
   if (!userData) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-blue-950 dark:to-indigo-950">
+      <div className="relative min-h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
         <div className="container mx-auto flex min-h-screen items-center justify-center px-4">
           <div className="text-center">
             <h1 className="mb-4 text-2xl font-bold text-gray-900 dark:text-white">
@@ -230,29 +236,67 @@ export function UserPageClient() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-blue-950 dark:to-indigo-950">
-      <div className="container mx-auto px-4 py-12">
+    <div className="relative min-h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
+      {/* Abstract Background Shapes */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute left-1/2 top-0 h-[800px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-400/10 blur-[120px] dark:bg-blue-600/10" />
+        <div className="absolute bottom-0 left-0 h-[600px] w-[600px] rounded-full bg-purple-400/10 blur-[100px] dark:bg-purple-600/10" />
+        <div className="absolute bottom-0 right-0 h-[600px] w-[600px] rounded-full bg-pink-400/10 blur-[100px] dark:bg-pink-600/10" />
+      </div>
+
+      {/* Grid Pattern */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:24px_24px]" />
+
+      <div className="container relative z-10 mx-auto px-4 py-12">
         {/* Hero Section */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="mb-12 text-center"
-        >
-          <h1 className="mb-4 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-4xl font-bold text-transparent md:text-5xl">
-            {userData?.username
-              ? `${userData.username}'s Stat Cards`
-              : "User Stat Cards"}
-          </h1>
-          <p className="mx-auto max-w-2xl text-lg text-gray-600 dark:text-gray-300">
+        <div className="mb-16 flex flex-col items-center text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="mb-8 inline-flex items-center rounded-full border border-blue-200 bg-blue-50/80 px-4 py-1.5 text-sm font-medium text-blue-600 backdrop-blur-sm dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
+          >
+            <Sparkles className="mr-2 h-4 w-4" />
+            <span>User Statistics</span>
+          </motion.div>
+
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="mb-6 text-4xl font-extrabold leading-tight tracking-tight text-slate-900 dark:text-white sm:text-5xl md:text-6xl"
+          >
+            {userData?.username ? (
+              <>
+                {userData.username}&apos;s{" "}
+                <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                  Stat Cards
+                </span>
+              </>
+            ) : (
+              <>
+                User{" "}
+                <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                  Stat Cards
+                </span>
+              </>
+            )}
+          </motion.h1>
+
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="mx-auto max-w-2xl text-lg text-slate-600 dark:text-slate-300"
+          >
             {userData?.username
               ? `View and download ${userData.username}'s beautiful anime and manga statistics`
               : "View and download beautiful anime and manga statistics"}
-          </p>
-        </motion.div>
+          </motion.p>
+        </div>
 
         {cardTypes.length > 0 && (
-          <div className="mb-8 space-y-6">
+          <div className="mb-12 grid gap-6 md:grid-cols-2">
             {/* Cache Notice */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -260,44 +304,34 @@ export function UserPageClient() {
               transition={{ duration: 0.5, delay: 0.2 }}
               className="mx-auto max-w-4xl"
             >
-              <div className="rounded-2xl border border-blue-200/50 bg-blue-50/50 p-6 backdrop-blur-sm dark:border-blue-800/30 dark:bg-blue-900/20">
-                <div className="flex items-start gap-4">
-                  <div className="rounded-lg bg-blue-500 p-2">
-                    <Info className="h-5 w-5 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="mb-2 text-lg font-semibold text-blue-800 dark:text-blue-300">
+              <Card className="h-full border-blue-200/50 bg-blue-50/50 backdrop-blur-sm dark:border-blue-800/30 dark:bg-blue-900/20">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2">
+                    <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <CardTitle className="text-lg font-semibold text-blue-900 dark:text-blue-100">
                       Cache Information
-                    </h3>
-                    <p className="mb-3 text-blue-700 dark:text-blue-400">
-                      SVG cards are cached for 24 hours for better performance.
-                      If your updates aren&apos;t visible immediately:
-                    </p>
-                    <ul className="space-y-1 text-sm text-blue-600 dark:text-blue-300">
-                      <li className="flex items-center gap-2">
-                        <div className="h-1.5 w-1.5 rounded-full bg-blue-500"></div>
-                        Hard refresh (
-                        <kbd className="rounded border bg-blue-100 px-1.5 py-0.5 text-xs dark:bg-blue-800">
-                          Ctrl+F5
-                        </kbd>{" "}
-                        or{" "}
-                        <kbd className="rounded border bg-blue-100 px-1.5 py-0.5 text-xs dark:bg-blue-800">
-                          Cmd+Shift+R
-                        </kbd>{" "}
-                        )
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <div className="h-1.5 w-1.5 rounded-full bg-blue-500"></div>
-                        Clear your browser cache
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <div className="h-1.5 w-1.5 rounded-full bg-blue-500"></div>
-                        Wait up to 24 hours for automatic refresh
-                      </li>
-                    </ul>
+                    </CardTitle>
                   </div>
-                </div>
-              </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="mb-3 text-sm text-blue-800 dark:text-blue-200">
+                    SVG cards are cached for 24 hours for better performance. If
+                    your updates aren&apos;t visible immediately:
+                  </p>
+                  <ul className="space-y-1 text-sm text-blue-700 dark:text-blue-300">
+                    <li className="flex items-center gap-2">
+                      <div className="h-1.5 w-1.5 rounded-full bg-blue-500"></div>
+                      <span>
+                        Hard refresh (<kbd className="rounded border bg-blue-100 px-1.5 py-0.5 text-xs dark:bg-blue-800">Ctrl+F5</kbd> or <kbd className="rounded border bg-blue-100 px-1.5 py-0.5 text-xs dark:bg-blue-800">Cmd+Shift+R</kbd>)
+                      </span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <div className="h-1.5 w-1.5 rounded-full bg-blue-500"></div>
+                      Clear your browser cache
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
             </motion.div>
 
             {/* Credits Notice */}
@@ -307,72 +341,56 @@ export function UserPageClient() {
               transition={{ duration: 0.5, delay: 0.3 }}
               className="mx-auto max-w-4xl"
             >
-              <div className="rounded-2xl border border-green-200/50 bg-green-50/50 p-6 backdrop-blur-sm dark:border-green-800/30 dark:bg-green-900/20">
-                <div className="flex items-start gap-4">
-                  <div className="rounded-lg bg-green-500 p-2">
-                    <svg
-                      className="h-5 w-5 text-white"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-                      />
-                    </svg>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="mb-2 text-lg font-semibold text-green-800 dark:text-green-300">
-                      Spread the Love
-                    </h3>
-                    <p className="mb-3 text-green-700 dark:text-green-400">
-                      Found AniCards useful? Help others discover it too!
-                      Consider crediting:
-                    </p>
-                    <div className="flex flex-wrap gap-3">
-                      <a
-                        href="https://anilist.co/user/Alpha49"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 rounded-lg bg-green-100 px-3 py-2 text-sm font-medium text-green-800 transition-colors hover:bg-green-200 dark:bg-green-800/50 dark:text-green-200 dark:hover:bg-green-700/50"
+              <Card className="h-full border-green-200/50 bg-green-50/50 backdrop-blur-sm dark:border-green-800/30 dark:bg-green-900/20">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-white">
+                      <svg
+                        className="h-3 w-3"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
                       >
-                        <svg
-                          className="h-4 w-4"
-                          fill="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-                        </svg>
-                        @Alpha49 on AniList
-                      </a>
-                      <a
-                        href={process.env.NEXT_PUBLIC_API_URL}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 rounded-lg bg-green-100 px-3 py-2 text-sm font-medium text-green-800 transition-colors hover:bg-green-200 dark:bg-green-800/50 dark:text-green-200 dark:hover:bg-green-700/50"
-                      >
-                        <svg
-                          className="h-4 w-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
-                          />
-                        </svg>
-                        AniCards Website
-                      </a>
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={3}
+                          d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                        />
+                      </svg>
                     </div>
+                    <CardTitle className="text-lg font-semibold text-green-900 dark:text-green-100">
+                      Spread the Love
+                    </CardTitle>
                   </div>
-                </div>
-              </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="mb-4 text-sm text-green-800 dark:text-green-200">
+                    Found AniCards useful? Help others discover it too! Consider
+                    crediting:
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <a
+                      href="https://anilist.co/user/Alpha49"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-lg bg-green-100 px-3 py-2 text-sm font-medium text-green-800 transition-colors hover:bg-green-200 dark:bg-green-800/50 dark:text-green-200 dark:hover:bg-green-700/50"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      @Alpha49 on AniList
+                    </a>
+                    <a
+                      href={process.env.NEXT_PUBLIC_API_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-lg bg-green-100 px-3 py-2 text-sm font-medium text-green-800 transition-colors hover:bg-green-200 dark:bg-green-800/50 dark:text-green-200 dark:hover:bg-green-700/50"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      AniCards Website
+                    </a>
+                  </div>
+                </CardContent>
+              </Card>
             </motion.div>
           </div>
         )}
@@ -390,7 +408,7 @@ export function UserPageClient() {
                 <Button
                   asChild
                   size="lg"
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-lg"
+                  className="group rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl"
                 >
                   <Link
                     href={{
@@ -401,20 +419,8 @@ export function UserPageClient() {
                       },
                     }}
                   >
-                    <svg
-                      className="mr-2 h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
-                      />
-                    </svg>
-                    View All Generated Cards
+                    <span className="mr-2">View All Generated Cards</span>
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </Link>
                 </Button>
               </div>
@@ -432,35 +438,29 @@ export function UserPageClient() {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="flex flex-col items-center justify-center py-16"
           >
-            <div className="rounded-2xl border border-white/20 bg-white/10 p-12 text-center backdrop-blur-sm dark:border-gray-700/30 dark:bg-gray-800/20">
-              <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700">
-                <svg
-                  className="h-12 w-12 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
+            <Card className="w-full max-w-md border-gray-200 bg-white/80 text-center shadow-2xl backdrop-blur-xl dark:border-gray-800 dark:bg-gray-900/80">
+              <CardContent className="pt-12">
+                <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
+                  <Info className="h-10 w-10 text-slate-400" />
+                </div>
+                <h3 className="mb-2 text-2xl font-bold text-slate-900 dark:text-white">
+                  No Cards Found
+                </h3>
+                <p className="mb-8 text-slate-600 dark:text-slate-300">
+                  This user hasn&apos;t generated any stat cards yet.
+                </p>
+                <Button
+                  asChild
+                  size="lg"
+                  className="group w-full rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  />
-                </svg>
-              </div>
-              <h3 className="mb-2 text-2xl font-semibold text-gray-900 dark:text-white">
-                No Cards Found
-              </h3>
-              <p className="mb-6 text-gray-600 dark:text-gray-300">
-                This user hasn&apos;t generated any stat cards yet.
-              </p>
-              <Button
-                asChild
-                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-lg"
-              >
-                <Link href="/">Generate Your First Card</Link>
-              </Button>
-            </div>
+                  <Link href="/">
+                    Generate Your First Card
+                    <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
           </motion.div>
         )}
 
@@ -469,39 +469,30 @@ export function UserPageClient() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.6 }}
-          className="mt-16 text-center"
+          className="mt-24 text-center"
         >
-          <div className="rounded-2xl border border-white/20 bg-white/10 p-8 backdrop-blur-sm dark:border-gray-700/30 dark:bg-gray-800/20 md:p-12">
-            <h2 className="mb-4 text-3xl font-bold text-gray-900 dark:text-white">
-              Explore More Projects
-            </h2>
-            <p className="mb-8 text-lg text-gray-600 dark:text-gray-300">
-              Discover other tools and utilities I&apos;ve built for the anime
-              community.
-            </p>
-            <Button
-              asChild
-              size="lg"
-              variant="outline"
-              className="border-purple-300 text-purple-600 transition-all duration-300 hover:border-purple-400 hover:bg-purple-50 dark:border-purple-600 dark:text-purple-400 dark:hover:bg-purple-900/20"
-            >
-              <Link href="/projects">
-                <svg
-                  className="mr-2 h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                  />
-                </svg>
-                Check Out My Other Projects
-              </Link>
-            </Button>
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 to-slate-800 px-6 py-16 text-white shadow-2xl dark:from-slate-800 dark:to-slate-900 sm:px-12">
+            <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
+            <div className="relative z-10 mx-auto max-w-2xl">
+              <h2 className="mb-4 text-3xl font-bold sm:text-4xl">
+                Explore More Projects
+              </h2>
+              <p className="mb-8 text-lg text-slate-300">
+                Discover other tools and utilities I&apos;ve built for the anime
+                community.
+              </p>
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="border-white/20 bg-white/10 text-white backdrop-blur-sm transition-all hover:bg-white/20 hover:text-white"
+              >
+                <Link href="/projects">
+                  Check Out My Other Projects
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
           </div>
         </motion.div>
       </div>
