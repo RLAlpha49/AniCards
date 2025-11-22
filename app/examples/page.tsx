@@ -1,12 +1,13 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { ImageWithSkeleton } from "@/components/ui/image-with-skeleton";
+import { StatCardGenerator } from "@/components/stat-card-generator";
 import {
   ArrowLeft,
   BarChart2,
@@ -17,10 +18,12 @@ import {
   Building2,
   BookOpen,
   Play,
-  ArrowRight,
   ExternalLink,
+  Sparkles,
+  Search,
 } from "lucide-react";
 import { usePageSEO } from "@/hooks/use-page-seo";
+import { Input } from "@/components/ui/input";
 
 interface CardVariant {
   name: string;
@@ -37,136 +40,231 @@ interface CardType {
   color: string;
 }
 
-export function CardWithSkeleton({
+function ExampleCard({
   variant,
   cardTypeTitle,
   userId,
+  color,
+  onOpenGenerator,
 }: Readonly<{
   variant: CardVariant;
   cardTypeTitle: string;
   userId: string;
+  color: string;
+  onOpenGenerator: () => void;
 }>) {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [hasError, setHasError] = useState(false);
-
-  useEffect(() => {
-    // Fallback timeout to show content even if onLoad doesn't fire
-    const fallbackTimer = setTimeout(() => {
-      if (!isLoaded && !hasError) {
-        setIsLoaded(true);
-      }
-    }, 2000);
-
-    return () => clearTimeout(fallbackTimer);
-  }, [isLoaded, hasError]);
-
-  const handleLoad = () => {
-    setIsLoaded(true);
-  };
-
-  const handleError = () => {
-    setHasError(true);
-  };
-
   return (
-    <Card className="group transform-gpu overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:shadow-xl">
-      <CardContent className="p-4">
-        {(() => {
-          let content;
-          if (!isLoaded && !hasError) {
-            // Skeleton state
-            content = (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Skeleton className="h-5 w-20" />
-                  <Skeleton className="h-4 w-4" />
-                </div>
-                <Skeleton className="h-32 w-full rounded-lg" />
-                <div className="flex items-center justify-between">
-                  <Skeleton className="h-3 w-24" />
-                  <Skeleton className="h-3 w-16" />
-                </div>
-              </div>
-            );
-          } else if (hasError) {
-            // Error state
-            content = (
-              <div className="space-y-3">
-                <div className="mb-3 flex items-center justify-between">
-                  <h4 className="font-semibold text-gray-900 dark:text-white">
-                    {variant.name}
-                  </h4>
-                  <ExternalLink className="h-4 w-4 text-gray-400" />
-                </div>
-                <div className="flex h-32 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
-                  <span className="text-sm text-gray-500">Failed to load</span>
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">
-                  <div className="flex items-center justify-between">
-                    <span>Live API Example</span>
-                    <span>User: {userId}</span>
-                  </div>
-                </div>
-              </div>
-            );
-          } else {
-            // Loaded state
-            content = (
-              <>
-                <div className="mb-3 flex items-center justify-between">
-                  <h4 className="font-semibold text-gray-900 dark:text-white">
-                    {variant.name}
-                  </h4>
-                  <a
-                    href={variant.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="opacity-0 transition-opacity group-hover:opacity-100"
-                  >
-                    <ExternalLink className="h-4 w-4 text-gray-400 hover:text-blue-600" />
-                  </a>
-                </div>
+    <Card className="group relative overflow-hidden border-0 bg-white/80 shadow-lg backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:bg-slate-800/80">
+      <CardContent className="p-0">
+        <div className="relative flex items-center justify-center bg-slate-100/50 p-6 dark:bg-slate-900/50">
+          <div className="relative w-full shadow-sm transition-transform duration-300 group-hover:scale-[1.02]">
+            <ImageWithSkeleton
+              src={variant.url}
+              alt={`${cardTypeTitle} - ${variant.name}`}
+              className="h-auto w-full rounded-lg"
+            />
+          </div>
 
-                <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700">
-                  <img
-                    src={variant.url}
-                    alt={`${cardTypeTitle} - ${variant.name}`}
-                    className="w-full object-contain transition-opacity duration-300"
-                    loading="lazy"
-                    onLoad={handleLoad}
-                    onError={handleError}
-                  />
-                </div>
+          {/* Hover Overlay */}
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/0 transition-all duration-300 group-hover:bg-slate-900/10 dark:group-hover:bg-slate-900/30">
+            <Button
+              onClick={onOpenGenerator}
+              className="translate-y-4 opacity-0 shadow-lg transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100"
+            >
+              <Play className="mr-2 h-4 w-4" />
+              Create This Card
+            </Button>
+          </div>
+        </div>
 
-                <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-                  <div className="flex items-center justify-between">
-                    <span>Live API Example</span>
-                    <span>User: {userId}</span>
-                  </div>
-                </div>
-              </>
-            );
-          }
-          return content;
-        })()}
-
-        {/* Hidden img to trigger loading detection */}
-        {!isLoaded && !hasError && (
-          <img
-            src={variant.url}
-            alt={`${cardTypeTitle} - ${variant.name}`}
-            className="hidden"
-            onLoad={handleLoad}
-            onError={handleError}
-          />
-        )}
+        <div className="p-5">
+          <div className="mb-2 flex items-center justify-between">
+            <h4 className="font-bold text-slate-900 dark:text-white">
+              {variant.name}
+            </h4>
+            <a
+              href={variant.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-slate-400 transition-colors hover:text-blue-600 dark:text-slate-500 dark:hover:text-blue-400"
+            >
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-slate-500 dark:text-slate-400">
+              {cardTypeTitle}
+            </span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider bg-${color}-100 text-${color}-700 dark:bg-${color}-900/30 dark:text-${color}-300`}
+            >
+              Live Preview
+            </span>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
 }
 
+const getCategoryIcon = (category: string) => {
+  switch (category) {
+    case "Main Stats":
+      return BarChart2;
+    case "Anime Breakdowns":
+      return PieChart;
+    case "Manga Breakdowns":
+      return BookOpen;
+    default:
+      return BarChart2;
+  }
+};
+
+const getCategoryColor = (category: string) => {
+  switch (category) {
+    case "Anime Breakdowns":
+      return {
+        bg: "bg-purple-100 dark:bg-purple-900/30",
+        text: "text-purple-600 dark:text-purple-400",
+      };
+    case "Manga Breakdowns":
+      return {
+        bg: "bg-pink-100 dark:bg-pink-900/30",
+        text: "text-pink-600 dark:text-pink-400",
+      };
+    case "Main Stats":
+    default:
+      return {
+        bg: "bg-blue-100 dark:bg-blue-900/30",
+        text: "text-blue-600 dark:text-blue-400",
+      };
+  }
+};
+
+function CategorySection({
+  category,
+  categoryIndex,
+  filteredCardTypes,
+  isFirstCategory,
+  onOpenGenerator,
+  userId,
+}: Readonly<{
+  category: string;
+  categoryIndex: number;
+  filteredCardTypes: CardType[];
+  isFirstCategory: boolean;
+  onOpenGenerator: () => void;
+  userId: string;
+}>) {
+  const categoryCards = filteredCardTypes.filter(
+    (card) => card.category === category,
+  );
+
+  if (categoryCards.length === 0) return null;
+
+  const CategoryIcon = getCategoryIcon(category);
+  const categoryColors = getCategoryColor(category);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 30 }}
+      animate={isFirstCategory ? { opacity: 1, y: 0 } : undefined}
+      whileInView={isFirstCategory ? undefined : { opacity: 1, y: 0 }}
+      transition={{
+        duration: 0.6,
+        delay: isFirstCategory ? 0.3 : categoryIndex * 0.1,
+      }}
+      viewport={
+        isFirstCategory
+          ? undefined
+          : {
+              once: true,
+              margin: "-10% 0px -10% 0px",
+              amount: 0.1,
+            }
+      }
+    >
+      {/* Category Header */}
+      <div className="mb-12 flex items-center space-x-4">
+        <div className={`rounded-2xl ${categoryColors.bg} p-3`}>
+          <CategoryIcon className={`h-8 w-8 ${categoryColors.text}`} />
+        </div>
+        <div>
+          <h2 className="text-3xl font-bold text-slate-900 dark:text-white">
+            {category}
+          </h2>
+          <p className="text-slate-600 dark:text-slate-400">
+            Collection of {categoryCards.length} card types
+          </p>
+        </div>
+      </div>
+
+      {/* Cards for this Category */}
+      <div className="space-y-16">
+        {categoryCards.map((cardType, cardIndex) => (
+          <motion.div
+            key={cardType.title}
+            initial={{ opacity: 0, y: 20 }}
+            animate={isFirstCategory ? { opacity: 1, y: 0 } : undefined}
+            whileInView={isFirstCategory ? undefined : { opacity: 1, y: 0 }}
+            transition={{
+              duration: 0.6,
+              delay: isFirstCategory ? 0.5 + cardIndex * 0.1 : cardIndex * 0.1,
+            }}
+            viewport={isFirstCategory ? undefined : { once: true }}
+            className="space-y-6"
+          >
+            {/* Card Type Header */}
+            <div className="flex items-center space-x-3 border-l-4 border-slate-200 pl-4 dark:border-slate-700">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                {cardType.title}
+              </h3>
+              <span className="hidden text-sm text-slate-500 dark:text-slate-400 sm:inline-block">
+                — {cardType.description}
+              </span>
+            </div>
+
+            {/* Variants Grid */}
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {cardType.variants.map((variant, variantIndex) => (
+                <motion.div
+                  key={variant.name}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={
+                    isFirstCategory ? { opacity: 1, scale: 1 } : undefined
+                  }
+                  whileInView={
+                    isFirstCategory ? undefined : { opacity: 1, scale: 1 }
+                  }
+                  transition={{
+                    duration: 0.4,
+                    delay: isFirstCategory
+                      ? 0.7 + cardIndex * 0.1 + variantIndex * 0.05
+                      : variantIndex * 0.05,
+                  }}
+                  viewport={isFirstCategory ? undefined : { once: true }}
+                >
+                  <ExampleCard
+                    variant={variant}
+                    cardTypeTitle={cardType.title}
+                    userId={userId}
+                    color={cardType.color}
+                    onOpenGenerator={onOpenGenerator}
+                  />
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
 export default function ExamplesPage() {
   usePageSEO("examples");
+  const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const BASE_URL = "https://anicards.alpha49.com/api/card.svg";
   const USER_ID = "542244";
@@ -622,163 +720,77 @@ export default function ExamplesPage() {
     "Manga Breakdowns",
   ] as const;
 
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case "Main Stats":
-        return BarChart2;
-      case "Anime Breakdowns":
-        return PieChart;
-      case "Manga Breakdowns":
-        return BookOpen;
-      default:
-        return BarChart2;
-    }
-  };
-
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case "Anime Breakdowns":
-        return {
-          bg: "bg-purple-100 dark:bg-purple-900/30",
-          text: "text-purple-600 dark:text-purple-400",
-        };
-      case "Manga Breakdowns":
-        return {
-          bg: "bg-pink-100 dark:bg-pink-900/30",
-          text: "text-pink-600 dark:text-pink-400",
-        };
-      case "Main Stats":
-      default:
-        return {
-          bg: "bg-blue-100 dark:bg-blue-900/30",
-          text: "text-blue-600 dark:text-blue-400",
-        };
-    }
-  };
-
-  const getCardTypeColor = (color: string) => {
-    switch (color) {
-      case "blue":
-        return {
-          bg: "bg-blue-100 dark:bg-blue-900/30",
-          text: "text-blue-600 dark:text-blue-400",
-        };
-      case "pink":
-        return {
-          bg: "bg-pink-100 dark:bg-pink-900/30",
-          text: "text-pink-600 dark:text-pink-400",
-        };
-      case "green":
-        return {
-          bg: "bg-green-100 dark:bg-green-900/30",
-          text: "text-green-600 dark:text-green-400",
-        };
-      case "purple":
-        return {
-          bg: "bg-purple-100 dark:bg-purple-900/30",
-          text: "text-purple-600 dark:text-purple-400",
-        };
-      case "indigo":
-        return {
-          bg: "bg-indigo-100 dark:bg-indigo-900/30",
-          text: "text-indigo-600 dark:text-indigo-400",
-        };
-      case "orange":
-        return {
-          bg: "bg-orange-100 dark:bg-orange-900/30",
-          text: "text-orange-600 dark:text-orange-400",
-        };
-      case "teal":
-        return {
-          bg: "bg-teal-100 dark:bg-teal-900/30",
-          text: "text-teal-600 dark:text-teal-400",
-        };
-      case "cyan":
-        return {
-          bg: "bg-cyan-100 dark:bg-cyan-900/30",
-          text: "text-cyan-600 dark:text-cyan-400",
-        };
-      case "emerald":
-        return {
-          bg: "bg-emerald-100 dark:bg-emerald-900/30",
-          text: "text-emerald-600 dark:text-emerald-400",
-        };
-      case "violet":
-        return {
-          bg: "bg-violet-100 dark:bg-violet-900/30",
-          text: "text-violet-600 dark:text-violet-400",
-        };
-      case "rose":
-        return {
-          bg: "bg-rose-100 dark:bg-rose-900/30",
-          text: "text-rose-600 dark:text-rose-400",
-        };
-      case "amber":
-        return {
-          bg: "bg-amber-100 dark:bg-amber-900/30",
-          text: "text-amber-600 dark:text-amber-400",
-        };
-      case "lime":
-        return {
-          bg: "bg-lime-100 dark:bg-lime-900/30",
-          text: "text-lime-600 dark:text-lime-400",
-        };
-      default:
-        return {
-          bg: "bg-gray-100 dark:bg-gray-900/30",
-          text: "text-gray-600 dark:text-gray-400",
-        };
-    }
-  };
+  const filteredCardTypes = cardTypes.filter(
+    (card) =>
+      card.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      card.description.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
 
   return (
-    <div className="min-h-screen overflow-hidden bg-gradient-to-b from-blue-50 via-white to-gray-50 dark:from-slate-900 dark:via-gray-900 dark:to-gray-800">
+    <div className="min-h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
       {/* Header Section */}
-      <section className="relative border-b border-gray-200 bg-white/80 backdrop-blur-sm dark:border-gray-700 dark:bg-gray-900/80">
-        <div className="container mx-auto px-4 py-8">
+      <section className="relative z-10 border-b border-slate-200/60 bg-white/50 backdrop-blur-xl dark:border-slate-800/60 dark:bg-slate-950/50">
+        <div className="container mx-auto px-4 py-12">
           <div className="mx-auto max-w-6xl">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="space-y-6"
+              className="space-y-8"
             >
               {/* Navigation */}
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center justify-between">
                 <Link href="/">
-                  <Button variant="outline" size="sm" className="group">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="group text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                  >
                     <ArrowLeft className="mr-2 h-4 w-4 transition-transform group-hover:-translate-x-1" />
                     Back to Home
                   </Button>
                 </Link>
-                <div className="h-4 w-px bg-gray-300 dark:bg-gray-600"></div>
-                <span className="text-sm text-gray-600 dark:text-gray-400">
-                  All Card Examples
-                </span>
+                <div className="relative w-full max-w-xs">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    type="text"
+                    placeholder="Search cards..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
               </div>
 
               {/* Title & Description */}
-              <div className="space-y-4">
-                <h1 className="text-4xl font-bold text-gray-900 dark:text-white lg:text-5xl">
-                  All Card Types & Variants
+              <div className="space-y-6 text-center sm:text-left">
+                <div className="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Gallery
+                </div>
+                <h1 className="text-4xl font-bold leading-tight text-slate-900 dark:text-white sm:text-5xl lg:text-6xl">
+                  Explore All{" "}
+                  <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                    Card Types
+                  </span>
                 </h1>
-                <p className="text-lg text-gray-600 dark:text-gray-300 lg:text-xl">
-                  Explore every available card type with live examples from{" "}
+                <p className="max-w-2xl text-lg text-slate-600 dark:text-slate-300 lg:text-xl">
+                  Browse our complete collection of statistical visualizations.
+                  All examples are generated in real-time using data from{" "}
                   <a
                     href="https://anilist.co/user/Alpha49"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-base font-semibold text-blue-700 transition-colors hover:bg-blue-200 hover:text-blue-900 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-800/70 dark:hover:text-white"
-                    aria-label="View Alpha49's AniList profile"
+                    className="font-semibold text-blue-600 hover:underline dark:text-blue-400"
                   >
                     @Alpha49
                   </a>{" "}
-                  . All cards are generated in real-time using the AniCards API.
+                  .
                 </p>
               </div>
 
               {/* Quick Stats */}
-              <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                 {categories.map((category) => {
                   const count = cardTypes.filter(
                     (card) => card.category === category,
@@ -787,32 +799,35 @@ export default function ExamplesPage() {
                   const colors = getCategoryColor(category);
 
                   return (
-                    <div key={category} className="text-center">
+                    <div
+                      key={category}
+                      className="rounded-xl border border-slate-200 bg-white/50 p-4 text-center backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/50"
+                    >
                       <div
-                        className={`mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full ${colors.bg}`}
+                        className={`mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full ${colors.bg}`}
                       >
-                        <Icon className={`h-6 w-6 ${colors.text}`} />
+                        <Icon className={`h-5 w-5 ${colors.text}`} />
                       </div>
-                      <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                      <div className="text-2xl font-bold text-slate-900 dark:text-white">
                         {count}
                       </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
                         {category}
                       </div>
                     </div>
                   );
                 })}
-                <div className="text-center">
-                  <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
-                    <TrendingUp className="h-6 w-6 text-green-600 dark:text-green-400" />
+                <div className="rounded-xl border border-slate-200 bg-white/50 p-4 text-center backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/50">
+                  <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+                    <TrendingUp className="h-5 w-5 text-green-600 dark:text-green-400" />
                   </div>
-                  <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                  <div className="text-2xl font-bold text-slate-900 dark:text-white">
                     {cardTypes.reduce(
                       (total, card) => total + card.variants.length,
                       0,
                     )}
                   </div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                  <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
                     Total Variants
                   </div>
                 </div>
@@ -823,153 +838,26 @@ export default function ExamplesPage() {
       </section>
 
       {/* Card Showcase by Category */}
-      <section className="py-16">
+      <section className="relative z-10 py-20">
         <div className="container mx-auto px-4">
-          <div className="mx-auto max-w-7xl space-y-16">
-            {categories.map((category, categoryIndex) => {
-              const categoryCards = cardTypes.filter(
-                (card) => card.category === category,
-              );
-              const CategoryIcon = getCategoryIcon(category);
-              const categoryColors = getCategoryColor(category);
-
-              // Special handling for Main Stats (first category) to ensure it always loads
-              const isFirstCategory = categoryIndex === 0;
-
-              return (
-                <motion.div
-                  key={category}
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={isFirstCategory ? { opacity: 1, y: 0 } : undefined}
-                  whileInView={
-                    !isFirstCategory ? { opacity: 1, y: 0 } : undefined
-                  }
-                  transition={{
-                    duration: 0.6,
-                    delay: isFirstCategory ? 0.3 : categoryIndex * 0.1,
-                  }}
-                  viewport={
-                    !isFirstCategory
-                      ? {
-                          once: true,
-                          margin: "-10% 0px -10% 0px",
-                          amount: 0.1,
-                        }
-                      : undefined
-                  }
-                  className="space-y-8"
-                >
-                  {/* Category Header */}
-                  <div className="border-l-4 border-blue-500 pl-6">
-                    <div className="flex items-center space-x-3">
-                      <div className={`rounded-lg ${categoryColors.bg} p-2`}>
-                        <CategoryIcon
-                          className={`h-6 w-6 ${categoryColors.text}`}
-                        />
-                      </div>
-                      <div>
-                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white lg:text-3xl">
-                          {category}
-                        </h2>
-                        <p className="text-gray-600 dark:text-gray-400">
-                          {categoryCards.length} card type
-                          {categoryCards.length !== 1 ? "s" : ""} with{" "}
-                          {categoryCards.reduce(
-                            (total, card) => total + card.variants.length,
-                            0,
-                          )}{" "}
-                          total variants
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Cards for this Category */}
-                  <div className="space-y-12">
-                    {categoryCards.map((cardType, cardIndex) => (
-                      <motion.div
-                        key={cardType.title}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={
-                          isFirstCategory ? { opacity: 1, y: 0 } : undefined
-                        }
-                        whileInView={
-                          !isFirstCategory ? { opacity: 1, y: 0 } : undefined
-                        }
-                        transition={{
-                          duration: 0.6,
-                          delay: isFirstCategory
-                            ? 0.5 + cardIndex * 0.1
-                            : cardIndex * 0.1,
-                        }}
-                        viewport={!isFirstCategory ? { once: true } : undefined}
-                        className="space-y-6"
-                      >
-                        {/* Card Type Header */}
-                        <div className="flex items-center space-x-3">
-                          <div
-                            className={`rounded-lg ${getCardTypeColor(cardType.color).bg} p-2`}
-                          >
-                            <cardType.icon
-                              className={`h-5 w-5 ${getCardTypeColor(cardType.color).text}`}
-                            />
-                          </div>
-                          <div>
-                            <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                              {cardType.title}
-                            </h3>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                              {cardType.description}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Variants Grid */}
-                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                          {cardType.variants.map((variant, variantIndex) => (
-                            <motion.div
-                              key={variant.name}
-                              initial={{ opacity: 0, scale: 0.9 }}
-                              animate={
-                                isFirstCategory
-                                  ? { opacity: 1, scale: 1 }
-                                  : undefined
-                              }
-                              whileInView={
-                                !isFirstCategory
-                                  ? { opacity: 1, scale: 1 }
-                                  : undefined
-                              }
-                              transition={{
-                                duration: 0.4,
-                                delay: isFirstCategory
-                                  ? 0.7 + cardIndex * 0.1 + variantIndex * 0.05
-                                  : variantIndex * 0.05,
-                              }}
-                              viewport={
-                                !isFirstCategory ? { once: true } : undefined
-                              }
-                            >
-                              <CardWithSkeleton
-                                variant={variant}
-                                cardTypeTitle={cardType.title}
-                                userId={USER_ID}
-                              />
-                            </motion.div>
-                          ))}
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                </motion.div>
-              );
-            })}
+          <div className="mx-auto max-w-7xl space-y-24">
+            {categories.map((category, categoryIndex) => (
+              <CategorySection
+                key={category}
+                category={category}
+                categoryIndex={categoryIndex}
+                filteredCardTypes={filteredCardTypes}
+                isFirstCategory={categoryIndex === 0}
+                onOpenGenerator={() => setIsGeneratorOpen(true)}
+                userId={USER_ID}
+              />
+            ))}
           </div>
         </div>
       </section>
 
       {/* Call to Action */}
-      <section className="border-t border-gray-200 bg-gradient-to-r from-blue-50 to-purple-50 py-16 dark:border-gray-700 dark:from-blue-900/20 dark:to-purple-900/20">
+      <section className="relative z-10 border-t border-slate-200 bg-slate-50 py-24 dark:border-slate-800 dark:bg-slate-900/50">
         <div className="container mx-auto px-4">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -979,74 +867,52 @@ export default function ExamplesPage() {
             className="mx-auto max-w-4xl space-y-8 text-center"
           >
             <div className="space-y-4">
-              <h2 className="text-3xl font-bold text-gray-900 dark:text-white lg:text-4xl">
+              <h2 className="text-3xl font-bold text-slate-900 dark:text-white lg:text-4xl">
                 Ready to create your own?
               </h2>
-              <p className="mx-auto max-w-2xl text-lg text-gray-600 dark:text-gray-300">
+              <p className="mx-auto max-w-2xl text-lg text-slate-600 dark:text-slate-300">
                 These are live examples using real AniList data from user{" "}
-                {USER_ID}. Generate your personalized cards with your own
-                AniList statistics!
+                <a
+                  href="https://anilist.co/user/Alpha49"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                >
+                  @Alpha49
+                </a>{" "}
+                . Generate your personalized cards with your own AniList
+                statistics!
               </p>
             </div>
 
             <div className="flex flex-col items-center space-y-4 sm:flex-row sm:justify-center sm:space-x-6 sm:space-y-0">
-              <Link href="/">
-                <Button
-                  size="lg"
-                  className="group transform-gpu bg-gradient-to-r from-blue-600 to-purple-600 px-8 py-4 text-lg font-semibold shadow-lg transition-all duration-200 hover:scale-[1.02] hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
-                >
-                  <Play className="mr-2 h-5 w-5" />
-                  Create Your Cards
-                  <ArrowRight className="ml-2 h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
-                </Button>
-              </Link>
+              <Button
+                size="lg"
+                onClick={() => setIsGeneratorOpen(true)}
+                className="group h-14 min-w-[200px] rounded-full bg-gradient-to-r from-blue-600 to-purple-600 px-8 text-lg font-semibold text-white shadow-lg transition-all duration-200 hover:scale-[1.02] hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
+              >
+                <Play className="mr-2 h-5 w-5 fill-current" />
+                Create Your Cards
+              </Button>
 
               <Link href="/search">
                 <Button
                   variant="outline"
                   size="lg"
-                  className="px-8 py-4 text-lg font-semibold"
+                  className="h-14 min-w-[200px] rounded-full border-2 text-lg font-semibold"
                 >
                   Browse User Cards
                 </Button>
               </Link>
             </div>
-
-            {/* API Information */}
-            <div className="mt-12 rounded-xl bg-white/60 p-6 backdrop-blur-sm dark:bg-gray-800/60">
-              <div className="grid gap-6 md:grid-cols-3">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                    {cardTypes.length}
-                  </div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                    Card Types Available
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                    {cardTypes.reduce(
-                      (total, card) => total + card.variants.length,
-                      0,
-                    )}
-                  </div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                    Total Variations
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                    100%
-                  </div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                    Live API Examples
-                  </div>
-                </div>
-              </div>
-            </div>
           </motion.div>
         </div>
       </section>
+
+      <StatCardGenerator
+        isOpen={isGeneratorOpen}
+        onClose={() => setIsGeneratorOpen(false)}
+      />
     </div>
   );
 }

@@ -65,10 +65,7 @@ export function AppSidebar() {
                     isActive={pathname === item.href}
                     tooltip={item.title}
                   >
-                    <Link
-                      href={item.href}
-                      onClick={() => handleNavClick(item)}
-                    >
+                    <Link href={item.href} onClick={() => handleNavClick(item)}>
                       <item.icon />
                       <span>{item.title}</span>
                     </Link>

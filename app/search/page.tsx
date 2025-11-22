@@ -7,28 +7,85 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Info } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Info, User, Hash, Sparkles, ArrowRight, Search } from "lucide-react";
 import { LoadingOverlay } from "@/components/loading-spinner";
+import { ImageWithSkeleton } from "@/components/ui/image-with-skeleton";
 import {
   trackFormSubmission,
   trackNavigation,
 } from "@/lib/utils/google-analytics";
 import { usePageSEO } from "@/hooks/use-page-seo";
+import { cn } from "@/lib/utils";
+
+const FLOATING_CARDS = [
+  {
+    src: "https://anicards.alpha49.com/api/card.svg?cardType=animeStats&userId=542244&variation=default",
+    alt: "Anime Stats",
+    className:
+      "absolute top-[15%] left-[5%] w-[280px] lg:w-[380px] -rotate-6 hidden xl:block",
+    animate: { y: [0, -15, 0], rotate: [-6, -8, -6] },
+    delay: 0,
+  },
+  {
+    src: "https://anicards.alpha49.com/api/card.svg?cardType=mangaStats&userId=542244&variation=default",
+    alt: "Manga Stats",
+    className:
+      "absolute top-[20%] right-[5%] w-[280px] lg:w-[380px] rotate-6 hidden xl:block",
+    animate: { y: [0, 15, 0], rotate: [6, 8, 6] },
+    delay: 0.5,
+  },
+  {
+    src: "https://anicards.alpha49.com/api/card.svg?cardType=animeGenres&userId=542244&variation=pie",
+    alt: "Anime Genres",
+    className:
+      "absolute bottom-[20%] left-[10%] w-[240px] lg:w-[320px] rotate-12 hidden xl:block",
+    animate: { y: [0, -20, 0], rotate: [12, 10, 12] },
+    delay: 1,
+  },
+  {
+    src: "https://anicards.alpha49.com/api/card.svg?cardType=socialStats&userId=542244&variation=default",
+    alt: "Social Stats",
+    className:
+      "absolute bottom-[25%] right-[10%] w-[240px] lg:w-[320px] -rotate-12 hidden xl:block",
+    animate: { y: [0, 20, 0], rotate: [-12, -10, -12] },
+    delay: 1.5,
+  },
+];
+
+const EXAMPLE_USERS = [
+  { username: "RLAlpha49", label: "Developer" },
+  { username: "ReZero", label: "Anime Fan" },
+  { username: "Gigguk", label: "Content Creator" },
+];
+
+type SearchMethod = "username" | "userid";
 
 export default function UserLookupPage() {
   usePageSEO("search");
 
   const router = useRouter();
-  const [userId, setUserId] = useState("");
-  const [username, setUsername] = useState("");
+  const [searchMethod, setSearchMethod] = useState<SearchMethod>("username");
+  const [searchValue, setSearchValue] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    performSearch(searchValue);
+  };
 
-    if (!userId && !username) {
-      setError("Please enter either a User ID or Username");
+  const performSearch = (value: string) => {
+    if (!value.trim()) {
+      setError(
+        `Please enter a ${searchMethod === "username" ? "username" : "user ID"}`,
+      );
       trackFormSubmission("user_search", false);
       return;
     }
@@ -37,143 +94,204 @@ export default function UserLookupPage() {
     trackFormSubmission("user_search", true);
 
     const params = new URLSearchParams();
-    if (userId) params.set("userId", userId);
-    if (username) params.set("username", username);
+    // If the value is numeric and we are in username mode, we might want to check if it's an ID,
+    // but for now let's stick to the selected method or try to be smart.
+    // Actually, let's trust the user's selection but if they click an example, it's always a username.
+    
+    // Check if we are searching by ID or Username based on current state
+    // But if the input comes from example, it is a username.
+    // Let's assume the state `searchMethod` is correct for the input `value` unless `value` is passed from example.
+    
+    // Simplified logic:
+    if (searchMethod === "username") {
+       params.set("username", value.trim());
+    } else {
+       params.set("userId", value.trim());
+    }
 
     trackNavigation("user_page", "search_form");
     router.push(`/user?${params.toString()}`);
   };
 
+  const handleExampleClick = (username: string) => {
+    setSearchMethod("username");
+    setSearchValue(username);
+    // Optional: auto-submit
+    // performSearch(username); 
+    // Better to just fill it so they can see it.
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-100 px-4 py-12 dark:from-gray-900 dark:via-slate-800 dark:to-blue-950">
+    <div className="relative min-h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
       {loading && <LoadingOverlay text="Searching for user..." />}
 
-      {/* Background decorative elements */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -right-40 -top-40 h-80 w-80 rounded-full bg-gradient-to-br from-blue-400/20 to-purple-600/20 blur-3xl"></div>
-        <div className="absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-gradient-to-tr from-pink-400/20 to-orange-600/20 blur-3xl"></div>
+      {/* Abstract Background Shapes */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute left-1/2 top-0 h-[800px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-400/10 blur-[120px] dark:bg-blue-600/10" />
+        <div className="absolute bottom-0 left-0 h-[600px] w-[600px] rounded-full bg-purple-400/10 blur-[100px] dark:bg-purple-600/10" />
+        <div className="absolute bottom-0 right-0 h-[600px] w-[600px] rounded-full bg-pink-400/10 blur-[100px] dark:bg-pink-600/10" />
       </div>
 
-      <div className="container relative z-10 mx-auto flex max-w-2xl flex-col items-center justify-center">
-        <motion.header
-          className="mb-12 text-center"
-          initial={{ opacity: 0, y: -30 }}
+      {/* Grid Pattern */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:24px_24px]" />
+
+      {/* Floating Cards Layer */}
+      <div className="pointer-events-none absolute inset-0 z-0">
+        {FLOATING_CARDS.map((card) => (
+          <motion.div
+            key={card.alt}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{
+              opacity: 1,
+              scale: 1,
+              ...card.animate,
+            }}
+            transition={{
+              opacity: { duration: 0.8, delay: card.delay },
+              scale: { duration: 0.8, delay: card.delay },
+              default: { duration: 6, repeat: Infinity, ease: "easeInOut" },
+            }}
+            className={`${card.className} rounded-xl bg-white p-1 shadow-2xl dark:bg-slate-800`}
+          >
+            <div className="h-full w-full overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-900">
+              <ImageWithSkeleton
+                src={card.src}
+                alt={card.alt}
+                className="h-full w-full object-contain"
+              />
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      <div className="container relative z-10 mx-auto flex min-h-screen flex-col items-center justify-center px-4 py-12">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
+          transition={{ duration: 0.5 }}
+          className="mb-8 inline-flex items-center rounded-full border border-blue-200 bg-blue-50/80 px-4 py-1.5 text-sm font-medium text-blue-600 backdrop-blur-sm dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
         >
-          <h1 className="mb-4 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-5xl font-bold text-transparent md:text-6xl">
-            Find User Cards
-          </h1>
-        </motion.header>
+          <Sparkles className="mr-2 h-4 w-4" />
+          <span>Find Any AniList User</span>
+        </motion.div>
+
+        <motion.h1
+          className="mb-12 text-center text-4xl font-extrabold leading-tight tracking-tight text-slate-900 dark:text-white sm:text-5xl md:text-6xl"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+        >
+          Discover User{" "}
+          <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+            Statistics
+          </span>
+        </motion.h1>
 
         <motion.div
           className="w-full max-w-lg"
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{
-            type: "spring",
-            stiffness: 100,
-            damping: 20,
-            delay: 0.3,
-          }}
+          transition={{ duration: 0.5, delay: 0.2 }}
         >
-          <div className="rounded-3xl border-2 border-blue-100/50 bg-white/70 p-8 shadow-2xl backdrop-blur-xl dark:border-blue-900/30 dark:bg-gray-800/70">
-            <form onSubmit={handleSubmit} className="space-y-8">
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <Alert
-                    variant="destructive"
-                    className="border-red-200/50 bg-red-50/80 dark:border-red-800/50 dark:bg-red-950/30"
+          <Card className="border-gray-200 bg-white/80 shadow-2xl backdrop-blur-xl dark:border-gray-800 dark:bg-gray-900/80">
+            <CardHeader>
+              <CardTitle>Search Profile</CardTitle>
+              <CardDescription>
+                Enter a username or ID
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.3 }}
                   >
-                    <Info className="h-4 w-4" />
-                    <AlertTitle className="text-red-800 dark:text-red-200">
-                      Search Error
-                    </AlertTitle>
-                    <AlertDescription className="text-red-700 dark:text-red-300">
-                      {error}
-                    </AlertDescription>
-                  </Alert>
-                </motion.div>
-              )}
-
-              <div className="space-y-6">
-                <motion.div
-                  className="space-y-3"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.4, duration: 0.4 }}
-                >
-                  <Label
-                    htmlFor="userId"
-                    className="flex items-center gap-2 text-lg font-semibold text-gray-700 dark:text-gray-200"
-                  >
-                    <span className="text-xl">🆔</span>
-                    <span>User ID</span>
-                  </Label>
-                  <Input
-                    id="userId"
-                    value={userId}
-                    onChange={(e) => setUserId(e.target.value)}
-                    placeholder="Enter numeric AniList ID (e.g., 123456)"
-                    className="h-12 border-2 border-blue-100/50 bg-white/50 text-lg transition-all duration-300 placeholder:text-gray-400 hover:border-blue-200/70 focus:border-blue-400/70 focus:bg-white/70 focus:ring-2 focus:ring-blue-200/30 dark:border-blue-800/50 dark:bg-gray-900/50 dark:hover:border-blue-700/70 dark:focus:border-blue-500/70 dark:focus:bg-gray-900/70"
-                  />
-                </motion.div>
-
-                <motion.div
-                  className="flex items-center gap-4"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.5, duration: 0.4 }}
-                >
-                  <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-300 to-transparent dark:via-gray-600"></div>
-                  <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                    OR
-                  </span>
-                  <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-300 to-transparent dark:via-gray-600"></div>
-                </motion.div>
-
-                <motion.div
-                  className="space-y-3"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.6, duration: 0.4 }}
-                >
-                  <div className="flex items-center justify-between">
-                    <Label
-                      htmlFor="username"
-                      className="flex items-center gap-2 text-lg font-semibold text-gray-700 dark:text-gray-200"
+                    <Alert
+                      variant="destructive"
+                      className="border-red-200/50 bg-red-50/80 dark:border-red-800/50 dark:bg-red-950/30"
                     >
-                      <span className="text-xl">👤</span>
-                      <span>Username</span>
-                    </Label>
-                    <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
-                      Case insensitive
-                    </span>
-                  </div>
-                  <Input
-                    id="username"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Enter AniList username (e.g., YourUsername)"
-                    className="h-12 border-2 border-purple-100/50 bg-white/50 text-lg transition-all duration-300 placeholder:text-gray-400 hover:border-purple-200/70 focus:border-purple-400/70 focus:bg-white/70 focus:ring-2 focus:ring-purple-200/30 dark:border-purple-800/50 dark:bg-gray-900/50 dark:hover:border-purple-700/70 dark:focus:border-purple-500/70 dark:focus:bg-gray-900/70"
-                  />
-                </motion.div>
-              </div>
+                      <Info className="h-4 w-4" />
+                      <AlertTitle className="text-red-800 dark:text-red-200">
+                        Search Error
+                      </AlertTitle>
+                      <AlertDescription className="text-red-700 dark:text-red-300">
+                        {error}
+                      </AlertDescription>
+                    </Alert>
+                  </motion.div>
+                )}
 
-              <motion.div
-                className="pt-4"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.7, duration: 0.4 }}
-              >
+                {/* Search Method Toggle */}
+                <div className="grid grid-cols-2 gap-2 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchMethod("username");
+                      setError("");
+                    }}
+                    className={cn(
+                      "flex items-center justify-center gap-2 rounded-md py-2 text-sm font-medium transition-all",
+                      searchMethod === "username"
+                        ? "bg-white text-blue-600 shadow-sm dark:bg-slate-700 dark:text-blue-400"
+                        : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                    )}
+                  >
+                    <User className="h-4 w-4" />
+                    Username
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchMethod("userid");
+                      setError("");
+                    }}
+                    className={cn(
+                      "flex items-center justify-center gap-2 rounded-md py-2 text-sm font-medium transition-all",
+                      searchMethod === "userid"
+                        ? "bg-white text-blue-600 shadow-sm dark:bg-slate-700 dark:text-blue-400"
+                        : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                    )}
+                  >
+                    <Hash className="h-4 w-4" />
+                    User ID
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="searchValue"
+                    className="text-base font-semibold text-gray-900 dark:text-gray-100"
+                  >
+                    {searchMethod === "username" ? "Username" : "User ID"}
+                  </Label>
+                  <div className="relative">
+                    <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
+                      {searchMethod === "username" ? (
+                        <Search className="h-5 w-5" />
+                      ) : (
+                        <Hash className="h-5 w-5" />
+                      )}
+                    </div>
+                    <Input
+                      id="searchValue"
+                      value={searchValue}
+                      onChange={(e) => setSearchValue(e.target.value)}
+                      placeholder={
+                        searchMethod === "username"
+                          ? "e.g., YourUsername"
+                          : "e.g., 123456"
+                      }
+                      className="h-12 border-gray-200 bg-white pl-10 text-lg transition-all hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:hover:border-blue-500 dark:focus:border-blue-400"
+                    />
+                  </div>
+                </div>
+
                 <Button
                   type="submit"
                   size="lg"
-                  className="h-14 w-full transform-gpu rounded-2xl bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-lg font-semibold text-white shadow-lg transition-all duration-200 hover:scale-[1.02] hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 hover:shadow-xl disabled:cursor-not-allowed disabled:from-gray-400 disabled:via-gray-500 disabled:to-gray-600 disabled:hover:scale-100"
+                  className="group h-14 w-full rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-lg font-semibold text-white shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl hover:shadow-blue-500/25 disabled:opacity-50"
                   disabled={loading}
                 >
                   {loading ? (
@@ -183,16 +301,14 @@ export default function UserLookupPage() {
                     </>
                   ) : (
                     <>
-                      <span>🔍 Search User Stats</span>
-                      <span className="ml-2 transition-transform group-hover:translate-x-1">
-                        →
-                      </span>
+                      <span>Search User Stats</span>
+                      <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
                     </>
                   )}
                 </Button>
-              </motion.div>
-            </form>
-          </div>
+              </form>
+            </CardContent>
+          </Card>
         </motion.div>
       </div>
     </div>

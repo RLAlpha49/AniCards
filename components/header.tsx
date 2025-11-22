@@ -17,7 +17,7 @@ export default function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 flex h-16 items-center gap-4 border-b bg-background/80 px-6 backdrop-blur-md transition-all dark:bg-slate-950/80 pl-1.5">
+    <header className="sticky top-0 z-50 flex h-16 items-center gap-4 border-b bg-background/80 px-6 pl-1.5 backdrop-blur-md transition-all dark:bg-slate-950/80">
       <div className="flex items-center gap-4">
         <SidebarTrigger className="h-9 w-9" />
         <Link
