@@ -90,48 +90,59 @@ export function StatCardPreview({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="z-[100] border-gray-200/50 bg-gradient-to-br from-white to-gray-50 dark:border-gray-700/50 dark:from-gray-800 dark:to-gray-900 sm:max-w-[500px]">
-        <DialogHeader className="pb-4">
-          <DialogTitle className="flex items-center gap-2 text-xl font-bold text-gray-800 dark:text-gray-200">
-            <span className="h-3 w-3 animate-pulse rounded-full bg-gradient-to-r from-blue-500 to-purple-500"></span>
-            Preview: {displayNames[cardType] || cardType}
-            <span className="rounded-md bg-gray-100/50 px-2 py-1 text-sm font-normal text-gray-500 dark:bg-gray-800/50 dark:text-gray-400">
-              {effectiveVariation}
-            </span>
-          </DialogTitle>
-        </DialogHeader>
+      <DialogContent className="z-[100] border-0 bg-white/95 p-0 shadow-2xl backdrop-blur-xl dark:bg-gray-900/95 sm:max-w-[600px]">
+        <div className="border-b border-gray-100 p-6 dark:border-gray-800">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3 text-xl font-bold">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                <span className="text-lg">👁️</span>
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  {displayNames[cardType] || cardType}
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                    {effectiveVariation}
+                  </span>
+                </div>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+        </div>
 
-        {/* Image container with loading overlay */}
-        <div className="relative mx-auto max-h-[350px] min-w-[240px] max-w-[450px] overflow-hidden rounded-xl">
-          <div className="relative h-full w-full bg-gradient-to-br from-gray-50/50 to-white/50 p-4 dark:from-gray-800/50 dark:to-gray-700/50">
+        <div className="bg-gray-50/50 p-8 dark:bg-gray-900/50">
+          {/* Image container with loading overlay */}
+          <div className="relative mx-auto overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
             {isLoading && (
-              <div className="absolute inset-0 z-50 flex items-center justify-center rounded-lg bg-white/90 dark:bg-gray-900/90">
+              <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm dark:bg-gray-900/80">
                 <LoadingSpinner
                   className="text-blue-500"
                   text="Loading preview..."
                 />
               </div>
             )}
-            <Image
-              src={previewUrl}
-              alt={`Preview of ${cardType} stat card (${effectiveVariation})`}
-              width={800}
-              height={600}
-              className="relative z-10 h-full w-full rounded-lg object-contain shadow-lg transition-all duration-300 hover:scale-105"
-              quality={100} // Max image quality
-              onLoadStart={() => setIsLoading(true)}
-              onLoad={() => setIsLoading(false)}
-              onError={() => setIsLoading(false)}
-            />
+            <div className="p-4">
+              <Image
+                src={previewUrl}
+                alt={`Preview of ${cardType} stat card (${effectiveVariation})`}
+                width={800}
+                height={600}
+                className="h-auto w-full object-contain transition-transform duration-500 hover:scale-[1.02]"
+                quality={100}
+                onLoadStart={() => setIsLoading(true)}
+                onLoad={() => setIsLoading(false)}
+                onError={() => setIsLoading(false)}
+                unoptimized
+              />
+            </div>
           </div>
-        </div>
 
-        {/* Preview disclaimer */}
-        <div className="mt-4 rounded-lg border border-blue-200/30 bg-gradient-to-r from-blue-50/50 to-indigo-50/50 p-3 dark:border-blue-800/30 dark:from-blue-900/20 dark:to-indigo-900/20">
-          <p className="text-center text-sm font-medium text-blue-700 dark:text-blue-300">
-            ✨ This is a static preview. The actual card will use your Anilist
-            data and selected colors.
-          </p>
+          {/* Preview disclaimer */}
+          <div className="mt-6 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+              i
+            </span>
+            <p>Preview uses sample data. Your card will use your real stats.</p>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

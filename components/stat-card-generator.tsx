@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +27,19 @@ import {
   trackCardGeneration,
   trackUserSearch,
 } from "@/lib/utils/google-analytics";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  User,
+  Palette,
+  LayoutGrid,
+  Settings2,
+  ChevronRight,
+  Sparkles,
+  CheckCircle2,
+  X,
+} from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface StatCardGeneratorProps {
   isOpen: boolean;
@@ -286,8 +299,35 @@ export const colorPresets = {
     mode: "light",
   },
   fire: { colors: ["#ff4500", "#fff5f5", "#8b0000", "#ff4500"], mode: "light" },
+  emberGlow: {
+    colors: ["#ff6b35", "#1f1a17", "#fde68a", "#ff8b3d"],
+    mode: "dark",
+  },
+  rainforestMist: {
+    colors: ["#0f766e", "#f4f9fa", "#0f3c3c", "#34d399"],
+    mode: "light",
+  },
+  polarNight: {
+    colors: ["#0ea5e9", "#020617", "#a5f3fc", "#38bdf8"],
+    mode: "dark",
+  },
+  canyonSunrise: {
+    colors: ["#ea580c", "#1d1b1e", "#fef3c7", "#fb923c"],
+    mode: "light",
+  },
+  verdantTwilight: {
+    colors: ["#22c55e", "#021102", "#dcfce7", "#4ade80"],
+    mode: "dark",
+  },
   custom: { colors: ["", "", "", ""], mode: "custom" },
 };
+
+const STEPS = [
+  { id: "user", label: "User", icon: User },
+  { id: "colors", label: "Colors", icon: Palette },
+  { id: "cards", label: "Cards", icon: LayoutGrid },
+  { id: "advanced", label: "Advanced", icon: Settings2 },
+];
 
 export function StatCardGenerator({
   isOpen,
@@ -319,6 +359,8 @@ export function StatCardGenerator({
   const [useMangaStatusColors, setUseMangaStatusColors] = useState(false);
   const [showPiePercentages, setShowPiePercentages] = useState(false);
 
+  const [currentStep, setCurrentStep] = useState(0);
+
   // Use our custom hook for managing submission
   const { loading, error, submit, clearError } = useStatCardSubmit();
 
@@ -329,9 +371,15 @@ export function StatCardGenerator({
 
     setSelectedPreset(defaults.colorPreset);
     // Apply color preset
-    [setTitleColor, setBackgroundColor, setTextColor, setCircleColor].forEach(
-      (setter, index) => setter(presetColors[index]),
-    );
+    const setters = [
+      setTitleColor,
+      setBackgroundColor,
+      setTextColor,
+      setCircleColor,
+    ];
+    for (const [index, setter] of setters.entries()) {
+      setter(presetColors[index]);
+    }
 
     // Load default variants directly instead of parsing from card IDs
     const savedVariantsData = localStorage.getItem("anicards-defaultVariants");
@@ -447,11 +495,11 @@ export function StatCardGenerator({
       // For cards with variants, default to "default" if not already set.
       setSelectedCardVariants((old) => {
         const newObj = { ...old };
-        statCardTypes.forEach((type) => {
-          if (type.variations) {
-            if (!newObj[type.id]) newObj[type.id] = "default";
+        for (const type of statCardTypes) {
+          if (type.variations && !newObj[type.id]) {
+            newObj[type.id] = "default";
           }
-        });
+        }
         return newObj;
       });
     }
@@ -514,9 +562,7 @@ export function StatCardGenerator({
 
   // When submitting, we reassemble the selectedCards array. For card types with variants,
   // we append the variant suffix only if it is not "default". (If it is "default", we leave it off.)
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const handleSubmit = async () => {
     // Track user search in Google Analytics
     if (username) {
       trackUserSearch(username);
@@ -533,7 +579,7 @@ export function StatCardGenerator({
     // Convert back to array and apply variants
     const finalSelectedCards = Array.from(uniqueCards).map((baseId) => {
       const variant = selectedCardVariants[baseId] || "default";
-      return variant !== "default" ? `${baseId}-${variant}` : baseId;
+      return variant === "default" ? baseId : `${baseId}-${variant}`;
     });
 
     const showFavoritesConfig = Array.from(uniqueCards).reduce(
@@ -545,9 +591,9 @@ export function StatCardGenerator({
     );
 
     // Track card generation for each selected card type
-    finalSelectedCards.forEach((cardType) => {
+    for (const cardType of finalSelectedCards) {
       trackCardGeneration(cardType);
-    });
+    }
 
     const result = await submit({
       username,
@@ -629,206 +675,271 @@ export function StatCardGenerator({
     },
   ];
 
+  const nextStep = () => {
+    if (currentStep < STEPS.length - 1) {
+      setCurrentStep((prev) => prev + 1);
+    }
+  };
+
+  const prevStep = () => {
+    if (currentStep === 0) {
+      onClose();
+      return;
+    }
+
+    setCurrentStep((prev) => prev - 1);
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       {loading && <LoadingOverlay text="Creating your stat cards..." />}
       <DialogContent
         className={cn(
-          "z-50 max-h-[calc(100vh-6rem)] overflow-y-auto sm:max-w-[800px] lg:max-w-[900px] xl:max-w-[1000px]",
-          "bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-gray-800 dark:to-blue-950",
-          "rounded-2xl border-2 border-blue-100/50 shadow-2xl dark:border-blue-900/30",
+          "z-50 flex h-[90vh] max-h-[1000px] w-[95vw] max-w-[1000px] flex-col overflow-hidden p-0",
+          "bg-white dark:bg-gray-900",
+          "rounded-2xl border-0 shadow-2xl",
           className,
         )}
       >
-        <div className="relative z-10">
-          <DialogHeader className="-m-6 mb-0 rounded-t-2xl border-b border-blue-100/30 bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-pink-500/5 p-6 pb-8 dark:border-blue-800/30 dark:from-blue-600/10 dark:via-purple-600/10 dark:to-pink-600/10">
-            <div className="space-y-3 text-center">
-              <DialogTitle className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-3xl font-bold text-transparent">
-                Generate Your Stat Cards ✨
-              </DialogTitle>
-              <DialogDescription className="mx-auto max-w-2xl text-lg leading-relaxed text-gray-600 dark:text-gray-300">
-                Create beautiful, personalized visualizations of your AniList
-                statistics with customizable themes and layouts.
-              </DialogDescription>
-            </div>
+        {/* Header */}
+        <div className="relative z-10 flex shrink-0 flex-col border-b border-gray-100 bg-white px-6 py-4 dark:border-gray-800 dark:bg-gray-900">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-2xl font-bold">
+              <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                Generate Cards
+              </span>
+              <Sparkles className="h-5 w-5 text-purple-500" />
+            </DialogTitle>
+            <DialogDescription className="text-gray-500 dark:text-gray-400">
+              Create beautiful, personalized visualizations of your AniList
+              stats.
+            </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-8 pt-8">
-            {/* Step 1: User Details Section */}
-            <div className="rounded-2xl border border-blue-100/50 bg-gradient-to-r from-blue-50 to-indigo-50 p-6 shadow-sm transition-shadow duration-300 hover:shadow-md dark:border-blue-900/30 dark:from-blue-950/40 dark:to-indigo-950/40">
-              <div className="mb-5 flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-sm font-semibold text-white">
-                  1
-                </div>
-                <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
-                  Enter Your AniList Username
-                </h3>
-                <div className="h-px flex-1 bg-gradient-to-r from-blue-200 to-transparent dark:from-blue-800"></div>
-              </div>
-              <UserDetailsForm
-                username={username}
-                onUsernameChange={setUsername}
-              />
-            </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close dialog"
+            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-transparent bg-gray-100 text-gray-500 transition hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
 
-            {/* Step 2: Color Customization Section */}
-            <div className="rounded-2xl border border-purple-100/50 bg-gradient-to-r from-purple-50 to-pink-50 p-6 shadow-sm transition-shadow duration-300 hover:shadow-md dark:border-purple-900/30 dark:from-purple-950/40 dark:to-pink-950/40">
-              <div className="mb-5 flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-500 text-sm font-semibold text-white">
-                  2
-                </div>
-                <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
-                  Customize Your Colors
-                </h3>
-                <div className="h-px flex-1 bg-gradient-to-r from-purple-200 to-transparent dark:from-purple-800"></div>
-              </div>
+          {/* Steps Navigation */}
+          <div className="mt-6 flex w-full items-center px-2">
+            <div className="flex w-full items-center justify-between gap-0">
+              {STEPS.map((step, index) => {
+                const Icon = step.icon;
+                const isActive = index === currentStep;
+                const isCompleted = index < currentStep;
 
-              {/* Color Preset Selector */}
-              <div className="mb-4">
-                <ColorPresetSelector
-                  selectedPreset={selectedPreset}
-                  presets={colorPresets}
-                  onPresetChange={(preset) => {
-                    setSelectedPreset(preset);
-                    if (preset !== "custom") {
-                      [
-                        setTitleColor,
-                        setBackgroundColor,
-                        setTextColor,
-                        setCircleColor,
-                      ].forEach((setter, index) =>
-                        setter(
-                          colorPresets[preset as keyof typeof colorPresets]
-                            .colors[index],
-                        ),
-                      );
-                    }
-                  }}
-                />
-              </div>
+                let buttonClass =
+                  "relative flex h-10 w-10 items-center justify-center rounded-full transition-all duration-300";
+                if (isActive) {
+                  buttonClass +=
+                    " bg-blue-600 text-white shadow-lg shadow-blue-500/30 scale-110";
+                } else if (isCompleted) {
+                  buttonClass += " bg-green-500 text-white";
+                } else {
+                  buttonClass += " bg-gray-100 text-gray-400 dark:bg-gray-800";
+                }
 
-              {/* Color Picker Grid */}
-              <ColorPickerGroup pickers={colorPickers} />
+                let textClass = "text-xs font-medium transition-colors";
+                if (isActive) {
+                  textClass += " text-blue-600 dark:text-blue-400";
+                } else if (isCompleted) {
+                  textClass += " text-green-600 dark:text-green-400";
+                } else {
+                  textClass += " text-gray-400";
+                }
 
-              {/* Live Preview */}
-              <div className="mt-4">
-                <LivePreview previewSVG={previewSVG} />
-              </div>
-            </div>
-
-            {/* Step 3: Card Selection Section */}
-            <div className="rounded-2xl border border-green-100/50 bg-gradient-to-r from-green-50 to-emerald-50 p-6 shadow-sm transition-shadow duration-300 hover:shadow-md dark:border-green-900/30 dark:from-green-950/40 dark:to-emerald-950/40">
-              <div className="mb-5 flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-sm font-semibold text-white">
-                  3
-                </div>
-                <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
-                  Choose Your Stat Cards
-                </h3>
-                <div className="h-px flex-1 bg-gradient-to-r from-green-200 to-transparent dark:from-green-800"></div>
-              </div>
-              <StatCardTypeSelection
-                cardTypes={statCardTypes}
-                selectedCards={selectedCards}
-                selectedCardVariants={selectedCardVariants}
-                allSelected={allSelected}
-                onToggle={handleToggleCard}
-                onSelectAll={handleSelectAll}
-                onVariantChange={handleVariantChange}
-                onPreview={handlePreview}
-                showFavoritesByCard={showFavoritesByCard}
-                onToggleShowFavorites={handleToggleShowFavorites}
-              />
-            </div>
-
-            {/* Step 4: Advanced Options Section */}
-            <div className="rounded-2xl border border-orange-100/50 bg-gradient-to-r from-orange-50 to-red-50 p-6 shadow-sm transition-shadow duration-300 hover:shadow-md dark:border-orange-900/30 dark:from-orange-950/40 dark:to-red-950/40">
-              <div className="mb-5 flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-500 text-sm font-semibold text-white">
-                  4
-                </div>
-                <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
-                  Advanced Options
-                </h3>
-                <div className="h-px flex-1 bg-gradient-to-r from-orange-200 to-transparent dark:from-orange-800"></div>
-                <span className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                  Optional
-                </span>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                {/* Status Color Toggles */}
-                <div className="space-y-4">
-                  <h4 className="flex items-center gap-2 font-medium text-gray-700 dark:text-gray-300">
-                    <span>🎨 Status Color Overrides</span>
-                  </h4>
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3 rounded-xl border border-gray-200/50 bg-white/70 p-4 transition-colors duration-200 hover:border-blue-300/50 dark:border-gray-700/50 dark:bg-gray-800/70 dark:hover:border-blue-600/50">
-                      <input
-                        id="anime-status-colors"
-                        type="checkbox"
-                        checked={useAnimeStatusColors}
-                        onChange={handleToggleAnimeStatusColors}
-                        className="h-4 w-4 cursor-pointer rounded accent-blue-500"
+                return (
+                  <Fragment key={step.id}>
+                    {index > 0 && (
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "block h-[2px] min-w-[32px] max-w-[230px] flex-1 -translate-y-2.5 self-center transition-colors duration-300",
+                          index <= currentStep
+                            ? "bg-green-500"
+                            : "bg-gray-100 dark:bg-gray-800",
+                        )}
                       />
-                      <label
-                        htmlFor="anime-status-colors"
-                        className="cursor-pointer select-none text-sm leading-tight text-gray-700 dark:text-gray-300"
-                      >
-                        <span className="font-medium">
-                          Anime Status Distribution:
-                        </span>{" "}
-                        Use fixed status colors
-                      </label>
-                    </div>
-                    <div className="flex items-center gap-3 rounded-xl border border-gray-200/50 bg-white/70 p-4 transition-colors duration-200 hover:border-blue-300/50 dark:border-gray-700/50 dark:bg-gray-800/70 dark:hover:border-blue-600/50">
-                      <input
-                        id="manga-status-colors"
-                        type="checkbox"
-                        checked={useMangaStatusColors}
-                        onChange={handleToggleMangaStatusColors}
-                        className="h-4 w-4 cursor-pointer rounded accent-blue-500"
-                      />
-                      <label
-                        htmlFor="manga-status-colors"
-                        className="cursor-pointer select-none text-sm leading-tight text-gray-700 dark:text-gray-300"
-                      >
-                        <span className="font-medium">
-                          Manga Status Distribution:
-                        </span>{" "}
-                        Use fixed status colors
-                      </label>
-                    </div>
-                  </div>
-                </div>
+                    )}
 
-                <div className="space-y-4">
-                  <h4 className="flex items-center gap-2 font-medium text-gray-700 dark:text-gray-300">
-                    <span>📊 Chart Options</span>
-                  </h4>
-                  <div className="flex items-center gap-3 rounded-xl border border-gray-200/50 bg-white/70 p-4 transition-colors duration-200 hover:border-blue-300/50 dark:border-gray-700/50 dark:bg-gray-800/70 dark:hover:border-blue-600/50">
-                    <input
-                      id="pie-percentages-toggle"
-                      type="checkbox"
-                      checked={showPiePercentages}
-                      onChange={handleToggleShowPiePercentages}
-                      className="h-4 w-4 cursor-pointer rounded accent-blue-500"
+                    <div className="flex flex-col items-center gap-2 px-3">
+                      <button
+                        onClick={() => setCurrentStep(index)}
+                        className={cn(buttonClass)}
+                      >
+                        {isCompleted ? (
+                          <CheckCircle2 className="h-5 w-5" />
+                        ) : (
+                          <Icon className="h-5 w-5" />
+                        )}
+                      </button>
+                      <span className={cn(textClass)}>{step.label}</span>
+                    </div>
+                  </Fragment>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-1 overflow-y-auto bg-gray-50/50 p-2 dark:bg-gray-900/50">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentStep}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2 }}
+              className="mx-auto max-w-4xl"
+            >
+              {currentStep === 0 && (
+                <div className="space-y-6">
+                  <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                    <UserDetailsForm
+                      username={username}
+                      onUsernameChange={setUsername}
                     />
-                    <label
-                      htmlFor="pie-percentages-toggle"
-                      className="cursor-pointer select-none text-sm leading-tight text-gray-700 dark:text-gray-300"
-                    >
-                      <span className="font-medium">Pie Charts:</span> Show
-                      percentages in legends
-                    </label>
+                  </div>
+                  <UpdateNotice />
+                </div>
+              )}
+
+              {currentStep === 1 && (
+                <div className="space-y-6">
+                  <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                    <Label className="mb-4 block text-sm font-medium text-gray-500">
+                      Live Preview
+                    </Label>
+                    <LivePreview previewSVG={previewSVG} />
+                  </div>
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    <div className="min-w-0">
+                      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                        <ColorPresetSelector
+                          selectedPreset={selectedPreset}
+                          presets={colorPresets}
+                          onPresetChange={(preset) => {
+                            setSelectedPreset(preset);
+                            if (preset !== "custom") {
+                              const setters = [
+                                setTitleColor,
+                                setBackgroundColor,
+                                setTextColor,
+                                setCircleColor,
+                              ];
+                              for (const [index, setter] of setters.entries()) {
+                                setter(
+                                  colorPresets[
+                                    preset as keyof typeof colorPresets
+                                  ].colors[index],
+                                );
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                        <ColorPickerGroup pickers={colorPickers} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {currentStep === 2 && (
+                <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                  <StatCardTypeSelection
+                    cardTypes={statCardTypes}
+                    selectedCards={selectedCards}
+                    selectedCardVariants={selectedCardVariants}
+                    allSelected={allSelected}
+                    onToggle={handleToggleCard}
+                    onSelectAll={handleSelectAll}
+                    onVariantChange={handleVariantChange}
+                    onPreview={handlePreview}
+                    showFavoritesByCard={showFavoritesByCard}
+                    onToggleShowFavorites={handleToggleShowFavorites}
+                  />
+                </div>
+              )}
+
+              {currentStep === 3 && (
+                <div className="space-y-6">
+                  <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                    <h3 className="mb-4 text-lg font-semibold">
+                      Advanced Options
+                    </h3>
+                    <div className="grid gap-6 md:grid-cols-2">
+                      <div className="space-y-4">
+                        <Label className="text-sm font-medium text-gray-500">
+                          Status Colors
+                        </Label>
+                        <div className="flex items-center justify-between rounded-lg border p-4 dark:border-gray-800">
+                          <div className="space-y-0.5">
+                            <Label className="text-base">
+                              Anime Status Colors
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              Use fixed colors for status distribution
+                            </p>
+                          </div>
+                          <Switch
+                            checked={useAnimeStatusColors}
+                            onCheckedChange={handleToggleAnimeStatusColors}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between rounded-lg border p-4 dark:border-gray-800">
+                          <div className="space-y-0.5">
+                            <Label className="text-base">
+                              Manga Status Colors
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              Use fixed colors for status distribution
+                            </p>
+                          </div>
+                          <Switch
+                            checked={useMangaStatusColors}
+                            onCheckedChange={handleToggleMangaStatusColors}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <Label className="text-sm font-medium text-gray-500">
+                          Chart Options
+                        </Label>
+                        <div className="flex items-center justify-between rounded-lg border p-4 dark:border-gray-800">
+                          <div className="space-y-0.5">
+                            <Label className="text-base">Pie Percentages</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Show percentages in legends
+                            </p>
+                          </div>
+                          <Switch
+                            checked={showPiePercentages}
+                            onCheckedChange={handleToggleShowPiePercentages}
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="rounded-lg border border-blue-200/30 bg-blue-50/50 p-3 dark:border-blue-800/30 dark:bg-blue-950/20">
-                    <div className="flex items-start gap-2 text-xs text-blue-700 dark:text-blue-300">
-                      <span className="text-sm">ℹ️</span>
-                      <div>
-                        <p className="mb-1 font-medium">Status Color Guide:</p>
-                        <p className="leading-relaxed">
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 dark:border-blue-900/30 dark:bg-blue-900/10">
+                    <div className="flex gap-3">
+                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-400">
+                        <span className="text-xs font-bold">i</span>
+                      </div>
+                      <div className="space-y-1 text-sm text-blue-900 dark:text-blue-100">
+                        <p className="font-medium">Status Color Guide</p>
+                        <p className="text-blue-700 dark:text-blue-300">
                           Current=🟢, Paused=🟡, Completed=🔵, Dropped=🔴,
                           Planning=⚪
                         </p>
@@ -836,74 +947,44 @@ export function StatCardGenerator({
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </div>
 
-            {/* Generate Button & Status */}
-            <div className="space-y-4 pt-6">
-              <div className="flex items-center justify-between rounded-xl border border-gray-200/50 bg-gradient-to-r from-gray-50 to-gray-100 p-4 dark:border-gray-600/50 dark:from-gray-800 dark:to-gray-700">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-lg font-bold text-white">
-                    ✨
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-800 dark:text-gray-200">
-                      Ready to Generate
-                    </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {(() => {
-                        let cardText;
-                        if (selectedCards.length > 0) {
-                          cardText =
-                            selectedCards.length === 1
-                              ? "1 card selected"
-                              : `${selectedCards.length} cards selected`;
-                        } else {
-                          cardText = "No cards selected";
-                        }
-                        return (
-                          <>
-                            {cardText}
-                            {username && ` • ${username}`}
-                          </>
-                        );
-                      })()}
-                    </p>
-                  </div>
-                </div>
-              </div>
+        {/* Footer Actions */}
+        <div className="flex shrink-0 items-center justify-between border-t border-gray-100 bg-white px-6 py-4 dark:border-gray-800 dark:bg-gray-900">
+          <Button
+            variant="ghost"
+            onClick={prevStep}
+            disabled={loading}
+            className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+          >
+            Back
+          </Button>
 
-              {(() => {
-                let buttonLabel;
-                if (selectedCards.length === 0) {
-                  buttonLabel = <>🚫 Select Cards to Continue</>;
-                } else if (!username.trim()) {
-                  buttonLabel = <>👤 Enter Username to Continue</>;
-                } else {
-                  buttonLabel = (
-                    <>
-                      🚀 Generate {selectedCards.length} Stat Card
-                      {selectedCards.length === 1 ? "" : "s"}
-                    </>
-                  );
-                }
-                return (
-                  <Button
-                    type="submit"
-                    disabled={selectedCards.length === 0 || !username.trim()}
-                    className="w-full transform-gpu rounded-2xl bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 px-8 py-6 text-xl font-semibold text-white shadow-lg transition-all duration-200 hover:scale-[1.02] hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 hover:shadow-xl disabled:cursor-not-allowed disabled:from-gray-400 disabled:via-gray-500 disabled:to-gray-600 disabled:hover:scale-100"
-                  >
-                    {buttonLabel}
-                  </Button>
-                );
-              })()}
-            </div>
-
-            {/* Update Notice */}
-            <div className="border-t border-gray-200/50 pt-6 dark:border-gray-700/50">
-              <UpdateNotice />
-            </div>
-          </form>
+          <div className="flex items-center gap-3">
+            {currentStep === STEPS.length - 1 ? (
+              <Button
+                onClick={handleSubmit}
+                disabled={selectedCards.length === 0 || !username.trim()}
+                className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 px-8 font-semibold text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl disabled:opacity-50"
+              >
+                Generate{" "}
+                {selectedCards.length > 0 && `(${selectedCards.length})`}
+                <Sparkles className="ml-2 h-4 w-4" />
+              </Button>
+            ) : (
+              <Button
+                onClick={nextStep}
+                disabled={currentStep === 0 && !username.trim()}
+                className="bg-gray-900 text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+              >
+                Next Step
+                <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
       </DialogContent>
 
