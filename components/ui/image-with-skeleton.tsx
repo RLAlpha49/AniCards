@@ -19,9 +19,16 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     // Fallback timeout to show content even if onLoad doesn't fire
+    if (!isMounted) return;
+
     const fallbackTimer = setTimeout(() => {
       if (!isLoaded && !hasError) {
         setIsLoaded(true);
@@ -29,7 +36,7 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
     }, 2000);
 
     return () => clearTimeout(fallbackTimer);
-  }, [isLoaded, hasError]);
+  }, [isLoaded, hasError, isMounted]);
 
   const handleLoad = () => {
     setIsLoaded(true);
@@ -41,23 +48,29 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
 
   return (
     <div className="relative h-full w-full">
-      {!isLoaded && !hasError && (
+      {isMounted ? (
+        <>
+          {!isLoaded && !hasError && (
+            <Skeleton className="absolute inset-0 h-full w-full rounded-lg" />
+          )}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={src}
+            alt={alt}
+            className={`${className} ${isLoaded ? "opacity-100" : "opacity-0"} transition-opacity duration-300`}
+            style={style}
+            loading="lazy"
+            onLoad={handleLoad}
+            onError={handleError}
+          />
+          {hasError && (
+            <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
+              <span className="text-sm text-gray-500">Failed to load</span>
+            </div>
+          )}
+        </>
+      ) : (
         <Skeleton className="absolute inset-0 h-full w-full rounded-lg" />
-      )}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={src}
-        alt={alt}
-        className={`${className} ${isLoaded ? "opacity-100" : "opacity-0"} transition-opacity duration-300`}
-        style={style}
-        loading="lazy"
-        onLoad={handleLoad}
-        onError={handleError}
-      />
-      {hasError && (
-        <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
-          <span className="text-sm text-gray-500">Failed to load</span>
-        </div>
       )}
     </div>
   );
