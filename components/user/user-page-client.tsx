@@ -9,12 +9,7 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { LoadingSpinner } from "@/components/loading-spinner";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface UserData {
   userId: string;
@@ -296,13 +291,13 @@ export function UserPageClient() {
         </div>
 
         {cardTypes.length > 0 && (
-          <div className="mb-12 grid gap-6 md:grid-cols-2">
+          <div className="mb-8 space-y-6">
             {/* Cache Notice */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="mx-auto max-w-4xl"
+              className="mx-auto w-fit"
             >
               <Card className="h-full border-blue-200/50 bg-blue-50/50 backdrop-blur-sm dark:border-blue-800/30 dark:bg-blue-900/20">
                 <CardHeader className="pb-2">
@@ -322,7 +317,15 @@ export function UserPageClient() {
                     <li className="flex items-center gap-2">
                       <div className="h-1.5 w-1.5 rounded-full bg-blue-500"></div>
                       <span>
-                        Hard refresh (<kbd className="rounded border bg-blue-100 px-1.5 py-0.5 text-xs dark:bg-blue-800">Ctrl+F5</kbd> or <kbd className="rounded border bg-blue-100 px-1.5 py-0.5 text-xs dark:bg-blue-800">Cmd+Shift+R</kbd>)
+                        Hard refresh (
+                        <kbd className="rounded border bg-blue-100 px-1.5 py-0.5 text-xs dark:bg-blue-800">
+                          Ctrl+F5
+                        </kbd>{" "}
+                        or{" "}
+                        <kbd className="rounded border bg-blue-100 px-1.5 py-0.5 text-xs dark:bg-blue-800">
+                          Cmd+Shift+R
+                        </kbd>
+                        )
                       </span>
                     </li>
                     <li className="flex items-center gap-2">
@@ -339,7 +342,7 @@ export function UserPageClient() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.3 }}
-              className="mx-auto max-w-4xl"
+              className="mx-auto w-fit"
             >
               <Card className="h-full border-green-200/50 bg-green-50/50 backdrop-blur-sm dark:border-green-800/30 dark:bg-green-900/20">
                 <CardHeader className="pb-2">
@@ -472,7 +475,6 @@ export function UserPageClient() {
           className="mt-24 text-center"
         >
           <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 to-slate-800 px-6 py-16 text-white shadow-2xl dark:from-slate-800 dark:to-slate-900 sm:px-12">
-            <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
             <div className="relative z-10 mx-auto max-w-2xl">
               <h2 className="mb-4 text-3xl font-bold sm:text-4xl">
                 Explore More Projects

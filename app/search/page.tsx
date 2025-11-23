@@ -59,12 +59,6 @@ const FLOATING_CARDS = [
   },
 ];
 
-const EXAMPLE_USERS = [
-  { username: "RLAlpha49", label: "Developer" },
-  { username: "ReZero", label: "Anime Fan" },
-  { username: "Gigguk", label: "Content Creator" },
-];
-
 type SearchMethod = "username" | "userid";
 
 export default function UserLookupPage() {
@@ -94,35 +88,19 @@ export default function UserLookupPage() {
     trackFormSubmission("user_search", true);
 
     const params = new URLSearchParams();
-    // If the value is numeric and we are in username mode, we might want to check if it's an ID,
-    // but for now let's stick to the selected method or try to be smart.
-    // Actually, let's trust the user's selection but if they click an example, it's always a username.
-    
-    // Check if we are searching by ID or Username based on current state
-    // But if the input comes from example, it is a username.
-    // Let's assume the state `searchMethod` is correct for the input `value` unless `value` is passed from example.
-    
-    // Simplified logic:
+
     if (searchMethod === "username") {
-       params.set("username", value.trim());
+      params.set("username", value.trim());
     } else {
-       params.set("userId", value.trim());
+      params.set("userId", value.trim());
     }
 
     trackNavigation("user_page", "search_form");
     router.push(`/user?${params.toString()}`);
   };
 
-  const handleExampleClick = (username: string) => {
-    setSearchMethod("username");
-    setSearchValue(username);
-    // Optional: auto-submit
-    // performSearch(username); 
-    // Better to just fill it so they can see it.
-  };
-
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
+    <div className="relative h-full w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
       {loading && <LoadingOverlay text="Searching for user..." />}
 
       {/* Abstract Background Shapes */}
@@ -164,7 +142,7 @@ export default function UserLookupPage() {
         ))}
       </div>
 
-      <div className="container relative z-10 mx-auto flex min-h-screen flex-col items-center justify-center px-4 py-12">
+      <div className="container relative z-10 mx-auto flex h-full flex-col items-center justify-center px-4 py-12">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -196,9 +174,7 @@ export default function UserLookupPage() {
           <Card className="border-gray-200 bg-white/80 shadow-2xl backdrop-blur-xl dark:border-gray-800 dark:bg-gray-900/80">
             <CardHeader>
               <CardTitle>Search Profile</CardTitle>
-              <CardDescription>
-                Enter a username or ID
-              </CardDescription>
+              <CardDescription>Enter a username or ID</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">

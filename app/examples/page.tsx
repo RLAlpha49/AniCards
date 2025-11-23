@@ -727,7 +727,7 @@ export default function ExamplesPage() {
   );
 
   return (
-    <div className="min-h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-[90vh] w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
       {/* Header Section */}
       <section className="relative z-10 border-b border-slate-200/60 bg-white/50 backdrop-blur-xl dark:border-slate-800/60 dark:bg-slate-950/50">
         <div className="container mx-auto px-4 py-12">
