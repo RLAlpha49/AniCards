@@ -6,7 +6,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import Image from "next/image";
 import { useState, useEffect } from "react";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import {
@@ -121,17 +120,16 @@ export function StatCardPreview({
               </div>
             )}
             <div className="p-4">
-              <Image
+              <img
                 src={previewUrl}
                 alt={`Preview of ${cardType} stat card (${effectiveVariation})`}
                 width={800}
                 height={600}
                 className="h-auto w-full object-contain transition-transform duration-500 hover:scale-[1.02]"
-                quality={100}
-                onLoadStart={() => setIsLoading(true)}
                 onLoad={() => setIsLoading(false)}
                 onError={() => setIsLoading(false)}
-                unoptimized
+                decoding="async"
+                loading="lazy"
               />
             </div>
           </div>

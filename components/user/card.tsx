@@ -1,5 +1,4 @@
 import { useState } from "react";
-import Image from "next/image";
 import { Download, Link, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -63,7 +62,7 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
         </div>
 
         <div className="relative mb-6 overflow-hidden rounded-xl bg-gray-100/50 dark:bg-gray-800/50">
-          <Image
+          <img
             src={svgUrl || "/placeholder.svg"}
             alt={type}
             width={400}

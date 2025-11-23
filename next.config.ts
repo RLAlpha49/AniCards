@@ -13,7 +13,12 @@ const nextConfig: NextConfig = {
         protocol: "http",
         port: "3000",
       },
+      {
+        hostname: "anicards.alpha49.com",
+        protocol: "https",
+      },
     ],
+    qualities: [100, 75],
   },
 };
 
