@@ -8,6 +8,7 @@ import { usePageSEO } from "@/hooks/use-page-seo";
 import { SimpleGithubIcon } from "@/components/icons/simple-icons";
 import { ExternalLink, Sparkles, Code } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { GridPattern } from "@/components/ui/grid-pattern";
 
 export default function ProjectsPage() {
   usePageSEO("projects");
@@ -31,14 +32,7 @@ export default function ProjectsPage() {
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
-      {/* Abstract Background Shapes */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute left-1/4 top-0 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-400/10 blur-[120px] dark:bg-blue-600/10" />
-        <div className="absolute bottom-0 right-1/4 h-[500px] w-[500px] translate-x-1/2 translate-y-1/2 rounded-full bg-purple-400/10 blur-[100px] dark:bg-purple-600/10" />
-      </div>
-
-      {/* Grid Pattern */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:24px_24px]" />
+      <GridPattern className="z-0" includeGradients={true} />
 
       <div className="container relative z-10 mx-auto px-4 py-20">
         {/* Hero Section */}

@@ -91,12 +91,6 @@ const FEATURES = [
 export function FeaturesSection() {
   return (
     <section className="relative w-full overflow-hidden bg-transparent py-24">
-      {/* Background Decoration */}
-      <div className="absolute left-0 top-0 h-full w-full overflow-hidden opacity-30">
-        <div className="absolute -left-[20%] top-[20%] h-[500px] w-[500px] rounded-full bg-blue-100 blur-[100px] dark:bg-blue-900/20" />
-        <div className="absolute -right-[20%] bottom-[20%] h-[500px] w-[500px] rounded-full bg-purple-100 blur-[100px] dark:bg-purple-900/20" />
-      </div>
-
       <div className="container relative mx-auto px-4">
         <div className="mx-auto max-w-7xl">
           <div className="mb-16 text-center">

@@ -22,7 +22,7 @@ export default function Footer() {
     >
       <div className="container flex flex-col items-center justify-between gap-4 md:flex-row">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>&copy; {new Date().getFullYear()} AniCards</span>
+          <span>&copy; {new Date().getFullYear()} RLAlpha49</span>
           <span>•</span>
           <Link
             href="https://github.com/RLAlpha49/Anicards/blob/main/LICENSE"

@@ -57,7 +57,7 @@ const PREVIEW_CARDS = [
     color: "indigo",
     size: "medium",
   },
-    {
+  {
     title: "Manga Statistics",
     description: "Comprehensive manga reading statistics",
     cardType: "mangaStats",
@@ -77,7 +77,7 @@ export function PreviewShowcase({
   return (
     <section
       id="preview-showcase"
-      className="relative w-full bg-transparent py-24"
+      className="relative w-full overflow-hidden bg-transparent py-24"
     >
       <div className="container mx-auto px-4">
         <div className="mx-auto max-w-7xl">
