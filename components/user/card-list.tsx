@@ -27,12 +27,21 @@ export function CardList({ cardTypes }: Readonly<CardListProps>) {
   // Track which type of link was copied last (svg/anilist)
   const [copied, setCopied] = useState<string | null>(null);
 
+  // Convert relative URLs to absolute URLs if needed
+  const getAbsoluteUrl = (url: string) => {
+    if (!globalThis.window) return url;
+    if (url.startsWith("http")) return url;
+    return `${globalThis.window.location.origin}${url}`;
+  };
+
   // Generate different link formats for copy functionality
-  const svgLinks = cardTypes.map((card) => card.svgUrl);
-  const anilistBioLinks = cardTypes.map((card) => `img150(${card.svgUrl})`);
+  const svgLinks = cardTypes.map((card) => getAbsoluteUrl(card.svgUrl));
+  const anilistBioLinks = cardTypes.map(
+    (card) => `img150(${getAbsoluteUrl(card.svgUrl)})`,
+  );
 
   // Extract userId from the first card's svgUrl using URL/URLSearchParams
-  const firstCardUrl = svgLinks[0];
+  const firstCardUrl = cardTypes[0]?.svgUrl;
   let userId: string | null = null;
 
   if (firstCardUrl) {

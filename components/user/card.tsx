@@ -46,9 +46,16 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
     setTimeout(() => setCopied(null), 2000);
   };
 
+  // Convert relative URL to absolute URL if needed
+  const getAbsoluteUrl = (url: string) => {
+    if (!globalThis.window) return url;
+    if (url.startsWith("http")) return url;
+    return `${globalThis.window.location.origin}${url}`;
+  };
+
   // Pre-formatted links for copy operations
-  const svgLink = svgUrl;
-  const anilistBioLink = `img150(${svgUrl})`; // Anilist-specific image syntax
+  const svgLink = getAbsoluteUrl(svgUrl);
+  const anilistBioLink = `img150(${getAbsoluteUrl(svgUrl)})`; // Anilist-specific image syntax
 
   return (
     <div className="group relative">
