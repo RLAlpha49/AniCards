@@ -26,7 +26,12 @@ export async function POST(request: NextRequest) {
     // Validate the svgUrl
     let parsedUrl;
     try {
-      parsedUrl = new URL(svgUrl);
+      // Handle relative URLs by using the request origin as base
+      const baseUrl =
+        request.headers.get("origin") ||
+        request.headers.get("referer")?.split("?")[0] ||
+        `${request.headers.get("x-forwarded-proto") || "https"}://${request.headers.get("host")}`;
+      parsedUrl = new URL(svgUrl, baseUrl);
     } catch {
       console.warn(
         `⚠️ [Convert API] Invalid URL format for 'svgUrl' from ${ip}`,
@@ -54,8 +59,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`🔍 [Convert API] Fetching SVG from: ${svgUrl}`);
-    const response = await fetch(svgUrl);
+    console.log(`🔍 [Convert API] Fetching SVG from: ${parsedUrl.href}`);
+    const response = await fetch(parsedUrl.href);
     if (!response.ok) {
       console.error(
         `🔥 [Convert API] Failed to fetch SVG. HTTP status: ${response.status}`,
