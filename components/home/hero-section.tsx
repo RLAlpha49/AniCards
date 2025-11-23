@@ -66,7 +66,7 @@ export function HeroSection({
   onSeeExamples,
 }: Readonly<HeroSectionProps>) {
   return (
-    <section className="relative min-h-[100vh] w-full overflow-hidden bg-transparent">
+    <section className="relative min-h-[95vh] w-full overflow-hidden bg-transparent">
       {/* Abstract Background Shapes */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute left-1/2 top-0 h-[800px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-400/10 blur-[120px] dark:bg-blue-600/10" />
@@ -106,7 +106,7 @@ export function HeroSection({
         ))}
       </div>
 
-      <div className="container relative z-10 mx-auto flex min-h-[100vh] flex-col items-center justify-center px-4 py-20 text-center">
+      <div className="container relative z-10 mx-auto flex min-h-[95vh] flex-col items-center justify-center px-4 py-20 text-center">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
