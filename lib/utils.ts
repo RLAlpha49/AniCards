@@ -102,12 +102,12 @@ export const calculateDynamicFontSize = (
 export function formatBytes(bytes: number, decimals = 2) {
   if (bytes === 0) return "0 Bytes";
   const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
+  const dm = Math.max(decimals, 0);
   const sizes = ["Bytes", "KB", "MB", "GB"];
   // Determine the appropriate unit based on the logarithm of the byte count.
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   // Calculate the size in the determined unit and format it.
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
+  return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
 }
 
 /**
@@ -133,4 +133,19 @@ export function safeParse<T>(data: unknown): T {
   }
   // If data is not a string, return it as is.
   return data as T;
+}
+
+/**
+ * Converts a relative URL to an absolute URL if needed.
+ *
+ * This utility is useful for ensuring URLs are absolute when sharing or embedding images,
+ * particularly for client-side operations where the window object is available.
+ *
+ * @param url - The URL to convert (may be relative or absolute).
+ * @returns The absolute URL. If already absolute or running on server, returns the original URL.
+ */
+export function getAbsoluteUrl(url: string): string {
+  if (!globalThis.window) return url;
+  if (url.startsWith("http")) return url;
+  return `${globalThis.window.location.origin}${url}`;
 }

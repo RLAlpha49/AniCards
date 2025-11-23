@@ -7,7 +7,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { svgToPng, copyToClipboard, cn } from "@/lib/utils";
+import { svgToPng, copyToClipboard, cn, getAbsoluteUrl } from "@/lib/utils";
 import { LoadingSpinner } from "@/components/loading-spinner";
 
 import { displayNames } from "../stat-card-generator/stat-card-preview";
@@ -45,13 +45,6 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
     await copyToClipboard(text);
     setCopied(label); // Show success feedback
     setTimeout(() => setCopied(null), 2000);
-  };
-
-  // Convert relative URL to absolute URL if needed
-  const getAbsoluteUrl = (url: string) => {
-    if (!globalThis.window) return url;
-    if (url.startsWith("http")) return url;
-    return `${globalThis.window.location.origin}${url}`;
   };
 
   // Pre-formatted links for copy operations

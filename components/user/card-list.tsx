@@ -3,7 +3,7 @@
 import { Card } from "@/components/user/card";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { copyToClipboard } from "@/lib/utils";
+import { copyToClipboard, getAbsoluteUrl } from "@/lib/utils";
 import {
   Popover,
   PopoverContent,
@@ -26,13 +26,6 @@ interface CardListProps {
 export function CardList({ cardTypes }: Readonly<CardListProps>) {
   // Track which type of link was copied last (svg/anilist)
   const [copied, setCopied] = useState<string | null>(null);
-
-  // Convert relative URLs to absolute URLs if needed
-  const getAbsoluteUrl = (url: string) => {
-    if (!globalThis.window) return url;
-    if (url.startsWith("http")) return url;
-    return `${globalThis.window.location.origin}${url}`;
-  };
 
   // Generate different link formats for copy functionality
   const svgLinks = cardTypes.map((card) => getAbsoluteUrl(card.svgUrl));
