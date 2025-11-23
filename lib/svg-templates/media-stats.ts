@@ -240,14 +240,14 @@ export const mediaStatsTemplate = (data: {
   // Scale dasharray & dashoffset relative to base radius 40 to avoid overfill on smaller circles
   const baseRadius = 40;
   const scale = circleRadius / baseRadius;
-  const originalDasharray = Number.parseFloat(String(data.stats.dasharray));
-  const originalDashoffset = Number.parseFloat(String(data.stats.dashoffset));
+  const originalDasharray = Number.parseFloat(String(data.stats.dasharray)) ?? 0;
+  const originalDashoffset = Number.parseFloat(String(data.stats.dashoffset)) ?? 0;
   const scaledDasharray = Number.isFinite(originalDasharray)
     ? (originalDasharray * scale).toFixed(2)
-    : String(data.stats.dasharray);
+    : (0 * scale).toFixed(2);
   const scaledDashoffset = Number.isFinite(originalDashoffset)
     ? (originalDashoffset * scale).toFixed(2)
-    : String(data.stats.dashoffset);
+    : (0 * scale).toFixed(2);
 
   return `
 <svg
