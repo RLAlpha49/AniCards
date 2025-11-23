@@ -3,63 +3,12 @@
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Play, Sparkles, ArrowDown } from "lucide-react";
-import { ImageWithSkeleton } from "@/components/ui/image-with-skeleton";
+import { FloatingCardsLayer } from "@/components/ui/floating-cards";
 
 interface HeroSectionProps {
   onGetStarted: () => void;
   onSeeExamples: () => void;
 }
-
-const FLOATING_CARDS = [
-  {
-    src: "https://anicards.alpha49.com/api/card.svg?cardType=animeStats&userId=542244&variation=default",
-    alt: "Anime Stats",
-    className:
-      "absolute top-[15%] left-[5%] w-[280px] lg:w-[380px] -rotate-6 hidden lg:block",
-    animate: { y: [0, -15, 0], rotate: [-6, -8, -6] },
-    delay: 0,
-  },
-  {
-    src: "https://anicards.alpha49.com/api/card.svg?cardType=mangaStats&userId=542244&variation=default",
-    alt: "Manga Stats",
-    className:
-      "absolute top-[20%] right-[5%] w-[280px] lg:w-[380px] rotate-6 hidden lg:block",
-    animate: { y: [0, 15, 0], rotate: [6, 8, 6] },
-    delay: 0.5,
-  },
-  {
-    src: "https://anicards.alpha49.com/api/card.svg?cardType=animeGenres&userId=542244&variation=pie",
-    alt: "Anime Genres",
-    className:
-      "absolute bottom-[20%] left-[10%] w-[240px] lg:w-[320px] rotate-12 hidden lg:block",
-    animate: { y: [0, -20, 0], rotate: [12, 10, 12] },
-    delay: 1,
-  },
-  {
-    src: "https://anicards.alpha49.com/api/card.svg?cardType=socialStats&userId=542244&variation=default",
-    alt: "Social Stats",
-    className:
-      "absolute bottom-[25%] right-[10%] w-[240px] lg:w-[320px] -rotate-12 hidden lg:block",
-    animate: { y: [0, 20, 0], rotate: [-12, -10, -12] },
-    delay: 1.5,
-  },
-  {
-    src: "https://anicards.alpha49.com/api/card.svg?cardType=animeVoiceActors&userId=542244&variation=default",
-    alt: "Voice Actors",
-    className:
-      "absolute top-[45%] left-[-2%] w-[200px] lg:w-[260px] -rotate-12 opacity-60 hidden xl:block",
-    animate: { y: [0, -10, 0], rotate: [-12, -14, -12] },
-    delay: 2,
-  },
-  {
-    src: "https://anicards.alpha49.com/api/card.svg?cardType=animeStudios&userId=542244&variation=default",
-    alt: "Studios",
-    className:
-      "absolute top-[50%] right-[-2%] w-[200px] lg:w-[260px] rotate-12 opacity-60 hidden xl:block",
-    animate: { y: [0, 10, 0], rotate: [12, 14, 12] },
-    delay: 2.5,
-  },
-];
 
 export function HeroSection({
   onGetStarted,
@@ -68,33 +17,7 @@ export function HeroSection({
   return (
     <section className="relative min-h-[95vh] w-full overflow-hidden bg-transparent">
       {/* Floating Cards Layer */}
-      <div className="pointer-events-none absolute inset-0 z-0">
-        {FLOATING_CARDS.map((card, index) => (
-          <motion.div
-            key={card.alt}
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{
-              opacity: card.className.includes("opacity-60") ? 0.6 : 1,
-              scale: 1,
-              ...card.animate,
-            }}
-            transition={{
-              opacity: { duration: 0.8, delay: card.delay },
-              scale: { duration: 0.8, delay: card.delay },
-              default: { duration: 6, repeat: Infinity, ease: "easeInOut" },
-            }}
-            className={`${card.className} rounded-xl bg-white p-1 shadow-2xl dark:bg-slate-800`}
-          >
-            <div className="h-full w-full overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-900">
-              <ImageWithSkeleton
-                src={card.src}
-                alt={card.alt}
-                className="h-full w-full object-contain"
-              />
-            </div>
-          </motion.div>
-        ))}
-      </div>
+      <FloatingCardsLayer />
 
       <div className="container relative z-10 mx-auto flex min-h-[95vh] flex-col items-center justify-center px-4 py-20 text-center">
         <motion.div

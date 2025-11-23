@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/card";
 import { Info, User, Hash, Sparkles, ArrowRight, Search } from "lucide-react";
 import { LoadingOverlay } from "@/components/loading-spinner";
-import { ImageWithSkeleton } from "@/components/ui/image-with-skeleton";
+import { FloatingCardsLayer } from "@/components/ui/floating-cards";
 import {
   trackFormSubmission,
   trackNavigation,
@@ -24,41 +24,6 @@ import {
 import { usePageSEO } from "@/hooks/use-page-seo";
 import { cn } from "@/lib/utils";
 import { GridPattern } from "../../components/ui/grid-pattern";
-
-const FLOATING_CARDS = [
-  {
-    src: "https://anicards.alpha49.com/api/card.svg?cardType=animeStats&userId=542244&variation=default",
-    alt: "Anime Stats",
-    className:
-      "absolute top-[15%] left-[5%] w-[280px] lg:w-[380px] -rotate-6 hidden xl:block",
-    animate: { y: [0, -15, 0], rotate: [-6, -8, -6] },
-    delay: 0,
-  },
-  {
-    src: "https://anicards.alpha49.com/api/card.svg?cardType=mangaStats&userId=542244&variation=default",
-    alt: "Manga Stats",
-    className:
-      "absolute top-[20%] right-[5%] w-[280px] lg:w-[380px] rotate-6 hidden xl:block",
-    animate: { y: [0, 15, 0], rotate: [6, 8, 6] },
-    delay: 0.5,
-  },
-  {
-    src: "https://anicards.alpha49.com/api/card.svg?cardType=animeGenres&userId=542244&variation=pie",
-    alt: "Anime Genres",
-    className:
-      "absolute bottom-[20%] left-[10%] w-[240px] lg:w-[320px] rotate-12 hidden xl:block",
-    animate: { y: [0, -20, 0], rotate: [12, 10, 12] },
-    delay: 1,
-  },
-  {
-    src: "https://anicards.alpha49.com/api/card.svg?cardType=socialStats&userId=542244&variation=default",
-    alt: "Social Stats",
-    className:
-      "absolute bottom-[25%] right-[10%] w-[240px] lg:w-[320px] -rotate-12 hidden xl:block",
-    animate: { y: [0, 20, 0], rotate: [-12, -10, -12] },
-    delay: 1.5,
-  },
-];
 
 type SearchMethod = "username" | "userid";
 
@@ -107,33 +72,7 @@ export default function UserLookupPage() {
       <GridPattern className="z-0" includeGradients={true} />
 
       {/* Floating Cards Layer */}
-      <div className="pointer-events-none absolute inset-0 z-0">
-        {FLOATING_CARDS.map((card) => (
-          <motion.div
-            key={card.alt}
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{
-              opacity: 1,
-              scale: 1,
-              ...card.animate,
-            }}
-            transition={{
-              opacity: { duration: 0.8, delay: card.delay },
-              scale: { duration: 0.8, delay: card.delay },
-              default: { duration: 6, repeat: Infinity, ease: "easeInOut" },
-            }}
-            className={`${card.className} rounded-xl bg-white p-1 shadow-2xl dark:bg-slate-800`}
-          >
-            <div className="h-full w-full overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-900">
-              <ImageWithSkeleton
-                src={card.src}
-                alt={card.alt}
-                className="h-full w-full object-contain"
-              />
-            </div>
-          </motion.div>
-        ))}
-      </div>
+      <FloatingCardsLayer layout="search" />
 
       <div className="container relative z-10 mx-auto flex h-full flex-col items-center justify-center px-4 py-12">
         <motion.div
