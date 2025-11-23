@@ -14,12 +14,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { colorPresets, statCardTypes } from "@/components/stat-card-generator";
 
 // Only these card types support showFavorites
-const FAVORITE_CARD_IDS = [
+const FAVORITE_CARD_IDS = new Set([
   "animeVoiceActors",
   "animeStudios",
   "animeStaff",
   "mangaStaff",
-];
+]);
 
 interface DefaultCardSettingsProps {
   defaultPreset: string;
@@ -65,9 +65,9 @@ export function DefaultCardSettings({
 
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
-    groups.order.forEach((g) => {
+    for (const g of groups.order) {
       initial[g] = true;
-    });
+    }
     return initial;
   });
   const toggle = (g: string) => setOpenGroups((o) => ({ ...o, [g]: !o[g] }));
@@ -78,11 +78,11 @@ export function DefaultCardSettings({
       transition={{ duration: 0.5, delay: 0.4 }}
       className="space-y-4"
     >
-      <div className="rounded-xl border border-white/20 bg-white/10 p-6 backdrop-blur-sm dark:border-gray-700/30 dark:bg-gray-700/20">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 p-2">
+      <div className="rounded-2xl border border-white/50 bg-white/80 p-6 shadow-xl backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/80">
+        <div className="mb-6 flex items-center gap-4">
+          <div className="rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 p-3 shadow-lg shadow-indigo-500/20">
             <svg
-              className="h-5 w-5 text-white"
+              className="h-6 w-6 text-white"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -96,10 +96,10 @@ export function DefaultCardSettings({
             </svg>
           </div>
           <div>
-            <Label className="text-xl font-semibold text-gray-900 dark:text-white">
+            <Label className="text-xl font-bold text-slate-900 dark:text-white">
               Default Card Settings
             </Label>
-            <p className="text-sm text-gray-600 dark:text-gray-300">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               Configure default color presets and card types for new generations
             </p>
           </div>
@@ -107,19 +107,19 @@ export function DefaultCardSettings({
 
         {/* Color Preset Selection */}
         <div className="mb-8 space-y-3">
-          <Label className="text-lg font-medium text-gray-900 dark:text-white">
+          <Label className="text-base font-semibold text-slate-900 dark:text-white">
             Color Preset
           </Label>
           <Select value={defaultPreset} onValueChange={onPresetChange}>
-            <SelectTrigger className="max-w-sm border-white/20 bg-white/20 backdrop-blur-sm transition-all duration-200 hover:border-white/30 hover:bg-white/25 dark:border-gray-600/30 dark:bg-gray-700/20 dark:hover:border-gray-600/40 dark:hover:bg-gray-700/30">
+            <SelectTrigger className="h-12 w-full max-w-sm border-slate-200 bg-white px-4 text-base transition-all hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-blue-500 dark:focus:border-blue-400">
               <SelectValue placeholder="Select color preset" />
             </SelectTrigger>
-            <SelectContent className="border-white/20 bg-white/90 backdrop-blur-md dark:border-gray-600/30 dark:bg-gray-800/90">
+            <SelectContent className="border-slate-200 bg-white/95 backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900/95">
               {Object.keys(colorPresets).map((preset) => (
                 <SelectItem
                   key={preset}
                   value={preset}
-                  className="transition-colors hover:bg-blue-100/50 dark:hover:bg-gray-700/50"
+                  className="cursor-pointer py-2 transition-colors focus:bg-blue-50 dark:focus:bg-slate-800"
                 >
                   {preset.charAt(0).toUpperCase() + preset.slice(1)}
                 </SelectItem>
@@ -131,14 +131,14 @@ export function DefaultCardSettings({
         {/* Card Types Section */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <Label className="text-lg font-medium text-gray-900 dark:text-white">
+            <Label className="text-base font-semibold text-slate-900 dark:text-white">
               Default Card Types
             </Label>
             <Button
               variant="outline"
               size="sm"
               onClick={onToggleAllCardTypes}
-              className="border-blue-200 text-blue-600 transition-all duration-200 hover:border-blue-300 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:border-blue-600 dark:hover:bg-blue-900/20"
+              className="border-blue-200 text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-900/20"
               aria-label={
                 defaultCardTypes.length === statCardTypes.length
                   ? "Unselect all card types"
@@ -151,16 +151,16 @@ export function DefaultCardSettings({
             </Button>
           </div>
 
-          <div className="rounded-xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm dark:border-gray-600/20 dark:bg-gray-600/20">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 backdrop-blur-sm dark:border-slate-700 dark:bg-slate-800/50">
             {groups.order.map((group) => (
               <div
                 key={group}
-                className="mb-4 space-y-3 border-b border-white/10 pb-4 last:mb-0 last:border-b-0 last:pb-0 dark:border-gray-600/20"
+                className="mb-4 space-y-3 border-b border-slate-200 pb-4 last:mb-0 last:border-b-0 last:pb-0 dark:border-slate-700"
               >
                 <button
                   type="button"
                   onClick={() => toggle(group)}
-                  className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-all duration-200 hover:bg-white/10 dark:hover:bg-gray-600/20"
+                  className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-all duration-200 hover:bg-white/50 dark:hover:bg-slate-700/50"
                   aria-expanded={openGroups[group]}
                   aria-controls={`default-group-${group}`}
                 >
@@ -183,7 +183,7 @@ export function DefaultCardSettings({
                       <path d="M9 18l6-6-6-6" />
                     </svg>
                   </div>
-                  <span className="text-base font-medium text-gray-900 dark:text-white">
+                  <span className="text-base font-medium text-slate-900 dark:text-white">
                     {group}
                   </span>
                 </button>
@@ -211,7 +211,7 @@ export function DefaultCardSettings({
                         return (
                           <div
                             key={type.id}
-                            className="rounded-lg border border-white/10 bg-white/10 p-3 backdrop-blur-sm dark:border-gray-600/20 dark:bg-gray-600/20"
+                            className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition-all hover:shadow-md dark:border-slate-700 dark:bg-slate-800"
                           >
                             <div className="flex items-center space-x-3">
                               <Checkbox
@@ -220,18 +220,18 @@ export function DefaultCardSettings({
                                 onCheckedChange={() =>
                                   onToggleCardType(type.id)
                                 }
-                                className="transition-all duration-200"
+                                className="border-slate-300 data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600 dark:border-slate-600 dark:data-[state=checked]:bg-blue-500"
                               />
                               <Label
                                 htmlFor={type.id}
-                                className="flex-1 cursor-pointer text-sm font-medium text-gray-900 dark:text-white"
+                                className="flex-1 cursor-pointer text-sm font-medium text-slate-900 dark:text-white"
                               >
                                 {type.label.split(" (")[0]}
                               </Label>
                             </div>
 
                             {/* Show Favorites default toggle for eligible cards */}
-                            {FAVORITE_CARD_IDS.includes(type.id) &&
+                            {FAVORITE_CARD_IDS.has(type.id) &&
                               defaultCardTypes.includes(type.id) && (
                                 <div className="mt-3 flex items-center space-x-3 pl-6">
                                   <Checkbox
@@ -243,7 +243,7 @@ export function DefaultCardSettings({
                                       onToggleShowFavoritesDefault(type.id)
                                     }
                                     aria-label="Default Show Favorites"
-                                    className="scale-90 transition-all duration-200"
+                                    className="scale-90 border-pink-300 data-[state=checked]:border-pink-500 data-[state=checked]:bg-pink-500 dark:border-pink-700 dark:data-[state=checked]:bg-pink-600"
                                   />
                                   <Label
                                     htmlFor={`default-show-favorites-${type.id}`}
@@ -257,17 +257,17 @@ export function DefaultCardSettings({
                             {/* Variant Selection */}
                             {hasVariants &&
                               defaultCardTypes.includes(type.id) && (
-                                <div className="mt-3">
+                                <div className="mt-3 pl-6">
                                   <Select
                                     value={currentVariant}
                                     onValueChange={(value) =>
                                       onVariantChange(type.id, value)
                                     }
                                   >
-                                    <SelectTrigger className="h-8 w-full border-white/20 bg-white/20 text-xs backdrop-blur-sm transition-all duration-200 hover:border-white/30 hover:bg-white/25 dark:border-gray-600/30 dark:bg-gray-700/20 dark:hover:border-gray-600/40 dark:hover:bg-gray-700/30">
+                                    <SelectTrigger className="h-8 w-full border-slate-200 bg-slate-50 text-xs transition-all hover:border-blue-400 focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-500">
                                       <SelectValue placeholder="Select variant" />
                                     </SelectTrigger>
-                                    <SelectContent className="border-white/20 bg-white/90 backdrop-blur-md dark:border-gray-600/30 dark:bg-gray-800/90">
+                                    <SelectContent className="border-slate-200 bg-white/95 backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900/95">
                                       {type.variations?.map(
                                         (variation: {
                                           id: string;
@@ -276,7 +276,7 @@ export function DefaultCardSettings({
                                           <SelectItem
                                             key={variation.id}
                                             value={variation.id}
-                                            className="text-xs transition-colors hover:bg-blue-100/50 dark:hover:bg-gray-700/50"
+                                            className="cursor-pointer text-xs focus:bg-blue-50 dark:focus:bg-slate-800"
                                           >
                                             {variation.label}
                                           </SelectItem>

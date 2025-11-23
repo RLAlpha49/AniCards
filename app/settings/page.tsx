@@ -34,7 +34,7 @@ export default function SettingsPage() {
   const [defaultShowFavoritesByCard, setDefaultShowFavoritesByCard] = useState<
     Record<string, boolean>
   >(() => {
-    if (typeof window !== "undefined") {
+    if (globalThis.window !== undefined) {
       const saved = localStorage.getItem("anicards-defaultShowFavoritesByCard");
       if (saved) return JSON.parse(saved).value;
     }
@@ -49,8 +49,8 @@ export default function SettingsPage() {
       }
     };
 
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
+    globalThis.addEventListener("storage", handleStorageChange);
+    return () => globalThis.removeEventListener("storage", handleStorageChange);
   }, []);
 
   // Update state from local storage whenever cacheVersion changes
@@ -206,7 +206,9 @@ export default function SettingsPage() {
       "anicards-defaultUsername",
       "anicards-defaultVariants",
     ];
-    keysToRemove.forEach((key) => localStorage.removeItem(key));
+    for (const key of keysToRemove) {
+      localStorage.removeItem(key);
+    }
     clearSiteCache();
     setCacheVersion((v) => v + 1);
     setDefaultVariants({});
@@ -252,8 +254,18 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-blue-950 dark:to-indigo-950">
-      <div className="container mx-auto px-4 py-12">
+    <div className="relative h-full w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
+      {/* Abstract Background Shapes */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute left-1/2 top-0 h-[800px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-400/10 blur-[120px] dark:bg-blue-600/10" />
+        <div className="absolute bottom-0 left-0 h-[600px] w-[600px] rounded-full bg-purple-400/10 blur-[100px] dark:bg-purple-600/10" />
+        <div className="absolute bottom-0 right-0 h-[600px] w-[600px] rounded-full bg-pink-400/10 blur-[100px] dark:bg-pink-600/10" />
+      </div>
+
+      {/* Grid Pattern */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:24px_24px]" />
+
+      <div className="container relative z-10 mx-auto px-4 py-12">
         {/* Hero Section */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -261,10 +273,10 @@ export default function SettingsPage() {
           transition={{ duration: 0.6 }}
           className="mb-12 text-center"
         >
-          <h1 className="mb-4 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-4xl font-bold text-transparent md:text-5xl">
+          <h1 className="mb-4 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-4xl font-extrabold text-transparent md:text-5xl">
             Application Settings
           </h1>
-          <p className="mx-auto max-w-2xl text-lg text-gray-600 dark:text-gray-300">
+          <p className="mx-auto max-w-2xl text-lg text-slate-600 dark:text-slate-300">
             Customize your AniCards experience with these personalization
             options and preferences.
           </p>
@@ -275,47 +287,43 @@ export default function SettingsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2 }}
-          className="mx-auto max-w-4xl"
+          className="mx-auto max-w-4xl space-y-8"
         >
-          <div className="rounded-2xl border border-white/20 bg-white/10 p-8 shadow-xl backdrop-blur-sm dark:border-gray-700/30 dark:bg-gray-800/20 md:p-12">
-            <div className="space-y-12">
-              <ThemePreferences
-                theme={theme || "system"}
-                themes={themes}
-                onThemeChange={handleThemeChange}
-              />
+          <ThemePreferences
+            theme={theme || "system"}
+            themes={themes}
+            onThemeChange={handleThemeChange}
+          />
 
-              <SidebarBehavior
-                sidebarDefault={sidebarDefault}
-                onSidebarChange={handleSidebarDefaultChange}
-              />
+          <SidebarBehavior
+            sidebarDefault={sidebarDefault}
+            onSidebarChange={handleSidebarDefaultChange}
+          />
 
-              <DefaultUsernameSettings
-                defaultUsername={defaultUsername}
-                onUsernameChange={handleDefaultUsernameChange}
-              />
+          <DefaultUsernameSettings
+            defaultUsername={defaultUsername}
+            onUsernameChange={handleDefaultUsernameChange}
+          />
 
-              <CacheManagement
-                cachedItems={cachedItems}
-                onClearCache={handleClearCache}
-                onDeleteCacheItem={handleDeleteCacheItem}
-              />
+          <CacheManagement
+            cachedItems={cachedItems}
+            onClearCache={handleClearCache}
+            onDeleteCacheItem={handleDeleteCacheItem}
+          />
 
-              <DefaultCardSettings
-                defaultPreset={defaultPreset}
-                onPresetChange={handlePresetChange}
-                defaultCardTypes={defaultCardTypes}
-                defaultVariants={defaultVariants}
-                onToggleCardType={handleCardTypeToggle}
-                onToggleAllCardTypes={handleToggleAllCardTypes}
-                onVariantChange={handleVariantChange}
-                defaultShowFavoritesByCard={defaultShowFavoritesByCard}
-                onToggleShowFavoritesDefault={handleToggleShowFavoritesDefault}
-              />
+          <DefaultCardSettings
+            defaultPreset={defaultPreset}
+            onPresetChange={handlePresetChange}
+            defaultCardTypes={defaultCardTypes}
+            defaultVariants={defaultVariants}
+            onToggleCardType={handleCardTypeToggle}
+            onToggleAllCardTypes={handleToggleAllCardTypes}
+            onVariantChange={handleVariantChange}
+            defaultShowFavoritesByCard={defaultShowFavoritesByCard}
+            onToggleShowFavoritesDefault={handleToggleShowFavoritesDefault}
+          />
 
-              <ResetSettings onReset={handleResetSettings} />
-            </div>
-          </div>
+          <ResetSettings onReset={handleResetSettings} />
         </motion.div>
       </div>
     </div>

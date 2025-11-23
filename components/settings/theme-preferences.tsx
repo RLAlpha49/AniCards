@@ -33,11 +33,11 @@ export function ThemePreferences({
       transition={{ duration: 0.5, delay: 0.1 }}
       className="space-y-4"
     >
-      <div className="rounded-xl border border-white/20 bg-white/10 p-6 backdrop-blur-sm dark:border-gray-700/30 dark:bg-gray-700/20">
-        <div className="mb-4 flex items-center gap-3">
-          <div className="rounded-lg bg-gradient-to-r from-blue-500 to-purple-500 p-2">
+      <div className="rounded-2xl border border-white/50 bg-white/80 p-6 shadow-xl backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/80">
+        <div className="mb-6 flex items-center gap-4">
+          <div className="rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 p-3 shadow-lg shadow-blue-500/20">
             <svg
-              className="h-5 w-5 text-white"
+              className="h-6 w-6 text-white"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -51,38 +51,43 @@ export function ThemePreferences({
             </svg>
           </div>
           <div>
-            <Label className="text-xl font-semibold text-gray-900 dark:text-white">
+            <Label className="text-xl font-bold text-slate-900 dark:text-white">
               Theme Preferences
             </Label>
-            <p className="text-sm text-gray-600 dark:text-gray-300">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               Choose your preferred color theme for the application
             </p>
           </div>
         </div>
 
         <Select value={theme} onValueChange={handleThemeChange}>
-          <SelectTrigger className="w-full max-w-sm border-white/20 bg-white/20 backdrop-blur-sm transition-all duration-200 hover:border-white/30 hover:bg-white/25 dark:border-gray-600/30 dark:bg-gray-700/20 dark:hover:border-gray-600/40 dark:hover:bg-gray-700/30">
+          <SelectTrigger className="h-12 w-full max-w-sm border-slate-200 bg-white px-4 text-base transition-all hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-blue-500 dark:focus:border-blue-400">
             <SelectValue placeholder="Select theme" />
           </SelectTrigger>
-          <SelectContent className="border-white/20 bg-white/90 backdrop-blur-md dark:border-gray-600/30 dark:bg-gray-800/90">
+          <SelectContent className="border-slate-200 bg-white/95 backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900/95">
             {themes.map((t) => {
               let themeDotClass = "";
               if (t === "light") {
-                themeDotClass = "bg-yellow-400";
+                themeDotClass =
+                  "bg-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.5)]";
               } else if (t === "dark") {
-                themeDotClass = "bg-gray-800";
+                themeDotClass =
+                  "bg-slate-800 shadow-[0_0_10px_rgba(30,41,59,0.5)] border border-slate-600";
               } else {
-                themeDotClass = "bg-gradient-to-r from-yellow-400 to-gray-800";
+                themeDotClass =
+                  "bg-gradient-to-r from-yellow-400 to-slate-800 shadow-[0_0_10px_rgba(99,102,241,0.5)]";
               }
               return (
                 <SelectItem
                   key={t}
                   value={t}
-                  className="transition-colors hover:bg-blue-100/50 dark:hover:bg-gray-700/50"
+                  className="cursor-pointer py-3 transition-colors focus:bg-blue-50 dark:focus:bg-slate-800"
                 >
-                  <div className="flex items-center gap-2">
-                    <div className={`h-3 w-3 rounded-full ${themeDotClass}`} />
-                    {t.charAt(0).toUpperCase() + t.slice(1)}
+                  <div className="flex items-center gap-3">
+                    <div className={`h-4 w-4 rounded-full ${themeDotClass}`} />
+                    <span className="font-medium">
+                      {t.charAt(0).toUpperCase() + t.slice(1)}
+                    </span>
                   </div>
                 </SelectItem>
               );

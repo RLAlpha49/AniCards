@@ -30,11 +30,11 @@ export function CacheManagement({
       transition={{ duration: 0.5, delay: 0.3 }}
       className="space-y-4"
     >
-      <div className="rounded-xl border border-white/20 bg-white/10 p-6 backdrop-blur-sm dark:border-gray-700/30 dark:bg-gray-700/20">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="rounded-lg bg-gradient-to-r from-orange-500 to-red-500 p-2">
+      <div className="rounded-2xl border border-white/50 bg-white/80 p-6 shadow-xl backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/80">
+        <div className="mb-6 flex items-center gap-4">
+          <div className="rounded-xl bg-gradient-to-br from-orange-500 to-red-600 p-3 shadow-lg shadow-orange-500/20">
             <svg
-              className="h-5 w-5 text-white"
+              className="h-6 w-6 text-white"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -48,41 +48,41 @@ export function CacheManagement({
             </svg>
           </div>
           <div>
-            <Label className="text-xl font-semibold text-gray-900 dark:text-white">
+            <Label className="text-xl font-bold text-slate-900 dark:text-white">
               Cache Management
             </Label>
-            <p className="text-sm text-gray-600 dark:text-gray-300">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               Manage stored data to improve loading times and performance
             </p>
           </div>
         </div>
 
         {/* Cache Statistics */}
-        <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-2">
-          <div className="rounded-lg border border-white/10 bg-white/10 p-4 text-center backdrop-blur-sm dark:border-gray-600/20 dark:bg-gray-600/20">
-            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+        <div className="mb-6 grid grid-cols-2 gap-4">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 text-center backdrop-blur-sm dark:border-slate-700 dark:bg-slate-800/50">
+            <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
               {cachedItems.length}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-300">
+            <div className="text-sm font-medium text-slate-600 dark:text-slate-300">
               Items
             </div>
           </div>
-          <div className="rounded-lg border border-white/10 bg-white/10 p-4 text-center backdrop-blur-sm dark:border-gray-600/20 dark:bg-gray-600/20">
-            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 text-center backdrop-blur-sm dark:border-slate-700 dark:bg-slate-800/50">
+            <div className="text-3xl font-bold text-green-600 dark:text-green-400">
               {formatBytes(totalSize)}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-300">
+            <div className="text-sm font-medium text-slate-600 dark:text-slate-300">
               Total Size
             </div>
           </div>
         </div>
         {/* Clear Cache Button */}
-        <div className="mb-6 flex justify-center">
+        <div className="mb-8 flex justify-center">
           <Button
             variant="destructive"
             onClick={onClearCache}
             disabled={cachedItems.length === 0}
-            className="w-full max-w-xs bg-gradient-to-r from-red-500 to-red-600 transition-all duration-200 hover:from-red-600 hover:to-red-700 hover:shadow-lg disabled:from-gray-400 disabled:to-gray-500"
+            className="w-full max-w-xs rounded-full bg-gradient-to-r from-red-500 to-red-600 py-6 text-base font-semibold shadow-lg transition-all hover:scale-105 hover:from-red-600 hover:to-red-700 hover:shadow-red-500/25 disabled:opacity-50"
           >
             Clear All Cache
           </Button>
@@ -90,27 +90,27 @@ export function CacheManagement({
 
         {/* Cache Items Table */}
         {cachedItems.length > 0 ? (
-          <div className="space-y-3">
-            <h3 className="font-medium text-gray-900 dark:text-white">
+          <div className="space-y-4">
+            <h3 className="font-semibold text-slate-900 dark:text-white">
               Cached Items
             </h3>
-            <div className="max-h-64 space-y-2 overflow-y-auto">
+            <div className="scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700 max-h-64 space-y-3 overflow-y-auto pr-2">
               {cachedItems.map((item) => (
                 <motion.div
                   key={item.key}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -10 }}
-                  className="flex items-center justify-between rounded-lg border border-white/10 bg-white/10 p-3 backdrop-blur-sm dark:border-gray-600/20 dark:bg-gray-600/20"
+                  className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md dark:border-slate-700 dark:bg-slate-800"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-gray-900 dark:text-white">
+                    <p className="truncate font-medium text-slate-900 dark:text-white">
                       {item.key}
                     </p>
-                    <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-300">
+                    <div className="mt-1 flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
                       <span className="flex items-center gap-1">
                         <svg
-                          className="h-4 w-4"
+                          className="h-3.5 w-3.5"
                           fill="none"
                           viewBox="0 0 24 24"
                           stroke="currentColor"
@@ -126,7 +126,7 @@ export function CacheManagement({
                       </span>
                       <span className="flex items-center gap-1">
                         <svg
-                          className="h-4 w-4"
+                          className="h-3.5 w-3.5"
                           fill="none"
                           viewBox="0 0 24 24"
                           stroke="currentColor"
@@ -143,22 +143,34 @@ export function CacheManagement({
                     </div>
                   </div>
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
                     onClick={() => onDeleteCacheItem(item.key)}
-                    className="ml-3 border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+                    className="ml-3 h-8 w-8 rounded-full p-0 text-red-500 hover:bg-red-50 hover:text-red-600 dark:text-red-400 dark:hover:bg-red-900/20"
                   >
-                    Delete
+                    <svg
+                      className="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
                   </Button>
                 </motion.div>
               ))}
             </div>
           </div>
         ) : (
-          <div className="py-8 text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700">
+          <div className="py-12 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
               <svg
-                className="h-8 w-8 text-gray-400"
+                className="h-8 w-8 text-slate-400"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -171,10 +183,10 @@ export function CacheManagement({
                 />
               </svg>
             </div>
-            <p className="mt-4 text-gray-600 dark:text-gray-300">
+            <p className="text-lg font-medium text-slate-900 dark:text-white">
               No cached data found
             </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               Data will appear here as you use the application
             </p>
           </div>

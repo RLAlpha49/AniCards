@@ -15,11 +15,11 @@ export function ResetSettings({ onReset }: Readonly<ResetSettingsProps>) {
       transition={{ duration: 0.5, delay: 0.6 }}
       className="space-y-4"
     >
-      <div className="rounded-xl border border-red-200/50 bg-red-50/50 p-6 backdrop-blur-sm dark:border-red-800/30 dark:bg-red-900/20">
-        <div className="mb-4 flex items-center gap-3">
-          <div className="rounded-lg bg-gradient-to-r from-red-500 to-orange-500 p-2">
+      <div className="rounded-2xl border border-red-200 bg-red-50/50 p-6 shadow-xl backdrop-blur-xl dark:border-red-900/50 dark:bg-red-950/30">
+        <div className="mb-6 flex items-center gap-4">
+          <div className="rounded-xl bg-gradient-to-br from-red-500 to-orange-600 p-3 shadow-lg shadow-red-500/20">
             <svg
-              className="h-5 w-5 text-white"
+              className="h-6 w-6 text-white"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -33,20 +33,20 @@ export function ResetSettings({ onReset }: Readonly<ResetSettingsProps>) {
             </svg>
           </div>
           <div>
-            <Label className="text-xl font-semibold text-red-800 dark:text-red-300">
+            <Label className="text-xl font-bold text-red-900 dark:text-red-200">
               Reset Settings
             </Label>
-            <p className="text-sm text-red-700 dark:text-red-400">
+            <p className="text-sm text-red-700 dark:text-red-300">
               Reset all application settings to their default values
             </p>
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div className="rounded-lg border border-red-200/30 bg-red-50/30 p-4 backdrop-blur-sm dark:border-red-700/30 dark:bg-red-800/20">
-            <div className="mb-3 flex items-start gap-2">
+        <div className="space-y-6">
+          <div className="rounded-xl border border-red-200 bg-white/50 p-5 backdrop-blur-sm dark:border-red-900/50 dark:bg-red-900/20">
+            <div className="mb-4 flex items-start gap-3">
               <svg
-                className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400"
+                className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600 dark:text-red-400"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -58,14 +58,29 @@ export function ResetSettings({ onReset }: Readonly<ResetSettingsProps>) {
                   d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
-              <div className="text-sm text-red-700 dark:text-red-300">
-                <p className="mb-1 font-medium">This action will reset:</p>
-                <ul className="space-y-1 text-xs">
-                  <li>• Theme preferences</li>
-                  <li>• Sidebar behavior settings</li>
-                  <li>• Default username</li>
-                  <li>• Default card settings and presets</li>
-                  <li>• All cached data</li>
+              <div className="text-sm text-red-800 dark:text-red-200">
+                <p className="mb-2 font-semibold">This action will reset:</p>
+                <ul className="space-y-1.5 text-xs opacity-90">
+                  <li className="flex items-center gap-2">
+                    <span className="h-1 w-1 rounded-full bg-red-500" />
+                    <span>Theme preferences</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="h-1 w-1 rounded-full bg-red-500" />
+                    <span>Sidebar behavior settings</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="h-1 w-1 rounded-full bg-red-500" />
+                    <span>Default username</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="h-1 w-1 rounded-full bg-red-500" />
+                    <span>Default card settings and presets</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="h-1 w-1 rounded-full bg-red-500" />
+                    <span>All cached data</span>
+                  </li>
                 </ul>
               </div>
             </div>
@@ -73,11 +88,11 @@ export function ResetSettings({ onReset }: Readonly<ResetSettingsProps>) {
             <Button
               variant="destructive"
               onClick={onReset}
-              className="w-full bg-gradient-to-r from-red-500 to-red-600 transition-all duration-200 hover:from-red-600 hover:to-red-700 hover:shadow-lg"
+              className="w-full rounded-lg bg-gradient-to-r from-red-500 to-red-600 py-6 text-base font-semibold shadow-lg transition-all hover:scale-[1.02] hover:from-red-600 hover:to-red-700 hover:shadow-red-500/25"
               aria-label="Reset all application settings to their default values"
             >
               <svg
-                className="mr-2 h-4 w-4"
+                className="mr-2 h-5 w-5"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -93,7 +108,7 @@ export function ResetSettings({ onReset }: Readonly<ResetSettingsProps>) {
             </Button>
           </div>
 
-          <p className="text-center text-xs text-red-600 dark:text-red-400">
+          <p className="text-center text-xs font-medium text-red-600 dark:text-red-400">
             This action cannot be undone. Your settings will be permanently
             reset.
           </p>

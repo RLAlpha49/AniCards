@@ -18,11 +18,11 @@ export function DefaultUsernameSettings({
       transition={{ duration: 0.5, delay: 0.25 }}
       className="space-y-4"
     >
-      <div className="rounded-xl border border-white/20 bg-white/10 p-6 backdrop-blur-sm dark:border-gray-700/30 dark:bg-gray-700/20">
-        <div className="mb-4 flex items-center gap-3">
-          <div className="rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 p-2">
+      <div className="rounded-2xl border border-white/50 bg-white/80 p-6 shadow-xl backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/80">
+        <div className="mb-6 flex items-center gap-4">
+          <div className="rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 p-3 shadow-lg shadow-purple-500/20">
             <svg
-              className="h-5 w-5 text-white"
+              className="h-6 w-6 text-white"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -38,25 +38,25 @@ export function DefaultUsernameSettings({
           <div>
             <Label
               htmlFor="default-username"
-              className="text-xl font-semibold text-gray-900 dark:text-white"
+              className="text-xl font-bold text-slate-900 dark:text-white"
             >
               Default Username
             </Label>
-            <p className="text-sm text-gray-600 dark:text-gray-300">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               Set your default AniList username to pre-fill forms
             </p>
           </div>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-3">
           <Input
             id="default-username"
-            className="border-white/20 bg-white/20 backdrop-blur-sm transition-all duration-200 hover:border-white/30 hover:bg-white/25 focus:border-blue-400 focus:bg-white/30 dark:border-gray-600/30 dark:bg-gray-700/20 dark:hover:border-gray-600/40 dark:hover:bg-gray-700/30 dark:focus:border-blue-400"
+            className="h-12 border-slate-200 bg-white px-4 text-base transition-all hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-blue-500 dark:focus:border-blue-400"
             value={defaultUsername}
             onChange={(e) => onUsernameChange(e.target.value)}
             placeholder="Enter your AniList username"
           />
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             This username will be automatically filled when generating new stat
             cards
           </p>
