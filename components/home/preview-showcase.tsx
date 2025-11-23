@@ -40,15 +40,6 @@ const PREVIEW_CARDS = [
     size: "medium",
   },
   {
-    title: "Manga Statistics",
-    description: "Comprehensive manga reading statistics",
-    cardType: "mangaStats",
-    variation: "default",
-    category: "Main Stats",
-    color: "pink",
-    size: "large",
-  },
-  {
     title: "Voice Actors",
     description: "Most frequent voice actors in your anime",
     cardType: "animeVoiceActors",
@@ -66,14 +57,14 @@ const PREVIEW_CARDS = [
     color: "indigo",
     size: "medium",
   },
-  {
-    title: "Manga Genres",
-    description: "Your favorite manga genres visualized",
-    cardType: "mangaGenres",
+    {
+    title: "Manga Statistics",
+    description: "Comprehensive manga reading statistics",
+    cardType: "mangaStats",
     variation: "default",
-    category: "Analysis",
-    color: "teal",
-    size: "medium",
+    category: "Main Stats",
+    color: "pink",
+    size: "large",
   },
 ];
 
@@ -111,7 +102,7 @@ export function PreviewShowcase({
             </motion.p>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
             {PREVIEW_CARDS.map((card, index) => (
               <motion.div
                 key={card.title}
