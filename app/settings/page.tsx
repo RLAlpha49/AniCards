@@ -48,9 +48,8 @@ export default function SettingsPage() {
     return {};
   });
   const [defaultBorderEnabled, setDefaultBorderEnabled] = useState(false);
-  const [defaultBorderColor, setDefaultBorderColor] = useState(
-    DEFAULT_BORDER_COLOR,
-  );
+  const [defaultBorderColor, setDefaultBorderColor] =
+    useState(DEFAULT_BORDER_COLOR);
 
   // Listen for local storage changes from other tabs
   useEffect(() => {

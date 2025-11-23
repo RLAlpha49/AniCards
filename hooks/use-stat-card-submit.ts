@@ -124,9 +124,7 @@ export function useStatCardSubmit() {
                 useMangaStatusColors
                   ? { useStatusColors: true }
                   : {}),
-                ...(borderEnabled && borderColor
-                  ? { borderColor }
-                  : {}),
+                ...(borderEnabled && borderColor ? { borderColor } : {}),
               };
               if (FAVORITE_CARD_IDS.has(cardName)) {
                 return {

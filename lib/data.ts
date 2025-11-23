@@ -75,10 +75,7 @@ export function saveDefaultBorderColor(color: string) {
     value: color,
     lastModified: new Date().toISOString(),
   };
-  localStorage.setItem(
-    `${APP_PREFIX}defaultBorderColor`,
-    JSON.stringify(data),
-  );
+  localStorage.setItem(`${APP_PREFIX}defaultBorderColor`, JSON.stringify(data));
 }
 
 // Helper to get actual color values from preset name

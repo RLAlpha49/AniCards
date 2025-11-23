@@ -46,14 +46,8 @@ function validateUserRecord(obj: any): string[] {
 }
 
 const CARD_STRING_PROPERTIES: Array<[string, (idx: number) => string]> = [
-  [
-    "cardName",
-    (idx) => `cards[${idx}].cardName is missing or not a string`,
-  ],
-  [
-    "variation",
-    (idx) => `cards[${idx}].variation is missing or not a string`,
-  ],
+  ["cardName", (idx) => `cards[${idx}].cardName is missing or not a string`],
+  ["variation", (idx) => `cards[${idx}].variation is missing or not a string`],
   [
     "titleColor",
     (idx) => `cards[${idx}].titleColor is missing or not a string`,
@@ -62,10 +56,7 @@ const CARD_STRING_PROPERTIES: Array<[string, (idx: number) => string]> = [
     "backgroundColor",
     (idx) => `cards[${idx}].backgroundColor is missing or not a string`,
   ],
-  [
-    "textColor",
-    (idx) => `cards[${idx}].textColor is missing or not a string`,
-  ],
+  ["textColor", (idx) => `cards[${idx}].textColor is missing or not a string`],
   [
     "circleColor",
     (idx) => `cards[${idx}].circleColor is missing or not a string`,

@@ -903,9 +903,7 @@ export function StatCardGenerator({
                         </div>
                         {hasBorder && (
                           <div className="mt-4">
-                            <ColorPickerGroup
-                              pickers={[borderColorPicker]}
-                            />
+                            <ColorPickerGroup pickers={[borderColorPicker]} />
                           </div>
                         )}
                       </div>
