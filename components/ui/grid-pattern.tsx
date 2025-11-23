@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, useMemo } from "react";
+import { type CSSProperties, useMemo, useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 const randomBetween = (min: number, max: number) =>
@@ -163,20 +163,26 @@ export function GridPattern({
   includeGradients?: boolean;
   gradientCount?: number;
 }>) {
+  const [isMounted, setIsMounted] = useState(false);
+
   const mainBlobs = useMemo(
     () =>
-      includeGradients
+      isMounted && includeGradients
         ? generateGradientBlobs(gradientCount, GRADIENT_STYLES)
         : [],
-    [gradientCount, includeGradients],
+    [gradientCount, includeGradients, isMounted],
   );
   const accentBlobs = useMemo(
     () =>
-      includeGradients
+      isMounted && includeGradients
         ? generateGradientBlobs(2, ACCENT_STYLES, [-20, 70], [-40, 120], 18)
         : [],
-    [includeGradients],
+    [includeGradients, isMounted],
   );
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   return (
     <div
