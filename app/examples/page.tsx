@@ -96,11 +96,6 @@ function ExampleCard({
             <span className="text-slate-500 dark:text-slate-400">
               {cardTypeTitle}
             </span>
-            <span
-              className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider bg-${color}-100 text-${color}-700 dark:bg-${color}-900/30 dark:text-${color}-300`}
-            >
-              Live Preview
-            </span>
           </div>
         </div>
       </CardContent>
