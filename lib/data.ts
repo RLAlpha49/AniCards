@@ -1,9 +1,13 @@
 // Centralized data management for user preferences
 import { colorPresets, statCardTypes } from "@/components/stat-card-generator";
 
+export const DEFAULT_BORDER_COLOR = "#e4e2e2";
+
 type UserPreferences = {
   colorPreset: string;
   defaultCards: string[];
+  borderEnabled: boolean;
+  borderColor: string;
 };
 
 const APP_PREFIX = "anicards-";
@@ -14,6 +18,8 @@ const VALID_CACHE_KEYS = [
   "sidebarDefaultOpen",
   "defaultColorPreset",
   "defaultCardTypes",
+  "defaultBorderEnabled",
+  "defaultBorderColor",
 ].map((key) => `${APP_PREFIX}${key}`);
 
 export function loadDefaultSettings(): UserPreferences {
@@ -32,6 +38,8 @@ export function loadDefaultSettings(): UserPreferences {
   return {
     colorPreset: loadValue("defaultColorPreset") || "default",
     defaultCards: loadValue("defaultCardTypes") || [],
+    borderEnabled: loadValue("defaultBorderEnabled") || false,
+    borderColor: loadValue("defaultBorderColor") || DEFAULT_BORDER_COLOR,
   };
 }
 
@@ -49,6 +57,28 @@ export function saveDefaultCardTypes(cardTypes: string[]) {
     lastModified: new Date().toISOString(),
   };
   localStorage.setItem(`${APP_PREFIX}defaultCardTypes`, JSON.stringify(data));
+}
+
+export function saveDefaultBorderEnabled(enabled: boolean) {
+  const data = {
+    value: enabled,
+    lastModified: new Date().toISOString(),
+  };
+  localStorage.setItem(
+    `${APP_PREFIX}defaultBorderEnabled`,
+    JSON.stringify(data),
+  );
+}
+
+export function saveDefaultBorderColor(color: string) {
+  const data = {
+    value: color,
+    lastModified: new Date().toISOString(),
+  };
+  localStorage.setItem(
+    `${APP_PREFIX}defaultBorderColor`,
+    JSON.stringify(data),
+  );
 }
 
 // Helper to get actual color values from preset name
@@ -89,5 +119,7 @@ export function getSiteSpecificCache() {
 }
 
 export function clearSiteCache() {
-  VALID_CACHE_KEYS.forEach((key) => localStorage.removeItem(key));
+  for (const key of VALID_CACHE_KEYS) {
+    localStorage.removeItem(key);
+  }
 }

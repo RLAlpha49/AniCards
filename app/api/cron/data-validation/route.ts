@@ -45,42 +45,78 @@ function validateUserRecord(obj: any): string[] {
   return issues;
 }
 
+const CARD_STRING_PROPERTIES: Array<[string, (idx: number) => string]> = [
+  [
+    "cardName",
+    (idx) => `cards[${idx}].cardName is missing or not a string`,
+  ],
+  [
+    "variation",
+    (idx) => `cards[${idx}].variation is missing or not a string`,
+  ],
+  [
+    "titleColor",
+    (idx) => `cards[${idx}].titleColor is missing or not a string`,
+  ],
+  [
+    "backgroundColor",
+    (idx) => `cards[${idx}].backgroundColor is missing or not a string`,
+  ],
+  [
+    "textColor",
+    (idx) => `cards[${idx}].textColor is missing or not a string`,
+  ],
+  [
+    "circleColor",
+    (idx) => `cards[${idx}].circleColor is missing or not a string`,
+  ],
+];
+
+function validateCardStringProps(card: Record<string, unknown>, index: number) {
+  const issues: string[] = [];
+  for (const [prop, messageFn] of CARD_STRING_PROPERTIES) {
+    if (typeof card[prop] !== "string") {
+      issues.push(messageFn(index));
+    }
+  }
+  return issues;
+}
+
+function validateCardBorderColor(card: Record<string, unknown>, index: number) {
+  const borderValue = card["borderColor"];
+  if (
+    "borderColor" in card &&
+    borderValue !== undefined &&
+    typeof borderValue !== "string"
+  ) {
+    return [`cards[${index}].borderColor must be a string if provided`];
+  }
+  return [];
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function validateCardsRecord(obj: any): string[] {
   const issues: string[] = [];
   if (typeof obj.userId !== "number") {
     issues.push("userId is missing or not a number");
   }
-  if (!Array.isArray(obj.cards)) {
-    issues.push("cards is missing or not an array");
-  } else {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    obj.cards.forEach((card: any, index: number) => {
+  if (Array.isArray(obj.cards)) {
+    for (const [index, card] of obj.cards.entries()) {
       if (typeof card !== "object" || card === null) {
         issues.push(`cards[${index}] is not an object`);
-        return;
+        continue;
       }
-      if (typeof card.cardName !== "string") {
-        issues.push(`cards[${index}].cardName is missing or not a string`);
+
+      const cardSpecificIssues = [
+        ...validateCardStringProps(card, index),
+        ...validateCardBorderColor(card, index),
+      ];
+      if (cardSpecificIssues.length > 0) {
+        issues.push(...cardSpecificIssues);
       }
-      if (typeof card.variation !== "string") {
-        issues.push(`cards[${index}].variation is missing or not a string`);
-      }
-      if (typeof card.titleColor !== "string") {
-        issues.push(`cards[${index}].titleColor is missing or not a string`);
-      }
-      if (typeof card.backgroundColor !== "string") {
-        issues.push(
-          `cards[${index}].backgroundColor is missing or not a string`,
-        );
-      }
-      if (typeof card.textColor !== "string") {
-        issues.push(`cards[${index}].textColor is missing or not a string`);
-      }
-      if (typeof card.circleColor !== "string") {
-        issues.push(`cards[${index}].circleColor is missing or not a string`);
-      }
-    });
+    }
+  } else {
+    issues.push("cards is missing or not an array");
   }
   if (typeof obj.updatedAt !== "string") {
     issues.push("updatedAt is missing or not a string");

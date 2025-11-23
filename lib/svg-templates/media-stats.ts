@@ -60,6 +60,7 @@ function getVariantContent(
       backgroundColor: string;
       textColor: string;
       circleColor: string;
+      borderColor?: string;
     };
     stats: (AnimeStats | MangaStats) & {
       previousMilestone: number;
@@ -175,6 +176,7 @@ export const mediaStatsTemplate = (data: {
     backgroundColor: string;
     textColor: string;
     circleColor: string;
+    borderColor?: string;
   };
   stats: (AnimeStats | MangaStats) & {
     previousMilestone: number;
@@ -238,12 +240,16 @@ export const mediaStatsTemplate = (data: {
   // Scale dasharray & dashoffset relative to base radius 40 to avoid overfill on smaller circles
   const baseRadius = 40;
   const scale = circleRadius / baseRadius;
-  const originalDasharray = parseFloat(String(data.stats.dasharray));
-  const originalDashoffset = parseFloat(String(data.stats.dashoffset));
-  const scaledDasharray = isFinite(originalDasharray)
+  const originalDasharray = Number.parseFloat(
+    String(data.stats.dasharray),
+  );
+  const originalDashoffset = Number.parseFloat(
+    String(data.stats.dashoffset),
+  );
+  const scaledDasharray = Number.isFinite(originalDasharray)
     ? (originalDasharray * scale).toFixed(2)
     : String(data.stats.dasharray);
-  const scaledDashoffset = isFinite(originalDashoffset)
+  const scaledDashoffset = Number.isFinite(originalDashoffset)
     ? (originalDashoffset * scale).toFixed(2)
     : String(data.stats.dashoffset);
 
@@ -325,10 +331,10 @@ export const mediaStatsTemplate = (data: {
     y="0.5"
     rx="4.5"
     height="${dims.h - 1}"
-    stroke="#e4e2e2"
     width="${dims.w - 1}"
     fill="${data.styles.backgroundColor}"
-    stroke-opacity="1"
+    stroke="${data.styles.borderColor ?? "none"}"
+    stroke-width="2"
   />
   <g data-testid="card-title" transform="translate(25, 35)">
     <g transform="translate(0, 0)">

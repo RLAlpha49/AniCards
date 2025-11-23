@@ -9,15 +9,17 @@ interface SubmitParams {
   showPiePercentages?: boolean;
   useAnimeStatusColors?: boolean;
   useMangaStatusColors?: boolean;
+  borderEnabled?: boolean;
+  borderColor?: string;
 }
 
 // Only these card types support showFavorites
-const FAVORITE_CARD_IDS = [
+const FAVORITE_CARD_IDS = new Set([
   "animeVoiceActors",
   "animeStudios",
   "animeStaff",
   "mangaStaff",
-];
+]);
 
 export function useStatCardSubmit() {
   const [loading, setLoading] = useState(false);
@@ -31,6 +33,8 @@ export function useStatCardSubmit() {
     showPiePercentages,
     useAnimeStatusColors,
     useMangaStatusColors,
+    borderEnabled,
+    borderColor,
   }: SubmitParams): Promise<{ success: boolean; userId?: string }> => {
     setLoading(true);
     setError(null);
@@ -42,6 +46,8 @@ export function useStatCardSubmit() {
         throw new Error("Please select at least one stat card");
       if (colors.some((color) => !color))
         throw new Error("All color fields must be filled");
+      if (borderEnabled && !borderColor)
+        throw new Error("Border color must be set when the border is enabled");
 
       // Fetch AniList user data
       const userIdResponse = await fetch("/api/anilist", {
@@ -118,8 +124,11 @@ export function useStatCardSubmit() {
                 useMangaStatusColors
                   ? { useStatusColors: true }
                   : {}),
+                ...(borderEnabled && borderColor
+                  ? { borderColor }
+                  : {}),
               };
-              if (FAVORITE_CARD_IDS.includes(cardName)) {
+              if (FAVORITE_CARD_IDS.has(cardName)) {
                 return {
                   ...baseConfig,
                   showFavorites: showFavoritesByCard[cardName] || false,

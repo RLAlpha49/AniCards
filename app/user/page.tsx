@@ -11,16 +11,16 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({
   searchParams,
 }: {
-  searchParams: {
+  searchParams: Promise<{
     userId?: string;
     username?: string;
     cards?: string;
     showFavorites?: string;
     animeStatusColors?: string;
     mangaStatusColors?: string;
-  };
+  }>;
 }): Promise<Metadata> {
-  const { username } = searchParams;
+  const { username } = await searchParams;
 
   if (username) {
     return createMetadata({

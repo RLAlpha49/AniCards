@@ -9,6 +9,7 @@ export const socialStatsTemplate = (data: {
     backgroundColor: string;
     textColor: string;
     circleColor: string;
+    borderColor?: string;
   };
   stats: SocialStats;
   activityHistory: { date: number; amount: number }[];
@@ -105,10 +106,10 @@ export const socialStatsTemplate = (data: {
     y="0.5"
     rx="4.5"
     height="${dims.h - 1}"
-    stroke="#e4e2e2"
     width="${dims.w - 1}"
-    fill="#141321"
-    stroke-opacity="1"
+    fill="${data.styles.backgroundColor}"
+    stroke="${data.styles.borderColor ?? "none"}"
+    stroke-width="2"
   />
   <g data-testid="card-title" transform="translate(25, 35)">
     <g transform="translate(0, 0)">

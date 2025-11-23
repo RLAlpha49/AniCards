@@ -61,6 +61,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         backgroundColor: card.backgroundColor,
         textColor: card.textColor,
         circleColor: card.circleColor,
+        borderColor: card.borderColor,
         showFavorites: card.showFavorites,
         useStatusColors: card.useStatusColors,
         showPiePercentages: card.showPiePercentages,

@@ -171,6 +171,7 @@ function extractStyles(cardConfig: CardConfig) {
     backgroundColor: cardConfig.backgroundColor,
     textColor: cardConfig.textColor,
     circleColor: cardConfig.circleColor,
+    borderColor: cardConfig.borderColor,
   };
 }
 

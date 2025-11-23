@@ -21,7 +21,13 @@ import { StatCardTypeSelection } from "@/components/stat-card-generator/stat-car
 import { UpdateNotice } from "@/components/stat-card-generator/update-notice";
 import { UserDetailsForm } from "@/components/stat-card-generator/user-details-form";
 import { useStatCardSubmit } from "@/hooks/use-stat-card-submit";
-import { loadDefaultSettings, getPresetColors } from "@/lib/data";
+import {
+  loadDefaultSettings,
+  getPresetColors,
+  DEFAULT_BORDER_COLOR,
+  saveDefaultBorderColor,
+  saveDefaultBorderEnabled,
+} from "@/lib/data";
 import { useRouter } from "next/navigation";
 import {
   trackCardGeneration,
@@ -358,6 +364,8 @@ export function StatCardGenerator({
   const [useAnimeStatusColors, setUseAnimeStatusColors] = useState(false);
   const [useMangaStatusColors, setUseMangaStatusColors] = useState(false);
   const [showPiePercentages, setShowPiePercentages] = useState(false);
+  const [hasBorder, setHasBorder] = useState(false);
+  const [borderColor, setBorderColor] = useState(DEFAULT_BORDER_COLOR);
 
   const [currentStep, setCurrentStep] = useState(0);
 
@@ -390,6 +398,8 @@ export function StatCardGenerator({
 
     // Update card selection logic
     setSelectedCards(defaults.defaultCards);
+    setHasBorder(defaults.borderEnabled);
+    setBorderColor(defaults.borderColor ?? DEFAULT_BORDER_COLOR);
 
     // Load default username from local storage
     const savedUsernameData = localStorage.getItem("anicards-defaultUsername");
@@ -448,6 +458,7 @@ export function StatCardGenerator({
       backgroundColor,
       textColor,
       circleColor,
+      borderColor: hasBorder ? borderColor : undefined,
     },
     stats: {
       count: 456,
@@ -560,6 +571,25 @@ export function StatCardGenerator({
     });
   };
 
+  const handleToggleBorder = () => {
+    setHasBorder((prev) => {
+      const next = !prev;
+      saveDefaultBorderEnabled(next);
+      return next;
+    });
+  };
+
+  const handleBorderColorChange = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      setBorderColor("");
+      return;
+    }
+    const normalized = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+    setBorderColor(normalized);
+    saveDefaultBorderColor(normalized);
+  };
+
   // When submitting, we reassemble the selectedCards array. For card types with variants,
   // we append the variant suffix only if it is not "default". (If it is "default", we leave it off.)
   const handleSubmit = async () => {
@@ -603,6 +633,8 @@ export function StatCardGenerator({
       showPiePercentages,
       useAnimeStatusColors,
       useMangaStatusColors,
+      borderEnabled: hasBorder,
+      borderColor,
     });
 
     // Only navigate if submission was successful
@@ -674,6 +706,13 @@ export function StatCardGenerator({
       },
     },
   ];
+
+  const borderColorPicker = {
+    id: "borderColor",
+    label: "Border color",
+    value: borderColor || DEFAULT_BORDER_COLOR,
+    onChange: handleBorderColorChange,
+  };
 
   const nextStep = () => {
     if (currentStep < STEPS.length - 1) {
@@ -845,9 +884,30 @@ export function StatCardGenerator({
                         />
                       </div>
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 space-y-6">
                       <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                         <ColorPickerGroup pickers={colorPickers} />
+                      </div>
+                      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label className="text-base">Card Border</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Optional frame around the entire card
+                            </p>
+                          </div>
+                          <Switch
+                            checked={hasBorder}
+                            onCheckedChange={handleToggleBorder}
+                          />
+                        </div>
+                        {hasBorder && (
+                          <div className="mt-4">
+                            <ColorPickerGroup
+                              pickers={[borderColorPicker]}
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

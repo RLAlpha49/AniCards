@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { AnimatePresence, motion as m, motion } from "framer-motion";
 
+import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -12,6 +13,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { colorPresets, statCardTypes } from "@/components/stat-card-generator";
+import { ColorPickerGroup } from "@/components/stat-card-generator/color-picker-group";
+import { DEFAULT_BORDER_COLOR } from "@/lib/data";
 
 // Only these card types support showFavorites
 const FAVORITE_CARD_IDS = new Set([
@@ -31,6 +34,10 @@ interface DefaultCardSettingsProps {
   onVariantChange: (cardType: string, variant: string) => void;
   defaultShowFavoritesByCard: Record<string, boolean>;
   onToggleShowFavoritesDefault: (cardId: string) => void;
+  defaultBorderEnabled: boolean;
+  defaultBorderColor: string;
+  onBorderEnabledChange: (value: boolean) => void;
+  onBorderColorChange: (color: string) => void;
 }
 
 export function DefaultCardSettings({
@@ -43,6 +50,10 @@ export function DefaultCardSettings({
   onVariantChange,
   defaultShowFavoritesByCard,
   onToggleShowFavoritesDefault,
+  defaultBorderEnabled,
+  defaultBorderColor,
+  onBorderEnabledChange,
+  onBorderColorChange,
 }: Readonly<DefaultCardSettingsProps>) {
   // Group computation (stable ordering as defined in statCardTypes array)
   const groups = useMemo(() => {
@@ -126,6 +137,43 @@ export function DefaultCardSettings({
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="mb-8 space-y-3">
+          <Label className="text-base font-semibold text-slate-900 dark:text-white">
+            Card Border Defaults
+          </Label>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-4 transition-colors dark:border-slate-700 dark:bg-slate-900/70">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <Label className="text-sm font-medium text-slate-900 dark:text-white">
+                  Include a border by default
+                </Label>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Generate cards with a subtle frame and your chosen color.
+                </p>
+              </div>
+              <Switch
+                checked={defaultBorderEnabled}
+                onCheckedChange={onBorderEnabledChange}
+                className="border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-800"
+              />
+            </div>
+            {defaultBorderEnabled && (
+              <div className="mt-4 rounded-xl border border-slate-200 bg-white/80 p-3 dark:border-slate-700 dark:bg-slate-900/80">
+                <ColorPickerGroup
+                  pickers={[
+                    {
+                      id: "default-border-color",
+                      label: "Border color",
+                      value: defaultBorderColor || DEFAULT_BORDER_COLOR,
+                      onChange: onBorderColorChange,
+                    },
+                  ]}
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Card Types Section */}

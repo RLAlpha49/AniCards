@@ -4,7 +4,13 @@ import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useSidebar } from "@/components/ui/sidebar";
-import { getSiteSpecificCache, clearSiteCache } from "@/lib/data";
+import {
+  getSiteSpecificCache,
+  clearSiteCache,
+  DEFAULT_BORDER_COLOR,
+  saveDefaultBorderColor,
+  saveDefaultBorderEnabled,
+} from "@/lib/data";
 import { ThemePreferences } from "@/components/settings/theme-preferences";
 import { SidebarBehavior } from "@/components/settings/sidebar-behavior";
 import {
@@ -41,6 +47,10 @@ export default function SettingsPage() {
     }
     return {};
   });
+  const [defaultBorderEnabled, setDefaultBorderEnabled] = useState(false);
+  const [defaultBorderColor, setDefaultBorderColor] = useState(
+    DEFAULT_BORDER_COLOR,
+  );
 
   // Listen for local storage changes from other tabs
   useEffect(() => {
@@ -110,6 +120,22 @@ export default function SettingsPage() {
       ? JSON.parse(savedShowFavoritesString).value
       : {};
     setDefaultShowFavoritesByCard(showFavoritesValue);
+
+    const savedBorderEnabled = localStorage.getItem(
+      "anicards-defaultBorderEnabled",
+    );
+    const borderEnabledValue = savedBorderEnabled
+      ? JSON.parse(savedBorderEnabled).value
+      : false;
+    setDefaultBorderEnabled(borderEnabledValue);
+
+    const savedBorderColor = localStorage.getItem(
+      "anicards-defaultBorderColor",
+    );
+    const borderColorValue = savedBorderColor
+      ? JSON.parse(savedBorderColor).value
+      : DEFAULT_BORDER_COLOR;
+    setDefaultBorderColor(borderColorValue);
   }, [cacheVersion]);
 
   if (!mounted) return null;
@@ -206,6 +232,8 @@ export default function SettingsPage() {
       "anicards-defaultCardTypes",
       "anicards-defaultUsername",
       "anicards-defaultVariants",
+      "anicards-defaultBorderEnabled",
+      "anicards-defaultBorderColor",
     ];
     for (const key of keysToRemove) {
       localStorage.removeItem(key);
@@ -213,6 +241,8 @@ export default function SettingsPage() {
     clearSiteCache();
     setCacheVersion((v) => v + 1);
     setDefaultVariants({});
+    setDefaultBorderEnabled(false);
+    setDefaultBorderColor(DEFAULT_BORDER_COLOR);
   };
 
   // New handler for default username change
@@ -252,6 +282,18 @@ export default function SettingsPage() {
       setCacheVersion((v) => v + 1);
       return updated;
     });
+  };
+
+  const handleBorderEnabledChange = (value: boolean) => {
+    saveDefaultBorderEnabled(value);
+    setDefaultBorderEnabled(value);
+    setCacheVersion((v) => v + 1);
+  };
+
+  const handleBorderColorChange = (value: string) => {
+    saveDefaultBorderColor(value);
+    setDefaultBorderColor(value);
+    setCacheVersion((v) => v + 1);
   };
 
   return (
@@ -319,6 +361,10 @@ export default function SettingsPage() {
               onVariantChange={handleVariantChange}
               defaultShowFavoritesByCard={defaultShowFavoritesByCard}
               onToggleShowFavoritesDefault={handleToggleShowFavoritesDefault}
+              defaultBorderEnabled={defaultBorderEnabled}
+              defaultBorderColor={defaultBorderColor}
+              onBorderEnabledChange={handleBorderEnabledChange}
+              onBorderColorChange={handleBorderColorChange}
             />
           </div>
           <div className="col-span-2 flex items-center justify-center">

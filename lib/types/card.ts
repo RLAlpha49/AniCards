@@ -6,6 +6,7 @@ export interface CardConfig {
   backgroundColor: string;
   textColor: string;
   circleColor: string;
+  borderColor?: string;
   useStatusColors?: boolean;
 }
 

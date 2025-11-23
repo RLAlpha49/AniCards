@@ -176,6 +176,8 @@ export interface CardConfig {
   textColor: string;
   // Circle color, for any circular elements in the card.
   circleColor: string;
+  // Optional border color for the card background.
+  borderColor?: string;
   // Whether to show favorites (pink heart) for this card
   showFavorites?: boolean;
   // Whether to use fixed status distribution colors (only meaningful for status distribution cards)
