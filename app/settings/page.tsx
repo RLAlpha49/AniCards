@@ -273,7 +273,7 @@ export default function SettingsPage() {
           transition={{ duration: 0.6 }}
           className="mb-12 text-center"
         >
-          <h1 className="mb-4 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-4xl font-extrabold text-transparent md:text-5xl">
+          <h1 className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text pb-4 text-4xl font-extrabold text-transparent md:text-5xl">
             Application Settings
           </h1>
           <p className="mx-auto max-w-2xl text-lg text-slate-600 dark:text-slate-300">
@@ -287,43 +287,50 @@ export default function SettingsPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2 }}
-          className="mx-auto max-w-4xl space-y-8"
+          className="mx-auto grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-2"
         >
-          <ThemePreferences
-            theme={theme || "system"}
-            themes={themes}
-            onThemeChange={handleThemeChange}
-          />
+          <div className="space-y-6">
+            <ThemePreferences
+              theme={theme || "system"}
+              themes={themes}
+              onThemeChange={handleThemeChange}
+            />
 
-          <SidebarBehavior
-            sidebarDefault={sidebarDefault}
-            onSidebarChange={handleSidebarDefaultChange}
-          />
+            <SidebarBehavior
+              sidebarDefault={sidebarDefault}
+              onSidebarChange={handleSidebarDefaultChange}
+            />
 
-          <DefaultUsernameSettings
-            defaultUsername={defaultUsername}
-            onUsernameChange={handleDefaultUsernameChange}
-          />
+            <DefaultUsernameSettings
+              defaultUsername={defaultUsername}
+              onUsernameChange={handleDefaultUsernameChange}
+            />
+          </div>
 
-          <CacheManagement
-            cachedItems={cachedItems}
-            onClearCache={handleClearCache}
-            onDeleteCacheItem={handleDeleteCacheItem}
-          />
+          <div className="space-y-6">
+            <CacheManagement
+              cachedItems={cachedItems}
+              onClearCache={handleClearCache}
+              onDeleteCacheItem={handleDeleteCacheItem}
+            />
+          </div>
 
-          <DefaultCardSettings
-            defaultPreset={defaultPreset}
-            onPresetChange={handlePresetChange}
-            defaultCardTypes={defaultCardTypes}
-            defaultVariants={defaultVariants}
-            onToggleCardType={handleCardTypeToggle}
-            onToggleAllCardTypes={handleToggleAllCardTypes}
-            onVariantChange={handleVariantChange}
-            defaultShowFavoritesByCard={defaultShowFavoritesByCard}
-            onToggleShowFavoritesDefault={handleToggleShowFavoritesDefault}
-          />
-
-          <ResetSettings onReset={handleResetSettings} />
+          <div className="col-span-1 lg:col-span-2">
+            <DefaultCardSettings
+              defaultPreset={defaultPreset}
+              onPresetChange={handlePresetChange}
+              defaultCardTypes={defaultCardTypes}
+              defaultVariants={defaultVariants}
+              onToggleCardType={handleCardTypeToggle}
+              onToggleAllCardTypes={handleToggleAllCardTypes}
+              onVariantChange={handleVariantChange}
+              defaultShowFavoritesByCard={defaultShowFavoritesByCard}
+              onToggleShowFavoritesDefault={handleToggleShowFavoritesDefault}
+            />
+          </div>
+          <div className="col-span-2 flex items-center justify-center">
+            <ResetSettings onReset={handleResetSettings} />
+          </div>
         </motion.div>
       </div>
     </div>

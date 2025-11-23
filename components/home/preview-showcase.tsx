@@ -66,9 +66,20 @@ const PREVIEW_CARDS = [
     color: "indigo",
     size: "medium",
   },
+  {
+    title: "Manga Genres",
+    description: "Your favorite manga genres visualized",
+    cardType: "mangaGenres",
+    variation: "default",
+    category: "Analysis",
+    color: "teal",
+    size: "medium",
+  },
 ];
 
-export function PreviewShowcase({ onGetStarted }: PreviewShowcaseProps) {
+export function PreviewShowcase({
+  onGetStarted,
+}: Readonly<PreviewShowcaseProps>) {
   const BASE_URL = "https://anicards.alpha49.com/api/card.svg";
   const USER_ID = "542244";
 

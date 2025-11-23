@@ -57,14 +57,13 @@ export default function HomePage() {
 
             <h2 className="text-4xl font-bold leading-tight sm:text-5xl">
               Transform Your AniList Data into{" "}
-              <span className="block bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+              <span className="block bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text pb-4 text-transparent">
                 Stunning Visual Stories
               </span>
             </h2>
 
-            <p className="text-lg text-slate-300 sm:text-xl">
-              Join thousands of anime fans showcasing their journey. Create your
-              first card in seconds, completely free.
+            <p className="!mt-0 text-lg text-slate-300 sm:text-xl">
+              Create your first card in seconds, completely free.
             </p>
 
             <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">

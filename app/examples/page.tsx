@@ -171,8 +171,8 @@ function CategorySection({
       animate={isFirstCategory ? { opacity: 1, y: 0 } : undefined}
       whileInView={isFirstCategory ? undefined : { opacity: 1, y: 0 }}
       transition={{
-        duration: 0.6,
-        delay: isFirstCategory ? 0.3 : categoryIndex * 0.1,
+        duration: 0.3,
+        delay: 0.1,
       }}
       viewport={
         isFirstCategory
@@ -180,7 +180,7 @@ function CategorySection({
           : {
               once: true,
               margin: "-10% 0px -10% 0px",
-              amount: 0.1,
+              amount: 0.01,
             }
       }
     >
@@ -784,8 +784,8 @@ export default function ExamplesPage() {
                     className="font-semibold text-blue-600 hover:underline dark:text-blue-400"
                   >
                     @Alpha49
-                  </a>{" "}
-                  .
+                  </a>
+                  {""}.
                 </p>
               </div>
 
@@ -879,8 +879,8 @@ export default function ExamplesPage() {
                   className="font-semibold text-blue-600 hover:underline dark:text-blue-400"
                 >
                   @Alpha49
-                </a>{" "}
-                . Generate your personalized cards with your own AniList
+                </a>
+                {""}. Generate your personalized cards with your own AniList
                 statistics!
               </p>
             </div>

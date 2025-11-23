@@ -49,13 +49,47 @@ export function DefaultUsernameSettings({
         </div>
 
         <div className="space-y-3">
-          <Input
-            id="default-username"
-            className="h-12 border-slate-200 bg-white px-4 text-base transition-all hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-blue-500 dark:focus:border-blue-400"
-            value={defaultUsername}
-            onChange={(e) => onUsernameChange(e.target.value)}
-            placeholder="Enter your AniList username"
-          />
+          <div className="relative">
+            <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                />
+              </svg>
+            </div>
+            <Input
+              id="default-username"
+              className="h-14 border-slate-200 bg-slate-50 pl-12 text-lg transition-all hover:border-blue-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800/50 dark:hover:border-blue-500 dark:focus:border-blue-400 dark:focus:bg-slate-800"
+              value={defaultUsername}
+              onChange={(e) => onUsernameChange(e.target.value)}
+              placeholder="Enter your AniList username"
+            />
+            {defaultUsername && (
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 text-green-500">
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              </div>
+            )}
+          </div>
           <p className="text-xs text-slate-500 dark:text-slate-400">
             This username will be automatically filled when generating new stat
             cards

@@ -28,9 +28,9 @@ export function CacheManagement({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.3 }}
-      className="space-y-4"
+      className="h-full"
     >
-      <div className="rounded-2xl border border-white/50 bg-white/80 p-6 shadow-xl backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/80">
+      <div className="flex h-full flex-col rounded-2xl border border-white/50 bg-white/80 p-6 shadow-xl backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/80">
         <div className="mb-6 flex items-center gap-4">
           <div className="rounded-xl bg-gradient-to-br from-orange-500 to-red-600 p-3 shadow-lg shadow-orange-500/20">
             <svg
@@ -94,7 +94,7 @@ export function CacheManagement({
             <h3 className="font-semibold text-slate-900 dark:text-white">
               Cached Items
             </h3>
-            <div className="scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700 max-h-64 space-y-3 overflow-y-auto pr-2">
+            <div className="scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700 max-h-80 space-y-3 overflow-y-auto pr-2">
               {cachedItems.map((item) => (
                 <motion.div
                   key={item.key}

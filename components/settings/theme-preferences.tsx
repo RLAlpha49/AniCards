@@ -1,13 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { trackSettingsChanged } from "@/lib/utils/google-analytics";
 
 interface ThemePreferencesProps {
@@ -60,40 +53,91 @@ export function ThemePreferences({
           </div>
         </div>
 
-        <Select value={theme} onValueChange={handleThemeChange}>
-          <SelectTrigger className="h-12 w-full max-w-sm border-slate-200 bg-white px-4 text-base transition-all hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-blue-500 dark:focus:border-blue-400">
-            <SelectValue placeholder="Select theme" />
-          </SelectTrigger>
-          <SelectContent className="border-slate-200 bg-white/95 backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900/95">
-            {themes.map((t) => {
-              let themeDotClass = "";
-              if (t === "light") {
-                themeDotClass =
-                  "bg-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.5)]";
-              } else if (t === "dark") {
-                themeDotClass =
-                  "bg-slate-800 shadow-[0_0_10px_rgba(30,41,59,0.5)] border border-slate-600";
-              } else {
-                themeDotClass =
-                  "bg-gradient-to-r from-yellow-400 to-slate-800 shadow-[0_0_10px_rgba(99,102,241,0.5)]";
-              }
-              return (
-                <SelectItem
-                  key={t}
-                  value={t}
-                  className="cursor-pointer py-3 transition-colors focus:bg-blue-50 dark:focus:bg-slate-800"
+        <div className="grid grid-cols-3 gap-4">
+          {themes.map((t) => {
+            const isActive = theme === t;
+            let gradientClass = "bg-gradient-to-br from-blue-400 to-purple-500";
+            if (t === "light") {
+              gradientClass = "bg-gradient-to-br from-yellow-300 to-orange-400";
+            } else if (t === "dark") {
+              gradientClass = "bg-gradient-to-br from-slate-700 to-slate-900";
+            }
+
+            return (
+              <button
+                key={t}
+                onClick={() => handleThemeChange(t)}
+                className={`group relative flex flex-col items-center gap-3 rounded-xl border-2 p-4 transition-all hover:scale-[1.02] ${
+                  isActive
+                    ? "border-blue-500 bg-blue-50/50 dark:border-blue-400 dark:bg-blue-900/20"
+                    : "border-slate-200 bg-slate-50/50 hover:border-blue-200 hover:bg-blue-50/30 dark:border-slate-700 dark:bg-slate-800/50 dark:hover:border-blue-800 dark:hover:bg-blue-900/10"
+                }`}
+              >
+                <div
+                  className={`h-12 w-12 rounded-full shadow-lg transition-transform group-hover:scale-110 ${gradientClass}`}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className={`h-4 w-4 rounded-full ${themeDotClass}`} />
-                    <span className="font-medium">
-                      {t.charAt(0).toUpperCase() + t.slice(1)}
-                    </span>
-                  </div>
-                </SelectItem>
-              );
-            })}
-          </SelectContent>
-        </Select>
+                  {t === "light" && (
+                    <svg
+                      className="h-full w-full p-2.5 text-white"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+                      />
+                    </svg>
+                  )}
+                  {t === "dark" && (
+                    <svg
+                      className="h-full w-full p-2.5 text-white"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
+                      />
+                    </svg>
+                  )}
+                  {t === "system" && (
+                    <svg
+                      className="h-full w-full p-2.5 text-white"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                      />
+                    </svg>
+                  )}
+                </div>
+                <span
+                  className={`font-medium capitalize ${
+                    isActive
+                      ? "text-blue-600 dark:text-blue-400"
+                      : "text-slate-600 dark:text-slate-400"
+                  }`}
+                >
+                  {t}
+                </span>
+                {isActive && (
+                  <div className="absolute right-2 top-2 h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </motion.div>
   );
