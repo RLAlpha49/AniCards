@@ -100,7 +100,7 @@ export function LoadingOverlay({
   text = "Generating your cards...",
 }: Readonly<LoadingOverlayProps>) {
   return (
-    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-background/80 backdrop-blur-sm">
+    <div className="absolute inset-0 z-[1000] flex items-center justify-center rounded-2xl bg-white/80 backdrop-blur-sm dark:bg-gray-900/80">
       <div className="flex flex-col items-center gap-4">
         <LoadingSpinner size="lg" className="text-primary" />
         <motion.p

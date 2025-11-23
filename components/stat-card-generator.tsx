@@ -731,7 +731,6 @@ export function StatCardGenerator({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      {loading && <LoadingOverlay text="Creating your stat cards..." />}
       <DialogContent
         className={cn(
           "z-50 flex h-[90vh] max-h-[1000px] w-[95vw] max-w-[1000px] flex-col overflow-hidden p-0",
@@ -740,6 +739,7 @@ export function StatCardGenerator({
           className,
         )}
       >
+        {loading && <LoadingOverlay text="Creating your stat cards..." />}
         {/* Header */}
         <div className="relative z-10 flex shrink-0 flex-col border-b border-gray-100 bg-white px-6 py-4 dark:border-gray-800 dark:bg-gray-900">
           <DialogHeader>
