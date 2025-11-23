@@ -40,6 +40,8 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: rgb(229 231 235 / var(--tw-border-opacity)) !important;
     --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-icon-selected-background: hsl(217 100% 87%);
+    --sidebar-icon-selected-foreground: hsl(224 78% 28%);
   }
 
   .dark {
@@ -70,14 +72,16 @@
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
-    --sidebar-background: rgb(31 41 55 / var(--tw-bg-opacity));
+    --sidebar-background: rgb(2 6 23 / var(--tw-bg-opacity));
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 240 3.7% 15.9%;
     --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: rgb(55 65 81 / var(--tw-border-opacity)) !important;
+    --sidebar-border: rgb(31 41 55 / var(--tw-border-opacity)) !important;
     --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-icon-selected-background: hsl(224 75% 45%);
+    --sidebar-icon-selected-foreground: 0 0% 100%;
   }
 }
 
