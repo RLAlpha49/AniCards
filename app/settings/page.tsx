@@ -198,12 +198,10 @@ export default function SettingsPage() {
     // Dynamically require statCardTypes if needed. Here we mimic that check by comparing array lengths.
     if (
       defaultCardTypes.length ===
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
       require("@/components/stat-card-generator").statCardTypes.length
     ) {
       allTypes = [];
     } else {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
       allTypes = require("@/components/stat-card-generator").statCardTypes.map(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (type: any) => type.id,

@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useState, useEffect } from "react";
@@ -53,7 +54,6 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
           {!isLoaded && !hasError && (
             <Skeleton className="absolute inset-0 h-full w-full rounded-lg" />
           )}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={src}
             alt={alt}

@@ -1,5 +1,3 @@
-/* eslint-disable no-var */
-
 // Mocks for external dependencies.
 var mockLimit = jest.fn().mockResolvedValue({ success: true });
 var mockRedisSet = jest.fn();

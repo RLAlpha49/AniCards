@@ -1,4 +1,3 @@
-/* eslint-disable no-var */
 /**
  * This test file covers the GET handler for the card SVG endpoint.
  * It mocks external dependencies such as the rate limiter, Redis, and external utility/template functions.

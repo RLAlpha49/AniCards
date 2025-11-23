@@ -1,8 +1,7 @@
 import { GET } from "./route";
 
 // Declare mockRedisGet so tests can simulate Redis responses.
-// eslint-disable-next-line no-var
-var mockRedisGet = jest.fn();
+let mockRedisGet = jest.fn();
 
 jest.mock("@upstash/redis", () => {
   return {

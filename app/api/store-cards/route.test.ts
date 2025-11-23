@@ -1,4 +1,3 @@
-/* eslint-disable no-var */
 // Declare mockLimit in the outer scope so tests can access it.
 var mockLimit = jest.fn().mockResolvedValue({ success: true });
 var mockRedisSet = jest.fn();

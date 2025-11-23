@@ -1,4 +1,3 @@
-/* eslint-disable no-var */
 import { GET } from "./route";
 
 // Declare mockRedisGet in the outer scope so tests can control its behavior.
