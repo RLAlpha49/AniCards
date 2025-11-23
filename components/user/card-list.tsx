@@ -49,8 +49,9 @@ export function CardList({ cardTypes }: Readonly<CardListProps>) {
       const origin = globalThis.window?.location.origin ?? "http://localhost";
       const url = new URL(firstCardUrl, origin);
       userId = url.searchParams.get("userId");
-    } catch {
-      // Gracefully handle malformed URLs
+    } catch (error) {
+      // Gracefully handle malformed URLs, but log for debugging
+      console.error("Failed to extract userId from card URL:", error);
       userId = null;
     }
   }
