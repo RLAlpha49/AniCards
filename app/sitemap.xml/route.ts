@@ -6,7 +6,7 @@ const BASE_URL =
 const pages = [
   {
     path: "/",
-    priority: 1.0,
+    priority: 1,
     changefreq: "daily" as const,
   },
   {
