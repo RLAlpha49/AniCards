@@ -213,6 +213,21 @@ export function UserPageClient() {
     };
   });
 
+  const priorityOrder = ["animeStats", "mangaStats", "socialStats"];
+
+  const sortedCardTypes = [...cardTypes].sort((a, b) => {
+    const aPriority = priorityOrder.indexOf(a.rawType);
+    const bPriority = priorityOrder.indexOf(b.rawType);
+
+    if (aPriority !== -1 || bPriority !== -1) {
+      if (aPriority === -1) return 1;
+      if (bPriority === -1) return -1;
+      return aPriority - bPriority;
+    }
+
+    return a.type.localeCompare(b.type);
+  });
+
   // Guard: Ensure userData is present before rendering URLs
   if (!userData) {
     return (
@@ -424,7 +439,7 @@ export function UserPageClient() {
 
             {/* Cards Display */}
             <div className="w-full">
-              <CardList cardTypes={cardTypes} />
+              <CardList cardTypes={sortedCardTypes} />
             </div>
           </motion.div>
         ) : (
