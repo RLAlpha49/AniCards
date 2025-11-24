@@ -62,6 +62,121 @@ function advanceIndexPastEndOfQuote(
   return j;
 }
 
+/**
+ * Find the index after the matching closing brace '}' starting from the openIdx
+ * which points at the opening '{'. This function respects quoted strings and
+ * comment blocks so that braces inside them don't affect the depth count.
+ */
+function findMatchingBraceEndIndex(input: string, openIdx: number): number {
+  let depth = 1;
+  let j = openIdx + 1;
+  while (j < input.length && depth > 0) {
+    const ch = input[j];
+    const nxt = input[j + 1];
+    // skip comments
+    if (ch === "/" && nxt === "*") {
+      j = advanceIndexPastEndOfComment(input, j);
+      continue;
+    }
+    // skip quoted strings
+    if (ch === "'") {
+      j = advanceIndexPastEndOfQuote(input, j, "'");
+      continue;
+    }
+    if (ch === '"') {
+      j = advanceIndexPastEndOfQuote(input, j, '"');
+      continue;
+    }
+    if (ch === "{") depth++;
+    else if (ch === "}") depth--;
+    j++;
+  }
+  return j;
+}
+
+/**
+ * Find index of the opening brace '{' after a start index while skipping
+ * comments and quoted strings. Returns index of '{' or input.length if not found.
+ */
+function findOpeningBraceIndex(input: string, start: number): number {
+  let j = start;
+  while (j < input.length && input[j] !== "{") {
+    const ch = input[j];
+    const nxt = input[j + 1];
+    if (ch === "/" && nxt === "*") {
+      j = advanceIndexPastEndOfComment(input, j);
+      continue;
+    }
+    if (ch === "'") {
+      j = advanceIndexPastEndOfQuote(input, j, "'");
+      continue;
+    }
+    if (ch === '"') {
+      j = advanceIndexPastEndOfQuote(input, j, '"');
+      continue;
+    }
+    j += 1;
+  }
+  return j;
+}
+
+function collectCssBlocks(input: string): Array<{
+  selectorStart: number;
+  selectorEnd: number;
+  openIdx: number;
+  closeIdx: number;
+}> {
+  const blocks = [] as Array<{
+    selectorStart: number;
+    selectorEnd: number;
+    openIdx: number;
+    closeIdx: number;
+  }>;
+  const stack: number[] = [];
+  let i = 0;
+  while (i < input.length) {
+    const ch = input[i];
+    const nxt = input[i + 1];
+    // skip comments
+    if (ch === "/" && nxt === "*") {
+      i = advanceIndexPastEndOfComment(input, i);
+      continue;
+    }
+    // skip quotes
+    if (ch === "'") {
+      i = advanceIndexPastEndOfQuote(input, i, "'");
+      continue;
+    }
+    if (ch === '"') {
+      i = advanceIndexPastEndOfQuote(input, i, '"');
+      continue;
+    }
+    if (ch === "{") {
+      stack.push(i);
+      i += 1;
+      continue;
+    }
+    if (ch === "}") {
+      if (stack.length === 0) {
+        i += 1;
+        continue;
+      }
+      const openIdx = stack.pop()!;
+      const start = findSelectorStart(input, openIdx);
+      blocks.push({
+        selectorStart: start,
+        selectorEnd: openIdx,
+        openIdx,
+        closeIdx: i,
+      });
+      i += 1;
+      continue;
+    }
+    i += 1;
+  }
+  return blocks;
+}
+
 function findEmptyCssRanges(input: string): Array<[number, number]> {
   const ranges: Array<[number, number]> = [];
   const stack: number[] = [];
@@ -178,6 +293,298 @@ export function removeEmptyCssRules(css: string): string {
     last = nextCss;
   }
   return last;
+}
+
+/**
+ * Extract the first <style> tag in the SVG and return its indices and inner CSS.
+ * Returns null if not found.
+ */
+function extractStyleTag(
+  svg: string,
+): { start: number; end: number; css: string } | null {
+  const re = /<style\b[^>]*>([\s\S]*?)<\/style>/i;
+  const match = re.exec(svg);
+  if (!match) return null;
+  const start = match.index;
+  const end = start + match[0].length;
+  const css = match[1];
+  return { start, end, css };
+}
+
+/**
+ * Remove any at-rule blocks (e.g., @keyframes) found in CSS by name.
+ * Uses a brace-balanced scan so it survives minified and nested content.
+ */
+function removeAtRuleBlocks(inputCss: string, atRuleName: string): string {
+  const lc = inputCss.toLowerCase();
+  const needle = `@${atRuleName.toLowerCase()}`;
+  let out = "";
+  let i = 0;
+  while (i < inputCss.length) {
+    const idx = lc.indexOf(needle, i);
+    if (idx === -1) {
+      out += inputCss.slice(i);
+      break;
+    }
+    // Append thing before the at-rule
+    out += inputCss.slice(i, idx);
+    // Find opening brace for the at-rule, while respecting quotes/comments
+    const j = findOpeningBraceIndex(inputCss, idx);
+    if (j >= inputCss.length) break; // malformed at-rule without block
+    // Find the end of the brace-block using helper
+    const endIndex = findMatchingBraceEndIndex(inputCss, j);
+    i = endIndex;
+  }
+  return out;
+}
+
+/**
+ * Split a selector list by commas while ignoring commas that are inside parentheses
+ * (for example, :nth-child selectors). Returns trimmed selectors.
+ */
+function splitSelectors(selectorText: string): string[] {
+  const selectors: string[] = [];
+  let cur = "";
+  let depth = 0;
+  let i = 0;
+  while (i < selectorText.length) {
+    const ch = selectorText[i];
+    switch (ch) {
+      case "'": {
+        const end = advanceIndexPastEndOfQuote(selectorText, i, "'");
+        cur += selectorText.slice(i, end);
+        i = end;
+        break;
+      }
+      case '"': {
+        const end = advanceIndexPastEndOfQuote(selectorText, i, '"');
+        cur += selectorText.slice(i, end);
+        i = end;
+        break;
+      }
+      case "(": {
+        depth += 1;
+        cur += ch;
+        i += 1;
+        break;
+      }
+      case ")": {
+        if (depth > 0) depth -= 1;
+        cur += ch;
+        i += 1;
+        break;
+      }
+      case ",": {
+        if (depth === 0) {
+          selectors.push(cur.trim());
+          cur = "";
+        } else {
+          cur += ch;
+        }
+        i += 1;
+        break;
+      }
+      default: {
+        cur += ch;
+        i += 1;
+      }
+    }
+  }
+  if (cur.trim().length > 0) selectors.push(cur.trim());
+  return selectors;
+}
+
+function selectorContainsClass(selector: string, className: string): boolean {
+  // Match a class token such as `.stagger` anywhere inside a selector but avoid
+  // matching a substring of a longer class name (e.g., `.stagger-other`). We use
+  // a negative lookahead to ensure the following character is not a valid class
+  // name character (letters, digits, underscore or hyphen).
+  const safeName = className.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+  const rx = new RegExp(`\\.${safeName}(?![A-Za-z0-9_-])`, "i");
+  return rx.test(selector);
+}
+
+/**
+ * Remove animation properties such as `animation` shorthand and `animation-*` prefixed
+ * properties from a CSS block. Also normalizes opacity and visibility to avoid
+ * hidden elements.
+ */
+function removeAnimationPropertiesFromBlock(inner: string): string {
+  // Remove animation shorthand and vendor-prefixed variants, as well as
+  // sub-properties like animation-delay, animation-name, etc.
+  inner = inner.replaceAll(
+    /(?:-webkit-|-moz-|-ms-)?animation(?:-[\w-]+)?\s*:\s*[^;]+;?/gi,
+    "",
+  );
+  // Remove vendor prefixed animation properties as well
+  inner = inner.replaceAll(
+    /(?:-webkit-|-moz-|-ms-)?animation-[\w-]+\s*:\s*[^;]+;?/gi,
+    "",
+  );
+  // Replace opacity:0 -> opacity:1 (catch minified and whitespace variants)
+  inner = inner.replaceAll(/opacity\s*:\s*0+(?:\.\d+)?\s*;?/gi, "opacity: 1;");
+  // Replace visibility:hidden -> visibility:visible
+  inner = inner.replaceAll(
+    /visibility\s*:\s*hidden\s*;?/gi,
+    "visibility: visible;",
+  );
+  return inner;
+}
+
+/**
+ * Sanitizes a CSS string policy-wise:
+ * - Removes @keyframes blocks
+ * - Removes animation-related declarations
+ * - Rewrites opacity/visibility
+ * - Removes `.stagger` selectors if the associated rule contains animation
+ */
+/**
+ * sanitizeCssContent - policy-driven CSS sanitizer
+ *
+ * Policy:
+ * - Remove animation controls entirely: any 'animation' shorthand and
+ *   any 'animation-*' properties (including vendor-prefixed variants).
+ * - Remove @keyframes blocks (including vendor-prefixed variants).
+ * - Normalize 'opacity: 0' to 'opacity: 1' to avoid hidden elements.
+ * - Normalize 'visibility: hidden' to 'visibility: visible'.
+ * - Remove '.stagger' selectors only when their rule contains animation
+ *   properties, and then remove 'stagger' class tokens from markup. This
+ *   change is conservative to avoid removing user-defined classes with the
+ *   same name unless they were used for animations.
+ * - Remove empty rules after sanitization.
+ */
+export function sanitizeCssContent(css: string): {
+  css: string;
+  classesToStrip: string[];
+} {
+  if (!css?.includes("{")) return { css, classesToStrip: [] };
+  // 1) Remove @keyframes via a safe scan. Also remove vendor-prefixed keyframes.
+  let sanitized = removeAtRuleBlocks(css, "keyframes");
+  sanitized = removeAtRuleBlocks(sanitized, "-webkit-keyframes");
+  sanitized = removeAtRuleBlocks(sanitized, "-moz-keyframes");
+  sanitized = removeAtRuleBlocks(sanitized, "-ms-keyframes");
+  // Lowercase copy for content checks - not needed at the moment
+  const classesToStrip = new Set<string>();
+
+  // 2) Parse block-based rules using brace matching (we can reuse existing helpers)
+  const blocks = collectCssBlocks(sanitized);
+
+  // Rebuild sanitized CSS by iterating blocks and sanitizing inner content
+  let out = "";
+  let lastPos = 0;
+  for (const b of blocks) {
+    out += sanitized.slice(lastPos, b.selectorStart);
+    const selectorText = sanitized.slice(b.selectorStart, b.selectorEnd).trim();
+    const innerText = sanitized.slice(b.openIdx + 1, b.closeIdx);
+
+    const newInner = removeAnimationPropertiesFromBlock(innerText);
+    let newSelectorText = selectorText;
+
+    // If selector list contains `.stagger` and the original innerText had animation-related properties,
+    // we will remove `.stagger` from the selector list. We intentionally scope this change
+    // to `.stagger` selectors that are used for AniList templates' animations.
+    if (/\.stagger\b/i.test(selectorText)) {
+      if (/(?:animation\b|animation-\w+\b|animation\s*:)/i.test(innerText)) {
+        // remove .stagger token(s) from the selectorList
+        const selectors = splitSelectors(selectorText);
+        const filtered = selectors.filter(
+          (s) => !selectorContainsClass(s, "stagger"),
+        );
+        if (filtered.length === 0) {
+          // Skip the entire rule
+          lastPos = b.closeIdx + 1;
+          // Mark that we should remove class="stagger" tokens from markup later
+          classesToStrip.add("stagger");
+          continue;
+        }
+        newSelectorText = filtered.join(", ");
+        // Mark removal from markup if we changed selector list to drop .stagger
+        classesToStrip.add("stagger");
+      }
+    }
+
+    // Append sanitized rule
+    out += `${newSelectorText}{${newInner}}`;
+    lastPos = b.closeIdx + 1;
+  }
+  out += sanitized.slice(lastPos);
+
+  // 3) Global cleanup: remove any leftover animation properties or vendor prefixes
+  out = out.replaceAll(
+    /(?:-webkit-|-moz-|-ms-)?animation(?:-[\w-]+)?\s*:\s*[^;]+;?/gi,
+    "",
+  );
+  out = out.replaceAll(
+    /(?:-webkit-|-moz-|-ms-)?animation-[\w-]+\s*:\s*[^;]+;?/gi,
+    "",
+  );
+  // Replace any leftover to blocks (safety)
+  out = out.replaceAll(/\bto\s*\{[^}]*\}/gi, "");
+  // Normalize opacity/visibility
+  out = out.replaceAll(/opacity\s*:\s*0+(?:\.\d+)?\s*;?/gi, "opacity: 1;");
+  out = out.replaceAll(
+    /visibility\s*:\s*hidden\s*;?/gi,
+    "visibility: visible;",
+  );
+
+  // 4) Remove empty rules that become empty after our changes
+  out = removeEmptyCssRules(out);
+  return { css: out, classesToStrip: Array.from(classesToStrip) };
+}
+
+/**
+ * Remove class tokens from class attributes (both single and double quoted).
+ */
+export function removeClassTokensFromMarkup(
+  svg: string,
+  classTokens: string[],
+): string {
+  if (!classTokens || classTokens.length === 0) return svg;
+  // Replace both single and double-quoted class attributes
+  svg = svg.replaceAll(/class=(['"])(.*?)\1/gi, (match, quote, clsValue) => {
+    const tokens = clsValue
+      .split(/\s+/)
+      .map((s: string) => s.trim())
+      .filter(Boolean);
+    const remaining = tokens.filter((t: string) => !classTokens.includes(t));
+    if (remaining.length === 0) return ""; // remove entire attribute
+    return `class=${quote}${remaining.join(" ")}${quote}`;
+  });
+  return svg;
+}
+
+/**
+ * Sanitize inline style attributes within the SVG markup. This preserves
+ * unrelated style declarations while stripping `animation*` related ones
+ * and normalizing opacity/visibility.
+ */
+export function sanitizeInlineStyleAttributes(svg: string): string {
+  return svg.replaceAll(/style=(['"])(.*?)\1/gi, (m, quote, styleValue) => {
+    // Split declarations by semicolon, but tolerate trailing/leading semicolons
+    const parts = styleValue
+      .split(/;+/)
+      .map((p: string) => p.trim())
+      .filter(Boolean);
+    const outParts: string[] = [];
+    for (const p of parts) {
+      const [rawName, ...rest] = p.split(":");
+      if (!rawName || rest.length === 0) continue;
+      const name = rawName.trim().toLowerCase();
+      const val = rest.join(":").trim();
+      // Skip animation properties and vendor prefixed animation
+      if (/^(?:-webkit-|-moz-|-ms-)?animation(?:-.*)?$/i.test(name)) continue;
+      let finalVal = val;
+      // Normalize opacity
+      if (name === "opacity" && /^\s*0+(?:\.\d+)?\s*$/.test(val))
+        finalVal = "1";
+      // Normalize visibility
+      if (name === "visibility" && /^\s*hidden\s*$/i.test(val))
+        finalVal = "visible";
+      outParts.push(`${name}: ${finalVal}`);
+    }
+    if (outParts.length === 0) return "";
+    return `style=${quote}${outParts.join("; ")}${quote}`;
+  });
 }
 
 // API endpoint for converting SVG to PNG with style fixes
@@ -303,88 +710,33 @@ export async function POST(request: NextRequest) {
       `📝 [Convert API] Received SVG content (${svgContent.length} characters)`,
     );
 
-    // 1. Remove animation artifacts
-    svgContent = svgContent
-      // Regex explanation:
-      // - opacity: 0;? matches opacity: 0;
-      // - Replace all opacity: 0 declarations with 1
-      .replaceAll(/opacity:\s*0;?/g, "opacity: 1;")
-      // Regex explanation:
-      // - \.stagger matches the CSS class name
-      // - {[^}]*} matches everything between curly braces
-      // Remove entire .stagger CSS blocks
-      .replaceAll(/\.stagger\s*{[^}]*}/g, "")
-      // Regex explanation:
-      // - class="stagger" matches class="stagger"
-      // Replace all class="stagger" attributes with an empty string
-      .replaceAll('class="stagger"', "");
-    console.log("🧹 [Convert API] Removed animation artifacts.");
-
-    // 2. Process CSS styles
+    // 1. Extract and sanitize CSS style blocks
     // Regex explanation:
     // - <style>([\s\S]*?)<\/style> matches the <style> tag and everything inside it
     const styleMatch = new RegExp(/<style>([\s\S]*?)<\/style>/).exec(
       svgContent,
     );
     let cssContent = styleMatch?.[1] || "";
-    cssContent = cssContent
-      // Regex explanation:
-      // - @keyframes\s+\w+\s*{[^}]*} matches @keyframes blocks
-      // - \s+\w+ matches the animation name
-      // - {[^}]*} matches everything between curly braces
-      .replaceAll(/@keyframes\s+\w+\s*{[^}]*}/g, "")
-      // Regex explanation:
-      // - animation:\s*[^;]+;? matches animation properties
-      // - Remove animation properties
-      .replaceAll(/animation:\s*[^;]+;?/g, "")
-      // Regex explanation:
-      // - } matches the closing brace
-      // - \s*to\s* matches optional whitespace followed by "to"
-      // - {[^}]*} matches everything between curly braces
-      // Remove orphaned to-blocks
-      .replaceAll(/}\s*to\s*{[^}]*}/g, "")
-      // Regex explanation:
-      // - to\s* matches optional whitespace followed by "to"
-      // - {[^}]*} matches everything between curly braces
-      .replaceAll(/to\s*{[^}]*}/g, "")
-      // Regex explanation:
-      // - opacity:\s*1;\.(\d+); matches opacity values with 1 and a decimal point
-      // - Replace with opacity: 0. followed by the captured decimal
-      .replaceAll(/opacity:\s*1;\.(\d+);/g, "opacity: 0.$1;")
-      // Regex explanation:
-      // - opacity:\s*0 matches opacity: 0
-      // - Replace with opacity: 1
-      .replaceAll(/opacity:\s*0/g, "opacity: 1")
-      // Regex explanation:
-      // - visibility:\s*hidden matches visibility: hidden
-      // - Replace with visibility: visible
-      .replaceAll(/visibility:\s*hidden/g, "visibility: visible");
+    const { css: sanitizedCss, classesToStrip } =
+      sanitizeCssContent(cssContent);
 
-    cssContent = removeEmptyCssRules(cssContent);
-
+    // Remove/replace the <style> tag only if it exists
     // Rebuild SVG with processed styles
     // Regex explanation:
     // - <style>([\s\S]*?)<\/style> matches the <style> tag and everything inside it
-    svgContent = svgContent.replace(
-      /<style>[\s\S]*<\/style>/,
-      `<style>${cssContent}</style>`,
-    );
+    if (styleMatch) {
+      svgContent =
+        svgContent.slice(0, styleMatch.index) +
+        `<style>${sanitizedCss}</style>` +
+        svgContent.slice(styleMatch.index + styleMatch[0].length);
+    }
     console.log("🖌️  [Convert API] CSS styles normalized.");
-
-    // 3. Final cleanup of animation attributes
-    svgContent = svgContent
-      // Regex explanation:
-      // - animation-delay:\s*\d+ms;? matches animation-delay properties
-      // - Remove animation-delay properties
-      .replaceAll(/animation-delay:\s*\d+ms;?/g, "")
-      // Regex explanation:
-      // - style="" matches style attributes
-      // - Remove empty style attributes
-      .replaceAll(' style=""', "")
-      // Regex explanation:
-      // - style="animation-delay: \d+ms" matches style attributes containing only animation-delay
-      // - Remove style attributes containing only animation-delay
-      .replaceAll(/ style="animation-delay: \d+ms"/g, "");
+    // 2. Remove class tokens from markup according to sanitized CSS rules
+    svgContent = removeClassTokensFromMarkup(svgContent, classesToStrip);
+    // 3. Sanitize inline style attributes (remove animation declarations and normalize opacity/visibility)
+    svgContent = sanitizeInlineStyleAttributes(svgContent);
+    // 4. Remove trivial cruft such as empty style attributes
+    svgContent = svgContent.replaceAll(/\sstyle=(['"])\1/g, "");
     console.log("🧼 [Convert API] Final SVG cleanup completed.");
 
     // 4. Convert the processed SVG to PNG using sharp
