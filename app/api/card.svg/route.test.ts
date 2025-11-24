@@ -50,6 +50,9 @@ jest.mock("@/lib/svg-templates/extra-anime-manga-stats", () => ({
   extraAnimeMangaStatsTemplate: jest.fn(() => "<svg>Extra Stats</svg>"),
 }));
 
+// Import the mocked template to assert call arguments
+import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats";
+
 jest.mock("@/lib/utils", () => ({
   safeParse: (str: string) => JSON.parse(str),
   // Keep calculateMilestones from the dedicated module above.
@@ -61,7 +64,11 @@ async function getResponseText(response: Response): Promise<string> {
 }
 
 // Helper to create mock card data
-function createMockCardData(cardName: string, variation = "default") {
+function createMockCardData(
+  cardName: string,
+  variation = "default",
+  extra: Record<string, unknown> = {},
+) {
   return JSON.stringify({
     cards: [
       {
@@ -71,6 +78,7 @@ function createMockCardData(cardName: string, variation = "default") {
         backgroundColor: "#0b1622",
         textColor: "#E8E8E8",
         circleColor: "#3cc8ff",
+        ...extra,
       },
     ],
   });
@@ -78,7 +86,7 @@ function createMockCardData(cardName: string, variation = "default") {
 
 // Helper to create mock user data with different stat structures
 function createMockUserData(
-  userId: number,
+  userId: number | string,
   username: string,
   statsOverride?: Record<string, unknown>,
 ) {
@@ -103,9 +111,12 @@ function createMockUserData(
   };
 
   return JSON.stringify({
-    userId,
+    userId: String(userId),
     username,
     stats: statsOverride || defaultStats,
+    ip: "127.0.0.1",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   });
 }
 
@@ -239,6 +250,63 @@ describe("Card SVG GET Endpoint", () => {
     await expectSuccessfulSvgResponse(res, "<svg>Anime Stats</svg>");
   });
 
+  it("should pass favourites/staff to extraAnimeMangaStatsTemplate for animeStaff card", async () => {
+    const cardsData = createMockCardData("animeStaff", "default", {
+      showFavorites: true,
+    });
+    const userData = createMockUserData(542244, "testUser", {
+      User: {
+        favourites: {
+          staff: { nodes: [{ id: 1, name: { full: "Favorite Staff" } }] },
+          studios: { nodes: [{ id: 1, name: "Studio One" }] },
+          characters: { nodes: [{ id: 1, name: { full: "Character One" } }] },
+        },
+        statistics: {
+          anime: {
+            staff: [{ staff: { name: { full: "Favorite Staff" } }, count: 10 }],
+          },
+          manga: {},
+        },
+        stats: { activityHistory: [{ date: 1, amount: 1 }] },
+      },
+      followersPage: { pageInfo: { total: 0 }, followers: [] },
+      followingPage: { pageInfo: { total: 0 }, following: [] },
+      threadsPage: { pageInfo: { total: 0 }, threads: [] },
+      threadCommentsPage: { pageInfo: { total: 0 }, threadComments: [] },
+      reviewsPage: { pageInfo: { total: 0 }, reviews: [] },
+    });
+    setupSuccessfulMocks(cardsData, userData);
+
+    const req = new Request(
+      createRequestUrl(baseUrl, {
+        userId: "542244",
+        cardType: "animeStaff",
+        variation: "default",
+      }),
+    );
+    let res: Response | undefined;
+    // Debug: log the URL and Redis mock return values (handy only during debugging)
+    try {
+      res = await GET(req);
+    } catch (err) {
+      console.error("[TEST DEBUG] GET threw:", err);
+      throw err;
+    }
+    if (!res) throw new Error("No response returned");
+    const bodyText = await getResponseText(res);
+    // check the response
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
+    expect(bodyText).toBe("<svg>Extra Stats</svg>");
+
+    // Ensure the template was called with favorites including 'Favorite Staff'
+    expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
+    const callArgs = (extraAnimeMangaStatsTemplate as jest.Mock).mock
+      .calls[0][0];
+    // template call args
+    expect(callArgs.favorites).toContain("Favorite Staff");
+  });
+
   it("should return server error when SVG generation fails (inner try)", async () => {
     // Provide a valid cards record.
     const cardsData = createMockCardData("animeStats", "default");
@@ -257,7 +325,7 @@ describe("Card SVG GET Endpoint", () => {
       },
     );
     const res = await GET(req);
-    await expectErrorResponse(res, "Server Error");
+    await expectErrorResponse(res, "Missing card configuration or stats data");
   });
 
   it("should return server error when an outer error occurs", async () => {

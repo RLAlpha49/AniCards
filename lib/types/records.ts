@@ -37,6 +37,11 @@ export interface AnimeStats {
   voiceActors: AnimeStatVoiceActor[];
   studios: AnimeStatStudio[];
   staff: AnimeStatStaff[];
+  statuses?: { status: string; count: number }[];
+  formats?: { format: string; count: number }[];
+  scores?: { score: number; count: number }[];
+  releaseYears?: { releaseYear: number; count: number }[];
+  countries?: { country: string; count: number }[];
 }
 
 export interface MangaStatGenre {
@@ -63,6 +68,12 @@ export interface MangaStats {
   genres: MangaStatGenre[];
   tags: MangaStatTag[];
   staff: MangaStatStaff[];
+  // Distribution / additional fields collected from AniList
+  statuses?: { status: string; count: number }[];
+  formats?: { format: string; count: number }[];
+  scores?: { score: number; count: number }[];
+  releaseYears?: { releaseYear: number; count: number }[];
+  countries?: { country: string; count: number }[];
 }
 
 export interface UserStatistics {
@@ -84,6 +95,14 @@ export interface UserSection {
       nodes: {
         id: number;
         name: string;
+      }[];
+    };
+    characters?: {
+      nodes: {
+        id: number;
+        name: {
+          full: string;
+        };
       }[];
     };
   };
@@ -125,7 +144,7 @@ export interface ThreadCommentsPage {
 
 export interface ReviewsPage {
   pageInfo: PageInfo;
-  reviews: unknown[];
+  reviews: { id: number }[];
 }
 
 export interface UserStatsData {

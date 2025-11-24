@@ -166,13 +166,11 @@ describe("Convert API POST Endpoint", () => {
         body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
       }) as unknown as NextRequest;
 
-      globalThis.fetch = jest
-        .fn()
-        .mockResolvedValue({
-          ok: true,
-          status: 200,
-          text: async () => dummySVG,
-        });
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => dummySVG,
+      });
 
       lastSharpBuffer = null;
 
@@ -208,13 +206,11 @@ describe("Convert API POST Endpoint", () => {
         body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
       }) as unknown as NextRequest;
 
-      globalThis.fetch = jest
-        .fn()
-        .mockResolvedValue({
-          ok: true,
-          status: 200,
-          text: async () => dummySVG,
-        });
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => dummySVG,
+      });
 
       lastSharpBuffer = null;
 
@@ -239,13 +235,11 @@ describe("Convert API POST Endpoint", () => {
         body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
       }) as unknown as NextRequest;
 
-      globalThis.fetch = jest
-        .fn()
-        .mockResolvedValue({
-          ok: true,
-          status: 200,
-          text: async () => dummySVG,
-        });
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => dummySVG,
+      });
 
       lastSharpBuffer = null;
 
@@ -275,13 +269,11 @@ describe("Convert API POST Endpoint", () => {
         body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
       }) as unknown as NextRequest;
 
-      globalThis.fetch = jest
-        .fn()
-        .mockResolvedValue({
-          ok: true,
-          status: 200,
-          text: async () => dummySVG,
-        });
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => dummySVG,
+      });
 
       lastSharpBuffer = null;
 

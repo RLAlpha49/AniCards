@@ -1,12 +1,17 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
-import { CardConfig, UserStats } from "@/lib/types/card";
+import {
+  CardConfig,
+  SocialStats,
+  AnimeStats as TemplateAnimeStats,
+  MangaStats as TemplateMangaStats,
+} from "@/lib/types/card";
 import { calculateMilestones } from "@/lib/utils/milestones";
 import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
 import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats";
 import { distributionTemplate } from "@/lib/svg-templates/distribution";
 import { safeParse } from "@/lib/utils";
-import { UserRecord, CardsRecord } from "@/lib/types/records";
+import { UserRecord, CardsRecord, UserStatsData } from "@/lib/types/records";
 
 import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
 
@@ -141,27 +146,95 @@ function getFavoritesForCardType(
   }
 }
 
+// Adapter helpers: convert stored UserRecord.stats (UserStatsData) into template-friendly shapes
+type MilestoneFields = {
+  previousMilestone: number;
+  currentMilestone: number;
+  percentage: number;
+  dasharray: string;
+  dashoffset: string;
+};
+
+function toTemplateAnimeStats(
+  stats: UserStatsData["User"]["statistics"]["anime"],
+  milestoneData: ReturnType<typeof calculateMilestones>,
+): TemplateAnimeStats & MilestoneFields {
+  return {
+    count: stats.count,
+    episodesWatched: stats.episodesWatched,
+    minutesWatched: stats.minutesWatched,
+    meanScore: stats.meanScore,
+    standardDeviation: stats.standardDeviation,
+    genres: stats.genres ?? [],
+    tags: stats.tags ?? [],
+    // Map voiceActors.voiceActor to voice_actors.voice_actor to match template shape
+    voice_actors: (stats.voiceActors ?? []).map((va) => ({
+      voice_actor: va.voiceActor,
+      count: va.count,
+    })),
+    studios: stats.studios ?? [],
+    staff: (stats.staff ?? []).map((s) => ({ staff: s.staff, count: s.count })),
+    statuses:
+      stats.statuses?.map((s) => ({ status: s.status, amount: s.count })) ??
+      undefined,
+    formats: stats.formats ?? undefined,
+    scores: stats.scores ?? undefined,
+    // releaseYears and countries are used for other templates
+    releaseYears: stats.releaseYears ?? undefined,
+    countries: stats.countries ?? undefined,
+    previousMilestone: milestoneData.previousMilestone,
+    currentMilestone: milestoneData.currentMilestone,
+    percentage: milestoneData.percentage,
+    dasharray: milestoneData.dasharray,
+    dashoffset: milestoneData.dashoffset,
+  } as TemplateAnimeStats & MilestoneFields;
+}
+
+function toTemplateMangaStats(
+  stats: UserStatsData["User"]["statistics"]["manga"],
+  milestoneData: ReturnType<typeof calculateMilestones>,
+): TemplateMangaStats & MilestoneFields {
+  return {
+    count: stats.count,
+    chaptersRead: stats.chaptersRead,
+    volumesRead: stats.volumesRead,
+    meanScore: stats.meanScore,
+    standardDeviation: stats.standardDeviation,
+    genres: stats.genres ?? [],
+    tags: stats.tags ?? [],
+    staff: (stats.staff ?? []).map((s) => ({ staff: s.staff, count: s.count })),
+    statuses:
+      stats.statuses?.map((s) => ({ status: s.status, amount: s.count })) ??
+      undefined,
+    formats: stats.formats ?? undefined,
+    scores: stats.scores ?? undefined,
+    releaseYears: stats.releaseYears ?? undefined,
+    countries: stats.countries ?? undefined,
+    previousMilestone: milestoneData.previousMilestone,
+    currentMilestone: milestoneData.currentMilestone,
+    percentage: milestoneData.percentage,
+    dasharray: milestoneData.dasharray,
+    dashoffset: milestoneData.dashoffset,
+  } as TemplateMangaStats & MilestoneFields;
+}
+
+function toTemplateSocialStats(userRecord: UserRecord): SocialStats {
+  return {
+    followersPage: userRecord.stats.followersPage,
+    followingPage: userRecord.stats.followingPage,
+    threadsPage: userRecord.stats.threadsPage,
+    threadCommentsPage: userRecord.stats.threadCommentsPage,
+    reviewsPage: userRecord.stats.reviewsPage,
+    activityHistory: userRecord.stats?.stats?.activityHistory ?? [],
+  } as SocialStats;
+}
+
 // Common interface for card generation parameters
 interface CardGenerationParams {
   cardConfig: CardConfig;
-  userStats: UserStatsData;
+  userRecord: UserRecord;
   variant: string;
   favorites?: string[];
-}
-
-interface UserStatsData {
-  username: string;
-  stats: {
-    User: {
-      statistics: {
-        anime: Record<string, unknown>;
-        manga: Record<string, unknown>;
-      };
-      stats: {
-        activityHistory: unknown[];
-      };
-    };
-  } & Record<string, unknown>;
 }
 
 // Extract common styles from card config
@@ -179,36 +252,56 @@ function extractStyles(cardConfig: CardConfig) {
 function generateStatsCard(
   params: CardGenerationParams,
   mediaType: "anime" | "manga",
-): string {
-  const { cardConfig, userStats, variant } = params;
-  const stats = userStats.stats.User.statistics[mediaType];
-  const countProperty =
-    mediaType === "anime" ? "episodesWatched" : "chaptersRead";
-  const milestoneData = calculateMilestones(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (stats as any)[countProperty] as number,
-  );
+): string | Response {
+  const { cardConfig, userRecord, variant } = params;
+  const recordsStats = userRecord.stats?.User?.statistics?.[mediaType];
+  if (!recordsStats) {
+    return new Response(svgError("Missing stats data for user"), {
+      headers: errorHeaders(),
+      status: 200,
+    });
+  }
+  let milestoneCount = 0;
+  if (mediaType === "anime") {
+    milestoneCount =
+      (recordsStats as UserStatsData["User"]["statistics"]["anime"])
+        .episodesWatched || 0;
+  } else {
+    milestoneCount =
+      (recordsStats as UserStatsData["User"]["statistics"]["manga"])
+        .chaptersRead || 0;
+  }
+  const milestoneData = calculateMilestones(Number(milestoneCount));
+  const templateStats =
+    mediaType === "anime"
+      ? toTemplateAnimeStats(
+          recordsStats as UserStatsData["User"]["statistics"]["anime"],
+          milestoneData,
+        )
+      : toTemplateMangaStats(
+          recordsStats as UserStatsData["User"]["statistics"]["manga"],
+          milestoneData,
+        );
 
   return mediaStatsTemplate({
     mediaType,
-    username: userStats.username,
+    username: userRecord.username ?? userRecord.userId,
     variant: variant as "default" | "vertical" | "compact" | "minimal",
     styles: extractStyles(cardConfig),
-    stats: { ...stats, ...milestoneData },
+    stats: templateStats,
   });
 }
 
 // Handle social stats card
 function generateSocialStatsCard(params: CardGenerationParams): string {
-  const { cardConfig, userStats, variant } = params;
+  const { cardConfig, userRecord, variant } = params;
 
   return socialStatsTemplate({
-    username: userStats.username,
+    username: userRecord.username ?? userRecord.userId,
     variant: variant as "default" | "compact" | "minimal",
     styles: extractStyles(cardConfig),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    stats: userStats.stats as any,
-    activityHistory: userStats.stats.User.stats.activityHistory as {
+    stats: toTemplateSocialStats(userRecord),
+    activityHistory: userRecord.stats?.stats?.activityHistory as {
       date: number;
       amount: number;
     }[],
@@ -243,8 +336,8 @@ function mapCategoryItem(
 function generateCategoryCard(
   params: CardGenerationParams,
   baseCardType: string,
-): string {
-  const { cardConfig, userStats, variant, favorites } = params;
+): string | Response {
+  const { cardConfig, userRecord, variant, favorites } = params;
   const isAnime = baseCardType.startsWith("anime");
 
   const categoryMap: Record<string, string> = {
@@ -260,20 +353,37 @@ function generateCategoryCard(
       baseCardType.replace(isAnime ? "anime" : "manga", "").toLowerCase()
     ];
   const stats = isAnime
-    ? userStats.stats.User.statistics.anime
-    : userStats.stats.User.statistics.manga;
+    ? userRecord.stats?.User?.statistics?.anime
+    : userRecord.stats?.User?.statistics?.manga;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const categoryData = (stats as any)[categoryKey] as unknown[];
+  const categoryData = ((stats ?? {}) as unknown as Record<string, unknown>)[
+    categoryKey
+  ] as unknown[] | undefined;
   const items = Array.isArray(categoryData)
     ? categoryData
         .slice(0, 5)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((item: unknown) => mapCategoryItem(item as any, categoryKey))
+        .map((item: unknown) =>
+          mapCategoryItem(
+            item as
+              | GenreItem
+              | TagItem
+              | VoiceActorItem
+              | StudioItem
+              | StaffItem,
+            categoryKey,
+          ),
+        )
     : [];
 
+  if (!items || items.length === 0) {
+    return new Response(svgError("No category data available for this user"), {
+      headers: errorHeaders(),
+      status: 200,
+    });
+  }
+
   return extraAnimeMangaStatsTemplate({
-    username: userStats.username,
+    username: userRecord.username ?? userRecord.userId,
     variant: variant as "default" | "pie" | "bar",
     styles: extractStyles(cardConfig),
     format: displayNames[baseCardType],
@@ -290,29 +400,34 @@ function generateCategoryCard(
 function generateStatusDistributionCard(
   params: CardGenerationParams,
   baseCardType: string,
-): string {
-  const { cardConfig, userStats, variant } = params;
+): string | Response {
+  const { cardConfig, userRecord, variant } = params;
   const isAnime = baseCardType.startsWith("anime");
   const statusStats = isAnime
-    ? userStats.stats.User.statistics.anime
-    : userStats.stats.User.statistics.manga;
+    ? userRecord.stats?.User?.statistics?.anime
+    : userRecord.stats?.User?.statistics?.manga;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const statusesData = (statusStats as any).statuses as unknown[];
+  const statusesData = (statusStats?.statuses ?? []) as {
+    status: string;
+    count: number;
+  }[];
   const statsList = Array.isArray(statusesData)
-    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      statusesData.map((s: any) => ({
-        name: s.status,
-        count: typeof s.amount === "number" ? s.amount : (s.count ?? 0),
-      }))
+    ? statusesData.map((s) => ({ name: s.status, count: s.count ?? 0 }))
     : [];
+
+  if (!statsList.length) {
+    return new Response(svgError("No status distribution data for this user"), {
+      headers: errorHeaders(),
+      status: 200,
+    });
+  }
 
   const mappedVariant = (
     ["pie", "bar"].includes(variant) ? variant : "default"
   ) as PieBarVariant;
 
   return extraAnimeMangaStatsTemplate({
-    username: userStats.username,
+    username: userRecord.username ?? userRecord.userId,
     variant: mappedVariant,
     styles: extractStyles(cardConfig),
     format: displayNames[baseCardType],
@@ -331,29 +446,34 @@ function generateStatusDistributionCard(
 function generateFormatDistributionCard(
   params: CardGenerationParams,
   baseCardType: string,
-): string {
-  const { cardConfig, userStats, variant } = params;
+): string | Response {
+  const { cardConfig, userRecord, variant } = params;
   const isAnime = baseCardType.startsWith("anime");
   const fmtStats = isAnime
-    ? userStats.stats.User.statistics.anime
-    : userStats.stats.User.statistics.manga;
+    ? userRecord.stats?.User?.statistics?.anime
+    : userRecord.stats?.User?.statistics?.manga;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const formatsData = (fmtStats as any).formats as unknown[];
+  const formatsData = (fmtStats?.formats ?? []) as {
+    format: string;
+    count: number;
+  }[];
   const statsList = Array.isArray(formatsData)
-    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      formatsData.map((f: any) => ({
-        name: f.format,
-        count: f.count ?? 0,
-      }))
+    ? formatsData.map((f) => ({ name: f.format, count: f.count ?? 0 }))
     : [];
+
+  if (!statsList.length) {
+    return new Response(svgError("No format distribution data for this user"), {
+      headers: errorHeaders(),
+      status: 200,
+    });
+  }
 
   const mappedVariant = (
     ["pie", "bar"].includes(variant) ? variant : "default"
   ) as PieBarVariant;
 
   return extraAnimeMangaStatsTemplate({
-    username: userStats.username,
+    username: userRecord.username ?? userRecord.userId,
     variant: mappedVariant,
     styles: extractStyles(cardConfig),
     format: displayNames[baseCardType],
@@ -370,32 +490,42 @@ function generateDistributionCard(
   params: CardGenerationParams,
   baseCardType: string,
   kind: "score" | "year",
-): string {
-  const { cardConfig, userStats, variant } = params;
+): string | Response {
+  const { cardConfig, userRecord, variant } = params;
   const isAnime = baseCardType.startsWith("anime");
   const stats = isAnime
-    ? userStats.stats.User.statistics.anime
-    : userStats.stats.User.statistics.manga;
+    ? userRecord.stats?.User?.statistics?.anime
+    : userRecord.stats?.User?.statistics?.manga;
 
   const dataProperty = kind === "score" ? "scores" : "releaseYears";
   const valueProperty = kind === "score" ? "score" : "releaseYear";
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const distributionData = (stats as any)[dataProperty] as unknown[];
+  const distributionData = (
+    (stats ?? {}) as unknown as Record<string, unknown>
+  )[dataProperty] as unknown[] | undefined;
   const statsList = Array.isArray(distributionData)
-    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      distributionData.map((s: any) => ({
-        name: String(s[valueProperty]),
-        count: s.count ?? 0,
-      }))
+    ? distributionData.map((s: unknown) => {
+        const item = s as { [k: string]: unknown };
+        return {
+          name: String(item[valueProperty] ?? ""),
+          count: (item.count as number) ?? 0,
+        };
+      })
     : [];
+
+  if (!statsList.length) {
+    return new Response(svgError("No distribution data for this user"), {
+      headers: errorHeaders(),
+      status: 200,
+    });
+  }
 
   const mappedVariant = (
     ["default", "horizontal"].includes(variant) ? variant : "default"
   ) as "default" | "horizontal";
 
   return distributionTemplate({
-    username: userStats.username,
+    username: userRecord.username ?? userRecord.userId,
     mediaType: isAnime ? "anime" : "manga",
     variant: mappedVariant,
     kind,
@@ -411,29 +541,37 @@ function generateDistributionCard(
 function generateCountryCard(
   params: CardGenerationParams,
   baseCardType: string,
-): string {
-  const { cardConfig, userStats, variant } = params;
+): string | Response {
+  const { cardConfig, userRecord, variant } = params;
   const isAnime = baseCardType.startsWith("anime");
   const statsRoot = isAnime
-    ? userStats.stats.User.statistics.anime
-    : userStats.stats.User.statistics.manga;
+    ? userRecord.stats?.User?.statistics?.anime
+    : userRecord.stats?.User?.statistics?.manga;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const countriesData = (statsRoot as any).countries as unknown[];
+  const countriesData = (statsRoot?.countries ?? []) as {
+    country: string;
+    count: number;
+  }[];
   const list = Array.isArray(countriesData)
-    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      countriesData.map((c: any) => ({
+    ? countriesData.map((c) => ({
         name: c.country || "Unknown",
         count: c.count ?? 0,
       }))
     : [];
+
+  if (!list.length) {
+    return new Response(svgError("No country data for this user"), {
+      headers: errorHeaders(),
+      status: 200,
+    });
+  }
 
   const mappedVariant = (
     ["pie", "bar"].includes(variant) ? variant : "default"
   ) as PieBarVariant;
 
   return extraAnimeMangaStatsTemplate({
-    username: userStats.username,
+    username: userRecord.username ?? userRecord.userId,
     variant: mappedVariant,
     styles: extractStyles(cardConfig),
     format: displayNames[baseCardType],
@@ -448,25 +586,33 @@ function generateCountryCard(
 // Function to generate SVG content based on card configuration and user stats
 function generateCardSVG(
   cardConfig: CardConfig,
-  userStats: unknown,
+  userRecord: UserRecord,
   variant: "default" | "vertical" | "pie" | "compact" | "minimal" | "bar",
   favorites?: string[],
-) {
+): string | Response {
   // Basic validation: card config and user stats must be present
-  if (!cardConfig || !userStats || typeof userStats !== "object") {
-    throw new Error("Missing card configuration or stats data");
+  if (!cardConfig || !userRecord?.stats) {
+    return new Response(svgError("Missing card configuration or stats data"), {
+      headers: errorHeaders(),
+      status: 200,
+    });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const userStatsTyped = userStats as any;
-  if (!userStatsTyped?.stats?.User?.statistics?.anime) {
-    throw new Error("Missing card configuration or stats data");
+  // Validate that the stored stats contain user statistics
+  if (
+    !userRecord.stats?.User?.statistics?.anime &&
+    !userRecord.stats?.User?.statistics?.manga
+  ) {
+    return new Response(svgError("Missing card configuration or stats data"), {
+      headers: errorHeaders(),
+      status: 200,
+    });
   }
 
   const [baseCardType] = cardConfig.cardName.split("-");
   const params: CardGenerationParams = {
     cardConfig,
-    userStats: userStatsTyped,
+    userRecord,
     variant,
     favorites,
   };
@@ -761,8 +907,8 @@ export async function GET(request: Request) {
     // Generate SVG content
     const svgContent = generateCardSVG(
       cardConfig,
-      userDoc as unknown as UserStats,
-      effectiveVariation as "default" | "vertical" | "pie",
+      userDoc,
+      effectiveVariation as "default" | "vertical" | "pie" | "bar",
       favorites,
     );
 
@@ -778,6 +924,10 @@ export async function GET(request: Request) {
     );
 
     await trackSuccessfulRequest(params.baseCardType);
+
+    if (svgContent instanceof Response) {
+      return svgContent;
+    }
 
     return new Response(svgContent, {
       headers: svgHeaders(),

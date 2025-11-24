@@ -184,7 +184,10 @@ describe("AniList API Proxy Endpoint", () => {
     setupEnvironment("production", true);
 
     const requestBody = createGraphQLBody();
-    const request = createAniListRequest({ origin: "http://different-origin.com" }, requestBody);
+    const request = createAniListRequest(
+      { origin: "http://different-origin.com" },
+      requestBody,
+    );
 
     // Mock successful AniList API response (should not be invoked due to origin rejection)
     const mockData = { data: { user: "testUser" } };
