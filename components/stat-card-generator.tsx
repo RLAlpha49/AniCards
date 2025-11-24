@@ -372,6 +372,51 @@ export function StatCardGenerator({
   // Use our custom hook for managing submission
   const { loading, error, submit, clearError } = useStatCardSubmit();
 
+  // Map detailed errors from the hook into friendlier UI messages. Log details for debugging.
+  const friendlyErrorMessage = (() => {
+    if (!error) return null;
+    const msg = error.message || "An error occurred.";
+    // Validation errors from the hook are already user-friendly.
+    if (msg.startsWith("Please ")) return msg;
+
+    // Handle AniList fetch errors
+    if (msg.includes("AniList user fetch failed")) {
+      console.error("Detailed AniList user fetch error:", msg);
+      return "We couldn't find that AniList user. Please double check the username and try again.";
+    }
+    if (msg.includes("AniList stats fetch failed")) {
+      console.error("Detailed AniList stats fetch error:", msg);
+      return "We couldn't load user stats from AniList. Try again in a few moments.";
+    }
+    if (
+      msg.includes("AniList - user ID fetch request timed out") ||
+      msg.includes("AniList - user stats fetch")
+    ) {
+      console.error("AniList timeout error:", msg);
+      return "Reading AniList data took too long. Try again or check your connection.";
+    }
+
+    // Handle storage errors
+    if (msg.includes("Store users failed")) {
+      console.error("Detailed store users error:", msg);
+      return "There was an issue saving your user data. Please try again later.";
+    }
+    if (msg.includes("Store cards failed")) {
+      console.error("Detailed store cards error:", msg);
+      return "There was an issue saving your cards. Please try again later.";
+    }
+
+    // Timeouts or aborts
+    if (msg.toLowerCase().includes("timed out")) {
+      console.error("Request timeout:", msg);
+      return "One or more network requests timed out. Please try again.";
+    }
+
+    // Fallback
+    console.error("Unhandled error in stat-card submission:", msg);
+    return "An unexpected error occurred. Please try again later.";
+  })();
+
   // Load defaults on component mount
   useEffect(() => {
     const defaults = loadDefaultSettings();
@@ -1050,7 +1095,9 @@ export function StatCardGenerator({
         isOpen={!!error}
         onClose={clearError}
         title="Submission Error"
-        description={error?.message || "An error occurred."}
+        description={
+          friendlyErrorMessage || error?.message || "An error occurred."
+        }
       />
       <StatCardPreview
         isOpen={previewOpen}

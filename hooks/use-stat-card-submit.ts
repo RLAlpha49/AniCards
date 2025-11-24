@@ -21,9 +21,168 @@ const FAVORITE_CARD_IDS = new Set([
   "mangaStaff",
 ]);
 
+// Build the card configuration payload for store-cards API
+function buildCardsPayload(params: {
+  selectedCards: string[];
+  colors: string[];
+  showPiePercentages?: boolean;
+  useAnimeStatusColors?: boolean;
+  useMangaStatusColors?: boolean;
+  borderEnabled?: boolean;
+  borderColor?: string;
+  showFavoritesByCard: Record<string, boolean>;
+}) {
+  const {
+    selectedCards,
+    colors,
+    showPiePercentages,
+    useAnimeStatusColors,
+    useMangaStatusColors,
+    borderEnabled,
+    borderColor,
+    showFavoritesByCard,
+  } = params;
+
+  return selectedCards.map((cardId) => {
+    const [cardName, rawVariation] = cardId.split("-");
+    const variation = rawVariation || "default";
+    const baseConfig = {
+      cardName,
+      variation,
+      titleColor: colors[0],
+      backgroundColor: colors[1],
+      textColor: colors[2],
+      circleColor: colors[3],
+      showPiePercentages,
+      ...(cardName === "animeStatusDistribution" && useAnimeStatusColors
+        ? { useStatusColors: true }
+        : {}),
+      ...(cardName === "mangaStatusDistribution" && useMangaStatusColors
+        ? { useStatusColors: true }
+        : {}),
+      ...(borderEnabled && borderColor ? { borderColor } : {}),
+    } as Record<string, unknown>;
+    if (FAVORITE_CARD_IDS.has(cardName)) {
+      return {
+        ...baseConfig,
+        showFavorites: showFavoritesByCard[cardName] || false,
+      };
+    }
+    return baseConfig;
+  });
+}
+
+function extractErrorMessageFromPayload(payload: unknown) {
+  if (!payload) return undefined;
+  if (typeof payload !== "object" || payload === null) return undefined;
+  const p = payload as Record<string, unknown>;
+  if (typeof p.error === "string") return p.error;
+  if (typeof p.message === "string") return p.message;
+  if (
+    Array.isArray(p.errors) &&
+    p.errors[0] &&
+    typeof (p.errors[0] as Record<string, unknown>).message === "string"
+  ) {
+    return (p.errors[0] as Record<string, unknown>).message as string;
+  }
+  return undefined;
+}
+
 export function useStatCardSubmit() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+
+  // Helper to perform fetches with an abort timeout and consistent error handling.
+  async function fetchWithTimeout(
+    url: string,
+    options: RequestInit,
+    timeoutMs = 10000,
+    contextName = "Request",
+  ): Promise<Response> {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      return response;
+    } catch (err) {
+      // Normalize AbortError across environments
+      if (err instanceof DOMException && err.name === "AbortError") {
+        throw new Error(
+          `${contextName} request timed out after ${timeoutMs}ms`,
+        );
+      }
+      // Bubble other errors up with context
+      throw new Error(
+        `${contextName} failed: ${(err as Error)?.message ?? String(err)}`,
+      );
+    } finally {
+      clearTimeout(id);
+    }
+  }
+
+  function validateSubmission(params: {
+    username: string;
+    selectedCards: string[];
+    colors: string[];
+    borderEnabled?: boolean;
+    borderColor?: string;
+  }) {
+    const { username, selectedCards, colors, borderEnabled, borderColor } =
+      params;
+    if (!username.trim()) throw new Error("Please enter your AniList username");
+    if (selectedCards.length === 0)
+      throw new Error("Please select at least one stat card");
+    if (colors.some((color) => !color))
+      throw new Error("All color fields must be filled");
+    if (borderEnabled && !borderColor)
+      throw new Error("Border color must be set when the border is enabled");
+  }
+
+  async function checkResponseOrThrow(response: Response, context: string) {
+    if (response.ok) return;
+    let errorData: unknown = undefined;
+    try {
+      errorData = await response.json();
+    } catch {}
+    const errMsg =
+      extractErrorMessageFromPayload(errorData) ??
+      `HTTP status ${response.status}`;
+    throw new Error(`${context}: ${errMsg}`);
+  }
+
+  async function fetchAniListQuery(
+    query: string,
+    variables: Record<string, unknown>,
+    timeoutMs = 10000,
+    contextLabel = "query",
+  ) {
+    const response = await fetchWithTimeout(
+      "/api/anilist",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, variables }),
+      },
+      timeoutMs,
+      `AniList - ${contextLabel}`,
+    );
+
+    if (!response.ok) {
+      let errorData: unknown = undefined;
+      try {
+        errorData = await response.json();
+      } catch {}
+      const errMsg =
+        extractErrorMessageFromPayload(errorData) ??
+        `HTTP status ${response.status}`;
+      throw new Error(`AniList ${contextLabel} failed: ${errMsg}`);
+    }
+    return response.json();
+  }
 
   const submit = async ({
     username,
@@ -40,108 +199,89 @@ export function useStatCardSubmit() {
     setError(null);
 
     try {
-      if (!username.trim())
-        throw new Error("Please enter your AniList username");
-      if (selectedCards.length === 0)
-        throw new Error("Please select at least one stat card");
-      if (colors.some((color) => !color))
-        throw new Error("All color fields must be filled");
-      if (borderEnabled && !borderColor)
-        throw new Error("Border color must be set when the border is enabled");
-
-      // Fetch AniList user data
-      const userIdResponse = await fetch("/api/anilist", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: USER_ID_QUERY,
-          variables: { userName: username },
-        }),
+      validateSubmission({
+        username,
+        selectedCards,
+        colors,
+        borderEnabled,
+        borderColor,
       });
 
-      if (!userIdResponse.ok) {
-        const errorData = await userIdResponse.json();
-        throw new Error(
-          errorData.error || `HTTP error! status: ${userIdResponse.status}`,
-        );
+      const userIdData = await fetchAniListQuery(
+        USER_ID_QUERY,
+        { userName: username },
+        10000,
+        "user ID fetch",
+      );
+      if (!userIdData?.User?.id) {
+        throw new Error(`AniList user fetch failed: No user found for ${username}`);
       }
-      const userIdData = await userIdResponse.json();
 
-      const statsResponse = await fetch("/api/anilist", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: USER_STATS_QUERY,
-          variables: { userId: userIdData.User.id },
-        }),
+      const statsData = await fetchAniListQuery(
+        USER_STATS_QUERY,
+        { userId: userIdData.User.id },
+        10000,
+        "user stats fetch",
+      );
+      if (!statsData) {
+        throw new Error(`AniList stats fetch failed: no stats returned for user ${userIdData.User.id}`);
+      }
+
+      const writeTimeout = 15000;
+      const cardsPayload = buildCardsPayload({
+        selectedCards,
+        colors,
+        showPiePercentages,
+        useAnimeStatusColors,
+        useMangaStatusColors,
+        borderEnabled,
+        borderColor,
+        showFavoritesByCard,
       });
 
-      if (!statsResponse.ok) {
-        const errorData = await statsResponse.json();
-        throw new Error(
-          errorData.error || `HTTP error! status: ${statsResponse.status}`,
-        );
-      }
-      const statsData = await statsResponse.json();
-
-      // Store user and card data simultaneously
-      await Promise.all([
-        fetch("/api/store-users", {
+      const storeUserPromise = fetchWithTimeout(
+        "/api/store-users",
+        {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             userId: userIdData.User.id,
             username,
             stats: statsData,
           }),
-        }),
-        fetch("/api/store-cards", {
+        },
+        writeTimeout,
+        "Store - store-users",
+      );
+
+      const storeCardsPromise = fetchWithTimeout(
+        "/api/store-cards",
+        {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             userId: userIdData.User.id,
-            cards: selectedCards.map((cardId) => {
-              const [cardName, rawVariation] = cardId.split("-");
-              const variation = rawVariation || "default";
-              const baseConfig = {
-                cardName,
-                variation,
-                titleColor: colors[0],
-                backgroundColor: colors[1],
-                textColor: colors[2],
-                circleColor: colors[3],
-                showPiePercentages,
-                // Attach useStatusColors based on group-specific toggles
-                ...(cardName === "animeStatusDistribution" &&
-                useAnimeStatusColors
-                  ? { useStatusColors: true }
-                  : {}),
-                ...(cardName === "mangaStatusDistribution" &&
-                useMangaStatusColors
-                  ? { useStatusColors: true }
-                  : {}),
-                ...(borderEnabled && borderColor ? { borderColor } : {}),
-              };
-              if (FAVORITE_CARD_IDS.has(cardName)) {
-                return {
-                  ...baseConfig,
-                  showFavorites: showFavoritesByCard[cardName] || false,
-                };
-              }
-              return baseConfig;
-            }),
+            cards: cardsPayload,
           }),
-        }),
+        },
+        writeTimeout,
+        "Store - store-cards",
+      );
+
+      const [storeUserResponse, storeCardsResponse] = await Promise.all([
+        storeUserPromise,
+        storeCardsPromise,
       ]);
+
+      // Validate storage responses and surface helpful errors
+      checkResponseOrThrow(storeUserResponse, "Store users failed");
+      checkResponseOrThrow(storeCardsResponse, "Store cards failed");
 
       setLoading(false);
       return { success: true, userId: userIdData.User.id };
     } catch (err) {
       setLoading(false);
+      console.error("useStatCardSubmit error:", err);
       if (err instanceof Error) {
         setError(err);
       }
