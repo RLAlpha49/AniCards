@@ -214,7 +214,9 @@ export function useStatCardSubmit() {
         "user ID fetch",
       );
       if (!userIdData?.User?.id) {
-        throw new Error(`AniList user fetch failed: No user found for ${username}`);
+        throw new Error(
+          `AniList user fetch failed: No user found for ${username}`,
+        );
       }
 
       const statsData = await fetchAniListQuery(
@@ -224,7 +226,9 @@ export function useStatCardSubmit() {
         "user stats fetch",
       );
       if (!statsData) {
-        throw new Error(`AniList stats fetch failed: no stats returned for user ${userIdData.User.id}`);
+        throw new Error(
+          `AniList stats fetch failed: no stats returned for user ${userIdData.User.id}`,
+        );
       }
 
       const writeTimeout = 15000;

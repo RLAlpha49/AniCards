@@ -12,21 +12,31 @@ export const socialStatsTemplate = (data: {
     borderColor?: string;
   };
   stats: SocialStats;
-  activityHistory: { date: number; amount: number }[];
+  activityHistory?: { date: number; amount: number }[];
 }) => {
+  // Defensive handling for activityHistory: can be undefined or empty
+  const activityHistory = data.activityHistory ?? [];
   // Calculate total activity amount
-  const totalActivity = data.activityHistory.reduce(
-    (acc, curr) => acc + curr.amount,
-    0,
-  );
+  const totalActivity = activityHistory.length
+    ? activityHistory.reduce((acc, curr) => acc + curr.amount, 0)
+    : 0;
 
   // Calculate the number of days between the earliest and latest activity
-  const dates = data.activityHistory.map((entry) => entry.date * 1000);
-  const earliestDate = Math.min(...dates);
-  const latestDate = Math.max(...dates);
-  const daysDifference = Math.ceil(
-    (latestDate - earliestDate) / (1000 * 60 * 60 * 24),
-  );
+  const dates = activityHistory.map((entry) => entry.date * 1000);
+  let earliestDate = 0;
+  let latestDate = 0;
+  let daysDifference = 0;
+  const hasActivity = dates.length > 0;
+  if (hasActivity) {
+    earliestDate = Math.min(...dates);
+    latestDate = Math.max(...dates);
+    daysDifference = Math.ceil(
+      (latestDate - earliestDate) / (1000 * 60 * 60 * 24),
+    );
+    // If there's a single day, show 1 day for readability
+    if (daysDifference === 0) daysDifference = 1;
+  }
+  const dayLabel = daysDifference === 1 ? "day" : "days";
 
   const dims = (() => {
     switch (data.variant) {
@@ -50,13 +60,20 @@ export const socialStatsTemplate = (data: {
   aria-labelledby="desc-id"
 >
   <title id="title-id">${data.username}'s Social Stats</title>
-  <desc id="desc-id">
-    Total Followers: ${data.stats.followersPage.pageInfo.total},
-    Total Following: ${data.stats.followingPage.pageInfo.total}, Total
-    Activity: ${totalActivity} over ${daysDifference} days,
-    Thread Posts/Comments Count: ${data.stats.threadCommentsPage.pageInfo.total},
-    Total Reviews: ${data.stats.reviewsPage.pageInfo.total}
-  </desc>
+  ${(() => {
+    const activityTimespanStr = hasActivity
+      ? `${totalActivity} over ${daysDifference} ${dayLabel}`
+      : "Unknown";
+
+    return `
+    <desc id="desc-id">
+      Total Followers: ${data.stats.followersPage.pageInfo.total},
+      Total Following: ${data.stats.followingPage.pageInfo.total},
+      Total Activity: ${activityTimespanStr},
+      Thread Posts/Comments Count: ${data.stats.threadCommentsPage.pageInfo.total},
+      Total Reviews: ${data.stats.reviewsPage.pageInfo.total}
+    </desc>`;
+  })()}
 
   <style>
     /* stylelint-disable selector-class-pattern, keyframes-name-pattern */
@@ -133,7 +150,11 @@ export const socialStatsTemplate = (data: {
         },
         {
           id: "activity",
-          label: `Total Activity (${daysDifference} Days):`,
+          label: (() => {
+            return hasActivity
+              ? `Total Activity (${daysDifference} ${dayLabel}):`
+              : `Total Activity (Unknown):`;
+          })(),
           value: totalActivity,
         },
         {

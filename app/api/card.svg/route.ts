@@ -229,7 +229,7 @@ function toTemplateSocialStats(userRecord: UserRecord): SocialStats {
     threadsPage: userRecord.stats.threadsPage,
     threadCommentsPage: userRecord.stats.threadCommentsPage,
     reviewsPage: userRecord.stats.reviewsPage,
-    activityHistory: userRecord.stats?.stats?.activityHistory ?? [],
+    activityHistory: userRecord.stats.User.stats.activityHistory ?? [],
   } as SocialStats;
 }
 
@@ -296,10 +296,7 @@ function generateSocialStatsCard(params: CardGenerationParams): string {
     variant: variant as "default" | "compact" | "minimal",
     styles: extractStyles(cardConfig),
     stats: toTemplateSocialStats(userRecord),
-    activityHistory: userRecord.stats?.stats?.activityHistory as {
-      date: number;
-      amount: number;
-    }[],
+    activityHistory: userRecord.stats.User.stats.activityHistory ?? [],
   });
 }
 

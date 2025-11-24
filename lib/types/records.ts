@@ -82,6 +82,7 @@ export interface UserStatistics {
 }
 
 export interface UserSection {
+  stats: ActivityStats;
   favourites: {
     staff: {
       nodes: {
@@ -149,7 +150,6 @@ export interface ReviewsPage {
 
 export interface UserStatsData {
   User: UserSection;
-  stats: ActivityStats;
   followersPage: FollowersPage;
   followingPage: FollowingPage;
   threadsPage: ThreadsPage;
