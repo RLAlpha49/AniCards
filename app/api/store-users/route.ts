@@ -100,6 +100,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       endpoint,
       startTime,
       "analytics:store_users:failed_requests",
+      "User storage failed",
     );
   }
 }

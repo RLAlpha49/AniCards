@@ -81,6 +81,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       endpoint,
       startTime,
       "analytics:store_cards:failed_requests",
+      "Card storage failed",
     );
   }
 }

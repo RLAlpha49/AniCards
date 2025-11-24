@@ -77,12 +77,12 @@ export function logRequest(
   console.log(message);
 }
 
-// Error logging and response helper
 export function handleError(
   error: Error,
   endpoint: string,
   startTime: number,
   analyticsMetric: string,
+  errorMessage: string,
 ): NextResponse<ApiError> {
   const duration = Date.now() - startTime;
   console.error(`🔥 [${endpoint}] Error after ${duration}ms: ${error.message}`);
@@ -93,9 +93,6 @@ export function handleError(
 
   incrementAnalytics(analyticsMetric).catch(() => {});
 
-  const errorMessage = endpoint.includes("Cards")
-    ? "Card storage failed"
-    : "User storage failed";
   return NextResponse.json({ error: errorMessage }, { status: 500 });
 }
 
