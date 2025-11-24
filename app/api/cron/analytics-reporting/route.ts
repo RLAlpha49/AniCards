@@ -1,4 +1,5 @@
-import { Redis } from "@upstash/redis";
+import { redisClient } from "@/lib/api-utils";
+import type { Redis as UpstashRedis } from "@upstash/redis";
 import { safeParse } from "@/lib/utils";
 
 // Helper function for cron authorization
@@ -23,7 +24,7 @@ function checkCronAuthorization(request: Request): Response | null {
 
 // Helper function to fetch and parse analytics data
 async function fetchAnalyticsData(
-  redisClient: Redis,
+  redisClient: UpstashRedis,
 ): Promise<Record<string, number>> {
   const analyticsPattern = "analytics:*";
   const analyticsKeysAll = await redisClient.keys(analyticsPattern);
@@ -41,7 +42,7 @@ async function fetchAnalyticsData(
     }
 
     let parsedValue = Number(valueStr);
-    if (isNaN(parsedValue)) {
+    if (Number.isNaN(parsedValue)) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       parsedValue = safeParse<any>(valueStr);
     }
@@ -81,7 +82,7 @@ function groupAnalyticsData(
 
 // Helper function to create and save analytics report
 async function createAndSaveReport(
-  redisClient: Redis,
+  redisClient: UpstashRedis,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   summary: Record<string, any>,
   analyticsData: Record<string, number>,
@@ -109,8 +110,6 @@ export async function POST(request: Request) {
   );
 
   try {
-    const redisClient = Redis.fromEnv();
-
     // Fetch and parse analytics data
     const analyticsData = await fetchAnalyticsData(redisClient);
 

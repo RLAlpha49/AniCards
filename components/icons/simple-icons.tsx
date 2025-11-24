@@ -14,7 +14,7 @@ export const SimpleDiscordIcon = ({ size = 32, className = "" }: IconProps) => (
     width={size}
     height={size}
     viewBox="0 0 24 24"
-    fill={`#${siDiscord.hex}`}
+    fill="currentColor"
   >
     <title>{siDiscord.title}</title>
     <path d={siDiscord.path} />
@@ -46,7 +46,7 @@ export const SimpleAniListIcon = ({ size = 32, className = "" }: IconProps) => (
     width={size}
     height={size}
     viewBox="0 0 24 24"
-    fill={`#${siAnilist.hex}`}
+    fill="currentColor"
   >
     <title>{siAnilist.title}</title>
     <path d={siAnilist.path} />

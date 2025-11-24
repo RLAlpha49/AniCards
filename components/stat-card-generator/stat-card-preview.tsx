@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import {
@@ -6,8 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import Image from "next/image";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import {
   trackCardPreview,
@@ -57,6 +57,13 @@ export function StatCardPreview({
 }: Readonly<StatCardPreviewProps>) {
   const [isLoading, setIsLoading] = useState(true);
 
+  // Reset loading state when dialog opens or cardType changes
+  useEffect(() => {
+    if (isOpen && cardType) {
+      setIsLoading(true);
+    }
+  }, [isOpen, cardType, variation]);
+
   const handleClose = () => {
     trackDialogClose("card_preview");
     onClose();
@@ -83,45 +90,58 @@ export function StatCardPreview({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="z-[100] sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>
-            Stat Card Preview: {displayNames[cardType] || cardType} (
-            {effectiveVariation})
-          </DialogTitle>
-        </DialogHeader>
+      <DialogContent className="z-[100] border-0 bg-white/95 p-0 shadow-2xl backdrop-blur-xl dark:bg-gray-900/95 sm:max-w-[600px]">
+        <div className="border-b border-gray-100 p-6 dark:border-gray-800">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3 text-xl font-bold">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                <span className="text-lg">👁️</span>
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  {displayNames[cardType] || cardType}
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                    {effectiveVariation}
+                  </span>
+                </div>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+        </div>
 
-        {/* Image container with loading overlay */}
-        <div className="relative mx-auto max-h-[300px] w-full max-w-[400px]">
-          <div className="relative h-full w-full p-4">
+        <div className="bg-gray-50/50 p-8 dark:bg-gray-900/50">
+          {/* Image container with loading overlay */}
+          <div className="relative mx-auto overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
             {isLoading && (
-              <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+              <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm dark:bg-gray-900/80">
                 <LoadingSpinner
-                  className="text-primary"
+                  className="text-blue-500"
                   text="Loading preview..."
                 />
               </div>
             )}
-            <Image
-              src={previewUrl}
-              alt={`Preview of ${cardType} stat card (${effectiveVariation})`}
-              width={800}
-              height={600}
-              className="relative z-10 h-full w-full object-contain"
-              quality={100} // Max image quality
-              onLoadStart={() => setIsLoading(true)}
-              onLoad={() => setIsLoading(false)}
-              onError={() => setIsLoading(false)}
-            />
+            <div className="p-4">
+              <img
+                src={previewUrl}
+                alt={`Preview of ${cardType} stat card (${effectiveVariation})`}
+                width={800}
+                height={600}
+                className="h-auto w-full object-contain transition-transform duration-500 hover:scale-[1.02]"
+                onLoad={() => setIsLoading(false)}
+                onError={() => setIsLoading(false)}
+                decoding="async"
+                loading="lazy"
+              />
+            </div>
           </div>
-        </div>
 
-        {/* Preview disclaimer */}
-        <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
-          <p>
-            This is a static preview. The actual card will use your Anilist data
-            and selected colors.
-          </p>
+          {/* Preview disclaimer */}
+          <div className="mt-6 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+              i
+            </span>
+            <p>Preview uses sample data. Your card will use your real stats.</p>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

@@ -11,6 +11,15 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import {
+  LayoutGrid,
+  PieChart,
+  BarChart,
+  List,
+  Star,
+  Eye,
+  Check,
+} from "lucide-react";
 
 export interface CardType {
   id: string;
@@ -32,12 +41,12 @@ interface StatCardTypeSelectionProps {
   onToggleShowFavorites: (cardId: string) => void;
 }
 
-const FAVORITE_CARD_IDS = [
+const FAVORITE_CARD_IDS = new Set([
   "animeVoiceActors",
   "animeStudios",
   "animeStaff",
   "mangaStaff",
-];
+]);
 
 export function StatCardTypeSelection({
   cardTypes,
@@ -69,216 +78,194 @@ export function StatCardTypeSelection({
     );
   }, [cardTypes]);
 
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {};
-    grouped.order.forEach((g) => {
-      initial[g] = true;
-    });
-    return initial;
-  });
-
-  const toggleGroup = (group: string) =>
-    setOpenGroups((o) => ({ ...o, [group]: !o[group] }));
+  const [activeGroup, setActiveGroup] = useState<string>(grouped.order[0]);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <Label className="text-lg font-semibold">
-          Select Stat Cards to Generate
-        </Label>
+    <div className="space-y-6">
+      {/* Header Actions */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+            <LayoutGrid className="h-4 w-4" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+              Available Cards
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Select the cards you want to generate
+            </p>
+          </div>
+        </div>
         <Button
-          type="button"
-          variant="outline"
+          variant={allSelected ? "secondary" : "outline"}
           size="sm"
           onClick={onSelectAll}
-          aria-label={
-            allSelected ? "Unselect all card types" : "Select all card types"
-          }
+          className="gap-2"
         >
+          <Check className={cn("h-4 w-4", allSelected && "opacity-100")} />
           {allSelected ? "Unselect All" : "Select All"}
         </Button>
       </div>
-      {grouped.order.map((groupName) => (
-        <div key={groupName} className="space-y-2">
+
+      {/* Group Navigation */}
+      <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-4 dark:border-gray-800">
+        {grouped.order.map((group) => (
           <button
-            type="button"
-            onClick={() => toggleGroup(groupName)}
+            key={group}
+            onClick={() => setActiveGroup(group)}
             className={cn(
-              "flex w-full items-center gap-2 px-1 py-1 text-left",
-              "text-xs font-semibold uppercase tracking-wide text-muted-foreground transition hover:text-foreground",
+              "rounded-full px-4 py-1.5 text-sm font-medium transition-all",
+              activeGroup === group
+                ? "bg-gray-900 text-white shadow-md dark:bg-white dark:text-gray-900"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700",
             )}
-            aria-expanded={openGroups[groupName]}
-            aria-controls={`group-${groupName}`}
           >
-            <span
-              className={
-                "inline-flex h-3 w-3 items-center justify-center transition-transform " +
-                (openGroups[groupName] ? "rotate-90" : "rotate-0")
-              }
-              aria-hidden="true"
-            >
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="text-muted-foreground"
-              >
-                <path d="M9 18l6-6-6-6" />
-              </svg>
-            </span>
-            <span>{groupName}</span>
+            {group}
           </button>
-          <AnimatePresence initial={false}>
-            {openGroups[groupName] && (
-              <motion.div
-                key={groupName}
-                id={`group-${groupName}`}
-                initial="collapsed"
-                animate="open"
-                exit="collapsed"
-                variants={{
-                  open: { opacity: 1, height: "auto" },
-                  collapsed: { opacity: 0, height: 0 },
-                }}
-                transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
-                className="overflow-hidden"
-              >
-                <div className="grid grid-cols-1 gap-4 pb-1 pl-1 pr-1 pt-4 md:grid-cols-2">
-                  {grouped.map[groupName].map((type, index) => {
-                    const currentVariation =
-                      selectedCardVariants[type.id] ||
-                      (type.variations ? "default" : "");
-                    const supportsFavorites = FAVORITE_CARD_IDS.includes(
-                      type.id,
-                    );
-                    const isFavorite = showFavoritesByCard[type.id];
-                    return (
-                      <div
-                        key={type.id}
-                        className={cn(
-                          "flex flex-col items-start space-y-2 rounded-lg bg-secondary/50 p-3",
-                          "transition-all duration-300 hover:bg-secondary hover:shadow-lg",
-                          "group cursor-pointer hover:-translate-y-1",
-                          "fade-in-up animate-in fill-mode-backwards",
-                          selectedCards.includes(type.id)
-                            ? "ring-2 ring-primary"
-                            : "",
+        ))}
+      </div>
+
+      {/* Cards Grid */}
+      <div className="min-h-[400px]">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeGroup}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="grid grid-cols-1 gap-4 md:grid-cols-2"
+          >
+            {grouped.map[activeGroup]?.map((type) => {
+              const isSelected = selectedCards.includes(type.id);
+              const currentVariation =
+                selectedCardVariants[type.id] ||
+                (type.variations ? "default" : "");
+              const supportsFavorites = FAVORITE_CARD_IDS.has(type.id);
+              const isFavorite = showFavoritesByCard[type.id];
+              const openParenIndex = type.label.indexOf("(");
+              const closeParenIndex =
+                openParenIndex >= 0
+                  ? type.label.indexOf(")", openParenIndex + 1)
+                  : -1;
+              const labelTextInParens =
+                openParenIndex >= 0 && closeParenIndex >= 0
+                  ? type.label.slice(openParenIndex + 1, closeParenIndex)
+                  : undefined;
+
+              let VariationIcon = List;
+              if (currentVariation === "pie") VariationIcon = PieChart;
+              else if (currentVariation === "bar") VariationIcon = BarChart;
+
+              return (
+                <div
+                  key={type.id}
+                  className={cn(
+                    "group relative flex flex-col gap-4 rounded-xl border-2 p-4 transition-all duration-200 hover:shadow-md",
+                    isSelected
+                      ? "border-blue-500 bg-blue-50/50 dark:border-blue-500/50 dark:bg-blue-900/10"
+                      : "border-transparent bg-white hover:border-gray-200 dark:bg-gray-800 dark:hover:border-gray-700",
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => onToggle(type.id)}
+                        className="mt-1"
+                      />
+                      <div className="space-y-1">
+                        <Label className="cursor-pointer text-base font-semibold leading-none">
+                          {type.label.split(" (")[0]}
+                        </Label>
+                        {type.label.includes("(") && labelTextInParens && (
+                          <p className="text-xs text-muted-foreground">
+                            {labelTextInParens}
+                          </p>
                         )}
-                        style={{ animationDelay: `${index * 50}ms` }}
-                      >
-                        <div className="flex w-full items-center space-x-2">
-                          <Checkbox
-                            id={type.id}
-                            checked={selectedCards.includes(type.id)}
-                            onClick={(e) => e.stopPropagation()}
-                            onCheckedChange={() => onToggle(type.id)}
-                            className="mt-1 scale-90 transition-all duration-200 checked:scale-110 focus:ring-2 focus:ring-primary group-hover:scale-100"
-                          />
-                          <div className="flex-grow space-y-1">
-                            {supportsFavorites && (
-                              <div className="flex items-center gap-2">
-                                <Checkbox
-                                  id={`show-favorites-${type.id}`}
-                                  checked={!!showFavoritesByCard[type.id]}
-                                  onCheckedChange={() =>
-                                    onToggleShowFavorites(type.id)
-                                  }
-                                  aria-label="Show Favorites"
-                                  tabIndex={0}
-                                  className="scale-90 transition-all duration-200 checked:scale-110 focus:ring-2 focus:ring-pink-500"
-                                />
-                                <Label
-                                  htmlFor={`show-favorites-${type.id}`}
-                                  className="cursor-pointer text-xs"
-                                >
-                                  Show Favorites
-                                </Label>
-                                {isFavorite && (
-                                  <svg
-                                    className="inline-block h-4 w-4 align-middle text-pink-500"
-                                    fill="currentColor"
-                                    viewBox="0 0 20 20"
-                                    aria-label="Favorited"
-                                    tabIndex={0}
-                                    aria-hidden="false"
-                                  >
-                                    <title>Favorited</title>
-                                    <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" />
-                                  </svg>
-                                )}
-                              </div>
-                            )}
-                            <Label
-                              htmlFor={type.id}
-                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                            >
-                              {type.label.split(" (")[0]}
-                            </Label>
-                            {type.label.includes("(") && (
-                              <p className="text-xs text-gray-600 transition-opacity duration-200 group-hover:opacity-100 dark:text-gray-400">
-                                {(() => {
-                                  const start = type.label.indexOf("(");
-                                  const end = type.label.indexOf(")", start);
-                                  return start !== -1 && end !== -1
-                                    ? type.label.substring(start + 1, end)
-                                    : "";
-                                })()}
-                              </p>
-                            )}
-                            {type.variations && (
-                              <Select
-                                value={currentVariation}
-                                onValueChange={(value) =>
-                                  onVariantChange(type.id, value)
-                                }
-                              >
-                                <SelectTrigger className="h-8 w-[120px] bg-background/60 px-2">
-                                  <SelectValue placeholder="Variation" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {type.variations.map((variation) => (
-                                    <SelectItem
-                                      key={variation.id}
-                                      value={variation.id}
-                                      className="text-xs"
-                                    >
-                                      {variation.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            )}
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onPreview(type.id, currentVariation);
-                              }}
-                              className="scale-90 transition-all duration-200 hover:bg-primary hover:text-primary-foreground group-hover:scale-100"
-                              title={`Preview ${type.label} card`}
-                            >
-                              Preview
-                            </Button>
-                          </div>
-                        </div>
                       </div>
-                    );
-                  })}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0 text-muted-foreground hover:text-blue-600"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onPreview(type.id, currentVariation);
+                      }}
+                      title="Preview Card"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {/* Controls Area */}
+                  {(type.variations || supportsFavorites) && (
+                    <div className="mt-auto flex flex-wrap items-center gap-3 border-t border-gray-100 pt-3 dark:border-gray-700/50">
+                      {type.variations && (
+                        <div className="min-w-[120px] flex-1">
+                          <Select
+                            value={currentVariation}
+                            onValueChange={(value) =>
+                              onVariantChange(type.id, value)
+                            }
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <div className="flex items-center gap-2">
+                                <VariationIcon className="h-3 w-3" />
+                                <SelectValue />
+                              </div>
+                            </SelectTrigger>
+                            <SelectContent>
+                              {type.variations.map((v) => (
+                                <SelectItem
+                                  key={v.id}
+                                  value={v.id}
+                                  className="text-xs"
+                                >
+                                  {v.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {supportsFavorites && (
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id={`fav-${type.id}`}
+                            checked={isFavorite}
+                            onCheckedChange={() =>
+                              onToggleShowFavorites(type.id)
+                            }
+                            className="h-4 w-4"
+                          />
+                          <Label
+                            htmlFor={`fav-${type.id}`}
+                            className="flex cursor-pointer items-center gap-1.5 text-xs font-medium"
+                          >
+                            <Star
+                              className={cn(
+                                "h-3 w-3",
+                                isFavorite
+                                  ? "fill-yellow-400 text-yellow-400"
+                                  : "text-muted-foreground",
+                              )}
+                            />
+                            Show Favorites
+                          </Label>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      ))}
+              );
+            })}
+          </motion.div>
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

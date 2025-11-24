@@ -1,7 +1,8 @@
 import { USER_STATS_QUERY } from "@/lib/anilist/queries";
 import { UserRecord } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
-import { Redis } from "@upstash/redis";
+import { redisClient } from "@/lib/api-utils";
+import type { Redis as UpstashRedis } from "@upstash/redis";
 
 interface UpdateResult {
   success: boolean;
@@ -62,7 +63,7 @@ async function updateUserStats(userId: string): Promise<UpdateResult> {
 
 // Handle failure tracking and user removal
 async function handleFailureTracking(
-  redisClient: Redis,
+  redisClient: UpstashRedis,
   userId: string,
   userKey: string,
 ): Promise<boolean> {
@@ -93,7 +94,7 @@ async function handleFailureTracking(
 
 // Clear failure tracking on successful update
 async function clearFailureTracking(
-  redisClient: Redis,
+  redisClient: UpstashRedis,
   userId: string,
 ): Promise<void> {
   const failureKey = `failed_updates:${userId}`;
@@ -121,7 +122,6 @@ export async function POST(request: Request) {
       "🛠️ [Cron Job] QStash authorized, starting background update...",
     );
 
-    const redisClient = Redis.fromEnv();
     const userKeys = await redisClient.keys("user:*");
     const totalUsers = userKeys.length;
 

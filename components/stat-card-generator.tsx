@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -21,12 +21,31 @@ import { StatCardTypeSelection } from "@/components/stat-card-generator/stat-car
 import { UpdateNotice } from "@/components/stat-card-generator/update-notice";
 import { UserDetailsForm } from "@/components/stat-card-generator/user-details-form";
 import { useStatCardSubmit } from "@/hooks/use-stat-card-submit";
-import { loadDefaultSettings, getPresetColors } from "@/lib/data";
+import {
+  loadDefaultSettings,
+  getPresetColors,
+  DEFAULT_BORDER_COLOR,
+  saveDefaultBorderColor,
+  saveDefaultBorderEnabled,
+} from "@/lib/data";
 import { useRouter } from "next/navigation";
 import {
   trackCardGeneration,
   trackUserSearch,
 } from "@/lib/utils/google-analytics";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  User,
+  Palette,
+  LayoutGrid,
+  Settings2,
+  ChevronRight,
+  Sparkles,
+  CheckCircle2,
+  X,
+} from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface StatCardGeneratorProps {
   isOpen: boolean;
@@ -286,8 +305,35 @@ export const colorPresets = {
     mode: "light",
   },
   fire: { colors: ["#ff4500", "#fff5f5", "#8b0000", "#ff4500"], mode: "light" },
+  emberGlow: {
+    colors: ["#ff6b35", "#1f1a17", "#fde68a", "#ff8b3d"],
+    mode: "dark",
+  },
+  rainforestMist: {
+    colors: ["#0f766e", "#f4f9fa", "#0f3c3c", "#34d399"],
+    mode: "light",
+  },
+  polarNight: {
+    colors: ["#0ea5e9", "#020617", "#a5f3fc", "#38bdf8"],
+    mode: "dark",
+  },
+  canyonSunrise: {
+    colors: ["#ea580c", "#1d1b1e", "#fef3c7", "#fb923c"],
+    mode: "light",
+  },
+  verdantTwilight: {
+    colors: ["#22c55e", "#021102", "#dcfce7", "#4ade80"],
+    mode: "dark",
+  },
   custom: { colors: ["", "", "", ""], mode: "custom" },
 };
+
+const STEPS = [
+  { id: "user", label: "User", icon: User },
+  { id: "colors", label: "Colors", icon: Palette },
+  { id: "cards", label: "Cards", icon: LayoutGrid },
+  { id: "advanced", label: "Advanced", icon: Settings2 },
+];
 
 export function StatCardGenerator({
   isOpen,
@@ -318,9 +364,58 @@ export function StatCardGenerator({
   const [useAnimeStatusColors, setUseAnimeStatusColors] = useState(false);
   const [useMangaStatusColors, setUseMangaStatusColors] = useState(false);
   const [showPiePercentages, setShowPiePercentages] = useState(false);
+  const [hasBorder, setHasBorder] = useState(false);
+  const [borderColor, setBorderColor] = useState(DEFAULT_BORDER_COLOR);
+
+  const [currentStep, setCurrentStep] = useState(0);
 
   // Use our custom hook for managing submission
   const { loading, error, submit, clearError } = useStatCardSubmit();
+
+  // Map detailed errors from the hook into friendlier UI messages. Log details for debugging.
+  const friendlyErrorMessage = (() => {
+    if (!error) return null;
+    const msg = error.message || "An error occurred.";
+    // Validation errors from the hook are already user-friendly.
+    if (msg.startsWith("Please ")) return msg;
+
+    // Handle AniList fetch errors
+    if (msg.includes("AniList user fetch failed")) {
+      console.error("Detailed AniList user fetch error:", msg);
+      return "We couldn't find that AniList user. Please double check the username and try again.";
+    }
+    if (msg.includes("AniList stats fetch failed")) {
+      console.error("Detailed AniList stats fetch error:", msg);
+      return "We couldn't load user stats from AniList. Try again in a few moments.";
+    }
+    if (
+      msg.includes("AniList - user ID fetch request timed out") ||
+      msg.includes("AniList - user stats fetch")
+    ) {
+      console.error("AniList timeout error:", msg);
+      return "Reading AniList data took too long. Try again or check your connection.";
+    }
+
+    // Handle storage errors
+    if (msg.includes("Store users failed")) {
+      console.error("Detailed store users error:", msg);
+      return "There was an issue saving your user data. Please try again later.";
+    }
+    if (msg.includes("Store cards failed")) {
+      console.error("Detailed store cards error:", msg);
+      return "There was an issue saving your cards. Please try again later.";
+    }
+
+    // Timeouts or aborts
+    if (msg.toLowerCase().includes("timed out")) {
+      console.error("Request timeout:", msg);
+      return "One or more network requests timed out. Please try again.";
+    }
+
+    // Fallback
+    console.error("Unhandled error in stat-card submission:", msg);
+    return "An unexpected error occurred. Please try again later.";
+  })();
 
   // Load defaults on component mount
   useEffect(() => {
@@ -329,9 +424,15 @@ export function StatCardGenerator({
 
     setSelectedPreset(defaults.colorPreset);
     // Apply color preset
-    [setTitleColor, setBackgroundColor, setTextColor, setCircleColor].forEach(
-      (setter, index) => setter(presetColors[index]),
-    );
+    const setters = [
+      setTitleColor,
+      setBackgroundColor,
+      setTextColor,
+      setCircleColor,
+    ];
+    for (const [index, setter] of setters.entries()) {
+      setter(presetColors[index]);
+    }
 
     // Load default variants directly instead of parsing from card IDs
     const savedVariantsData = localStorage.getItem("anicards-defaultVariants");
@@ -342,6 +443,8 @@ export function StatCardGenerator({
 
     // Update card selection logic
     setSelectedCards(defaults.defaultCards);
+    setHasBorder(defaults.borderEnabled);
+    setBorderColor(defaults.borderColor ?? DEFAULT_BORDER_COLOR);
 
     // Load default username from local storage
     const savedUsernameData = localStorage.getItem("anicards-defaultUsername");
@@ -400,6 +503,7 @@ export function StatCardGenerator({
       backgroundColor,
       textColor,
       circleColor,
+      borderColor: hasBorder ? borderColor : undefined,
     },
     stats: {
       count: 456,
@@ -437,19 +541,24 @@ export function StatCardGenerator({
   };
 
   const handleSelectAll = () => {
-    // Select all card types (base ids)
-    const allIds = statCardTypes.map((type) => type.id);
-    setSelectedCards(allIds);
-    // For cards with variants, default to "default" if not already set.
-    setSelectedCardVariants((old) => {
-      const newObj = { ...old };
-      statCardTypes.forEach((type) => {
-        if (type.variations) {
-          if (!newObj[type.id]) newObj[type.id] = "default";
+    if (allSelected) {
+      // Unselect all cards
+      setSelectedCards([]);
+    } else {
+      // Select all card types (base ids)
+      const allIds = statCardTypes.map((type) => type.id);
+      setSelectedCards(allIds);
+      // For cards with variants, default to "default" if not already set.
+      setSelectedCardVariants((old) => {
+        const newObj = { ...old };
+        for (const type of statCardTypes) {
+          if (type.variations && !newObj[type.id]) {
+            newObj[type.id] = "default";
+          }
         }
+        return newObj;
       });
-      return newObj;
-    });
+    }
   };
 
   // Preview expects the base card id and its currently selected variant.
@@ -507,11 +616,28 @@ export function StatCardGenerator({
     });
   };
 
+  const handleToggleBorder = () => {
+    setHasBorder((prev) => {
+      const next = !prev;
+      saveDefaultBorderEnabled(next);
+      return next;
+    });
+  };
+
+  const handleBorderColorChange = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      setBorderColor("");
+      return;
+    }
+    const normalized = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+    setBorderColor(normalized);
+    saveDefaultBorderColor(normalized);
+  };
+
   // When submitting, we reassemble the selectedCards array. For card types with variants,
   // we append the variant suffix only if it is not "default". (If it is "default", we leave it off.)
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const handleSubmit = async () => {
     // Track user search in Google Analytics
     if (username) {
       trackUserSearch(username);
@@ -528,7 +654,7 @@ export function StatCardGenerator({
     // Convert back to array and apply variants
     const finalSelectedCards = Array.from(uniqueCards).map((baseId) => {
       const variant = selectedCardVariants[baseId] || "default";
-      return variant !== "default" ? `${baseId}-${variant}` : baseId;
+      return variant === "default" ? baseId : `${baseId}-${variant}`;
     });
 
     const showFavoritesConfig = Array.from(uniqueCards).reduce(
@@ -540,11 +666,11 @@ export function StatCardGenerator({
     );
 
     // Track card generation for each selected card type
-    finalSelectedCards.forEach((cardType) => {
+    for (const cardType of finalSelectedCards) {
       trackCardGeneration(cardType);
-    });
+    }
 
-    await submit({
+    const result = await submit({
       username,
       selectedCards: finalSelectedCards,
       colors: [titleColor, backgroundColor, textColor, circleColor],
@@ -552,13 +678,38 @@ export function StatCardGenerator({
       showPiePercentages,
       useAnimeStatusColors,
       useMangaStatusColors,
+      borderEnabled: hasBorder,
+      borderColor,
     });
 
-    // Build query params for navigation
-    const params = new URLSearchParams();
-    if (username) params.set("username", username);
+    // Only navigate if submission was successful
+    if (result.success && result.userId) {
+      // Build navigation URL with full parameters
+      const params = new URLSearchParams({
+        userId: result.userId,
+        username,
+        cards: JSON.stringify(
+          finalSelectedCards.map((card) => {
+            const [cardName, variation] = card.split("-");
+            const obj: Record<string, unknown> = variation
+              ? { cardName, variation }
+              : { cardName };
+            const isAnimeStatus = cardName === "animeStatusDistribution";
+            const isMangaStatus = cardName === "mangaStatusDistribution";
+            if (
+              (isAnimeStatus && useAnimeStatusColors) ||
+              (isMangaStatus && useMangaStatusColors)
+            ) {
+              obj.useStatusColors = true;
+            }
+            if (showPiePercentages) obj.showPiePercentages = true;
+            return obj;
+          }),
+        ),
+      });
 
-    router.push(`/user?${params.toString()}`);
+      router.push(`/user?${params.toString()}`);
+    }
   };
 
   // Prepare configuration for the color pickers
@@ -601,137 +752,352 @@ export function StatCardGenerator({
     },
   ];
 
+  const borderColorPicker = {
+    id: "borderColor",
+    label: "Border color",
+    value: borderColor || DEFAULT_BORDER_COLOR,
+    onChange: handleBorderColorChange,
+  };
+
+  const nextStep = () => {
+    if (currentStep < STEPS.length - 1) {
+      setCurrentStep((prev) => prev + 1);
+    }
+  };
+
+  const prevStep = () => {
+    if (currentStep === 0) {
+      onClose();
+      return;
+    }
+
+    setCurrentStep((prev) => prev - 1);
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      {loading && <LoadingOverlay text="Creating your stat cards..." />}
       <DialogContent
         className={cn(
-          "z-50 max-h-[calc(100vh-9rem)] overflow-y-auto sm:max-w-[600px]",
+          "z-50 flex h-[90vh] max-h-[1000px] w-[95vw] max-w-[1000px] flex-col overflow-hidden p-0",
+          "bg-white dark:bg-gray-900",
+          "rounded-2xl border-0 shadow-2xl",
           className,
         )}
       >
-        <DialogHeader>
-          <DialogTitle>Generate Your Stat Cards</DialogTitle>
-          <DialogDescription>
-            Enter your details and select the stat cards you want to generate.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* User Details */}
-          <UserDetailsForm username={username} onUsernameChange={setUsername} />
+        {loading && <LoadingOverlay text="Creating your stat cards..." />}
+        {/* Header */}
+        <div className="relative z-10 flex shrink-0 flex-col border-b border-gray-100 bg-white px-6 py-4 dark:border-gray-800 dark:bg-gray-900">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-2xl font-bold">
+              <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                Generate Cards
+              </span>
+              <Sparkles className="h-5 w-5 text-purple-500" />
+            </DialogTitle>
+            <DialogDescription className="text-gray-500 dark:text-gray-400">
+              Create beautiful, personalized visualizations of your AniList
+              stats.
+            </DialogDescription>
+          </DialogHeader>
 
-          {/* Color Preset Selector */}
-          <ColorPresetSelector
-            selectedPreset={selectedPreset}
-            presets={colorPresets}
-            onPresetChange={(preset) => {
-              setSelectedPreset(preset);
-              if (preset !== "custom") {
-                [
-                  setTitleColor,
-                  setBackgroundColor,
-                  setTextColor,
-                  setCircleColor,
-                ].forEach((setter, index) =>
-                  setter(
-                    colorPresets[preset as keyof typeof colorPresets].colors[
-                      index
-                    ],
-                  ),
-                );
-              }
-            }}
-          />
-
-          {/* Color Picker Grid */}
-          <ColorPickerGroup pickers={colorPickers} />
-
-          {/* Live Preview */}
-          <LivePreview previewSVG={previewSVG} />
-
-          {/* Stat Card Selection Grid */}
-          <StatCardTypeSelection
-            cardTypes={statCardTypes}
-            selectedCards={selectedCards}
-            selectedCardVariants={selectedCardVariants}
-            allSelected={allSelected}
-            onToggle={handleToggleCard}
-            onSelectAll={handleSelectAll}
-            onVariantChange={handleVariantChange}
-            onPreview={handlePreview}
-            showFavoritesByCard={showFavoritesByCard}
-            onToggleShowFavorites={handleToggleShowFavorites}
-          />
-
-          {/* Group-specific Status Color Toggles */}
-          <div className="space-y-2 text-xs text-muted-foreground">
-            <div className="flex items-center gap-2 rounded-md border p-3">
-              <input
-                id="anime-status-colors"
-                type="checkbox"
-                checked={useAnimeStatusColors}
-                onChange={handleToggleAnimeStatusColors}
-                className="h-4 w-4 cursor-pointer accent-primary"
-              />
-              <label
-                htmlFor="anime-status-colors"
-                className="cursor-pointer select-none leading-tight"
-              >
-                Anime Status Distribution: Fixed colors (Current=Green,
-                Paused=Yellow, Completed=Blue, Dropped=Red, Planning=Gray)
-              </label>
-            </div>
-            <div className="flex items-center gap-2 rounded-md border p-3">
-              <input
-                id="manga-status-colors"
-                type="checkbox"
-                checked={useMangaStatusColors}
-                onChange={handleToggleMangaStatusColors}
-                className="h-4 w-4 cursor-pointer accent-primary"
-              />
-              <label
-                htmlFor="manga-status-colors"
-                className="cursor-pointer select-none leading-tight"
-              >
-                Manga Status Distribution: Fixed colors (Current=Green,
-                Paused=Yellow, Completed=Blue, Dropped=Red, Planning=Gray)
-              </label>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 rounded-md border p-3 text-xs text-muted-foreground">
-            <input
-              id="pie-percentages-toggle"
-              type="checkbox"
-              checked={showPiePercentages}
-              onChange={handleToggleShowPiePercentages}
-              className="h-4 w-4 cursor-pointer accent-primary"
-            />
-            <label
-              htmlFor="pie-percentages-toggle"
-              className="cursor-pointer select-none leading-tight"
-            >
-              Pie Charts: Show percentages in legends
-            </label>
-          </div>
-
-          {/* Form Submission */}
-          <Button
-            type="submit"
-            className="w-full transform-gpu transition-transform duration-200 hover:scale-[1.02]"
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close dialog"
+            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-transparent bg-gray-100 text-gray-500 transition hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
           >
-            Generate Stat Cards
+            <X className="h-4 w-4" />
+          </button>
+
+          {/* Steps Navigation */}
+          <div className="mt-6 flex w-full items-center px-2">
+            <div className="flex w-full items-center justify-between gap-0">
+              {STEPS.map((step, index) => {
+                const Icon = step.icon;
+                const isActive = index === currentStep;
+                const isCompleted = index < currentStep;
+
+                let buttonClass =
+                  "relative flex h-10 w-10 items-center justify-center rounded-full transition-all duration-300";
+                if (isActive) {
+                  buttonClass +=
+                    " bg-blue-600 text-white shadow-lg shadow-blue-500/30 scale-110";
+                } else if (isCompleted) {
+                  buttonClass += " bg-green-500 text-white";
+                } else {
+                  buttonClass += " bg-gray-100 text-gray-400 dark:bg-gray-800";
+                }
+
+                let textClass = "text-xs font-medium transition-colors";
+                if (isActive) {
+                  textClass += " text-blue-600 dark:text-blue-400";
+                } else if (isCompleted) {
+                  textClass += " text-green-600 dark:text-green-400";
+                } else {
+                  textClass += " text-gray-400";
+                }
+
+                return (
+                  <Fragment key={step.id}>
+                    {index > 0 && (
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "block h-[2px] min-w-[32px] max-w-[230px] flex-1 -translate-y-2.5 self-center transition-colors duration-300",
+                          index <= currentStep
+                            ? "bg-green-500"
+                            : "bg-gray-100 dark:bg-gray-800",
+                        )}
+                      />
+                    )}
+
+                    <div className="flex flex-col items-center gap-2 px-3">
+                      <button
+                        onClick={() => setCurrentStep(index)}
+                        className={cn(buttonClass)}
+                      >
+                        {isCompleted ? (
+                          <CheckCircle2 className="h-5 w-5" />
+                        ) : (
+                          <Icon className="h-5 w-5" />
+                        )}
+                      </button>
+                      <span className={cn(textClass)}>{step.label}</span>
+                    </div>
+                  </Fragment>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-1 overflow-y-auto bg-gray-50/50 p-2 dark:bg-gray-900/50">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentStep}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2 }}
+              className="mx-auto max-w-4xl"
+            >
+              {currentStep === 0 && (
+                <div className="space-y-6">
+                  <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                    <UserDetailsForm
+                      username={username}
+                      onUsernameChange={setUsername}
+                    />
+                  </div>
+                  <UpdateNotice />
+                </div>
+              )}
+
+              {currentStep === 1 && (
+                <div className="space-y-6">
+                  <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                    <Label className="mb-4 block text-sm font-medium text-gray-500">
+                      Live Preview
+                    </Label>
+                    <LivePreview previewSVG={previewSVG} />
+                  </div>
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    <div className="min-w-0">
+                      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                        <ColorPresetSelector
+                          selectedPreset={selectedPreset}
+                          presets={colorPresets}
+                          onPresetChange={(preset) => {
+                            setSelectedPreset(preset);
+                            if (preset !== "custom") {
+                              const setters = [
+                                setTitleColor,
+                                setBackgroundColor,
+                                setTextColor,
+                                setCircleColor,
+                              ];
+                              for (const [index, setter] of setters.entries()) {
+                                setter(
+                                  colorPresets[
+                                    preset as keyof typeof colorPresets
+                                  ].colors[index],
+                                );
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="min-w-0 space-y-6">
+                      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                        <ColorPickerGroup pickers={colorPickers} />
+                      </div>
+                      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label className="text-base">Card Border</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Optional frame around the entire card
+                            </p>
+                          </div>
+                          <Switch
+                            checked={hasBorder}
+                            onCheckedChange={handleToggleBorder}
+                          />
+                        </div>
+                        {hasBorder && (
+                          <div className="mt-4">
+                            <ColorPickerGroup pickers={[borderColorPicker]} />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {currentStep === 2 && (
+                <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                  <StatCardTypeSelection
+                    cardTypes={statCardTypes}
+                    selectedCards={selectedCards}
+                    selectedCardVariants={selectedCardVariants}
+                    allSelected={allSelected}
+                    onToggle={handleToggleCard}
+                    onSelectAll={handleSelectAll}
+                    onVariantChange={handleVariantChange}
+                    onPreview={handlePreview}
+                    showFavoritesByCard={showFavoritesByCard}
+                    onToggleShowFavorites={handleToggleShowFavorites}
+                  />
+                </div>
+              )}
+
+              {currentStep === 3 && (
+                <div className="space-y-6">
+                  <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                    <h3 className="mb-4 text-lg font-semibold">
+                      Advanced Options
+                    </h3>
+                    <div className="grid gap-6 md:grid-cols-2">
+                      <div className="space-y-4">
+                        <Label className="text-sm font-medium text-gray-500">
+                          Status Colors
+                        </Label>
+                        <div className="flex items-center justify-between rounded-lg border p-4 dark:border-gray-800">
+                          <div className="space-y-0.5">
+                            <Label className="text-base">
+                              Anime Status Colors
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              Use fixed colors for status distribution
+                            </p>
+                          </div>
+                          <Switch
+                            checked={useAnimeStatusColors}
+                            onCheckedChange={handleToggleAnimeStatusColors}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between rounded-lg border p-4 dark:border-gray-800">
+                          <div className="space-y-0.5">
+                            <Label className="text-base">
+                              Manga Status Colors
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              Use fixed colors for status distribution
+                            </p>
+                          </div>
+                          <Switch
+                            checked={useMangaStatusColors}
+                            onCheckedChange={handleToggleMangaStatusColors}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <Label className="text-sm font-medium text-gray-500">
+                          Chart Options
+                        </Label>
+                        <div className="flex items-center justify-between rounded-lg border p-4 dark:border-gray-800">
+                          <div className="space-y-0.5">
+                            <Label className="text-base">Pie Percentages</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Show percentages in legends
+                            </p>
+                          </div>
+                          <Switch
+                            checked={showPiePercentages}
+                            onCheckedChange={handleToggleShowPiePercentages}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 dark:border-blue-900/30 dark:bg-blue-900/10">
+                    <div className="flex gap-3">
+                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-400">
+                        <span className="text-xs font-bold">i</span>
+                      </div>
+                      <div className="space-y-1 text-sm text-blue-900 dark:text-blue-100">
+                        <p className="font-medium">Status Color Guide</p>
+                        <p className="text-blue-700 dark:text-blue-300">
+                          Current=🟢, Paused=🟡, Completed=🔵, Dropped=🔴,
+                          Planning=⚪
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="flex shrink-0 items-center justify-between border-t border-gray-100 bg-white px-6 py-4 dark:border-gray-800 dark:bg-gray-900">
+          <Button
+            variant="ghost"
+            onClick={prevStep}
+            disabled={loading}
+            className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+          >
+            Back
           </Button>
 
-          {/* Update Notice */}
-          <UpdateNotice />
-        </form>
+          <div className="flex items-center gap-3">
+            {currentStep === STEPS.length - 1 ? (
+              <Button
+                onClick={handleSubmit}
+                disabled={selectedCards.length === 0 || !username.trim()}
+                className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 px-8 font-semibold text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl disabled:opacity-50"
+              >
+                Generate{" "}
+                {selectedCards.length > 0 && `(${selectedCards.length})`}
+                <Sparkles className="ml-2 h-4 w-4" />
+              </Button>
+            ) : (
+              <Button
+                onClick={nextStep}
+                disabled={currentStep === 0 && !username.trim()}
+                className="bg-gray-900 text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+              >
+                Next Step
+                <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
       </DialogContent>
 
       <ErrorPopup
         isOpen={!!error}
         onClose={clearError}
         title="Submission Error"
-        description={error?.message || "An error occurred."}
+        description={
+          friendlyErrorMessage || error?.message || "An error occurred."
+        }
       />
       <StatCardPreview
         isOpen={previewOpen}

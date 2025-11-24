@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { AnimatePresence, motion as m, motion } from "framer-motion";
 
+import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -12,14 +13,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { colorPresets, statCardTypes } from "@/components/stat-card-generator";
+import { ColorPickerGroup } from "@/components/stat-card-generator/color-picker-group";
+import { DEFAULT_BORDER_COLOR } from "@/lib/data";
 
 // Only these card types support showFavorites
-const FAVORITE_CARD_IDS = [
+const FAVORITE_CARD_IDS = new Set([
   "animeVoiceActors",
   "animeStudios",
   "animeStaff",
   "mangaStaff",
-];
+]);
 
 interface DefaultCardSettingsProps {
   defaultPreset: string;
@@ -31,6 +34,10 @@ interface DefaultCardSettingsProps {
   onVariantChange: (cardType: string, variant: string) => void;
   defaultShowFavoritesByCard: Record<string, boolean>;
   onToggleShowFavoritesDefault: (cardId: string) => void;
+  defaultBorderEnabled: boolean;
+  defaultBorderColor: string;
+  onBorderEnabledChange: (value: boolean) => void;
+  onBorderColorChange: (color: string) => void;
 }
 
 export function DefaultCardSettings({
@@ -43,6 +50,10 @@ export function DefaultCardSettings({
   onVariantChange,
   defaultShowFavoritesByCard,
   onToggleShowFavoritesDefault,
+  defaultBorderEnabled,
+  defaultBorderColor,
+  onBorderEnabledChange,
+  onBorderColorChange,
 }: Readonly<DefaultCardSettingsProps>) {
   // Group computation (stable ordering as defined in statCardTypes array)
   const groups = useMemo(() => {
@@ -65,41 +76,117 @@ export function DefaultCardSettings({
 
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
-    groups.order.forEach((g) => {
+    for (const g of groups.order) {
       initial[g] = true;
-    });
+    }
     return initial;
   });
   const toggle = (g: string) => setOpenGroups((o) => ({ ...o, [g]: !o[g] }));
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.8 }}
+      transition={{ duration: 0.5, delay: 0.4 }}
       className="space-y-4"
     >
-      <Label className="text-lg font-medium">Default Card Settings</Label>
-      <div className="space-y-6 rounded-lg bg-accent/40 p-4">
-        <Select value={defaultPreset} onValueChange={onPresetChange}>
-          <SelectTrigger className="w-full max-w-[300px] bg-background/60">
-            <SelectValue placeholder="Select color preset" />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.keys(colorPresets).map((preset) => (
-              <SelectItem key={preset} value={preset}>
-                {preset.charAt(0).toUpperCase() + preset.slice(1)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="rounded-2xl border border-white/50 bg-white/80 p-6 shadow-xl backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/80">
+        <div className="mb-6 flex items-center gap-4">
+          <div className="rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 p-3 shadow-lg shadow-indigo-500/20">
+            <svg
+              className="h-6 w-6 text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+              />
+            </svg>
+          </div>
+          <div>
+            <Label className="text-xl font-bold text-slate-900 dark:text-white">
+              Default Card Settings
+            </Label>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Configure default color presets and card types for new generations
+            </p>
+          </div>
+        </div>
 
-        <div className="space-y-2">
-          <Label>Default Card Types</Label>
-          <div className="mb-2 flex">
+        {/* Color Preset Selection */}
+        <div className="mb-8 space-y-3">
+          <Label className="text-base font-semibold text-slate-900 dark:text-white">
+            Color Preset
+          </Label>
+          <Select value={defaultPreset} onValueChange={onPresetChange}>
+            <SelectTrigger className="h-12 w-full max-w-sm border-slate-200 bg-white px-4 text-base transition-all hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-blue-500 dark:focus:border-blue-400">
+              <SelectValue placeholder="Select color preset" />
+            </SelectTrigger>
+            <SelectContent className="border-slate-200 bg-white/95 backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900/95">
+              {Object.keys(colorPresets).map((preset) => (
+                <SelectItem
+                  key={preset}
+                  value={preset}
+                  className="cursor-pointer py-2 transition-colors focus:bg-blue-50 dark:focus:bg-slate-800"
+                >
+                  {preset.charAt(0).toUpperCase() + preset.slice(1)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="mb-8 space-y-3">
+          <Label className="text-base font-semibold text-slate-900 dark:text-white">
+            Card Border Defaults
+          </Label>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-4 transition-colors dark:border-slate-700 dark:bg-slate-900/70">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <Label className="text-sm font-medium text-slate-900 dark:text-white">
+                  Include a border by default
+                </Label>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Generate cards with a subtle frame and your chosen color.
+                </p>
+              </div>
+              <Switch
+                checked={defaultBorderEnabled}
+                onCheckedChange={onBorderEnabledChange}
+                className="border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-800"
+              />
+            </div>
+            {defaultBorderEnabled && (
+              <div className="mt-4 rounded-xl border border-slate-200 bg-white/80 p-3 dark:border-slate-700 dark:bg-slate-900/80">
+                <ColorPickerGroup
+                  pickers={[
+                    {
+                      id: "default-border-color",
+                      label: "Border color",
+                      value: defaultBorderColor || DEFAULT_BORDER_COLOR,
+                      onChange: onBorderColorChange,
+                    },
+                  ]}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Card Types Section */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Label className="text-base font-semibold text-slate-900 dark:text-white">
+              Default Card Types
+            </Label>
             <Button
               variant="outline"
               size="sm"
               onClick={onToggleAllCardTypes}
+              className="border-blue-200 text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-900/20"
               aria-label={
                 defaultCardTypes.length === statCardTypes.length
                   ? "Unselect all card types"
@@ -111,132 +198,205 @@ export function DefaultCardSettings({
                 : "Select All"}
             </Button>
           </div>
-          {groups.order.map((group) => (
-            <div key={group} className="space-y-1">
-              <button
-                type="button"
-                onClick={() => toggle(group)}
-                className="flex w-full items-center gap-2 px-1 py-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground transition hover:text-foreground"
-                aria-expanded={openGroups[group]}
-                aria-controls={`default-group-${group}`}
-              >
-                <span
-                  className={
-                    "inline-flex h-3 w-3 items-center justify-center transition-transform " +
-                    (openGroups[group] ? "rotate-90" : "rotate-0")
-                  }
-                  aria-hidden="true"
-                >
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="text-muted-foreground"
-                  >
-                    <path d="M9 18l6-6-6-6" />
-                  </svg>
-                </span>
-                <span>{group}</span>
-              </button>
-              <AnimatePresence initial={false}>
-                {openGroups[group] && (
-                  <m.div
-                    key={group}
-                    id={`default-group-${group}`}
-                    initial="collapsed"
-                    animate="open"
-                    exit="collapsed"
-                    variants={{
-                      open: { opacity: 1, height: "auto" },
-                      collapsed: { opacity: 0, height: 0 },
-                    }}
-                    transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
-                    className="grid grid-cols-1 gap-2 overflow-hidden md:grid-cols-2"
-                  >
-                    {groups.map[group].map((type) => {
-                      const hasVariants =
-                        type.variations && type.variations.length > 0;
-                      const currentVariant =
-                        defaultVariants[type.id] || "default";
 
-                      return (
-                        <div key={type.id} className="flex flex-col space-y-2">
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id={type.id}
-                              checked={defaultCardTypes.includes(type.id)}
-                              onCheckedChange={() => onToggleCardType(type.id)}
-                            />
-                            <Label htmlFor={type.id} className="text-sm">
-                              {type.label.split(" (")[0]}
-                            </Label>
-                          </div>
-                          {/* Show Favorites default toggle for eligible cards */}
-                          {FAVORITE_CARD_IDS.includes(type.id) &&
-                            defaultCardTypes.includes(type.id) && (
-                              <div className="ml-6 flex items-center space-x-2">
-                                <Checkbox
-                                  id={`default-show-favorites-${type.id}`}
-                                  checked={
-                                    !!defaultShowFavoritesByCard[type.id]
-                                  }
-                                  onCheckedChange={() =>
-                                    onToggleShowFavoritesDefault(type.id)
-                                  }
-                                  aria-label="Default Show Favorites"
-                                  tabIndex={0}
-                                  className="scale-90 transition-all duration-200 checked:scale-110 focus:ring-2 focus:ring-pink-500"
-                                />
-                                <Label
-                                  htmlFor={`default-show-favorites-${type.id}`}
-                                  className="cursor-pointer text-xs"
-                                >
-                                  Show Favorites by Default
-                                </Label>
-                              </div>
-                            )}
-                          {hasVariants &&
-                            defaultCardTypes.includes(type.id) && (
-                              <Select
-                                value={currentVariant}
-                                onValueChange={(value) =>
-                                  onVariantChange(type.id, value)
-                                }
+          <div className="space-y-4">
+            {groups.order.map((group) => (
+              <div
+                key={group}
+                className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50/30 transition-all dark:border-slate-700 dark:bg-slate-800/30"
+              >
+                <button
+                  type="button"
+                  onClick={() => toggle(group)}
+                  className={`group flex w-full items-center justify-between rounded-t-xl px-4 py-3 text-left text-slate-900 transition-colors hover:bg-slate-100/50 dark:hover:bg-slate-800/50 ${
+                    openGroups[group]
+                      ? "border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/70"
+                      : "bg-slate-50/90 dark:bg-slate-800/70"
+                  }`}
+                  aria-expanded={openGroups[group]}
+                  aria-controls={`default-group-${group}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`rounded-lg p-1.5 transition-colors ${
+                        openGroups[group]
+                          ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+                          : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                      }`}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        {group === "Anime" && (
+                          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                        )}
+                        {group === "Manga" && (
+                          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                        )}
+                        {group === "User" && (
+                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                        )}
+                        {group === "Other" && (
+                          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                        )}
+                        {!["Anime", "Manga", "User", "Other"].includes(
+                          group,
+                        ) && <path d="M4 6h16M4 10h16M4 14h16M4 18h16" />}
+                      </svg>
+                    </div>
+                    <span className="font-semibold text-slate-900 dark:text-white">
+                      {group}
+                    </span>
+                  </div>
+                  <div className="flex flex-col items-end text-xs text-slate-500 dark:text-slate-400">
+                    <div
+                      className={`transition-transform duration-200 ${
+                        openGroups[group] ? "rotate-180" : "rotate-0"
+                      }`}
+                    >
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="text-slate-400"
+                      >
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </div>
+                  </div>
+                </button>
+                <AnimatePresence initial={false}>
+                  {openGroups[group] && (
+                    <m.div
+                      key={group}
+                      id={`default-group-${group}`}
+                      initial="collapsed"
+                      animate="open"
+                      exit="collapsed"
+                      variants={{
+                        open: { opacity: 1, height: "auto" },
+                        collapsed: { opacity: 0, height: 0 },
+                      }}
+                      transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
+                    >
+                      <div className="rounded-b-xl bg-white/90 px-4 py-4 shadow-inner transition-colors dark:bg-slate-900/80">
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          {groups.map[group].map((type) => {
+                            const hasVariants =
+                              type.variations && type.variations.length > 0;
+                            const currentVariant =
+                              defaultVariants[type.id] || "default";
+                            const isSelected = defaultCardTypes.includes(
+                              type.id,
+                            );
+
+                            return (
+                              <div
+                                key={type.id}
+                                className={`rounded-xl border p-3 transition-all ${
+                                  isSelected
+                                    ? "border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-900/20"
+                                    : "border-slate-200 bg-white hover:border-blue-200 hover:shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:hover:border-blue-800"
+                                }`}
                               >
-                                <SelectTrigger className="h-8 w-full bg-background/60">
-                                  <SelectValue placeholder="Variant" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {type.variations?.map(
-                                    (variation: {
-                                      id: string;
-                                      label: string;
-                                    }) => (
-                                      <SelectItem
-                                        key={variation.id}
-                                        value={variation.id}
-                                        className="text-xs"
+                                <div className="flex items-start gap-3">
+                                  <Checkbox
+                                    id={type.id}
+                                    checked={isSelected}
+                                    onCheckedChange={() =>
+                                      onToggleCardType(type.id)
+                                    }
+                                    className="mt-1 border-slate-300 data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600 dark:border-slate-600 dark:data-[state=checked]:bg-blue-500"
+                                  />
+                                  <div className="flex-1 space-y-3">
+                                    <Label
+                                      htmlFor={type.id}
+                                      className="cursor-pointer font-medium text-slate-900 dark:text-white"
+                                    >
+                                      {type.label.split(" (")[0]}
+                                    </Label>
+
+                                    {/* Show Favorites default toggle for eligible cards */}
+                                    {FAVORITE_CARD_IDS.has(type.id) &&
+                                      isSelected && (
+                                        <div className="flex items-center gap-2 rounded-lg bg-pink-50 px-2 py-1.5 dark:bg-pink-900/20">
+                                          <Checkbox
+                                            id={`default-show-favorites-${type.id}`}
+                                            checked={
+                                              !!defaultShowFavoritesByCard[
+                                                type.id
+                                              ]
+                                            }
+                                            onCheckedChange={() =>
+                                              onToggleShowFavoritesDefault(
+                                                type.id,
+                                              )
+                                            }
+                                            className="h-4 w-4 border-pink-300 data-[state=checked]:border-pink-500 data-[state=checked]:bg-pink-500 dark:border-pink-700 dark:data-[state=checked]:bg-pink-600"
+                                          />
+                                          <Label
+                                            htmlFor={`default-show-favorites-${type.id}`}
+                                            className="cursor-pointer text-xs font-medium text-pink-700 dark:text-pink-300"
+                                          >
+                                            Show Favorites
+                                          </Label>
+                                        </div>
+                                      )}
+
+                                    {/* Variant Selection */}
+                                    {hasVariants && isSelected && (
+                                      <Select
+                                        value={currentVariant}
+                                        onValueChange={(value) =>
+                                          onVariantChange(type.id, value)
+                                        }
                                       >
-                                        {variation.label}
-                                      </SelectItem>
-                                    ),
-                                  )}
-                                </SelectContent>
-                              </Select>
-                            )}
+                                        <SelectTrigger className="h-9 w-full border-slate-200 bg-white text-xs transition-all hover:border-blue-400 focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-500">
+                                          <SelectValue placeholder="Select variant" />
+                                        </SelectTrigger>
+                                        <SelectContent className="border-slate-200 bg-white/95 backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900/95">
+                                          {type.variations?.map(
+                                            (variation: {
+                                              id: string;
+                                              label: string;
+                                            }) => (
+                                              <SelectItem
+                                                key={variation.id}
+                                                value={variation.id}
+                                                className="cursor-pointer text-xs focus:bg-blue-50 dark:focus:bg-slate-800"
+                                              >
+                                                {variation.label}
+                                              </SelectItem>
+                                            ),
+                                          )}
+                                        </SelectContent>
+                                      </Select>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                      );
-                    })}
-                  </m.div>
-                )}
-              </AnimatePresence>
-            </div>
-          ))}
+                      </div>
+                    </m.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </motion.div>

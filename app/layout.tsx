@@ -8,6 +8,7 @@ import GithubCorner from "@/components/github-corner";
 import GoogleAnalytics from "@/components/google-analytics";
 import AnalyticsProvider from "@/components/analytics-provider";
 import { LayoutShell } from "@/components/layout-shell";
+import { CustomScrollbar } from "@/components/custom-scrollbar";
 import { Suspense } from "react";
 import { generateMetadata as createMetadata } from "@/lib/seo";
 import { generateStructuredData, generateJsonLd } from "@/lib/structured-data";
@@ -65,6 +66,7 @@ export default function RootLayout({
         />
       </head>
       <body
+        id="app-root"
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID && (
@@ -77,6 +79,7 @@ export default function RootLayout({
             <AnalyticsProvider>
               <LayoutShell>
                 <GithubCorner />
+                <CustomScrollbar />
                 {children}
               </LayoutShell>
             </AnalyticsProvider>

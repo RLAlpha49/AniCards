@@ -1,9 +1,16 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Mail, Settings, File, Search, Folder } from "lucide-react";
 import {
-  useSidebar,
+  Home,
+  Mail,
+  Settings,
+  File,
+  Search,
+  Folder,
+  Grid3X3,
+} from "lucide-react";
+import {
   Sidebar,
   SidebarContent,
   SidebarMenu,
@@ -19,6 +26,7 @@ import { trackNavigation } from "@/lib/utils/google-analytics";
 
 const navItems = [
   { title: "Home", icon: Home, href: "/" },
+  { title: "Examples", icon: Grid3X3, href: "/examples" },
   { title: "Search", icon: Search, href: "/search" },
   //{ title: "Profile", icon: User, href: "/profile" },
   { title: "Contact", icon: Mail, href: "/contact" },
@@ -29,7 +37,6 @@ const navItems = [
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { open } = useSidebar();
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -45,22 +52,22 @@ export function AppSidebar() {
   }
 
   return (
-    <Sidebar
-      collapsible="icon"
-      className="sidebar"
-      style={{ marginTop: "48px" }}
-    >
+    <Sidebar collapsible="icon" className="mt-16">
       <SidebarContent>
-        <SidebarGroup style={{ paddingTop: "0px" }}>
+        <SidebarGroup>
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={pathname === item.href}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === item.href}
+                    tooltip={item.title}
+                  >
                     <Link href={item.href} onClick={() => handleNavClick(item)}>
-                      <item.icon className="mr-2 h-4 w-4" />
-                      {open && <span>{item.title}</span>}
+                      <item.icon />
+                      <span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

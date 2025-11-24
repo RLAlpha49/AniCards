@@ -37,6 +37,11 @@ export interface AnimeStats {
   voiceActors: AnimeStatVoiceActor[];
   studios: AnimeStatStudio[];
   staff: AnimeStatStaff[];
+  statuses?: { status: string; count: number }[];
+  formats?: { format: string; count: number }[];
+  scores?: { score: number; count: number }[];
+  releaseYears?: { releaseYear: number; count: number }[];
+  countries?: { country: string; count: number }[];
 }
 
 export interface MangaStatGenre {
@@ -63,6 +68,12 @@ export interface MangaStats {
   genres: MangaStatGenre[];
   tags: MangaStatTag[];
   staff: MangaStatStaff[];
+  // Distribution / additional fields collected from AniList
+  statuses?: { status: string; count: number }[];
+  formats?: { format: string; count: number }[];
+  scores?: { score: number; count: number }[];
+  releaseYears?: { releaseYear: number; count: number }[];
+  countries?: { country: string; count: number }[];
 }
 
 export interface UserStatistics {
@@ -71,6 +82,7 @@ export interface UserStatistics {
 }
 
 export interface UserSection {
+  stats: ActivityStats;
   favourites: {
     staff: {
       nodes: {
@@ -84,6 +96,14 @@ export interface UserSection {
       nodes: {
         id: number;
         name: string;
+      }[];
+    };
+    characters?: {
+      nodes: {
+        id: number;
+        name: {
+          full: string;
+        };
       }[];
     };
   };
@@ -125,12 +145,11 @@ export interface ThreadCommentsPage {
 
 export interface ReviewsPage {
   pageInfo: PageInfo;
-  reviews: unknown[];
+  reviews: { id: number }[];
 }
 
 export interface UserStatsData {
   User: UserSection;
-  stats: ActivityStats;
   followersPage: FollowersPage;
   followingPage: FollowingPage;
   threadsPage: ThreadsPage;
@@ -164,7 +183,7 @@ export interface UserRecord {
  * Represents a card configuration.
  * Adjust properties based on your actual card config schema.
  */
-export interface CardConfig {
+export interface StoredCardConfig {
   variation: string;
   // A unique name identifier for the card (used for picking the right template)
   cardName: string;
@@ -176,6 +195,8 @@ export interface CardConfig {
   textColor: string;
   // Circle color, for any circular elements in the card.
   circleColor: string;
+  // Optional border color for the card background.
+  borderColor?: string;
   // Whether to show favorites (pink heart) for this card
   showFavorites?: boolean;
   // Whether to use fixed status distribution colors (only meaningful for status distribution cards)
@@ -191,7 +212,7 @@ export interface CardsRecord {
   // The user identifier that this record belongs to.
   userId: number;
   // An array of card configurations.
-  cards: CardConfig[];
+  cards: StoredCardConfig[];
   // The timestamp at which the record was last updated in ISO format.
   updatedAt: string;
 }

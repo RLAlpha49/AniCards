@@ -1,11 +1,12 @@
 // Card configuration type
-export interface CardConfig {
+export interface TemplateCardConfig {
   cardName: string;
   variation?: string;
   titleColor: string;
   backgroundColor: string;
   textColor: string;
   circleColor: string;
+  borderColor?: string;
   useStatusColors?: boolean;
 }
 
@@ -54,21 +55,21 @@ export interface MangaStats {
 }
 
 export interface SocialStats {
-  followersPage: { pageInfo: { total: number }; followers: { id: number } };
-  followingPage: { pageInfo: { total: number }; following: { id: number } };
-  threadsPage: { pageInfo: { total: number }; threads: { id: number } };
+  followersPage: { pageInfo: { total: number }; followers: { id: number }[] };
+  followingPage: { pageInfo: { total: number }; following: { id: number }[] };
+  threadsPage: { pageInfo: { total: number }; threads: { id: number }[] };
   threadCommentsPage: {
     pageInfo: { total: number };
-    threadComments: { id: number };
+    threadComments: { id: number }[];
   };
-  reviewsPage: { pageInfo: { total: number }; reviews: { id: number } };
+  reviewsPage: { pageInfo: { total: number }; reviews: { id: number }[] };
   activityHistory?: { date: number; amount: number }[];
 }
 
 // Database document types
 export interface CardsDocument {
   userId: number;
-  cards: CardConfig[];
+  cards: TemplateCardConfig[];
   updatedAt: Date;
 }
 

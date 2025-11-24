@@ -2,10 +2,15 @@
 
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { motion } from "framer-motion";
 import { useSidebar } from "@/components/ui/sidebar";
-import { getSiteSpecificCache, clearSiteCache } from "@/lib/data";
+import {
+  getSiteSpecificCache,
+  clearSiteCache,
+  DEFAULT_BORDER_COLOR,
+  saveDefaultBorderColor,
+  saveDefaultBorderEnabled,
+} from "@/lib/data";
 import { ThemePreferences } from "@/components/settings/theme-preferences";
 import { SidebarBehavior } from "@/components/settings/sidebar-behavior";
 import {
@@ -16,6 +21,7 @@ import { DefaultCardSettings } from "@/components/settings/default-card-settings
 import { ResetSettings } from "@/components/settings/reset-settings";
 import { DefaultUsernameSettings } from "@/components/settings/default-username";
 import { usePageSEO } from "@/hooks/use-page-seo";
+import { GridPattern } from "../../components/ui/grid-pattern";
 
 export default function SettingsPage() {
   usePageSEO("settings");
@@ -35,12 +41,15 @@ export default function SettingsPage() {
   const [defaultShowFavoritesByCard, setDefaultShowFavoritesByCard] = useState<
     Record<string, boolean>
   >(() => {
-    if (typeof window !== "undefined") {
+    if (globalThis.window !== undefined) {
       const saved = localStorage.getItem("anicards-defaultShowFavoritesByCard");
       if (saved) return JSON.parse(saved).value;
     }
     return {};
   });
+  const [defaultBorderEnabled, setDefaultBorderEnabled] = useState(false);
+  const [defaultBorderColor, setDefaultBorderColor] =
+    useState(DEFAULT_BORDER_COLOR);
 
   // Listen for local storage changes from other tabs
   useEffect(() => {
@@ -50,8 +59,8 @@ export default function SettingsPage() {
       }
     };
 
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
+    globalThis.addEventListener("storage", handleStorageChange);
+    return () => globalThis.removeEventListener("storage", handleStorageChange);
   }, []);
 
   // Update state from local storage whenever cacheVersion changes
@@ -110,6 +119,22 @@ export default function SettingsPage() {
       ? JSON.parse(savedShowFavoritesString).value
       : {};
     setDefaultShowFavoritesByCard(showFavoritesValue);
+
+    const savedBorderEnabled = localStorage.getItem(
+      "anicards-defaultBorderEnabled",
+    );
+    const borderEnabledValue = savedBorderEnabled
+      ? JSON.parse(savedBorderEnabled).value
+      : false;
+    setDefaultBorderEnabled(borderEnabledValue);
+
+    const savedBorderColor = localStorage.getItem(
+      "anicards-defaultBorderColor",
+    );
+    const borderColorValue = savedBorderColor
+      ? JSON.parse(savedBorderColor).value
+      : DEFAULT_BORDER_COLOR;
+    setDefaultBorderColor(borderColorValue);
   }, [cacheVersion]);
 
   if (!mounted) return null;
@@ -173,12 +198,10 @@ export default function SettingsPage() {
     // Dynamically require statCardTypes if needed. Here we mimic that check by comparing array lengths.
     if (
       defaultCardTypes.length ===
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
       require("@/components/stat-card-generator").statCardTypes.length
     ) {
       allTypes = [];
     } else {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
       allTypes = require("@/components/stat-card-generator").statCardTypes.map(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (type: any) => type.id,
@@ -206,11 +229,17 @@ export default function SettingsPage() {
       "anicards-defaultCardTypes",
       "anicards-defaultUsername",
       "anicards-defaultVariants",
+      "anicards-defaultBorderEnabled",
+      "anicards-defaultBorderColor",
     ];
-    keysToRemove.forEach((key) => localStorage.removeItem(key));
+    for (const key of keysToRemove) {
+      localStorage.removeItem(key);
+    }
     clearSiteCache();
     setCacheVersion((v) => v + 1);
     setDefaultVariants({});
+    setDefaultBorderEnabled(false);
+    setDefaultBorderColor(DEFAULT_BORDER_COLOR);
   };
 
   // New handler for default username change
@@ -252,72 +281,94 @@ export default function SettingsPage() {
     });
   };
 
+  const handleBorderEnabledChange = (value: boolean) => {
+    saveDefaultBorderEnabled(value);
+    setDefaultBorderEnabled(value);
+    setCacheVersion((v) => v + 1);
+  };
+
+  const handleBorderColorChange = (value: string) => {
+    saveDefaultBorderColor(value);
+    setDefaultBorderColor(value);
+    setCacheVersion((v) => v + 1);
+  };
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="settings-container mx-auto max-w-3xl px-4 py-8"
-    >
-      <motion.div
-        initial={{ scale: 0.95 }}
-        animate={{ scale: 1 }}
-        transition={{ type: "spring", stiffness: 100, damping: 10 }}
-      >
-        <Card className="rounded-xl shadow-lg">
-          <CardHeader className="overflow-visible">
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="overflow-visible"
-            >
-              <CardTitle className="bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-3xl font-bold leading-snug text-transparent">
-                Application Settings
-              </CardTitle>
-            </motion.div>
-          </CardHeader>
-          <CardContent className="space-y-6 p-6">
-            <div className="space-y-8">
-              <ThemePreferences
-                theme={theme || "system"}
-                themes={themes}
-                onThemeChange={handleThemeChange}
-              />
+    <div className="relative h-full w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
+      <GridPattern className="z-0" includeGradients={true} />
 
-              <SidebarBehavior
-                sidebarDefault={sidebarDefault}
-                onSidebarChange={handleSidebarDefaultChange}
-              />
+      <div className="container relative z-10 mx-auto px-4 py-12">
+        {/* Hero Section */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="mb-12 text-center"
+        >
+          <h1 className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text pb-4 text-4xl font-extrabold text-transparent md:text-5xl">
+            Application Settings
+          </h1>
+          <p className="mx-auto max-w-2xl text-lg text-slate-600 dark:text-slate-300">
+            Customize your AniCards experience with these personalization
+            options and preferences.
+          </p>
+        </motion.div>
 
-              <DefaultUsernameSettings
-                defaultUsername={defaultUsername}
-                onUsernameChange={handleDefaultUsernameChange}
-              />
+        {/* Settings Container */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="mx-auto grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-2"
+        >
+          <div className="space-y-6">
+            <ThemePreferences
+              theme={theme || "system"}
+              themes={themes}
+              onThemeChange={handleThemeChange}
+            />
 
-              <CacheManagement
-                cachedItems={cachedItems}
-                onClearCache={handleClearCache}
-                onDeleteCacheItem={handleDeleteCacheItem}
-              />
+            <SidebarBehavior
+              sidebarDefault={sidebarDefault}
+              onSidebarChange={handleSidebarDefaultChange}
+            />
 
-              <DefaultCardSettings
-                defaultPreset={defaultPreset}
-                onPresetChange={handlePresetChange}
-                defaultCardTypes={defaultCardTypes}
-                defaultVariants={defaultVariants}
-                onToggleCardType={handleCardTypeToggle}
-                onToggleAllCardTypes={handleToggleAllCardTypes}
-                onVariantChange={handleVariantChange}
-                defaultShowFavoritesByCard={defaultShowFavoritesByCard}
-                onToggleShowFavoritesDefault={handleToggleShowFavoritesDefault}
-              />
+            <DefaultUsernameSettings
+              defaultUsername={defaultUsername}
+              onUsernameChange={handleDefaultUsernameChange}
+            />
+          </div>
 
-              <ResetSettings onReset={handleResetSettings} />
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-    </motion.div>
+          <div className="space-y-6">
+            <CacheManagement
+              cachedItems={cachedItems}
+              onClearCache={handleClearCache}
+              onDeleteCacheItem={handleDeleteCacheItem}
+            />
+          </div>
+
+          <div className="col-span-1 lg:col-span-2">
+            <DefaultCardSettings
+              defaultPreset={defaultPreset}
+              onPresetChange={handlePresetChange}
+              defaultCardTypes={defaultCardTypes}
+              defaultVariants={defaultVariants}
+              onToggleCardType={handleCardTypeToggle}
+              onToggleAllCardTypes={handleToggleAllCardTypes}
+              onVariantChange={handleVariantChange}
+              defaultShowFavoritesByCard={defaultShowFavoritesByCard}
+              onToggleShowFavoritesDefault={handleToggleShowFavoritesDefault}
+              defaultBorderEnabled={defaultBorderEnabled}
+              defaultBorderColor={defaultBorderColor}
+              onBorderEnabledChange={handleBorderEnabledChange}
+              onBorderColorChange={handleBorderColorChange}
+            />
+          </div>
+          <div className="col-span-2 flex items-center justify-center">
+            <ResetSettings onReset={handleResetSettings} />
+          </div>
+        </motion.div>
+      </div>
+    </div>
   );
 }

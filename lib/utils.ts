@@ -1,5 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import type { StoredCardConfig } from "@/lib/types/records";
+import type { TemplateCardConfig } from "@/lib/types/card";
 
 // Utility functions for common application needs.
 // These helpers assist in merging class names, performing clipboard operations,
@@ -27,21 +29,77 @@ export function cn(...inputs: ClassValue[]) {
  */
 export async function svgToPng(svgUrl: string): Promise<string> {
   try {
-    // Call the conversion API with the provided SVG URL.
     const response = await fetch("/api/convert", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ svgUrl }),
     });
 
-    // Extract and return the PNG data URL from the API response.
-    const { pngDataUrl } = await response.json();
-    return pngDataUrl;
+    const payload = await parseResponsePayload(response);
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to convert SVG: ${getResponseErrorMessage(response, payload)}`,
+      );
+    }
+
+    return extractPngDataUrl(payload);
   } catch (error) {
-    // Log the error for debugging and rethrow it.
     console.error("Conversion failed:", error);
     throw error;
   }
+}
+
+/**
+ * Try to parse a Response body as JSON; if that fails, return the text body.
+ * If both attempts fail, return null.
+ */
+async function parseResponsePayload(response: Response): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch {
+    try {
+      // Clone so reading text does not consume the original stream more than once.
+      return await response.clone().text();
+    } catch {
+      return null;
+    }
+  }
+}
+
+/**
+ * Create a human-friendly error message from the HTTP response and optional payload.
+ * If the payload contains an `error` or `message` field those are prioritized.
+ */
+function getResponseErrorMessage(response: Response, payload: unknown): string {
+  let message = `HTTP ${response.status} ${response.statusText}`;
+  if (!payload) return message;
+  if (typeof payload === "object" && payload !== null) {
+    const obj = payload as Record<string, unknown>;
+    if (typeof obj.error === "string" && obj.error.trim()) return obj.error;
+    if (typeof obj.message === "string" && obj.message.trim())
+      return obj.message;
+  }
+  if (typeof payload === "string" && payload.trim()) return payload;
+  return message;
+}
+
+/**
+ * Validate the parsed payload and extract the pngDataUrl property. Throws on invalid payloads.
+ */
+function extractPngDataUrl(payload: unknown): string {
+  if (!payload || typeof payload !== "object") {
+    throw new Error(
+      "Invalid response from convert API: missing or invalid pngDataUrl",
+    );
+  }
+  const maybe = (payload as Record<string, unknown>).pngDataUrl;
+  if (typeof maybe !== "string" || !maybe.trim()) {
+    throw new Error(
+      "Invalid response from convert API: missing or invalid pngDataUrl",
+    );
+  }
+  return maybe;
 }
 
 /**
@@ -102,12 +160,14 @@ export const calculateDynamicFontSize = (
 export function formatBytes(bytes: number, decimals = 2) {
   if (bytes === 0) return "0 Bytes";
   const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
+  const dm = Math.max(decimals, 0);
   const sizes = ["Bytes", "KB", "MB", "GB"];
   // Determine the appropriate unit based on the logarithm of the byte count.
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   // Calculate the size in the determined unit and format it.
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
+  return (
+    Number.parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i]
+  );
 }
 
 /**
@@ -126,11 +186,88 @@ export function safeParse<T>(data: unknown): T {
       // Attempt to parse the data string as JSON.
       return JSON.parse(data);
     } catch (error) {
-      // Log the failure along with the data that caused the error.
-      console.error("Failed to parse JSON:", data);
+      const message = error instanceof Error ? error.message : String(error);
+      const isProduction =
+        typeof process !== "undefined" &&
+        process.env?.NODE_ENV === "production";
+
+      const maxSnippet = 200;
+      const length = data.length;
+
+      if (isProduction) {
+        console.error(
+          `Failed to parse JSON: ${message}. Payload length: ${length}`,
+        );
+      } else {
+        const snippet = data.slice(0, maxSnippet);
+        const truncated = length > maxSnippet ? "..." : "";
+        console.error(
+          `Failed to parse JSON: ${message}. Payload snippet (first ${Math.min(
+            maxSnippet,
+            length,
+          )} chars, length ${length}): ${snippet}${truncated}`,
+        );
+      }
       throw error;
     }
   }
   // If data is not a string, return it as is.
   return data as T;
+}
+
+/**
+ * Converts a relative URL to an absolute URL if needed.
+ *
+ * This utility is useful for ensuring URLs are absolute when sharing or embedding images,
+ * particularly for client-side operations where the window object is available.
+ *
+ * @param url - The URL to convert (may be relative or absolute).
+ * @returns The absolute URL. If already absolute or running on server, returns the original URL.
+ */
+export function getAbsoluteUrl(url: string): string {
+  if (!globalThis.window) return url;
+  if (url.startsWith("http")) return url;
+  return `${globalThis.window.location.origin}${url}`;
+}
+
+/**
+ * Converts a stored card configuration (StoredCardConfig) into the template-facing
+ * TemplateCardConfig shape. This ensures templates always receive the expected fields
+ * while the stored shape may include additional persistence-only flags.
+ */
+export function toTemplateCardConfig(
+  card: StoredCardConfig | TemplateCardConfig,
+  defaultVariation = "default",
+): TemplateCardConfig {
+  return {
+    cardName: card.cardName,
+    variation:
+      "variation" in card &&
+      (card as TemplateCardConfig).variation !== undefined
+        ? (card as TemplateCardConfig).variation
+        : defaultVariation,
+    titleColor: card.titleColor,
+    backgroundColor: card.backgroundColor,
+    textColor: card.textColor,
+    circleColor: card.circleColor,
+    borderColor: "borderColor" in card ? card.borderColor : undefined,
+    useStatusColors:
+      "useStatusColors" in card ? card.useStatusColors : undefined,
+  };
+}
+
+/**
+ * Extracts the style subset from a stored or template card config so templates
+ * receive only the style values they need.
+ */
+export function extractStyles(
+  cardConfig: StoredCardConfig | TemplateCardConfig,
+) {
+  return {
+    titleColor: cardConfig.titleColor,
+    backgroundColor: cardConfig.backgroundColor,
+    textColor: cardConfig.textColor,
+    circleColor: cardConfig.circleColor,
+    borderColor: cardConfig.borderColor,
+  };
 }

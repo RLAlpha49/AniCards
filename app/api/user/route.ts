@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { Redis } from "@upstash/redis";
+import {
+  redisClient,
+  incrementAnalytics,
+  isValidUsername,
+} from "@/lib/api-utils";
 import { UserRecord } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
 
@@ -17,28 +21,22 @@ export async function GET(request: Request) {
 
   if (!userIdParam && !usernameParam) {
     console.warn("⚠️ [User API] Missing userId or username parameter");
-    const analyticsClient = Redis.fromEnv();
-    analyticsClient.incr("analytics:user_api:failed_requests").catch(() => {});
+    incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
     return NextResponse.json(
       { error: "Missing userId or username parameter" },
       { status: 400 },
     );
   }
-
-  const redisClient = Redis.fromEnv();
   let numericUserId: number | null = null;
   let key: string;
 
   if (userIdParam) {
-    numericUserId = parseInt(userIdParam, 10);
-    if (isNaN(numericUserId)) {
+    numericUserId = Number.parseInt(userIdParam, 10);
+    if (Number.isNaN(numericUserId)) {
       console.warn(
         `⚠️ [User API] Invalid userId parameter provided: ${userIdParam}`,
       );
-      const analyticsClient = Redis.fromEnv();
-      analyticsClient
-        .incr("analytics:user_api:failed_requests")
-        .catch(() => {});
+      incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
       return NextResponse.json(
         { error: "Invalid userId parameter" },
         { status: 400 },
@@ -47,38 +45,46 @@ export async function GET(request: Request) {
     key = `user:${numericUserId}`;
     console.log(`🚀 [User API] Request received for userId: ${numericUserId}`);
   } else {
-    // Use the username parameter: normalize it and use the username index key.
-    const normalizedUsername = usernameParam!.trim().toLowerCase();
-    const usernameIndexKey = `username:${normalizedUsername}`;
-    console.log(
-      `🔍 [User API] Searching user index for username: ${normalizedUsername}`,
-    );
-    const userIdFromIndex = await redisClient.get(usernameIndexKey);
-    if (!userIdFromIndex) {
+    if (!isValidUsername(usernameParam)) {
       console.warn(
-        `⚠️ [User API] User not found for username: ${normalizedUsername}`,
+        `⚠️ [User API] Invalid username parameter provided: ${usernameParam}`,
       );
-      const analyticsClient = Redis.fromEnv();
-      analyticsClient
-        .incr("analytics:user_api:failed_requests")
-        .catch(() => {});
+      incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
+      return NextResponse.json(
+        { error: "Invalid username parameter" },
+        { status: 400 },
+      );
+    }
+
+    async function resolveUserIdFromUsername(
+      u: string,
+    ): Promise<number | null> {
+      const normalizedUsername = u.trim().toLowerCase();
+      const usernameIndexKey = `username:${normalizedUsername}`;
+      console.log(
+        `🔍 [User API] Searching user index for username: ${normalizedUsername}`,
+      );
+      const userIdFromIndex = await redisClient.get(usernameIndexKey);
+      if (!userIdFromIndex) return null;
+      const candidate = Number.parseInt(userIdFromIndex as string, 10);
+      if (Number.isNaN(candidate)) return null;
+      console.log(
+        `🚀 [User API] Request received for username: ${normalizedUsername} (userId: ${candidate})`,
+      );
+      return candidate;
+    }
+
+    const userId = await resolveUserIdFromUsername(usernameParam!);
+    if (!userId) {
+      console.warn(
+        `⚠️ [User API] User not found for username: ${usernameParam}`,
+      );
+      incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
-    numericUserId = parseInt(userIdFromIndex as string, 10);
-    if (isNaN(numericUserId)) {
-      console.warn(
-        `⚠️ [User API] Invalid userId value from username index for username: ${normalizedUsername}`,
-      );
-      const analyticsClient = Redis.fromEnv();
-      analyticsClient
-        .incr("analytics:user_api:failed_requests")
-        .catch(() => {});
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
+
+    numericUserId = userId;
     key = `user:${numericUserId}`;
-    console.log(
-      `🚀 [User API] Request received for username: ${normalizedUsername} (userId: ${numericUserId})`,
-    );
   }
 
   try {
@@ -95,10 +101,9 @@ export async function GET(request: Request) {
     console.log(
       `✅ [User API] Successfully fetched user data for user ${numericUserId} [${duration}ms]`,
     );
-    const analyticsClient = Redis.fromEnv();
-    analyticsClient
-      .incr("analytics:user_api:successful_requests")
-      .catch(() => {});
+    incrementAnalytics("analytics:user_api:successful_requests").catch(
+      () => {},
+    );
     return NextResponse.json(userData);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
@@ -109,8 +114,7 @@ export async function GET(request: Request) {
     if (error.stack) {
       console.error(`💥 [User API] Stack Trace: ${error.stack}`);
     }
-    const analyticsClient = Redis.fromEnv();
-    analyticsClient.incr("analytics:user_api:failed_requests").catch(() => {});
+    incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
     return NextResponse.json(
       { error: "Failed to fetch user data" },
       { status: 500 },

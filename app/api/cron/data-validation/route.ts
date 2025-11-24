@@ -1,4 +1,5 @@
-import { Redis } from "@upstash/redis";
+import { redisClient } from "@/lib/api-utils";
+import type { Redis as UpstashRedis } from "@upstash/redis";
 import { safeParse } from "@/lib/utils";
 
 // Helper function for cron authorization
@@ -45,42 +46,69 @@ function validateUserRecord(obj: any): string[] {
   return issues;
 }
 
+const CARD_STRING_PROPERTIES: Array<[string, (idx: number) => string]> = [
+  ["cardName", (idx) => `cards[${idx}].cardName is missing or not a string`],
+  ["variation", (idx) => `cards[${idx}].variation is missing or not a string`],
+  [
+    "titleColor",
+    (idx) => `cards[${idx}].titleColor is missing or not a string`,
+  ],
+  [
+    "backgroundColor",
+    (idx) => `cards[${idx}].backgroundColor is missing or not a string`,
+  ],
+  ["textColor", (idx) => `cards[${idx}].textColor is missing or not a string`],
+  [
+    "circleColor",
+    (idx) => `cards[${idx}].circleColor is missing or not a string`,
+  ],
+];
+
+function validateCardStringProps(card: Record<string, unknown>, index: number) {
+  const issues: string[] = [];
+  for (const [prop, messageFn] of CARD_STRING_PROPERTIES) {
+    if (typeof card[prop] !== "string") {
+      issues.push(messageFn(index));
+    }
+  }
+  return issues;
+}
+
+function validateCardBorderColor(card: Record<string, unknown>, index: number) {
+  const borderValue = card["borderColor"];
+  if (
+    "borderColor" in card &&
+    borderValue !== undefined &&
+    typeof borderValue !== "string"
+  ) {
+    return [`cards[${index}].borderColor must be a string if provided`];
+  }
+  return [];
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function validateCardsRecord(obj: any): string[] {
   const issues: string[] = [];
   if (typeof obj.userId !== "number") {
     issues.push("userId is missing or not a number");
   }
-  if (!Array.isArray(obj.cards)) {
-    issues.push("cards is missing or not an array");
-  } else {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    obj.cards.forEach((card: any, index: number) => {
+  if (Array.isArray(obj.cards)) {
+    for (const [index, card] of obj.cards.entries()) {
       if (typeof card !== "object" || card === null) {
         issues.push(`cards[${index}] is not an object`);
-        return;
+        continue;
       }
-      if (typeof card.cardName !== "string") {
-        issues.push(`cards[${index}].cardName is missing or not a string`);
+
+      const cardSpecificIssues = [
+        ...validateCardStringProps(card, index),
+        ...validateCardBorderColor(card, index),
+      ];
+      if (cardSpecificIssues.length > 0) {
+        issues.push(...cardSpecificIssues);
       }
-      if (typeof card.variation !== "string") {
-        issues.push(`cards[${index}].variation is missing or not a string`);
-      }
-      if (typeof card.titleColor !== "string") {
-        issues.push(`cards[${index}].titleColor is missing or not a string`);
-      }
-      if (typeof card.backgroundColor !== "string") {
-        issues.push(
-          `cards[${index}].backgroundColor is missing or not a string`,
-        );
-      }
-      if (typeof card.textColor !== "string") {
-        issues.push(`cards[${index}].textColor is missing or not a string`);
-      }
-      if (typeof card.circleColor !== "string") {
-        issues.push(`cards[${index}].circleColor is missing or not a string`);
-      }
-    });
+    }
+  } else {
+    issues.push("cards is missing or not an array");
   }
   if (typeof obj.updatedAt !== "string") {
     issues.push("updatedAt is missing or not a string");
@@ -135,7 +163,7 @@ function validateAnalyticsReport(obj: any): string[] {
 
 // Helper function to validate analytics reports list
 async function validateAnalyticsReportsList(
-  redisClient: Redis,
+  redisClient: UpstashRedis,
   key: string,
   inconsistencies: Array<{ key: string; issues: string[] }>,
 ): Promise<{ keysChecked: number; issuesFound: number }> {
@@ -170,7 +198,7 @@ async function validateAnalyticsReportsList(
 
 // Helper function to validate individual key
 async function validateIndividualKey(
-  redisClient: Redis,
+  redisClient: UpstashRedis,
   key: string,
   inconsistencies: Array<{ key: string; issues: string[] }>,
 ): Promise<{ keysChecked: number; issuesFound: number }> {
@@ -209,7 +237,7 @@ async function validateIndividualKey(
 
 // Helper function to validate keys for a pattern
 async function validatePatternKeys(
-  redisClient: Redis,
+  redisClient: UpstashRedis,
   pattern: string,
   inconsistencies: Array<{ key: string; issues: string[] }>,
 ): Promise<{ checked: number; inconsistencies: number }> {
@@ -245,7 +273,7 @@ async function validatePatternKeys(
 
 // Helper function to create and save validation report
 async function createAndSaveReport(
-  redisClient: Redis,
+  redisClient: UpstashRedis,
   summary: string,
   details: Record<string, { checked: number; inconsistencies: number }>,
   inconsistencies: Array<{ key: string; issues: string[] }>,
@@ -272,7 +300,6 @@ export async function POST(request: Request) {
   console.log("🛠️ [Data Validation Check] Starting data validation check...");
 
   try {
-    const redisClient = Redis.fromEnv();
     const patterns = ["user:*", "cards:*", "username:*", "analytics:*"];
     let totalKeysChecked = 0;
     let totalInconsistencies = 0;

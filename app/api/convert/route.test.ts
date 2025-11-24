@@ -1,6 +1,17 @@
-import { POST } from "./route";
+import {
+  POST,
+  removeEmptyCssRules,
+  sanitizeCssContent,
+  removeClassTokensFromMarkup,
+} from "./route";
 import { NextRequest } from "next/server";
 import sharp from "sharp";
+
+// Capture the last buffer passed into sharp so we can inspect the input SVG
+let lastSharpBuffer: Buffer | null = null;
+
+process.env.NEXT_PUBLIC_API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost";
 
 jest.mock("@upstash/redis", () => ({
   Redis: {
@@ -12,20 +23,21 @@ jest.mock("@upstash/redis", () => ({
 
 // Mocking "sharp" so we can simulate the PNG conversion.
 jest.mock("sharp", () => {
-  // Return a function that returns an object with a png() method.
-  return jest.fn(() => ({
-    png: () => ({
-      toBuffer: async () => Buffer.from("FAKEPNG"),
-    }),
-  }));
+  // Return a function that records the buffer argument so tests can inspect it
+  return jest.fn((buf?: Buffer) => {
+    if (buf) lastSharpBuffer = Buffer.from(buf);
+    return {
+      png: () => ({ toBuffer: async () => Buffer.from("FAKEPNG") }),
+    };
+  });
 });
 
 describe("Convert API POST Endpoint", () => {
-  const originalFetch = global.fetch;
+  const originalFetch = globalThis.fetch;
 
   afterEach(() => {
     jest.clearAllMocks();
-    global.fetch = originalFetch;
+    globalThis.fetch = originalFetch;
   });
 
   it("should return 400 error if svgUrl parameter is missing", async () => {
@@ -57,7 +69,7 @@ describe("Convert API POST Endpoint", () => {
     }) as unknown as NextRequest;
 
     // Mock fetch to simulate a failed response.
-    global.fetch = jest.fn().mockResolvedValue({
+    globalThis.fetch = jest.fn().mockResolvedValue({
       ok: false,
       status: 404,
       text: async () => "Not Found",
@@ -83,7 +95,7 @@ describe("Convert API POST Endpoint", () => {
     }) as unknown as NextRequest;
 
     // Mock fetch to return the dummy SVG content.
-    global.fetch = jest.fn().mockResolvedValue({
+    globalThis.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
       text: async () => dummySVG,
@@ -110,7 +122,7 @@ describe("Convert API POST Endpoint", () => {
       body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
     }) as unknown as NextRequest;
 
-    global.fetch = jest.fn().mockResolvedValue({
+    globalThis.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
       text: async () => dummySVG,
@@ -129,5 +141,154 @@ describe("Convert API POST Endpoint", () => {
     expect(res.status).toBe(500);
     const data = await res.json();
     expect(data.error).toBe("Conversion failed");
+  });
+
+  describe("SVG sanitization policy", () => {
+    const defaultHeaders = {
+      "Content-Type": "application/json",
+      "x-forwarded-for": "127.0.0.1",
+    };
+
+    const makeRequestForSvgUrl = (url = "http://localhost/dummy.svg") =>
+      new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: defaultHeaders,
+        body: JSON.stringify({ svgUrl: url }),
+      }) as unknown as NextRequest;
+
+    const mockFetchSvg = (svg: string, ok = true, status = 200) => {
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        ok,
+        status,
+        text: async () => svg,
+      });
+    };
+
+    const postAndCaptureSvg = async (
+      svg: string,
+      url = "http://localhost/dummy.svg",
+      expectStatus = 200,
+    ) => {
+      mockFetchSvg(svg, true, expectStatus);
+      lastSharpBuffer = null;
+      const req = makeRequestForSvgUrl(url);
+      const res = await POST(req);
+      expect(res.status).toBe(expectStatus);
+      const captured = (lastSharpBuffer as Buffer | null)?.toString() ?? "";
+      return { res, captured };
+    };
+
+    it("removes @keyframes, animation declarations and .stagger when the rule contains animation, and normalizes inline animation/opacity values", async () => {
+      const dummySVG = `
+        <svg>
+          <style>
+            @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+            .stagger { animation: fadeIn 0.8s ease-in-out forwards; }
+            .keep { fill: red; }
+          </style>
+          <g class="stagger keep" style="animation-delay: 150ms; opacity: 0;">
+            <rect x="0" y="0" width="10" height="10"></rect>
+          </g>
+        </svg>`;
+
+      const { captured } = await postAndCaptureSvg(dummySVG);
+      expect(captured).not.toMatch(/@keyframes/);
+      expect(captured).not.toMatch(/animation\s*:/i);
+      expect(captured).toMatch(/class=(['"]).*?keep.*?\1/);
+      expect(captured).not.toMatch(/class=(['"]).*?\bstagger\b.*?\1/);
+      expect(captured).not.toMatch(/animation-delay\s*:/i);
+      expect(captured).toMatch(/opacity\s*:\s*1/);
+    });
+
+    it("does not remove .stagger if the .stagger rule has no animation", async () => {
+      const dummySVG = `
+        <svg>
+          <style>
+            .stagger { fill: blue; }
+            .anim { animation: fadeIn 0.8s; }
+          </style>
+          <g class="stagger anim">
+            <rect x="0" y="0" width="10" height="10"></rect>
+          </g>
+        </svg>`;
+
+      const { captured: captured1 } = await postAndCaptureSvg(dummySVG);
+      // animation declarations removed from CSS
+      expect(captured1).not.toMatch(/animation\s*:/i);
+      // .stagger rule doesn't have animation; class should remain
+      expect(captured1).toMatch(/class=(['"]).*?\bstagger\b.*?\1/);
+    });
+
+    it("handles minified CSS and removes class when required", async () => {
+      const dummySVG = `<svg><style>.stagger{animation:fadeIn 0.3s;}</style><g class='stagger'><rect /></g></svg>`;
+      const { captured: captured2 } = await postAndCaptureSvg(dummySVG);
+      expect(captured2).not.toMatch(/\.stagger/);
+      expect(captured2).not.toMatch(/class=(['"]).*?\bstagger\b.*?\1/);
+    });
+
+    it("removes orphaned 'to' blocks and vendor-prefixed keyframes", () => {
+      const css = `@-webkit-keyframes fade { from { opacity: 0 } to { opacity: 1 } } to { opacity: 0 } .a{ color: blue }`;
+      const { css: cleaned } = sanitizeCssContent(css);
+      expect(cleaned).not.toMatch(/@-webkit-keyframes/);
+      expect(cleaned).not.toMatch(/to\s*\{/);
+      expect(cleaned).toMatch(/\.a\s*\{/);
+    });
+
+    it("does not remove classes that merely contain 'stagger' as a substring (tokenization test)", async () => {
+      const dummySVG = `<svg><style>.stagger{animation:fadeIn 0.3s;} .stagger-other{fill: red;}</style><g class='stagger-other stagger'><rect /></g></svg>`;
+      const { res } = await postAndCaptureSvg(dummySVG);
+
+      const styleMatch = /<style>([\s\S]*?)<\/style>/i.exec(dummySVG);
+      expect(styleMatch).toBeTruthy();
+      const styleCss = styleMatch?.[1] || "";
+      const { css: sanitized, classesToStrip } = sanitizeCssContent(styleCss);
+      expect(classesToStrip).toContain("stagger");
+      expect(classesToStrip).not.toContain("stagger-other");
+      expect(sanitized).not.toMatch(/\.stagger(?![A-Za-z0-9_-])/);
+      expect(sanitized).toMatch(/\.stagger-other/);
+
+      expect(res.status).toBe(200);
+    });
+
+    it("sanitizeCssContent + removeClassTokensFromMarkup preserves substring classes while removing target class token", () => {
+      const css = ".stagger{animation:fade 1s;} .stagger-other{fill:red;}";
+      const { css: outCss, classesToStrip } = sanitizeCssContent(css);
+      expect(classesToStrip).toContain("stagger");
+      expect(outCss).not.toMatch(/\.stagger(?![A-Za-z0-9_-])/);
+      expect(outCss).toMatch(/\.stagger-other(?![A-Za-z0-9_-])/);
+      const markup = `<g class="stagger-other stagger"></g>`;
+      const newMarkup = removeClassTokensFromMarkup(markup, classesToStrip);
+      const classMatch = /class=(['"])(.*?)\1/.exec(newMarkup);
+      expect(classMatch).toBeTruthy();
+      const tokens = classMatch
+        ? classMatch[2].split(/\s+/).filter(Boolean)
+        : [];
+      expect(tokens).toContain("stagger-other");
+      expect(tokens).not.toContain("stagger");
+    });
+  });
+
+  describe("removeEmptyCssRules", () => {
+    it("removes simple empty CSS rule blocks", () => {
+      const css = ".a { } .b{\n}\n";
+      const cleaned = removeEmptyCssRules(css);
+      expect(cleaned.trim()).toBe("");
+    });
+
+    it("removes nested empty rules and collapses outer blocks that become empty", () => {
+      const css = "@media (max-width: 600px) { .a {} }";
+      const cleaned = removeEmptyCssRules(css);
+      expect(cleaned.replaceAll(/\s+/g, "")).toBe("");
+    });
+
+    it("handles long input without excessive time (DoS test)", () => {
+      const longSelector = "a".repeat(200_000);
+      const css = `${longSelector} { }`;
+      const start = Date.now();
+      const cleaned = removeEmptyCssRules(css);
+      const duration = Date.now() - start;
+      expect(cleaned.trim()).toBe("");
+      expect(duration).toBeLessThan(2000);
+    });
   });
 });

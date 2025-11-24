@@ -1,5 +1,5 @@
-import { Redis } from "@upstash/redis";
 import { NextResponse } from "next/server";
+import { initializeApiRequest, incrementAnalytics } from "@/lib/api-utils";
 
 interface GraphQLRequest {
   query: string;
@@ -61,8 +61,7 @@ function parseOperationInfo(requestData: GraphQLRequest): OperationInfo {
 // Track analytics for API requests
 async function trackAnalytics(metric: string): Promise<void> {
   try {
-    const analyticsClient = Redis.fromEnv();
-    await analyticsClient.incr(metric);
+    await incrementAnalytics(metric);
   } catch {
     // Silently fail for analytics
   }
@@ -127,8 +126,10 @@ export async function POST(request: Request) {
   if (testResponse) {
     return testResponse;
   }
+  const init = await initializeApiRequest(request, "AniList API");
+  if (init.errorResponse) return init.errorResponse;
 
-  const startTime = Date.now();
+  const { startTime } = init;
   let operationInfo: OperationInfo = {
     name: "unknown",
     userIdentifier: "not_provided",
@@ -184,7 +185,7 @@ export async function POST(request: Request) {
     // Extract status code from error message
     const statusPattern = /status:\s?(\d+)/;
     const statusMatch = statusPattern.exec(errorMessage);
-    const statusCode = statusMatch ? parseInt(statusMatch[1], 10) : 500;
+    const statusCode = statusMatch ? Number.parseInt(statusMatch[1], 10) : 500;
 
     await trackAnalytics("analytics:anilist_api:failed_requests");
 

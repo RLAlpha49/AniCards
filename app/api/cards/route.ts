@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Redis } from "@upstash/redis";
+import { redisClient, incrementAnalytics } from "@/lib/api-utils";
 import { CardsRecord } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
 
@@ -22,11 +22,10 @@ export async function GET(request: Request) {
   }
 
   // Convert and validate numeric user ID
-  const numericUserId = parseInt(userId);
-  if (isNaN(numericUserId)) {
+  const numericUserId = Number.parseInt(userId);
+  if (Number.isNaN(numericUserId)) {
     console.warn(`⚠️ [Cards API] Invalid user ID format: ${userId}`);
-    const analyticsClient = Redis.fromEnv();
-    analyticsClient.incr("analytics:cards_api:failed_requests").catch(() => {});
+    incrementAnalytics("analytics:cards_api:failed_requests").catch(() => {});
     return NextResponse.json(
       { error: "Invalid user ID format" },
       { status: 400 },
@@ -37,7 +36,6 @@ export async function GET(request: Request) {
     console.log(
       `🔍 [Cards API] Fetching card configuration from Redis for user ${numericUserId}`,
     );
-    const redisClient = Redis.fromEnv();
     const key = `cards:${numericUserId}`;
     const cardDataStr = await redisClient.get(key);
     const duration = Date.now() - startTime;
@@ -61,10 +59,9 @@ export async function GET(request: Request) {
       );
     }
     // Increment successful requests counter
-    const analyticsClient = Redis.fromEnv();
-    analyticsClient
-      .incr("analytics:cards_api:successful_requests")
-      .catch(() => {});
+    incrementAnalytics("analytics:cards_api:successful_requests").catch(
+      () => {},
+    );
     return NextResponse.json(cardData);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
@@ -76,8 +73,7 @@ export async function GET(request: Request) {
       console.error(`💥 [Cards API] Stack Trace: ${error.stack}`);
     }
     // Increment failed requests counter
-    const analyticsClient = Redis.fromEnv();
-    analyticsClient.incr("analytics:cards_api:failed_requests").catch(() => {});
+    incrementAnalytics("analytics:cards_api:failed_requests").catch(() => {});
     return NextResponse.json(
       { error: "Failed to fetch cards" },
       { status: 500 },

@@ -7,6 +7,7 @@ import {
   logSuccess,
   redisClient,
   initializeApiRequest,
+  validateUserData,
 } from "@/lib/api-utils";
 
 // API endpoint for storing/updating user data using Redis as the persistent store
@@ -21,6 +22,16 @@ export async function POST(request: Request): Promise<NextResponse> {
     console.log(
       `📝 [${endpoint}] Processing user ${data.userId} (${data.username || "no username"})`,
     );
+
+    // Validate incoming data
+    const validationError = validateUserData(
+      data as Record<string, unknown>,
+      endpoint,
+    );
+    if (validationError) {
+      await incrementAnalytics("analytics:store_users:failed_requests");
+      return validationError;
+    }
 
     // Define a Redis key for the user data
     const userKey = `user:${data.userId}`;
@@ -89,6 +100,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       endpoint,
       startTime,
       "analytics:store_users:failed_requests",
+      "User storage failed",
     );
   }
 }

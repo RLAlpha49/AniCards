@@ -8,6 +8,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
     backgroundColor: string;
     textColor: string;
     circleColor: string;
+    borderColor?: string;
   };
   format: string;
   stats: { name: string; count: number }[];
@@ -219,10 +220,10 @@ export const extraAnimeMangaStatsTemplate = (data: {
         y="0.5"
         rx="4.5"
         height="99%"
-        stroke="#e4e2e2"
         width="${rectWidth}"
         fill="${data.styles.backgroundColor}"
-        stroke-opacity="1"
+        stroke="${data.styles.borderColor ?? "none"}"
+        stroke-width="2"
       />
       <g data-testid="card-title" transform="translate(25, 35)">
         <g transform="translate(0, 0)">
@@ -242,9 +243,9 @@ const getColorByIndex = (index: number, baseColor: string) => {
   // Convert base color to HSL for easy manipulation
   const hexToHSL = (hex: string) => {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)!;
-    const r = parseInt(result[1], 16) / 255;
-    const g = parseInt(result[2], 16) / 255;
-    const b = parseInt(result[3], 16) / 255;
+    const r = Number.parseInt(result[1], 16) / 255;
+    const g = Number.parseInt(result[2], 16) / 255;
+    const b = Number.parseInt(result[3], 16) / 255;
 
     const max = Math.max(r, g, b),
       min = Math.min(r, g, b);

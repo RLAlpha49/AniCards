@@ -14,6 +14,7 @@ interface DistributionTemplateInput {
     backgroundColor: string;
     textColor: string;
     circleColor: string;
+    borderColor?: string;
   };
   variant?: "default" | "horizontal";
   data: DistributionDatum[];
@@ -170,7 +171,16 @@ export function distributionTemplate(input: DistributionTemplateInput) {
       .stagger { opacity:0; animation: fadeInAnimation 0.6s ease forwards; }
       @keyframes fadeInAnimation { from { opacity:0 } to { opacity:1 } }
     </style>
-    <rect x="0.5" y="0.5" width="${dims.w - 1}" height="${dims.h - 1}" rx="4.5" fill="${styles.backgroundColor}" stroke="#e4e2e2"/>
+    <rect
+      x="0.5"
+      y="0.5"
+      width="${dims.w - 1}"
+      height="${dims.h - 1}"
+      rx="4.5"
+      fill="${styles.backgroundColor}"
+      stroke="${styles.borderColor ?? "none"}"
+      stroke-width="2"
+    />
     <g transform="translate(20,35)"><text class="header">${title}</text></g>
     ${mainContent}
   </svg>`;

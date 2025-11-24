@@ -1,7 +1,6 @@
-/* eslint-disable no-var */
 // Declare mockLimit in the outer scope so tests can access it.
-var mockLimit = jest.fn().mockResolvedValue({ success: true });
-var mockRedisSet = jest.fn();
+let mockLimit = jest.fn().mockResolvedValue({ success: true });
+let mockRedisSet = jest.fn();
 
 jest.mock("@upstash/redis", () => {
   return {
@@ -15,18 +14,17 @@ jest.mock("@upstash/redis", () => {
 });
 
 jest.mock("@upstash/ratelimit", () => {
-  const RatelimitMock = jest.fn().mockImplementation(() => ({
-    limit: mockLimit,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  })) as any;
-  RatelimitMock.slidingWindow = jest.fn();
+  class RatelimitMock {
+    static readonly slidingWindow = jest.fn();
+    public limit = mockLimit;
+  }
   return {
     Ratelimit: RatelimitMock,
   };
 });
 
-// Set the required API authentication token in the environment for testing.
-process.env.API_AUTH_TOKEN = "testtoken";
+// Set the app URL for same-origin validation testing
+process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
 
 import { POST } from "./route";
 
@@ -43,7 +41,7 @@ describe("Store Cards API POST Endpoint", () => {
       method: "POST",
       headers: {
         "x-forwarded-for": "127.0.0.1",
-        Authorization: `Bearer ${process.env.API_AUTH_TOKEN}`,
+        origin: "http://localhost",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ userId: 1, statsData: {}, cards: [] }),
@@ -55,40 +53,29 @@ describe("Store Cards API POST Endpoint", () => {
     expect(data.error).toBe("Too many requests");
   });
 
-  it("should return unauthorized error when auth token is missing or invalid", async () => {
-    // Ensure rate limit passes.
+  it("should reject cross-origin requests in production when origin differs", async () => {
+    // Set NODE_ENV to production for this test
+    const originalEnv = process.env.NODE_ENV;
+    (process.env as unknown as { NODE_ENV?: string }).NODE_ENV = "production";
+
     mockLimit.mockResolvedValueOnce({ success: true });
 
-    // Test missing auth token
-    let req = new Request("http://localhost/api/store-cards", {
+    const req = new Request("http://localhost/api/store-cards", {
       method: "POST",
       headers: {
         "x-forwarded-for": "127.0.0.1",
+        origin: "http://different-origin.com",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ userId: 1, statsData: {}, cards: [] }),
     });
 
-    let res = await POST(req);
+    const res = await POST(req);
     expect(res.status).toBe(401);
-    let data = await res.json();
+    const data = await res.json();
     expect(data.error).toBe("Unauthorized");
 
-    // Test invalid auth token.
-    req = new Request("http://localhost/api/store-cards", {
-      method: "POST",
-      headers: {
-        "x-forwarded-for": "127.0.0.1",
-        Authorization: "Bearer wrongtoken",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ userId: 1, statsData: {}, cards: [] }),
-    });
-
-    res = await POST(req);
-    expect(res.status).toBe(401);
-    data = await res.json();
-    expect(data.error).toBe("Unauthorized");
+    (process.env as unknown as { NODE_ENV?: string }).NODE_ENV = originalEnv;
   });
 
   it("should return 400 error when statsData contains an error", async () => {
@@ -98,7 +85,7 @@ describe("Store Cards API POST Endpoint", () => {
       method: "POST",
       headers: {
         "x-forwarded-for": "127.0.0.1",
-        Authorization: `Bearer ${process.env.API_AUTH_TOKEN}`,
+        origin: "http://localhost",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -129,6 +116,7 @@ describe("Store Cards API POST Endpoint", () => {
           backgroundColor: "#fff",
           textColor: "#333",
           circleColor: "#f00",
+          borderColor: "#e4e2e2",
         },
       ],
     };
@@ -137,7 +125,7 @@ describe("Store Cards API POST Endpoint", () => {
       method: "POST",
       headers: {
         "x-forwarded-for": "127.0.0.1",
-        Authorization: `Bearer ${process.env.API_AUTH_TOKEN}`,
+        origin: "http://localhost",
         "Content-Type": "application/json",
       },
       body: JSON.stringify(reqBody),
@@ -176,6 +164,7 @@ describe("Store Cards API POST Endpoint", () => {
           backgroundColor: "#fff",
           textColor: "#333",
           circleColor: "#f00",
+          borderColor: "#e4e2e2",
         },
       ],
     };
@@ -184,7 +173,7 @@ describe("Store Cards API POST Endpoint", () => {
       method: "POST",
       headers: {
         "x-forwarded-for": "127.0.0.1",
-        Authorization: `Bearer ${process.env.API_AUTH_TOKEN}`,
+        origin: "http://localhost",
         "Content-Type": "application/json",
       },
       body: JSON.stringify(reqBody),

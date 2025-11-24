@@ -1,4 +1,4 @@
-import { CardConfig, CardsRecord } from "@/lib/types/records";
+import { StoredCardConfig, CardsRecord } from "@/lib/types/records";
 import { NextResponse } from "next/server";
 import {
   incrementAnalytics,
@@ -6,6 +6,7 @@ import {
   logSuccess,
   redisClient,
   initializeApiRequest,
+  validateCardData,
 } from "@/lib/api-utils";
 
 // API endpoint for storing/updating user card configurations
@@ -21,6 +22,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     console.log(
       `📝 [${endpoint}] Processing user ${userId} with ${incomingCards?.length || 0} cards`,
     );
+
+    // Validate incoming data
+    const validationError = validateCardData(incomingCards, userId, endpoint);
+    if (validationError) {
+      await incrementAnalytics("analytics:store_cards:failed_requests");
+      return validationError;
+    }
 
     if (statsData?.error) {
       console.warn(
@@ -41,13 +49,14 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const cardData: CardsRecord = {
       userId,
-      cards: incomingCards.map((card: CardConfig) => ({
+      cards: incomingCards.map((card: StoredCardConfig) => ({
         cardName: card.cardName,
         variation: card.variation,
         titleColor: card.titleColor,
         backgroundColor: card.backgroundColor,
         textColor: card.textColor,
         circleColor: card.circleColor,
+        borderColor: card.borderColor,
         showFavorites: card.showFavorites,
         useStatusColors: card.useStatusColors,
         showPiePercentages: card.showPiePercentages,
@@ -72,6 +81,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       endpoint,
       startTime,
       "analytics:store_cards:failed_requests",
+      "Card storage failed",
     );
   }
 }

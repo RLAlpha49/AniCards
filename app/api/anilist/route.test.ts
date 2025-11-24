@@ -1,5 +1,21 @@
 import { beforeEach, afterEach } from "node:test";
 
+// Mock rate limiter and redis in order to test initializeApiRequest behavior
+let mockLimit = jest.fn().mockResolvedValue({ success: true });
+jest.mock("@upstash/ratelimit", () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const RatelimitMock: any = jest.fn().mockImplementation(() => ({
+    limit: mockLimit,
+  }));
+  RatelimitMock.slidingWindow = jest.fn().mockReturnValue("fake-limiter");
+  return {
+    Ratelimit: RatelimitMock,
+  };
+});
+
+// Set the app URL for same-origin validation testing
+process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
+
 import { POST } from "./route";
 
 // Helper functions to reduce code duplication
@@ -58,7 +74,7 @@ function mockFetchResponse(
     headers: new Headers(headers),
   };
 
-  global.fetch = jest.fn().mockResolvedValue(fetchResponse as unknown);
+  globalThis.fetch = jest.fn().mockResolvedValue(fetchResponse as unknown);
   return fetchResponse;
 }
 
@@ -110,6 +126,8 @@ describe("AniList API Proxy Endpoint", () => {
         })),
       },
     }));
+    // Reset the default mockLimit behavior for each test
+    mockLimit = jest.fn().mockResolvedValue({ success: true });
   });
 
   afterEach(() => {
@@ -154,12 +172,32 @@ describe("AniList API Proxy Endpoint", () => {
 
     const response = await POST(request);
 
-    expect(global.fetch).toHaveBeenCalledWith(
+    expect(globalThis.fetch).toHaveBeenCalledWith(
       "https://graphql.anilist.co",
       expect.any(Object),
     );
 
     await expectResponse(response, 200, mockData.data);
+  });
+
+  it("should reject cross-origin requests in production when origin differs", async () => {
+    setupEnvironment("production", true);
+
+    const requestBody = createGraphQLBody();
+    const request = createAniListRequest(
+      { origin: "http://different-origin.com" },
+      requestBody,
+    );
+
+    // Mock successful AniList API response (should not be invoked due to origin rejection)
+    const mockData = { data: { user: "testUser" } };
+    mockFetchResponse(mockData);
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(401);
+    const data = await response.json();
+    expect(data.error).toBe("Unauthorized");
   });
 
   it("should return an error when AniList API response has GraphQL errors", async () => {
@@ -193,7 +231,7 @@ describe("AniList API Proxy Endpoint", () => {
         "retry-after": "60",
       }),
     };
-    global.fetch = jest.fn().mockResolvedValue(fetchResponse as unknown);
+    globalThis.fetch = jest.fn().mockResolvedValue(fetchResponse as unknown);
 
     const response = await POST(request);
     expect(response.status).toBe(429);

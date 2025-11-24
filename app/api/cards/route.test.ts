@@ -1,8 +1,7 @@
-/* eslint-disable no-var */
 import { GET } from "./route";
 
 // Declare mockRedisGet in the outer scope so tests can control its behavior.
-var mockRedisGet = jest.fn();
+let mockRedisGet = jest.fn();
 
 jest.mock("@upstash/redis", () => {
   return {

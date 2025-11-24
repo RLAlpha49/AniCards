@@ -1,17 +1,24 @@
 import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
-import { CardConfig, UserStats } from "@/lib/types/card";
+import { redisClient, incrementAnalytics } from "@/lib/api-utils";
+import {
+  SocialStats,
+  AnimeStats as TemplateAnimeStats,
+  MangaStats as TemplateMangaStats,
+} from "@/lib/types/card";
 import { calculateMilestones } from "@/lib/utils/milestones";
 import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
 import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats";
 import { distributionTemplate } from "@/lib/svg-templates/distribution";
-import { safeParse } from "@/lib/utils";
-import { UserRecord, CardsRecord } from "@/lib/types/records";
+import { safeParse, extractStyles } from "@/lib/utils";
+import {
+  UserRecord,
+  CardsRecord,
+  UserStatsData,
+  StoredCardConfig,
+} from "@/lib/types/records";
 
 import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
 
-// Rate limiter setup using Upstash Redis
-const redisClient = Redis.fromEnv();
 const ratelimit = new Ratelimit({
   redis: redisClient,
   limiter: Ratelimit.slidingWindow(100, "10 s"),
@@ -141,76 +148,161 @@ function getFavoritesForCardType(
   }
 }
 
+// Adapter helpers: convert stored UserRecord.stats (UserStatsData) into template-friendly shapes
+type MilestoneFields = {
+  previousMilestone: number;
+  currentMilestone: number;
+  percentage: number;
+  dasharray: string;
+  dashoffset: string;
+};
+
+function buildCommonTemplateFields(
+  stats:
+    | UserStatsData["User"]["statistics"]["anime"]
+    | UserStatsData["User"]["statistics"]["manga"],
+  milestoneData: ReturnType<typeof calculateMilestones>,
+): Partial<TemplateAnimeStats & TemplateMangaStats> & MilestoneFields {
+  return {
+    count: stats.count ?? undefined,
+    meanScore: stats.meanScore ?? undefined,
+    standardDeviation: stats.standardDeviation ?? undefined,
+    genres: (stats.genres as { genre: string; count: number }[]) ?? [],
+    tags: (stats.tags as { tag: { name: string }; count: number }[]) ?? [],
+    staff: (
+      (stats.staff as
+        | { staff: { name: { full: string } }; count: number }[]
+        | undefined) ?? []
+    ).map((s) => ({
+      staff: s.staff,
+      count: s.count,
+    })),
+    statuses:
+      (stats.statuses as { status: string; count: number }[])?.map((s) => ({
+        status: s.status,
+        amount: s.count,
+      })) ?? undefined,
+    formats:
+      (stats.formats as { format: string; count: number }[]) ?? undefined,
+    scores: (stats.scores as { score: number; count: number }[]) ?? undefined,
+    releaseYears:
+      (stats.releaseYears as { releaseYear: number; count: number }[]) ??
+      undefined,
+    countries:
+      (stats.countries as { country: string; count: number }[]) ?? undefined,
+    previousMilestone: milestoneData.previousMilestone,
+    currentMilestone: milestoneData.currentMilestone,
+    percentage: milestoneData.percentage,
+    dasharray: milestoneData.dasharray,
+    dashoffset: milestoneData.dashoffset,
+  } as Partial<TemplateAnimeStats & TemplateMangaStats> & MilestoneFields;
+}
+
+function toTemplateAnimeStats(
+  stats: UserStatsData["User"]["statistics"]["anime"],
+  milestoneData: ReturnType<typeof calculateMilestones>,
+): TemplateAnimeStats & MilestoneFields {
+  const common = buildCommonTemplateFields(stats, milestoneData);
+  return {
+    ...common,
+    episodesWatched: stats.episodesWatched,
+    minutesWatched: stats.minutesWatched,
+    // Map voiceActors.voiceActor to voice_actors.voice_actor to match template shape
+    voice_actors: (stats.voiceActors ?? []).map((va) => ({
+      voice_actor: va.voiceActor,
+      count: va.count,
+    })),
+    studios: stats.studios ?? [],
+  } as TemplateAnimeStats & MilestoneFields;
+}
+
+function toTemplateMangaStats(
+  stats: UserStatsData["User"]["statistics"]["manga"],
+  milestoneData: ReturnType<typeof calculateMilestones>,
+): TemplateMangaStats & MilestoneFields {
+  const common = buildCommonTemplateFields(stats, milestoneData);
+  return {
+    ...common,
+    chaptersRead: stats.chaptersRead,
+    volumesRead: stats.volumesRead,
+  } as TemplateMangaStats & MilestoneFields;
+}
+
+function toTemplateSocialStats(userRecord: UserRecord): SocialStats {
+  return {
+    followersPage: userRecord.stats.followersPage,
+    followingPage: userRecord.stats.followingPage,
+    threadsPage: userRecord.stats.threadsPage,
+    threadCommentsPage: userRecord.stats.threadCommentsPage,
+    reviewsPage: userRecord.stats.reviewsPage,
+    activityHistory: userRecord.stats.User.stats.activityHistory ?? [],
+  } as SocialStats;
+}
+
 // Common interface for card generation parameters
 interface CardGenerationParams {
-  cardConfig: CardConfig;
-  userStats: UserStatsData;
+  cardConfig: StoredCardConfig;
+  userRecord: UserRecord;
   variant: string;
   favorites?: string[];
-}
-
-interface UserStatsData {
-  username: string;
-  stats: {
-    User: {
-      statistics: {
-        anime: Record<string, unknown>;
-        manga: Record<string, unknown>;
-      };
-      stats: {
-        activityHistory: unknown[];
-      };
-    };
-  } & Record<string, unknown>;
-}
-
-// Extract common styles from card config
-function extractStyles(cardConfig: CardConfig) {
-  return {
-    titleColor: cardConfig.titleColor,
-    backgroundColor: cardConfig.backgroundColor,
-    textColor: cardConfig.textColor,
-    circleColor: cardConfig.circleColor,
-  };
 }
 
 // Handle anime/manga stats cards
 function generateStatsCard(
   params: CardGenerationParams,
   mediaType: "anime" | "manga",
-): string {
-  const { cardConfig, userStats, variant } = params;
-  const stats = userStats.stats.User.statistics[mediaType];
-  const countProperty =
-    mediaType === "anime" ? "episodesWatched" : "chaptersRead";
-  const milestoneData = calculateMilestones(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (stats as any)[countProperty] as number,
-  );
+): string | Response {
+  const { cardConfig, userRecord, variant } = params;
+  const recordsStats = userRecord.stats?.User?.statistics?.[mediaType];
+  if (!recordsStats) {
+    // Metrics: missing stats data for this card type -> Not Found
+    void trackFailedRequest(cardConfig.cardName.split("-")[0], 404);
+    return new Response(svgError("Missing stats data for user"), {
+      headers: errorHeaders(),
+      status: 404,
+    });
+  }
+  let milestoneCount = 0;
+  if (mediaType === "anime") {
+    milestoneCount =
+      (recordsStats as UserStatsData["User"]["statistics"]["anime"])
+        .episodesWatched || 0;
+  } else {
+    milestoneCount =
+      (recordsStats as UserStatsData["User"]["statistics"]["manga"])
+        .chaptersRead || 0;
+  }
+  const milestoneData = calculateMilestones(Number(milestoneCount));
+  const templateStats =
+    mediaType === "anime"
+      ? toTemplateAnimeStats(
+          recordsStats as UserStatsData["User"]["statistics"]["anime"],
+          milestoneData,
+        )
+      : toTemplateMangaStats(
+          recordsStats as UserStatsData["User"]["statistics"]["manga"],
+          milestoneData,
+        );
 
   return mediaStatsTemplate({
     mediaType,
-    username: userStats.username,
+    username: userRecord.username ?? userRecord.userId,
     variant: variant as "default" | "vertical" | "compact" | "minimal",
     styles: extractStyles(cardConfig),
-    stats: { ...stats, ...milestoneData },
+    stats: templateStats,
   });
 }
 
 // Handle social stats card
 function generateSocialStatsCard(params: CardGenerationParams): string {
-  const { cardConfig, userStats, variant } = params;
+  const { cardConfig, userRecord, variant } = params;
 
   return socialStatsTemplate({
-    username: userStats.username,
+    username: userRecord.username ?? userRecord.userId,
     variant: variant as "default" | "compact" | "minimal",
     styles: extractStyles(cardConfig),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    stats: userStats.stats as any,
-    activityHistory: userStats.stats.User.stats.activityHistory as {
-      date: number;
-      amount: number;
-    }[],
+    stats: toTemplateSocialStats(userRecord),
+    activityHistory: userRecord.stats.User.stats.activityHistory ?? [],
   });
 }
 
@@ -242,8 +334,8 @@ function mapCategoryItem(
 function generateCategoryCard(
   params: CardGenerationParams,
   baseCardType: string,
-): string {
-  const { cardConfig, userStats, variant, favorites } = params;
+): string | Response {
+  const { cardConfig, userRecord, variant, favorites } = params;
   const isAnime = baseCardType.startsWith("anime");
 
   const categoryMap: Record<string, string> = {
@@ -259,29 +351,46 @@ function generateCategoryCard(
       baseCardType.replace(isAnime ? "anime" : "manga", "").toLowerCase()
     ];
   const stats = isAnime
-    ? userStats.stats.User.statistics.anime
-    : userStats.stats.User.statistics.manga;
+    ? userRecord.stats?.User?.statistics?.anime
+    : userRecord.stats?.User?.statistics?.manga;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const categoryData = (stats as any)[categoryKey] as unknown[];
+  const categoryData = ((stats ?? {}) as unknown as Record<string, unknown>)[
+    categoryKey
+  ] as unknown[] | undefined;
   const items = Array.isArray(categoryData)
     ? categoryData
         .slice(0, 5)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((item: unknown) => mapCategoryItem(item as any, categoryKey))
+        .map((item: unknown) =>
+          mapCategoryItem(
+            item as
+              | GenreItem
+              | TagItem
+              | VoiceActorItem
+              | StudioItem
+              | StaffItem,
+            categoryKey,
+          ),
+        )
     : [];
 
+  if (!items || items.length === 0) {
+    // Metrics: no category items found for this user -> Not Found
+    void trackFailedRequest(baseCardType, 404);
+    return new Response(svgError("No category data available for this user"), {
+      headers: errorHeaders(),
+      status: 404,
+    });
+  }
+
   return extraAnimeMangaStatsTemplate({
-    username: userStats.username,
+    username: userRecord.username ?? userRecord.userId,
     variant: variant as "default" | "pie" | "bar",
     styles: extractStyles(cardConfig),
     format: displayNames[baseCardType],
     stats: items,
     showPieChart: variant === "pie",
     favorites,
-    showPiePercentages: (
-      cardConfig as CardConfig & { showPiePercentages?: boolean }
-    ).showPiePercentages,
+    showPiePercentages: !!cardConfig.showPiePercentages,
   });
 }
 
@@ -289,78 +398,76 @@ function generateCategoryCard(
 function generateStatusDistributionCard(
   params: CardGenerationParams,
   baseCardType: string,
-): string {
-  const { cardConfig, userStats, variant } = params;
-  const isAnime = baseCardType.startsWith("anime");
-  const statusStats = isAnime
-    ? userStats.stats.User.statistics.anime
-    : userStats.stats.User.statistics.manga;
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const statusesData = (statusStats as any).statuses as unknown[];
-  const statsList = Array.isArray(statusesData)
-    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      statusesData.map((s: any) => ({
-        name: s.status,
-        count: typeof s.amount === "number" ? s.amount : (s.count ?? 0),
-      }))
-    : [];
-
-  const mappedVariant = (
-    ["pie", "bar"].includes(variant) ? variant : "default"
-  ) as PieBarVariant;
-
-  return extraAnimeMangaStatsTemplate({
-    username: userStats.username,
-    variant: mappedVariant,
-    styles: extractStyles(cardConfig),
-    format: displayNames[baseCardType],
-    stats: statsList,
-    showPieChart: mappedVariant === "pie",
-    fixedStatusColors: !!(
-      cardConfig as CardConfig & { useStatusColors?: boolean }
-    ).useStatusColors,
-    showPiePercentages: (
-      cardConfig as CardConfig & { showPiePercentages?: boolean }
-    ).showPiePercentages,
-  });
+): string | Response {
+  return generateSimpleListCard(
+    params,
+    baseCardType,
+    "statuses",
+    "status",
+    "No status distribution data for this user",
+    { fixedStatusColors: !!params.cardConfig.useStatusColors },
+  );
 }
 
 // Handle format distribution cards
 function generateFormatDistributionCard(
   params: CardGenerationParams,
   baseCardType: string,
-): string {
-  const { cardConfig, userStats, variant } = params;
-  const isAnime = baseCardType.startsWith("anime");
-  const fmtStats = isAnime
-    ? userStats.stats.User.statistics.anime
-    : userStats.stats.User.statistics.manga;
+): string | Response {
+  return generateSimpleListCard(
+    params,
+    baseCardType,
+    "formats",
+    "format",
+    "No format distribution data for this user",
+  );
+}
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const formatsData = (fmtStats as any).formats as unknown[];
-  const statsList = Array.isArray(formatsData)
-    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      formatsData.map((f: any) => ({
-        name: f.format,
-        count: f.count ?? 0,
+function generateSimpleListCard(
+  params: CardGenerationParams,
+  baseCardType: string,
+  listKey: string,
+  nameKey: string,
+  notFoundMessage: string,
+  extraTemplateProps?: Record<string, unknown>,
+): string | Response {
+  const { cardConfig, userRecord, variant } = params;
+  const isAnime = baseCardType.startsWith("anime");
+  const statsRoot = isAnime
+    ? userRecord.stats?.User?.statistics?.anime
+    : userRecord.stats?.User?.statistics?.manga;
+
+  const data = ((statsRoot ?? {}) as unknown as Record<string, unknown>)[
+    listKey
+  ] as unknown[] | undefined;
+  const statsList = Array.isArray(data)
+    ? (data as { [k: string]: unknown }[]).map((entry) => ({
+        name: String(entry[nameKey] ?? ""),
+        count: (entry.count as number) ?? 0,
       }))
     : [];
+
+  if (!statsList.length) {
+    void trackFailedRequest(baseCardType, 404);
+    return new Response(svgError(notFoundMessage), {
+      headers: errorHeaders(),
+      status: 404,
+    });
+  }
 
   const mappedVariant = (
     ["pie", "bar"].includes(variant) ? variant : "default"
   ) as PieBarVariant;
 
   return extraAnimeMangaStatsTemplate({
-    username: userStats.username,
+    username: userRecord.username ?? userRecord.userId,
     variant: mappedVariant,
     styles: extractStyles(cardConfig),
     format: displayNames[baseCardType],
     stats: statsList,
     showPieChart: mappedVariant === "pie",
-    showPiePercentages: (
-      cardConfig as CardConfig & { showPiePercentages?: boolean }
-    ).showPiePercentages,
+    showPiePercentages: !!cardConfig.showPiePercentages,
+    ...extraTemplateProps,
   });
 }
 
@@ -369,32 +476,44 @@ function generateDistributionCard(
   params: CardGenerationParams,
   baseCardType: string,
   kind: "score" | "year",
-): string {
-  const { cardConfig, userStats, variant } = params;
+): string | Response {
+  const { cardConfig, userRecord, variant } = params;
   const isAnime = baseCardType.startsWith("anime");
   const stats = isAnime
-    ? userStats.stats.User.statistics.anime
-    : userStats.stats.User.statistics.manga;
+    ? userRecord.stats?.User?.statistics?.anime
+    : userRecord.stats?.User?.statistics?.manga;
 
   const dataProperty = kind === "score" ? "scores" : "releaseYears";
   const valueProperty = kind === "score" ? "score" : "releaseYear";
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const distributionData = (stats as any)[dataProperty] as unknown[];
+  const distributionData = (
+    (stats ?? {}) as unknown as Record<string, unknown>
+  )[dataProperty] as unknown[] | undefined;
   const statsList = Array.isArray(distributionData)
-    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      distributionData.map((s: any) => ({
-        name: String(s[valueProperty]),
-        count: s.count ?? 0,
-      }))
+    ? distributionData.map((s: unknown) => {
+        const item = s as { [k: string]: unknown };
+        return {
+          name: String(item[valueProperty] ?? ""),
+          count: (item.count as number) ?? 0,
+        };
+      })
     : [];
+
+  if (!statsList.length) {
+    // Metrics: no distribution data -> Not Found
+    void trackFailedRequest(baseCardType, 404);
+    return new Response(svgError("No distribution data for this user"), {
+      headers: errorHeaders(),
+      status: 404,
+    });
+  }
 
   const mappedVariant = (
     ["default", "horizontal"].includes(variant) ? variant : "default"
   ) as "default" | "horizontal";
 
   return distributionTemplate({
-    username: userStats.username,
+    username: userRecord.username ?? userRecord.userId,
     mediaType: isAnime ? "anime" : "manga",
     variant: mappedVariant,
     kind,
@@ -410,62 +529,84 @@ function generateDistributionCard(
 function generateCountryCard(
   params: CardGenerationParams,
   baseCardType: string,
-): string {
-  const { cardConfig, userStats, variant } = params;
+): string | Response {
+  const { cardConfig, userRecord, variant } = params;
   const isAnime = baseCardType.startsWith("anime");
   const statsRoot = isAnime
-    ? userStats.stats.User.statistics.anime
-    : userStats.stats.User.statistics.manga;
+    ? userRecord.stats?.User?.statistics?.anime
+    : userRecord.stats?.User?.statistics?.manga;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const countriesData = (statsRoot as any).countries as unknown[];
+  const countriesData = (statsRoot?.countries ?? []) as {
+    country: string;
+    count: number;
+  }[];
   const list = Array.isArray(countriesData)
-    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      countriesData.map((c: any) => ({
+    ? countriesData.map((c) => ({
         name: c.country || "Unknown",
         count: c.count ?? 0,
       }))
     : [];
+
+  if (!list.length) {
+    // Metrics: no country data -> Not Found
+    void trackFailedRequest(baseCardType, 404);
+    return new Response(svgError("No country data for this user"), {
+      headers: errorHeaders(),
+      status: 404,
+    });
+  }
 
   const mappedVariant = (
     ["pie", "bar"].includes(variant) ? variant : "default"
   ) as PieBarVariant;
 
   return extraAnimeMangaStatsTemplate({
-    username: userStats.username,
+    username: userRecord.username ?? userRecord.userId,
     variant: mappedVariant,
     styles: extractStyles(cardConfig),
     format: displayNames[baseCardType],
     stats: list,
     showPieChart: mappedVariant === "pie",
-    showPiePercentages: (
-      cardConfig as CardConfig & { showPiePercentages?: boolean }
-    ).showPiePercentages,
+    showPiePercentages: !!cardConfig.showPiePercentages,
   });
 }
 
 // Function to generate SVG content based on card configuration and user stats
 function generateCardSVG(
-  cardConfig: CardConfig,
-  userStats: unknown,
+  cardConfig: StoredCardConfig,
+  userRecord: UserRecord,
   variant: "default" | "vertical" | "pie" | "compact" | "minimal" | "bar",
   favorites?: string[],
-) {
+): string | Response {
   // Basic validation: card config and user stats must be present
-  if (!cardConfig || !userStats || typeof userStats !== "object") {
-    throw new Error("Missing card configuration or stats data");
+  if (!cardConfig || !userRecord?.stats) {
+    const baseCardType = cardConfig
+      ? cardConfig.cardName.split("-")[0]
+      : undefined;
+    void trackFailedRequest(baseCardType, 404);
+    return new Response(svgError("Missing card configuration or stats data"), {
+      headers: errorHeaders(),
+      status: 404,
+    });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const userStatsTyped = userStats as any;
-  if (!userStatsTyped?.stats?.User?.statistics?.anime) {
-    throw new Error("Missing card configuration or stats data");
+  // Validate that the stored stats contain user statistics
+  if (
+    !userRecord.stats?.User?.statistics?.anime &&
+    !userRecord.stats?.User?.statistics?.manga
+  ) {
+    // Base card type is available because cardConfig is present
+    void trackFailedRequest(cardConfig.cardName.split("-")[0], 404);
+    return new Response(svgError("Missing card configuration or stats data"), {
+      headers: errorHeaders(),
+      status: 404,
+    });
   }
 
   const [baseCardType] = cardConfig.cardName.split("-");
   const params: CardGenerationParams = {
     cardConfig,
-    userStats: userStatsTyped,
+    userRecord,
     variant,
     favorites,
   };
@@ -538,21 +679,21 @@ function extractAndValidateParams(
 
   // Parameter validation: userId and cardType are required
   if (!userId || !cardType) {
-    const missingParam = !userId ? "userId" : "cardType";
+    const missingParam = userId ? "cardType" : "userId";
     console.warn(`⚠️ [Card SVG] Missing parameter: ${missingParam}`);
     return new Response(svgError("Missing parameters"), {
       headers: errorHeaders(),
-      status: 200,
+      status: 400,
     });
   }
 
   // Validate userId format (must be a number)
-  const numericUserId = parseInt(userId);
-  if (isNaN(numericUserId)) {
+  const numericUserId = Number.parseInt(userId);
+  if (Number.isNaN(numericUserId)) {
     console.warn(`⚠️ [Card SVG] Invalid user ID format: ${userId}`);
     return new Response(svgError("Invalid user ID"), {
       headers: errorHeaders(),
-      status: 200,
+      status: 400,
     });
   }
 
@@ -562,7 +703,7 @@ function extractAndValidateParams(
     console.warn(`⚠️ [Card SVG] Invalid card type: ${cardType}`);
     return new Response(svgError("Invalid card type"), {
       headers: errorHeaders(),
-      status: 200,
+      status: 400,
     });
   }
 
@@ -579,25 +720,34 @@ function extractAndValidateParams(
 }
 
 // Handle analytics tracking for failed requests
-async function trackFailedRequest(baseCardType?: string): Promise<void> {
-  const analyticsClient = Redis.fromEnv();
-  analyticsClient.incr("analytics:card_svg:failed_requests").catch(() => {});
+async function trackFailedRequest(
+  baseCardType?: string,
+  status?: number,
+): Promise<void> {
+  incrementAnalytics("analytics:card_svg:failed_requests").catch(() => {});
   if (baseCardType) {
-    analyticsClient
-      .incr(`analytics:card_svg:failed_requests:${baseCardType}`)
-      .catch(() => {});
+    incrementAnalytics(
+      `analytics:card_svg:failed_requests:${baseCardType}`,
+    ).catch(() => {});
+  }
+  if (typeof status === "number") {
+    incrementAnalytics(
+      `analytics:card_svg:failed_requests:status:${status}`,
+    ).catch(() => {});
+    if (baseCardType) {
+      incrementAnalytics(
+        `analytics:card_svg:failed_requests:${baseCardType}:status:${status}`,
+      ).catch(() => {});
+    }
   }
 }
 
 // Handle analytics tracking for successful requests
 async function trackSuccessfulRequest(baseCardType: string): Promise<void> {
-  const analyticsClient = Redis.fromEnv();
-  analyticsClient
-    .incr("analytics:card_svg:successful_requests")
-    .catch(() => {});
-  analyticsClient
-    .incr(`analytics:card_svg:successful_requests:${baseCardType}`)
-    .catch(() => {});
+  incrementAnalytics("analytics:card_svg:successful_requests").catch(() => {});
+  incrementAnalytics(
+    `analytics:card_svg:successful_requests:${baseCardType}`,
+  ).catch(() => {});
 }
 
 // Fetch and validate user data from Redis
@@ -620,10 +770,10 @@ async function fetchUserData(
     userDataStr === "null"
   ) {
     console.warn(`⚠️ [Card SVG] User ${numericUserId} data not found in Redis`);
-    await trackFailedRequest(baseCardType);
+    await trackFailedRequest(baseCardType, 404);
     return new Response(svgError("User data not found"), {
       headers: errorHeaders(),
-      status: 200,
+      status: 404,
     });
   }
 
@@ -639,13 +789,17 @@ function processCardConfig(
   params: ValidatedParams,
   userDoc: UserRecord,
 ):
-  | { cardConfig: CardConfig; effectiveVariation: string; favorites: string[] }
+  | {
+      cardConfig: StoredCardConfig;
+      effectiveVariation: string;
+      favorites: string[];
+    }
   | Response {
   const { cardType, numericUserId, baseCardType } = params;
 
   // Find the specific card configuration
   const cardConfig = cardDoc.cards.find(
-    (c: CardConfig) => c.cardName === cardType,
+    (c: StoredCardConfig) => c.cardName === cardType,
   );
 
   if (!cardConfig) {
@@ -656,21 +810,25 @@ function processCardConfig(
       svgError("Card config not found. Try to regenerate the card."),
       {
         headers: errorHeaders(),
-        status: 200,
+        status: 404,
       },
     );
   }
 
   // Determine effective variation
+  // Use a shallow clone to avoid mutating the original object returned from Redis
+  const effectiveCardConfig: StoredCardConfig = {
+    ...cardConfig,
+  } as StoredCardConfig;
   const effectiveVariation =
-    params.variationParam || cardConfig.variation || "default";
+    params.variationParam || effectiveCardConfig.variation || "default";
 
   // Process favorites
   let favorites: string[] = [];
   const useFavorites =
-    params.showFavoritesParam !== null
-      ? params.showFavoritesParam === "true"
-      : !!cardConfig.showFavorites;
+    params.showFavoritesParam === null
+      ? !!effectiveCardConfig.showFavorites
+      : params.showFavoritesParam === "true";
 
   if (
     useFavorites &&
@@ -689,17 +847,14 @@ function processCardConfig(
       baseCardType,
     )
   ) {
-    (cardConfig as CardConfig & { useStatusColors?: boolean }).useStatusColors =
-      true;
+    effectiveCardConfig.useStatusColors = true;
   }
 
   if (params.piePercentagesParam === "true") {
-    (
-      cardConfig as CardConfig & { showPiePercentages?: boolean }
-    ).showPiePercentages = true;
+    effectiveCardConfig.showPiePercentages = true;
   }
 
-  return { cardConfig, effectiveVariation, favorites };
+  return { cardConfig: effectiveCardConfig, effectiveVariation, favorites };
 }
 
 // Main GET handler for card SVG generation
@@ -711,10 +866,10 @@ export async function GET(request: Request) {
   const { success } = await ratelimit.limit(ip);
   if (!success) {
     console.warn(`🚨 [Card SVG] Rate limit exceeded for IP: ${ip}`);
-    await trackFailedRequest();
+    await trackFailedRequest(undefined, 429);
     return new Response(svgError("Too many requests - try again later"), {
       headers: errorHeaders(),
-      status: 200,
+      status: 429,
     });
   }
 
@@ -723,7 +878,8 @@ export async function GET(request: Request) {
   // Extract and validate parameters
   const paramsResult = extractAndValidateParams(request);
   if (paramsResult instanceof Response) {
-    await trackFailedRequest();
+    // Track failed request with the returned status code from parameter validation
+    await trackFailedRequest(undefined, paramsResult.status);
     return paramsResult;
   }
 
@@ -747,7 +903,7 @@ export async function GET(request: Request) {
     // Process card configuration and apply parameters
     const configResult = processCardConfig(cardDoc, params, userDoc);
     if (configResult instanceof Response) {
-      await trackFailedRequest(params.baseCardType);
+      await trackFailedRequest(params.baseCardType, configResult.status);
       return configResult;
     }
 
@@ -760,8 +916,8 @@ export async function GET(request: Request) {
     // Generate SVG content
     const svgContent = generateCardSVG(
       cardConfig,
-      userDoc as unknown as UserStats,
-      effectiveVariation as "default" | "vertical" | "pie",
+      userDoc,
+      effectiveVariation as "default" | "vertical" | "pie" | "bar",
       favorites,
     );
 
@@ -778,6 +934,10 @@ export async function GET(request: Request) {
 
     await trackSuccessfulRequest(params.baseCardType);
 
+    if (svgContent instanceof Response) {
+      return svgContent;
+    }
+
     return new Response(svgContent, {
       headers: svgHeaders(),
     });
@@ -793,11 +953,11 @@ export async function GET(request: Request) {
       console.error(`💥 [Card SVG] Stack Trace: ${error.stack}`);
     }
 
-    await trackFailedRequest(params.baseCardType);
+    await trackFailedRequest(params.baseCardType, 500);
 
     return new Response(svgError("Server Error"), {
       headers: errorHeaders(),
-      status: 200,
+      status: 500,
     });
   }
 }
