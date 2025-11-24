@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { redisClient, incrementAnalytics } from "@/lib/api-utils";
+import {
+  redisClient,
+  incrementAnalytics,
+  isValidUsername,
+} from "@/lib/api-utils";
 import { UserRecord } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
 
@@ -41,32 +45,46 @@ export async function GET(request: Request) {
     key = `user:${numericUserId}`;
     console.log(`🚀 [User API] Request received for userId: ${numericUserId}`);
   } else {
-    // Use the username parameter: normalize it and use the username index key.
-    const normalizedUsername = usernameParam!.trim().toLowerCase();
-    const usernameIndexKey = `username:${normalizedUsername}`;
-    console.log(
-      `🔍 [User API] Searching user index for username: ${normalizedUsername}`,
-    );
-    const userIdFromIndex = await redisClient.get(usernameIndexKey);
-    if (!userIdFromIndex) {
+    if (!isValidUsername(usernameParam)) {
       console.warn(
-        `⚠️ [User API] User not found for username: ${normalizedUsername}`,
+        `⚠️ [User API] Invalid username parameter provided: ${usernameParam}`,
+      );
+      incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
+      return NextResponse.json(
+        { error: "Invalid username parameter" },
+        { status: 400 },
+      );
+    }
+
+    async function resolveUserIdFromUsername(
+      u: string,
+    ): Promise<number | null> {
+      const normalizedUsername = u.trim().toLowerCase();
+      const usernameIndexKey = `username:${normalizedUsername}`;
+      console.log(
+        `🔍 [User API] Searching user index for username: ${normalizedUsername}`,
+      );
+      const userIdFromIndex = await redisClient.get(usernameIndexKey);
+      if (!userIdFromIndex) return null;
+      const candidate = Number.parseInt(userIdFromIndex as string, 10);
+      if (Number.isNaN(candidate)) return null;
+      console.log(
+        `🚀 [User API] Request received for username: ${normalizedUsername} (userId: ${candidate})`,
+      );
+      return candidate;
+    }
+
+    const userId = await resolveUserIdFromUsername(usernameParam!);
+    if (!userId) {
+      console.warn(
+        `⚠️ [User API] User not found for username: ${usernameParam}`,
       );
       incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
-    numericUserId = Number.parseInt(userIdFromIndex as string, 10);
-    if (Number.isNaN(numericUserId)) {
-      console.warn(
-        `⚠️ [User API] Invalid userId value from username index for username: ${normalizedUsername}`,
-      );
-      incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
+
+    numericUserId = userId;
     key = `user:${numericUserId}`;
-    console.log(
-      `🚀 [User API] Request received for username: ${normalizedUsername} (userId: ${numericUserId})`,
-    );
   }
 
   try {

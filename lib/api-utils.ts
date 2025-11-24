@@ -232,20 +232,8 @@ export function validateUserData(
 
   // Validate username if provided
   if (data.username !== undefined && data.username !== null) {
-    if (typeof data.username !== "string") {
-      console.warn(`⚠️ [${endpoint}] Username must be a string`);
-      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
-    }
-    // Check length constraints
-    if (data.username.length === 0 || data.username.length > 100) {
-      console.warn(
-        `⚠️ [${endpoint}] Username length invalid: ${data.username.length}`,
-      );
-      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
-    }
-    // Check for suspicious characters or injection attempts
-    if (!/^[a-zA-Z0-9_-\s]*$/.test(data.username)) {
-      console.warn(`⚠️ [${endpoint}] Username contains invalid characters`);
+    if (!isValidUsername(data.username)) {
+      console.warn(`⚠️ [${endpoint}] Username invalid: ${data.username}`);
       return NextResponse.json({ error: "Invalid data" }, { status: 400 });
     }
   }
@@ -262,6 +250,20 @@ export function validateUserData(
 // Validation helpers for card data
 function isValidHexColor(color: string): boolean {
   return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/.test(color);
+}
+
+/**
+ * Validates a username string according to the same rules used in the
+ * store-users endpoint validation. This helper centralizes validation so both
+ * the read (GET) and write (POST) paths can share the same rules.
+ */
+export function isValidUsername(value: unknown): boolean {
+  if (value === undefined || value === null) return false;
+  if (typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.length > 100) return false;
+  // Only allow letters, numbers, underscores, hyphens and whitespace inside usernames.
+  return /^[a-zA-Z0-9_\-\s]*$/.test(trimmed);
 }
 
 function validateCardRequiredFields(

@@ -82,6 +82,54 @@ describe("User API GET Endpoint", () => {
     expect(json).toEqual(userData);
   });
 
+  it("should return 400 for invalid username parameter", async () => {
+    const req = new Request(
+      "http://localhost/api/user?username=***invalid***",
+      {
+        headers: { "x-forwarded-for": "127.0.0.1" },
+      },
+    );
+    const res = await GET(req);
+    expect(res.status).toBe(400);
+
+    const json = await getResponseJson(res);
+    expect(json.error).toBe("Invalid username parameter");
+  });
+
+  it("should return 404 when username is valid but user not found", async () => {
+    // Simulate no index record for the username
+    mockRedisGet.mockResolvedValueOnce(null);
+
+    const req = new Request("http://localhost/api/user?username=unknownuser", {
+      headers: { "x-forwarded-for": "127.0.0.1" },
+    });
+    const res = await GET(req);
+    expect(res.status).toBe(404);
+
+    const json = await getResponseJson(res);
+    expect(json.error).toBe("User not found");
+  });
+
+  it("should return 200 and the user data when username maps to an existing user", async () => {
+    // Simulate mapping from username index to userId and existing user record
+    const userData = {
+      userId: 123,
+      username: "testUser",
+      stats: { score: 10 },
+    };
+    mockRedisGet.mockResolvedValueOnce("123"); // username index key -> userId
+    mockRedisGet.mockResolvedValueOnce(JSON.stringify(userData)); // user key -> data
+
+    const req = new Request("http://localhost/api/user?username=testUser", {
+      headers: { "x-forwarded-for": "127.0.0.1" },
+    });
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+
+    const json = await getResponseJson(res);
+    expect(json).toEqual(userData);
+  });
+
   it("should return 500 error if an error occurs during Redis fetch", async () => {
     // Simulate an error when fetching data from Redis.
     mockRedisGet.mockRejectedValueOnce(new Error("Redis error"));
