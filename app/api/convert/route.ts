@@ -2,6 +2,140 @@ import sharp from "sharp";
 import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
 
+/**
+ * Safely removes empty CSS rules from a CSS string. This function parses the CSS
+ * text while respecting quotes and comments, finds block pairs `{}` and removes
+ * those which contain only whitespace/comments.
+ *
+ * This protects against catastrophic backtracking by avoiding vulnerable regexes
+ * that have unbounded backtracking (e.g. /...+\{\s*\}/).
+ */
+function isWhitespaceOrComments(substr: string): boolean {
+  let inComment = false;
+  for (let i = 0; i < substr.length; i++) {
+    const ch = substr[i];
+    const nxt = substr[i + 1];
+    if (inComment) {
+      if (ch === "*" && nxt === "/") {
+        inComment = false;
+        i += 1; // skip '/'
+      }
+      continue;
+    }
+    if (ch === "/" && nxt === "*") {
+      inComment = true;
+      i += 1; // skip '*'
+      continue;
+    }
+    if (!/\s/.test(ch)) return false;
+  }
+  return !inComment;
+}
+
+function removeEmptyCssBlocksOnce(input: string): { css: string; removed: boolean } {
+  const stack: number[] = [];
+  const rangesToRemove: Array<[number, number]> = [];
+  let inSingle = false;
+  let inDouble = false;
+  let inComment = false;
+  let i = 0;
+  while (i < input.length) {
+    const ch = input[i];
+    const nxt = input[i + 1];
+    if (inComment) {
+      if (ch === "*" && nxt === "/") {
+        inComment = false;
+        i += 2; // skip '*/'
+        continue;
+      }
+      i += 1;
+      continue;
+    }
+    if (inSingle) {
+      if (ch === "'" && input[i - 1] !== "\\") inSingle = false;
+      i += 1;
+      continue;
+    }
+    if (inDouble) {
+      if (ch === '"' && input[i - 1] !== "\\") inDouble = false;
+      i += 1;
+      continue;
+    }
+    if (ch === "/" && nxt === "*") {
+      inComment = true;
+      i += 2;
+      continue;
+    }
+    if (ch === "'") {
+      inSingle = true;
+      i += 1;
+      continue;
+    }
+    if (ch === '"') {
+      inDouble = true;
+      i += 1;
+      continue;
+    }
+    if (ch === "{") {
+      stack.push(i);
+      i += 1;
+      continue;
+    }
+    if (ch === "}") {
+      if (stack.length === 0) {
+        i += 1;
+        continue; // unmatched closing brace - ignore
+      }
+      const openIdx = stack.pop()!;
+      const inner = input.slice(openIdx + 1, i);
+      if (isWhitespaceOrComments(inner)) {
+        // Find selector start: walk backwards skipping whitespace until we hit
+        // a '}', '{', or ';' (these delimit rules) or beginning of string.
+        let start = openIdx - 1;
+        while (start >= 0 && /\s/.test(input[start])) start -= 1;
+        while (start >= 0 && input[start] !== "}" && input[start] !== "{" && input[start] !== ";") {
+          start -= 1;
+        }
+        rangesToRemove.push([start + 1, i + 1]);
+      }
+      i += 1;
+      continue;
+    }
+    i += 1;
+  }
+
+  if (rangesToRemove.length === 0) return { css: input, removed: false };
+  rangesToRemove.sort((a, b) => a[0] - b[0]);
+  const merged: Array<[number, number]> = [];
+  for (const r of rangesToRemove) {
+    if (merged.length === 0) merged.push(r);
+    else {
+      const lastR = merged[merged.length - 1];
+      if (r[0] <= lastR[1]) lastR[1] = Math.max(lastR[1], r[1]);
+      else merged.push(r);
+    }
+  }
+  let out = "";
+  let pos = 0;
+  for (const [s, e] of merged) {
+    out += input.slice(pos, s);
+    pos = e;
+  }
+  out += input.slice(pos);
+  return { css: out, removed: true };
+}
+
+export function removeEmptyCssRules(css: string): string {
+  if (!css?.includes("{")) return css;
+  let last = css;
+  while (true) {
+    const { css: nextCss, removed } = removeEmptyCssBlocksOnce(last);
+    if (!removed) break;
+    last = nextCss;
+  }
+  return last;
+}
+
 // API endpoint for converting SVG to PNG with style fixes
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -175,11 +309,9 @@ export async function POST(request: NextRequest) {
       // Regex explanation:
       // - visibility:\s*hidden matches visibility: hidden
       // - Replace with visibility: visible
-      .replaceAll(/visibility:\s*hidden/g, "visibility: visible")
-      // Regex explanation:
-      // - [.#a-zA-Z0-9_\-\s,>:\[\]="']+ matches a selector (class, id, element, etc.)
-      // - {\s*} matches empty ruleset with optional whitespace
-      .replaceAll(/([.#a-zA-Z0-9_\-\s,>:[\]="']+){\s*}/g, "");
+      .replaceAll(/visibility:\s*hidden/g, "visibility: visible");
+
+    cssContent = removeEmptyCssRules(cssContent);
 
     // Rebuild SVG with processed styles
     // Regex explanation:

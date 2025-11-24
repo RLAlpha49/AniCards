@@ -1,6 +1,8 @@
-import { POST } from "./route";
+import { POST, removeEmptyCssRules } from "./route";
 import { NextRequest } from "next/server";
 import sharp from "sharp";
+
+process.env.NEXT_PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost";
 
 jest.mock("@upstash/redis", () => ({
   Redis: {
@@ -21,11 +23,11 @@ jest.mock("sharp", () => {
 });
 
 describe("Convert API POST Endpoint", () => {
-  const originalFetch = global.fetch;
+  const originalFetch = globalThis.fetch;
 
   afterEach(() => {
     jest.clearAllMocks();
-    global.fetch = originalFetch;
+    globalThis.fetch = originalFetch;
   });
 
   it("should return 400 error if svgUrl parameter is missing", async () => {
@@ -57,7 +59,7 @@ describe("Convert API POST Endpoint", () => {
     }) as unknown as NextRequest;
 
     // Mock fetch to simulate a failed response.
-    global.fetch = jest.fn().mockResolvedValue({
+    globalThis.fetch = jest.fn().mockResolvedValue({
       ok: false,
       status: 404,
       text: async () => "Not Found",
@@ -83,7 +85,7 @@ describe("Convert API POST Endpoint", () => {
     }) as unknown as NextRequest;
 
     // Mock fetch to return the dummy SVG content.
-    global.fetch = jest.fn().mockResolvedValue({
+    globalThis.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
       text: async () => dummySVG,
@@ -110,7 +112,7 @@ describe("Convert API POST Endpoint", () => {
       body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
     }) as unknown as NextRequest;
 
-    global.fetch = jest.fn().mockResolvedValue({
+    globalThis.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
       text: async () => dummySVG,
@@ -129,5 +131,29 @@ describe("Convert API POST Endpoint", () => {
     expect(res.status).toBe(500);
     const data = await res.json();
     expect(data.error).toBe("Conversion failed");
+  });
+
+  describe("removeEmptyCssRules", () => {
+    it("removes simple empty CSS rule blocks", () => {
+      const css = ".a { } .b{\n}\n";
+      const cleaned = removeEmptyCssRules(css);
+      expect(cleaned.trim()).toBe("");
+    });
+
+    it("removes nested empty rules and collapses outer blocks that become empty", () => {
+      const css = "@media (max-width: 600px) { .a {} }";
+      const cleaned = removeEmptyCssRules(css);
+      expect(cleaned.replaceAll(/\s+/g, "")).toBe("");
+    });
+
+    it("handles long input without excessive time (DoS test)", () => {
+      const longSelector = "a".repeat(200_000);
+      const css = `${longSelector} { }`;
+      const start = Date.now();
+      const cleaned = removeEmptyCssRules(css);
+      const duration = Date.now() - start;
+      expect(cleaned.trim()).toBe("");
+      expect(duration).toBeLessThan(2000);
+    });
   });
 });
