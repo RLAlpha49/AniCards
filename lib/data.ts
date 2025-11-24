@@ -36,10 +36,10 @@ export function loadDefaultSettings(): UserPreferences {
   };
 
   return {
-    colorPreset: loadValue("defaultColorPreset") || "default",
-    defaultCards: loadValue("defaultCardTypes") || [],
-    borderEnabled: loadValue("defaultBorderEnabled") || false,
-    borderColor: loadValue("defaultBorderColor") || DEFAULT_BORDER_COLOR,
+    colorPreset: loadValue("defaultColorPreset") ?? "default",
+    defaultCards: loadValue("defaultCardTypes") ?? [],
+    borderEnabled: loadValue("defaultBorderEnabled") ?? false,
+    borderColor: loadValue("defaultBorderColor") ?? DEFAULT_BORDER_COLOR,
   };
 }
 
