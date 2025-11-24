@@ -144,7 +144,12 @@ export function StatCardTypeSelection({
                 (type.variations ? "default" : "");
               const supportsFavorites = FAVORITE_CARD_IDS.has(type.id);
               const isFavorite = showFavoritesByCard[type.id];
-              const labelMatch = /\((.*?)\)/.exec(type.label);
+              const openParenIndex = type.label.indexOf("(");
+              const closeParenIndex = openParenIndex >= 0 ? type.label.indexOf(")", openParenIndex + 1) : -1;
+              const labelTextInParens =
+                openParenIndex >= 0 && closeParenIndex >= 0
+                  ? type.label.slice(openParenIndex + 1, closeParenIndex)
+                  : undefined;
 
               let VariationIcon = List;
               if (currentVariation === "pie") VariationIcon = PieChart;
@@ -171,9 +176,9 @@ export function StatCardTypeSelection({
                         <Label className="cursor-pointer text-base font-semibold leading-none">
                           {type.label.split(" (")[0]}
                         </Label>
-                        {type.label.includes("(") && (
+                        {type.label.includes("(") && labelTextInParens && (
                           <p className="text-xs text-muted-foreground">
-                            {labelMatch?.[1]}
+                            {labelTextInParens}
                           </p>
                         )}
                       </div>
