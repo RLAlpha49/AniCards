@@ -89,7 +89,7 @@ export const ratelimit: Ratelimit = new Proxy({} as Record<string, unknown>, {
   set(_: unknown, prop: string | symbol, value: unknown) {
     _realRatelimit ??= new Ratelimit({
       redis: createRealRedisClient(),
-      limiter: Ratelimit.slidingWindow(5, "5 s"),
+      limiter: Ratelimit.slidingWindow(10, "5 s"),
     });
     (_realRatelimit as unknown as Record<string, unknown>)[
       prop as keyof typeof _realRatelimit
