@@ -30,19 +30,27 @@ export async function checkRateLimit(
   return null;
 }
 
-// Authentication validation
-export function validateAuth(
-  authToken: string | null,
-  ip: string,
+// Same-origin validation for internal requests
+export function validateSameOrigin(
+  request: Request,
   endpoint: string,
 ): NextResponse<ApiError> | null {
-  if (!authToken || authToken !== `Bearer ${process.env.API_AUTH_TOKEN}`) {
-    console.warn(`⚠️ [${endpoint}] Invalid auth token from IP: ${ip}`);
+  const origin = request.headers.get("origin");
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+
+  // Allow internal requests (no origin) or same-origin requests
+  const isSameOrigin = !origin || origin === appUrl;
+
+  if (process.env.NODE_ENV === "production" && !isSameOrigin) {
+    console.warn(
+      `🔐 [${endpoint}] Rejected cross-origin request from: ${origin}`,
+    );
     incrementAnalytics(
       `analytics:${endpoint.toLowerCase().replace(" ", "_")}:failed_requests`,
     ).catch(() => {});
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
   return null;
 }
 
@@ -119,6 +127,198 @@ export function validateRequestData(
   return null;
 }
 
+// Validation for store-users endpoint
+export function validateUserData(
+  data: Record<string, unknown>,
+  endpoint: string,
+): NextResponse<ApiError> | null {
+  // Check required fields
+  if (data.userId === undefined || data.userId === null) {
+    console.warn(`⚠️ [${endpoint}] Missing userId`);
+    return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+  }
+
+  // Validate userId is a number
+  const userId = Number(data.userId);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    console.warn(`⚠️ [${endpoint}] Invalid userId format: ${data.userId}`);
+    return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+  }
+
+  // Validate username if provided
+  if (data.username !== undefined && data.username !== null) {
+    if (typeof data.username !== "string") {
+      console.warn(`⚠️ [${endpoint}] Username must be a string`);
+      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+    }
+    // Check length constraints
+    if (data.username.length === 0 || data.username.length > 100) {
+      console.warn(
+        `⚠️ [${endpoint}] Username length invalid: ${data.username.length}`,
+      );
+      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+    }
+    // Check for suspicious characters or injection attempts
+    if (!/^[a-zA-Z0-9_-\s]*$/.test(data.username)) {
+      console.warn(`⚠️ [${endpoint}] Username contains invalid characters`);
+      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+    }
+  }
+
+  // Validate stats exists and is an object
+  if (!data.stats || typeof data.stats !== "object") {
+    console.warn(`⚠️ [${endpoint}] Stats must be a valid object`);
+    return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+  }
+
+  return null;
+}
+
+// Validation helpers for card data
+function isValidHexColor(color: string): boolean {
+  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/.test(color);
+}
+
+function validateCardRequiredFields(
+  card: Record<string, unknown>,
+  cardIndex: number,
+  endpoint: string,
+): NextResponse<ApiError> | null {
+  const requiredStringFields = [
+    "cardName",
+    "variation",
+    "titleColor",
+    "backgroundColor",
+    "textColor",
+    "circleColor",
+  ];
+
+  for (const field of requiredStringFields) {
+    if (typeof card[field] !== "string") {
+      console.warn(
+        `⚠️ [${endpoint}] Card ${cardIndex} missing or invalid field: ${field}`,
+      );
+      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+    }
+
+    const value = card[field];
+
+    // Validate color format
+    if (field.includes("Color") && !isValidHexColor(value)) {
+      console.warn(
+        `⚠️ [${endpoint}] Card ${cardIndex} invalid color format for ${field}: ${value}`,
+      );
+      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+    }
+
+    // Validate length constraints
+    if (value.length === 0 || value.length > 100) {
+      console.warn(
+        `⚠️ [${endpoint}] Card ${cardIndex} field ${field} exceeds length limits`,
+      );
+      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+    }
+  }
+
+  return null;
+}
+
+function validateCardOptionalFields(
+  card: Record<string, unknown>,
+  cardIndex: number,
+  endpoint: string,
+): NextResponse<ApiError> | null {
+  // Validate optional boolean fields
+  const optionalBooleanFields = [
+    "showFavorites",
+    "useStatusColors",
+    "showPiePercentages",
+  ];
+
+  for (const field of optionalBooleanFields) {
+    const value = card[field];
+    if (value !== undefined && typeof value !== "boolean") {
+      console.warn(
+        `⚠️ [${endpoint}] Card ${cardIndex} field ${field} must be boolean`,
+      );
+      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+    }
+  }
+
+  // Validate borderColor if present (optional)
+  if (card.borderColor !== undefined && typeof card.borderColor === "string") {
+    if (!isValidHexColor(card.borderColor)) {
+      console.warn(
+        `⚠️ [${endpoint}] Card ${cardIndex} invalid borderColor format: ${card.borderColor}`,
+      );
+      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+    }
+  }
+
+  return null;
+}
+
+// Validation for store-cards endpoint
+export function validateCardData(
+  cards: unknown,
+  userId: unknown,
+  endpoint: string,
+): NextResponse<ApiError> | null {
+  // Validate userId
+  if (userId === undefined || userId === null) {
+    console.warn(`⚠️ [${endpoint}] Missing userId`);
+    return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+  }
+
+  const userIdNum = Number(userId);
+  if (!Number.isInteger(userIdNum) || userIdNum <= 0) {
+    console.warn(`⚠️ [${endpoint}] Invalid userId format: ${userId}`);
+    return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+  }
+
+  // Validate cards is an array
+  if (!Array.isArray(cards)) {
+    console.warn(`⚠️ [${endpoint}] Cards must be an array`);
+    return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+  }
+
+  // Validate cards array is not too large (prevent DOS attacks)
+  if (cards.length > 21) {
+    console.warn(`⚠️ [${endpoint}] Too many cards provided: ${cards.length}`);
+    return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+  }
+
+  // Validate each card in the array
+  for (let i = 0; i < cards.length; i++) {
+    const card = cards[i];
+
+    if (typeof card !== "object" || card === null) {
+      console.warn(`⚠️ [${endpoint}] Card ${i} is not a valid object`);
+      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+    }
+
+    const cardRecord = card as Record<string, unknown>;
+
+    // Validate required fields
+    const requiredFieldsError = validateCardRequiredFields(
+      cardRecord,
+      i,
+      endpoint,
+    );
+    if (requiredFieldsError) return requiredFieldsError;
+
+    // Validate optional fields
+    const optionalFieldsError = validateCardOptionalFields(
+      cardRecord,
+      i,
+      endpoint,
+    );
+    if (optionalFieldsError) return optionalFieldsError;
+  }
+
+  return null;
+}
+
 // Common API initialization and validation
 export interface ApiInitResult {
   startTime: number;
@@ -141,6 +341,12 @@ export async function initializeApiRequest(
   const rateLimitResponse = await checkRateLimit(ip, endpoint);
   if (rateLimitResponse) {
     return { startTime, ip, endpoint, errorResponse: rateLimitResponse };
+  }
+
+  // Validate same-origin request (for write operations)
+  const sameOriginResponse = validateSameOrigin(request, endpoint);
+  if (sameOriginResponse) {
+    return { startTime, ip, endpoint, errorResponse: sameOriginResponse };
   }
 
   return { startTime, ip, endpoint };

@@ -26,19 +26,19 @@ jest.mock("@upstash/ratelimit", () => {
   };
 });
 
-// Set the required API authentication token.
-process.env.API_AUTH_TOKEN = "testtoken";
+// Set the app URL for same-origin validation testing
+process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
 
 // Import the module under test after the mocks above are defined.
 import { POST } from "./route";
 
 // Helper function to create test requests
-function createTestRequest(reqBody: object, authToken?: string): Request {
+function createTestRequest(reqBody: object, origin?: string): Request {
   return new Request("http://localhost/api/store-users", {
     method: "POST",
     headers: {
       "x-forwarded-for": "127.0.0.1",
-      ...(authToken !== undefined && { Authorization: `Bearer ${authToken}` }),
+      ...(origin && { origin }),
       "Content-Type": "application/json",
     },
     body: JSON.stringify(reqBody),
@@ -55,7 +55,7 @@ describe("Store Users API POST Endpoint", () => {
     mockLimit.mockResolvedValueOnce({ success: false });
 
     const reqBody = { userId: 1, username: "user1", stats: { score: 10 } };
-    const req = createTestRequest(reqBody, process.env.API_AUTH_TOKEN);
+    const req = createTestRequest(reqBody, "http://localhost");
 
     const res = await POST(req);
     expect(res.status).toBe(429);
@@ -63,28 +63,22 @@ describe("Store Users API POST Endpoint", () => {
     expect(data.error).toBe("Too many requests");
   });
 
-  it("should return 401 Unauthorized when auth token is missing", async () => {
+  it("should reject cross-origin requests in production when origin differs", async () => {
+    // Set NODE_ENV to production for this test
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+
     mockLimit.mockResolvedValueOnce({ success: true });
 
     const reqBody = { userId: 1, username: "user1", stats: { score: 10 } };
-    const req = createTestRequest(reqBody); // No auth token provided
+    const req = createTestRequest(reqBody, "http://different-origin.com");
 
     const res = await POST(req);
     expect(res.status).toBe(401);
     const data = await res.json();
     expect(data.error).toBe("Unauthorized");
-  });
 
-  it("should return 401 Unauthorized when auth token is invalid", async () => {
-    mockLimit.mockResolvedValueOnce({ success: true });
-
-    const reqBody = { userId: 1, username: "user1", stats: { score: 10 } };
-    const req = createTestRequest(reqBody, "invalidtoken");
-
-    const res = await POST(req);
-    expect(res.status).toBe(401);
-    const data = await res.json();
-    expect(data.error).toBe("Unauthorized");
+    process.env.NODE_ENV = originalEnv;
   });
 
   it("should successfully store new user data and update username index", async () => {
@@ -96,7 +90,7 @@ describe("Store Users API POST Endpoint", () => {
     mockRedisSet.mockResolvedValueOnce(true); // For username index.
 
     const reqBody = { userId: 1, username: "UserOne", stats: { score: 10 } };
-    const req = createTestRequest(reqBody, process.env.API_AUTH_TOKEN);
+    const req = createTestRequest(reqBody, "http://localhost");
 
     const res = await POST(req);
     expect(res.status).toBe(200);
@@ -132,7 +126,7 @@ describe("Store Users API POST Endpoint", () => {
     mockRedisSet.mockResolvedValueOnce(true);
 
     const reqBody = { userId: 2, stats: { score: 20 } };
-    const req = createTestRequest(reqBody, process.env.API_AUTH_TOKEN);
+    const req = createTestRequest(reqBody, "http://localhost");
 
     const res = await POST(req);
     expect(res.status).toBe(200);
@@ -161,7 +155,7 @@ describe("Store Users API POST Endpoint", () => {
     mockRedisSet.mockResolvedValueOnce(true); // For updating username index.
 
     const reqBody = { userId: 1, username: "NewName", stats: { score: 100 } };
-    const req = createTestRequest(reqBody, process.env.API_AUTH_TOKEN);
+    const req = createTestRequest(reqBody, "http://localhost");
 
     const res = await POST(req);
     expect(res.status).toBe(200);
@@ -181,7 +175,7 @@ describe("Store Users API POST Endpoint", () => {
     mockRedisSet.mockRejectedValueOnce(new Error("Redis failure"));
 
     const reqBody = { userId: 3, username: "user3", stats: { score: 30 } };
-    const req = createTestRequest(reqBody, process.env.API_AUTH_TOKEN);
+    const req = createTestRequest(reqBody, "http://localhost");
 
     const res = await POST(req);
     expect(res.status).toBe(500);

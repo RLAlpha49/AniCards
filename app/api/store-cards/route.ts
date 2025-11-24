@@ -6,6 +6,7 @@ import {
   logSuccess,
   redisClient,
   initializeApiRequest,
+  validateCardData,
 } from "@/lib/api-utils";
 
 // API endpoint for storing/updating user card configurations
@@ -16,24 +17,18 @@ export async function POST(request: Request): Promise<NextResponse> {
   const { startTime, endpoint } = init;
 
   try {
-    // Server-side validation: requests must originate from same origin or internal requests
-    // The rate limiting from initializeApiRequest provides additional protection
-    const origin = request.headers.get("origin");
-    const isInternalRequest =
-      !origin || origin === process.env.NEXT_PUBLIC_APP_URL;
-
-    if (process.env.NODE_ENV === "production" && !isInternalRequest) {
-      console.warn(
-        `🔐 [${endpoint}] Suspicious cross-origin request from: ${origin}`,
-      );
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const body = await request.json();
     const { statsData, userId, cards: incomingCards } = body;
     console.log(
       `📝 [${endpoint}] Processing user ${userId} with ${incomingCards?.length || 0} cards`,
     );
+
+    // Validate incoming data
+    const validationError = validateCardData(incomingCards, userId, endpoint);
+    if (validationError) {
+      await incrementAnalytics("analytics:store_cards:failed_requests");
+      return validationError;
+    }
 
     if (statsData?.error) {
       console.warn(

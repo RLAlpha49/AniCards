@@ -107,7 +107,9 @@ export function formatBytes(bytes: number, decimals = 2) {
   // Determine the appropriate unit based on the logarithm of the byte count.
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   // Calculate the size in the determined unit and format it.
-  return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
+  return (
+    Number.parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i]
+  );
 }
 
 /**
