@@ -11,61 +11,73 @@ interface PreviewShowcaseProps {
   onGetStarted: () => void;
 }
 
-const PREVIEW_CARDS = [
-  {
+type PreviewCard = {
+  title: string;
+  description: string;
+  cardType: string;
+  variation?: string;
+  category: string;
+  color?: string;
+  size?: "small" | "medium" | "large";
+};
+
+const DEFAULT_PREVIEW_CARD: Required<
+  Pick<PreviewCard, "variation" | "color" | "size">
+> = {
+  variation: "default",
+  color: "blue",
+  size: "medium",
+};
+
+function makePreviewCard(values: PreviewCard): PreviewCard {
+  return { ...DEFAULT_PREVIEW_CARD, ...values } as PreviewCard;
+}
+
+const PREVIEW_CARDS: PreviewCard[] = [
+  makePreviewCard({
     title: "Anime Statistics",
     description: "Complete overview of your anime watching journey",
     cardType: "animeStats",
-    variation: "default",
     category: "Main Stats",
-    color: "blue",
     size: "large",
-  },
-  {
+  }),
+  makePreviewCard({
     title: "Genre Distribution",
     description: "Beautiful pie chart of your favorite genres",
     cardType: "animeGenres",
     variation: "pie",
     category: "Analysis",
     color: "purple",
-    size: "medium",
-  },
-  {
+  }),
+  makePreviewCard({
     title: "Social Activity",
     description: "Community engagement and social metrics",
     cardType: "socialStats",
-    variation: "default",
     category: "Social",
     color: "green",
-    size: "medium",
-  },
-  {
+  }),
+  makePreviewCard({
     title: "Voice Actors",
     description: "Most frequent voice actors in your anime",
     cardType: "animeVoiceActors",
-    variation: "default",
     category: "Deep Dive",
     color: "orange",
-    size: "medium",
-  },
-  {
+  }),
+  makePreviewCard({
     title: "Score Distribution",
     description: "How you rate anime with detailed charts",
     cardType: "animeScoreDistribution",
-    variation: "default",
     category: "Analysis",
     color: "indigo",
-    size: "medium",
-  },
-  {
+  }),
+  makePreviewCard({
     title: "Manga Statistics",
     description: "Comprehensive manga reading statistics",
     cardType: "mangaStats",
-    variation: "default",
     category: "Main Stats",
     color: "pink",
     size: "large",
-  },
+  }),
 ];
 
 export function PreviewShowcase({

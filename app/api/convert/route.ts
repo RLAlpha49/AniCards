@@ -143,7 +143,10 @@ function mergeRanges(ranges: Array<[number, number]>): Array<[number, number]> {
   return merged;
 }
 
-function removeRangesFromInput(input: string, ranges: Array<[number, number]>): string {
+function removeRangesFromInput(
+  input: string,
+  ranges: Array<[number, number]>,
+): string {
   if (ranges.length === 0) return input;
   let out = "";
   let pos = 0;
@@ -155,7 +158,10 @@ function removeRangesFromInput(input: string, ranges: Array<[number, number]>): 
   return out;
 }
 
-function removeEmptyCssBlocksOnce(input: string): { css: string; removed: boolean } {
+function removeEmptyCssBlocksOnce(input: string): {
+  css: string;
+  removed: boolean;
+} {
   const rangesToRemove = findEmptyCssRanges(input);
   if (rangesToRemove.length === 0) return { css: input, removed: false };
   const merged = mergeRanges(rangesToRemove);

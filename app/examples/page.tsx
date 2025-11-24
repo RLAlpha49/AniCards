@@ -22,6 +22,11 @@ import {
   Sparkles,
   Search,
 } from "lucide-react";
+import {
+  CARD_GROUPS,
+  buildCardUrl,
+  VARIATION_LABEL_MAP,
+} from "@/lib/card-groups";
 import { usePageSEO } from "@/hooks/use-page-seo";
 import { Input } from "@/components/ui/input";
 
@@ -39,6 +44,7 @@ interface CardType {
   icon: React.ElementType;
   color: string;
 }
+type CardTypeMeta = Omit<CardType, "variants"> & { variants?: CardVariant[] };
 
 function ExampleCard({
   variant,
@@ -264,7 +270,7 @@ export default function ExamplesPage() {
   const BASE_URL = "https://anicards.alpha49.com/api/card.svg";
   const USER_ID = "542244";
 
-  const cardTypes: CardType[] = [
+  const cardTypeMetadata: CardTypeMeta[] = [
     // Main Stats
     {
       title: "Anime Statistics",
@@ -273,24 +279,6 @@ export default function ExamplesPage() {
       category: "Main Stats",
       icon: BarChart2,
       color: "blue",
-      variants: [
-        {
-          name: "Vertical",
-          url: `${BASE_URL}?cardType=animeStats&userId=${USER_ID}&variation=vertical`,
-        },
-        {
-          name: "Default",
-          url: `${BASE_URL}?cardType=animeStats&userId=${USER_ID}&variation=default`,
-        },
-        {
-          name: "Compact",
-          url: `${BASE_URL}?cardType=animeStats&userId=${USER_ID}&variation=compact`,
-        },
-        {
-          name: "Minimal",
-          url: `${BASE_URL}?cardType=animeStats&userId=${USER_ID}&variation=minimal`,
-        },
-      ],
     },
     {
       title: "Manga Statistics",
@@ -299,24 +287,6 @@ export default function ExamplesPage() {
       category: "Main Stats",
       icon: BookOpen,
       color: "pink",
-      variants: [
-        {
-          name: "Vertical",
-          url: `${BASE_URL}?cardType=mangaStats&userId=${USER_ID}&variation=vertical`,
-        },
-        {
-          name: "Default",
-          url: `${BASE_URL}?cardType=mangaStats&userId=${USER_ID}&variation=default`,
-        },
-        {
-          name: "Compact",
-          url: `${BASE_URL}?cardType=mangaStats&userId=${USER_ID}&variation=compact`,
-        },
-        {
-          name: "Minimal",
-          url: `${BASE_URL}?cardType=mangaStats&userId=${USER_ID}&variation=minimal`,
-        },
-      ],
     },
     {
       title: "Social Statistics",
@@ -324,20 +294,6 @@ export default function ExamplesPage() {
       category: "Main Stats",
       icon: Users,
       color: "green",
-      variants: [
-        {
-          name: "Default",
-          url: `${BASE_URL}?cardType=socialStats&userId=${USER_ID}&variation=default`,
-        },
-        {
-          name: "Compact",
-          url: `${BASE_URL}?cardType=socialStats&userId=${USER_ID}&variation=compact`,
-        },
-        {
-          name: "Minimal",
-          url: `${BASE_URL}?cardType=socialStats&userId=${USER_ID}&variation=minimal`,
-        },
-      ],
     },
 
     // Anime Breakdowns
@@ -348,20 +304,6 @@ export default function ExamplesPage() {
       category: "Anime Breakdowns",
       icon: PieChart,
       color: "purple",
-      variants: [
-        {
-          name: "Default",
-          url: `${BASE_URL}?cardType=animeGenres&userId=${USER_ID}&variation=default`,
-        },
-        {
-          name: "Pie Chart",
-          url: `${BASE_URL}?cardType=animeGenres&userId=${USER_ID}&variation=pie`,
-        },
-        {
-          name: "Bar Chart",
-          url: `${BASE_URL}?cardType=animeGenres&userId=${USER_ID}&variation=bar`,
-        },
-      ],
     },
     {
       title: "Anime Tags",
@@ -369,20 +311,6 @@ export default function ExamplesPage() {
       category: "Anime Breakdowns",
       icon: PieChart,
       color: "indigo",
-      variants: [
-        {
-          name: "Default",
-          url: `${BASE_URL}?cardType=animeTags&userId=${USER_ID}&variation=default`,
-        },
-        {
-          name: "Pie Chart",
-          url: `${BASE_URL}?cardType=animeTags&userId=${USER_ID}&variation=pie`,
-        },
-        {
-          name: "Bar Chart",
-          url: `${BASE_URL}?cardType=animeTags&userId=${USER_ID}&variation=bar`,
-        },
-      ],
     },
     {
       title: "Voice Actors",
@@ -390,20 +318,6 @@ export default function ExamplesPage() {
       category: "Anime Breakdowns",
       icon: Mic,
       color: "orange",
-      variants: [
-        {
-          name: "Default",
-          url: `${BASE_URL}?cardType=animeVoiceActors&userId=${USER_ID}&variation=default`,
-        },
-        {
-          name: "Pie Chart",
-          url: `${BASE_URL}?cardType=animeVoiceActors&userId=${USER_ID}&variation=pie`,
-        },
-        {
-          name: "Bar Chart",
-          url: `${BASE_URL}?cardType=animeVoiceActors&userId=${USER_ID}&variation=bar`,
-        },
-      ],
     },
     {
       title: "Animation Studios",
@@ -411,20 +325,6 @@ export default function ExamplesPage() {
       category: "Anime Breakdowns",
       icon: Building2,
       color: "teal",
-      variants: [
-        {
-          name: "Default",
-          url: `${BASE_URL}?cardType=animeStudios&userId=${USER_ID}&variation=default`,
-        },
-        {
-          name: "Pie Chart",
-          url: `${BASE_URL}?cardType=animeStudios&userId=${USER_ID}&variation=pie`,
-        },
-        {
-          name: "Bar Chart",
-          url: `${BASE_URL}?cardType=animeStudios&userId=${USER_ID}&variation=bar`,
-        },
-      ],
     },
     {
       title: "Anime Staff",
@@ -432,20 +332,6 @@ export default function ExamplesPage() {
       category: "Anime Breakdowns",
       icon: Users,
       color: "cyan",
-      variants: [
-        {
-          name: "Default",
-          url: `${BASE_URL}?cardType=animeStaff&userId=${USER_ID}&variation=default`,
-        },
-        {
-          name: "Pie Chart",
-          url: `${BASE_URL}?cardType=animeStaff&userId=${USER_ID}&variation=pie`,
-        },
-        {
-          name: "Bar Chart",
-          url: `${BASE_URL}?cardType=animeStaff&userId=${USER_ID}&variation=bar`,
-        },
-      ],
     },
     {
       title: "Anime Status Distribution",
@@ -454,20 +340,6 @@ export default function ExamplesPage() {
       category: "Anime Breakdowns",
       icon: TrendingUp,
       color: "emerald",
-      variants: [
-        {
-          name: "Default",
-          url: `${BASE_URL}?cardType=animeStatusDistribution&userId=${USER_ID}&variation=default`,
-        },
-        {
-          name: "Pie Chart",
-          url: `${BASE_URL}?cardType=animeStatusDistribution&userId=${USER_ID}&variation=pie&statusColors=true`,
-        },
-        {
-          name: "Bar Chart",
-          url: `${BASE_URL}?cardType=animeStatusDistribution&userId=${USER_ID}&variation=bar&statusColors=true`,
-        },
-      ],
     },
     {
       title: "Anime Format Distribution",
@@ -475,20 +347,6 @@ export default function ExamplesPage() {
       category: "Anime Breakdowns",
       icon: PieChart,
       color: "violet",
-      variants: [
-        {
-          name: "Default",
-          url: `${BASE_URL}?cardType=animeFormatDistribution&userId=${USER_ID}&variation=default`,
-        },
-        {
-          name: "Pie Chart",
-          url: `${BASE_URL}?cardType=animeFormatDistribution&userId=${USER_ID}&variation=pie`,
-        },
-        {
-          name: "Bar Chart",
-          url: `${BASE_URL}?cardType=animeFormatDistribution&userId=${USER_ID}&variation=bar`,
-        },
-      ],
     },
     {
       title: "Anime Country Distribution",
@@ -496,20 +354,6 @@ export default function ExamplesPage() {
       category: "Anime Breakdowns",
       icon: PieChart,
       color: "rose",
-      variants: [
-        {
-          name: "Default",
-          url: `${BASE_URL}?cardType=animeCountry&userId=${USER_ID}&variation=default`,
-        },
-        {
-          name: "Pie Chart",
-          url: `${BASE_URL}?cardType=animeCountry&userId=${USER_ID}&variation=pie`,
-        },
-        {
-          name: "Bar Chart",
-          url: `${BASE_URL}?cardType=animeCountry&userId=${USER_ID}&variation=bar`,
-        },
-      ],
     },
     {
       title: "Anime Score Distribution",
@@ -517,16 +361,6 @@ export default function ExamplesPage() {
       category: "Anime Breakdowns",
       icon: TrendingUp,
       color: "amber",
-      variants: [
-        {
-          name: "Default",
-          url: `${BASE_URL}?cardType=animeScoreDistribution&userId=${USER_ID}&variation=default`,
-        },
-        {
-          name: "Horizontal",
-          url: `${BASE_URL}?cardType=animeScoreDistribution&userId=${USER_ID}&variation=horizontal`,
-        },
-      ],
     },
     {
       title: "Anime Year Distribution",
@@ -534,16 +368,6 @@ export default function ExamplesPage() {
       category: "Anime Breakdowns",
       icon: TrendingUp,
       color: "lime",
-      variants: [
-        {
-          name: "Default",
-          url: `${BASE_URL}?cardType=animeYearDistribution&userId=${USER_ID}&variation=default`,
-        },
-        {
-          name: "Horizontal",
-          url: `${BASE_URL}?cardType=animeYearDistribution&userId=${USER_ID}&variation=horizontal`,
-        },
-      ],
     },
 
     // Manga Breakdowns
@@ -553,20 +377,6 @@ export default function ExamplesPage() {
       category: "Manga Breakdowns",
       icon: PieChart,
       color: "purple",
-      variants: [
-        {
-          name: "Default",
-          url: `${BASE_URL}?cardType=mangaGenres&userId=${USER_ID}&variation=default`,
-        },
-        {
-          name: "Pie Chart",
-          url: `${BASE_URL}?cardType=mangaGenres&userId=${USER_ID}&variation=pie`,
-        },
-        {
-          name: "Bar Chart",
-          url: `${BASE_URL}?cardType=mangaGenres&userId=${USER_ID}&variation=bar`,
-        },
-      ],
     },
     {
       title: "Manga Tags",
@@ -574,20 +384,6 @@ export default function ExamplesPage() {
       category: "Manga Breakdowns",
       icon: PieChart,
       color: "indigo",
-      variants: [
-        {
-          name: "Default",
-          url: `${BASE_URL}?cardType=mangaTags&userId=${USER_ID}&variation=default`,
-        },
-        {
-          name: "Pie Chart",
-          url: `${BASE_URL}?cardType=mangaTags&userId=${USER_ID}&variation=pie`,
-        },
-        {
-          name: "Bar Chart",
-          url: `${BASE_URL}?cardType=mangaTags&userId=${USER_ID}&variation=bar`,
-        },
-      ],
     },
     {
       title: "Manga Staff",
@@ -595,20 +391,6 @@ export default function ExamplesPage() {
       category: "Manga Breakdowns",
       icon: Users,
       color: "cyan",
-      variants: [
-        {
-          name: "Default",
-          url: `${BASE_URL}?cardType=mangaStaff&userId=${USER_ID}&variation=default`,
-        },
-        {
-          name: "Pie Chart",
-          url: `${BASE_URL}?cardType=mangaStaff&userId=${USER_ID}&variation=pie`,
-        },
-        {
-          name: "Bar Chart",
-          url: `${BASE_URL}?cardType=mangaStaff&userId=${USER_ID}&variation=bar`,
-        },
-      ],
     },
     {
       title: "Manga Status Distribution",
@@ -616,20 +398,6 @@ export default function ExamplesPage() {
       category: "Manga Breakdowns",
       icon: TrendingUp,
       color: "emerald",
-      variants: [
-        {
-          name: "Default",
-          url: `${BASE_URL}?cardType=mangaStatusDistribution&userId=${USER_ID}&variation=default`,
-        },
-        {
-          name: "Pie Chart",
-          url: `${BASE_URL}?cardType=mangaStatusDistribution&userId=${USER_ID}&variation=pie&statusColors=true`,
-        },
-        {
-          name: "Bar Chart",
-          url: `${BASE_URL}?cardType=mangaStatusDistribution&userId=${USER_ID}&variation=bar&statusColors=true`,
-        },
-      ],
     },
     {
       title: "Manga Format Distribution",
@@ -637,20 +405,6 @@ export default function ExamplesPage() {
       category: "Manga Breakdowns",
       icon: PieChart,
       color: "violet",
-      variants: [
-        {
-          name: "Default",
-          url: `${BASE_URL}?cardType=mangaFormatDistribution&userId=${USER_ID}&variation=default`,
-        },
-        {
-          name: "Pie Chart",
-          url: `${BASE_URL}?cardType=mangaFormatDistribution&userId=${USER_ID}&variation=pie`,
-        },
-        {
-          name: "Bar Chart",
-          url: `${BASE_URL}?cardType=mangaFormatDistribution&userId=${USER_ID}&variation=bar`,
-        },
-      ],
     },
     {
       title: "Manga Country Distribution",
@@ -658,20 +412,6 @@ export default function ExamplesPage() {
       category: "Manga Breakdowns",
       icon: PieChart,
       color: "rose",
-      variants: [
-        {
-          name: "Default",
-          url: `${BASE_URL}?cardType=mangaCountry&userId=${USER_ID}&variation=default`,
-        },
-        {
-          name: "Pie Chart",
-          url: `${BASE_URL}?cardType=mangaCountry&userId=${USER_ID}&variation=pie`,
-        },
-        {
-          name: "Bar Chart",
-          url: `${BASE_URL}?cardType=mangaCountry&userId=${USER_ID}&variation=bar`,
-        },
-      ],
     },
     {
       title: "Manga Score Distribution",
@@ -679,16 +419,6 @@ export default function ExamplesPage() {
       category: "Manga Breakdowns",
       icon: TrendingUp,
       color: "amber",
-      variants: [
-        {
-          name: "Default",
-          url: `${BASE_URL}?cardType=mangaScoreDistribution&userId=${USER_ID}&variation=default`,
-        },
-        {
-          name: "Horizontal",
-          url: `${BASE_URL}?cardType=mangaScoreDistribution&userId=${USER_ID}&variation=horizontal`,
-        },
-      ],
     },
     {
       title: "Manga Year Distribution",
@@ -696,18 +426,34 @@ export default function ExamplesPage() {
       category: "Manga Breakdowns",
       icon: TrendingUp,
       color: "lime",
-      variants: [
-        {
-          name: "Default",
-          url: `${BASE_URL}?cardType=mangaYearDistribution&userId=${USER_ID}&variation=default`,
-        },
-        {
-          name: "Horizontal",
-          url: `${BASE_URL}?cardType=mangaYearDistribution&userId=${USER_ID}&variation=horizontal`,
-        },
-      ],
     },
   ];
+
+  // Generate variants from shared CARD_GROUPS where possible to avoid duplication.
+  const cardTypesWithGeneratedVariants: CardType[] = cardTypeMetadata.map(
+    (ct) => {
+      const group = CARD_GROUPS.find((g) => g.cardTitle === ct.title);
+      if (!group) return { ...ct, variants: ct.variants ?? [] } as CardType;
+
+      const variants = group.variations.map((v) => {
+        const variation = typeof v === "string" ? v : v.variation;
+        const extras = typeof v === "string" ? undefined : v.extras;
+        const label = VARIATION_LABEL_MAP[variation] ?? variation;
+        return {
+          name: label,
+          url: buildCardUrl(
+            group.cardType,
+            variation,
+            extras,
+            BASE_URL,
+            USER_ID,
+          ),
+        } as CardVariant;
+      });
+
+      return { ...ct, variants } as CardType;
+    },
+  );
 
   const categories = [
     "Main Stats",
@@ -715,7 +461,7 @@ export default function ExamplesPage() {
     "Manga Breakdowns",
   ] as const;
 
-  const filteredCardTypes = cardTypes.filter(
+  const filteredCardTypes = cardTypesWithGeneratedVariants.filter(
     (card) =>
       card.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       card.description.toLowerCase().includes(searchQuery.toLowerCase()),
@@ -723,7 +469,7 @@ export default function ExamplesPage() {
 
   return (
     <div className="relative min-h-[90vh] w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
-      <GridPattern className="z-0" includeGradients={true} gradientCount={5} />
+      <GridPattern className="z-0" includeGradients={true} gradientCount={9} />
       <div className="relative z-10">
         {/* Header Section */}
         <section className="relative overflow-hidden border-b border-slate-200/60 dark:border-slate-800/60">
@@ -790,7 +536,7 @@ export default function ExamplesPage() {
                 {/* Quick Stats */}
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                   {categories.map((category) => {
-                    const count = cardTypes.filter(
+                    const count = cardTypesWithGeneratedVariants.filter(
                       (card) => card.category === category,
                     ).length;
                     const Icon = getCategoryIcon(category);
@@ -820,7 +566,7 @@ export default function ExamplesPage() {
                       <TrendingUp className="h-5 w-5 text-green-600 dark:text-green-400" />
                     </div>
                     <div className="text-2xl font-bold text-slate-900 dark:text-white">
-                      {cardTypes.reduce(
+                      {cardTypesWithGeneratedVariants.reduce(
                         (total, card) => total + card.variants.length,
                         0,
                       )}
