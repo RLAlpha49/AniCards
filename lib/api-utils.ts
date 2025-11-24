@@ -1,13 +1,102 @@
 import { NextResponse } from "next/server";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
+import type { Agent as HttpAgent } from "node:http";
+import type { Agent as HttpsAgent } from "node:https";
 
 // Shared Redis client and rate limiter configuration
-export const redisClient = Redis.fromEnv();
-export const ratelimit = new Ratelimit({
-  redis: redisClient,
-  limiter: Ratelimit.slidingWindow(5, "5 s"),
-});
+// Edge runtime compatibility: don't require Node-only modules on edge.
+// Prefer a single module-scoped client so it can be reused across requests.
+// Create a Node https agent with keepAlive only in Node server runtimes.
+let agent: HttpAgent | HttpsAgent | undefined = undefined;
+try {
+  // Prefer detecting the Edge runtime explicit flag for Next.js.
+  const isEdge = process?.env?.NEXT_RUNTIME === "edge";
+  const isNode = typeof process !== "undefined" && !!process.versions?.node;
+
+  if (isNode && !isEdge) {
+    // Use dynamic require here to keep this module compatible with edge runtimes
+    const https = require("node:https");
+    agent = new https.Agent({
+      keepAlive: true,
+      keepAliveMsecs: 30000,
+      maxSockets: 100,
+    });
+  }
+} catch (err) {
+  // Keep agent undefined if anything fails (safe fallback for edge or restricted runtimes)
+  // Log for debugging in dev environments to help find problems
+  if (process.env.NODE_ENV !== "production") {
+    console.debug(
+      "Warning: HTTPS Agent not available; continuing without keepAlive agent.",
+      err,
+    );
+  }
+  agent = undefined;
+}
+
+// Create the Redis client lazily to prevent calling `Redis.fromEnv()` during module initialization.
+// This avoids side effects in test environments (jest mocking) and preserves edge runtime safety.
+let _realRedisClient: Redis | undefined;
+function createRealRedisClient(): Redis {
+  _realRedisClient ??= Redis.fromEnv({
+    agent,
+    enableAutoPipelining: true,
+    retry: {
+      retries: 3,
+      backoff: (retryCount: number) => Math.round(Math.exp(retryCount) * 50),
+    },
+    latencyLogging: process.env.NODE_ENV !== "production",
+  });
+  return _realRedisClient;
+}
+
+export const redisClient: Redis = new Proxy({} as Record<string, unknown>, {
+  get(_: unknown, prop: string | symbol) {
+    const client = createRealRedisClient();
+    const value: unknown = (client as unknown as Record<string, unknown>)[
+      prop as keyof typeof client
+    ];
+    if (typeof value === "function")
+      return (...args: unknown[]) =>
+        (value as (...args: unknown[]) => unknown).apply(client, args);
+    return value;
+  },
+  set(_: unknown, prop: string | symbol, value: unknown) {
+    const client = createRealRedisClient();
+    (client as unknown as Record<string, unknown>)[
+      prop as keyof typeof client
+    ] = value;
+    return true;
+  },
+}) as unknown as Redis;
+
+let _realRatelimit: Ratelimit | undefined;
+export const ratelimit: Ratelimit = new Proxy({} as Record<string, unknown>, {
+  get(_: unknown, prop: string | symbol) {
+    _realRatelimit ??= new Ratelimit({
+      redis: createRealRedisClient(),
+      limiter: Ratelimit.slidingWindow(10, "5 s"),
+    });
+    const val: unknown = (_realRatelimit as unknown as Record<string, unknown>)[
+      prop as keyof typeof _realRatelimit
+    ];
+    if (typeof val === "function")
+      return (...args: unknown[]) =>
+        (val as (...args: unknown[]) => unknown).apply(_realRatelimit, args);
+    return val;
+  },
+  set(_: unknown, prop: string | symbol, value: unknown) {
+    _realRatelimit ??= new Ratelimit({
+      redis: createRealRedisClient(),
+      limiter: Ratelimit.slidingWindow(5, "5 s"),
+    });
+    (_realRatelimit as unknown as Record<string, unknown>)[
+      prop as keyof typeof _realRatelimit
+    ] = value;
+    return true;
+  },
+}) as unknown as Ratelimit;
 
 // Common response types
 export interface ApiError {
@@ -57,8 +146,7 @@ export function validateSameOrigin(
 // Analytics tracking helper
 export async function incrementAnalytics(metric: string): Promise<void> {
   try {
-    const analyticsClient = Redis.fromEnv();
-    await analyticsClient.incr(metric);
+    await redisClient.incr(metric);
   } catch (error) {
     // Silently fail analytics to avoid affecting main functionality
     console.warn(`Failed to increment analytics for ${metric}:`, error);

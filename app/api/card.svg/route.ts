@@ -1,5 +1,5 @@
 import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
+import { redisClient, incrementAnalytics } from "@/lib/api-utils";
 import {
   SocialStats,
   AnimeStats as TemplateAnimeStats,
@@ -19,8 +19,6 @@ import {
 
 import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
 
-// Rate limiter setup using Upstash Redis
-const redisClient = Redis.fromEnv();
 const ratelimit = new Ratelimit({
   redis: redisClient,
   limiter: Ratelimit.slidingWindow(100, "10 s"),
@@ -728,36 +726,30 @@ async function trackFailedRequest(
   baseCardType?: string,
   status?: number,
 ): Promise<void> {
-  const analyticsClient = Redis.fromEnv();
-  analyticsClient.incr("analytics:card_svg:failed_requests").catch(() => {});
+  incrementAnalytics("analytics:card_svg:failed_requests").catch(() => {});
   if (baseCardType) {
-    analyticsClient
-      .incr(`analytics:card_svg:failed_requests:${baseCardType}`)
-      .catch(() => {});
+    incrementAnalytics(
+      `analytics:card_svg:failed_requests:${baseCardType}`,
+    ).catch(() => {});
   }
   if (typeof status === "number") {
-    analyticsClient
-      .incr(`analytics:card_svg:failed_requests:status:${status}`)
-      .catch(() => {});
+    incrementAnalytics(
+      `analytics:card_svg:failed_requests:status:${status}`,
+    ).catch(() => {});
     if (baseCardType) {
-      analyticsClient
-        .incr(
-          `analytics:card_svg:failed_requests:${baseCardType}:status:${status}`,
-        )
-        .catch(() => {});
+      incrementAnalytics(
+        `analytics:card_svg:failed_requests:${baseCardType}:status:${status}`,
+      ).catch(() => {});
     }
   }
 }
 
 // Handle analytics tracking for successful requests
 async function trackSuccessfulRequest(baseCardType: string): Promise<void> {
-  const analyticsClient = Redis.fromEnv();
-  analyticsClient
-    .incr("analytics:card_svg:successful_requests")
-    .catch(() => {});
-  analyticsClient
-    .incr(`analytics:card_svg:successful_requests:${baseCardType}`)
-    .catch(() => {});
+  incrementAnalytics("analytics:card_svg:successful_requests").catch(() => {});
+  incrementAnalytics(
+    `analytics:card_svg:successful_requests:${baseCardType}`,
+  ).catch(() => {});
 }
 
 // Fetch and validate user data from Redis

@@ -37,28 +37,36 @@ jest.mock("@/lib/utils/milestones", () => ({
 }));
 
 jest.mock("@/lib/svg-templates/media-stats", () => ({
-  mediaStatsTemplate: jest.fn((data: { styles?: { borderColor?: string } }) =>
-    `<svg data-template="media" stroke="${data.styles?.borderColor ?? "none"}">Anime Stats</svg>`,
+  mediaStatsTemplate: jest.fn(
+    (data: { styles?: { borderColor?: string } }) =>
+      `<svg data-template="media" stroke="${data.styles?.borderColor ?? "none"}">Anime Stats</svg>`,
   ),
 }));
 
 // NEW: Added mock for social stats template.
 jest.mock("@/lib/svg-templates/social-stats", () => ({
-  socialStatsTemplate: jest.fn((data: { styles?: { borderColor?: string } }) =>
-    `<svg data-template="social" stroke="${data.styles?.borderColor ?? "none"}">Social Stats</svg>`,
+  socialStatsTemplate: jest.fn(
+    (data: { styles?: { borderColor?: string } }) =>
+      `<svg data-template="social" stroke="${data.styles?.borderColor ?? "none"}">Social Stats</svg>`,
   ),
 }));
 
 // NEW: Added mock for extra anime/manga stats template.
 jest.mock("@/lib/svg-templates/extra-anime-manga-stats", () => ({
-  extraAnimeMangaStatsTemplate: jest.fn((data: { styles?: { borderColor?: string }; fixedStatusColors?: boolean; showPiePercentages?: boolean }) =>
-    `<svg data-template="extra" stroke="${data.styles?.borderColor ?? "none"}" fixedStatusColors="${data.fixedStatusColors ?? false}" showPiePercentages="${data.showPiePercentages ?? false}">Extra Stats</svg>`,
+  extraAnimeMangaStatsTemplate: jest.fn(
+    (data: {
+      styles?: { borderColor?: string };
+      fixedStatusColors?: boolean;
+      showPiePercentages?: boolean;
+    }) =>
+      `<svg data-template="extra" stroke="${data.styles?.borderColor ?? "none"}" fixedStatusColors="${data.fixedStatusColors ?? false}" showPiePercentages="${data.showPiePercentages ?? false}">Extra Stats</svg>`,
   ),
 }));
 
 jest.mock("@/lib/svg-templates/distribution", () => ({
-  distributionTemplate: jest.fn((data: { styles?: { borderColor?: string } }) =>
-    `<svg data-template="distribution" stroke="${data.styles?.borderColor ?? "none"}">Distribution</svg>`,
+  distributionTemplate: jest.fn(
+    (data: { styles?: { borderColor?: string } }) =>
+      `<svg data-template="distribution" stroke="${data.styles?.borderColor ?? "none"}">Distribution</svg>`,
   ),
 }));
 
@@ -329,18 +337,14 @@ describe("Card SVG GET Endpoint", () => {
   });
 
   it("should propagate statusColors and piePercentages flags to extra template for status distribution cards", async () => {
-    const cardsData = createMockCardData(
-      "animeStatusDistribution",
-      "pie",
-      {
-        // Persisted flags start false; query params will set them true
-        useStatusColors: false,
-        showPiePercentages: false,
-        circleColor: "#3cc8ff",
-        backgroundColor: "#0b1622",
-        textColor: "#E8E8E8",
-      },
-    );
+    const cardsData = createMockCardData("animeStatusDistribution", "pie", {
+      // Persisted flags start false; query params will set them true
+      useStatusColors: false,
+      showPiePercentages: false,
+      circleColor: "#3cc8ff",
+      backgroundColor: "#0b1622",
+      textColor: "#E8E8E8",
+    });
     // Provide minimal status distribution data
     const userData = createMockUserData(542244, "testUser", {
       User: {
@@ -424,11 +428,18 @@ describe("Card SVG GET Endpoint", () => {
     };
     // We need to ensure subsequent GET uses this persisted card data - the first redis GET returns cards record
     const userData = createMockUserData(542244, "testUser", {
-      User: { statistics: { anime: { statuses: [{ status: "current", count: 2 }] } } },
+      User: {
+        statistics: { anime: { statuses: [{ status: "current", count: 2 }] } },
+      },
     });
-    const cardsStr = JSON.stringify({ ...expectedCardsRecord, updatedAt: new Date().toISOString() });
+    const cardsStr = JSON.stringify({
+      ...expectedCardsRecord,
+      updatedAt: new Date().toISOString(),
+    });
 
-    mockRedisGet.mockResolvedValueOnce(cardsStr).mockResolvedValueOnce(userData);
+    mockRedisGet
+      .mockResolvedValueOnce(cardsStr)
+      .mockResolvedValueOnce(userData);
 
     const req = new Request(
       createRequestUrl(baseUrl, {
@@ -444,7 +455,8 @@ describe("Card SVG GET Endpoint", () => {
     expect(body).toContain('stroke="#abcdef"');
     // Ensure template was invoked and flags passed
     expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
-    const callArgs = (extraAnimeMangaStatsTemplate as jest.Mock).mock.calls[0][0];
+    const callArgs = (extraAnimeMangaStatsTemplate as jest.Mock).mock
+      .calls[0][0];
     expect(callArgs.fixedStatusColors).toBeTruthy();
     expect(callArgs.showPiePercentages).toBeTruthy();
   });

@@ -1,4 +1,5 @@
-import { Redis } from "@upstash/redis";
+import { redisClient } from "@/lib/api-utils";
+import type { Redis as UpstashRedis } from "@upstash/redis";
 import { safeParse } from "@/lib/utils";
 
 // Helper function for cron authorization
@@ -162,7 +163,7 @@ function validateAnalyticsReport(obj: any): string[] {
 
 // Helper function to validate analytics reports list
 async function validateAnalyticsReportsList(
-  redisClient: Redis,
+  redisClient: UpstashRedis,
   key: string,
   inconsistencies: Array<{ key: string; issues: string[] }>,
 ): Promise<{ keysChecked: number; issuesFound: number }> {
@@ -197,7 +198,7 @@ async function validateAnalyticsReportsList(
 
 // Helper function to validate individual key
 async function validateIndividualKey(
-  redisClient: Redis,
+  redisClient: UpstashRedis,
   key: string,
   inconsistencies: Array<{ key: string; issues: string[] }>,
 ): Promise<{ keysChecked: number; issuesFound: number }> {
@@ -236,7 +237,7 @@ async function validateIndividualKey(
 
 // Helper function to validate keys for a pattern
 async function validatePatternKeys(
-  redisClient: Redis,
+  redisClient: UpstashRedis,
   pattern: string,
   inconsistencies: Array<{ key: string; issues: string[] }>,
 ): Promise<{ checked: number; inconsistencies: number }> {
@@ -272,7 +273,7 @@ async function validatePatternKeys(
 
 // Helper function to create and save validation report
 async function createAndSaveReport(
-  redisClient: Redis,
+  redisClient: UpstashRedis,
   summary: string,
   details: Record<string, { checked: number; inconsistencies: number }>,
   inconsistencies: Array<{ key: string; issues: string[] }>,
@@ -299,7 +300,6 @@ export async function POST(request: Request) {
   console.log("🛠️ [Data Validation Check] Starting data validation check...");
 
   try {
-    const redisClient = Redis.fromEnv();
     const patterns = ["user:*", "cards:*", "username:*", "analytics:*"];
     let totalKeysChecked = 0;
     let totalInconsistencies = 0;

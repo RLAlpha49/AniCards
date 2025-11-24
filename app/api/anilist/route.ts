@@ -1,6 +1,5 @@
-import { Redis } from "@upstash/redis";
 import { NextResponse } from "next/server";
-import { initializeApiRequest } from "@/lib/api-utils";
+import { initializeApiRequest, incrementAnalytics } from "@/lib/api-utils";
 
 interface GraphQLRequest {
   query: string;
@@ -62,8 +61,7 @@ function parseOperationInfo(requestData: GraphQLRequest): OperationInfo {
 // Track analytics for API requests
 async function trackAnalytics(metric: string): Promise<void> {
   try {
-    const analyticsClient = Redis.fromEnv();
-    await analyticsClient.incr(metric);
+    await incrementAnalytics(metric);
   } catch {
     // Silently fail for analytics
   }
