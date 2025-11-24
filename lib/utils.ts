@@ -166,7 +166,8 @@ export function toTemplateCardConfig(
   return {
     cardName: card.cardName,
     variation:
-      "variation" in card && (card as TemplateCardConfig).variation !== undefined
+      "variation" in card &&
+      (card as TemplateCardConfig).variation !== undefined
         ? (card as TemplateCardConfig).variation
         : defaultVariation,
     titleColor: card.titleColor,

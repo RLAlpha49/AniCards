@@ -66,6 +66,7 @@ export default function RootLayout({
         />
       </head>
       <body
+        id="app-root"
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID && (
