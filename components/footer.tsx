@@ -17,7 +17,7 @@ export default function Footer() {
   return (
     <footer
       className={`border-t bg-background/80 py-6 backdrop-blur-md dark:bg-slate-950/80 ${
-        isMobile ? "ml-0" : "ml-8"
+        isMobile ? "ml-0" : "ml-12"
       }`}
     >
       <div className="container flex flex-col items-center justify-between gap-4 md:flex-row">
