@@ -161,10 +161,14 @@ export function getAbsoluteUrl(url: string): string {
  */
 export function toTemplateCardConfig(
   card: StoredCardConfig | TemplateCardConfig,
+  defaultVariation = "default",
 ): TemplateCardConfig {
   return {
     cardName: card.cardName,
-    variation: "variation" in card ? card.variation : undefined,
+    variation:
+      "variation" in card && (card as TemplateCardConfig).variation !== undefined
+        ? (card as TemplateCardConfig).variation
+        : defaultVariation,
     titleColor: card.titleColor,
     backgroundColor: card.backgroundColor,
     textColor: card.textColor,
