@@ -26,6 +26,7 @@ import {
   CARD_GROUPS,
   buildCardUrl,
   VARIATION_LABEL_MAP,
+  DEFAULT_BASE_CARD_URL,
 } from "@/lib/card-groups";
 import { usePageSEO } from "@/hooks/use-page-seo";
 import { Input } from "@/components/ui/input";
@@ -267,7 +268,7 @@ export default function ExamplesPage() {
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const BASE_URL = "https://anicards.alpha49.com/api/card.svg";
+  const BASE_URL = DEFAULT_BASE_CARD_URL;
   const USER_ID = "542244";
 
   const cardTypeMetadata: CardTypeMeta[] = [
