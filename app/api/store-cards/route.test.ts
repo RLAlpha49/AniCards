@@ -14,11 +14,10 @@ jest.mock("@upstash/redis", () => {
 });
 
 jest.mock("@upstash/ratelimit", () => {
-  const RatelimitMock = jest.fn().mockImplementation(() => ({
-    limit: mockLimit,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  })) as any;
-  RatelimitMock.slidingWindow = jest.fn();
+  class RatelimitMock {
+    static readonly slidingWindow = jest.fn();
+    public limit = mockLimit;
+  }
   return {
     Ratelimit: RatelimitMock,
   };

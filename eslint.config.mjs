@@ -32,7 +32,7 @@ const eslintConfig = [
       "@next/next": nextPlugin,
     },
     rules: {
-      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-explicit-any": "error",
       "@next/next/no-img-element": "warn",
     },
   },

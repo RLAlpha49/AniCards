@@ -1,5 +1,5 @@
 // Card configuration type
-export interface CardConfig {
+export interface TemplateCardConfig {
   cardName: string;
   variation?: string;
   titleColor: string;
@@ -69,7 +69,7 @@ export interface SocialStats {
 // Database document types
 export interface CardsDocument {
   userId: number;
-  cards: CardConfig[];
+  cards: TemplateCardConfig[];
   updatedAt: Date;
 }
 

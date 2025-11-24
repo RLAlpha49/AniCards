@@ -183,7 +183,7 @@ export interface UserRecord {
  * Represents a card configuration.
  * Adjust properties based on your actual card config schema.
  */
-export interface CardConfig {
+export interface StoredCardConfig {
   variation: string;
   // A unique name identifier for the card (used for picking the right template)
   cardName: string;
@@ -212,7 +212,7 @@ export interface CardsRecord {
   // The user identifier that this record belongs to.
   userId: number;
   // An array of card configurations.
-  cards: CardConfig[];
+  cards: StoredCardConfig[];
   // The timestamp at which the record was last updated in ISO format.
   updatedAt: string;
 }

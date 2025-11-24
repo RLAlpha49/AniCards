@@ -1,5 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import type { StoredCardConfig } from "@/lib/types/records";
+import type { TemplateCardConfig } from "@/lib/types/card";
 
 // Utility functions for common application needs.
 // These helpers assist in merging class names, performing clipboard operations,
@@ -150,4 +152,41 @@ export function getAbsoluteUrl(url: string): string {
   if (!globalThis.window) return url;
   if (url.startsWith("http")) return url;
   return `${globalThis.window.location.origin}${url}`;
+}
+
+/**
+ * Converts a stored card configuration (StoredCardConfig) into the template-facing
+ * TemplateCardConfig shape. This ensures templates always receive the expected fields
+ * while the stored shape may include additional persistence-only flags.
+ */
+export function toTemplateCardConfig(
+  card: StoredCardConfig | TemplateCardConfig,
+): TemplateCardConfig {
+  return {
+    cardName: card.cardName,
+    variation: "variation" in card ? card.variation : undefined,
+    titleColor: card.titleColor,
+    backgroundColor: card.backgroundColor,
+    textColor: card.textColor,
+    circleColor: card.circleColor,
+    borderColor: "borderColor" in card ? card.borderColor : undefined,
+    useStatusColors:
+      "useStatusColors" in card ? card.useStatusColors : undefined,
+  };
+}
+
+/**
+ * Extracts the style subset from a stored or template card config so templates
+ * receive only the style values they need.
+ */
+export function extractStyles(
+  cardConfig: StoredCardConfig | TemplateCardConfig,
+) {
+  return {
+    titleColor: cardConfig.titleColor,
+    backgroundColor: cardConfig.backgroundColor,
+    textColor: cardConfig.textColor,
+    circleColor: cardConfig.circleColor,
+    borderColor: cardConfig.borderColor,
+  };
 }

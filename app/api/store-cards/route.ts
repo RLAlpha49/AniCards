@@ -1,4 +1,4 @@
-import { CardConfig, CardsRecord } from "@/lib/types/records";
+import { StoredCardConfig, CardsRecord } from "@/lib/types/records";
 import { NextResponse } from "next/server";
 import {
   incrementAnalytics,
@@ -49,7 +49,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const cardData: CardsRecord = {
       userId,
-      cards: incomingCards.map((card: CardConfig) => ({
+      cards: incomingCards.map((card: StoredCardConfig) => ({
         cardName: card.cardName,
         variation: card.variation,
         titleColor: card.titleColor,

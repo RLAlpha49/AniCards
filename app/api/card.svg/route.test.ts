@@ -22,11 +22,10 @@ import { GET } from "./route";
 
 // --- Mocks for external dependencies --- //
 jest.mock("@upstash/ratelimit", () => {
-  const RatelimitMock = jest.fn().mockImplementation(() => ({
-    limit: mockLimit,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  })) as any;
-  RatelimitMock.slidingWindow = jest.fn();
+  class RatelimitMock {
+    static readonly slidingWindow = jest.fn();
+    public limit = mockLimit;
+  }
   return {
     Ratelimit: RatelimitMock,
   };
@@ -52,9 +51,17 @@ jest.mock("@/lib/svg-templates/extra-anime-manga-stats", () => ({
 
 // Import the mocked template to assert call arguments
 import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats";
+import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
 
 jest.mock("@/lib/utils", () => ({
   safeParse: (str: string) => JSON.parse(str),
+  extractStyles: jest.fn((cardConfig: Partial<Record<string, unknown>>) => ({
+    titleColor: cardConfig.titleColor,
+    backgroundColor: cardConfig.backgroundColor,
+    textColor: cardConfig.textColor,
+    circleColor: cardConfig.circleColor,
+    borderColor: cardConfig.borderColor,
+  })),
   // Keep calculateMilestones from the dedicated module above.
 }));
 
@@ -135,10 +142,14 @@ function setupSuccessfulMocks(cardsData: string, userData: string) {
 }
 
 // Helper to validate successful SVG response
-async function expectSuccessfulSvgResponse(res: Response, expectedSvg: string) {
+async function expectSuccessfulSvgResponse(
+  res: Response,
+  expectedSvg: string,
+  bodyText?: string,
+) {
   expect(res.status).toBe(200);
   expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
-  const text = await getResponseText(res);
+  const text = bodyText ?? (await getResponseText(res));
   expect(text).toBe(expectedSvg);
 }
 
@@ -169,11 +180,7 @@ describe("Card SVG GET Endpoint", () => {
     const req = new Request(createRequestUrl(baseUrl, { userId: "542244" }));
 
     const res = await GET(req);
-    await expectErrorResponse(
-      res,
-      "Too many requests - try again later",
-      429,
-    );
+    await expectErrorResponse(res, "Too many requests - try again later", 429);
   });
 
   it("should return error for missing parameters", async () => {
@@ -256,7 +263,19 @@ describe("Card SVG GET Endpoint", () => {
       }),
     );
     const res = await GET(req);
-    await expectSuccessfulSvgResponse(res, "<svg>Anime Stats</svg>");
+    const body = await getResponseText(res);
+    await expectSuccessfulSvgResponse(res, "<svg>Anime Stats</svg>", body);
+
+    // Assert the template is called with only style subset (no persisted flags)
+    expect(mediaStatsTemplate).toHaveBeenCalled();
+    const callArgs = (mediaStatsTemplate as jest.Mock).mock.calls[0][0];
+    expect(callArgs.styles).toHaveProperty("titleColor");
+    expect(callArgs.styles).toHaveProperty("backgroundColor");
+    expect(callArgs.styles).toHaveProperty("textColor");
+    expect(callArgs.styles).toHaveProperty("circleColor");
+    // Ensure no persisted flags are accidentally passed in styles
+    expect(callArgs.styles.showPiePercentages).toBeUndefined();
+    expect(callArgs.styles.useStatusColors).toBeUndefined();
   });
 
   it("should pass favourites/staff to extraAnimeMangaStatsTemplate for animeStaff card", async () => {
@@ -314,6 +333,13 @@ describe("Card SVG GET Endpoint", () => {
       .calls[0][0];
     // template call args
     expect(callArgs.favorites).toContain("Favorite Staff");
+
+    // Ensure styles passed are narrow (don't include persisted flags)
+    expect(callArgs.styles).toHaveProperty("titleColor");
+    expect(callArgs.styles).toHaveProperty("backgroundColor");
+    expect(callArgs.styles).toHaveProperty("textColor");
+    expect(callArgs.styles.showPiePercentages).toBeUndefined();
+    expect(callArgs.styles.useStatusColors).toBeUndefined();
   });
 
   it("should return server error when SVG generation fails (inner try)", async () => {

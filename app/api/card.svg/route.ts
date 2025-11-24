@@ -1,7 +1,6 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import {
-  CardConfig,
   SocialStats,
   AnimeStats as TemplateAnimeStats,
   MangaStats as TemplateMangaStats,
@@ -10,8 +9,13 @@ import { calculateMilestones } from "@/lib/utils/milestones";
 import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
 import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats";
 import { distributionTemplate } from "@/lib/svg-templates/distribution";
-import { safeParse } from "@/lib/utils";
-import { UserRecord, CardsRecord, UserStatsData } from "@/lib/types/records";
+import { safeParse, extractStyles } from "@/lib/utils";
+import {
+  UserRecord,
+  CardsRecord,
+  UserStatsData,
+  StoredCardConfig,
+} from "@/lib/types/records";
 
 import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
 
@@ -231,21 +235,10 @@ function toTemplateSocialStats(userRecord: UserRecord): SocialStats {
 
 // Common interface for card generation parameters
 interface CardGenerationParams {
-  cardConfig: CardConfig;
+  cardConfig: StoredCardConfig;
   userRecord: UserRecord;
   variant: string;
   favorites?: string[];
-}
-
-// Extract common styles from card config
-function extractStyles(cardConfig: CardConfig) {
-  return {
-    titleColor: cardConfig.titleColor,
-    backgroundColor: cardConfig.backgroundColor,
-    textColor: cardConfig.textColor,
-    circleColor: cardConfig.circleColor,
-    borderColor: cardConfig.borderColor,
-  };
 }
 
 // Handle anime/manga stats cards
@@ -394,9 +387,7 @@ function generateCategoryCard(
     stats: items,
     showPieChart: variant === "pie",
     favorites,
-    showPiePercentages: (
-      cardConfig as CardConfig & { showPiePercentages?: boolean }
-    ).showPiePercentages,
+    showPiePercentages: !!cardConfig.showPiePercentages,
   });
 }
 
@@ -439,12 +430,8 @@ function generateStatusDistributionCard(
     format: displayNames[baseCardType],
     stats: statsList,
     showPieChart: mappedVariant === "pie",
-    fixedStatusColors: !!(
-      cardConfig as CardConfig & { useStatusColors?: boolean }
-    ).useStatusColors,
-    showPiePercentages: (
-      cardConfig as CardConfig & { showPiePercentages?: boolean }
-    ).showPiePercentages,
+    fixedStatusColors: !!cardConfig.useStatusColors,
+    showPiePercentages: !!cardConfig.showPiePercentages,
   });
 }
 
@@ -487,9 +474,7 @@ function generateFormatDistributionCard(
     format: displayNames[baseCardType],
     stats: statsList,
     showPieChart: mappedVariant === "pie",
-    showPiePercentages: (
-      cardConfig as CardConfig & { showPiePercentages?: boolean }
-    ).showPiePercentages,
+    showPiePercentages: !!cardConfig.showPiePercentages,
   });
 }
 
@@ -589,22 +574,22 @@ function generateCountryCard(
     format: displayNames[baseCardType],
     stats: list,
     showPieChart: mappedVariant === "pie",
-    showPiePercentages: (
-      cardConfig as CardConfig & { showPiePercentages?: boolean }
-    ).showPiePercentages,
+    showPiePercentages: !!cardConfig.showPiePercentages,
   });
 }
 
 // Function to generate SVG content based on card configuration and user stats
 function generateCardSVG(
-  cardConfig: CardConfig,
+  cardConfig: StoredCardConfig,
   userRecord: UserRecord,
   variant: "default" | "vertical" | "pie" | "compact" | "minimal" | "bar",
   favorites?: string[],
 ): string | Response {
   // Basic validation: card config and user stats must be present
   if (!cardConfig || !userRecord?.stats) {
-    const baseCardType = cardConfig ? cardConfig.cardName.split("-")[0] : undefined;
+    const baseCardType = cardConfig
+      ? cardConfig.cardName.split("-")[0]
+      : undefined;
     void trackFailedRequest(baseCardType, 404);
     return new Response(svgError("Missing card configuration or stats data"), {
       headers: errorHeaders(),
@@ -742,7 +727,10 @@ function extractAndValidateParams(
 }
 
 // Handle analytics tracking for failed requests
-async function trackFailedRequest(baseCardType?: string, status?: number): Promise<void> {
+async function trackFailedRequest(
+  baseCardType?: string,
+  status?: number,
+): Promise<void> {
   const analyticsClient = Redis.fromEnv();
   analyticsClient.incr("analytics:card_svg:failed_requests").catch(() => {});
   if (baseCardType) {
@@ -814,34 +802,45 @@ function processCardConfig(
   params: ValidatedParams,
   userDoc: UserRecord,
 ):
-  | { cardConfig: CardConfig; effectiveVariation: string; favorites: string[] }
+  | {
+      cardConfig: StoredCardConfig;
+      effectiveVariation: string;
+      favorites: string[];
+    }
   | Response {
   const { cardType, numericUserId, baseCardType } = params;
 
   // Find the specific card configuration
   const cardConfig = cardDoc.cards.find(
-    (c: CardConfig) => c.cardName === cardType,
+    (c: StoredCardConfig) => c.cardName === cardType,
   );
 
   if (!cardConfig) {
     console.warn(
       `⚠️ [Card SVG] Card config for ${cardType} not found for user ${numericUserId}`,
     );
-    return new Response(svgError("Card config not found. Try to regenerate the card."), {
-      headers: errorHeaders(),
-      status: 404,
-    });
+    return new Response(
+      svgError("Card config not found. Try to regenerate the card."),
+      {
+        headers: errorHeaders(),
+        status: 404,
+      },
+    );
   }
 
   // Determine effective variation
+  // Use a shallow clone to avoid mutating the original object returned from Redis
+  const effectiveCardConfig: StoredCardConfig = {
+    ...cardConfig,
+  } as StoredCardConfig;
   const effectiveVariation =
-    params.variationParam || cardConfig.variation || "default";
+    params.variationParam || effectiveCardConfig.variation || "default";
 
   // Process favorites
   let favorites: string[] = [];
   const useFavorites =
     params.showFavoritesParam === null
-      ? !!cardConfig.showFavorites
+      ? !!effectiveCardConfig.showFavorites
       : params.showFavoritesParam === "true";
 
   if (
@@ -861,17 +860,14 @@ function processCardConfig(
       baseCardType,
     )
   ) {
-    (cardConfig as CardConfig & { useStatusColors?: boolean }).useStatusColors =
-      true;
+    effectiveCardConfig.useStatusColors = true;
   }
 
   if (params.piePercentagesParam === "true") {
-    (
-      cardConfig as CardConfig & { showPiePercentages?: boolean }
-    ).showPiePercentages = true;
+    effectiveCardConfig.showPiePercentages = true;
   }
 
-  return { cardConfig, effectiveVariation, favorites };
+  return { cardConfig: effectiveCardConfig, effectiveVariation, favorites };
 }
 
 // Main GET handler for card SVG generation
