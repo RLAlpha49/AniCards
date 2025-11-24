@@ -29,21 +29,77 @@ export function cn(...inputs: ClassValue[]) {
  */
 export async function svgToPng(svgUrl: string): Promise<string> {
   try {
-    // Call the conversion API with the provided SVG URL.
     const response = await fetch("/api/convert", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ svgUrl }),
     });
 
-    // Extract and return the PNG data URL from the API response.
-    const { pngDataUrl } = await response.json();
-    return pngDataUrl;
+    const payload = await parseResponsePayload(response);
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to convert SVG: ${getResponseErrorMessage(response, payload)}`,
+      );
+    }
+
+    return extractPngDataUrl(payload);
   } catch (error) {
-    // Log the error for debugging and rethrow it.
     console.error("Conversion failed:", error);
     throw error;
   }
+}
+
+/**
+ * Try to parse a Response body as JSON; if that fails, return the text body.
+ * If both attempts fail, return null.
+ */
+async function parseResponsePayload(response: Response): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch {
+    try {
+      // Clone so reading text does not consume the original stream more than once.
+      return await response.clone().text();
+    } catch {
+      return null;
+    }
+  }
+}
+
+/**
+ * Create a human-friendly error message from the HTTP response and optional payload.
+ * If the payload contains an `error` or `message` field those are prioritized.
+ */
+function getResponseErrorMessage(response: Response, payload: unknown): string {
+  let message = `HTTP ${response.status} ${response.statusText}`;
+  if (!payload) return message;
+  if (typeof payload === "object" && payload !== null) {
+    const obj = payload as Record<string, unknown>;
+    if (typeof obj.error === "string" && obj.error.trim()) return obj.error;
+    if (typeof obj.message === "string" && obj.message.trim())
+      return obj.message;
+  }
+  if (typeof payload === "string" && payload.trim()) return payload;
+  return message;
+}
+
+/**
+ * Validate the parsed payload and extract the pngDataUrl property. Throws on invalid payloads.
+ */
+function extractPngDataUrl(payload: unknown): string {
+  if (!payload || typeof payload !== "object") {
+    throw new Error(
+      "Invalid response from convert API: missing or invalid pngDataUrl",
+    );
+  }
+  const maybe = (payload as Record<string, unknown>).pngDataUrl;
+  if (typeof maybe !== "string" || !maybe.trim()) {
+    throw new Error(
+      "Invalid response from convert API: missing or invalid pngDataUrl",
+    );
+  }
+  return maybe;
 }
 
 /**
