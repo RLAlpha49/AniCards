@@ -144,6 +144,40 @@ describe("Convert API POST Endpoint", () => {
   });
 
   describe("SVG sanitization policy", () => {
+    const defaultHeaders = {
+      "Content-Type": "application/json",
+      "x-forwarded-for": "127.0.0.1",
+    };
+
+    const makeRequestForSvgUrl = (url = "http://localhost/dummy.svg") =>
+      new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: defaultHeaders,
+        body: JSON.stringify({ svgUrl: url }),
+      }) as unknown as NextRequest;
+
+    const mockFetchSvg = (svg: string, ok = true, status = 200) => {
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        ok,
+        status,
+        text: async () => svg,
+      });
+    };
+
+    const postAndCaptureSvg = async (
+      svg: string,
+      url = "http://localhost/dummy.svg",
+      expectStatus = 200
+    ) => {
+      mockFetchSvg(svg, true, expectStatus);
+      lastSharpBuffer = null;
+      const req = makeRequestForSvgUrl(url);
+      const res = await POST(req);
+      expect(res.status).toBe(expectStatus);
+      const captured = (lastSharpBuffer as Buffer | null)?.toString() ?? "";
+      return { res, captured };
+    };
+
     it("removes @keyframes, animation declarations and .stagger when the rule contains animation, and normalizes inline animation/opacity values", async () => {
       const dummySVG = `
         <svg>
@@ -157,26 +191,7 @@ describe("Convert API POST Endpoint", () => {
           </g>
         </svg>`;
 
-      const req = new Request("http://localhost/api/convert", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-forwarded-for": "127.0.0.1",
-        },
-        body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
-      }) as unknown as NextRequest;
-
-      globalThis.fetch = jest.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        text: async () => dummySVG,
-      });
-
-      lastSharpBuffer = null;
-
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      const captured = (lastSharpBuffer as Buffer | null)?.toString() ?? "";
+      const { captured } = await postAndCaptureSvg(dummySVG);
       expect(captured).not.toMatch(/@keyframes/);
       expect(captured).not.toMatch(/animation\s*:/i);
       expect(captured).toMatch(/class=(['"]).*?keep.*?\1/);
@@ -197,27 +212,7 @@ describe("Convert API POST Endpoint", () => {
           </g>
         </svg>`;
 
-      const req = new Request("http://localhost/api/convert", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-forwarded-for": "127.0.0.1",
-        },
-        body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
-      }) as unknown as NextRequest;
-
-      globalThis.fetch = jest.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        text: async () => dummySVG,
-      });
-
-      lastSharpBuffer = null;
-
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      // Check lastSharpBuffer for sanitized SVG
-      const captured1 = (lastSharpBuffer as Buffer | null)?.toString() ?? "";
+      const { captured: captured1 } = await postAndCaptureSvg(dummySVG);
       // animation declarations removed from CSS
       expect(captured1).not.toMatch(/animation\s*:/i);
       // .stagger rule doesn't have animation; class should remain
@@ -226,26 +221,7 @@ describe("Convert API POST Endpoint", () => {
 
     it("handles minified CSS and removes class when required", async () => {
       const dummySVG = `<svg><style>.stagger{animation:fadeIn 0.3s;}</style><g class='stagger'><rect /></g></svg>`;
-      const req = new Request("http://localhost/api/convert", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-forwarded-for": "127.0.0.1",
-        },
-        body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
-      }) as unknown as NextRequest;
-
-      globalThis.fetch = jest.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        text: async () => dummySVG,
-      });
-
-      lastSharpBuffer = null;
-
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      const captured2 = (lastSharpBuffer as Buffer | null)?.toString() ?? "";
+      const { captured: captured2 } = await postAndCaptureSvg(dummySVG);
       expect(captured2).not.toMatch(/\.stagger/);
       expect(captured2).not.toMatch(/class=(['"]).*?\bstagger\b.*?\1/);
     });
@@ -260,22 +236,7 @@ describe("Convert API POST Endpoint", () => {
 
     it("does not remove classes that merely contain 'stagger' as a substring (tokenization test)", async () => {
       const dummySVG = `<svg><style>.stagger{animation:fadeIn 0.3s;} .stagger-other{fill: red;}</style><g class='stagger-other stagger'><rect /></g></svg>`;
-      const req = new Request("http://localhost/api/convert", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-forwarded-for": "127.0.0.1",
-        },
-        body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
-      }) as unknown as NextRequest;
-
-      globalThis.fetch = jest.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        text: async () => dummySVG,
-      });
-
-      lastSharpBuffer = null;
+      const { res } = await postAndCaptureSvg(dummySVG);
 
       const styleMatch = /<style>([\s\S]*?)<\/style>/i.exec(dummySVG);
       expect(styleMatch).toBeTruthy();
@@ -286,7 +247,6 @@ describe("Convert API POST Endpoint", () => {
       expect(sanitized).not.toMatch(/\.stagger(?![A-Za-z0-9_-])/);
       expect(sanitized).toMatch(/\.stagger-other/);
 
-      const res = await POST(req);
       expect(res.status).toBe(200);
     });
 

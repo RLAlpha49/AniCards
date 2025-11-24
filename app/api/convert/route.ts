@@ -296,22 +296,6 @@ export function removeEmptyCssRules(css: string): string {
 }
 
 /**
- * Extract the first <style> tag in the SVG and return its indices and inner CSS.
- * Returns null if not found.
- */
-function extractStyleTag(
-  svg: string,
-): { start: number; end: number; css: string } | null {
-  const re = /<style\b[^>]*>([\s\S]*?)<\/style>/i;
-  const match = re.exec(svg);
-  if (!match) return null;
-  const start = match.index;
-  const end = start + match[0].length;
-  const css = match[1];
-  return { start, end, css };
-}
-
-/**
  * Remove any at-rule blocks (e.g., @keyframes) found in CSS by name.
  * Uses a brace-balanced scan so it survives minified and nested content.
  */
@@ -431,13 +415,6 @@ function removeAnimationPropertiesFromBlock(inner: string): string {
   return inner;
 }
 
-/**
- * Sanitizes a CSS string policy-wise:
- * - Removes @keyframes blocks
- * - Removes animation-related declarations
- * - Rewrites opacity/visibility
- * - Removes `.stagger` selectors if the associated rule contains animation
- */
 /**
  * sanitizeCssContent - policy-driven CSS sanitizer
  *

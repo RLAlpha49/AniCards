@@ -157,38 +157,57 @@ type MilestoneFields = {
   dashoffset: string;
 };
 
+function buildCommonTemplateFields(
+  stats:
+    | UserStatsData["User"]["statistics"]["anime"]
+    | UserStatsData["User"]["statistics"]["manga"],
+  milestoneData: ReturnType<typeof calculateMilestones>,
+): Partial<TemplateAnimeStats & TemplateMangaStats> & MilestoneFields {
+  return {
+    count: stats.count ?? undefined,
+    meanScore: stats.meanScore ?? undefined,
+    standardDeviation: stats.standardDeviation ?? undefined,
+    genres: (stats.genres as { genre: string; count: number }[]) ?? [],
+    tags: (stats.tags as { tag: { name: string }; count: number }[]) ?? [],
+    staff: ((stats.staff as
+      | { staff: { name: { full: string } }; count: number }[]
+      | undefined) ?? []).map((s) => ({
+      staff: s.staff,
+      count: s.count,
+    })),
+    statuses:
+      (stats.statuses as { status: string; count: number }[] )
+        ?.map((s) => ({ status: s.status, amount: s.count })) ?? undefined,
+    formats: (stats.formats as { format: string; count: number }[]) ??
+      undefined,
+    scores: (stats.scores as { score: number; count: number }[]) ??
+      undefined,
+    releaseYears: (stats.releaseYears as { releaseYear: number; count: number }[]) ?? undefined,
+    countries: (stats.countries as { country: string; count: number }[]) ??
+      undefined,
+    previousMilestone: milestoneData.previousMilestone,
+    currentMilestone: milestoneData.currentMilestone,
+    percentage: milestoneData.percentage,
+    dasharray: milestoneData.dasharray,
+    dashoffset: milestoneData.dashoffset,
+  } as Partial<TemplateAnimeStats & TemplateMangaStats> & MilestoneFields;
+}
+
 function toTemplateAnimeStats(
   stats: UserStatsData["User"]["statistics"]["anime"],
   milestoneData: ReturnType<typeof calculateMilestones>,
 ): TemplateAnimeStats & MilestoneFields {
+  const common = buildCommonTemplateFields(stats, milestoneData);
   return {
-    count: stats.count,
+    ...common,
     episodesWatched: stats.episodesWatched,
     minutesWatched: stats.minutesWatched,
-    meanScore: stats.meanScore,
-    standardDeviation: stats.standardDeviation,
-    genres: stats.genres ?? [],
-    tags: stats.tags ?? [],
     // Map voiceActors.voiceActor to voice_actors.voice_actor to match template shape
     voice_actors: (stats.voiceActors ?? []).map((va) => ({
       voice_actor: va.voiceActor,
       count: va.count,
     })),
     studios: stats.studios ?? [],
-    staff: (stats.staff ?? []).map((s) => ({ staff: s.staff, count: s.count })),
-    statuses:
-      stats.statuses?.map((s) => ({ status: s.status, amount: s.count })) ??
-      undefined,
-    formats: stats.formats ?? undefined,
-    scores: stats.scores ?? undefined,
-    // releaseYears and countries are used for other templates
-    releaseYears: stats.releaseYears ?? undefined,
-    countries: stats.countries ?? undefined,
-    previousMilestone: milestoneData.previousMilestone,
-    currentMilestone: milestoneData.currentMilestone,
-    percentage: milestoneData.percentage,
-    dasharray: milestoneData.dasharray,
-    dashoffset: milestoneData.dashoffset,
   } as TemplateAnimeStats & MilestoneFields;
 }
 
@@ -196,27 +215,11 @@ function toTemplateMangaStats(
   stats: UserStatsData["User"]["statistics"]["manga"],
   milestoneData: ReturnType<typeof calculateMilestones>,
 ): TemplateMangaStats & MilestoneFields {
+  const common = buildCommonTemplateFields(stats, milestoneData);
   return {
-    count: stats.count,
+    ...common,
     chaptersRead: stats.chaptersRead,
     volumesRead: stats.volumesRead,
-    meanScore: stats.meanScore,
-    standardDeviation: stats.standardDeviation,
-    genres: stats.genres ?? [],
-    tags: stats.tags ?? [],
-    staff: (stats.staff ?? []).map((s) => ({ staff: s.staff, count: s.count })),
-    statuses:
-      stats.statuses?.map((s) => ({ status: s.status, amount: s.count })) ??
-      undefined,
-    formats: stats.formats ?? undefined,
-    scores: stats.scores ?? undefined,
-    releaseYears: stats.releaseYears ?? undefined,
-    countries: stats.countries ?? undefined,
-    previousMilestone: milestoneData.previousMilestone,
-    currentMilestone: milestoneData.currentMilestone,
-    percentage: milestoneData.percentage,
-    dasharray: milestoneData.dasharray,
-    dashoffset: milestoneData.dashoffset,
   } as TemplateMangaStats & MilestoneFields;
 }
 
@@ -391,43 +394,14 @@ function generateStatusDistributionCard(
   params: CardGenerationParams,
   baseCardType: string,
 ): string | Response {
-  const { cardConfig, userRecord, variant } = params;
-  const isAnime = baseCardType.startsWith("anime");
-  const statusStats = isAnime
-    ? userRecord.stats?.User?.statistics?.anime
-    : userRecord.stats?.User?.statistics?.manga;
-
-  const statusesData = (statusStats?.statuses ?? []) as {
-    status: string;
-    count: number;
-  }[];
-  const statsList = Array.isArray(statusesData)
-    ? statusesData.map((s) => ({ name: s.status, count: s.count ?? 0 }))
-    : [];
-
-  if (!statsList.length) {
-    // Metrics: no status distribution data found -> Not Found
-    void trackFailedRequest(baseCardType, 404);
-    return new Response(svgError("No status distribution data for this user"), {
-      headers: errorHeaders(),
-      status: 404,
-    });
-  }
-
-  const mappedVariant = (
-    ["pie", "bar"].includes(variant) ? variant : "default"
-  ) as PieBarVariant;
-
-  return extraAnimeMangaStatsTemplate({
-    username: userRecord.username ?? userRecord.userId,
-    variant: mappedVariant,
-    styles: extractStyles(cardConfig),
-    format: displayNames[baseCardType],
-    stats: statsList,
-    showPieChart: mappedVariant === "pie",
-    fixedStatusColors: !!cardConfig.useStatusColors,
-    showPiePercentages: !!cardConfig.showPiePercentages,
-  });
+  return generateSimpleListCard(
+    params,
+    baseCardType,
+    "statuses",
+    "status",
+    "No status distribution data for this user",
+    { fixedStatusColors: !!params.cardConfig.useStatusColors },
+  );
 }
 
 // Handle format distribution cards
@@ -435,32 +409,48 @@ function generateFormatDistributionCard(
   params: CardGenerationParams,
   baseCardType: string,
 ): string | Response {
+  return generateSimpleListCard(
+    params,
+    baseCardType,
+    "formats",
+    "format",
+    "No format distribution data for this user",
+  );
+}
+
+function generateSimpleListCard(
+  params: CardGenerationParams,
+  baseCardType: string,
+  listKey: string,
+  nameKey: string,
+  notFoundMessage: string,
+  extraTemplateProps?: Record<string, unknown>,
+): string | Response {
   const { cardConfig, userRecord, variant } = params;
   const isAnime = baseCardType.startsWith("anime");
-  const fmtStats = isAnime
+  const statsRoot = isAnime
     ? userRecord.stats?.User?.statistics?.anime
     : userRecord.stats?.User?.statistics?.manga;
 
-  const formatsData = (fmtStats?.formats ?? []) as {
-    format: string;
-    count: number;
-  }[];
-  const statsList = Array.isArray(formatsData)
-    ? formatsData.map((f) => ({ name: f.format, count: f.count ?? 0 }))
+  const data = ((statsRoot ?? {}) as unknown as Record<string, unknown>)[
+    listKey
+  ] as unknown[] | undefined;
+  const statsList = Array.isArray(data)
+    ? (data as { [k: string]: unknown }[]).map((entry) => ({
+        name: String(entry[nameKey] ?? ""),
+        count: (entry.count as number) ?? 0,
+      }))
     : [];
 
   if (!statsList.length) {
-    // Metrics: no format distribution data -> Not Found
     void trackFailedRequest(baseCardType, 404);
-    return new Response(svgError("No format distribution data for this user"), {
+    return new Response(svgError(notFoundMessage), {
       headers: errorHeaders(),
       status: 404,
     });
   }
 
-  const mappedVariant = (
-    ["pie", "bar"].includes(variant) ? variant : "default"
-  ) as PieBarVariant;
+  const mappedVariant = (["pie", "bar"].includes(variant) ? variant : "default") as PieBarVariant;
 
   return extraAnimeMangaStatsTemplate({
     username: userRecord.username ?? userRecord.userId,
@@ -470,6 +460,7 @@ function generateFormatDistributionCard(
     stats: statsList,
     showPieChart: mappedVariant === "pie",
     showPiePercentages: !!cardConfig.showPiePercentages,
+    ...extraTemplateProps,
   });
 }
 
