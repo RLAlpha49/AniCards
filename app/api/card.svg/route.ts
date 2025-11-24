@@ -256,9 +256,11 @@ function generateStatsCard(
   const { cardConfig, userRecord, variant } = params;
   const recordsStats = userRecord.stats?.User?.statistics?.[mediaType];
   if (!recordsStats) {
+    // Metrics: missing stats data for this card type -> Not Found
+    void trackFailedRequest(cardConfig.cardName.split("-")[0], 404);
     return new Response(svgError("Missing stats data for user"), {
       headers: errorHeaders(),
-      status: 200,
+      status: 404,
     });
   }
   let milestoneCount = 0;
@@ -376,9 +378,11 @@ function generateCategoryCard(
     : [];
 
   if (!items || items.length === 0) {
+    // Metrics: no category items found for this user -> Not Found
+    void trackFailedRequest(baseCardType, 404);
     return new Response(svgError("No category data available for this user"), {
       headers: errorHeaders(),
-      status: 200,
+      status: 404,
     });
   }
 
@@ -416,9 +420,11 @@ function generateStatusDistributionCard(
     : [];
 
   if (!statsList.length) {
+    // Metrics: no status distribution data found -> Not Found
+    void trackFailedRequest(baseCardType, 404);
     return new Response(svgError("No status distribution data for this user"), {
       headers: errorHeaders(),
-      status: 200,
+      status: 404,
     });
   }
 
@@ -462,9 +468,11 @@ function generateFormatDistributionCard(
     : [];
 
   if (!statsList.length) {
+    // Metrics: no format distribution data -> Not Found
+    void trackFailedRequest(baseCardType, 404);
     return new Response(svgError("No format distribution data for this user"), {
       headers: errorHeaders(),
-      status: 200,
+      status: 404,
     });
   }
 
@@ -514,9 +522,11 @@ function generateDistributionCard(
     : [];
 
   if (!statsList.length) {
+    // Metrics: no distribution data -> Not Found
+    void trackFailedRequest(baseCardType, 404);
     return new Response(svgError("No distribution data for this user"), {
       headers: errorHeaders(),
-      status: 200,
+      status: 404,
     });
   }
 
@@ -560,9 +570,11 @@ function generateCountryCard(
     : [];
 
   if (!list.length) {
+    // Metrics: no country data -> Not Found
+    void trackFailedRequest(baseCardType, 404);
     return new Response(svgError("No country data for this user"), {
       headers: errorHeaders(),
-      status: 200,
+      status: 404,
     });
   }
 
@@ -592,9 +604,11 @@ function generateCardSVG(
 ): string | Response {
   // Basic validation: card config and user stats must be present
   if (!cardConfig || !userRecord?.stats) {
+    const baseCardType = cardConfig ? cardConfig.cardName.split("-")[0] : undefined;
+    void trackFailedRequest(baseCardType, 404);
     return new Response(svgError("Missing card configuration or stats data"), {
       headers: errorHeaders(),
-      status: 200,
+      status: 404,
     });
   }
 
@@ -603,9 +617,11 @@ function generateCardSVG(
     !userRecord.stats?.User?.statistics?.anime &&
     !userRecord.stats?.User?.statistics?.manga
   ) {
+    // Base card type is available because cardConfig is present
+    void trackFailedRequest(cardConfig.cardName.split("-")[0], 404);
     return new Response(svgError("Missing card configuration or stats data"), {
       headers: errorHeaders(),
-      status: 200,
+      status: 404,
     });
   }
 
@@ -689,7 +705,7 @@ function extractAndValidateParams(
     console.warn(`⚠️ [Card SVG] Missing parameter: ${missingParam}`);
     return new Response(svgError("Missing parameters"), {
       headers: errorHeaders(),
-      status: 200,
+      status: 400,
     });
   }
 
@@ -699,7 +715,7 @@ function extractAndValidateParams(
     console.warn(`⚠️ [Card SVG] Invalid user ID format: ${userId}`);
     return new Response(svgError("Invalid user ID"), {
       headers: errorHeaders(),
-      status: 200,
+      status: 400,
     });
   }
 
@@ -709,7 +725,7 @@ function extractAndValidateParams(
     console.warn(`⚠️ [Card SVG] Invalid card type: ${cardType}`);
     return new Response(svgError("Invalid card type"), {
       headers: errorHeaders(),
-      status: 200,
+      status: 400,
     });
   }
 
@@ -726,13 +742,25 @@ function extractAndValidateParams(
 }
 
 // Handle analytics tracking for failed requests
-async function trackFailedRequest(baseCardType?: string): Promise<void> {
+async function trackFailedRequest(baseCardType?: string, status?: number): Promise<void> {
   const analyticsClient = Redis.fromEnv();
   analyticsClient.incr("analytics:card_svg:failed_requests").catch(() => {});
   if (baseCardType) {
     analyticsClient
       .incr(`analytics:card_svg:failed_requests:${baseCardType}`)
       .catch(() => {});
+  }
+  if (typeof status === "number") {
+    analyticsClient
+      .incr(`analytics:card_svg:failed_requests:status:${status}`)
+      .catch(() => {});
+    if (baseCardType) {
+      analyticsClient
+        .incr(
+          `analytics:card_svg:failed_requests:${baseCardType}:status:${status}`,
+        )
+        .catch(() => {});
+    }
   }
 }
 
@@ -767,10 +795,10 @@ async function fetchUserData(
     userDataStr === "null"
   ) {
     console.warn(`⚠️ [Card SVG] User ${numericUserId} data not found in Redis`);
-    await trackFailedRequest(baseCardType);
+    await trackFailedRequest(baseCardType, 404);
     return new Response(svgError("User data not found"), {
       headers: errorHeaders(),
-      status: 200,
+      status: 404,
     });
   }
 
@@ -799,13 +827,10 @@ function processCardConfig(
     console.warn(
       `⚠️ [Card SVG] Card config for ${cardType} not found for user ${numericUserId}`,
     );
-    return new Response(
-      svgError("Card config not found. Try to regenerate the card."),
-      {
-        headers: errorHeaders(),
-        status: 200,
-      },
-    );
+    return new Response(svgError("Card config not found. Try to regenerate the card."), {
+      headers: errorHeaders(),
+      status: 404,
+    });
   }
 
   // Determine effective variation
@@ -858,10 +883,10 @@ export async function GET(request: Request) {
   const { success } = await ratelimit.limit(ip);
   if (!success) {
     console.warn(`🚨 [Card SVG] Rate limit exceeded for IP: ${ip}`);
-    await trackFailedRequest();
+    await trackFailedRequest(undefined, 429);
     return new Response(svgError("Too many requests - try again later"), {
       headers: errorHeaders(),
-      status: 200,
+      status: 429,
     });
   }
 
@@ -870,7 +895,8 @@ export async function GET(request: Request) {
   // Extract and validate parameters
   const paramsResult = extractAndValidateParams(request);
   if (paramsResult instanceof Response) {
-    await trackFailedRequest();
+    // Track failed request with the returned status code from parameter validation
+    await trackFailedRequest(undefined, paramsResult.status);
     return paramsResult;
   }
 
@@ -894,7 +920,7 @@ export async function GET(request: Request) {
     // Process card configuration and apply parameters
     const configResult = processCardConfig(cardDoc, params, userDoc);
     if (configResult instanceof Response) {
-      await trackFailedRequest(params.baseCardType);
+      await trackFailedRequest(params.baseCardType, configResult.status);
       return configResult;
     }
 
@@ -944,11 +970,11 @@ export async function GET(request: Request) {
       console.error(`💥 [Card SVG] Stack Trace: ${error.stack}`);
     }
 
-    await trackFailedRequest(params.baseCardType);
+    await trackFailedRequest(params.baseCardType, 500);
 
     return new Response(svgError("Server Error"), {
       headers: errorHeaders(),
-      status: 200,
+      status: 500,
     });
   }
 }
