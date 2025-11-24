@@ -167,7 +167,7 @@ describe("Convert API POST Endpoint", () => {
     const postAndCaptureSvg = async (
       svg: string,
       url = "http://localhost/dummy.svg",
-      expectStatus = 200
+      expectStatus = 200,
     ) => {
       mockFetchSvg(svg, true, expectStatus);
       lastSharpBuffer = null;

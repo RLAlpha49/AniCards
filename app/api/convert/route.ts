@@ -179,36 +179,12 @@ function collectCssBlocks(input: string): Array<{
 
 function findEmptyCssRanges(input: string): Array<[number, number]> {
   const ranges: Array<[number, number]> = [];
-  const stack: number[] = [];
-  let i = 0;
-  while (i < input.length) {
-    const ch = input[i];
-    const nxt = input[i + 1];
-    // Skip comments
-    if (ch === "/" && nxt === "*") {
-      i = advanceIndexPastEndOfComment(input, i);
-      continue;
+  const blocks = collectCssBlocks(input);
+  for (const b of blocks) {
+    const inner = input.slice(b.openIdx + 1, b.closeIdx);
+    if (isWhitespaceOrComments(inner)) {
+      ranges.push([b.selectorStart, b.closeIdx + 1]);
     }
-    // Skip single-quoted strings
-    if (ch === "'") {
-      i = advanceIndexPastEndOfQuote(input, i, "'");
-      continue;
-    }
-    // Skip double-quoted strings
-    if (ch === '"') {
-      i = advanceIndexPastEndOfQuote(input, i, '"');
-      continue;
-    }
-    if (ch === "{") {
-      stack.push(i);
-      i += 1;
-      continue;
-    }
-    if (ch === "}") {
-      i = handleClosingBrace(input, stack, i, ranges);
-      continue;
-    }
-    i += 1;
   }
   return ranges;
 }
@@ -225,22 +201,6 @@ function findSelectorStart(input: string, openIdx: number): number {
     start -= 1;
   }
   return start + 1;
-}
-
-function handleClosingBrace(
-  input: string,
-  stack: number[],
-  i: number,
-  ranges: Array<[number, number]>,
-): number {
-  if (stack.length === 0) return i + 1;
-  const openIdx = stack.pop()!;
-  const inner = input.slice(openIdx + 1, i);
-  if (isWhitespaceOrComments(inner)) {
-    const start = findSelectorStart(input, openIdx);
-    ranges.push([start, i + 1]);
-  }
-  return i + 1;
 }
 
 function mergeRanges(ranges: Array<[number, number]>): Array<[number, number]> {

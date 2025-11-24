@@ -169,22 +169,27 @@ function buildCommonTemplateFields(
     standardDeviation: stats.standardDeviation ?? undefined,
     genres: (stats.genres as { genre: string; count: number }[]) ?? [],
     tags: (stats.tags as { tag: { name: string }; count: number }[]) ?? [],
-    staff: ((stats.staff as
-      | { staff: { name: { full: string } }; count: number }[]
-      | undefined) ?? []).map((s) => ({
+    staff: (
+      (stats.staff as
+        | { staff: { name: { full: string } }; count: number }[]
+        | undefined) ?? []
+    ).map((s) => ({
       staff: s.staff,
       count: s.count,
     })),
     statuses:
-      (stats.statuses as { status: string; count: number }[] )
-        ?.map((s) => ({ status: s.status, amount: s.count })) ?? undefined,
-    formats: (stats.formats as { format: string; count: number }[]) ??
+      (stats.statuses as { status: string; count: number }[])?.map((s) => ({
+        status: s.status,
+        amount: s.count,
+      })) ?? undefined,
+    formats:
+      (stats.formats as { format: string; count: number }[]) ?? undefined,
+    scores: (stats.scores as { score: number; count: number }[]) ?? undefined,
+    releaseYears:
+      (stats.releaseYears as { releaseYear: number; count: number }[]) ??
       undefined,
-    scores: (stats.scores as { score: number; count: number }[]) ??
-      undefined,
-    releaseYears: (stats.releaseYears as { releaseYear: number; count: number }[]) ?? undefined,
-    countries: (stats.countries as { country: string; count: number }[]) ??
-      undefined,
+    countries:
+      (stats.countries as { country: string; count: number }[]) ?? undefined,
     previousMilestone: milestoneData.previousMilestone,
     currentMilestone: milestoneData.currentMilestone,
     percentage: milestoneData.percentage,
@@ -450,7 +455,9 @@ function generateSimpleListCard(
     });
   }
 
-  const mappedVariant = (["pie", "bar"].includes(variant) ? variant : "default") as PieBarVariant;
+  const mappedVariant = (
+    ["pie", "bar"].includes(variant) ? variant : "default"
+  ) as PieBarVariant;
 
   return extraAnimeMangaStatsTemplate({
     username: userRecord.username ?? userRecord.userId,
