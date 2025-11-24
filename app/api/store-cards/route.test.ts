@@ -1,6 +1,6 @@
 // Declare mockLimit in the outer scope so tests can access it.
-var mockLimit = jest.fn().mockResolvedValue({ success: true });
-var mockRedisSet = jest.fn();
+let mockLimit = jest.fn().mockResolvedValue({ success: true });
+let mockRedisSet = jest.fn();
 
 jest.mock("@upstash/redis", () => {
   return {
@@ -57,7 +57,7 @@ describe("Store Cards API POST Endpoint", () => {
   it("should reject cross-origin requests in production when origin differs", async () => {
     // Set NODE_ENV to production for this test
     const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = "production";
+    (process.env as unknown as { NODE_ENV?: string }).NODE_ENV = "production";
 
     mockLimit.mockResolvedValueOnce({ success: true });
 
@@ -76,7 +76,7 @@ describe("Store Cards API POST Endpoint", () => {
     const data = await res.json();
     expect(data.error).toBe("Unauthorized");
 
-    process.env.NODE_ENV = originalEnv;
+    (process.env as unknown as { NODE_ENV?: string }).NODE_ENV = originalEnv;
   });
 
   it("should return 400 error when statsData contains an error", async () => {

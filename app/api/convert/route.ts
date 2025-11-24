@@ -32,7 +32,10 @@ function isWhitespaceOrComments(substr: string): boolean {
   return !inComment;
 }
 
-function removeEmptyCssBlocksOnce(input: string): { css: string; removed: boolean } {
+function removeEmptyCssBlocksOnce(input: string): {
+  css: string;
+  removed: boolean;
+} {
   const stack: number[] = [];
   const rangesToRemove: Array<[number, number]> = [];
   let inSingle = false;
@@ -93,7 +96,12 @@ function removeEmptyCssBlocksOnce(input: string): { css: string; removed: boolea
         // a '}', '{', or ';' (these delimit rules) or beginning of string.
         let start = openIdx - 1;
         while (start >= 0 && /\s/.test(input[start])) start -= 1;
-        while (start >= 0 && input[start] !== "}" && input[start] !== "{" && input[start] !== ";") {
+        while (
+          start >= 0 &&
+          input[start] !== "}" &&
+          input[start] !== "{" &&
+          input[start] !== ";"
+        ) {
           start -= 1;
         }
         rangesToRemove.push([start + 1, i + 1]);
@@ -186,7 +194,9 @@ export async function POST(request: NextRequest) {
       process.env.NODE_ENV === "development" ||
       allowedDomains.some(
         (domain) =>
-          domain === "localhost" || domain?.startsWith("127.") || domain === "::1",
+          domain === "localhost" ||
+          domain?.startsWith("127.") ||
+          domain === "::1",
       );
 
     // SSRF protection: Only allow listed domains and HTTPS (HTTP allowed in dev), disallow any local/loopback/private IP addresses
@@ -225,7 +235,8 @@ export async function POST(request: NextRequest) {
       !allowedDomains.includes(parsedUrl.hostname) ||
       !protocolValid ||
       (isIpAddress(parsedUrl.hostname) && !isLocalhost(parsedUrl.hostname)) ||
-      (isPrivateOrLoopbackIp(parsedUrl.hostname) && !isLocalhost(parsedUrl.hostname))
+      (isPrivateOrLoopbackIp(parsedUrl.hostname) &&
+        !isLocalhost(parsedUrl.hostname))
     ) {
       console.warn(
         `⚠️ [Convert API] Unauthorized or unsafe domain/protocol in 'svgUrl': ${parsedUrl.href} from ${ip}`,
@@ -276,7 +287,9 @@ export async function POST(request: NextRequest) {
     // 2. Process CSS styles
     // Regex explanation:
     // - <style>([\s\S]*?)<\/style> matches the <style> tag and everything inside it
-    const styleMatch = new RegExp(/<style>([\s\S]*?)<\/style>/).exec(svgContent);
+    const styleMatch = new RegExp(/<style>([\s\S]*?)<\/style>/).exec(
+      svgContent,
+    );
     let cssContent = styleMatch?.[1] || "";
     cssContent = cssContent
       // Regex explanation:

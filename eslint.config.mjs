@@ -1,11 +1,9 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath } from "node:url";
 import typescriptEslintParser from "@typescript-eslint/parser";
 import typescriptEslintPlugin from "@typescript-eslint/eslint-plugin";
 import nextPlugin from "@next/eslint-plugin-next";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 const eslintConfig = [
   {

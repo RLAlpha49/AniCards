@@ -539,7 +539,7 @@ function extractAndValidateParams(
 
   // Parameter validation: userId and cardType are required
   if (!userId || !cardType) {
-    const missingParam = !userId ? "userId" : "cardType";
+    const missingParam = userId ? "cardType" : "userId";
     console.warn(`⚠️ [Card SVG] Missing parameter: ${missingParam}`);
     return new Response(svgError("Missing parameters"), {
       headers: errorHeaders(),
@@ -548,8 +548,8 @@ function extractAndValidateParams(
   }
 
   // Validate userId format (must be a number)
-  const numericUserId = parseInt(userId);
-  if (isNaN(numericUserId)) {
+  const numericUserId = Number.parseInt(userId);
+  if (Number.isNaN(numericUserId)) {
     console.warn(`⚠️ [Card SVG] Invalid user ID format: ${userId}`);
     return new Response(svgError("Invalid user ID"), {
       headers: errorHeaders(),
@@ -669,9 +669,9 @@ function processCardConfig(
   // Process favorites
   let favorites: string[] = [];
   const useFavorites =
-    params.showFavoritesParam !== null
-      ? params.showFavoritesParam === "true"
-      : !!cardConfig.showFavorites;
+    params.showFavoritesParam === null
+      ? !!cardConfig.showFavorites
+      : params.showFavoritesParam === "true";
 
   if (
     useFavorites &&

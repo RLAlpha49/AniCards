@@ -325,14 +325,14 @@ export function UserPageClient() {
                     <li className="flex items-center gap-2">
                       <div className="h-1.5 w-1.5 rounded-full bg-blue-500"></div>
                       <span>
-                        Hard refresh (
+                        Hard refresh ({" "}
                         <kbd className="rounded border bg-blue-100 px-1.5 py-0.5 text-xs dark:bg-blue-800">
                           Ctrl+F5
                         </kbd>{" "}
                         or{" "}
                         <kbd className="rounded border bg-blue-100 px-1.5 py-0.5 text-xs dark:bg-blue-800">
                           Cmd+Shift+R
-                        </kbd>
+                        </kbd>{" "}
                         )
                       </span>
                     </li>

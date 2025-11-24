@@ -60,16 +60,16 @@ export function CustomScrollbar() {
 
     window.addEventListener("scroll", handleScroll);
     thumb.addEventListener("mousedown", handleMouseDown);
-    window.addEventListener("mouseup", handleMouseUp);
-    window.addEventListener("mousemove", handleMouseMove);
+    globalThis.addEventListener("mouseup", handleMouseUp);
+    globalThis.addEventListener("mousemove", handleMouseMove);
 
     updateScrollbar();
 
     return () => {
       window.removeEventListener("scroll", handleScroll);
       thumb.removeEventListener("mousedown", handleMouseDown);
-      window.removeEventListener("mouseup", handleMouseUp);
-      window.removeEventListener("mousemove", handleMouseMove);
+      globalThis.removeEventListener("mouseup", handleMouseUp);
+      globalThis.removeEventListener("mousemove", handleMouseMove);
     };
   }, []);
 

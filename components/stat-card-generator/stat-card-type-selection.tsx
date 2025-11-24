@@ -145,7 +145,10 @@ export function StatCardTypeSelection({
               const supportsFavorites = FAVORITE_CARD_IDS.has(type.id);
               const isFavorite = showFavoritesByCard[type.id];
               const openParenIndex = type.label.indexOf("(");
-              const closeParenIndex = openParenIndex >= 0 ? type.label.indexOf(")", openParenIndex + 1) : -1;
+              const closeParenIndex =
+                openParenIndex >= 0
+                  ? type.label.indexOf(")", openParenIndex + 1)
+                  : -1;
               const labelTextInParens =
                 openParenIndex >= 0 && closeParenIndex >= 0
                   ? type.label.slice(openParenIndex + 1, closeParenIndex)

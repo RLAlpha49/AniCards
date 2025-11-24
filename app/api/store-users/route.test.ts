@@ -1,7 +1,7 @@
 // Mocks for external dependencies.
-var mockLimit = jest.fn().mockResolvedValue({ success: true });
-var mockRedisSet = jest.fn();
-var mockRedisGet = jest.fn();
+let mockLimit = jest.fn().mockResolvedValue({ success: true });
+let mockRedisSet = jest.fn();
+let mockRedisGet = jest.fn();
 
 jest.mock("@upstash/redis", () => {
   return {
@@ -66,7 +66,7 @@ describe("Store Users API POST Endpoint", () => {
   it("should reject cross-origin requests in production when origin differs", async () => {
     // Set NODE_ENV to production for this test
     const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = "production";
+    (process.env as unknown as { NODE_ENV?: string }).NODE_ENV = "production";
 
     mockLimit.mockResolvedValueOnce({ success: true });
 
@@ -78,7 +78,7 @@ describe("Store Users API POST Endpoint", () => {
     const data = await res.json();
     expect(data.error).toBe("Unauthorized");
 
-    process.env.NODE_ENV = originalEnv;
+    (process.env as unknown as { NODE_ENV?: string }).NODE_ENV = originalEnv;
   });
 
   it("should successfully store new user data and update username index", async () => {

@@ -4,8 +4,8 @@
  */
 
 // Declare mockLimit in the outer scope so tests can access it.
-var mockLimit = jest.fn().mockResolvedValue({ success: true });
-var mockRedisGet = jest.fn();
+let mockLimit = jest.fn().mockResolvedValue({ success: true });
+let mockRedisGet = jest.fn();
 
 jest.mock("@upstash/redis", () => {
   return {
@@ -112,9 +112,9 @@ function createMockUserData(
 // Helper to create request URL
 function createRequestUrl(baseUrl: string, params: Record<string, string>) {
   const url = new URL(baseUrl);
-  Object.entries(params).forEach(([key, value]) => {
+  for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
-  });
+  }
   return url.toString();
 }
 

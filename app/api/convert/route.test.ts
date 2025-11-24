@@ -2,7 +2,8 @@ import { POST, removeEmptyCssRules } from "./route";
 import { NextRequest } from "next/server";
 import sharp from "sharp";
 
-process.env.NEXT_PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost";
+process.env.NEXT_PUBLIC_API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost";
 
 jest.mock("@upstash/redis", () => ({
   Redis: {
