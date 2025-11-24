@@ -400,7 +400,7 @@ function selectorContainsClass(selector: string, className: string): boolean {
   // a negative lookahead to ensure the following character is not a valid class
   // name character (letters, digits, underscore or hyphen).
   const safeName = className.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
-  const rx = new RegExp(`\\.${safeName}(?![A-Za-z0-9_-])`, "i");
+  const rx = new RegExp(String.raw`\.${safeName}(?![A-Za-z0-9_-])`, "i");
   return rx.test(selector);
 }
 
