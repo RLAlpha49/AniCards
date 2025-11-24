@@ -12,40 +12,12 @@ import { Redis } from "@upstash/redis";
  */
 function isWhitespaceOrComments(substr: string): boolean {
   let inComment = false;
-  for (let i = 0; i < substr.length; i++) {
+  let i = 0;
+  while (i < substr.length) {
     const ch = substr[i];
     const nxt = substr[i + 1];
     if (inComment) {
-      if (ch === "*" && nxt === "/") {
-        inComment = false;
-        i += 1; // skip '/'
-      }
-      continue;
-    }
-    if (ch === "/" && nxt === "*") {
-      inComment = true;
-      i += 1; // skip '*'
-      continue;
-    }
-    if (!/\s/.test(ch)) return false;
-  }
-  return !inComment;
-}
-
-function removeEmptyCssBlocksOnce(input: string): {
-  css: string;
-  removed: boolean;
-} {
-  const stack: number[] = [];
-  const rangesToRemove: Array<[number, number]> = [];
-  let inSingle = false;
-  let inDouble = false;
-  let inComment = false;
-  let i = 0;
-  while (i < input.length) {
-    const ch = input[i];
-    const nxt = input[i + 1];
-    if (inComment) {
+      // Found end of comment marker '*/'
       if (ch === "*" && nxt === "/") {
         inComment = false;
         i += 2; // skip '*/'
@@ -54,29 +26,62 @@ function removeEmptyCssBlocksOnce(input: string): {
       i += 1;
       continue;
     }
-    if (inSingle) {
-      if (ch === "'" && input[i - 1] !== "\\") inSingle = false;
-      i += 1;
-      continue;
-    }
-    if (inDouble) {
-      if (ch === '"' && input[i - 1] !== "\\") inDouble = false;
-      i += 1;
-      continue;
-    }
+    // Start of a comment '/*'
     if (ch === "/" && nxt === "*") {
       inComment = true;
-      i += 2;
+      i += 2; // skip '/*'
       continue;
     }
+    if (!/\s/.test(ch)) return false;
+    i += 1;
+  }
+  return !inComment;
+}
+
+function advanceIndexPastEndOfComment(input: string, start: number): number {
+  // start points to '/' and next is '*'
+  let j = start + 2;
+  while (j < input.length) {
+    if (input[j] === "*" && input[j + 1] === "/") return j + 2; // position after '*/'
+    j += 1;
+  }
+  return j;
+}
+
+function advanceIndexPastEndOfQuote(
+  input: string,
+  start: number,
+  quote: "'" | '"',
+): number {
+  let j = start + 1;
+  while (j < input.length) {
+    // treat escaped quotes as not closing
+    if (input[j] === quote && input[j - 1] !== "\\") return j + 1; // position after closing quote
+    j += 1;
+  }
+  return j;
+}
+
+function findEmptyCssRanges(input: string): Array<[number, number]> {
+  const ranges: Array<[number, number]> = [];
+  const stack: number[] = [];
+  let i = 0;
+  while (i < input.length) {
+    const ch = input[i];
+    const nxt = input[i + 1];
+    // Skip comments
+    if (ch === "/" && nxt === "*") {
+      i = advanceIndexPastEndOfComment(input, i);
+      continue;
+    }
+    // Skip single-quoted strings
     if (ch === "'") {
-      inSingle = true;
-      i += 1;
+      i = advanceIndexPastEndOfQuote(input, i, "'");
       continue;
     }
+    // Skip double-quoted strings
     if (ch === '"') {
-      inDouble = true;
-      i += 1;
+      i = advanceIndexPastEndOfQuote(input, i, '"');
       continue;
     }
     if (ch === "{") {
@@ -85,51 +90,76 @@ function removeEmptyCssBlocksOnce(input: string): {
       continue;
     }
     if (ch === "}") {
-      if (stack.length === 0) {
-        i += 1;
-        continue; // unmatched closing brace - ignore
-      }
-      const openIdx = stack.pop()!;
-      const inner = input.slice(openIdx + 1, i);
-      if (isWhitespaceOrComments(inner)) {
-        // Find selector start: walk backwards skipping whitespace until we hit
-        // a '}', '{', or ';' (these delimit rules) or beginning of string.
-        let start = openIdx - 1;
-        while (start >= 0 && /\s/.test(input[start])) start -= 1;
-        while (
-          start >= 0 &&
-          input[start] !== "}" &&
-          input[start] !== "{" &&
-          input[start] !== ";"
-        ) {
-          start -= 1;
-        }
-        rangesToRemove.push([start + 1, i + 1]);
-      }
-      i += 1;
+      i = handleClosingBrace(input, stack, i, ranges);
       continue;
     }
     i += 1;
   }
+  return ranges;
+}
 
-  if (rangesToRemove.length === 0) return { css: input, removed: false };
-  rangesToRemove.sort((a, b) => a[0] - b[0]);
+function findSelectorStart(input: string, openIdx: number): number {
+  let start = openIdx - 1;
+  while (start >= 0 && /\s/.test(input[start])) start -= 1;
+  while (
+    start >= 0 &&
+    input[start] !== "}" &&
+    input[start] !== "{" &&
+    input[start] !== ";"
+  ) {
+    start -= 1;
+  }
+  return start + 1;
+}
+
+function handleClosingBrace(
+  input: string,
+  stack: number[],
+  i: number,
+  ranges: Array<[number, number]>,
+): number {
+  if (stack.length === 0) return i + 1;
+  const openIdx = stack.pop()!;
+  const inner = input.slice(openIdx + 1, i);
+  if (isWhitespaceOrComments(inner)) {
+    const start = findSelectorStart(input, openIdx);
+    ranges.push([start, i + 1]);
+  }
+  return i + 1;
+}
+
+function mergeRanges(ranges: Array<[number, number]>): Array<[number, number]> {
+  if (ranges.length === 0) return [];
+  const sorted = ranges.slice().sort((a, b) => a[0] - b[0]);
   const merged: Array<[number, number]> = [];
-  for (const r of rangesToRemove) {
+  for (const r of sorted) {
     if (merged.length === 0) merged.push(r);
     else {
-      const lastR = merged[merged.length - 1];
+      const lastR = merged.at(-1)!;
       if (r[0] <= lastR[1]) lastR[1] = Math.max(lastR[1], r[1]);
       else merged.push(r);
     }
   }
+  return merged;
+}
+
+function removeRangesFromInput(input: string, ranges: Array<[number, number]>): string {
+  if (ranges.length === 0) return input;
   let out = "";
   let pos = 0;
-  for (const [s, e] of merged) {
+  for (const [s, e] of ranges) {
     out += input.slice(pos, s);
     pos = e;
   }
   out += input.slice(pos);
+  return out;
+}
+
+function removeEmptyCssBlocksOnce(input: string): { css: string; removed: boolean } {
+  const rangesToRemove = findEmptyCssRanges(input);
+  if (rangesToRemove.length === 0) return { css: input, removed: false };
+  const merged = mergeRanges(rangesToRemove);
+  const out = removeRangesFromInput(input, merged);
   return { css: out, removed: true };
 }
 
