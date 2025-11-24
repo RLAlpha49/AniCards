@@ -46,15 +46,58 @@ export async function POST(request: NextRequest) {
       ...(process.env.NEXT_PUBLIC_API_URL
         ? [new URL(process.env.NEXT_PUBLIC_API_URL).hostname]
         : []),
-      "localhost",
-      "127.0.0.1",
     ];
-    if (!allowedDomains.includes(parsedUrl.hostname)) {
+    // In development, allow localhost/127.0.0.1 with HTTP
+    const isDevelopment =
+      process.env.NODE_ENV === "development" ||
+      allowedDomains.some(
+        (domain) =>
+          domain === "localhost" || domain?.startsWith("127.") || domain === "::1",
+      );
+
+    // SSRF protection: Only allow listed domains and HTTPS (HTTP allowed in dev), disallow any local/loopback/private IP addresses
+    function isIpAddress(hostname: string): boolean {
+      // Detect IPv4 and IPv6 addresses
+      return (
+        /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname) || // IPv4
+        /^\[[0-9a-fA-F:]+\]$/.test(hostname) // IPv6 in brackets
+      );
+    }
+    // Check for private IP address ranges (e.g., 10.x.x.x, 192.168.x.x, 172.16-31.x.x)
+    function isPrivateOrLoopbackIp(hostname: string): boolean {
+      if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)) return false;
+      const parts = hostname.split(".").map((x) => Number.parseInt(x, 10));
+      if (parts[0] === 10) return true;
+      if (parts[0] === 127) return true;
+      if (parts[0] === 192 && parts[1] === 168) return true;
+      if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+      return false;
+    }
+    // Check if hostname is localhost or IPv6 loopback
+    function isLocalhost(hostname: string): boolean {
+      return (
+        hostname === "localhost" ||
+        hostname === "127.0.0.1" ||
+        hostname === "::1"
+      );
+    }
+
+    // In production, require HTTPS. In development, allow HTTP for localhost
+    const protocolValid = isDevelopment
+      ? parsedUrl.protocol === "https:" || parsedUrl.protocol === "http:"
+      : parsedUrl.protocol === "https:";
+
+    if (
+      !allowedDomains.includes(parsedUrl.hostname) ||
+      !protocolValid ||
+      (isIpAddress(parsedUrl.hostname) && !isLocalhost(parsedUrl.hostname)) ||
+      (isPrivateOrLoopbackIp(parsedUrl.hostname) && !isLocalhost(parsedUrl.hostname))
+    ) {
       console.warn(
-        `⚠️ [Convert API] Unauthorized domain in 'svgUrl': ${parsedUrl.hostname} from ${ip}`,
+        `⚠️ [Convert API] Unauthorized or unsafe domain/protocol in 'svgUrl': ${parsedUrl.href} from ${ip}`,
       );
       return NextResponse.json(
-        { error: "Unauthorized domain" },
+        { error: "Unauthorized or unsafe domain/protocol" },
         { status: 403 },
       );
     }
@@ -84,59 +127,59 @@ export async function POST(request: NextRequest) {
       // Regex explanation:
       // - opacity: 0;? matches opacity: 0;
       // - Replace all opacity: 0 declarations with 1
-      .replace(/opacity:\s*0;?/g, "opacity: 1;")
+      .replaceAll(/opacity:\s*0;?/g, "opacity: 1;")
       // Regex explanation:
       // - \.stagger matches the CSS class name
       // - {[^}]*} matches everything between curly braces
       // Remove entire .stagger CSS blocks
-      .replace(/\.stagger\s*{[^}]*}/g, "")
+      .replaceAll(/\.stagger\s*{[^}]*}/g, "")
       // Regex explanation:
       // - class="stagger" matches class="stagger"
       // Replace all class="stagger" attributes with an empty string
-      .replace(/class="stagger"/g, "");
+      .replaceAll('class="stagger"', "");
     console.log("🧹 [Convert API] Removed animation artifacts.");
 
     // 2. Process CSS styles
     // Regex explanation:
     // - <style>([\s\S]*?)<\/style> matches the <style> tag and everything inside it
-    const styleMatch = RegExp(/<style>([\s\S]*?)<\/style>/).exec(svgContent);
+    const styleMatch = new RegExp(/<style>([\s\S]*?)<\/style>/).exec(svgContent);
     let cssContent = styleMatch?.[1] || "";
     cssContent = cssContent
       // Regex explanation:
       // - @keyframes\s+\w+\s*{[^}]*} matches @keyframes blocks
       // - \s+\w+ matches the animation name
       // - {[^}]*} matches everything between curly braces
-      .replace(/@keyframes\s+\w+\s*{[^}]*}/g, "")
+      .replaceAll(/@keyframes\s+\w+\s*{[^}]*}/g, "")
       // Regex explanation:
       // - animation:\s*[^;]+;? matches animation properties
       // - Remove animation properties
-      .replace(/animation:\s*[^;]+;?/g, "")
+      .replaceAll(/animation:\s*[^;]+;?/g, "")
       // Regex explanation:
       // - } matches the closing brace
       // - \s*to\s* matches optional whitespace followed by "to"
       // - {[^}]*} matches everything between curly braces
       // Remove orphaned to-blocks
-      .replace(/}\s*to\s*{[^}]*}/g, "")
+      .replaceAll(/}\s*to\s*{[^}]*}/g, "")
       // Regex explanation:
       // - to\s* matches optional whitespace followed by "to"
       // - {[^}]*} matches everything between curly braces
-      .replace(/to\s*{[^}]*}/g, "")
+      .replaceAll(/to\s*{[^}]*}/g, "")
       // Regex explanation:
       // - opacity:\s*1;\.(\d+); matches opacity values with 1 and a decimal point
       // - Replace with opacity: 0. followed by the captured decimal
-      .replace(/opacity:\s*1;\.(\d+);/g, "opacity: 0.$1;")
+      .replaceAll(/opacity:\s*1;\.(\d+);/g, "opacity: 0.$1;")
       // Regex explanation:
       // - opacity:\s*0 matches opacity: 0
       // - Replace with opacity: 1
-      .replace(/opacity:\s*0/g, "opacity: 1")
+      .replaceAll(/opacity:\s*0/g, "opacity: 1")
       // Regex explanation:
       // - visibility:\s*hidden matches visibility: hidden
       // - Replace with visibility: visible
-      .replace(/visibility:\s*hidden/g, "visibility: visible")
+      .replaceAll(/visibility:\s*hidden/g, "visibility: visible")
       // Regex explanation:
       // - [.#a-zA-Z0-9_\-\s,>:\[\]="']+ matches a selector (class, id, element, etc.)
       // - {\s*} matches empty ruleset with optional whitespace
-      .replace(/([.#a-zA-Z0-9_\-\s,>:[\]="']+){\s*}/g, "");
+      .replaceAll(/([.#a-zA-Z0-9_\-\s,>:[\]="']+){\s*}/g, "");
 
     // Rebuild SVG with processed styles
     // Regex explanation:
@@ -152,15 +195,15 @@ export async function POST(request: NextRequest) {
       // Regex explanation:
       // - animation-delay:\s*\d+ms;? matches animation-delay properties
       // - Remove animation-delay properties
-      .replace(/animation-delay:\s*\d+ms;?/g, "")
+      .replaceAll(/animation-delay:\s*\d+ms;?/g, "")
       // Regex explanation:
       // - style="" matches style attributes
       // - Remove empty style attributes
-      .replace(/ style=""/g, "")
+      .replaceAll(' style=""', "")
       // Regex explanation:
       // - style="animation-delay: \d+ms" matches style attributes containing only animation-delay
       // - Remove style attributes containing only animation-delay
-      .replace(/ style="animation-delay: \d+ms"/g, "");
+      .replaceAll(/ style="animation-delay: \d+ms"/g, "");
     console.log("🧼 [Convert API] Final SVG cleanup completed.");
 
     // 4. Convert the processed SVG to PNG using sharp
