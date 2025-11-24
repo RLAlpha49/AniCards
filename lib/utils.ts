@@ -130,8 +130,28 @@ export function safeParse<T>(data: unknown): T {
       // Attempt to parse the data string as JSON.
       return JSON.parse(data);
     } catch (error) {
-      // Log the failure along with the data that caused the error.
-      console.error("Failed to parse JSON:", data);
+      const message = error instanceof Error ? error.message : String(error);
+      const isProduction =
+        typeof process !== "undefined" &&
+        process.env?.NODE_ENV === "production";
+
+      const maxSnippet = 200;
+      const length = data.length;
+
+      if (isProduction) {
+        console.error(
+          `Failed to parse JSON: ${message}. Payload length: ${length}`,
+        );
+      } else {
+        const snippet = data.slice(0, maxSnippet);
+        const truncated = length > maxSnippet ? "..." : "";
+        console.error(
+          `Failed to parse JSON: ${message}. Payload snippet (first ${Math.min(
+            maxSnippet,
+            length,
+          )} chars, length ${length}): ${snippet}${truncated}`,
+        );
+      }
       throw error;
     }
   }
