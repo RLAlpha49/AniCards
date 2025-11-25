@@ -588,21 +588,17 @@ export function GeneratorProvider({
     (next: string[] | ((prev: string[]) => string[])) => {
       if (typeof next === "function") {
         setSelectedCards((prev) => {
-          const nextArr = (next as (p: string[]) => string[])(prev);
+          const nextArr = next(prev);
           try {
             saveDefaultCardTypes(nextArr);
           } catch {}
           return nextArr;
         });
-      } else {
-        setSelectedCards(next);
-        try {
-          saveDefaultCardTypes(next);
-        } catch {}
+        return;
       }
       setSelectedCards(next);
       try {
-        saveDefaultCardTypes(next as string[]);
+        saveDefaultCardTypes(next);
       } catch {}
     },
     [],
