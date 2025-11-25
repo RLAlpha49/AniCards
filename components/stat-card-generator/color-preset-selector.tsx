@@ -1,8 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { trackColorPresetSelection } from "@/lib/utils/google-analytics";
-import { cn } from "@/lib/utils";
-import { Check, Moon, Sun, Palette } from "lucide-react";
+import { cn, isGradient, colorValueToString } from "@/lib/utils";
+import { Check, Moon, Sun, Palette, Layers } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -10,6 +10,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useState } from "react";
+import type { ColorValue } from "@/lib/types/card";
 
 /**
  * Props for the ColorPresetSelector component.
@@ -21,7 +22,7 @@ import { useState } from "react";
 export interface ColorPresetSelectorProps {
   selectedPreset: string;
   presets: {
-    [key: string]: { colors: string[]; mode: string };
+    [key: string]: { colors: ColorValue[]; mode: string };
   };
   onPresetChange: (preset: string) => void;
 }
@@ -32,7 +33,28 @@ const DEFAULT_VISIBLE_PRESETS = 8;
  * Tuple for preset entries, [key, { colors, mode }].
  * @source
  */
-type PresetEntry = [string, { colors: string[]; mode: string }];
+type PresetEntry = [string, { colors: ColorValue[]; mode: string }];
+
+/** Check if a preset contains any gradient colors. */
+function hasGradient(colors: ColorValue[]): boolean {
+  return colors.some(isGradient);
+}
+
+/** Convert a ColorValue to a CSS background style string. */
+function colorToCssBackground(color: ColorValue): string {
+  if (isGradient(color)) {
+    const stops = color.stops
+      .map((s) => `${s.color} ${s.offset * 100}%`)
+      .join(", ");
+    if (color.type === "radial") {
+      const cx = color.cx ?? 50;
+      const cy = color.cy ?? 50;
+      return `radial-gradient(circle at ${cx}% ${cy}%, ${stops})`;
+    }
+    return `linear-gradient(${color.angle ?? 0}deg, ${stops})`;
+  }
+  return color;
+}
 
 /**
  * Renders the available color presets and lets the user pick one.
@@ -123,6 +145,7 @@ export function ColorPresetSelector({
           {visiblePresets.map(([key, { colors, mode }]) => {
             const isSelected = selectedPreset === key;
             const isCustom = key === "custom";
+            const containsGradient = hasGradient(colors);
 
             return (
               <Tooltip key={key}>
@@ -146,9 +169,9 @@ export function ColorPresetSelector({
                       <div className="flex h-full w-full">
                         {colors.map((color, i) => (
                           <div
-                            key={`${color}-${i}`}
+                            key={`${colorValueToString(color)}-${i}`}
                             className="h-full flex-1"
-                            style={{ backgroundColor: color }}
+                            style={{ background: colorToCssBackground(color) }}
                           />
                         ))}
                       </div>
@@ -160,6 +183,13 @@ export function ColorPresetSelector({
                         <div className="rounded-full bg-white p-1 shadow-sm dark:bg-gray-900">
                           <Check className="h-3 w-3 text-blue-600 dark:text-blue-400" />
                         </div>
+                      </div>
+                    )}
+
+                    {/* Gradient Indicator (Top Left) */}
+                    {containsGradient && !isCustom && (
+                      <div className="absolute top-1 left-1 rounded-full bg-black/10 p-0.5 backdrop-blur-sm dark:bg-white/10">
+                        <Layers className="h-2.5 w-2.5 text-purple-600 dark:text-purple-300" />
                       </div>
                     )}
 
@@ -185,6 +215,9 @@ export function ColorPresetSelector({
                   <span className="text-xs text-muted-foreground">
                     ({mode === "light" ? "Light" : "Dark"})
                   </span>
+                  {containsGradient && (
+                    <span className="text-xs text-purple-500">• Gradient</span>
+                  )}
                 </TooltipContent>
               </Tooltip>
             );

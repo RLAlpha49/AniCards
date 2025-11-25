@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import { AnimatePresence, motion as m, motion } from "framer-motion";
 
 import { Switch } from "@/components/ui/switch";
@@ -15,6 +15,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { colorPresets, statCardTypes } from "@/components/stat-card-generator";
 import { ColorPickerGroup } from "@/components/stat-card-generator/color-picker-group";
 import { DEFAULT_BORDER_COLOR } from "@/lib/data";
+import type { ColorValue } from "@/lib/types/card";
+import { isGradient } from "@/lib/utils";
 
 /**
  * Set of card type IDs that support the "Show Favorites" option.
@@ -128,6 +130,24 @@ export function DefaultCardSettings({
    * @source
    */
   const toggle = (g: string) => setOpenGroups((o) => ({ ...o, [g]: !o[g] }));
+
+  /**
+   * Wrapper for border color change that handles ColorValue type.
+   * Border only supports solid colors, so gradients are converted to their first stop.
+   * @source
+   */
+  const handleBorderColorChange = useCallback(
+    (value: ColorValue) => {
+      if (isGradient(value)) {
+        // Border only supports solid colors, use first stop
+        onBorderColorChange(value.stops[0]?.color ?? DEFAULT_BORDER_COLOR);
+      } else {
+        onBorderColorChange(value);
+      }
+    },
+    [onBorderColorChange],
+  );
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -213,7 +233,7 @@ export function DefaultCardSettings({
                       id: "default-border-color",
                       label: "Border color",
                       value: defaultBorderColor || DEFAULT_BORDER_COLOR,
-                      onChange: onBorderColorChange,
+                      onChange: handleBorderColorChange,
                     },
                   ]}
                 />

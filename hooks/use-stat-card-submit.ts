@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
+import type { ColorValue } from "@/lib/types/card";
 
 /**
  * Parameters for creating and storing user stat cards.
@@ -17,7 +18,7 @@ import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
 interface SubmitParams {
   username: string;
   selectedCards: string[];
-  colors: string[];
+  colors: ColorValue[];
   showFavoritesByCard: Record<string, boolean>;
   showPiePercentages?: boolean;
   useAnimeStatusColors?: boolean;
@@ -47,7 +48,7 @@ const FAVORITE_CARD_IDS = new Set([
  */
 function buildCardsPayload(params: {
   selectedCards: string[];
-  colors: string[];
+  colors: ColorValue[];
   showPiePercentages?: boolean;
   useAnimeStatusColors?: boolean;
   useMangaStatusColors?: boolean;
@@ -413,7 +414,7 @@ export function useStatCardSubmit() {
   function validateSubmission(params: {
     username: string;
     selectedCards: string[];
-    colors: string[];
+    colors: ColorValue[];
     borderEnabled?: boolean;
     borderColor?: string;
   }) {

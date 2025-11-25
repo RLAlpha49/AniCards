@@ -1,4 +1,5 @@
-import { calculateDynamicFontSize } from "../utils";
+import { calculateDynamicFontSize, processColorsForSVG } from "../utils";
+import type { ColorValue } from "@/lib/types/card";
 
 /** Simple representation of a distribution item with value and a count. @source */
 interface DistributionDatum {
@@ -16,11 +17,11 @@ interface DistributionTemplateInput {
   mediaType: "anime" | "manga";
   kind: "score" | "year";
   styles: {
-    titleColor: string;
-    backgroundColor: string;
-    textColor: string;
-    circleColor: string;
-    borderColor?: string;
+    titleColor: ColorValue;
+    backgroundColor: ColorValue;
+    textColor: ColorValue;
+    circleColor: ColorValue;
+    borderColor?: ColorValue;
   };
   variant?: "default" | "horizontal";
   data: DistributionDatum[];
@@ -171,6 +172,18 @@ Variants:
 export function distributionTemplate(input: DistributionTemplateInput) {
   const { username, mediaType, styles, variant = "default", kind } = input;
 
+  // Process colors for gradient support
+  const { gradientDefs, resolvedColors } = processColorsForSVG(
+    {
+      titleColor: styles.titleColor,
+      backgroundColor: styles.backgroundColor,
+      textColor: styles.textColor,
+      circleColor: styles.circleColor,
+      borderColor: styles.borderColor,
+    },
+    ["titleColor", "backgroundColor", "textColor", "circleColor", "borderColor"],
+  );
+
   // Normalize and sort data
   const data = normalizeDistributionData(input.data, kind);
   const maxCount = Math.max(1, ...data.map((d) => d.count));
@@ -182,7 +195,7 @@ export function distributionTemplate(input: DistributionTemplateInput) {
   const dims = getDimensions(variant);
 
   // Layout constants
-  const barColor = styles.circleColor;
+  const barColor = resolvedColors.circleColor;
   const rightPadding = 60;
   const countBaseX = 35;
   const maxBarWidth = Math.max(10, dims.w - countBaseX - rightPadding);
@@ -204,16 +217,17 @@ export function distributionTemplate(input: DistributionTemplateInput) {
     role="img"
     aria-labelledby="desc-id"
   >
+    ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
     <title id="title-id">${title}</title>
     <desc id="desc-id">${data.map((d) => `${d.value}:${d.count}`).join(", ")}</desc>
     <style>
       /* stylelint-disable selector-class-pattern, keyframes-name-pattern */
       .header { 
-        fill: ${styles.titleColor};
+        fill: ${resolvedColors.titleColor};
         font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif;
         animation: fadeInAnimation 0.8s ease-in-out forwards;
       }
-      .score-label,.score-count,.h-score,.h-count { fill:${styles.textColor}; font:400 12px 'Segoe UI', Ubuntu, Sans-Serif; }
+      .score-label,.score-count,.h-score,.h-count { fill:${resolvedColors.textColor}; font:400 12px 'Segoe UI', Ubuntu, Sans-Serif; }
       .score-count { font-size:11px; }
       .h-score,.h-count { font-size:10px; }
       .stagger { opacity:0; animation: fadeInAnimation 0.6s ease forwards; }
@@ -225,8 +239,8 @@ export function distributionTemplate(input: DistributionTemplateInput) {
       width="${dims.w - 1}"
       height="${dims.h - 1}"
       rx="4.5"
-      fill="${styles.backgroundColor}"
-      stroke="${styles.borderColor ?? "none"}"
+      fill="${resolvedColors.backgroundColor}"
+      stroke="${resolvedColors.borderColor}"
       stroke-width="2"
     />
     <g transform="translate(20,35)"><text class="header">${title}</text></g>

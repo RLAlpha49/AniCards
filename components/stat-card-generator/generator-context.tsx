@@ -24,6 +24,8 @@ import {
   trackUserSearch,
 } from "@/lib/utils/google-analytics";
 import { colorPresets, statCardTypes } from "./constants";
+import type { ColorValue } from "@/lib/types/card";
+import { isGradient, colorValueToString } from "@/lib/utils";
 
 type ColorPresetKey = keyof typeof colorPresets;
 type MediaStatsPreviewData = Parameters<typeof mediaStatsTemplate>[0];
@@ -31,18 +33,18 @@ type MediaStatsPreviewData = Parameters<typeof mediaStatsTemplate>[0];
 interface ColorPickerConfig {
   id: string;
   label: string;
-  value: string;
-  onChange: (value: string) => void;
+  value: ColorValue;
+  onChange: (value: ColorValue) => void;
 }
 
 interface GeneratorContextValue {
   username: string;
   updateUsername: (next: string) => void;
-  titleColor: string;
-  backgroundColor: string;
-  textColor: string;
-  circleColor: string;
-  borderColor: string;
+  titleColor: ColorValue;
+  backgroundColor: ColorValue;
+  textColor: ColorValue;
+  circleColor: ColorValue;
+  borderColor: ColorValue;
   selectedCards: string[];
   selectedCardVariants: Record<string, string>;
   allSelected: boolean;
@@ -82,7 +84,7 @@ interface GeneratorContextValue {
   handleToggleMangaStatusColors: () => void;
   handleToggleShowPiePercentages: () => void;
   handleToggleBorder: () => void;
-  handleBorderColorChange: (value: string) => void;
+  handleBorderColorChange: (value: ColorValue) => void;
   handlePresetChange: (preset: ColorPresetKey) => void;
   handleSubmit: () => Promise<void>;
   openPreview: (cardType: string, variant?: string) => void;
@@ -163,12 +165,16 @@ export function GeneratorProvider({
   router,
 }: GeneratorProviderProps) {
   const [username, setUsername] = useState("");
-  const [titleColor, setTitleColor] = useState(colorPresets.default.colors[0]);
-  const [backgroundColor, setBackgroundColor] = useState(
+  const [titleColor, setTitleColor] = useState<ColorValue>(
+    colorPresets.default.colors[0],
+  );
+  const [backgroundColor, setBackgroundColor] = useState<ColorValue>(
     colorPresets.default.colors[1],
   );
-  const [textColor, setTextColor] = useState(colorPresets.default.colors[2]);
-  const [circleColor, setCircleColor] = useState(
+  const [textColor, setTextColor] = useState<ColorValue>(
+    colorPresets.default.colors[2],
+  );
+  const [circleColor, setCircleColor] = useState<ColorValue>(
     colorPresets.default.colors[3],
   );
   const [selectedCards, setSelectedCards] = useState<string[]>([]);
@@ -187,7 +193,9 @@ export function GeneratorProvider({
   const [useMangaStatusColors, setUseMangaStatusColors] = useState(false);
   const [showPiePercentages, setShowPiePercentages] = useState(false);
   const [hasBorder, setHasBorder] = useState(false);
-  const [borderColor, setBorderColor] = useState(DEFAULT_BORDER_COLOR);
+  const [borderColor, setBorderColor] = useState<ColorValue>(
+    DEFAULT_BORDER_COLOR,
+  );
   const [currentStep, setCurrentStep] = useState(0);
   const [maxReachedStep, setMaxReachedStep] = useState(0);
 
@@ -205,7 +213,7 @@ export function GeneratorProvider({
     const defaults = loadDefaultSettings();
     const presetColors = getPresetColors(defaults.colorPreset);
 
-    setSelectedPreset(defaults.colorPreset as ColorPresetKey);
+    setSelectedPreset(defaults.colorPreset);
     const setters = [
       setTitleColor,
       setBackgroundColor,
@@ -423,7 +431,11 @@ export function GeneratorProvider({
     });
   }, []);
 
-  const handleBorderColorChange = useCallback((value: string) => {
+  const handleBorderColorChange = useCallback((value: ColorValue) => {
+    // Border color currently only supports solid colors
+    if (isGradient(value)) {
+      return;
+    }
     const trimmed = value.trim();
     if (!trimmed) {
       setBorderColor("");
@@ -526,7 +538,7 @@ export function GeneratorProvider({
       useAnimeStatusColors,
       useMangaStatusColors,
       borderEnabled: hasBorder,
-      borderColor,
+      borderColor: colorValueToString(borderColor),
     });
 
     if (result.success && result.userId) {
@@ -707,7 +719,7 @@ export function GeneratorProvider({
         id: "titleColor",
         label: "Title",
         value: titleColor,
-        onChange: (value: string) => {
+        onChange: (value: ColorValue) => {
           setTitleColor(value);
           setSelectedPreset("custom");
         },
@@ -716,7 +728,7 @@ export function GeneratorProvider({
         id: "backgroundColor",
         label: "Background",
         value: backgroundColor,
-        onChange: (value: string) => {
+        onChange: (value: ColorValue) => {
           setBackgroundColor(value);
           setSelectedPreset("custom");
         },
@@ -725,7 +737,7 @@ export function GeneratorProvider({
         id: "textColor",
         label: "Text",
         value: textColor,
-        onChange: (value: string) => {
+        onChange: (value: ColorValue) => {
           setTextColor(value);
           setSelectedPreset("custom");
         },
@@ -734,7 +746,7 @@ export function GeneratorProvider({
         id: "circleColor",
         label: "Circle",
         value: circleColor,
-        onChange: (value: string) => {
+        onChange: (value: ColorValue) => {
           setCircleColor(value);
           setSelectedPreset("custom");
         },

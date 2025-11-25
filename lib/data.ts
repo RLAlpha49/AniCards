@@ -123,10 +123,7 @@ export function saveDefaultBorderColor(color: string) {
  * @source
  */
 export function getPresetColors(presetName: string) {
-  return (
-    colorPresets[presetName as keyof typeof colorPresets]?.colors ||
-    colorPresets.default.colors
-  );
+  return colorPresets[presetName]?.colors || colorPresets.default.colors;
 }
 
 // Helper to get card type labels for display

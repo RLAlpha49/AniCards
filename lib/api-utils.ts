@@ -3,6 +3,7 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import type { Agent as HttpAgent } from "node:http";
 import type { Agent as HttpsAgent } from "node:https";
+import { isValidGradient } from "@/lib/utils";
 
 // Shared Redis client and rate limiter configuration
 // Edge runtime compatibility: don't require Node-only modules on edge.
@@ -331,12 +332,27 @@ export function validateUserData(
 
 /**
  * Verifies a hex color string is a 3/6/8 character hex (with leading #).
+ * Note: This only validates hex strings, not gradient objects.
+ * Use isValidColorValue for validating both hex strings and gradients.
  * @param color - Hex color string to validate.
  * @returns True when color matches expected hex format.
  * @source
  */
 function isValidHexColor(color: string): boolean {
   return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/.test(color);
+}
+
+/**
+ * Validates a color value which can be either a hex string or a gradient object.
+ * @param value - The color value to validate.
+ * @returns True if the value is a valid hex color or gradient definition.
+ * @source
+ */
+function isValidColorValue(value: unknown): boolean {
+  if (typeof value === "string") {
+    return isValidHexColor(value);
+  }
+  return isValidGradient(value);
 }
 
 /**
@@ -357,7 +373,7 @@ export function isValidUsername(value: unknown): boolean {
 
 /**
  * Ensures required string fields for a card are present and valid.
- * Validates color formats and length constraints on string fields.
+ * Validates color formats (hex or gradient) and length constraints on string fields.
  * @param card - Card object to validate.
  * @param cardIndex - Index of the card in the array for error messages.
  * @param endpoint - Endpoint name used for logging/analytics context.
@@ -369,15 +385,15 @@ function validateCardRequiredFields(
   cardIndex: number,
   endpoint: string,
 ): NextResponse<ApiError> | null {
-  const requiredStringFields = [
-    "cardName",
-    "variation",
+  const requiredStringFields = ["cardName", "variation"];
+  const requiredColorFields = [
     "titleColor",
     "backgroundColor",
     "textColor",
     "circleColor",
   ];
 
+  // Validate string fields
   for (const field of requiredStringFields) {
     if (typeof card[field] !== "string") {
       console.warn(
@@ -387,14 +403,7 @@ function validateCardRequiredFields(
     }
 
     const value = card[field];
-
-    // Validate color format
-    if (field.includes("Color") && !isValidHexColor(value)) {
-      console.warn(
-        `⚠️ [${endpoint}] Card ${cardIndex} invalid color format for ${field}: ${value}`,
-      );
-      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
-    }
+    if (typeof value !== "string") continue;
 
     // Validate length constraints
     if (value.length === 0 || value.length > 100) {
@@ -405,12 +414,30 @@ function validateCardRequiredFields(
     }
   }
 
+  // Validate color fields (can be hex string or gradient object)
+  for (const field of requiredColorFields) {
+    const value = card[field];
+    if (value === undefined || value === null) {
+      console.warn(
+        `⚠️ [${endpoint}] Card ${cardIndex} missing required color field: ${field}`,
+      );
+      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+    }
+
+    if (!isValidColorValue(value)) {
+      console.warn(
+        `⚠️ [${endpoint}] Card ${cardIndex} invalid color or gradient format for ${field}`,
+      );
+      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+    }
+  }
+
   return null;
 }
 
 /**
  * Validates optional fields for a card such as booleans and optional
- * borderColor hex format.
+ * borderColor (hex or gradient format).
  * @param card - Card object to validate.
  * @param cardIndex - Index of the card in the array for error messages.
  * @param endpoint - Endpoint name used for logging/analytics context.
@@ -439,11 +466,11 @@ function validateCardOptionalFields(
     }
   }
 
-  // Validate borderColor if present (optional)
-  if (card.borderColor !== undefined && typeof card.borderColor === "string") {
-    if (!isValidHexColor(card.borderColor)) {
+  // Validate borderColor if present (optional, can be hex string or gradient)
+  if (card.borderColor !== undefined && card.borderColor !== null) {
+    if (!isValidColorValue(card.borderColor)) {
       console.warn(
-        `⚠️ [${endpoint}] Card ${cardIndex} invalid borderColor format: ${card.borderColor}`,
+        `⚠️ [${endpoint}] Card ${cardIndex} invalid borderColor format`,
       );
       return NextResponse.json({ error: "Invalid data" }, { status: 400 });
     }

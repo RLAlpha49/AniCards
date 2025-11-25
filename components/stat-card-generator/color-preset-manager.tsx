@@ -20,7 +20,7 @@ export function ColorPresetManager() {
   } = useGeneratorContext();
 
   const handlePresetSelection = (preset: string) => {
-    handlePresetChange(preset as keyof typeof colorPresets);
+    handlePresetChange(preset);
   };
 
   return (

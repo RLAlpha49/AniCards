@@ -4,6 +4,18 @@
  * main generator component and the generator context.
  */
 
+import type { ColorValue } from "@/lib/types/card";
+
+/**
+ * Color preset configuration supporting both solid colors and gradients.
+ * Colors array order: [titleColor, backgroundColor, textColor, circleColor]
+ * @source
+ */
+export interface ColorPreset {
+  colors: ColorValue[];
+  mode: "dark" | "light" | "custom";
+}
+
 /** Allowed visual variations for pie/bar style breakdown cards. */
 const pieBarVariations = [
   { id: "default", label: "Default" },
@@ -131,8 +143,11 @@ export const statCardTypes = [
   ),
 ];
 
-/** Named color presets exposed to the UI. */
-export const colorPresets = {
+/** Named color presets exposed to the UI. Supports both solid colors and gradients.
+ * Colors order: [titleColor, backgroundColor, textColor, circleColor]
+ * @source
+ */
+export const colorPresets: Record<string, ColorPreset> = {
   default: {
     colors: ["#fe428e", "#141321", "#a9fef7", "#fe428e"],
     mode: "dark",
@@ -275,6 +290,299 @@ export const colorPresets = {
   },
   verdantTwilight: {
     colors: ["#22c55e", "#021102", "#dcfce7", "#4ade80"],
+    mode: "dark",
+  },
+  // ==================== Gradient Presets ====================
+  // Presets featuring gradient colors for enhanced visual appeal
+  sunsetGradient: {
+    colors: [
+      // Title: Orange to pink gradient (45°)
+      {
+        type: "linear",
+        angle: 45,
+        stops: [
+          { color: "#ff7e5f", offset: 0 },
+          { color: "#feb47b", offset: 50 },
+          { color: "#ff6b6b", offset: 100 },
+        ],
+      },
+      "#141321", // Background: solid dark
+      "#fff7ed", // Text: solid light
+      // Circle: matching gradient
+      {
+        type: "linear",
+        angle: 45,
+        stops: [
+          { color: "#ff7e5f", offset: 0 },
+          { color: "#ff6b6b", offset: 100 },
+        ],
+      },
+    ],
+    mode: "dark",
+  },
+  oceanWaves: {
+    colors: [
+      "#00b4d8", // Title: solid cyan
+      // Background: deep blue to cyan gradient (180°)
+      {
+        type: "linear",
+        angle: 180,
+        stops: [
+          { color: "#0a1628", offset: 0 },
+          { color: "#0d2137", offset: 50 },
+          { color: "#0f2846", offset: 100 },
+        ],
+      },
+      "#e0f7ff", // Text: light blue
+      // Circle: ocean gradient
+      {
+        type: "linear",
+        angle: 90,
+        stops: [
+          { color: "#00b4d8", offset: 0 },
+          { color: "#0077b6", offset: 100 },
+        ],
+      },
+    ],
+    mode: "dark",
+  },
+  purpleHaze: {
+    colors: [
+      // Title: purple to lavender gradient (90°)
+      {
+        type: "linear",
+        angle: 90,
+        stops: [
+          { color: "#7c3aed", offset: 0 },
+          { color: "#a78bfa", offset: 100 },
+        ],
+      },
+      "#1e1b4b", // Background: dark purple
+      "#e9d5ff", // Text: light purple
+      // Circle: matching purple gradient
+      {
+        type: "linear",
+        angle: 135,
+        stops: [
+          { color: "#8b5cf6", offset: 0 },
+          { color: "#c084fc", offset: 100 },
+        ],
+      },
+    ],
+    mode: "dark",
+  },
+  fireEmber: {
+    colors: [
+      "#ff4500", // Title: solid orange-red
+      "#1a0a0a", // Background: very dark red
+      "#fef3c7", // Text: cream
+      // Circle: fire gradient (red to orange to yellow)
+      {
+        type: "linear",
+        angle: 45,
+        stops: [
+          { color: "#dc2626", offset: 0 },
+          { color: "#ea580c", offset: 50 },
+          { color: "#fbbf24", offset: 100 },
+        ],
+      },
+    ],
+    mode: "dark",
+  },
+  forestDepth: {
+    colors: [
+      "#22c55e", // Title: solid green
+      // Background: dark green gradient (180°)
+      {
+        type: "linear",
+        angle: 180,
+        stops: [
+          { color: "#052e16", offset: 0 },
+          { color: "#064e3b", offset: 100 },
+        ],
+      },
+      "#dcfce7", // Text: light green
+      // Circle: forest gradient
+      {
+        type: "linear",
+        angle: 90,
+        stops: [
+          { color: "#16a34a", offset: 0 },
+          { color: "#4ade80", offset: 100 },
+        ],
+      },
+    ],
+    mode: "dark",
+  },
+  twilightSky: {
+    colors: [
+      // Title: dark blue to purple to pink gradient (135°)
+      {
+        type: "linear",
+        angle: 135,
+        stops: [
+          { color: "#1e3a8a", offset: 0 },
+          { color: "#7c3aed", offset: 50 },
+          { color: "#ec4899", offset: 100 },
+        ],
+      },
+      "#0f0f23", // Background: dark blue-black
+      "#f0f0ff", // Text: very light blue
+      // Circle: twilight gradient
+      {
+        type: "linear",
+        angle: 135,
+        stops: [
+          { color: "#6366f1", offset: 0 },
+          { color: "#a855f7", offset: 100 },
+        ],
+      },
+    ],
+    mode: "dark",
+  },
+  neonGlow: {
+    colors: [
+      "#00ffff", // Title: solid cyan
+      "#0a0a0a", // Background: near black
+      "#ffffff", // Text: white
+      // Circle: radial neon glow (cyan center to dark blue edges)
+      {
+        type: "radial",
+        cx: 50,
+        cy: 50,
+        r: 50,
+        stops: [
+          { color: "#00ffff", offset: 0 },
+          { color: "#0ea5e9", offset: 50 },
+          { color: "#1e40af", offset: 100 },
+        ],
+      },
+    ],
+    mode: "dark",
+  },
+  goldenHour: {
+    colors: [
+      // Title: gold to orange gradient (0°)
+      {
+        type: "linear",
+        angle: 0,
+        stops: [
+          { color: "#fbbf24", offset: 0 },
+          { color: "#f59e0b", offset: 50 },
+          { color: "#d97706", offset: 100 },
+        ],
+      },
+      "#1c1917", // Background: dark brown
+      "#fef3c7", // Text: cream
+      // Circle: matching gold gradient
+      {
+        type: "linear",
+        angle: 45,
+        stops: [
+          { color: "#fcd34d", offset: 0 },
+          { color: "#f59e0b", offset: 100 },
+        ],
+      },
+    ],
+    mode: "dark",
+  },
+  mintFresh: {
+    colors: [
+      "#10b981", // Title: solid emerald
+      // Background: mint to white gradient (180°)
+      {
+        type: "linear",
+        angle: 180,
+        stops: [
+          { color: "#ecfdf5", offset: 0 },
+          { color: "#d1fae5", offset: 50 },
+          { color: "#f0fdf4", offset: 100 },
+        ],
+      },
+      "#065f46", // Text: dark green
+      // Circle: mint gradient
+      {
+        type: "linear",
+        angle: 90,
+        stops: [
+          { color: "#34d399", offset: 0 },
+          { color: "#10b981", offset: 100 },
+        ],
+      },
+    ],
+    mode: "light",
+  },
+  cosmicNebula: {
+    colors: [
+      "#e879f9", // Title: solid pink
+      // Background: radial gradient (purple center to dark blue edges)
+      {
+        type: "radial",
+        cx: 30,
+        cy: 30,
+        r: 70,
+        stops: [
+          { color: "#3b0764", offset: 0 },
+          { color: "#1e1b4b", offset: 50 },
+          { color: "#0c0a1d", offset: 100 },
+        ],
+      },
+      "#f5d0fe", // Text: light pink
+      // Circle: nebula gradient
+      {
+        type: "linear",
+        angle: 45,
+        stops: [
+          { color: "#d946ef", offset: 0 },
+          { color: "#a855f7", offset: 50 },
+          { color: "#6366f1", offset: 100 },
+        ],
+      },
+    ],
+    mode: "dark",
+  },
+  cherryBlossom: {
+    colors: [
+      // Title: pink to white gradient (90°)
+      {
+        type: "linear",
+        angle: 90,
+        stops: [
+          { color: "#f472b6", offset: 0 },
+          { color: "#fbcfe8", offset: 100 },
+        ],
+      },
+      "#fdf2f8", // Background: very light pink
+      "#831843", // Text: dark pink
+      // Circle: cherry blossom gradient
+      {
+        type: "linear",
+        angle: 45,
+        stops: [
+          { color: "#ec4899", offset: 0 },
+          { color: "#f9a8d4", offset: 100 },
+        ],
+      },
+    ],
+    mode: "light",
+  },
+  arcticAurora: {
+    colors: [
+      "#22d3ee", // Title: solid cyan
+      "#0f172a", // Background: dark blue
+      "#e0f2fe", // Text: light blue
+      // Circle: aurora gradient (green to blue to purple)
+      {
+        type: "linear",
+        angle: 135,
+        stops: [
+          { color: "#22c55e", offset: 0 },
+          { color: "#06b6d4", offset: 33 },
+          { color: "#3b82f6", offset: 66 },
+          { color: "#8b5cf6", offset: 100 },
+        ],
+      },
+    ],
     mode: "dark",
   },
   custom: { colors: ["", "", "", ""], mode: "custom" },
