@@ -37,9 +37,16 @@ function createToBufferFailure() {
  */
 function createSharpInstance(buf?: Buffer) {
   if (buf) lastSharpBuffer = Buffer.from(buf);
-  return {
-    png: () => ({ toBuffer: createToBufferSuccess() }),
+  const instance: {
+    toBuffer: () => Promise<Buffer>;
+    png: () => unknown;
+    webp: () => unknown;
+  } = {
+    toBuffer: createToBufferSuccess(),
+    png: () => instance,
+    webp: () => instance,
   };
+  return instance;
 }
 
 process.env.NEXT_PUBLIC_API_URL =
@@ -136,7 +143,8 @@ describe("Convert API POST Endpoint", () => {
 
     const res = await POST(req);
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const rawText = await res.text();
+    const data = JSON.parse(rawText);
     // The pngDataUrl should start with the proper data URL prefix.
     expect(data.pngDataUrl).toContain("data:image/png;base64,");
     // Verify that our mocked sharp converted the SVG to PNG.
@@ -170,6 +178,37 @@ describe("Convert API POST Endpoint", () => {
     expect(res.status).toBe(500);
     const data = await res.json();
     expect(data.error).toBe("Conversion failed");
+  });
+
+  it("should increment analytics and return 400 when format is invalid", async () => {
+    jest.resetModules();
+    const apiModule = await import("@/lib/api-utils");
+    const spy = jest.spyOn(apiModule, "incrementAnalytics");
+    const { POST } = await import("./route");
+
+    const req = new Request("http://localhost/api/convert", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-forwarded-for": "127.0.0.1",
+      },
+      body: JSON.stringify({
+        svgUrl: "http://localhost/dummy.svg",
+        format: "avif",
+      }),
+    }) as unknown as NextRequest;
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toBe("Invalid format parameter");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const returned = (
+      require("@upstash/redis").Redis.fromEnv as jest.Mock
+    ).mock.results.at(-1)?.value;
+    expect(returned?.incr).toHaveBeenCalledWith(
+      "analytics:convert_api:failed_requests",
+    );
+    spy.mockRestore();
   });
 
   describe("SVG sanitization policy", () => {

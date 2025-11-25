@@ -7,7 +7,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { svgToPng, copyToClipboard, cn, getAbsoluteUrl } from "@/lib/utils";
+import {
+  svgToPng,
+  copyToClipboard,
+  cn,
+  getAbsoluteUrl,
+  type ConversionFormat,
+} from "@/lib/utils";
 import { LoadingSpinner } from "@/components/loading-spinner";
 
 import { displayNames } from "../stat-card-generator/stat-card-preview";
@@ -40,20 +46,20 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
   // Track copied state and image loading status
   const [copied, setCopied] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [format, setFormat] = useState<ConversionFormat>("png");
 
   /**
    * Convert the currently displayed SVG to a PNG URL and trigger a browser download.
    * @returns Promise<void>
    * @source
    */
-  const handleDownload = async () => {
-    // Track the download event
-    trackCardDownload(type);
+  const handleDownload = async (fmt: ConversionFormat = "png") => {
+    trackCardDownload(`${type}_${fmt}`);
 
-    const pngUrl = await svgToPng(svgUrl); // Utility function for conversion
+    const url = await svgToPng(svgUrl, fmt);
     const link = document.createElement("a");
-    link.href = pngUrl;
-    link.download = `${type}.png`; // Set filename based on card type
+    link.href = url;
+    link.download = `${type}.${fmt}`;
     link.click();
   };
 
@@ -127,11 +133,31 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
         </div>
 
         {/* Action buttons container */}
-        <div className="flex gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex gap-2">
+            <Button
+              variant={format === "png" ? "default" : "outline"}
+              size="sm"
+              className="text-xs font-semibold"
+              onClick={() => setFormat("png")}
+              aria-label={`Select PNG export for ${displayNames[type] || type}`}
+            >
+              PNG
+            </Button>
+            <Button
+              variant={format === "webp" ? "default" : "outline"}
+              size="sm"
+              className="text-xs font-semibold"
+              onClick={() => setFormat("webp")}
+              aria-label={`Select WebP export for ${displayNames[type] || type}`}
+            >
+              WebP
+            </Button>
+          </div>
           <Button
-            onClick={handleDownload}
+            onClick={() => handleDownload(format)}
             className="flex-1 bg-gradient-to-r from-green-600 to-green-700 text-white transition-all duration-300 hover:from-green-700 hover:to-green-800 hover:shadow-lg"
-            aria-label={`Download ${displayNames[type]} card as PNG image`}
+            aria-label={`Download ${displayNames[type]} card as ${format.toUpperCase()} image`}
           >
             <Download className="mr-2 h-4 w-4" />
             Download

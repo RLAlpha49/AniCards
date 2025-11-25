@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 
 /**
  * Props for the inline loading spinner.
@@ -114,6 +114,7 @@ export function LoadingSpinner({
 
 interface LoadingOverlayProps {
   text?: string;
+  children?: ReactNode;
 }
 
 /**
@@ -124,11 +125,13 @@ interface LoadingOverlayProps {
  */
 export function LoadingOverlay({
   text = "Generating your cards...",
+  children,
 }: Readonly<LoadingOverlayProps>) {
   return (
     <div className="absolute inset-0 z-[1000] flex items-center justify-center rounded-2xl bg-white/80 backdrop-blur-sm dark:bg-gray-900/80">
       <div className="flex flex-col items-center gap-4">
         <LoadingSpinner size="lg" className="text-primary" text={text} />
+        {children}
       </div>
     </div>
   );

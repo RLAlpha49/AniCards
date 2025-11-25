@@ -2,14 +2,23 @@
 
 import { Card } from "@/components/user/card";
 import { Button } from "@/components/ui/button";
+import { LoadingOverlay } from "@/components/loading-spinner";
 import { useState } from "react";
-import { copyToClipboard, getAbsoluteUrl } from "@/lib/utils";
+import {
+  batchConvertAndZip,
+  type BatchConversionProgress,
+  type BatchExportCard,
+  type ConversionFormat,
+  copyToClipboard,
+  getAbsoluteUrl,
+} from "@/lib/utils";
+import { trackBatchExport } from "@/lib/utils/google-analytics";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Check, Link } from "lucide-react";
+import { Check, Download, Link } from "lucide-react";
 import { motion } from "framer-motion";
 
 /**
@@ -19,11 +28,7 @@ import { motion } from "framer-motion";
  * @property rawType - Original card identifier used for sorting and logic.
  * @source
  */
-interface CardType {
-  type: string;
-  svgUrl: string;
-  rawType: string;
-}
+type CardType = BatchExportCard;
 
 /**
  * Props for the CardList component.
@@ -33,6 +38,14 @@ interface CardType {
 interface CardListProps {
   cardTypes: CardType[];
 }
+
+const formatOptions: Array<{
+  value: ConversionFormat;
+  label: string;
+}> = [
+  { value: "png", label: "PNG" },
+  { value: "webp", label: "WebP" },
+];
 
 // Component for displaying a grid of cards with copyable SVG links
 /**
@@ -45,6 +58,21 @@ interface CardListProps {
 export function CardList({ cardTypes }: Readonly<CardListProps>) {
   // Track which type of link was copied last (svg/anilist)
   const [copied, setCopied] = useState<string | null>(null);
+  const [isBatchExporting, setIsBatchExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState<BatchConversionProgress>(
+    {
+      current: 0,
+      total: cardTypes.length,
+      success: 0,
+      failure: 0,
+      cardIndex: 0,
+    },
+  );
+  const [exportFormat, setExportFormat] = useState<ConversionFormat>("png");
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const progressPercent = exportProgress.total
+    ? Math.min(100, (exportProgress.current / exportProgress.total) * 100)
+    : 0;
 
   // Generate different link formats for copy functionality
   /**
@@ -103,8 +131,68 @@ export function CardList({ cardTypes }: Readonly<CardListProps>) {
     setTimeout(() => setCopied(null), 2000); // Reset copied state after 2s
   };
 
+  const handleBatchExport = async () => {
+    if (cardTypes.length === 0) {
+      setExportMessage("No cards available for export.");
+      setTimeout(() => setExportMessage(null), 4000);
+      return;
+    }
+
+    setIsBatchExporting(true);
+    setExportProgress({
+      current: 0,
+      total: cardTypes.length,
+      success: 0,
+      failure: 0,
+      cardIndex: 0,
+    });
+    setExportMessage(null);
+
+    let exportedCount = 0;
+    try {
+      const summary = await batchConvertAndZip(
+        cardTypes,
+        exportFormat,
+        (progress) => setExportProgress(progress),
+      );
+      exportedCount = summary.exported;
+      const pluralSuffix = exportedCount === 1 ? "" : "s";
+      setExportMessage(
+        exportedCount > 0
+          ? `Exported ${exportedCount} card${pluralSuffix} as ${exportFormat.toUpperCase()}.`
+          : "No cards were exported.",
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Batch export failed.";
+      setExportMessage(message);
+    } finally {
+      trackBatchExport(exportFormat, exportedCount, exportedCount > 0);
+      setIsBatchExporting(false);
+      setTimeout(() => setExportMessage(null), 4000);
+    }
+  };
+
   return (
-    <div className="mx-auto w-full max-w-7xl">
+    <div className="relative mx-auto w-full max-w-7xl">
+      {isBatchExporting && (
+        <LoadingOverlay
+          text={`Converting ${exportProgress.current}/${exportProgress.total} cards...`}
+        >
+          <div className="w-full max-w-xs space-y-2 text-center">
+            <div className="h-1.5 rounded-full bg-gray-200 dark:bg-gray-700">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <p className="text-xs text-gray-600 dark:text-gray-300">
+              {exportProgress.success} succeeded • {exportProgress.failure}{" "}
+              failed
+            </p>
+          </div>
+        </LoadingOverlay>
+      )}
       {/* Header Section with Copy Links */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -221,7 +309,56 @@ export function CardList({ cardTypes }: Readonly<CardListProps>) {
                 </div>
               </PopoverContent>
             </Popover>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white transition-all duration-300 hover:from-emerald-600 hover:to-teal-500 hover:shadow-lg"
+                  aria-label="Download all cards as a ZIP archive"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Download All
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 border-white/20 bg-white/90 backdrop-blur-md dark:border-gray-600/30 dark:bg-gray-800/90">
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="font-semibold text-gray-900 dark:text-white">
+                      Batch Export
+                    </h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      Choose a format and bundle all cards in one ZIP file.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {formatOptions.map((option) => (
+                      <Button
+                        key={option.value}
+                        variant={
+                          exportFormat === option.value ? "default" : "outline"
+                        }
+                        className="flex-col gap-1 text-xs font-semibold"
+                        onClick={() => setExportFormat(option.value)}
+                      >
+                        <span className="text-sm">{option.label}</span>
+                      </Button>
+                    ))}
+                  </div>
+                  <Button
+                    onClick={handleBatchExport}
+                    className="w-full"
+                    disabled={isBatchExporting || cardTypes.length === 0}
+                  >
+                    Start Export
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
+          {exportMessage && (
+            <p className="mt-2 text-center text-sm text-emerald-500 dark:text-emerald-300">
+              {exportMessage}
+            </p>
+          )}
         </div>
       </motion.div>
 

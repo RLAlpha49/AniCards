@@ -1,6 +1,7 @@
 import sharp from "sharp";
 import { NextRequest, NextResponse } from "next/server";
 import { incrementAnalytics } from "@/lib/api-utils";
+import type { ConversionFormat } from "@/lib/utils";
 
 /**
  * Determines whether a CSS fragment contains only whitespace or block comments.
@@ -614,7 +615,7 @@ export async function POST(request: NextRequest) {
 
   try {
     // 1. Parse input and fetch SVG content
-    const { svgUrl } = await request.json();
+    const { svgUrl, format } = await request.json();
     if (!svgUrl) {
       console.warn(`⚠️ [Convert API] Missing 'svgUrl' parameter from ${ip}`);
       incrementAnalytics("analytics:convert_api:failed_requests").catch(
@@ -625,6 +626,24 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
+
+    const allowedFormats: ConversionFormat[] = ["png", "webp"];
+    const normalizedFormat =
+      typeof format === "string" ? format.toLowerCase() : "png";
+    if (!allowedFormats.includes(normalizedFormat as ConversionFormat)) {
+      console.warn(
+        `⚠️ [Convert API] Unsupported format '${format}' from ${ip}`,
+      );
+      // Increment analytics for failed requests to keep metrics consistent
+      incrementAnalytics("analytics:convert_api:failed_requests").catch(
+        () => {},
+      );
+      return NextResponse.json(
+        { error: "Invalid format parameter" },
+        { status: 400 },
+      );
+    }
+    let requestedFormat = normalizedFormat;
 
     // Validate the svgUrl
     let parsedUrl;
@@ -771,13 +790,22 @@ export async function POST(request: NextRequest) {
     svgContent = svgContent.replaceAll(/\sstyle=(['"])\1/g, "");
     console.log("🧼 [Convert API] Final SVG cleanup completed.");
 
-    // 4. Convert the processed SVG to PNG using sharp
-    console.log("🔄 [Convert API] Converting SVG to PNG using sharp...");
-    const pngBuffer = await sharp(Buffer.from(svgContent)).png().toBuffer();
-    const pngDataUrl = `data:image/png;base64,${pngBuffer.toString("base64")}`;
+    // 4. Convert the processed SVG to the requested raster format using sharp
+    console.log(
+      `🔄 [Convert API] Converting SVG to ${requestedFormat.toUpperCase()} using sharp...`,
+    );
+    const transformer = sharp(Buffer.from(svgContent));
+    if (requestedFormat === "webp") {
+      transformer.webp({ quality: 90 });
+    } else {
+      transformer.png();
+    }
+    const convertedBuffer = await transformer.toBuffer();
+    const mimeType = requestedFormat === "webp" ? "image/webp" : "image/png";
+    const pngDataUrl = `data:${mimeType};base64,${convertedBuffer.toString("base64")}`;
     const conversionDuration = Date.now() - startTime;
     console.log(
-      `✅ [Convert API] SVG converted to PNG successfully in ${conversionDuration}ms`,
+      `✅ [Convert API] SVG converted to ${requestedFormat.toUpperCase()} successfully in ${conversionDuration}ms`,
     );
     incrementAnalytics("analytics:convert_api:successful_requests").catch(
       () => {},

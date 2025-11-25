@@ -98,6 +98,20 @@ export const trackCardDownload = (cardType: string) => {
   });
 };
 
+/** Track when multiple cards are exported in a batch. @source */
+export const trackBatchExport = (
+  format: "png" | "webp",
+  cardCount: number,
+  success: boolean,
+) => {
+  event({
+    action: "batch_export",
+    category: "conversion",
+    label: `${format}_${cardCount}_cards_${success ? "success" : "failure"}`,
+    value: cardCount,
+  });
+};
+
 /** Track a user search by username in GA events. @source */
 export const trackUserSearch = (username: string) => {
   event({
