@@ -31,7 +31,7 @@ export function HeroSection({
   onSeeExamples,
 }: Readonly<HeroSectionProps>) {
   return (
-    <section className="relative min-h-[95vh] w-full overflow-hidden bg-transparent">
+    <section className="relative min-h-[95vh] w-full overflow-hidden overflow-x-visible bg-transparent">
       {/* Floating Cards Layer */}
       <FloatingCardsLayer />
 
