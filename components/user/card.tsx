@@ -22,6 +22,14 @@ import {
   trackCopyAction,
 } from "@/lib/utils/google-analytics";
 
+const downloadFormatOptions: ReadonlyArray<{
+  label: string;
+  value: ConversionFormat;
+}> = [
+  { label: "PNG", value: "png" },
+  { label: "WebP", value: "webp" },
+];
+
 /**
  * Props for the Card component.
  * @property type - The card type key used for labeling and tracking.
@@ -46,7 +54,6 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
   // Track copied state and image loading status
   const [copied, setCopied] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [format, setFormat] = useState<ConversionFormat>("png");
 
   /**
    * Convert the currently displayed SVG to a PNG URL and trigger a browser download.
@@ -134,34 +141,43 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
 
         {/* Action buttons container */}
         <div className="flex items-center gap-3">
-          <div className="flex gap-2">
-            <Button
-              variant={format === "png" ? "default" : "outline"}
-              size="sm"
-              className="text-xs font-semibold"
-              onClick={() => setFormat("png")}
-              aria-label={`Select PNG export for ${displayNames[type] || type}`}
-            >
-              PNG
-            </Button>
-            <Button
-              variant={format === "webp" ? "default" : "outline"}
-              size="sm"
-              className="text-xs font-semibold"
-              onClick={() => setFormat("webp")}
-              aria-label={`Select WebP export for ${displayNames[type] || type}`}
-            >
-              WebP
-            </Button>
-          </div>
-          <Button
-            onClick={() => handleDownload(format)}
-            className="flex-1 bg-gradient-to-r from-green-600 to-green-700 text-white transition-all duration-300 hover:from-green-700 hover:to-green-800 hover:shadow-lg"
-            aria-label={`Download ${displayNames[type]} card as ${format.toUpperCase()} image`}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Download
-          </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                className="flex-1 bg-gradient-to-r from-green-600 to-green-700 text-white transition-all duration-300 hover:from-green-700 hover:to-green-800 hover:shadow-lg"
+                aria-label={`Choose a download format for ${displayNames[type] || type} card`}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Download
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 border-white/20 bg-white/90 backdrop-blur-md dark:border-gray-600/30 dark:bg-gray-800/90">
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-semibold text-gray-900 dark:text-white">
+                    Download Format
+                  </h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    Pick the image format you want to save
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {downloadFormatOptions.map((option) => (
+                    <Button
+                      key={option.value}
+                      variant={"outline"}
+                      className="flex-col gap-1 text-xs font-semibold"
+                      onClick={() => {
+                        void handleDownload(option.value);
+                      }}
+                    >
+                      <span className="text-sm">{option.label}</span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
 
           {/* Popover for link copy options */}
           <Popover>
