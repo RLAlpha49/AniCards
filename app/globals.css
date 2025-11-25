@@ -134,6 +134,12 @@ body {
 }
 
 /* Hide default scrollbar */
+html,
+body {
+  scrollbar-width: none;
+  scrollbar-color: transparent transparent;
+}
+
 ::-webkit-scrollbar {
   display: none;
 }
