@@ -411,7 +411,29 @@ export function StatCardGenerator({
   const [currentStep, setCurrentStep] = useState(0);
 
   // Use our custom hook for managing submission
-  const { loading, error, submit, clearError } = useStatCardSubmit();
+  const {
+    loading,
+    error,
+    submit,
+    clearError,
+    retryAttempt,
+    retryOperation,
+    retryLimit,
+  } = useStatCardSubmit();
+
+  const isRetrying = loading && retryAttempt > 0;
+  const overlayText = isRetrying
+    ? `${retryOperation ?? "Retrying"} (Attempt ${Math.min(
+        retryAttempt,
+        retryLimit,
+      )}/${retryLimit})`
+    : "Creating your stat cards...";
+  const retryStatusText = isRetrying
+    ? `${retryOperation ?? "Retrying"} • Attempt ${Math.min(
+        retryAttempt,
+        retryLimit,
+      )}/${retryLimit}`
+    : null;
 
   // Map detailed errors from the hook into friendlier UI messages. Log details for debugging.
   /** Map internal errors to a friendly UI message. @source */
@@ -421,18 +443,33 @@ export function StatCardGenerator({
     // Validation errors from the hook are already user-friendly.
     if (msg.startsWith("Please ")) return msg;
 
-    // Handle AniList fetch errors
-    if (msg.includes("AniList user fetch failed")) {
+    // Handle AniList fetch errors. Match operationName-based prefixes (e.g. "AniList user ID fetch failed") and
+    // earlier shapes like "AniList user fetch failed". Prefer specific messages where possible, fallback to a
+    // generic timeout message when the error indicates a timeout or the total timeout was exceeded.
+    if (
+      (msg.includes("AniList user fetch failed") || msg.includes("AniList user ID fetch failed") ||
+        (msg.includes("AniList") && msg.includes("user") && msg.includes("fetch failed")))
+    ) {
       console.error("Detailed AniList user fetch error:", msg);
+      // Check for the no-user case which is a likely 404 and deserves specific guidance
+      if (msg.toLowerCase().includes("no user found")) {
+        return "We couldn't find that AniList user. Please double check the username and try again.";
+      }
       return "We couldn't find that AniList user. Please double check the username and try again.";
     }
-    if (msg.includes("AniList stats fetch failed")) {
+    if (
+      msg.includes("AniList stats fetch failed") ||
+      msg.includes("AniList user stats fetch failed") ||
+      (msg.includes("AniList") && msg.includes("stats") && msg.includes("fetch failed"))
+    ) {
       console.error("Detailed AniList stats fetch error:", msg);
       return "We couldn't load user stats from AniList. Try again in a few moments.";
     }
+    // Timeouts and total-timeout exceeded errors
     if (
-      msg.includes("AniList - user ID fetch request timed out") ||
-      msg.includes("AniList - user stats fetch")
+      msg.toLowerCase().includes("timed out") ||
+      msg.toLowerCase().includes("total timeout exceeded") ||
+      msg.toLowerCase().includes("request timed out")
     ) {
       console.error("AniList timeout error:", msg);
       return "Reading AniList data took too long. Try again or check your connection.";
@@ -853,7 +890,7 @@ export function StatCardGenerator({
           className,
         )}
       >
-        {loading && <LoadingOverlay text="Creating your stat cards..." />}
+        {loading && <LoadingOverlay text={overlayText} />}
         {/* Header */}
         <div className="relative z-10 flex shrink-0 flex-col border-b border-gray-100 bg-white px-6 py-4 dark:border-gray-800 dark:bg-gray-900">
           <DialogHeader>
@@ -1125,38 +1162,54 @@ export function StatCardGenerator({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex shrink-0 items-center justify-between border-t border-gray-100 bg-white px-6 py-4 dark:border-gray-800 dark:bg-gray-900">
-          <Button
-            variant="ghost"
-            onClick={prevStep}
-            disabled={loading}
-            className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
-          >
-            Back
-          </Button>
+        <div className="flex shrink-0 flex-col gap-2 border-t border-gray-100 bg-white px-6 py-4 dark:border-gray-800 dark:bg-gray-900">
+          <div className="flex w-full items-center justify-between">
+            <Button
+              variant="ghost"
+              onClick={prevStep}
+              disabled={loading}
+              className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+            >
+              Back
+            </Button>
 
-          <div className="flex items-center gap-3">
-            {currentStep === STEPS.length - 1 ? (
-              <Button
-                onClick={handleSubmit}
-                disabled={selectedCards.length === 0 || !username.trim()}
-                className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 px-8 font-semibold text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl disabled:opacity-50"
-              >
-                Generate{" "}
-                {selectedCards.length > 0 && `(${selectedCards.length})`}
-                <Sparkles className="ml-2 h-4 w-4" />
-              </Button>
-            ) : (
-              <Button
-                onClick={nextStep}
-                disabled={currentStep === 0 && !username.trim()}
-                className="bg-gray-900 text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
-              >
-                Next Step
-                <ChevronRight className="ml-2 h-4 w-4" />
-              </Button>
-            )}
+            <div className="flex items-center gap-3">
+              {currentStep === STEPS.length - 1 ? (
+                <Button
+                  onClick={handleSubmit}
+                  disabled={selectedCards.length === 0 || !username.trim()}
+                  className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 px-8 font-semibold text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl disabled:opacity-50"
+                >
+                  {loading ? (
+                    retryAttempt > 0 ? (
+                      `Retrying (${Math.min(retryAttempt, retryLimit)}/${retryLimit})...`
+                    ) : (
+                      "Generating cards..."
+                    )
+                  ) : (
+                    <>
+                      Generate{selectedCards.length > 0 && ` (${selectedCards.length})`}
+                      <Sparkles className="ml-2 h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <Button
+                  onClick={nextStep}
+                  disabled={currentStep === 0 && !username.trim()}
+                  className="bg-gray-900 text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+                >
+                  Next Step
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
+          {loading && retryStatusText && (
+            <p className="text-xs text-yellow-600 dark:text-yellow-300">
+              {retryStatusText}
+            </p>
+          )}
         </div>
       </DialogContent>
 

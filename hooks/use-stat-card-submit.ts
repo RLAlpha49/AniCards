@@ -118,6 +118,106 @@ function extractErrorMessageFromPayload(payload: unknown) {
   return undefined;
 }
 
+const DEFAULT_RETRY_ATTEMPTS = 3;
+
+function isRetryableError(error: unknown, statusCode?: number) {
+  if (typeof statusCode === "number") {
+    if (statusCode === 429) return true;
+    if (statusCode >= 500) return true;
+  }
+  if (typeof error === "object" && error !== null) {
+    const candidate = error as Error & { name?: string };
+    // Guard DOMException checks for non-browser environments
+    if (typeof DOMException !== "undefined" && candidate instanceof DOMException && candidate.name === "AbortError") {
+      return true;
+    }
+    if (candidate.name === "AbortError") {
+      return true;
+    }
+  }
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    if (
+      message.includes("timeout") ||
+      message.includes("network") ||
+      message.includes("failed to fetch")
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function calculateBackoffDelay(attempt: number) {
+  const safeAttempt = Math.max(0, attempt);
+  const baseDelay = Math.min(1000 * Math.pow(2, safeAttempt), 10000);
+  const jitter = 0.5 + Math.random() * 0.5;
+  return Math.round(baseDelay * jitter);
+}
+
+function attemptSuffix(retries: number) {
+  if (retries <= 0) return "";
+  const plural = retries === 1 ? "" : "s";
+  return ` after ${retries} attempt${plural}`;
+}
+
+function formatFailure(operationName: string, retries: number, message: string) {
+  return `${operationName} failed${attemptSuffix(retries)}: ${message}`;
+}
+
+function ensureBudgetForNextRetry(
+  start: number,
+  totalTimeoutMs: number | undefined,
+  delay: number,
+  operationName: string,
+  retries: number,
+  errorInstance: Error,
+) {
+  const remaining = remainingBudgetMs(start, totalTimeoutMs);
+  if (remaining <= 0) throw new Error(formatFailure(operationName, retries, errorInstance.message));
+  if (delay >= remaining) throw new Error(formatFailure(operationName, retries, errorInstance.message));
+}
+
+function computeAttemptTimeout(start: number, totalTimeoutMs: number | undefined, timeoutMs: number, operationName: string) {
+  const rem = remainingBudgetMs(start, totalTimeoutMs);
+  const t = Math.min(timeoutMs, rem);
+  if (t <= 0) {
+    throw new Error(`${operationName} failed: total timeout exceeded`);
+  }
+  return t;
+}
+
+async function handleAttemptFailure(
+  err: unknown,
+  start: number,
+  totalTimeoutMs: number | undefined,
+  operationName: string,
+  retries: number,
+  maxRetries: number,
+  onRetry?: (attempt: number, operation: string) => void,
+): Promise<number> {
+  const errorInstance = err instanceof Error ? err : new Error(String(err ?? "Unknown error"));
+  const statusCode =
+    typeof (err as { statusCode?: number }).statusCode === "number"
+      ? (err as { statusCode?: number }).statusCode
+      : undefined;
+  const shouldRetry = retries < maxRetries && isRetryableError(errorInstance, statusCode);
+  if (!shouldRetry) throw new Error(formatFailure(operationName, retries, errorInstance.message));
+
+  const delay = calculateBackoffDelay(retries);
+  ensureBudgetForNextRetry(start, totalTimeoutMs, delay, operationName, retries, errorInstance);
+  const nextRetries = retries + 1;
+  onRetry?.(nextRetries, operationName);
+  await new Promise((resolve) => setTimeout(resolve, delay));
+  return nextRetries;
+}
+
+function remainingBudgetMs(start: number, totalTimeoutMs?: number) {
+  return typeof totalTimeoutMs === "number"
+    ? Math.max(0, totalTimeoutMs - (Date.now() - start))
+    : Infinity;
+}
+
 /**
  * Hook exposing stat-card submission helpers and state.
  * Provides `loading`, `error`, `submit`, and `clearError` to callers.
@@ -128,6 +228,8 @@ function extractErrorMessageFromPayload(payload: unknown) {
 export function useStatCardSubmit() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const [retryOperation, setRetryOperation] = useState<string | null>(null);
 
   /**
    * Perform a fetch with an abort timeout and normalize errors with context.
@@ -156,7 +258,11 @@ export function useStatCardSubmit() {
       return response;
     } catch (err) {
       // Normalize AbortError across environments
-      if (err instanceof DOMException && err.name === "AbortError") {
+      const errName = typeof err === "object" && err !== null ? (err as { name?: string }).name : undefined;
+      if (
+        (typeof DOMException !== "undefined" && err instanceof DOMException && errName === "AbortError") ||
+        errName === "AbortError"
+      ) {
         throw new Error(
           `${contextName} request timed out after ${timeoutMs}ms`,
         );
@@ -169,6 +275,71 @@ export function useStatCardSubmit() {
       clearTimeout(id);
     }
   }
+
+  
+
+  
+
+  async function attemptFetchOnce(
+    url: string,
+    options: RequestInit,
+    timeoutMs: number,
+    contextName: string,
+  ) {
+    const response = await fetchWithTimeout(url, options, timeoutMs, contextName);
+    if (!response.ok) {
+      if (isRetryableError(new Error(`HTTP status ${response.status}`), response.status)) {
+        const statusError = new Error(`HTTP status ${response.status}`);
+        (statusError as { statusCode?: number }).statusCode = response.status;
+        throw statusError;
+      }
+    }
+    return response;
+  }
+
+  async function fetchWithRetry(
+    url: string,
+    options: RequestInit,
+    config: {
+      maxRetries?: number;
+      timeoutMs?: number;
+      contextName?: string;
+      operationName?: string;
+      totalTimeoutMs?: number;
+      onRetry?: (attempt: number, operation: string) => void;
+    } = {},
+  ): Promise<Response> {
+    const {
+      maxRetries = DEFAULT_RETRY_ATTEMPTS,
+      timeoutMs = 10000,
+      contextName = "Request",
+      operationName = "request",
+      totalTimeoutMs,
+      onRetry,
+    } = config;
+
+    const start = Date.now();
+    let retries = 0;
+
+    while (true) {
+      try {
+        const attemptTimeout = computeAttemptTimeout(start, totalTimeoutMs, timeoutMs, operationName);
+        const response = await attemptFetchOnce(url, options, attemptTimeout, contextName);
+        if (response.ok) return response;
+        if (isRetryableError(new Error(`HTTP status ${response.status}`), response.status)) {
+          const statusError = new Error(`HTTP status ${response.status}`);
+          (statusError as { statusCode?: number }).statusCode = response.status;
+          throw statusError;
+        }
+        return response;
+      } catch (err) {
+        // Delegate retry decision, budget checks and delay / backoff handling
+        retries = await handleAttemptFailure(err, start, totalTimeoutMs, operationName, retries, maxRetries, onRetry);
+      }
+    }
+  }
+
+  
 
   /**
    * Validate the submission parameters and throw a descriptive Error if invalid.
@@ -228,16 +399,23 @@ export function useStatCardSubmit() {
     variables: Record<string, unknown>,
     timeoutMs = 10000,
     contextLabel = "query",
+    onRetry?: (attempt: number, operation: string) => void,
   ) {
-    const response = await fetchWithTimeout(
+    const response = await fetchWithRetry(
       "/api/anilist",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query, variables }),
       },
-      timeoutMs,
-      `AniList - ${contextLabel}`,
+      {
+        timeoutMs,
+        contextName: `AniList - ${contextLabel}`,
+        operationName: `AniList ${contextLabel}`,
+        maxRetries: DEFAULT_RETRY_ATTEMPTS,
+        totalTimeoutMs: 15000,
+        onRetry,
+      },
     );
 
     if (!response.ok) {
@@ -274,6 +452,13 @@ export function useStatCardSubmit() {
   }: SubmitParams): Promise<{ success: boolean; userId?: string }> => {
     setLoading(true);
     setError(null);
+    setRetryAttempt(0);
+    setRetryOperation(null);
+
+    const handleRetryUpdate = (attempt: number, operation: string) => {
+      setRetryAttempt(attempt);
+      setRetryOperation(operation);
+    };
 
     try {
       validateSubmission({
@@ -289,6 +474,7 @@ export function useStatCardSubmit() {
         { userName: username },
         10000,
         "user ID fetch",
+        handleRetryUpdate,
       );
       if (!userIdData?.User?.id) {
         throw new Error(
@@ -301,6 +487,7 @@ export function useStatCardSubmit() {
         { userId: userIdData.User.id },
         10000,
         "user stats fetch",
+        handleRetryUpdate,
       );
       if (!statsData) {
         throw new Error(
@@ -320,7 +507,8 @@ export function useStatCardSubmit() {
         showFavoritesByCard,
       });
 
-      const storeUserPromise = fetchWithTimeout(
+      // The store endpoints deduplicate by userId/username (with upsert semantics), so retrying the same payload is safe.
+      const storeUserPromise = fetchWithRetry(
         "/api/store-users",
         {
           method: "POST",
@@ -331,11 +519,16 @@ export function useStatCardSubmit() {
             stats: statsData,
           }),
         },
-        writeTimeout,
-        "Store - store-users",
+        {
+          timeoutMs: writeTimeout,
+          contextName: "Store - store-users",
+          operationName: "Store users",
+          maxRetries: DEFAULT_RETRY_ATTEMPTS,
+          onRetry: handleRetryUpdate,
+        },
       );
 
-      const storeCardsPromise = fetchWithTimeout(
+      const storeCardsPromise = fetchWithRetry(
         "/api/store-cards",
         {
           method: "POST",
@@ -345,8 +538,13 @@ export function useStatCardSubmit() {
             cards: cardsPayload,
           }),
         },
-        writeTimeout,
-        "Store - store-cards",
+        {
+          timeoutMs: writeTimeout,
+          contextName: "Store - store-cards",
+          operationName: "Store cards",
+          maxRetries: DEFAULT_RETRY_ATTEMPTS,
+          onRetry: handleRetryUpdate,
+        },
       );
 
       const [storeUserResponse, storeCardsResponse] = await Promise.all([
@@ -358,15 +556,17 @@ export function useStatCardSubmit() {
       checkResponseOrThrow(storeUserResponse, "Store users failed");
       checkResponseOrThrow(storeCardsResponse, "Store cards failed");
 
-      setLoading(false);
       return { success: true, userId: userIdData.User.id };
     } catch (err) {
-      setLoading(false);
       console.error("useStatCardSubmit error:", err);
       if (err instanceof Error) {
         setError(err);
       }
       return { success: false };
+    } finally {
+      setLoading(false);
+      setRetryAttempt(0);
+      setRetryOperation(null);
     }
   };
 
@@ -375,7 +575,19 @@ export function useStatCardSubmit() {
    * @returns {void}
    * @source
    */
-  const clearError = () => setError(null);
+  const clearError = () => {
+    setError(null);
+    setRetryAttempt(0);
+    setRetryOperation(null);
+  };
 
-  return { loading, error, submit, clearError };
+  return {
+    loading,
+    error,
+    submit,
+    clearError,
+    retryAttempt,
+    retryOperation,
+    retryLimit: DEFAULT_RETRY_ATTEMPTS,
+  };
 }
