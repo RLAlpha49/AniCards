@@ -3,12 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { incrementAnalytics } from "@/lib/api-utils";
 
 /**
- * Safely removes empty CSS rules from a CSS string. This function parses the CSS
- * text while respecting quotes and comments, finds block pairs `{}` and removes
- * those which contain only whitespace/comments.
- *
- * This protects against catastrophic backtracking by avoiding vulnerable regexes
- * that have unbounded backtracking (e.g. /...+\{\s*\}/).
+ * Determines whether a CSS fragment contains only whitespace or block comments.
+ * @param substr - The fragment to inspect for meaningful characters.
+ * @returns True when the fragment has no characters outside of whitespace or comments.
+ * @source
  */
 function isWhitespaceOrComments(substr: string): boolean {
   let inComment = false;
@@ -38,6 +36,14 @@ function isWhitespaceOrComments(substr: string): boolean {
   return !inComment;
 }
 
+/**
+ * Skips forward from a slash-star comment opener and returns the index immediately
+ * after the closing star-slash pair.
+ * @param input - The CSS input containing the comment.
+ * @param start - Index pointing at the '/' that begins the comment.
+ * @returns Position after the matching closing sequence or the string end.
+ * @source
+ */
 function advanceIndexPastEndOfComment(input: string, start: number): number {
   // start points to '/' and next is '*'
   let j = start + 2;
@@ -48,6 +54,14 @@ function advanceIndexPastEndOfComment(input: string, start: number): number {
   return j;
 }
 
+/**
+ * Advances past a quoted segment while honoring escaped quotes.
+ * @param input - String containing the quoted segment.
+ * @param start - Index of the opening quote.
+ * @param quote - Quote character to match.
+ * @returns Index immediately after the closing quote or the input length.
+ * @source
+ */
 function advanceIndexPastEndOfQuote(
   input: string,
   start: number,
@@ -63,9 +77,12 @@ function advanceIndexPastEndOfQuote(
 }
 
 /**
- * Find the index after the matching closing brace '}' starting from the openIdx
- * which points at the opening '{'. This function respects quoted strings and
- * comment blocks so that braces inside them don't affect the depth count.
+ * Locates the closing brace that balances the opening brace at `openIdx` while
+ * skipping over quoted strings and comment blocks.
+ * @param input - CSS text containing the brace pair.
+ * @param openIdx - Index of the opening '{'.
+ * @returns Index immediately after the matching closing '}' or the input length.
+ * @source
  */
 function findMatchingBraceEndIndex(input: string, openIdx: number): number {
   let depth = 1;
@@ -95,8 +112,11 @@ function findMatchingBraceEndIndex(input: string, openIdx: number): number {
 }
 
 /**
- * Find index of the opening brace '{' after a start index while skipping
- * comments and quoted strings. Returns index of '{' or input.length if not found.
+ * Finds the next opening brace '{' after `start`, ignoring comments and quotes.
+ * @param input - CSS content to scan.
+ * @param start - Index at which to begin searching.
+ * @returns Index of the next '{' or the string length when missing.
+ * @source
  */
 function findOpeningBraceIndex(input: string, start: number): number {
   let j = start;
@@ -120,6 +140,12 @@ function findOpeningBraceIndex(input: string, start: number): number {
   return j;
 }
 
+/**
+ * Builds a list of CSS blocks that record selector positions and matching braces.
+ * @param input - CSS text to inspect.
+ * @returns Metadata for each block outlining selector start/end and brace positions.
+ * @source
+ */
 function collectCssBlocks(input: string): Array<{
   selectorStart: number;
   selectorEnd: number;
@@ -177,6 +203,12 @@ function collectCssBlocks(input: string): Array<{
   return blocks;
 }
 
+/**
+ * Finds spans that cover CSS rules whose block contains only whitespace or comments.
+ * @param input - CSS to analyze for empty rules.
+ * @returns Array of selector-to-brace ranges that can be removed.
+ * @source
+ */
 function findEmptyCssRanges(input: string): Array<[number, number]> {
   const ranges: Array<[number, number]> = [];
   const blocks = collectCssBlocks(input);
@@ -189,6 +221,13 @@ function findEmptyCssRanges(input: string): Array<[number, number]> {
   return ranges;
 }
 
+/**
+ * Locates the selector start that precedes the brace at `openIdx`.
+ * @param input - CSS text containing the selector.
+ * @param openIdx - Index of the opening brace for the rule.
+ * @returns Index where the selector begins.
+ * @source
+ */
 function findSelectorStart(input: string, openIdx: number): number {
   let start = openIdx - 1;
   while (start >= 0 && /\s/.test(input[start])) start -= 1;
@@ -203,6 +242,12 @@ function findSelectorStart(input: string, openIdx: number): number {
   return start + 1;
 }
 
+/**
+ * Merges overlapping or contiguous ranges into a compact list.
+ * @param ranges - Ranges to merge.
+ * @returns Combined list of disjoint ranges.
+ * @source
+ */
 function mergeRanges(ranges: Array<[number, number]>): Array<[number, number]> {
   if (ranges.length === 0) return [];
   const sorted = ranges.slice().sort((a, b) => a[0] - b[0]);
@@ -218,6 +263,13 @@ function mergeRanges(ranges: Array<[number, number]>): Array<[number, number]> {
   return merged;
 }
 
+/**
+ * Rebuilds input without the slices specified by `ranges`.
+ * @param input - Original string to trim.
+ * @param ranges - Spans that should be omitted.
+ * @returns String with the ranges removed.
+ * @source
+ */
 function removeRangesFromInput(
   input: string,
   ranges: Array<[number, number]>,
@@ -233,6 +285,12 @@ function removeRangesFromInput(
   return out;
 }
 
+/**
+ * Performs one sweep to remove empty CSS blocks and report whether any were removed.
+ * @param input - CSS string to inspect.
+ * @returns Updated CSS and a flag indicating removal.
+ * @source
+ */
 function removeEmptyCssBlocksOnce(input: string): {
   css: string;
   removed: boolean;
@@ -244,6 +302,12 @@ function removeEmptyCssBlocksOnce(input: string): {
   return { css: out, removed: true };
 }
 
+/**
+ * Iteratively deletes empty CSS rules until no removable blocks remain.
+ * @param css - CSS text to sanitize.
+ * @returns CSS with all empty blocks stripped.
+ * @source
+ */
 export function removeEmptyCssRules(css: string): string {
   if (!css?.includes("{")) return css;
   let last = css;
@@ -256,8 +320,11 @@ export function removeEmptyCssRules(css: string): string {
 }
 
 /**
- * Remove any at-rule blocks (e.g., @keyframes) found in CSS by name.
- * Uses a brace-balanced scan so it survives minified and nested content.
+ * Removes brace-delimited at-rule blocks for a specific rule name.
+ * @param inputCss - CSS text to scan.
+ * @param atRuleName - At-rule name without the leading '@'.
+ * @returns CSS with those at-rule blocks removed.
+ * @source
  */
 function removeAtRuleBlocks(inputCss: string, atRuleName: string): string {
   const lc = inputCss.toLowerCase();
@@ -283,8 +350,10 @@ function removeAtRuleBlocks(inputCss: string, atRuleName: string): string {
 }
 
 /**
- * Split a selector list by commas while ignoring commas that are inside parentheses
- * (for example, :nth-child selectors). Returns trimmed selectors.
+ * Splits selectors on commas while skipping commas inside parentheses.
+ * @param selectorText - Selector list string to split.
+ * @returns Trimmed selectors that were outside of parentheses.
+ * @source
  */
 function splitSelectors(selectorText: string): string[] {
   const selectors: string[] = [];
@@ -338,6 +407,14 @@ function splitSelectors(selectorText: string): string[] {
   return selectors;
 }
 
+/**
+ * Detects whether a selector contains a specific class token without matching
+ * substrings of longer class names.
+ * @param selector - Selector text to inspect.
+ * @param className - Class token to find.
+ * @returns True when the class token exists at a standalone position.
+ * @source
+ */
 function selectorContainsClass(selector: string, className: string): boolean {
   // Match a class token such as `.stagger` anywhere inside a selector but avoid
   // matching a substring of a longer class name (e.g., `.stagger-other`). We use
@@ -349,9 +426,10 @@ function selectorContainsClass(selector: string, className: string): boolean {
 }
 
 /**
- * Remove animation properties such as `animation` shorthand and `animation-*` prefixed
- * properties from a CSS block. Also normalizes opacity and visibility to avoid
- * hidden elements.
+ * Drops animation-related properties and normalizes visibility/opacity.
+ * @param inner - CSS block content to scrub.
+ * @returns CSS block with animation controls and hidden states removed.
+ * @source
  */
 function removeAnimationPropertiesFromBlock(inner: string): string {
   // Remove animation shorthand and vendor-prefixed variants, as well as
@@ -376,19 +454,12 @@ function removeAnimationPropertiesFromBlock(inner: string): string {
 }
 
 /**
- * sanitizeCssContent - policy-driven CSS sanitizer
- *
- * Policy:
- * - Remove animation controls entirely: any 'animation' shorthand and
- *   any 'animation-*' properties (including vendor-prefixed variants).
- * - Remove @keyframes blocks (including vendor-prefixed variants).
- * - Normalize 'opacity: 0' to 'opacity: 1' to avoid hidden elements.
- * - Normalize 'visibility: hidden' to 'visibility: visible'.
- * - Remove '.stagger' selectors only when their rule contains animation
- *   properties, and then remove 'stagger' class tokens from markup. This
- *   change is conservative to avoid removing user-defined classes with the
- *   same name unless they were used for animations.
- * - Remove empty rules after sanitization.
+ * Sanitizes CSS by stripping animation controls, vendor-specific keyframes,
+ * and `.stagger` selectors while normalizing opacity/visibility and trimming
+ * empty rules.
+ * @param css - CSS input to process.
+ * @returns Sanitized CSS along with class tokens that were removed.
+ * @source
  */
 export function sanitizeCssContent(css: string): {
   css: string;
@@ -470,7 +541,11 @@ export function sanitizeCssContent(css: string): {
 }
 
 /**
- * Remove class tokens from class attributes (both single and double quoted).
+ * Removes specific class tokens from single- or double-quoted class attributes.
+ * @param svg - SVG markup containing class attributes.
+ * @param classTokens - Tokens to strip from class lists.
+ * @returns SVG markup without the targeted class tokens.
+ * @source
  */
 export function removeClassTokensFromMarkup(
   svg: string,
@@ -491,9 +566,11 @@ export function removeClassTokensFromMarkup(
 }
 
 /**
- * Sanitize inline style attributes within the SVG markup. This preserves
- * unrelated style declarations while stripping `animation*` related ones
- * and normalizing opacity/visibility.
+ * Sanitizes inline style attributes by removing animation properties and
+ * normalizing opacity/visibility declarations.
+ * @param svg - SVG markup containing inline style attributes.
+ * @returns SVG markup with sanitized inline styles.
+ * @source
  */
 export function sanitizeInlineStyleAttributes(svg: string): string {
   return svg.replaceAll(/style=(['"])(.*?)\1/gi, (m, quote, styleValue) => {
@@ -524,7 +601,12 @@ export function sanitizeInlineStyleAttributes(svg: string): string {
   });
 }
 
-// API endpoint for converting SVG to PNG with style fixes
+/**
+ * Handles POST requests that sanitize SVGs and convert them to PNG data URLs.
+ * @param request - Incoming Next.js request with the svgUrl payload.
+ * @returns NextResponse containing pngDataUrl on success or an error description.
+ * @source
+ */
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
   const ip = request.headers.get("x-forwarded-for") || "unknown IP";
@@ -578,7 +660,12 @@ export async function POST(request: NextRequest) {
           domain === "::1",
       );
 
-    // SSRF protection: Only allow listed domains and HTTPS (HTTP allowed in dev), disallow any local/loopback/private IP addresses
+    /**
+     * Detects whether the hostname represents an IPv4 or IPv6 address.
+     * @param hostname - Hostname string to inspect.
+     * @returns True when the hostname is a literal IP.
+     * @source
+     */
     function isIpAddress(hostname: string): boolean {
       // Detect IPv4 and IPv6 addresses
       return (
@@ -586,7 +673,12 @@ export async function POST(request: NextRequest) {
         /^\[[0-9a-fA-F:]+\]$/.test(hostname) // IPv6 in brackets
       );
     }
-    // Check for private IP address ranges (e.g., 10.x.x.x, 192.168.x.x, 172.16-31.x.x)
+    /**
+     * Checks whether an IPv4 address belongs to private or loopback ranges.
+     * @param hostname - Hostname to evaluate.
+     * @returns True when the IPv4 address is private or loopback.
+     * @source
+     */
     function isPrivateOrLoopbackIp(hostname: string): boolean {
       if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)) return false;
       const parts = hostname.split(".").map((x) => Number.parseInt(x, 10));
@@ -596,7 +688,12 @@ export async function POST(request: NextRequest) {
       if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
       return false;
     }
-    // Check if hostname is localhost or IPv6 loopback
+    /**
+     * Recognizes literal localhost hostnames or IPv6 loopback.
+     * @param hostname - Hostname to test.
+     * @returns True when the hostname refers to localhost.
+     * @source
+     */
     function isLocalhost(hostname: string): boolean {
       return (
         hostname === "localhost" ||

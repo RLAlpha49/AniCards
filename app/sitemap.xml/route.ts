@@ -1,8 +1,16 @@
 import { NextResponse } from "next/server";
 
+/**
+ * Base URL for sitemap entries, defaulting to the hosted site when the environment variable is missing.
+ * @source
+ */
 const BASE_URL =
   process.env.NEXT_PUBLIC_SITE_URL || "https://anicards.alpha49.com";
 
+/**
+ * Static route metadata that drives sitemap priorities and update frequencies.
+ * @source
+ */
 const pages = [
   {
     path: "/",
@@ -41,6 +49,11 @@ const pages = [
   },
 ];
 
+/**
+ * Builds the sitemap XML string covering curated routes and returns it as an XML response.
+ * @returns {Promise<NextResponse>} Sitemap response consumed by crawlers.
+ * @source
+ */
 export async function GET() {
   const lastmod = new Date().toISOString();
 

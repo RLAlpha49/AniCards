@@ -1,15 +1,21 @@
 import { POST } from "./route";
 
-// Set a dummy CRON_SECRET for testing.
+/**
+ * Dummy cron secret for uptime monitor test authorization.
+ * @source
+ */
 const CRON_SECRET = "testsecret";
 process.env.CRON_SECRET = CRON_SECRET;
 
-// Save the original fetch.
-const originalFetch = global.fetch;
+/**
+ * Captures the original fetch implementation so it can be restored.
+ * @source
+ */
+const originalFetch = globalThis.fetch;
 
 afterEach(() => {
   jest.clearAllMocks();
-  global.fetch = originalFetch;
+  globalThis.fetch = originalFetch;
 });
 
 describe("Uptime Monitor Cron API POST Endpoint", () => {
@@ -25,7 +31,7 @@ describe("Uptime Monitor Cron API POST Endpoint", () => {
 
   it("should report all endpoints as up when fetch succeeds for every route", async () => {
     // Simulate fetch such that every request returns a successful response.
-    global.fetch = jest
+    globalThis.fetch = jest
       .fn()
       .mockResolvedValue(new Response(null, { status: 200 }));
 
@@ -48,7 +54,7 @@ describe("Uptime Monitor Cron API POST Endpoint", () => {
 
   it("should report failures when some endpoints fail", async () => {
     // Simulate fetch such that the "/contact" route returns a failure.
-    global.fetch = jest.fn().mockImplementation((url: string) => {
+    globalThis.fetch = jest.fn().mockImplementation((url: string) => {
       if (url.includes("/contact")) {
         // Return a response with status 500 (not ok).
         return Promise.resolve(new Response(null, { status: 500 }));

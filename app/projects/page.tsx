@@ -1,18 +1,26 @@
 "use client";
 
-import React from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { usePageSEO } from "@/hooks/use-page-seo";
-import { SimpleGithubIcon } from "@/components/icons/simple-icons";
+import { SimpleGithubIcon } from "@/components/simple-icons";
 import { ExternalLink, Sparkles, Code } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { GridPattern } from "@/components/ui/grid-pattern";
 
+/**
+ * Renders the projects showcase page, including the hero, cards, and CTA flows.
+ * @returns A fully composed project gallery view with CTA.
+ * @source
+ */
 export default function ProjectsPage() {
   usePageSEO("projects");
 
+  /**
+   * Open-source project metadata used to render the grid cards.
+   * @source
+   */
   const projects = [
     {
       name: "Anilist Custom List Manager",

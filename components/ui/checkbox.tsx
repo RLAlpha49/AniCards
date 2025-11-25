@@ -6,6 +6,11 @@ import { Check } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
+/**
+ * Accessible Checkbox wrapper using Radix primitives.
+ * Includes visual indicator icon and supports all native checkbox props.
+ * @source
+ */
 const Checkbox = React.forwardRef<
   React.ComponentRef<typeof CheckboxPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>

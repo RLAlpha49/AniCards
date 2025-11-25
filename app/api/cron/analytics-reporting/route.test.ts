@@ -1,9 +1,24 @@
 import { POST } from "./route";
 
-// Set up mocks for @upstash/redis.
+/**
+ * Mock for fetching analytics keys from Redis.
+ * @source
+ */
 const mockKeys = jest.fn();
+/**
+ * Mock for retrieving analytics values from Redis.
+ * @source
+ */
 const mockGet = jest.fn();
+/**
+ * Mock for pushing analytics reports to Redis lists.
+ * @source
+ */
 const mockRpush = jest.fn();
+/**
+ * Fake Redis client exposing the mocked commands for analytics tests.
+ * @source
+ */
 const fakeRedisClient = {
   keys: mockKeys,
   get: mockGet,
@@ -16,21 +31,38 @@ jest.mock("@upstash/redis", () => ({
   },
 }));
 
-// Set a dummy CRON_SECRET for testing.
+/**
+ * Dummy cron secret to satisfy authorization for analytics cron tests.
+ * @source
+ */
 const CRON_SECRET = "testsecret";
 process.env.CRON_SECRET = CRON_SECRET;
 
-// Helper functions to reduce code duplication
+/**
+ * Base URL used to build cron requests for analytics reporting.
+ * @source
+ */
 const BASE_URL = "http://localhost/api/cron/analytics-reporting";
 
-// Helper to create request with cron secret
+/**
+ * Builds a cron request that includes the provided secret header.
+ * @param secret - Cron secret to include in the request.
+ * @returns Configured request targeting the analytics cron route.
+ * @source
+ */
 function createCronRequest(secret = CRON_SECRET): Request {
   return new Request(BASE_URL, {
     headers: { "x-cron-secret": secret },
   });
 }
 
-// Helper to validate error response
+/**
+ * Asserts that the response matches the expected status and text body.
+ * @param response - Response returned by the cron handler.
+ * @param expectedStatus - Expected HTTP status code.
+ * @param expectedText - Expected response text body.
+ * @source
+ */
 async function expectErrorResponse(
   response: Response,
   expectedStatus: number,
@@ -41,7 +73,12 @@ async function expectErrorResponse(
   expect(text).toBe(expectedText);
 }
 
-// Helper to validate successful analytics report
+/**
+ * Asserts the response represents a successful analytics report and returns it.
+ * @param response - Response object from the analytics cron handler.
+ * @returns Parsed analytics report payload.
+ * @source
+ */
 async function expectSuccessfulReport(response: Response) {
   expect(response.status).toBe(200);
   const report = await response.json();
@@ -54,7 +91,10 @@ async function expectSuccessfulReport(response: Response) {
   return report;
 }
 
-// Helper to setup successful analytics mocks
+/**
+ * Configures Redis mocks to simulate a successful analytics run.
+ * @source
+ */
 function setupSuccessfulAnalyticsMocks() {
   // Simulate Redis returning analytics keys
   mockKeys.mockResolvedValueOnce([

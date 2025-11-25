@@ -1,19 +1,41 @@
-// Declare mockLimit in the outer scope so tests can access it.
+/**
+ * Controls the mocked rate-limit outcome returned in each test scenario.
+ * @source
+ */
 let mockLimit = jest.fn().mockResolvedValue({ success: true });
+/**
+ * Captures Redis `set` invocations to assert payloads without contacting Upstash.
+ * @source
+ */
 let mockRedisSet = jest.fn();
 
-jest.mock("@upstash/redis", () => {
+/**
+ * Supplies the mocked Redis client referenced by the handler under test.
+ * @source
+ */
+/** Create a named redis mock for store-cards tests */
+function createRedisFromEnvMock() {
   return {
-    Redis: {
-      fromEnv: jest.fn(() => ({
-        set: mockRedisSet,
-        incr: jest.fn(() => Promise.resolve(1)),
-      })),
-    },
+    set: mockRedisSet,
+    incr: jest.fn(async () => 1),
   };
-});
+}
 
+jest.mock("@upstash/redis", () => ({
+  Redis: {
+    fromEnv: jest.fn(createRedisFromEnvMock),
+  },
+}));
+
+/**
+ * Provides a fake ratelimit implementation that exposes the mock limit handler.
+ * @source
+ */
 jest.mock("@upstash/ratelimit", () => {
+  /**
+   * Mimics the public ratelimit interface used by the POST handler.
+   * @source
+   */
   class RatelimitMock {
     static readonly slidingWindow = jest.fn();
     public limit = mockLimit;
@@ -28,11 +50,23 @@ process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
 
 import { POST } from "./route";
 
+/**
+ * Verifies the store-cards POST endpoint across rate limit, validation, and persistence scenarios.
+ * @source
+ */
 describe("Store Cards API POST Endpoint", () => {
+  /**
+   * Resets mocks after each test so state does not leak between cases.
+   * @source
+   */
   afterEach(() => {
     jest.clearAllMocks();
   });
 
+  /**
+   * Expects a 429 response when the rate limiter rejects the request.
+   * @source
+   */
   it("should return rate limit error when limit is exceeded", async () => {
     // Simulate rate limit failure.
     mockLimit.mockResolvedValueOnce({ success: false });
@@ -53,6 +87,10 @@ describe("Store Cards API POST Endpoint", () => {
     expect(data.error).toBe("Too many requests");
   });
 
+  /**
+   * Ensures production-only cross-origin requests return 401.
+   * @source
+   */
   it("should reject cross-origin requests in production when origin differs", async () => {
     // Set NODE_ENV to production for this test
     const originalEnv = process.env.NODE_ENV;
@@ -78,6 +116,10 @@ describe("Store Cards API POST Endpoint", () => {
     (process.env as unknown as { NODE_ENV?: string }).NODE_ENV = originalEnv;
   });
 
+  /**
+   * Validates that statsData errors translate to 400 responses.
+   * @source
+   */
   it("should return 400 error when statsData contains an error", async () => {
     mockLimit.mockResolvedValueOnce({ success: true });
 
@@ -101,6 +143,10 @@ describe("Store Cards API POST Endpoint", () => {
     expect(data.error).toBe("Invalid data: Invalid stats");
   });
 
+  /**
+   * Confirms valid configs are persisted and respond with success.
+   * @source
+   */
   it("should store card configurations successfully and return success", async () => {
     mockLimit.mockResolvedValueOnce({ success: true });
     mockRedisSet.mockResolvedValueOnce(true); // Simulate successful Redis storage
@@ -148,6 +194,10 @@ describe("Store Cards API POST Endpoint", () => {
     expect(storedData).toHaveProperty("updatedAt");
   });
 
+  /**
+   * Checks that Redis failures surface as 500 server errors.
+   * @source
+   */
   it("should return 500 if redis storage fails", async () => {
     mockLimit.mockResolvedValueOnce({ success: true });
     // Simulate a failure in redisClient.set.

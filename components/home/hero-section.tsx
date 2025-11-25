@@ -5,11 +5,27 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, Play, Sparkles, ArrowDown } from "lucide-react";
 import { FloatingCardsLayer } from "@/components/ui/floating-cards";
 
+/**
+ * Props for the home page hero section.
+ * @property onGetStarted - Called when the primary action (Create Cards) is triggered.
+ * @property onSeeExamples - Called when the secondary action (View Gallery) is triggered.
+ * @source
+ */
 interface HeroSectionProps {
   onGetStarted: () => void;
   onSeeExamples: () => void;
 }
 
+/**
+ * Renders the hero section on the landing page with main actions and a
+ * decorative floating cards layer.
+ *
+ * @param props - Component props.
+ * @param props.onGetStarted - Handler invoked when the Create Cards button is clicked.
+ * @param props.onSeeExamples - Handler invoked when the View Gallery button is clicked.
+ * @returns The hero section element.
+ * @source
+ */
 export function HeroSection({
   onGetStarted,
   onSeeExamples,

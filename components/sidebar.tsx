@@ -24,6 +24,11 @@ import {
 import { useState, useEffect } from "react";
 import { trackNavigation } from "@/lib/utils/google-analytics";
 
+/**
+ * Navigation items rendered in the sidebar. Each item contains a title,
+ * an icon component and a path to navigate to.
+ * @source
+ */
 const navItems = [
   { title: "Home", icon: Home, href: "/" },
   { title: "Examples", icon: Grid3X3, href: "/examples" },
@@ -35,9 +40,18 @@ const navItems = [
   { title: "License", icon: File, href: "/license" },
 ];
 
+/**
+ * Primary sidebar navigation component.
+ * - Renders a list of nav items with icons.
+ * - Tracks navigation analytics when items are clicked.
+ * - Uses a mount guard to avoid hydration mismatch.
+ * @returns Sidebar navigation element.
+ * @source
+ */
 export function AppSidebar() {
   const pathname = usePathname();
 
+  // Use a mount guard to avoid hydration differences between SSR and client.
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);

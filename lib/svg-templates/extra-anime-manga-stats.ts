@@ -1,5 +1,13 @@
 import { calculateDynamicFontSize } from "../utils";
 
+/**
+ * Render an SVG card for additional anime/manga statistics including pie/bar
+ * and a minimal default detail list. The function returns a string containing
+ * ready-to-embed SVG markup.
+ * @param data - Input shape required by the template.
+ * @returns A string of SVG markup representing the card.
+ * @source
+ */
 export const extraAnimeMangaStatsTemplate = (data: {
   username: string;
   variant?: "default" | "pie" | "bar";
@@ -32,7 +40,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
   const viewBoxWidth = svgWidth;
   const rectWidth = svgWidth - 1;
 
-  // Only show hearts for these formats
+  /** List of formats that should render hearts for favorites (pink heart). @source */
   const FAVORITE_FORMATS = [
     "Anime Voice Actors",
     "Anime Studios",
@@ -41,6 +49,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
   ];
   const showFavorites = FAVORITE_FORMATS.includes(data.format);
 
+  /** Inline SVG used to render the 'favorite' heart icon in lists and legends. @source */
   const heartSVG =
     '<svg x="-18" y="2" width="14" height="14" viewBox="0 0 20 20" fill="#fe428e" xmlns="http://www.w3.org/2000/svg"><path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"/></svg>';
 
@@ -239,6 +248,14 @@ export const extraAnimeMangaStatsTemplate = (data: {
   `;
 };
 
+/**
+ * Generate a color variation from a base color using HSL adjustments. Colors
+ * are derived deterministically by index to ensure consistent visual ordering.
+ * @param index - Zero-based index used to compute a deterministic variation.
+ * @param baseColor - The base hex color used to compute variations.
+ * @returns A CSS HSL color string.
+ * @source
+ */
 const getColorByIndex = (index: number, baseColor: string) => {
   // Convert base color to HSL for easy manipulation
   const hexToHSL = (hex: string) => {
@@ -286,7 +303,17 @@ const getColorByIndex = (index: number, baseColor: string) => {
   return `hsl(${h}, ${Math.min(variation.s, 100)}%, ${Math.min(variation.l, 100)}%)`;
 };
 
-// Derive color for a stat; if fixed status colors enabled and stat name matches known statuses, use mapping
+/**
+ * Selects a color for a stat entry. If `useFixed` is truthy and the stat
+ * matches a known set of statuses this function returns a fixed color;
+ * otherwise it returns an HSL-based variation of the base color.
+ * @param index - Index used to derive color variations by position.
+ * @param statName - Name of the stat (used for fixed mapping lookup).
+ * @param baseColor - Base color used for non-fixed mapping.
+ * @param useFixed - When true, use fixed status mapping for known statuses.
+ * @returns A CSS color string.
+ * @source
+ */
 const getStatColor = (
   index: number,
   statName: string,

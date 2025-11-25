@@ -1,4 +1,7 @@
-// Structured data types
+/**
+ * Schema.org WebPage type used for structured data (JSON-LD) metadata.
+ * @source
+ */
 interface WebPage {
   "@type": "WebPage";
   "@context": string;
@@ -14,6 +17,10 @@ interface WebPage {
   };
 }
 
+/**
+ * Schema.org SoftwareApplication type used for app-specific structured data.
+ * @source
+ */
 interface SoftwareApplication {
   "@type": "SoftwareApplication";
   "@context": string;
@@ -34,7 +41,14 @@ interface SoftwareApplication {
   };
 }
 
-// Structured data for better SEO
+/**
+ * Generates structured JSON-LD schema for a specific page type. When
+ * `home` is requested it includes both WebPage and SoftwareApplication
+ * entries to surface the web app and the site.
+ * @param pageType - Page type which controls the returned schema shapes.
+ * @returns An array of structured data objects suitable for JSON-LD.
+ * @source
+ */
 export const generateStructuredData = (
   pageType: "home" | "user" | "search" = "home",
 ) => {
@@ -84,7 +98,13 @@ export const generateStructuredData = (
   return [baseSchema];
 };
 
-// Generate JSON-LD script tag
+/**
+ * Return a safe value for injecting JSON-LD into a script tag using the
+ * `__html` key for frameworks that support dangerouslySetInnerHTML.
+ * @param data - The structured data objects to serialize.
+ * @returns An object with an `__html` key containing the JSON-LD string.
+ * @source
+ */
 export const generateJsonLd = (data: (WebPage | SoftwareApplication)[]) => {
   return {
     __html: JSON.stringify(data.length === 1 ? data[0] : data),

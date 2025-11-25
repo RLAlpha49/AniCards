@@ -13,6 +13,7 @@ import type { TemplateCardConfig } from "@/lib/types/card";
  *
  * @param inputs - List of class names or expressions (of type ClassValue) to be merged.
  * @returns A single merged string of class names.
+ * @source
  */
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -26,6 +27,7 @@ export function cn(...inputs: ClassValue[]) {
  * @param svgUrl - The URL of the SVG file to be converted.
  * @returns A Promise that resolves to the PNG data URL as a string.
  * @throws Error when the conversion process or network request fails.
+ * @source
  */
 export async function svgToPng(svgUrl: string): Promise<string> {
   try {
@@ -53,6 +55,7 @@ export async function svgToPng(svgUrl: string): Promise<string> {
 /**
  * Try to parse a Response body as JSON; if that fails, return the text body.
  * If both attempts fail, return null.
+ * @source
  */
 async function parseResponsePayload(response: Response): Promise<unknown> {
   try {
@@ -70,6 +73,7 @@ async function parseResponsePayload(response: Response): Promise<unknown> {
 /**
  * Create a human-friendly error message from the HTTP response and optional payload.
  * If the payload contains an `error` or `message` field those are prioritized.
+ * @source
  */
 function getResponseErrorMessage(response: Response, payload: unknown): string {
   let message = `HTTP ${response.status} ${response.statusText}`;
@@ -86,6 +90,7 @@ function getResponseErrorMessage(response: Response, payload: unknown): string {
 
 /**
  * Validate the parsed payload and extract the pngDataUrl property. Throws on invalid payloads.
+ * @source
  */
 function extractPngDataUrl(payload: unknown): string {
   if (!payload || typeof payload !== "object") {
@@ -109,6 +114,7 @@ function extractPngDataUrl(payload: unknown): string {
  *
  * @param text - The text to be copied.
  * @returns A Promise that resolves when the text is successfully copied.
+ * @source
  */
 export function copyToClipboard(text: string): Promise<void> {
   // Utilize the browser's native clipboard API.
@@ -126,6 +132,7 @@ export function copyToClipboard(text: string): Promise<void> {
  * @param maxWidth - The maximum width that the text is allowed to occupy (default: 220).
  * @param minFontSize - The minimum allowable font size to keep text readable (default: 8).
  * @returns The computed font size as a string rounded to one decimal place.
+ * @source
  */
 export const calculateDynamicFontSize = (
   text: string,
@@ -156,6 +163,7 @@ export const calculateDynamicFontSize = (
  * @param bytes - The number of bytes to format.
  * @param decimals - The number of decimal places (default: 2).
  * @returns A formatted string representing the size (e.g., "1.23 MB").
+ * @source
  */
 export function formatBytes(bytes: number, decimals = 2) {
   if (bytes === 0) return "0 Bytes";
@@ -179,6 +187,7 @@ export function formatBytes(bytes: number, decimals = 2) {
  * @param data - The data to parse, which may be a JSON string or an already-parsed object.
  * @returns The parsed object of type T.
  * @throws Error if JSON.parse fails.
+ * @source
  */
 export function safeParse<T>(data: unknown): T {
   if (typeof data === "string") {
@@ -223,6 +232,7 @@ export function safeParse<T>(data: unknown): T {
  *
  * @param url - The URL to convert (may be relative or absolute).
  * @returns The absolute URL. If already absolute or running on server, returns the original URL.
+ * @source
  */
 export function getAbsoluteUrl(url: string): string {
   if (!globalThis.window) return url;
@@ -234,6 +244,7 @@ export function getAbsoluteUrl(url: string): string {
  * Converts a stored card configuration (StoredCardConfig) into the template-facing
  * TemplateCardConfig shape. This ensures templates always receive the expected fields
  * while the stored shape may include additional persistence-only flags.
+ * @source
  */
 export function toTemplateCardConfig(
   card: StoredCardConfig | TemplateCardConfig,
@@ -259,6 +270,7 @@ export function toTemplateCardConfig(
 /**
  * Extracts the style subset from a stored or template card config so templates
  * receive only the style values they need.
+ * @source
  */
 export function extractStyles(
   cardConfig: StoredCardConfig | TemplateCardConfig,

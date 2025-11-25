@@ -1,23 +1,40 @@
 /**
  * This test file covers the GET handler for the card SVG endpoint.
  * It mocks external dependencies such as the rate limiter, Redis, and external utility/template functions.
+ * @source
  */
 
+/**
+ * Mock implementation of the rate limiter's limit method.
+ * @source
+ */
 let mockLimit = jest.fn().mockResolvedValue({ success: true });
+
+/**
+ * Mock for Redis GET operations.
+ * @source
+ */
 let mockRedisGet = jest.fn();
+
+/**
+ * Mock for Redis SET operations.
+ * @source
+ */
 let mockRedisSet = jest.fn();
 
-jest.mock("@upstash/redis", () => {
+function createRedisFromEnvMock() {
   return {
-    Redis: {
-      fromEnv: jest.fn(() => ({
-        get: mockRedisGet,
-        set: mockRedisSet,
-        incr: jest.fn(() => Promise.resolve(1)),
-      })),
-    },
+    get: mockRedisGet,
+    set: mockRedisSet,
+    incr: jest.fn(async () => 1),
   };
-});
+}
+
+jest.mock("@upstash/redis", () => ({
+  Redis: {
+    fromEnv: jest.fn(createRedisFromEnvMock),
+  },
+}));
 
 import { GET } from "./route";
 
@@ -88,12 +105,24 @@ jest.mock("@/lib/utils", () => ({
   // Keep calculateMilestones from the dedicated module above.
 }));
 
-// Helper functions to reduce code duplication
+/**
+ * Reads the text body from a Response for later assertion.
+ * @param response - Response object to extract text from.
+ * @returns Promise resolving to the response body string.
+ * @source
+ */
 async function getResponseText(response: Response): Promise<string> {
   return response.text();
 }
 
-// Helper to create mock card data
+/**
+ * Builds a serialized card configuration payload for Redis mocks.
+ * @param cardName - Name of the card to simulate.
+ * @param variation - Optional variation string.
+ * @param extra - Additional fields to merge into the generated card.
+ * @returns JSON string matching the stored card document shape.
+ * @source
+ */
 function createMockCardData(
   cardName: string,
   variation = "default",
@@ -118,7 +147,14 @@ function createMockCardData(
   });
 }
 
-// Helper to create mock user data with different stat structures
+/**
+ * Builds a serialized AniList user document with customizable statistics.
+ * @param userId - AniList user ID used by Redis keys.
+ * @param username - Username returned in the mocked record.
+ * @param statsOverride - Optional stats overrides for the mock.
+ * @returns JSON string matching the stored user record shape.
+ * @source
+ */
 function createMockUserData(
   userId: number | string,
   username: string,
@@ -154,7 +190,13 @@ function createMockUserData(
   });
 }
 
-// Helper to create request URL
+/**
+ * Constructs a URL string with query parameters for the test requests.
+ * @param baseUrl - Base endpoint for the card SVG API.
+ * @param params - Key/value pairs to include as query parameters.
+ * @returns Fully qualified URL string ready for Request objects.
+ * @source
+ */
 function createRequestUrl(baseUrl: string, params: Record<string, string>) {
   const url = new URL(baseUrl);
   for (const [key, value] of Object.entries(params)) {
@@ -163,12 +205,24 @@ function createRequestUrl(baseUrl: string, params: Record<string, string>) {
   return url.toString();
 }
 
-// Helper to setup successful mocks
+/**
+ * Configures Redis GET to return the provided cards and user payloads.
+ * @param cardsData - Serialized cards document returned first.
+ * @param userData - Serialized user document returned second.
+ * @source
+ */
 function setupSuccessfulMocks(cardsData: string, userData: string) {
   mockRedisGet.mockResolvedValueOnce(cardsData).mockResolvedValueOnce(userData);
 }
 
-// Helper to validate successful SVG response
+/**
+ * Asserts an SVG response succeeded and optionally matches the expected text.
+ * @param res - Response returned by the GET handler.
+ * @param expectedSvg - Expected SVG markup to compare against.
+ * @param bodyText - Optional pre-read body text to reuse.
+ * @returns Promise that resolves once assertions complete.
+ * @source
+ */
 async function expectSuccessfulSvgResponse(
   res: Response,
   expectedSvg: string,
@@ -180,7 +234,14 @@ async function expectSuccessfulSvgResponse(
   expect(text).toBe(expectedSvg);
 }
 
-// Helper to validate error response
+/**
+ * Asserts a response contains the expected SVG error message.
+ * @param res - Response returned by the GET handler.
+ * @param expectedError - Substring expected inside the SVG error
+ * @param expectedStatus - HTTP status code expected for the error.
+ * @returns Promise that resolves once assertions complete.
+ * @source
+ */
 async function expectErrorResponse(
   res: Response,
   expectedError: string,
@@ -193,6 +254,10 @@ async function expectErrorResponse(
 }
 
 describe("Card SVG GET Endpoint", () => {
+  /**
+   * Base URL used for constructing test requests.
+   * @source
+   */
   const baseUrl = "http://localhost/api/card.svg";
 
   afterEach(() => {

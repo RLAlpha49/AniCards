@@ -4,23 +4,47 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { formatBytes } from "@/lib/utils";
 
+/**
+ * Represents a cached item with size and last-modified metadata.
+ * @property key - Storage key identifying the cached entry.
+ * @property size - Item size in bytes.
+ * @property lastModified - ISO string for the last modification time.
+ * @source
+ */
 export interface CacheItem {
   key: string;
   size: number;
   lastModified: string;
 }
 
+/**
+ * Props for the CacheManagement component.
+ * @property cachedItems - Array of cache items to display.
+ * @property onClearCache - Invoked to clear all cached items.
+ * @property onDeleteCacheItem - Invoked to delete a cache item by key.
+ * @source
+ */
 interface CacheManagementProps {
   cachedItems: CacheItem[];
   onClearCache: () => void;
   onDeleteCacheItem: (key: string) => void;
 }
 
+/**
+ * Renders a UI for managing client-side cache.
+ * Shows summary statistics, a list of cached items, and actions to clear or delete cache.
+ * @param cachedItems - Items currently stored in cache.
+ * @param onClearCache - Callback to clear all cached data.
+ * @param onDeleteCacheItem - Callback to delete a specific cache item by key.
+ * @returns A React element representing cache management UI.
+ * @source
+ */
 export function CacheManagement({
   cachedItems,
   onClearCache,
   onDeleteCacheItem,
 }: Readonly<CacheManagementProps>) {
+  // Aggregate total size (in bytes) of all cached items for display.
   const totalSize = cachedItems.reduce((sum, item) => sum + item.size, 0);
 
   return (

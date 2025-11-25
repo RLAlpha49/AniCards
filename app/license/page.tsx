@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -20,9 +20,13 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { usePageSEO } from "@/hooks/use-page-seo";
 import { Card, CardContent } from "@/components/ui/card";
-import { SimpleGithubIcon } from "@/components/icons/simple-icons";
+import { SimpleGithubIcon } from "@/components/simple-icons";
 import { GridPattern } from "@/components/ui/grid-pattern";
 
+/**
+ * Decorative motion icons that drift behind the license content.
+ * @source
+ */
 const FLOATING_ICONS = [
   {
     id: "scale",
@@ -58,6 +62,11 @@ const FLOATING_ICONS = [
   },
 ];
 
+/**
+ * Renders the license page with animated accents, remote text fetch, and copy controls.
+ * @returns {JSX.Element} The composed MIT license layout.
+ * @source
+ */
 export default function LicensePage() {
   usePageSEO("license");
 
@@ -67,6 +76,10 @@ export default function LicensePage() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    /**
+     * Retrieves the raw MIT license text from the repository and stores it locally.
+     * @source
+     */
     const fetchLicense = async () => {
       try {
         const response = await fetch(
@@ -89,6 +102,11 @@ export default function LicensePage() {
     fetchLicense();
   }, []);
 
+  /**
+   * Copies the loaded license text to the clipboard and toggles the copied state.
+   * @returns {Promise<void>} Resolves once the clipboard write is attempted.
+   * @source
+   */
   const copyToClipboard = async () => {
     try {
       await navigator.clipboard.writeText(licenseText);
@@ -99,6 +117,11 @@ export default function LicensePage() {
     }
   };
 
+  /**
+   * Selects the license card body for loading, error, or ready states.
+   * @returns {React.ReactNode} The content rendered inside the display card.
+   * @source
+   */
   const renderContent = () => {
     if (isLoading) {
       return (

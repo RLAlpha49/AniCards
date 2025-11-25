@@ -1,11 +1,30 @@
 import { POST } from "./route";
 
-// -- Setup fake Redis client --
+/**
+ * Mocked keys command used across the validation cron tests.
+ * @source
+ */
 const mockKeys = jest.fn();
+/**
+ * Mocked get command used to simulate Redis values.
+ * @source
+ */
 const mockGet = jest.fn();
+/**
+ * Mocked lrange command for fetching analytics report lists.
+ * @source
+ */
 const mockLrange = jest.fn();
+/**
+ * Mocked rpush command for storing validation reports.
+ * @source
+ */
 const mockRpush = jest.fn();
 
+/**
+ * Fake Redis client exposing the mocked methods.
+ * @source
+ */
 const fakeRedisClient = {
   keys: mockKeys,
   get: mockGet,
@@ -19,21 +38,35 @@ jest.mock("@upstash/redis", () => ({
   },
 }));
 
-// Set a dummy CRON_SECRET for testing.
+/**
+ * Dummy cron secret for bypassing authorization in validation tests.
+ * @source
+ */
 const CRON_SECRET = "testsecret";
 process.env.CRON_SECRET = CRON_SECRET;
 
-// Helper functions to reduce code duplication
+/**
+ * Base URL used when constructing data validation cron requests.
+ * @source
+ */
 const BASE_URL = "http://localhost/api/cron/data-validation";
 
-// Helper to create request with cron secret
+/**
+ * Builds a cron POST request that includes the cron secret header.
+ * @param secret - Secret header value to include.
+ * @returns Configured Request object for the data validation endpoint.
+ * @source
+ */
 function createCronRequest(secret: string = CRON_SECRET): Request {
   return new Request(BASE_URL, {
     headers: { "x-cron-secret": secret },
   });
 }
 
-// Helper to setup Redis mocks for successful validation
+/**
+ * Configures Redis mocks to simulate a healthy validation run.
+ * @source
+ */
 function setupSuccessfulRedisMocks() {
   mockKeys.mockImplementation((pattern: string) => {
     switch (pattern) {
@@ -73,7 +106,12 @@ function setupSuccessfulRedisMocks() {
   mockRpush.mockResolvedValue(1);
 }
 
-// Helper to validate successful response with report structure
+/**
+ * Asserts the response contains a valid validation report and returns it.
+ * @param response - HTTP response returned by the cron endpoint.
+ * @returns Parsed validation report JSON.
+ * @source
+ */
 async function expectValidationReport(response: Response) {
   expect(response.status).toBe(200);
 
@@ -86,7 +124,13 @@ async function expectValidationReport(response: Response) {
   return report;
 }
 
-// Helper to expect error response
+/**
+ * Asserts that the response matches the expected status code and body.
+ * @param response - HTTP response from the cron handler.
+ * @param status - Expected HTTP status.
+ * @param message - Expected response text.
+ * @source
+ */
 async function expectErrorResponse(
   response: Response,
   status: number,
@@ -97,7 +141,10 @@ async function expectErrorResponse(
   expect(text).toBe(message);
 }
 
-// -- Valid records for testing --
+/**
+ * Representative user record used in successful validation scenarios.
+ * @source
+ */
 const validUserRecord = {
   userId: 1,
   username: "testuser",
@@ -107,6 +154,10 @@ const validUserRecord = {
   stats: {},
 };
 
+/**
+ * Representative cards record used in successful validation scenarios.
+ * @source
+ */
 const validCardsRecord = {
   userId: 1,
   cards: [
@@ -122,6 +173,10 @@ const validCardsRecord = {
   updatedAt: "2021-01-02T00:00:00Z",
 };
 
+/**
+ * Representative analytics report used in successful validation scenarios.
+ * @source
+ */
 const validReport = {
   generatedAt: "2021-01-01T00:00:00Z",
   raw_data: { "analytics:visits": 100 },

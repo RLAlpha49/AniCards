@@ -31,12 +31,20 @@ import {
 import { usePageSEO } from "@/hooks/use-page-seo";
 import { Input } from "@/components/ui/input";
 
+/**
+ * Represents a single card variant shown in the gallery.
+ * @source
+ */
 interface CardVariant {
   name: string;
   url: string;
   description?: string;
 }
 
+/**
+ * Describes a card type grouping, including layout details and variations.
+ * @source
+ */
 interface CardType {
   title: string;
   description: string;
@@ -45,8 +53,22 @@ interface CardType {
   icon: React.ElementType;
   color: string;
 }
+/**
+ * Lightweight metadata for card types before their variants are built.
+ * @source
+ */
 type CardTypeMeta = Omit<CardType, "variants"> & { variants?: CardVariant[] };
 
+/**
+ * Renders a preview card with an image, metadata, and a generator CTA overlay.
+ * @param props.variant - The selected card variation to display.
+ * @param props.cardTypeTitle - The parent card type title shown beside the preview.
+ * @param props.userId - AniList user identifier carried through for generator intents.
+ * @param props.color - Accent color hint for future theming hooks.
+ * @param props.onOpenGenerator - Callback triggered when the generator button is pressed.
+ * @returns A card preview surface that opens the generator via the overlay button.
+ * @source
+ */
 function ExampleCard({
   variant,
   cardTypeTitle,
@@ -109,6 +131,12 @@ function ExampleCard({
   );
 }
 
+/**
+ * Returns the icon component associated with a card category.
+ * @param category - Category label to resolve.
+ * @returns The Lucide icon component representing the category.
+ * @source
+ */
 const getCategoryIcon = (category: string) => {
   switch (category) {
     case "Main Stats":
@@ -122,6 +150,12 @@ const getCategoryIcon = (category: string) => {
   }
 };
 
+/**
+ * Maps a category label to its Tailwind background and text color classes.
+ * @param category - Category key used in the gallery sections.
+ * @returns Background and text color class pairs for the badge.
+ * @source
+ */
 const getCategoryColor = (category: string) => {
   switch (category) {
     case "Anime Breakdowns":
@@ -143,6 +177,17 @@ const getCategoryColor = (category: string) => {
   }
 };
 
+/**
+ * Renders a motion-enhanced section of cards for a single category.
+ * @param props.category - Human-readable category name to display.
+ * @param props.categoryIndex - Zero-based order of the category used for animation staggering.
+ * @param props.filteredCardTypes - Card types filtered by the current search query.
+ * @param props.isFirstCategory - Whether this section is the first in the list, affecting animation timing.
+ * @param props.onOpenGenerator - Callback that opens the card generator modal.
+ * @param props.userId - AniList user ID forwarded to the cards.
+ * @returns A section full of example cards or null when no matching types exist.
+ * @source
+ */
 function CategorySection({
   category,
   categoryIndex,
@@ -263,14 +308,31 @@ function CategorySection({
   );
 }
 
+/**
+ * Displays the examples gallery with search, statistics, and generator CTA.
+ * @returns The examples page layout composed of category sections and the generator modal.
+ * @source
+ */
 export default function ExamplesPage() {
   usePageSEO("examples");
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
+  /**
+   * Base URL reused when building preview card links.
+   * @source
+   */
   const BASE_URL = DEFAULT_BASE_CARD_URL;
+  /**
+   * AniList user ID demonstrated in the example gallery links.
+   * @source
+   */
   const USER_ID = "542244";
 
+  /**
+   * Core metadata describing the card types that can appear in the gallery.
+   * @source
+   */
   const cardTypeMetadata: CardTypeMeta[] = [
     // Main Stats
     {
@@ -430,7 +492,10 @@ export default function ExamplesPage() {
     },
   ];
 
-  // Generate variants from shared CARD_GROUPS where possible to avoid duplication.
+  /**
+   * Builds the card types plus generated variants by reusing shared CARD_GROUPS data.
+   * @source
+   */
   const cardTypesWithGeneratedVariants: CardType[] = cardTypeMetadata.map(
     (ct) => {
       const group = CARD_GROUPS.find((g) => g.cardTitle === ct.title);
@@ -456,12 +521,20 @@ export default function ExamplesPage() {
     },
   );
 
+  /**
+   * Ordered category labels used to render separate gallery sections.
+   * @source
+   */
   const categories = [
     "Main Stats",
     "Anime Breakdowns",
     "Manga Breakdowns",
   ] as const;
 
+  /**
+   * Filtered card types that match the current search query.
+   * @source
+   */
   const filteredCardTypes = cardTypesWithGeneratedVariants.filter(
     (card) =>
       card.title.toLowerCase().includes(searchQuery.toLowerCase()) ||

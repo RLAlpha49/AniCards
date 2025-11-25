@@ -3,15 +3,30 @@
 import { type CSSProperties, useMemo, useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
+/**
+ * Return a random value between min and max.
+ * @source
+ */
 const randomBetween = (min: number, max: number) =>
   Math.random() * (max - min) + min;
 
+/**
+ * Tuple representing a numeric range [min, max].
+ * @source
+ */
 type RangeTuple = [number, number];
 
+/** Default opacity range used when style doesn't provide one. @source */
 const DEFAULT_OPACITY_RANGE: RangeTuple = [0.35, 0.8];
+/** Default rotation range (degrees) used for gradient blobs. @source */
 const DEFAULT_ROTATION_RANGE: RangeTuple = [-12, 12];
+/** Default scale range applied to gradient blobs. @source */
 const DEFAULT_SCALE_RANGE: RangeTuple = [0.92, 1.12];
 
+/**
+ * Gradient style configuration describing visual appearance and size limits.
+ * @source
+ */
 interface GradientStyle {
   id: string;
   className: string;
@@ -24,6 +39,10 @@ interface GradientStyle {
   mixBlendMode?: CSSProperties["mixBlendMode"];
 }
 
+/**
+ * Positioned gradient blob with computed size and transform values.
+ * @source
+ */
 interface PositionedBlob extends GradientStyle {
   width: number;
   height: number;
@@ -34,6 +53,10 @@ interface PositionedBlob extends GradientStyle {
   scale: number;
 }
 
+/**
+ * Default gradient styles for the main background blobs.
+ * @source
+ */
 const GRADIENT_STYLES: GradientStyle[] = [
   {
     id: "main-blue",
@@ -70,6 +93,7 @@ const GRADIENT_STYLES: GradientStyle[] = [
   },
 ];
 
+/** Accent gradient styles for smaller overlay blobs. @source */
 const ACCENT_STYLES: GradientStyle[] = [
   {
     id: "accent-blue",
@@ -95,17 +119,27 @@ const ACCENT_STYLES: GradientStyle[] = [
   },
 ];
 
+/** Radial overlay gradients combined into a single CSS background value. @source */
 const RADIAL_OVERLAY_GRADIENTS = [
   "radial-gradient(circle at 15% 20%, rgba(59,130,246,0.45) 0%, transparent 55%)",
   "radial-gradient(circle at 80% 30%, rgba(236,72,153,0.4) 0%, transparent 45%)",
   "radial-gradient(circle at 40% 80%, rgba(168,85,247,0.35) 0%, transparent 50%)",
 ];
+/** Computed CSS background string from radial arc overlay gradients. @source */
 const RADIAL_OVERLAY_BACKGROUND = RADIAL_OVERLAY_GRADIENTS.join(", ");
 
+/** Minimum distance between positioned blobs to avoid overlapping. @source */
 const MIN_DISTANCE = 24;
+/** Default allowed range for top (percentage) positions. @source */
 const DEFAULT_TOP_RANGE: RangeTuple = [-20, 80];
+/** Default allowed range for left (percentage) positions. @source */
 const DEFAULT_LEFT_RANGE: RangeTuple = [-20, 120];
 
+/**
+ * Generate a set of non-overlapping positioned gradient blobs.
+ * Ensures minimum distance between blobs by randomly sampling positions.
+ * @source
+ */
 function generateGradientBlobs(
   count: number,
   styles: GradientStyle[],
@@ -154,6 +188,13 @@ function generateGradientBlobs(
   return blobs;
 }
 
+/**
+ * Decorative grid pattern with optional gradient blobs used as a background.
+ * - includeGradients controls whether generated blobs are displayed.
+ * - gradientCount controls the number of main gradient blobs.
+ * NOTE: Uses client side mounting to avoid SSR mismatches for randomized values.
+ * @source
+ */
 export function GridPattern({
   className,
   includeGradients = true,

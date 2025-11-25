@@ -2,6 +2,11 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
+/**
+ * A styled text input that forwards standard input attributes and ref.
+ * Use it as a drop-in replacement for `<input>` to keep consistent styling.
+ * @source
+ */
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
   ({ className, type, ...props }, ref) => {
     return (

@@ -1,6 +1,12 @@
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Info } from "lucide-react";
 
+/**
+ * Presentational alert describing how to force-refresh or clear cached SVGs.
+ * Useful for debugging when the generated graphic does not update immediately.
+ * @returns An Alert element that outlines refresh instructions.
+ * @source
+ */
 export function UpdateNotice() {
   return (
     <Alert className="border-blue-100 bg-blue-50/50 backdrop-blur-sm dark:border-blue-900/30 dark:bg-blue-900/10">

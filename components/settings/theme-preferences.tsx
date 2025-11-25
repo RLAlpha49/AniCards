@@ -3,17 +3,38 @@ import { motion } from "framer-motion";
 import { Label } from "@/components/ui/label";
 import { trackSettingsChanged } from "@/lib/utils/google-analytics";
 
+/**
+ * Props for ThemePreferences component.
+ * @property theme - Currently selected theme id.
+ * @property themes - Array of available theme ids.
+ * @property onThemeChange - Callback invoked when the user selects a new theme.
+ * @source
+ */
 interface ThemePreferencesProps {
   theme: string;
   themes: string[];
   onThemeChange: (value: string) => void;
 }
 
+/**
+ * Renders the theme selection UI for the application.
+ * Presents visual tiles for each theme and forwards the selection via callback.
+ * @param theme - Current active theme id.
+ * @param themes - List of available theme ids.
+ * @param onThemeChange - Handler called with a new theme id when selected.
+ * @returns A React element rendering the theme preferences UI.
+ * @source
+ */
 export function ThemePreferences({
   theme,
   themes,
   onThemeChange,
 }: Readonly<ThemePreferencesProps>) {
+  /**
+   * Track selection of a theme and call parent handler with selected value.
+   * @param value - The selected theme id.
+   * @source
+   */
   const handleThemeChange = (value: string) => {
     trackSettingsChanged(`theme-${value}`);
     onThemeChange(value);
@@ -54,8 +75,10 @@ export function ThemePreferences({
         </div>
 
         <div className="grid grid-cols-3 gap-4">
+          {/* Compute a gradient preview per theme and mark active selection */}
           {themes.map((t) => {
             const isActive = theme === t;
+            // Determine the preview gradient for each theme for the visual selector.
             let gradientClass = "bg-gradient-to-br from-blue-400 to-purple-500";
             if (t === "light") {
               gradientClass = "bg-gradient-to-br from-yellow-300 to-orange-400";

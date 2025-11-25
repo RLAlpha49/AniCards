@@ -1,3 +1,9 @@
+/**
+ * Pings a curated list of site routes to report uptime status via cron.
+ * @param request - Incoming request that must include the cron secret header.
+ * @returns Response summarizing which endpoints succeeded or failed.
+ * @source
+ */
 export async function POST(request: Request) {
   // Check for the required cron secret
   const CRON_SECRET = process.env.CRON_SECRET;
@@ -17,9 +23,16 @@ export async function POST(request: Request) {
   const startTime = Date.now();
   console.log("🛠️ [Uptime Monitor] Starting uptime check...");
 
-  // Define list of routes to monitor
+  /**
+   * Base URL used when composing monitored endpoints.
+   * @source
+   */
   const baseUrl =
     process.env.NEXT_PUBLIC_SITE_URL || "https://anicards.alpha49.com";
+  /**
+   * Routes that should be included in the uptime sweep.
+   * @source
+   */
   const routes = [
     "/",
     "/search",
@@ -28,9 +41,18 @@ export async function POST(request: Request) {
     "/projects",
     "/license",
   ];
+  /**
+   * Absolute URLs derived from the base URL and route list.
+   * @source
+   */
   const urls = routes.map((route) => `${baseUrl}${route}`);
 
-  // Function to check a single route
+  /**
+   * Performs a single fetch and records whether the endpoint responds successfully.
+   * @param url - Absolute URL to check.
+   * @returns An object describing the request outcome.
+   * @source
+   */
   async function checkRoute(url: string): Promise<{
     url: string;
     ok: boolean;
@@ -57,7 +79,7 @@ export async function POST(request: Request) {
   const duration = Date.now() - startTime;
   const successCount = results.filter((result) => result.ok).length;
 
-  results.forEach((result) => {
+  for (const result of results) {
     if (result.ok) {
       console.log(
         `✅ [Uptime Monitor] ${result.url} is up. Status: ${result.status}`,
@@ -69,7 +91,7 @@ export async function POST(request: Request) {
         }`,
       );
     }
-  });
+  }
 
   const summary = `Uptime check completed in ${duration}ms: ${successCount}/${urls.length} endpoints are up.`;
   console.log(`🛠️ [Uptime Monitor] ${summary}`);

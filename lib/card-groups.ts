@@ -1,7 +1,10 @@
+/** Default card generation endpoint used for example previews. @source */
 export const DEFAULT_BASE_CARD_URL =
   "https://anicards.alpha49.com/api/card.svg";
+/** Default example user id used for generating demo card previews. @source */
 export const DEFAULT_EXAMPLE_USER_ID = "542244";
 
+/** Human-friendly labels for card variations used in the UI. @source */
 export const VARIATION_LABEL_MAP: Record<string, string> = {
   default: "Default",
   vertical: "Vertical",
@@ -12,16 +15,27 @@ export const VARIATION_LABEL_MAP: Record<string, string> = {
   horizontal: "Horizontal",
 };
 
+/**
+ * Defines a variation entry which may be a simple string variation or an
+ * object that supplies extras (query params) for the variation.
+ * @source
+ */
 type VariationDef =
   | string
   | { variation: string; extras?: Record<string, string> };
 
+/**
+ * A group of related cards represented in the UI such as genres, tags and
+ * statistics card groups.
+ * @source
+ */
 export type CardGroup = {
   cardType: string;
   cardTitle: string;
   variations: VariationDef[];
 };
 
+/** All grouped card metadata used to render examples and UI lists. @source */
 export const CARD_GROUPS: CardGroup[] = [
   {
     cardType: "animeStats",
@@ -138,6 +152,17 @@ export const CARD_GROUPS: CardGroup[] = [
   },
 ];
 
+/**
+ * Constructs a URL to the card SVG endpoint with the required query
+ * parameters and optional extras for a given variation and user.
+ * @param cardType - The logical card type to generate.
+ * @param variation - Variation name used by the card renderer.
+ * @param extras - Optional additional query parameters.
+ * @param baseUrl - The base API endpoint to use (defaults to DEFAULT_BASE_CARD_URL).
+ * @param userId - User id used to produce the card data (defaults to DEFAULT_EXAMPLE_USER_ID).
+ * @returns The constructed card URL.
+ * @source
+ */
 export function buildCardUrl(
   cardType: string,
   variation: string,
@@ -155,6 +180,7 @@ export function buildCardUrl(
   return `${baseUrl}?${params.toString()}`;
 }
 
+/** Example variant shape used by UI examples for each card variation. @source */
 export type ExampleCardVariant = {
   cardType: string;
   cardTitle: string;
@@ -163,6 +189,14 @@ export type ExampleCardVariant = {
   extras?: Record<string, string>;
 };
 
+/**
+ * Creates a flattened list of example card variants from the configured
+ * card groups. Each variant includes metadata and extras required to build
+ * a preview card URL.
+ * @param variationLabelMap - Optional mapping for variation labels.
+ * @returns An array of ExampleCardVariant objects.
+ * @source
+ */
 export function generateExampleCardVariants(
   variationLabelMap: Record<string, string> = VARIATION_LABEL_MAP,
 ) {

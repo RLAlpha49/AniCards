@@ -1,10 +1,16 @@
 import { calculateDynamicFontSize } from "../utils";
 
+/** Simple representation of a distribution item with value and a count. @source */
 interface DistributionDatum {
   value: number;
   count: number;
 }
 
+/**
+ * Input shape expected by the distribution SVG template including user info,
+ * visual styles and data points.
+ * @source
+ */
 interface DistributionTemplateInput {
   username: string;
   mediaType: "anime" | "manga";
@@ -20,7 +26,13 @@ interface DistributionTemplateInput {
   data: DistributionDatum[];
 }
 
-// Helper function to add missing score values
+/**
+ * Ensures the expected score buckets are present in the provided list by
+ * adding zero-count entries for missing values (e.g., 1-10 or 10-100 step 10).
+ * @param provided - The array of provided DistributionDatum entries.
+ * @param existing - A set of existing values to skip when adding missing entries.
+ * @source
+ */
 function addMissingScores(
   provided: DistributionDatum[],
   existing: Set<number>,
@@ -42,7 +54,15 @@ function addMissingScores(
   }
 }
 
-// Helper function to normalize and fill data based on kind
+/**
+ * Normalize and fill distribution data for rendering. For score data this
+ * ensures missing score buckets are filled; for year data it only returns
+ * the provided values.
+ * @param inputData - Raw distribution input data.
+ * @param kind - Either 'score' or 'year' to determine normalization behavior.
+ * @returns Sorted and normalized distribution data.
+ * @source
+ */
 function normalizeDistributionData(
   inputData: DistributionDatum[],
   kind: "score" | "year",
@@ -58,7 +78,13 @@ function normalizeDistributionData(
   return provided.toSorted((a, b) => b.value - a.value);
 }
 
-// Helper function to get dimensions based on variant
+/**
+ * Returns width/height dims for a variant, used by the SVG template to
+ * properly size the generated card.
+ * @param variant - Template variant name.
+ * @returns An object containing width (w) and height (h).
+ * @source
+ */
 function getDimensions(variant: "default" | "horizontal"): {
   w: number;
   h: number;
@@ -70,7 +96,15 @@ function getDimensions(variant: "default" | "horizontal"): {
   }
 }
 
-// Helper function to generate horizontal bar items for default variant
+/**
+ * Generates SVG markup for horizontal bar items used in the default variant.
+ * @param data - Array of distribution points.
+ * @param maxCount - Maximum count used for scaling bar widths.
+ * @param maxBarWidth - Width class for the longest bar.
+ * @param barColor - Color to fill the bars with.
+ * @returns A string containing SVG markup for the bars.
+ * @source
+ */
 function generateBarItems(
   data: DistributionDatum[],
   maxCount: number,
@@ -93,7 +127,14 @@ function generateBarItems(
     .join("");
 }
 
-// Helper function to generate vertical bars for horizontal variant
+/**
+ * Generates vertical bar SVG markup used by the compact horizontal variant.
+ * @param data - Array of distribution points.
+ * @param maxCount - Maximum count used for scaling bar heights.
+ * @param barColor - Fill color for bars.
+ * @returns A string containing SVG markup for vertical bars.
+ * @source
+ */
 function generateVerticalBars(
   data: DistributionDatum[],
   maxCount: number,
@@ -120,6 +161,13 @@ Variants:
 - default: Horizontal list of proportional bars (like previous score default)
 - horizontal: Condensed mini vertical bars (like previous horizontal score variant)
 */
+/**
+ * Renders an SVG string representing a distribution (score or year)
+ * chart for a user; the output is a ready-to-embed SVG string.
+ * @param input - The DistributionTemplateInput containing user, styles and data.
+ * @returns A string containing the generated SVG markup.
+ * @source
+ */
 export function distributionTemplate(input: DistributionTemplateInput) {
   const { username, mediaType, styles, variant = "default", kind } = input;
 
@@ -186,6 +234,7 @@ export function distributionTemplate(input: DistributionTemplateInput) {
   </svg>`;
 }
 
+/** Capitalize the first letter of a string. @source */
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }

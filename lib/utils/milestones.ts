@@ -1,7 +1,10 @@
 /**
- * Calculates milestone progress for achievement tracking
- * @param value - Current value to evaluate against milestones
- * @returns Object containing progress data for visualization
+ * Calculate milestone progression for numeric values and return visualization
+ * details suitable for SVG ring rendering (dasharray/dashoffset) and
+ * contextual milestone values.
+ * @param value - Current numeric value used to determine milestones.
+ * @returns Object containing previous/current milestone, progress percentage, and precomputed dash metrics.
+ * @source
  */
 export function calculateMilestones(value: number) {
   // Base milestones up to 1000

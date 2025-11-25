@@ -2,11 +2,25 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { User, Search } from "lucide-react";
 
+/**
+ * Props for the user details form used to enter AniList username.
+ * @property username - Current username value in the input.
+ * @property onUsernameChange - Callback when the username value changes.
+ * @source
+ */
 export interface UserDetailsFormProps {
   username: string;
   onUsernameChange: (value: string) => void;
 }
 
+/**
+ * Simple form that measures a username and displays a small inline state
+ * indicating that the username is present and ready to fetch user data.
+ * @param username - The current typed username.
+ * @param onUsernameChange - Called when the username input changes.
+ * @returns A UI form for capturing user AniList username.
+ * @source
+ */
 export function UserDetailsForm({
   username,
   onUsernameChange,

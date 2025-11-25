@@ -3,7 +3,11 @@
 import { ThemeProvider } from "next-themes";
 import type React from "react";
 
-// Wrapper component for theme management using next-themes
+/**
+ * Provides the next-themes provider to ensure consistent client-side theming.
+ * @param children - Elements rendered inside the theme context.
+ * @source
+ */
 export function Providers({
   children,
 }: Readonly<{ children: React.ReactNode }>) {

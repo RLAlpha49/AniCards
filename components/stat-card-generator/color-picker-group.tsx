@@ -3,6 +3,10 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import React from "react";
 
+/**
+ * A color picker item used by the color picker group.
+ * @source
+ */
 export interface ColorPickerItem {
   id: string;
   label: string;
@@ -10,15 +14,31 @@ export interface ColorPickerItem {
   onChange: (newValue: string) => void;
 }
 
+/**
+ * Props for the ColorPickerGroup component.
+ * @source
+ */
 interface ColorPickerGroupProps {
   pickers: ColorPickerItem[];
 }
 
-// A simple hex color validator.
+/**
+ * Returns true when `color` is a valid 3- or 6-digit hex color with a leading '#'.
+ * @param color - The color string to validate.
+ * @returns Whether the string is a valid hex color.
+ * @source
+ */
 function isValidHex(color: string): boolean {
   return /^#([A-Fa-f0-9]{3}|[A-Fa-f0-9]{6})$/.test(color);
 }
 
+/**
+ * Renders a responsive group of color inputs and their labels.
+ * Each item shows a color swatch and a text input for the hex value.
+ * @param pickers - Readonly array of color items to render.
+ * @returns The color picker group element.
+ * @source
+ */
 export function ColorPickerGroup({ pickers }: Readonly<ColorPickerGroupProps>) {
   return (
     <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4">
@@ -52,7 +72,8 @@ export function ColorPickerGroup({ pickers }: Readonly<ColorPickerGroupProps>) {
                   value={picker.value.replace("#", "")}
                   onChange={(e) => {
                     const val = e.target.value;
-                    // Allow user to type without #, add it back for the callback
+                    // Keep UI input tolerant: accept entries without a leading '#'
+                    // and convert to a normalized hex string for the consumer.
                     picker.onChange(val.startsWith("#") ? val : `#${val}`);
                   }}
                   className={cn(

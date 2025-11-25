@@ -13,6 +13,11 @@ import {
   Share2,
 } from "lucide-react";
 
+/**
+ * An array of homepage feature cards, each containing an icon and descriptors
+ * used to populate the features grid.
+ * @source
+ */
 const FEATURES = [
   {
     icon: BarChart2,
@@ -88,6 +93,12 @@ const FEATURES = [
   },
 ];
 
+/**
+ * Renders a grid of application feature cards for the homepage.
+ *
+ * @returns JSX element containing feature cards and headings.
+ * @source
+ */
 export function FeaturesSection() {
   return (
     <section className="relative w-full overflow-hidden bg-transparent py-24">

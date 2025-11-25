@@ -1,9 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { SimpleGithubIcon } from "./icons/simple-icons";
+import { SimpleGithubIcon } from "./simple-icons";
 import { motion } from "framer-motion";
 
+/**
+ * Floating GitHub call-to-action with tooltip and subtle entrance animation.
+ * - Presents a small button that links to the repository and encourages users to star the project.
+ * - Includes an enhanced tooltip and hover-only pulse ring for visual affordance.
+ * @returns A positioned repository link element.
+ * @source
+ */
 export default function GithubCorner() {
   return (
     <motion.div
@@ -26,7 +33,7 @@ export default function GithubCorner() {
           />
         </Link>
 
-        {/* Enhanced Tooltip */}
+        {/* Enhanced Tooltip: visually non-interactive element that appears on hover. */}
         <div className="pointer-events-none absolute right-full top-1/2 mr-3 -translate-y-1/2 translate-x-2 opacity-0 transition-all duration-300 ease-out group-hover:translate-x-0 group-hover:opacity-100">
           <div className="relative">
             <div className="rounded-xl border border-white/20 bg-white/90 px-4 py-2 shadow-lg backdrop-blur-md dark:border-gray-700/30 dark:bg-gray-800/90">

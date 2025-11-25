@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,17 +10,30 @@ import {
   SimpleDiscordIcon,
   SimpleGithubIcon,
   SimpleAniListIcon,
-} from "@/components/icons/simple-icons";
+} from "@/components/simple-icons";
 import { Mail, Sparkles, ArrowRight, MessageCircle } from "lucide-react";
 import { GridPattern } from "../../components/ui/grid-pattern";
 
+/**
+ * Renders the contact page with SEO setup plus the social and email CTAs.
+ * @source
+ */
 export default function ContactPage() {
   usePageSEO("contact");
 
+  /**
+   * Reports outbound social clicks for analytics.
+   * @param platform - Platform identifier used by the tracker.
+   * @source
+   */
   const handleSocialLinkClick = (platform: string) => {
     trackExternalLinkClick(platform, "contact_page");
   };
 
+  /**
+   * Metadata that powers each social link card in the grid.
+   * @source
+   */
   const socialLinks = [
     {
       href: "https://discordid.netlify.app/?id=251479989378220044",

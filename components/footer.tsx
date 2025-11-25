@@ -8,9 +8,16 @@ import {
   SimpleAniListIcon,
   SimpleDiscordIcon,
   SimpleGithubIcon,
-} from "@/components/icons/simple-icons";
+} from "@/components/simple-icons";
 import { useIsMobile } from "@/hooks/use-mobile";
 
+/**
+ * Page footer with license info and external links.
+ * - Shows the current year and a link to the project license.
+ * - Renders social/contact icons and reports link clicks to analytics.
+ * @returns A responsive footer element.
+ * @source
+ */
 export default function Footer() {
   const isMobile = useIsMobile();
 

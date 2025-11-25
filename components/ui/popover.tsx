@@ -5,12 +5,28 @@ import * as PopoverPrimitive from "@radix-ui/react-popover";
 
 import { cn } from "@/lib/utils";
 
+/**
+ * Root primitive for a transient Popover used to display contextual UI.
+ * @source
+ */
 const Popover = PopoverPrimitive.Root;
 
+/**
+ * Trigger element for the Popover; opens or toggles the popover content.
+ * @source
+ */
 const PopoverTrigger = PopoverPrimitive.Trigger;
 
+/**
+ * Anchor to which the popover content will align.
+ * @source
+ */
 const PopoverAnchor = PopoverPrimitive.Anchor;
 
+/**
+ * Content area for the popover. Accepts alignment and offset props to position the popover.
+ * @source
+ */
 const PopoverContent = React.forwardRef<
   React.ComponentRef<typeof PopoverPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>

@@ -3,16 +3,19 @@ import { redisClient, incrementAnalytics } from "@/lib/api-utils";
 import { CardsRecord } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
 
-// API endpoint for retrieving user card configurations
+/**
+ * Serves cached card configurations for the requested user from Redis.
+ * @param request - HTTP request carrying the userId query and related headers.
+ * @returns JSON response containing the card data or an explanatory error payload.
+ * @source
+ */
 export async function GET(request: Request) {
   const startTime = Date.now();
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get("userId");
-  // Log incoming request with client's IP address for additional traceability
   const ip = request.headers.get("x-forwarded-for") || "unknown IP";
   console.log(`🚀 [Cards API] New request from ${ip} for userId: ${userId}`);
 
-  // Validate required user ID parameter
   if (!userId) {
     console.warn("⚠️ [Cards API] Missing user ID parameter");
     return NextResponse.json(
@@ -21,7 +24,6 @@ export async function GET(request: Request) {
     );
   }
 
-  // Convert and validate numeric user ID
   const numericUserId = Number.parseInt(userId);
   if (Number.isNaN(numericUserId)) {
     console.warn(`⚠️ [Cards API] Invalid user ID format: ${userId}`);
@@ -52,13 +54,11 @@ export async function GET(request: Request) {
       `✅ [Cards API] Successfully returned card data for user ${numericUserId} [${duration}ms]`,
     );
 
-    // Extra log if the response time is noticeably long
     if (duration > 500) {
       console.warn(
         `⏳ [Cards API] Slow response time: ${duration}ms for user ${numericUserId}`,
       );
     }
-    // Increment successful requests counter
     incrementAnalytics("analytics:cards_api:successful_requests").catch(
       () => {},
     );
@@ -72,7 +72,6 @@ export async function GET(request: Request) {
     if (error.stack) {
       console.error(`💥 [Cards API] Stack Trace: ${error.stack}`);
     }
-    // Increment failed requests counter
     incrementAnalytics("analytics:cards_api:failed_requests").catch(() => {});
     return NextResponse.json(
       { error: "Failed to fetch cards" },

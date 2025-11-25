@@ -1,17 +1,30 @@
 import { NextResponse } from "next/server";
 import { initializeApiRequest, incrementAnalytics } from "@/lib/api-utils";
 
+/**
+ * Payload sent to AniList, containing the GraphQL query and optional variables.
+ * @source
+ */
 interface GraphQLRequest {
   query: string;
   variables?: Record<string, unknown>;
 }
 
+/**
+ * Details extracted from a GraphQL operation, including an identifying user.
+ * @source
+ */
 interface OperationInfo {
   name: string;
   userIdentifier: string;
 }
 
-// Handle development test simulations
+/**
+ * Simulates specific AniList responses when running in development.
+ * @param request - Incoming request that can carry the test status header.
+ * @returns A crafted NextResponse for the simulated status or null when no simulation applies.
+ * @source
+ */
 function handleTestSimulation(request: Request): NextResponse | null {
   if (process.env.NODE_ENV !== "development") {
     return null;
@@ -38,7 +51,12 @@ function handleTestSimulation(request: Request): NextResponse | null {
   return null;
 }
 
-// Extract operation details from GraphQL request
+/**
+ * Derives the GraphQL operation name and a related user identifier for analytics.
+ * @param requestData - GraphQL payload containing the query and variables.
+ * @returns OperationInfo populated with defaults when the query lacks context.
+ * @source
+ */
 function parseOperationInfo(requestData: GraphQLRequest): OperationInfo {
   const { query, variables } = requestData;
 
@@ -58,7 +76,11 @@ function parseOperationInfo(requestData: GraphQLRequest): OperationInfo {
   return { name: operationName, userIdentifier };
 }
 
-// Track analytics for API requests
+/**
+ * Increments the given analytics metric, allowing failures to silently pass.
+ * @param metric - Metric name used for analytics tracking.
+ * @source
+ */
 async function trackAnalytics(metric: string): Promise<void> {
   try {
     await incrementAnalytics(metric);
@@ -67,11 +89,21 @@ async function trackAnalytics(metric: string): Promise<void> {
   }
 }
 
-// Handle API response errors
+/**
+ * Partial AniList error payload returned for failed requests.
+ * @source
+ */
 interface ErrorResponse {
   error?: unknown;
 }
 
+/**
+ * Builds an Error that includes HTTP status and retry metadata from AniList.
+ * @param response - Fetch response received from AniList.
+ * @param errorData - Parsed body containing the error details.
+ * @returns An Error describing the failed AniList call.
+ * @source
+ */
 function createApiError(response: Response, errorData: unknown): Error {
   const retryAfter = response.headers.get("retry-after");
   const retryAfterMsg = retryAfter ? ` (Retry-After: ${retryAfter})` : "";
@@ -88,7 +120,14 @@ function createApiError(response: Response, errorData: unknown): Error {
   );
 }
 
-// Make request to AniList API
+/**
+ * Forwards a GraphQL payload to AniList, including dev-only headers when requested.
+ * @param requestData - The GraphQL query and variables to send.
+ * @param request - Original request used to mirror test headers in development.
+ * @returns A promise that resolves to AniList's data payload.
+ * @throws {Error} When AniList returns an unsuccessful response or errors in payload.
+ * @source
+ */
 async function makeAniListRequest(
   requestData: GraphQLRequest,
   request: Request,
@@ -119,9 +158,13 @@ async function makeAniListRequest(
   return json.data;
 }
 
-// Proxy endpoint for AniList GraphQL API with testing simulations
+/**
+ * Proxy endpoint for AniList GraphQL requests that enforces origin guards and analytics.
+ * @param request - Incoming POST request from the client.
+ * @returns AniList data or an error response mirroring any upstream failure.
+ * @source
+ */
 export async function POST(request: Request) {
-  // Handle test simulations in development
   const testResponse = handleTestSimulation(request);
   if (testResponse) {
     return testResponse;
@@ -139,7 +182,6 @@ export async function POST(request: Request) {
     const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
     console.log(`🚀 [AniList API] Incoming request from IP: ${ip}`);
 
-    // Parse request and extract operation details
     const requestData = (await request.json()) as GraphQLRequest;
     operationInfo = parseOperationInfo(requestData);
 
@@ -147,12 +189,10 @@ export async function POST(request: Request) {
       `🚀 [AniList API] Anilist request: ${operationInfo.name} for ${operationInfo.userIdentifier}`,
     );
 
-    // Make the API request
     const data = await makeAniListRequest(requestData, request);
 
     const duration = Date.now() - startTime;
 
-    // Log slow requests
     if (duration > 1000) {
       console.warn(
         `⏳ [AniList API] Slow request detected: ${operationInfo.name} took ${duration}ms`,
@@ -182,7 +222,6 @@ export async function POST(request: Request) {
       console.error(`💥 [AniList API] Stack Trace: ${error.stack}`);
     }
 
-    // Extract status code from error message
     const statusPattern = /status:\s?(\d+)/;
     const statusMatch = statusPattern.exec(errorMessage);
     const statusCode = statusMatch ? Number.parseInt(statusMatch[1], 10) : 500;

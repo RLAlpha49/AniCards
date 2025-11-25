@@ -21,6 +21,14 @@ import {
   Check,
 } from "lucide-react";
 
+/**
+ * Definition for a stat card type used in selection.
+ * @property id - Unique string key for the card type.
+ * @property label - Human readable label shown in the UI.
+ * @property variations - Optional variants available for the card.
+ * @property group - Optional group name used to categorize the card.
+ * @source
+ */
 export interface CardType {
   id: string;
   label: string;
@@ -28,6 +36,20 @@ export interface CardType {
   group?: string;
 }
 
+/**
+ * Props for the StatCardTypeSelection component.
+ * @property cardTypes - List of available card type definitions.
+ * @property selectedCards - IDs of currently selected cards.
+ * @property selectedCardVariants - Map of selected variant ids per card type.
+ * @property allSelected - Whether all cards are selected.
+ * @property onToggle - Toggle the selection state of a card by id.
+ * @property onSelectAll - Toggle selecting or unselecting all cards.
+ * @property onVariantChange - Change the variant for a card type.
+ * @property onPreview - Invoked to preview a specific card type/variant.
+ * @property showFavoritesByCard - Map indicating if favorites are shown for each card.
+ * @property onToggleShowFavorites - Toggle favorites for a specific card.
+ * @source
+ */
 interface StatCardTypeSelectionProps {
   cardTypes: CardType[];
   selectedCards: string[];
@@ -41,6 +63,10 @@ interface StatCardTypeSelectionProps {
   onToggleShowFavorites: (cardId: string) => void;
 }
 
+/**
+ * Card IDs that support the "Favorites" option.
+ * @source
+ */
 const FAVORITE_CARD_IDS = new Set([
   "animeVoiceActors",
   "animeStudios",
@@ -48,6 +74,23 @@ const FAVORITE_CARD_IDS = new Set([
   "mangaStaff",
 ]);
 
+/**
+ * Renders a grouped selection UI with controls for selecting cards, choosing
+ * variants and previewing a card type. Groups are calculated from the
+ * `group` property on card types and are shown in a tab-like navigation.
+ * @param cardTypes - The available card types to display.
+ * @param selectedCards - Selected card type ids.
+ * @param selectedCardVariants - Map of selected variant ids.
+ * @param allSelected - Whether everything is selected.
+ * @param onToggle - Toggle an individual card's selected state.
+ * @param onSelectAll - Select or unselect all cards.
+ * @param onVariantChange - Callback for changing a card's variant.
+ * @param onPreview - Callback to request preview for a card type.
+ * @param showFavoritesByCard - Map of flags that indicate favorites for each card.
+ * @param onToggleShowFavorites - Toggle favorites flag for a card.
+ * @returns React element presenting card selection and controls.
+ * @source
+ */
 export function StatCardTypeSelection({
   cardTypes,
   selectedCards,
@@ -60,6 +103,7 @@ export function StatCardTypeSelection({
   showFavoritesByCard,
   onToggleShowFavorites,
 }: Readonly<StatCardTypeSelectionProps>) {
+  // Group card types by their `group` property while keeping a stable order.
   const grouped = useMemo(() => {
     return cardTypes.reduce<{
       order: string[];
@@ -78,6 +122,7 @@ export function StatCardTypeSelection({
     );
   }, [cardTypes]);
 
+  // Default active group is the first group calculated from the card types.
   const [activeGroup, setActiveGroup] = useState<string>(grouped.order[0]);
 
   return (
@@ -144,6 +189,7 @@ export function StatCardTypeSelection({
                 (type.variations ? "default" : "");
               const supportsFavorites = FAVORITE_CARD_IDS.has(type.id);
               const isFavorite = showFavoritesByCard[type.id];
+              // Extract optional parenthetical part from the label for an explanatory subtitle.
               const openParenIndex = type.label.indexOf("(");
               const closeParenIndex =
                 openParenIndex >= 0

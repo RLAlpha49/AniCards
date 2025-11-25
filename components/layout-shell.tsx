@@ -7,13 +7,22 @@ import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import Footer from "@/components/footer";
 import { useIsMobile } from "@/hooks/use-mobile";
 
+/**
+ * Application layout wrapper that provides persistent header, sidebar and footer.
+ * - Reads a saved sidebar state from cookies after hydration to avoid SSR mismatch.
+ * - Provides CSS variables for sidebar widths and wraps content with SidebarProvider.
+ * @param props - The layout's children.
+ * @returns A layout container used across the app.
+ * @source
+ */
 export function LayoutShell({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   // Initialize with deterministic value to prevent hydration mismatch
   const [defaultOpen, setDefaultOpen] = useState(false);
 
-  // Read from localStorage in useEffect after hydration
+  // Read saved sidebar state from a cookie in useEffect after hydration to
+  // prevent server/client mismatch during SSR.
   useEffect(() => {
     try {
       const saved = document.cookie
@@ -22,7 +31,7 @@ export function LayoutShell({
         ?.split("=")[1];
       setDefaultOpen(saved === "true");
     } catch {
-      // Gracefully handle errors
+      // Gracefully handle cookie parsing or availability errors.
       setDefaultOpen(true);
     }
   }, []);
@@ -42,6 +51,13 @@ export function LayoutShell({
   );
 }
 
+/**
+ * Internal layout content wrapper that handles the responsive main content
+ * area and conditional sidebar rendering.
+ * @param props - Content children for the layout.
+ * @returns The inner layout container rendered within SidebarProvider.
+ * @source
+ */
 function LayoutShellContent({
   children,
 }: Readonly<{ children: React.ReactNode }>) {

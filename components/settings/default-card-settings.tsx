@@ -16,7 +16,11 @@ import { colorPresets, statCardTypes } from "@/components/stat-card-generator";
 import { ColorPickerGroup } from "@/components/stat-card-generator/color-picker-group";
 import { DEFAULT_BORDER_COLOR } from "@/lib/data";
 
-// Only these card types support showFavorites
+/**
+ * Set of card type IDs that support the "Show Favorites" option.
+ * Only the IDs present here will render the default 'Show Favorites' toggle in settings.
+ * @source
+ */
 const FAVORITE_CARD_IDS = new Set([
   "animeVoiceActors",
   "animeStudios",
@@ -24,6 +28,23 @@ const FAVORITE_CARD_IDS = new Set([
   "mangaStaff",
 ]);
 
+/**
+ * Props for the DefaultCardSettings component.
+ * @property defaultPreset - Currently selected color preset ID.
+ * @property onPresetChange - Called when the selected preset changes.
+ * @property defaultCardTypes - IDs of card types enabled by default.
+ * @property defaultVariants - Mapping from card type ID to default variant ID.
+ * @property onToggleCardType - Toggle handler for single card type selection changes.
+ * @property onToggleAllCardTypes - Toggles all card types on or off.
+ * @property onVariantChange - Handler to change the default variant for a card type.
+ * @property defaultShowFavoritesByCard - Default 'show favorites' flags per card ID.
+ * @property onToggleShowFavoritesDefault - Toggle handler for the 'show favorites' default per card.
+ * @property defaultBorderEnabled - Whether borders are enabled by default for generated cards.
+ * @property defaultBorderColor - Default border color used when borders are enabled.
+ * @property onBorderEnabledChange - Handler to toggle default border enabled state.
+ * @property onBorderColorChange - Handler to update default border color.
+ * @source
+ */
 interface DefaultCardSettingsProps {
   defaultPreset: string;
   onPresetChange: (value: string) => void;
@@ -40,6 +61,25 @@ interface DefaultCardSettingsProps {
   onBorderColorChange: (color: string) => void;
 }
 
+/**
+ * Renders the default card settings pane used to configure presets and card defaults.
+ * This includes color presets, border defaults, and which stat card types/variants are enabled by default.
+ * @param defaultPreset - The currently selected color preset id.
+ * @param onPresetChange - Callback invoked when the preset selection changes.
+ * @param defaultCardTypes - List of card type ids currently enabled by default.
+ * @param defaultVariants - Mapping of card type id to the selected variant id.
+ * @param onToggleCardType - Toggles a single card type's default enabled state.
+ * @param onToggleAllCardTypes - Toggle to select or unselect all card types.
+ * @param onVariantChange - Change handler to set the default variant for a card type.
+ * @param defaultShowFavoritesByCard - Default preferences to show favorites per card id.
+ * @param onToggleShowFavoritesDefault - Toggle handler to change the default show favorites setting.
+ * @param defaultBorderEnabled - Whether a border is enabled by default.
+ * @param defaultBorderColor - Color used for the default border when enabled.
+ * @param onBorderEnabledChange - Callback to change the default border enabled state.
+ * @param onBorderColorChange - Callback to change the default border color.
+ * @returns A React component with interactive default card settings.
+ * @source
+ */
 export function DefaultCardSettings({
   defaultPreset,
   onPresetChange,
@@ -55,7 +95,7 @@ export function DefaultCardSettings({
   onBorderEnabledChange,
   onBorderColorChange,
 }: Readonly<DefaultCardSettingsProps>) {
-  // Group computation (stable ordering as defined in statCardTypes array)
+  // Group stat card types by 'group' to present them in stable, ordered sections.
   const groups = useMemo(() => {
     return statCardTypes.reduce<{
       order: string[];
@@ -74,6 +114,7 @@ export function DefaultCardSettings({
     );
   }, []);
 
+  // Track expansion state for each group; default to expanded for all groups.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     for (const g of groups.order) {
@@ -81,6 +122,11 @@ export function DefaultCardSettings({
     }
     return initial;
   });
+  /**
+   * Toggle expansion state for a given group name.
+   * @param g - The group name to toggle.
+   * @source
+   */
   const toggle = (g: string) => setOpenGroups((o) => ({ ...o, [g]: !o[g] }));
   return (
     <motion.div

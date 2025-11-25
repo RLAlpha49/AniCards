@@ -9,7 +9,12 @@ import {
   validateCardData,
 } from "@/lib/api-utils";
 
-// API endpoint for storing/updating user card configurations
+/**
+ * Validates, persists, and reports analytics for the user card configuration payload.
+ * @param request - Incoming request containing the user ID, stats, and card array.
+ * @returns A NextResponse that signals success or propagates a validation/error response.
+ * @source
+ */
 export async function POST(request: Request): Promise<NextResponse> {
   const init = await initializeApiRequest(request, "Store Cards");
   if (init.errorResponse) return init.errorResponse;

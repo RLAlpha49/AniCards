@@ -1,21 +1,31 @@
 import { GET } from "./route";
 
-// Declare mockRedisGet in the outer scope so tests can control its behavior.
+/**
+ * Mocked Redis getter shared by the card API tests.
+ * @source
+ */
 let mockRedisGet = jest.fn();
 
-jest.mock("@upstash/redis", () => {
+function createRedisFromEnvMock() {
   return {
-    Redis: {
-      fromEnv: jest.fn(() => ({
-        get: mockRedisGet,
-        incr: jest.fn(() => Promise.resolve(1)),
-      })),
-    },
+    get: mockRedisGet,
+    incr: jest.fn(async () => 1),
   };
-});
+}
 
-// A helper function to extract JSON from the response.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+jest.mock("@upstash/redis", () => ({
+  Redis: {
+    fromEnv: jest.fn(createRedisFromEnvMock),
+  },
+}));
+
+/**
+ * Extracts the parsed JSON payload from a response for assertions.
+ * @param response - HTTP response produced by the handler.
+ * @returns Parsed JSON payload.
+ * @source
+ */
+/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
 async function getResponseJson(response: Response): Promise<any> {
   return response.json();
 }
@@ -48,7 +58,6 @@ describe("Cards API GET Endpoint", () => {
   });
 
   it("should return 404 if cards are not found in Redis", async () => {
-    // Simulate missing data in Redis.
     mockRedisGet.mockResolvedValueOnce(null);
     const req = new Request(`${baseUrl}?userId=123`, {
       headers: { "x-forwarded-for": "127.0.0.1" },
@@ -63,7 +72,6 @@ describe("Cards API GET Endpoint", () => {
     const cardData = {
       cards: [{ cardName: "animeStats", titleColor: "#000" }],
     };
-    // Simulate valid card data stored in Redis.
     mockRedisGet.mockResolvedValueOnce(JSON.stringify(cardData));
     const req = new Request(`${baseUrl}?userId=456`, {
       headers: { "x-forwarded-for": "127.0.0.1" },
@@ -75,7 +83,6 @@ describe("Cards API GET Endpoint", () => {
   });
 
   it("should return 500 if an error occurs during card data retrieval", async () => {
-    // Simulate a Redis error.
     mockRedisGet.mockRejectedValueOnce(new Error("Redis error"));
     const req = new Request(`${baseUrl}?userId=123`, {
       headers: { "x-forwarded-for": "127.0.0.1" },

@@ -1,8 +1,12 @@
 // Centralized data management for user preferences
 import { colorPresets, statCardTypes } from "@/components/stat-card-generator";
 
+/** Default border color used for cards when a user-selected value is not present. @source */
 export const DEFAULT_BORDER_COLOR = "#e4e2e2";
 
+/** Shape representing persisted user preferences stored in localStorage.
+ * @source
+ */
 type UserPreferences = {
   colorPreset: string;
   defaultCards: string[];
@@ -10,7 +14,13 @@ type UserPreferences = {
   borderColor: string;
 };
 
+/** Prefix used for all persisted keys in localStorage for this app. @source */
 const APP_PREFIX = "anicards-";
+/**
+ * A curated list of site-specific keys that are managed by `clearSiteCache`.
+ * These keys are combined with the `APP_PREFIX` to form complete localStorage keys.
+ * @source
+ */
 const VALID_CACHE_KEYS = [
   "statCardConfig",
   "statCardColors",
@@ -22,6 +32,12 @@ const VALID_CACHE_KEYS = [
   "defaultBorderColor",
 ].map((key) => `${APP_PREFIX}${key}`);
 
+/**
+ * Loads default site settings from localStorage and returns a normalized
+ * UserPreferences object with sensible defaults when values are missing.
+ * @returns The user's saved preferences or default values.
+ * @source
+ */
 export function loadDefaultSettings(): UserPreferences {
   const loadValue = (key: string) => {
     const stored = localStorage.getItem(`${APP_PREFIX}${key}`);
@@ -43,6 +59,11 @@ export function loadDefaultSettings(): UserPreferences {
   };
 }
 
+/**
+ * Persist the default color preset into localStorage with a last modified timestamp.
+ * @param preset - The chosen preset name to save.
+ * @source
+ */
 export function saveDefaultPreset(preset: string) {
   const data = {
     value: preset,
@@ -51,6 +72,11 @@ export function saveDefaultPreset(preset: string) {
   localStorage.setItem(`${APP_PREFIX}defaultColorPreset`, JSON.stringify(data));
 }
 
+/**
+ * Persist an array of default card types into localStorage.
+ * @param cardTypes - The card type ids to persist as the default selection.
+ * @source
+ */
 export function saveDefaultCardTypes(cardTypes: string[]) {
   const data = {
     value: cardTypes,
@@ -59,6 +85,11 @@ export function saveDefaultCardTypes(cardTypes: string[]) {
   localStorage.setItem(`${APP_PREFIX}defaultCardTypes`, JSON.stringify(data));
 }
 
+/**
+ * Save a boolean indicating whether card borders are enabled by default.
+ * @param enabled - Boolean flag to persist.
+ * @source
+ */
 export function saveDefaultBorderEnabled(enabled: boolean) {
   const data = {
     value: enabled,
@@ -70,6 +101,11 @@ export function saveDefaultBorderEnabled(enabled: boolean) {
   );
 }
 
+/**
+ * Persist a default border color string into localStorage with a timestamp.
+ * @param color - Hex color string to save.
+ * @source
+ */
 export function saveDefaultBorderColor(color: string) {
   const data = {
     value: color,
@@ -79,6 +115,13 @@ export function saveDefaultBorderColor(color: string) {
 }
 
 // Helper to get actual color values from preset name
+/**
+ * Returns the color palette for a given preset name; falls back to default
+ * preset colors if the requested preset is missing.
+ * @param presetName - Name of the preset to look up.
+ * @returns Color definitions for the preset.
+ * @source
+ */
 export function getPresetColors(presetName: string) {
   return (
     colorPresets[presetName as keyof typeof colorPresets]?.colors ||
@@ -87,10 +130,23 @@ export function getPresetColors(presetName: string) {
 }
 
 // Helper to get card type labels for display
+/**
+ * Returns a display label for the provided card type id; falls back to the
+ * id itself when a label cannot be found.
+ * @param cardId - Card type identifier.
+ * @returns A human readable label.
+ * @source
+ */
 export function getCardTypeLabel(cardId: string) {
   return statCardTypes.find((t) => t.id === cardId)?.label || cardId;
 }
 
+/**
+ * Reads site-prefixed items from localStorage and returns a list of cached
+ * entries with key, byte size, and last modified timestamp.
+ * @returns List of cache metadata for the current site.
+ * @source
+ */
 export function getSiteSpecificCache() {
   return Object.keys(localStorage)
     .filter((key) => key.startsWith(APP_PREFIX))
@@ -115,6 +171,11 @@ export function getSiteSpecificCache() {
     });
 }
 
+/**
+ * Clears a defined set of known keys from localStorage to reset site cache
+ * or user default settings.
+ * @source
+ */
 export function clearSiteCache() {
   for (const key of VALID_CACHE_KEYS) {
     localStorage.removeItem(key);

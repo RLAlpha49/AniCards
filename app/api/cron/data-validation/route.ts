@@ -2,7 +2,12 @@ import { redisClient } from "@/lib/api-utils";
 import type { Redis as UpstashRedis } from "@upstash/redis";
 import { safeParse } from "@/lib/utils";
 
-// Helper function for cron authorization
+/**
+ * Validates the cron secret header and returns an error response on failure.
+ * @param request - Incoming request whose headers provide the cron secret.
+ * @returns Response when authorization fails or null when allowed.
+ * @source
+ */
 function checkCronAuthorization(request: Request): Response | null {
   const CRON_SECRET = process.env.CRON_SECRET;
   const cronSecretHeader = request.headers.get("x-cron-secret");
@@ -22,8 +27,16 @@ function checkCronAuthorization(request: Request): Response | null {
   return null;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function validateUserRecord(obj: any): string[] {
+/**
+ * Validates that the stored user record contains the required typed fields.
+ * @param obj - Parsed record to validate.
+ * @returns List of missing or mistyped fields.
+ * @source
+ */
+function validateUserRecord(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  obj: any,
+): string[] {
   const issues: string[] = [];
   if (typeof obj.userId !== "number") {
     issues.push("userId is missing or not a number");
@@ -46,6 +59,10 @@ function validateUserRecord(obj: any): string[] {
   return issues;
 }
 
+/**
+ * Definitions for required string properties on card records and their error messages.
+ * @source
+ */
 const CARD_STRING_PROPERTIES: Array<[string, (idx: number) => string]> = [
   ["cardName", (idx) => `cards[${idx}].cardName is missing or not a string`],
   ["variation", (idx) => `cards[${idx}].variation is missing or not a string`],
@@ -64,6 +81,13 @@ const CARD_STRING_PROPERTIES: Array<[string, (idx: number) => string]> = [
   ],
 ];
 
+/**
+ * Ensures card-level string properties are present and reports missing ones.
+ * @param card - Parsed card metadata being validated.
+ * @param index - Index of the card inside the cards array.
+ * @returns List of issues describing missing string properties.
+ * @source
+ */
 function validateCardStringProps(card: Record<string, unknown>, index: number) {
   const issues: string[] = [];
   for (const [prop, messageFn] of CARD_STRING_PROPERTIES) {
@@ -74,6 +98,13 @@ function validateCardStringProps(card: Record<string, unknown>, index: number) {
   return issues;
 }
 
+/**
+ * Ensures an optional border color is a string if provided.
+ * @param card - Parsed card metadata that may include a borderColor.
+ * @param index - Index of the card inside the cards array.
+ * @returns Issues describing invalid border colors.
+ * @source
+ */
 function validateCardBorderColor(card: Record<string, unknown>, index: number) {
   const borderValue = card["borderColor"];
   if (
@@ -86,8 +117,16 @@ function validateCardBorderColor(card: Record<string, unknown>, index: number) {
   return [];
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function validateCardsRecord(obj: any): string[] {
+/**
+ * Validates cards metadata, including nested arrays and optional border colors.
+ * @param obj - Parsed cards record to validate.
+ * @returns Collection of issues discovered in the cards payload.
+ * @source
+ */
+function validateCardsRecord(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  obj: any,
+): string[] {
   const issues: string[] = [];
   if (typeof obj.userId !== "number") {
     issues.push("userId is missing or not a number");
@@ -116,8 +155,16 @@ function validateCardsRecord(obj: any): string[] {
   return issues;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function validateUsernameRecord(obj: any): string[] {
+/**
+ * Validates that a username record stores a numeric value.
+ * @param obj - Parsed value from the username key.
+ * @returns Issues describing missing or invalid numeric data.
+ * @source
+ */
+function validateUsernameRecord(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  obj: any,
+): string[] {
   const issues: string[] = [];
   if (typeof obj !== "number") {
     issues.push("username record is not a number");
@@ -125,8 +172,16 @@ function validateUsernameRecord(obj: any): string[] {
   return issues;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function validateAnalyticsMetric(val: any): string[] {
+/**
+ * Validates that an analytics value is numeric.
+ * @param val - Value retrieved from an analytics key.
+ * @returns Issues describing invalid types.
+ * @source
+ */
+function validateAnalyticsMetric(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  val: any,
+): string[] {
   const issues: string[] = [];
   if (typeof val !== "number") {
     issues.push(`Expected a number but got ${typeof val}`);
@@ -134,8 +189,16 @@ function validateAnalyticsMetric(val: any): string[] {
   return issues;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function validateAnalyticsReport(obj: any): string[] {
+/**
+ * Validates that an analytics report entry contains the expected metadata.
+ * @param obj - Parsed report object from Redis.
+ * @returns List of detected structural issues in the report.
+ * @source
+ */
+function validateAnalyticsReport(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  obj: any,
+): string[] {
   const issues: string[] = [];
   if (typeof obj !== "object" || obj === null) {
     issues.push("Report is not an object");
@@ -161,7 +224,14 @@ function validateAnalyticsReport(obj: any): string[] {
   return issues;
 }
 
-// Helper function to validate analytics reports list
+/**
+ * Validates every analytics report stored under the given Redis list key.
+ * @param redisClient - Redis client used to read the list.
+ * @param key - Redis key pointing to the analytics reports list.
+ * @param inconsistencies - Collector for any discovered problems.
+ * @returns Counts of keys checked and issues found.
+ * @source
+ */
 async function validateAnalyticsReportsList(
   redisClient: UpstashRedis,
   key: string,
@@ -196,7 +266,14 @@ async function validateAnalyticsReportsList(
   return { keysChecked, issuesFound };
 }
 
-// Helper function to validate individual key
+/**
+ * Validates a single Redis key according to its prefix pattern.
+ * @param redisClient - Redis client used to read the key.
+ * @param key - Redis key being validated.
+ * @param inconsistencies - Collector for issues discovered during validation.
+ * @returns Counts of keys checked and issues found for this key.
+ * @source
+ */
 async function validateIndividualKey(
   redisClient: UpstashRedis,
   key: string,
@@ -235,7 +312,14 @@ async function validateIndividualKey(
   return { keysChecked: 1, issuesFound: 0 };
 }
 
-// Helper function to validate keys for a pattern
+/**
+ * Iterates through keys matching the pattern and validates each entry.
+ * @param redisClient - Redis client used to gather keys.
+ * @param pattern - Key pattern to expand.
+ * @param inconsistencies - Collector for any mismatches discovered.
+ * @returns Totals for keys checked and inconsistencies found across the pattern.
+ * @source
+ */
 async function validatePatternKeys(
   redisClient: UpstashRedis,
   pattern: string,
@@ -271,7 +355,15 @@ async function validatePatternKeys(
   return { checked: patternChecked, inconsistencies: patternIssues };
 }
 
-// Helper function to create and save validation report
+/**
+ * Constructs and persists a validation report summarizing issues.
+ * @param redisClient - Redis client used to push the report to a list.
+ * @param summary - Summary string describing the validation run.
+ * @param details - Per-pattern details including checked counts.
+ * @param inconsistencies - Collected issues from the run.
+ * @returns Saved report object ready to send back to the caller.
+ * @source
+ */
 async function createAndSaveReport(
   redisClient: UpstashRedis,
   summary: string,
@@ -289,6 +381,12 @@ async function createAndSaveReport(
   return report;
 }
 
+/**
+ * Runs the data validation cron job and returns a report of discovered issues.
+ * @param request - Incoming request that must include the cron secret header.
+ * @returns HTTP response containing the validation report or an error message.
+ * @source
+ */
 export async function POST(request: Request) {
   // Check authorization
   const authError = checkCronAuthorization(request);

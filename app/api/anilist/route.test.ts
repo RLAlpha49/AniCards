@@ -1,6 +1,9 @@
 import { beforeEach, afterEach } from "node:test";
 
-// Mock rate limiter and redis in order to test initializeApiRequest behavior
+/**
+ * Controls the mocked rate limiter response so initializeApiRequest tests can vary limits.
+ * @source
+ */
 let mockLimit = jest.fn().mockResolvedValue({ success: true });
 jest.mock("@upstash/ratelimit", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -13,17 +16,45 @@ jest.mock("@upstash/ratelimit", () => {
   };
 });
 
+/**
+ * Create a consistent, named Redis mock for tests to avoid deep nesting in jest.mock() calls.
+ */
+function createRedisFromEnvMock() {
+  return {
+    incr: jest.fn(async () => 1),
+  };
+}
+
 // Set the app URL for same-origin validation testing
 process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
 
 import { POST } from "./route";
 
-// Helper functions to reduce code duplication
+/**
+ * Local endpoint used to build requests against the AniList proxy during tests.
+ * @source
+ */
 const BASE_URL = "http://localhost/api/anilist";
+
+/**
+ * GraphQL query string used when a test does not provide a custom query.
+ * @source
+ */
 const DEFAULT_QUERY = "query GetUserStats { dummyField }";
+
+/**
+ * Default set of variables accompanying the default query.
+ * @source
+ */
 const DEFAULT_VARIABLES = { userId: 123 };
 
-// Helper to create a request with optional headers and body
+/**
+ * Builds a POST request targeting the AniList proxy with optional overrides.
+ * @param headers - Additional headers merged with the JSON content type.
+ * @param body - Optional payload to stringify for the request.
+ * @returns Configured Request instance for the AniList endpoint.
+ * @source
+ */
 function createAniListRequest(
   headers: Record<string, string> = {},
   body?: object,
@@ -40,7 +71,12 @@ function createAniListRequest(
   });
 }
 
-// Helper to setup environment for testing
+/**
+ * Applies NODE_ENV and optionally seeds the AniList token for each test.
+ * @param nodeEnv - Environment name to set before running a scenario.
+ * @param includeToken - When true, adds a dummy AniList token for authentication paths.
+ * @source
+ */
 function setupEnvironment(nodeEnv: string, includeToken = false) {
   (process.env as Record<string, string>).NODE_ENV = nodeEnv;
   if (includeToken) {
@@ -48,7 +84,13 @@ function setupEnvironment(nodeEnv: string, includeToken = false) {
   }
 }
 
-// Helper to create GraphQL request body
+/**
+ * Builds a GraphQL request payload, defaulting to the shared query and variables.
+ * @param query - Optional GraphQL query string.
+ * @param variables - Optional variables object.
+ * @returns GraphQL request body used in tests.
+ * @source
+ */
 function createGraphQLBody(
   query = DEFAULT_QUERY,
   variables = DEFAULT_VARIABLES,
@@ -56,7 +98,13 @@ function createGraphQLBody(
   return { query, variables };
 }
 
-// Helper to mock fetch response
+/**
+ * Mocks the global fetch call so tests can provide controlled responses.
+ * @param responseData - Data that the mocked fetch should resolve to.
+ * @param options - Optional overrides for status, headers, and ok flag.
+ * @returns The mocked response object used by the fetch stub.
+ * @source
+ */
 function mockFetchResponse(
   responseData: unknown,
   options: {
@@ -78,7 +126,14 @@ function mockFetchResponse(
   return fetchResponse;
 }
 
-// Helper to validate response
+/**
+ * Asserts the response status and optionally validates the payload shape.
+ * @param response - Response returned from the POST handler.
+ * @param expectedStatus - HTTP status the response should have.
+ * @param expectedData - Optional data expectations that may include error checks.
+ * @returns Parsed data when expectations were provided; otherwise the original response.
+ * @source
+ */
 async function expectResponse(
   response: Response,
   expectedStatus: number,
@@ -121,9 +176,7 @@ describe("AniList API Proxy Endpoint", () => {
     process.env = { ...originalEnv };
     jest.mock("@upstash/redis", () => ({
       Redis: {
-        fromEnv: jest.fn(() => ({
-          incr: jest.fn(() => Promise.resolve(1)),
-        })),
+        fromEnv: jest.fn(createRedisFromEnvMock),
       },
     }));
     // Reset the default mockLimit behavior for each test

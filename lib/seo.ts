@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
 
+/**
+ * Configuration object used to generate SEO metadata for pages.
+ * @source
+ */
 interface SEOConfig {
   title: string;
   description: string;
@@ -18,10 +22,20 @@ interface SEOConfig {
   canonical?: string;
 }
 
+/** Base site URL used when canonical links or OpenGraph urls are not provided. @source */
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL || "https://anicards.alpha49.com";
+/** Canonical site name used across generated metadata. @source */
 const SITE_NAME = "AniCards";
 
+/**
+ * Generate a Next.js-compatible Metadata object from a lightweight
+ * SEOConfig shape. This ensures Title, Description, OpenGraph and
+ * robots settings are consistently composed.
+ * @param config - SEO configuration values for the page.
+ * @returns A Metadata object consumed by Next.js pages.
+ * @source
+ */
 export function generateMetadata(config: SEOConfig): Metadata {
   const {
     title,
@@ -73,7 +87,7 @@ export function generateMetadata(config: SEOConfig): Metadata {
   };
 }
 
-// SEO configurations for different pages
+/** Canonical SEO configurations for static app pages. @source */
 export const seoConfigs = {
   home: {
     title:
@@ -203,7 +217,13 @@ export const seoConfigs = {
   },
 };
 
-// Function to dynamically update page metadata (for client components)
+/**
+ * Dynamically updates the current document's metadata like title,
+ * description, keywords, and canonical link for client components.
+ * This function performs DOM operations only when `document` is available.
+ * @param pageKey - Key of the page in the `seoConfigs` map.
+ * @source
+ */
 export function updatePageTitle(pageKey: keyof typeof seoConfigs) {
   const config = seoConfigs[pageKey];
   if (typeof document !== "undefined") {

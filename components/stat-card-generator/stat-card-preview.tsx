@@ -15,6 +15,15 @@ import {
   trackDialogClose,
 } from "@/lib/utils/google-analytics";
 
+/**
+ * Props to control the stat card preview dialog.
+ * @property isOpen - Whether the dialog is visible.
+ * @property onClose - Called when the dialog should close.
+ * @property cardType - Key of the card type to render.
+ * @property variation - Optional card variation id.
+ * @property showFavorites - Whether to force showing favorites in preview data.
+ * @source
+ */
 interface StatCardPreviewProps {
   isOpen: boolean;
   onClose: () => void;
@@ -23,6 +32,10 @@ interface StatCardPreviewProps {
   showFavorites?: boolean;
 }
 
+/**
+ * Human friendly display names for the `cardType` values.
+ * @source
+ */
 export const displayNames: { [key: string]: string } = {
   animeStats: "Anime Stats",
   socialStats: "Social Stats",
@@ -47,7 +60,18 @@ export const displayNames: { [key: string]: string } = {
   mangaCountry: "Manga Countries",
 };
 
-// Component for previewing different types of stat cards in a dialog
+/**
+ * Dialog component used to preview stat cards.
+ * The preview fetches a sample SVG from a preview API and displays the
+ * rendered image with a loading state.
+ * @param isOpen - Controls whether the dialog is shown.
+ * @param onClose - Callback to close the dialog.
+ * @param cardType - Card type key for the preview image.
+ * @param variation - Optional variation to render, defaults to 'default'.
+ * @param showFavorites - If true, show favorites in the sample data.
+ * @returns React element wrapping the dialog with the fetched preview image.
+ * @source
+ */
 export function StatCardPreview({
   isOpen,
   onClose,
@@ -57,7 +81,7 @@ export function StatCardPreview({
 }: Readonly<StatCardPreviewProps>) {
   const [isLoading, setIsLoading] = useState(true);
 
-  // Reset loading state when dialog opens or cardType changes
+  // Reset loading state when dialog opens or cardType changes.
   useEffect(() => {
     if (isOpen && cardType) {
       setIsLoading(true);
@@ -82,6 +106,7 @@ export function StatCardPreview({
   const baseUrl = "https://anicards.alpha49.com/api/card.svg";
   const urlParams = new URLSearchParams({
     cardType,
+    // Sample user used to generate demo preview SVGs — not the viewer's user id.
     userId: "542244",
     variation: effectiveVariation,
   });

@@ -1,3 +1,7 @@
+/**
+ * Configuration shape used by Google Analytics gtag calls.
+ * @source
+ */
 interface GAConfig {
   page_path?: string;
   page_title?: string;
@@ -14,17 +18,47 @@ declare global {
   }
 }
 
-// Log page views
-export const pageview = (url: string) => {
+// A typed alias for the gtag function to avoid repeating the signature.
+type GtagFunction = (
+  command: string,
+  targetId: string,
+  config?: GAConfig,
+) => void;
+
+/**
+ * Safely retrieve the global gtag function from globalThis in a way that
+ * works both in browser and server environments.
+ */
+const getGtag = (): GtagFunction | undefined => {
+  if (typeof globalThis === "undefined") return undefined;
+  // globalThis in browsers is the Window object; cast safely to the Window type
+  const win = globalThis as unknown as Window;
+  return win.gtag as GtagFunction | undefined;
+};
+
+/**
+ * Send a pageview event to Google Analytics using the configured GA property.
+ * @param url - The path of the page to report.
+ * @source
+ */
+export const pageview = (url: string): void => {
   const gaId = process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
-  if (typeof window !== "undefined" && window.gtag && gaId) {
-    window.gtag("config", gaId, {
+  const gtag = getGtag();
+  if (gtag && gaId) {
+    gtag("config", gaId, {
       page_path: url,
     });
   }
 };
 
-// Log specific events
+/**
+ * Send a custom event to Google Analytics via gtag.
+ * @param action - Event action name used in GA.
+ * @param category - The category to group the event within.
+ * @param label - Optional label for additional context.
+ * @param value - Optional numeric value for metrics.
+ * @source
+ */
 export const event = ({
   action,
   category,
@@ -36,8 +70,9 @@ export const event = ({
   label?: string;
   value?: number;
 }) => {
-  if (typeof window !== "undefined" && window.gtag) {
-    window.gtag("event", action, {
+  const gtag = getGtag();
+  if (gtag) {
+    gtag("event", action, {
       event_category: category,
       event_label: label,
       value: value,
@@ -45,6 +80,7 @@ export const event = ({
   }
 };
 
+/** Log a card generation event with GA using a card type label. @source */
 export const trackCardGeneration = (cardType: string) => {
   event({
     action: "card_generated",
@@ -53,6 +89,7 @@ export const trackCardGeneration = (cardType: string) => {
   });
 };
 
+/** Log a card download event with GA using a card type label. @source */
 export const trackCardDownload = (cardType: string) => {
   event({
     action: "card_downloaded",
@@ -61,6 +98,7 @@ export const trackCardDownload = (cardType: string) => {
   });
 };
 
+/** Track a user search by username in GA events. @source */
 export const trackUserSearch = (username: string) => {
   event({
     action: "user_searched",
@@ -69,6 +107,7 @@ export const trackUserSearch = (username: string) => {
   });
 };
 
+/** Track a settings change event with GA. @source */
 export const trackSettingsChanged = (settingType: string) => {
   event({
     action: "settings_changed",
@@ -77,6 +116,7 @@ export const trackSettingsChanged = (settingType: string) => {
   });
 };
 
+/** Track when a dialog is opened by type for analytics. @source */
 export const trackDialogOpen = (dialogType: string) => {
   event({
     action: "dialog_opened",
@@ -85,6 +125,7 @@ export const trackDialogOpen = (dialogType: string) => {
   });
 };
 
+/** Track when a dialog is closed by type for analytics. @source */
 export const trackDialogClose = (dialogType: string) => {
   event({
     action: "dialog_closed",
@@ -93,6 +134,7 @@ export const trackDialogClose = (dialogType: string) => {
   });
 };
 
+/** Track button clicks in the UI with optional context. @source */
 export const trackButtonClick = (buttonName: string, context?: string) => {
   event({
     action: "button_clicked",
@@ -101,6 +143,7 @@ export const trackButtonClick = (buttonName: string, context?: string) => {
   });
 };
 
+/** Track a navigation event including the destination and optional source context. @source */
 export const trackNavigation = (
   destinationPage: string,
   sourceContext?: string,
@@ -114,6 +157,7 @@ export const trackNavigation = (
   });
 };
 
+/** Track sidebar expand/collapse actions in GA. @source */
 export const trackSidebarToggle = (action: "expand" | "collapse") => {
   event({
     action: "sidebar_toggled",
@@ -122,6 +166,7 @@ export const trackSidebarToggle = (action: "expand" | "collapse") => {
   });
 };
 
+/** Track when a color preset is selected in the UI. @source */
 export const trackColorPresetSelection = (presetName: string) => {
   event({
     action: "color_preset_selected",
@@ -130,6 +175,7 @@ export const trackColorPresetSelection = (presetName: string) => {
   });
 };
 
+/** Track previewing a card for GA analysis. @source */
 export const trackCardPreview = (cardType: string) => {
   event({
     action: "card_previewed",
@@ -138,6 +184,7 @@ export const trackCardPreview = (cardType: string) => {
   });
 };
 
+/** Track form submission success or failure for product analytics. @source */
 export const trackFormSubmission = (formType: string, success: boolean) => {
   event({
     action: success ? "form_submitted_success" : "form_submitted_error",
@@ -146,6 +193,7 @@ export const trackFormSubmission = (formType: string, success: boolean) => {
   });
 };
 
+/** Track clicks on external links with optional context indicating origin. @source */
 export const trackExternalLinkClick = (
   linkDestination: string,
   context?: string,
@@ -157,6 +205,7 @@ export const trackExternalLinkClick = (
   });
 };
 
+/** Track copy actions (e.g., copying a URL) for analytics. @source */
 export const trackCopyAction = (copyType: string) => {
   event({
     action: "copy_action",
@@ -165,6 +214,7 @@ export const trackCopyAction = (copyType: string) => {
   });
 };
 
+/** Track an error event capturing type and optional message. @source */
 export const trackError = (errorType: string, errorMessage?: string) => {
   event({
     action: "error_occurred",

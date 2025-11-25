@@ -5,6 +5,14 @@ import { useState, useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type React from "react";
 
+/**
+ * Props for ImageWithSkeleton component.
+ * - src: image URL to render
+ * - alt: alternative text for the image
+ * - className: Tailwind classes applied to the image
+ * - style: optional inline styles passed through to the img element
+ * @source
+ */
 type ImageWithSkeletonProps = {
   src: string;
   alt: string;
@@ -12,6 +20,12 @@ type ImageWithSkeletonProps = {
   style?: React.CSSProperties;
 };
 
+/**
+ * Image wrapper that displays a Skeleton while the image is loading.
+ * Uses a client-side mount lifecycle to avoid SSR mismatch for randomized
+ * or lazy loaded images and provides a simple error fallback.
+ * @source
+ */
 export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
   src,
   alt,
@@ -22,6 +36,7 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
   const [hasError, setHasError] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
+  // Mark mounted to prevent SSR mismatch with randomized image load behavior.
   useEffect(() => {
     setIsMounted(true);
   }, []);

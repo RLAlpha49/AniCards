@@ -5,7 +5,16 @@ import Link from "next/link";
 import DarkModeToggle from "@/components/dark-mode-toggle";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
+/**
+ * Application header that anchors to the top of the viewport.
+ * - Includes the main navigation link and a dark mode toggle.
+ * - Uses a mount check to avoid server/client rendering mismatch.
+ * @returns A fixed header element.
+ * @source
+ */
 export default function Header() {
+  // Prevent layout mismatch between server and client by deferring rendering
+  // until the component mounts on the client.
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {

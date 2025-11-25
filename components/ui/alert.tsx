@@ -3,6 +3,11 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
+/**
+ * Class-variance-authority config for the Alert component's Tailwind CSS classes.
+ * Provides variant-driven class names for the alert container.
+ * @source
+ */
 const alertVariants = cva(
   "relative w-full rounded-lg border px-4 py-3 text-sm [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground [&>svg~*]:pl-7",
   {
@@ -19,6 +24,11 @@ const alertVariants = cva(
   },
 );
 
+/**
+ * Container component for inline alerts.
+ * Supports `variant` variants and forwards all native div props.
+ * @source
+ */
 const Alert = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement> & VariantProps<typeof alertVariants>
@@ -32,6 +42,11 @@ const Alert = React.forwardRef<
 ));
 Alert.displayName = "Alert";
 
+/**
+ * Title element for an Alert; rendered prominently and accessible.
+ * Falls back to a screen-reader-only label when children are absent.
+ * @source
+ */
 const AlertTitle = React.forwardRef<
   HTMLHeadingElement,
   React.HTMLAttributes<HTMLHeadingElement>
@@ -46,6 +61,10 @@ const AlertTitle = React.forwardRef<
 ));
 AlertTitle.displayName = "AlertTitle";
 
+/**
+ * Secondary text for the Alert; used to provide contextual details.
+ * @source
+ */
 const AlertDescription = React.forwardRef<
   HTMLParagraphElement,
   React.HTMLAttributes<HTMLParagraphElement>

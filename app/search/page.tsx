@@ -25,8 +25,14 @@ import { usePageSEO } from "@/hooks/use-page-seo";
 import { cn } from "@/lib/utils";
 import { GridPattern } from "../../components/ui/grid-pattern";
 
+/** Supported lookup modes for the search form. @source */
 type SearchMethod = "username" | "userid";
 
+/**
+ * Renders the AniList user search experience with analytics tracking.
+ * @returns The markup for the lookup page.
+ * @source
+ */
 export default function UserLookupPage() {
   usePageSEO("search");
 
@@ -36,11 +42,21 @@ export default function UserLookupPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  /**
+   * Prevents the default form submit and triggers the lookup handler.
+   * @param e - The submission event emitted by the form.
+   * @source
+   */
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     performSearch(searchValue);
   };
 
+  /**
+   * Validates input, tracks analytics, and routes to the targeted user page.
+   * @param value - The entered username or AniList user ID.
+   * @source
+   */
   const performSearch = (value: string) => {
     if (!value.trim()) {
       setError(

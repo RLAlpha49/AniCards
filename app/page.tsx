@@ -14,6 +14,10 @@ import { Button } from "@/components/ui/button";
 import { Play, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 
+/**
+ * Renders the AniCards landing page and exposes the stat card generator modal.
+ * @source
+ */
 export default function HomePage() {
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
 

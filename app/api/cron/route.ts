@@ -4,6 +4,10 @@ import { safeParse } from "@/lib/utils";
 import { redisClient } from "@/lib/api-utils";
 import type { Redis as UpstashRedis } from "@upstash/redis";
 
+/**
+ * Tracks the outcome of a user's AniList stats refresh.
+ * @source
+ */
 interface UpdateResult {
   success: boolean;
   is404Error: boolean;
@@ -11,7 +15,12 @@ interface UpdateResult {
   statsData?: any;
 }
 
-// Attempt to update user stats with retry logic
+/**
+ * Attempts to fetch AniList stats for the given user with up to three retries.
+ * @param userId - AniList identifier whose stats should be refreshed.
+ * @returns Result detailing the fetch success, 404 status, and payload if available.
+ * @source
+ */
 async function updateUserStats(userId: string): Promise<UpdateResult> {
   let retries = 3;
   let is404Error = false;
@@ -61,7 +70,14 @@ async function updateUserStats(userId: string): Promise<UpdateResult> {
   return { success: false, is404Error };
 }
 
-// Handle failure tracking and user removal
+/**
+ * Records repeated AniList 404 failures and removes stale entries after three attempts.
+ * @param redisClient - Redis client used to store failure counters and related keys.
+ * @param userId - AniList identifier whose failures are being tracked.
+ * @param userKey - Redis key for the user's record to delete when removing.
+ * @returns True when the user was removed from Redis, false otherwise.
+ * @source
+ */
 async function handleFailureTracking(
   redisClient: UpstashRedis,
   userId: string,
@@ -92,7 +108,13 @@ async function handleFailureTracking(
   }
 }
 
-// Clear failure tracking on successful update
+/**
+ * Clears any stored failure counter for the specified user after a successful update.
+ * @param redisClient - Redis client managing failure counters.
+ * @param userId - AniList identifier whose failure tracking should be removed.
+ * @returns Promise that resolves once the failure counter is deleted.
+ * @source
+ */
 async function clearFailureTracking(
   redisClient: UpstashRedis,
   userId: string,
@@ -101,7 +123,12 @@ async function clearFailureTracking(
   await redisClient.del(failureKey);
 }
 
-// Background job for batch updating user stats from AniList
+/**
+ * Executes the cron job that batches AniList stat refreshes for the oldest users.
+ * @param request - Incoming request which must include the cron secret header.
+ * @returns Response summarizing processed, failed, and removed users.
+ * @source
+ */
 export async function POST(request: Request) {
   const CRON_SECRET = process.env.CRON_SECRET;
   const cronSecretHeader = request.headers.get("x-cron-secret");

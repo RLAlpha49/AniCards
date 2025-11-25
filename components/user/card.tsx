@@ -16,18 +16,36 @@ import {
   trackCopyAction,
 } from "@/lib/utils/google-analytics";
 
+/**
+ * Props for the Card component.
+ * @property type - The card type key used for labeling and tracking.
+ * @property svgUrl - The URL (absolute or relative) pointing to the card's SVG.
+ * @source
+ */
 interface CardProps {
   type: string;
   svgUrl: string;
 }
 
 // Component for individual stat card display with download/copy actions
+/**
+ * Renders an interactive stat card preview with download and link-copy actions.
+ * @param props - Component properties.
+ * @param props.type - Card type key used to display a friendly name and for analytics.
+ * @param props.svgUrl - The SVG URL to display and convert for download/copy.
+ * @returns JSX element that displays the card preview and actions.
+ * @source
+ */
 export function Card({ type, svgUrl }: Readonly<CardProps>) {
   // Track copied state and image loading status
   const [copied, setCopied] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Convert SVG to PNG and trigger download
+  /**
+   * Convert the currently displayed SVG to a PNG URL and trigger a browser download.
+   * @returns Promise<void>
+   * @source
+   */
   const handleDownload = async () => {
     // Track the download event
     trackCardDownload(type);
@@ -39,7 +57,14 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
     link.click();
   };
 
-  // Generic copy handler for different link types
+  /**
+   * Copy a given text to the clipboard and show brief feedback to the user.
+   * Also records the copy action via analytics with a label including the card type.
+   * @param text - The text to copy to clipboard.
+   * @param label - Identifier for the format (e.g., 'svg', 'anilist').
+   * @returns Promise<void>
+   * @source
+   */
   const handleCopy = async (text: string, label: string) => {
     trackCopyAction(`${label}_${type}`);
     await copyToClipboard(text);
@@ -48,7 +73,15 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
   };
 
   // Pre-formatted links for copy operations
+  /**
+   * Absolute URL for the displayed SVG (suitable for sharing/copying).
+   * @source
+   */
   const svgLink = getAbsoluteUrl(svgUrl);
+  /**
+   * AniList bio format (img150) using the absolute SVG URL.
+   * @source
+   */
   const anilistBioLink = `img150(${getAbsoluteUrl(svgUrl)})`; // Anilist-specific image syntax
 
   return (

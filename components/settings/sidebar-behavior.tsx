@@ -4,15 +4,34 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { trackSettingsChanged } from "@/lib/utils/google-analytics";
 
+/**
+ * Props for SidebarBehavior component.
+ * @property sidebarDefault - Whether the sidebar should be expanded by default.
+ * @property onSidebarChange - Callback invoked when the sidebar default changes.
+ * @source
+ */
 interface SidebarBehaviorProps {
   sidebarDefault: boolean;
   onSidebarChange: (checked: boolean) => void;
 }
 
+/**
+ * Renders UI to configure the sidebar's default behavior on page load.
+ * Tracks changes via analytics and forwards updated values via callback.
+ * @param sidebarDefault - Current default open state of the sidebar.
+ * @param onSidebarChange - Handler to update the default state.
+ * @returns A React element representing the sidebar behavior settings.
+ * @source
+ */
 export function SidebarBehavior({
   sidebarDefault,
   onSidebarChange,
 }: Readonly<SidebarBehaviorProps>) {
+  /**
+   * Handle toggling sidebar default state and report via analytics.
+   * @param checked - New default sidebar expanded state.
+   * @source
+   */
   const handleSidebarChange = (checked: boolean) => {
     trackSettingsChanged(
       `sidebar_default_${checked ? "expanded" : "collapsed"}`,

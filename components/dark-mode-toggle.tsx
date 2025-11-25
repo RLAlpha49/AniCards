@@ -6,11 +6,19 @@ import { motion } from "framer-motion";
 import { Sun, Moon } from "lucide-react";
 import { trackSettingsChanged } from "@/lib/utils/google-analytics";
 
+/**
+ * Interactive toggle to switch between light and dark themes.
+ * - Uses `next-themes` to toggle between 'dark' and 'light', honoring 'system'.
+ * - Tracks setting changes using the analytics helper.
+ * - Uses a mount check to avoid SSR hydration mismatch.
+ * @returns A button element representing the theme switch.
+ * @source
+ */
 export default function DarkModeToggle() {
-  // Prevent hydration mismatch by checking mount state
+  // Prevent hydration mismatch by checking whether this is running client-side.
   const [mounted, setMounted] = useState(false);
   const { theme, resolvedTheme, setTheme } = useTheme();
-  // Use resolvedTheme if theme is set to "system"
+  // Use resolvedTheme when the theme is 'system' so the UI reflects the OS setting.
   const currentTheme = theme === "system" ? resolvedTheme : theme;
 
   useEffect(() => {

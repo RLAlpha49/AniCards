@@ -4,10 +4,18 @@ import { generateMetadata as createMetadata, seoConfigs } from "@/lib/seo";
 import { UserPageClient } from "@/components/user/user-page-client";
 import { LoadingSpinner } from "@/components/loading-spinner";
 
-// Force dynamic rendering to ensure fresh data on each request
+/**
+ * Forces Next.js to render this route on each request so user data stays fresh.
+ * @source
+ */
 export const dynamic = "force-dynamic";
 
-// Generate metadata dynamically based on the user
+/**
+ * Builds metadata for the user page from resolved search parameters.
+ * @param searchParams - Promise that yields optional AniList query parameters.
+ * @returns Metadata tailored to the requested user profile.
+ * @source
+ */
 export async function generateMetadata({
   searchParams,
 }: {
@@ -42,7 +50,10 @@ export async function generateMetadata({
   return createMetadata(seoConfigs.user);
 }
 
-// Server component wrapper that handles metadata and renders the client component
+/**
+ * Wraps the client-side user page in a suspense boundary with a spinner fallback.
+ * @source
+ */
 export default function UserPage() {
   return (
     <Suspense

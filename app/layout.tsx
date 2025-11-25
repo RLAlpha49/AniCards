@@ -13,16 +13,28 @@ import { Suspense } from "react";
 import { generateMetadata as createMetadata } from "@/lib/seo";
 import { generateStructuredData, generateJsonLd } from "@/lib/structured-data";
 
+/**
+ * Maps the Geist Sans face to the global CSS variable for site typography.
+ * @source
+ */
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
 });
 
+/**
+ * Exposes the Geist Mono face via a CSS variable for monospaced UI elements.
+ * @source
+ */
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
 
+/**
+ * Base metadata for the AniCards homepage defined via the shared SEO helper.
+ * @source
+ */
 export const metadata: Metadata = createMetadata({
   title:
     "AniCards - AniList Stat Cards Generator | Beautiful AniList Statistics",
@@ -49,7 +61,11 @@ export const metadata: Metadata = createMetadata({
   canonical: "https://anicards.alpha49.com",
 });
 
-// Root layout component for all pages
+/**
+ * Root layout that injects fonts, analytics, structured data, and the shared shell.
+ * @param children - Page content rendered within the shared layout and providers.
+ * @source
+ */
 export default function RootLayout({
   children,
 }: Readonly<{

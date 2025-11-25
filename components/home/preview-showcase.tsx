@@ -7,10 +7,26 @@ import { ImageWithSkeleton } from "@/components/ui/image-with-skeleton";
 import { Play, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
+/**
+ * Props for the preview showcase component.
+ * @property onGetStarted - Handler to open the card creation flow from a preview.
+ * @source
+ */
 interface PreviewShowcaseProps {
   onGetStarted: () => void;
 }
 
+/**
+ * Representation of a preview card used by the showcase list.
+ * @property title - The display title for the card.
+ * @property description - A short description of the card's content.
+ * @property cardType - Internal identifier used to request the correct card.
+ * @property variation - Optional visual variation for the card.
+ * @property category - Category label for display.
+ * @property color - Optional accent color to style the preview.
+ * @property size - Optional size hint: 'small' | 'medium' | 'large'.
+ * @source
+ */
 type PreviewCard = {
   title: string;
   description: string;
@@ -21,6 +37,10 @@ type PreviewCard = {
   size?: "small" | "medium" | "large";
 };
 
+/**
+ * Default values for PreviewCard fields (used to fill in missing values).
+ * @source
+ */
 const DEFAULT_PREVIEW_CARD: Required<
   Pick<PreviewCard, "variation" | "color" | "size">
 > = {
@@ -29,10 +49,20 @@ const DEFAULT_PREVIEW_CARD: Required<
   size: "medium",
 };
 
+/**
+ * Merge a partial preview card with defaults, ensuring required fields exist.
+ * @param values - Partial preview card values to normalize.
+ * @returns A fully populated PreviewCard.
+ * @source
+ */
 function makePreviewCard(values: PreviewCard): PreviewCard {
   return { ...DEFAULT_PREVIEW_CARD, ...values } as PreviewCard;
 }
 
+/**
+ * Example preview cards showcased on the landing page.
+ * @source
+ */
 const PREVIEW_CARDS: PreviewCard[] = [
   makePreviewCard({
     title: "Anime Statistics",
@@ -80,10 +110,20 @@ const PREVIEW_CARDS: PreviewCard[] = [
   }),
 ];
 
+/**
+ * Renders the previews grid showing sample cards and an option to create them.
+ *
+ * @param props - Component props.
+ * @param props.onGetStarted - Handler invoked when the 'Create This Card' button is clicked.
+ * @returns The preview showcase section element.
+ * @source
+ */
 export function PreviewShowcase({
   onGetStarted,
 }: Readonly<PreviewShowcaseProps>) {
+  // Base endpoint for generating card SVG previews.
   const BASE_URL = "https://anicards.alpha49.com/api/card.svg";
+  // Demo user id used to generate preview cards (safe sample value for UI previews).
   const USER_ID = "542244";
 
   return (

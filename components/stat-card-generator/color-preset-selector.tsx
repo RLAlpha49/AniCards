@@ -11,6 +11,13 @@ import {
 } from "@/components/ui/tooltip";
 import { useState } from "react";
 
+/**
+ * Props for the ColorPresetSelector component.
+ * @property selectedPreset - The currently selected preset key.
+ * @property presets - Mapping of preset keys to colors and light/dark mode.
+ * @property onPresetChange - Callback invoked when a preset is selected.
+ * @source
+ */
 export interface ColorPresetSelectorProps {
   selectedPreset: string;
   presets: {
@@ -19,20 +26,39 @@ export interface ColorPresetSelectorProps {
   onPresetChange: (preset: string) => void;
 }
 
+/** Default number of visible presets before expanding. @source */
 const DEFAULT_VISIBLE_PRESETS = 8;
+/**
+ * Tuple for preset entries, [key, { colors, mode }].
+ * @source
+ */
 type PresetEntry = [string, { colors: string[]; mode: string }];
 
+/**
+ * Renders the available color presets and lets the user pick one.
+ * Presets are sorted deterministically and the list can expand when many are present.
+ * @param selectedPreset - Key of the currently selected preset.
+ * @param presets - Map of preset definitions keyed by string.
+ * @param onPresetChange - Callback called with the selected preset key.
+ * @returns A React element showing available color presets.
+ * @source
+ */
 export function ColorPresetSelector({
   selectedPreset,
   presets,
   onPresetChange,
 }: Readonly<ColorPresetSelectorProps>) {
   const [isExpanded, setIsExpanded] = useState(false);
+  // Wrapper that tracks selection for analytics then notifies caller.
   const handlePresetChange = (preset: string) => {
     trackColorPresetSelection(preset);
     onPresetChange(preset);
   };
 
+  // Sort presets with a specific ordering:
+  //  - keep known keys (default, anilistLight, anilistDark) in a fixed order
+  //  - push 'custom' to the end
+  //  - otherwise sort by mode (light before dark)
   const sortedPresets: PresetEntry[] = Object.entries(presets).sort(
     ([aKey, aVal], [bKey, bVal]) => {
       const fixedOrder = ["default", "anilistLight", "anilistDark"];
@@ -59,6 +85,7 @@ export function ColorPresetSelector({
   const initialVisiblePresets = sortedPresets.slice(0, DEFAULT_VISIBLE_PRESETS);
   const customPresetEntry = sortedPresets.find(([key]) => key === "custom");
 
+  // Ensure 'custom' preset, if present, appears in the visible list
   const ensureCustomVisible = (list: PresetEntry[]): PresetEntry[] => {
     if (!customPresetEntry) return list;
     if (list.some(([key]) => key === "custom")) return list;

@@ -23,6 +23,10 @@ import { DefaultUsernameSettings } from "@/components/settings/default-username"
 import { usePageSEO } from "@/hooks/use-page-seo";
 import { GridPattern } from "../../components/ui/grid-pattern";
 
+/**
+ * Renders the global settings shell and wires persistent preferences to the UI.
+ * @source
+ */
 export default function SettingsPage() {
   usePageSEO("settings");
 
@@ -140,10 +144,20 @@ export default function SettingsPage() {
   if (!mounted) return null;
 
   // Handlers for the settings (passed as props)
+  /**
+   * Apply the selected theme slug and propagate the choice.
+   * @param value - Theme identifier from the selector.
+   * @source
+   */
   const handleThemeChange = (value: string) => {
     setTheme(value);
   };
 
+  /**
+   * Persist the preferred sidebar open state and refresh cache indicators.
+   * @param checked - Whether the sidebar should default to open.
+   * @source
+   */
   const handleSidebarDefaultChange = (checked: boolean) => {
     const data = {
       value: checked,
@@ -155,11 +169,20 @@ export default function SettingsPage() {
     setCacheVersion((v) => v + 1);
   };
 
+  /**
+   * Clear cached site data and force dependent state to reload.
+   * @source
+   */
   const handleClearCache = () => {
     clearSiteCache();
     setCacheVersion((v) => v + 1);
   };
 
+  /**
+   * Update the default color preset and refresh related storage data.
+   * @param value - New preset identifier from the picker.
+   * @source
+   */
   const handlePresetChange = (value: string) => {
     const data = {
       value: value,
@@ -170,6 +193,11 @@ export default function SettingsPage() {
     setCacheVersion((v) => v + 1);
   };
 
+  /**
+   * Toggle inclusion of a stat card type in the default selection.
+   * @param cardType - Identifier that represents the stat card.
+   * @source
+   */
   const handleCardTypeToggle = (cardType: string) => {
     const newTypes = defaultCardTypes.includes(cardType)
       ? defaultCardTypes.filter((t) => t !== cardType)
@@ -185,11 +213,20 @@ export default function SettingsPage() {
     setCacheVersion((v) => v + 1);
   };
 
+  /**
+   * Remove a cached entry for a specific key and refresh the cache version.
+   * @param key - Cache suffix used in localStorage under the "anicards-" namespace.
+   * @source
+   */
   const handleDeleteCacheItem = (key: string) => {
     localStorage.removeItem(`anicards-${key}`);
     setCacheVersion((v) => v + 1);
   };
 
+  /**
+   * Select or deselect every stat card type and reset variants if clearing.
+   * @source
+   */
   const handleToggleAllCardTypes = () => {
     // Check if all card types are selected (statCardTypes is imported in DefaultCardSettings)
     // This comparison assumes that statCardTypes is available and that each card type has a unique "id".
@@ -222,6 +259,10 @@ export default function SettingsPage() {
     }
   };
 
+  /**
+   * Clear all saved preferences and restore the default cache and border settings.
+   * @source
+   */
   const handleResetSettings = () => {
     const keysToRemove = [
       "anicards-sidebarDefaultOpen",
@@ -242,7 +283,11 @@ export default function SettingsPage() {
     setDefaultBorderColor(DEFAULT_BORDER_COLOR);
   };
 
-  // New handler for default username change
+  /**
+   * Persist the new default username and increment the cache version.
+   * @param value - Username string provided by the user.
+   * @source
+   */
   const handleDefaultUsernameChange = (value: string) => {
     const data = {
       value,
@@ -253,7 +298,12 @@ export default function SettingsPage() {
     setCacheVersion((v) => v + 1);
   };
 
-  // Add variant change handler
+  /**
+   * Persist the variant choice for a specific card type.
+   * @param cardType - Stat card identifier that owns the variant.
+   * @param variant - Variant slug chosen in the UI.
+   * @source
+   */
   const handleVariantChange = (cardType: string, variant: string) => {
     const newVariants = { ...defaultVariants, [cardType]: variant };
     const data = {
@@ -265,7 +315,11 @@ export default function SettingsPage() {
     setCacheVersion((v) => v + 1);
   };
 
-  // Handler for toggling show favorites default
+  /**
+   * Flip the default favorites visibility flag for a given card.
+   * @param cardId - Identifier for the card whose preference is toggled.
+   * @source
+   */
   const handleToggleShowFavoritesDefault = (cardId: string) => {
     setDefaultShowFavoritesByCard((prev) => {
       const updated = { ...prev, [cardId]: !prev[cardId] };
@@ -281,12 +335,22 @@ export default function SettingsPage() {
     });
   };
 
+  /**
+   * Persist the default border enabled flag and refresh cached version.
+   * @param value - Whether borders should be enabled by default.
+   * @source
+   */
   const handleBorderEnabledChange = (value: boolean) => {
     saveDefaultBorderEnabled(value);
     setDefaultBorderEnabled(value);
     setCacheVersion((v) => v + 1);
   };
 
+  /**
+   * Persist the default border color selection and bump the cache version.
+   * @param value - Hex or CSS color string chosen by the user.
+   * @source
+   */
   const handleBorderColorChange = (value: string) => {
     saveDefaultBorderColor(value);
     setDefaultBorderColor(value);

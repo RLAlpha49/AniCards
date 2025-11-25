@@ -1,31 +1,34 @@
-/**
- * Detailed types for user statistics.
- */
+/** Genre bucket in anime statistics with a count of items. @source */
 export interface AnimeStatGenre {
   genre: string;
   count: number;
 }
 
+/** Tag bucket in anime statistics with a referenced tag name and count. @source */
 export interface AnimeStatTag {
   tag: { name: string };
   count: number;
 }
 
+/** Voice actor bucket in anime statistics containing a full name and count. @source */
 export interface AnimeStatVoiceActor {
   voiceActor: { name: { full: string } };
   count: number;
 }
 
+/** Studio bucket in anime statistics containing a studio name and count. @source */
 export interface AnimeStatStudio {
   studio: { name: string };
   count: number;
 }
 
+/** Staff bucket in anime statistics containing staff full name and count. @source */
 export interface AnimeStatStaff {
   staff: { name: { full: string } };
   count: number;
 }
 
+/** Aggregated statistics for anime consumed by a user. @source */
 export interface AnimeStats {
   count: number;
   episodesWatched: number;
@@ -44,21 +47,25 @@ export interface AnimeStats {
   countries?: { country: string; count: number }[];
 }
 
+/** Genre bucket in manga statistics with a count of items. @source */
 export interface MangaStatGenre {
   genre: string;
   count: number;
 }
 
+/** Tag bucket in manga statistics with a referenced tag name and count. @source */
 export interface MangaStatTag {
   tag: { name: string };
   count: number;
 }
 
+/** Staff bucket in manga statistics containing staff full name and count. @source */
 export interface MangaStatStaff {
   staff: { name: { full: string } };
   count: number;
 }
 
+/** Aggregated statistics for manga consumed by a user. @source */
 export interface MangaStats {
   count: number;
   chaptersRead: number;
@@ -68,7 +75,6 @@ export interface MangaStats {
   genres: MangaStatGenre[];
   tags: MangaStatTag[];
   staff: MangaStatStaff[];
-  // Distribution / additional fields collected from AniList
   statuses?: { status: string; count: number }[];
   formats?: { format: string; count: number }[];
   scores?: { score: number; count: number }[];
@@ -76,11 +82,13 @@ export interface MangaStats {
   countries?: { country: string; count: number }[];
 }
 
+/** Container that groups anime and manga statistics for a user. @source */
 export interface UserStatistics {
   anime: AnimeStats;
   manga: MangaStats;
 }
 
+/** User section returned by AniList GraphQL for a User entry. @source */
 export interface UserSection {
   stats: ActivityStats;
   favourites: {
@@ -110,44 +118,53 @@ export interface UserSection {
   statistics: UserStatistics;
 }
 
+/** A single activity history item with a date (epoch seconds) and numeric amount. @source */
 export interface ActivityHistoryItem {
   date: number;
   amount: number;
 }
 
+/** Activity statistics container used for charting and summaries. @source */
 export interface ActivityStats {
   activityHistory: ActivityHistoryItem[];
 }
 
+/** Pagination information used in AniList Page objects. @source */
 export interface PageInfo {
   total: number;
 }
 
+/** Structure representing follower page counts and follower IDs. @source */
 export interface FollowersPage {
   pageInfo: PageInfo;
   followers: { id: number }[];
 }
 
+/** Structure representing following page counts and following IDs. @source */
 export interface FollowingPage {
   pageInfo: PageInfo;
   following: { id: number }[];
 }
 
+/** Structure representing threads page counts and thread IDs. @source */
 export interface ThreadsPage {
   pageInfo: PageInfo;
   threads: { id: number }[];
 }
 
+/** Structure representing thread comment page counts and IDs. @source */
 export interface ThreadCommentsPage {
   pageInfo: PageInfo;
   threadComments: { id: number }[];
 }
 
+/** Structure representing reviews page counts and IDs. @source */
 export interface ReviewsPage {
   pageInfo: PageInfo;
   reviews: { id: number }[];
 }
 
+/** Combined user stats and page containers returned by AniList endpoints. @source */
 export interface UserStatsData {
   User: UserSection;
   followersPage: FollowersPage;
@@ -157,13 +174,7 @@ export interface UserStatsData {
   reviewsPage: ReviewsPage;
 }
 
-/**
- * Types used for storing user and card records in Redis.
- */
-
-/**
- * Represents a user record stored in Redis.
- */
+/** Redis user record shape used for persisting user data and stats. @source */
 export interface UserRecord {
   // Unique identifier of the user (using string for IDs, which can also hold numeric values)
   userId: string;
@@ -179,10 +190,7 @@ export interface UserRecord {
   updatedAt: string;
 }
 
-/**
- * Represents a card configuration.
- * Adjust properties based on your actual card config schema.
- */
+/** Stored card configuration shape persisted in user-card records. @source */
 export interface StoredCardConfig {
   variation: string;
   // A unique name identifier for the card (used for picking the right template)
@@ -205,9 +213,7 @@ export interface StoredCardConfig {
   showPiePercentages?: boolean;
 }
 
-/**
- * Represents the cards record stored in Redis.
- */
+/** Cards record in storage containing a userId, a list of stored card configs and update timestamp. @source */
 export interface CardsRecord {
   // The user identifier that this record belongs to.
   userId: number;

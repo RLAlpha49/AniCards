@@ -1,19 +1,24 @@
-// Mocks for external dependencies.
+/** Mocked rate limiter response resolver defaulting to success. @source */
 let mockLimit = jest.fn().mockResolvedValue({ success: true });
+/** Mocked Redis set function used to capture saved values in tests. @source */
 let mockRedisSet = jest.fn();
+/** Mocked Redis get function that simulates existing records. @source */
 let mockRedisGet = jest.fn();
 
-jest.mock("@upstash/redis", () => {
+/** Create a named redis mock for store-users tests */
+function createRedisFromEnvMock() {
   return {
-    Redis: {
-      fromEnv: jest.fn(() => ({
-        set: mockRedisSet,
-        get: mockRedisGet,
-        incr: jest.fn(() => Promise.resolve(1)),
-      })),
-    },
+    set: mockRedisSet,
+    get: mockRedisGet,
+    incr: jest.fn(async () => 1),
   };
-});
+}
+
+jest.mock("@upstash/redis", () => ({
+  Redis: {
+    fromEnv: jest.fn(createRedisFromEnvMock),
+  },
+}));
 
 jest.mock("@upstash/ratelimit", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -32,7 +37,13 @@ process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
 // Import the module under test after the mocks above are defined.
 import { POST } from "./route";
 
-// Helper function to create test requests
+/**
+ * Creates a POST request for the store-users API with the given payload and optional origin header.
+ * @param reqBody - JSON payload to serialize for the request body.
+ * @param origin - Optional origin header used to simulate cross-origin behavior.
+ * @returns A configured Request object for the store-users endpoint.
+ * @source
+ */
 function createTestRequest(reqBody: object, origin?: string): Request {
   return new Request("http://localhost/api/store-users", {
     method: "POST",

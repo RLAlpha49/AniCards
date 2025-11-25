@@ -7,14 +7,28 @@ import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
+/**
+ * Root primitive for sheet-type slide-over panels built on top of Radix dialog.
+ * @source
+ */
 const Sheet = SheetPrimitive.Root;
 
+/** Trigger element to open the sheet; behaves like a Radix trigger. @source */
 const SheetTrigger = SheetPrimitive.Trigger;
 
+/** Close action used to dismiss the sheet content. @source */
 const SheetClose = SheetPrimitive.Close;
 
+/**
+ * Portal used to render the sheet outside of normal document flow.
+ * @source
+ */
 const SheetPortal = SheetPrimitive.Portal;
 
+/**
+ * Overlay element shown behind the sheet to obscure and focus content.
+ * @source
+ */
 const SheetOverlay = React.forwardRef<
   React.ComponentRef<typeof SheetPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Overlay>
@@ -30,6 +44,11 @@ const SheetOverlay = React.forwardRef<
 ));
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 
+/**
+ * Variant configuration for sheet placement on the screen (top, bottom, left, right).
+ * Controls transform/position utility classes across sides.
+ * @source
+ */
 const sheetVariants = cva(
   "fixed z-50 gap-4 bg-background p-6 shadow-lg transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500 data-[state=open]:animate-in data-[state=closed]:animate-out",
   {
@@ -49,10 +68,19 @@ const sheetVariants = cva(
   },
 );
 
+/**
+ * Props for the SheetContent wrapper combining Radix props and side variant.
+ * @source
+ */
 interface SheetContentProps
   extends React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content>,
     VariantProps<typeof sheetVariants> {}
 
+/**
+ * Content wrapper for the sheet that applies animation and side-specific variants.
+ * Includes a close control for quick dismiss.
+ * @source
+ */
 const SheetContent = React.forwardRef<
   React.ComponentRef<typeof SheetPrimitive.Content>,
   SheetContentProps
@@ -74,6 +102,10 @@ const SheetContent = React.forwardRef<
 ));
 SheetContent.displayName = SheetPrimitive.Content.displayName;
 
+/**
+ * Header wrapper for a Sheet; typically used to render title and related controls.
+ * @source
+ */
 const SheetHeader = ({
   className,
   ...props
@@ -88,6 +120,10 @@ const SheetHeader = ({
 );
 SheetHeader.displayName = "SheetHeader";
 
+/**
+ * Footer wrapper for a Sheet; generally used to render action buttons.
+ * @source
+ */
 const SheetFooter = ({
   className,
   ...props
@@ -102,6 +138,10 @@ const SheetFooter = ({
 );
 SheetFooter.displayName = "SheetFooter";
 
+/**
+ * Title element for Sheet content, used to communicate the purpose of the sheet.
+ * @source
+ */
 const SheetTitle = React.forwardRef<
   React.ComponentRef<typeof SheetPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Title>
@@ -114,6 +154,10 @@ const SheetTitle = React.forwardRef<
 ));
 SheetTitle.displayName = SheetPrimitive.Title.displayName;
 
+/**
+ * Description element for a Sheet; adds supplementary context to the Title.
+ * @source
+ */
 const SheetDescription = React.forwardRef<
   React.ComponentRef<typeof SheetPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Description>

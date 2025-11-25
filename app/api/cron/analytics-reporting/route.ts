@@ -2,7 +2,12 @@ import { redisClient } from "@/lib/api-utils";
 import type { Redis as UpstashRedis } from "@upstash/redis";
 import { safeParse } from "@/lib/utils";
 
-// Helper function for cron authorization
+/**
+ * Validates the cron secret header and returns an error response on failure.
+ * @param request - Incoming request whose headers provide the cron secret.
+ * @returns Response when authorization fails or null when allowed.
+ * @source
+ */
 function checkCronAuthorization(request: Request): Response | null {
   const CRON_SECRET = process.env.CRON_SECRET;
   const cronSecretHeader = request.headers.get("x-cron-secret");
@@ -22,7 +27,12 @@ function checkCronAuthorization(request: Request): Response | null {
   return null;
 }
 
-// Helper function to fetch and parse analytics data
+/**
+ * Collects stored analytics metrics from Redis, mapping missing values to zero.
+ * @param redisClient - Redis client used to read analytics keys.
+ * @returns Mapping of analytics keys to their numeric values.
+ * @source
+ */
 async function fetchAnalyticsData(
   redisClient: UpstashRedis,
 ): Promise<Record<string, number>> {
@@ -52,7 +62,12 @@ async function fetchAnalyticsData(
   return analyticsData;
 }
 
-// Helper function to group analytics data by service and metric
+/**
+ * Reformats analytics rows by service and metric identifiers for reporting.
+ * @param analyticsData - Flat mapping of analytics key strings to numeric values.
+ * @returns Nested summary grouped by service and metric names.
+ * @source
+ */
 function groupAnalyticsData(
   analyticsData: Record<string, number>,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -80,7 +95,14 @@ function groupAnalyticsData(
   return summary;
 }
 
-// Helper function to create and save analytics report
+/**
+ * Persists the analytics report and returns its structure.
+ * @param redisClient - Redis client used to append reports.
+ * @param summary - Structured summary of analytics results.
+ * @param analyticsData - Raw analytics values recorded for the report.
+ * @returns Generated report stored in Redis.
+ * @source
+ */
 async function createAndSaveReport(
   redisClient: UpstashRedis,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -97,6 +119,12 @@ async function createAndSaveReport(
   return report;
 }
 
+/**
+ * Runs the analytics and reporting cron job, returning the latest report.
+ * @param request - Incoming request that must pass the cron secret check.
+ * @returns HTTP response containing the generated analytics payload or an error.
+ * @source
+ */
 export async function POST(request: Request) {
   // Check authorization
   const authError = checkCronAuthorization(request);

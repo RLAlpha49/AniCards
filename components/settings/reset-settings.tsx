@@ -3,10 +3,22 @@ import { motion } from "framer-motion";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 
+/**
+ * Props for the ResetSettings component.
+ * @property onReset - Callback that triggers a full application settings reset.
+ * @source
+ */
 interface ResetSettingsProps {
   onReset: () => void;
 }
 
+/**
+ * Renders UI to confirm and trigger a full reset of the application settings.
+ * Displays which settings will be reset and a destructive button to apply the reset.
+ * @param onReset - Callback invoked to perform the reset action.
+ * @returns A React element rendering the reset confirmation UI.
+ * @source
+ */
 export function ResetSettings({ onReset }: Readonly<ResetSettingsProps>) {
   return (
     <motion.div
@@ -85,6 +97,7 @@ export function ResetSettings({ onReset }: Readonly<ResetSettingsProps>) {
               </div>
             </div>
 
+            {/* Trigger the reset of all application settings */}
             <Button
               variant="destructive"
               onClick={onReset}

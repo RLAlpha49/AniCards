@@ -12,28 +12,60 @@ import {
 import { Check, Link } from "lucide-react";
 import { motion } from "framer-motion";
 
+/**
+ * Represents a single card entry used for rendering and exporting.
+ * @property type - Display name for the card type.
+ * @property svgUrl - URL of the SVG image for the card.
+ * @property rawType - Original card identifier used for sorting and logic.
+ * @source
+ */
 interface CardType {
   type: string;
   svgUrl: string;
   rawType: string;
 }
 
+/**
+ * Props for the CardList component.
+ * @property cardTypes - Array of card entries to render.
+ * @source
+ */
 interface CardListProps {
   cardTypes: CardType[];
 }
 
 // Component for displaying a grid of cards with copyable SVG links
+/**
+ * Renders a grid of stat cards with bulk export/copy options.
+ * @param props - Component properties.
+ * @param props.cardTypes - The card entries to render as a grid.
+ * @returns JSX element rendering a card grid and export UI.
+ * @source
+ */
 export function CardList({ cardTypes }: Readonly<CardListProps>) {
   // Track which type of link was copied last (svg/anilist)
   const [copied, setCopied] = useState<string | null>(null);
 
   // Generate different link formats for copy functionality
+  /**
+   * Absolute SVG links for each card, used in the direct SVG copy option.
+   * @source
+   */
   const svgLinks = cardTypes.map((card) => getAbsoluteUrl(card.svgUrl));
+  /**
+   * AniList bio-format links (img150) derived from absolute SVG URLs.
+   * @source
+   */
   const anilistBioLinks = cardTypes.map(
     (card) => `img150(${getAbsoluteUrl(card.svgUrl)})`,
   );
 
   // Extract userId from the first card's svgUrl using URL/URLSearchParams
+  /**
+   * Attempt to resolve a userId from the first card's svgUrl query params.
+   * This is used to include a link back to the user's profile in the AniList format.
+   * @source
+   */
   const firstCardUrl = cardTypes[0]?.svgUrl;
   let userId: string | null = null;
 
@@ -49,12 +81,22 @@ export function CardList({ cardTypes }: Readonly<CardListProps>) {
     }
   }
 
+  /**
+   * A formatted markdown link that points to the user's stats page when userId is present.
+   * @source
+   */
   const statsLink = userId
     ? `[<h1>Stats</h1>](https://anicards.alpha49.com/user?userId=${userId})`
     : "";
 
-  // Handle bulk copy operations for different link formats
+  /**
+   * Copy all links in the requested format to the clipboard, and show temporary UI feedback.
+   * @param type - Either 'svg' for direct SVG URLs or 'anilist' for AniList bio format.
+   * @returns Promise<void>
+   * @source
+   */
   const handleCopyLinks = async (type: "svg" | "anilist") => {
+    // If copying AniList format, prepend the user's stats link for context
     const links = type === "svg" ? svgLinks : [statsLink, ...anilistBioLinks];
     await copyToClipboard(links.join("\n")); // Join array with newlines
     setCopied(type);

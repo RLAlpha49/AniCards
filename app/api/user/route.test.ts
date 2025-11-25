@@ -1,20 +1,30 @@
 import { GET } from "./route";
 
-// Declare mockRedisGet so tests can simulate Redis responses.
+/** Mocked Redis get function used by tests to simulate varied responses. @source */
 let mockRedisGet = jest.fn();
 
-jest.mock("@upstash/redis", () => {
+/**
+ * Creates a named redis client mock using the local get mock to avoid nesting.
+ */
+function createRedisFromEnvMock() {
   return {
-    Redis: {
-      fromEnv: jest.fn(() => ({
-        get: mockRedisGet,
-        incr: jest.fn(() => Promise.resolve(1)),
-      })),
-    },
+    get: mockRedisGet,
+    incr: jest.fn(async () => 1),
   };
-});
+}
 
-// Helper function to extract JSON from the response.
+jest.mock("@upstash/redis", () => ({
+  Redis: {
+    fromEnv: jest.fn(createRedisFromEnvMock),
+  },
+}));
+
+/**
+ * Extracts the response JSON payload for assertions.
+ * @param response - Response to parse.
+ * @returns Parsed JSON from the response body.
+ * @source
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getResponseJson(response: Response): Promise<any> {
   return response.json();

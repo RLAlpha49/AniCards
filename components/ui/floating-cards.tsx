@@ -11,8 +11,21 @@ import {
   generateExampleCardVariants,
 } from "@/lib/card-groups";
 
+/**
+ * Example card variants generated for demo/preview displays.
+ * These are derived from the project's example generator utilities.
+ * @source
+ */
 const EXAMPLE_CARD_VARIANTS = generateExampleCardVariants(VARIATION_LABEL_MAP);
 
+/**
+ * Representation of a card variant used in the floating card layer.
+ * id - unique identifier for the variant.
+ * title - human-friendly title for alt text and diagnostics.
+ * variationLabel - label indicating variation specifics.
+ * src - absolute URL for the generated card image.
+ * @source
+ */
 type VariantCard = {
   id: string;
   title: string;
@@ -20,6 +33,11 @@ type VariantCard = {
   src: string;
 };
 
+/**
+ * In-memory library of variant cards used to pick random previews.
+ * Built from example variants and their generated image URLs.
+ * @source
+ */
 const VARIANT_LIBRARY: VariantCard[] = EXAMPLE_CARD_VARIANTS.map((variant) => ({
   id: `${variant.cardType}-${variant.variation}-${variant.label.replaceAll(/\s+/g, "-").toLowerCase()}`,
   title: variant.cardTitle,
@@ -27,6 +45,11 @@ const VARIANT_LIBRARY: VariantCard[] = EXAMPLE_CARD_VARIANTS.map((variant) => ({
   src: buildCardUrl(variant.cardType, variant.variation, variant.extras),
 }));
 
+/**
+ * Layout metadata for a visual slot where a card preview can be rendered.
+ * baseAnimate contains optional transform offsets used by Framer Motion.
+ * @source
+ */
 type LayoutSlot = {
   id: string;
   className: string;
@@ -38,6 +61,10 @@ type LayoutSlot = {
   opacity?: number;
 };
 
+/**
+ * Preset layouts describing where to position floating cards for different UI contexts.
+ * @source
+ */
 const LAYOUTS: Record<"hero" | "search", LayoutSlot[]> = {
   hero: [
     {
@@ -131,9 +158,19 @@ type FloatingCardsLayerProps = {
   containerClassName?: string;
 };
 
+/**
+ * Returns a random decimal value between min (inclusive) and max (exclusive).
+ * Used to produce jitter and variety in floating card motion.
+ * @source
+ */
 const randomBetween = (min: number, max: number) =>
   Math.random() * (max - min) + min;
 
+/**
+ * Select a set of unique random variant cards from the global VARIANT_LIBRARY.
+ * Ensures there are no duplicate selections by splicing from a local pool.
+ * @source
+ */
 const selectRandomVariants = (count: number): VariantCard[] => {
   const pool = [...VARIANT_LIBRARY];
   const limit = Math.min(count, pool.length);
@@ -151,6 +188,13 @@ const selectRandomVariants = (count: number): VariantCard[] => {
   return selected;
 };
 
+/**
+ * Decorative floating card layer that uses Framer Motion for subtle animation.
+ * layout - selects one of the predefined layouts for card placement.
+ * maxCards - limits the number of cards to display (clamped by slot count).
+ * containerClassName - additional container classes to be merged in.
+ * @source
+ */
 export function FloatingCardsLayer({
   layout = "hero",
   maxCards,

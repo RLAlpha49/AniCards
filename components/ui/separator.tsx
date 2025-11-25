@@ -5,6 +5,11 @@ import * as SeparatorPrimitive from "@radix-ui/react-separator";
 
 import { cn } from "@/lib/utils";
 
+/**
+ * Visual separator used to divide sections. Supports horizontal and vertical orientation.
+ * For accessibility, the component defaults to decorative with togglable orientation.
+ * @source
+ */
 const Separator = React.forwardRef<
   React.ComponentRef<typeof SeparatorPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof SeparatorPrimitive.Root>

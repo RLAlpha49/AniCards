@@ -10,7 +10,12 @@ import {
   validateUserData,
 } from "@/lib/api-utils";
 
-// API endpoint for storing/updating user data using Redis as the persistent store
+/**
+ * Persists or updates a user record in Redis while keeping analytics and the username index aligned.
+ * @param request - Incoming POST request for the store-users endpoint.
+ * @returns A NextResponse signaling success or an error handled upstream.
+ * @source
+ */
 export async function POST(request: Request): Promise<NextResponse> {
   const init = await initializeApiRequest(request, "Store Users");
   if (init.errorResponse) return init.errorResponse;

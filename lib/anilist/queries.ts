@@ -1,3 +1,4 @@
+/** GraphQL query to resolve a username to an AniList user id. @source */
 export const USER_ID_QUERY = `
   query GetUserId($userName: String) {
     User(name: $userName) {
@@ -6,6 +7,11 @@ export const USER_ID_QUERY = `
   }
 `;
 
+/**
+ * GraphQL query used to fetch a user's anime and manga statistics, social
+ * metrics and related aggregation data required by the card generator.
+ * @source
+ */
 export const USER_STATS_QUERY = `
   query GetUserStats($userId: Int!) {
     User(id: $userId) {
@@ -181,6 +187,11 @@ export const USER_STATS_QUERY = `
   }
 `;
 
+/**
+ * GraphQL query that retrieves a user's favorite staff, studios and characters
+ * used by the generator to render favorite-related cards.
+ * @source
+ */
 export const USER_FAVORITES_QUERY = `
   query GetUserFavorites($userId: Int!) {
     User(id: $userId) {

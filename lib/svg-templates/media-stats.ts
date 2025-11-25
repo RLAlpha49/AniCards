@@ -1,9 +1,21 @@
 import { AnimeStats, MangaStats } from "@/lib/types/card";
 import { calculateDynamicFontSize } from "../utils";
 
+/** Media type used by the media stats templates — either anime or manga. @source */
 type MediaType = "anime" | "manga";
 
-// Helper function to render circle progress indicator
+/**
+ * Renders an SVG circular progress indicator and rim used by rank visuals.
+ * @param cx - Circle center X coordinate.
+ * @param cy - Circle center Y coordinate.
+ * @param radius - Circle radius.
+ * @param strokeColor - Color used for the progress stroke.
+ * @param scaledDasharray - Dasharray applied for circumference.
+ * @param scaledDashoffset - Dashoffset to animate progress.
+ * @param strokeWidth - Optional stroke width.
+ * @returns SVG markup string for the circle visuals.
+ * @source
+ */
 function renderCircle(
   cx: number,
   cy: number,
@@ -21,7 +33,17 @@ function renderCircle(
   `;
 }
 
-// Helper function to render stats list
+/**
+ * Render a list of labeled stats as an SVG fragment.
+ * @param stats - Array of label/value pairs to render.
+ * @param transform - SVG transform applied to the container group.
+ * @param xOffset - X offset for numbers.
+ * @param ySpacing - Vertical spacing between rows.
+ * @param animationDelay - Initial animation delay in ms.
+ * @param animationIncrement - Incremental animation delay per row in ms.
+ * @returns SVG markup string for the stats list.
+ * @source
+ */
 function renderStatsList(
   stats: Array<{ label: string; value: number | undefined }>,
   transform: string = "translate(25, 0)",
@@ -51,7 +73,17 @@ function renderStatsList(
   `;
 }
 
-// Helper function to generate variant-specific content
+/**
+ * Generate the variant-specific SVG content for media stats template.
+ * Handles default/compact/vertical/minimal variants with different layouts.
+ * @param data - The template input with stats and styles.
+ * @param config - Derived configuration for the main stat and title.
+ * @param dims - Width and height for the card.
+ * @param scaledDasharray - Pre-scaled dasharray for rank visualization.
+ * @param scaledDashoffset - Pre-scaled dashoffset for rank visualization.
+ * @returns SVG markup fragment appropriate for the chosen variant.
+ * @source
+ */
 function getVariantContent(
   data: {
     variant?: "default" | "vertical" | "compact" | "minimal";
@@ -167,6 +199,14 @@ function getVariantContent(
   }
 }
 
+/**
+ * Renders an SVG string that visualizes anime or manga statistics. The
+ * function returns a fully formed SVG markup string that can be embedded
+ * as an image or served as the response to the SVG card endpoint.
+ * @param data - Template input including mediaType, username, styles and stats.
+ * @returns A string containing the SVG markup for the card.
+ * @source
+ */
 export const mediaStatsTemplate = (data: {
   mediaType: MediaType;
   username: string;

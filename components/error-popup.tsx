@@ -11,6 +11,15 @@ import { AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { trackError } from "@/lib/utils/google-analytics";
 
+/**
+ * Props for the error dialog component.
+ * @property isOpen - Whether the dialog is visible.
+ * @property onClose - Callback invoked when dialog is closed.
+ * @property title - Error title shown to the user.
+ * @property description - Detailed error message.
+ * @property className - Optional additional class names.
+ * @source
+ */
 interface ErrorPopupProps {
   isOpen: boolean;
   onClose: () => void;
@@ -20,6 +29,13 @@ interface ErrorPopupProps {
 }
 
 // Reusable error dialog component using shadcn/ui Dialog
+/**
+ * Reusable error dialog that tracks and displays error information.
+ * When opened, the component reports the error via analytics.
+ * @param props - Dialog properties.
+ * @returns A configured dialog element.
+ * @source
+ */
 export function ErrorPopup({
   isOpen,
   onClose,
@@ -27,19 +43,14 @@ export function ErrorPopup({
   description,
   className,
 }: Readonly<ErrorPopupProps>) {
-  // Track error when popup opens
+  // Track error when popup opens so analytics can capture details.
   if (isOpen) {
     trackError(title, description);
   }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      {/* 
-				Dialog styling:
-				- Red border for error indication
-				- Inherits additional className props
-				- Fixed max-width for consistency
-			*/}
+      {/* Dialog styling: red border for emphasis, accepts additional classes. */}
       <DialogContent
         className={cn("border-red-500 sm:max-w-[425px]", className)}
       >

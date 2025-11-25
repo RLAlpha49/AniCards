@@ -5,6 +5,11 @@ import * as SwitchPrimitives from "@radix-ui/react-switch";
 
 import { cn } from "@/lib/utils";
 
+/**
+ * Small toggle switch input using Radix primitives.
+ * Mirrors native checkbox semantics while exposing Radix props.
+ * @source
+ */
 const Switch = React.forwardRef<
   React.ComponentRef<typeof SwitchPrimitives.Root>,
   React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>

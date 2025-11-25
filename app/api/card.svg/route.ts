@@ -19,12 +19,19 @@ import {
 
 import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
 
+/**
+ * Limits card SVG generation to 100 requests per 10 seconds per IP.
+ * @source
+ */
 const ratelimit = new Ratelimit({
   redis: redisClient,
   limiter: Ratelimit.slidingWindow(100, "10 s"),
 });
 
-// Set of allowed card types for validation
+/**
+ * Allowed base card types that can be requested via the SVG API.
+ * @source
+ */
 const ALLOWED_CARD_TYPES = new Set([
   "animeStats",
   "socialStats",
@@ -49,7 +56,10 @@ const ALLOWED_CARD_TYPES = new Set([
   "mangaCountry",
 ]);
 
-// Display names for card types, used in templates
+/**
+ * Human-friendly labels used by each card template.
+ * @source
+ */
 const displayNames: { [key: string]: string } = {
   animeStats: "Anime Stats",
   socialStats: "Social Stats",
@@ -74,16 +84,48 @@ const displayNames: { [key: string]: string } = {
   mangaCountry: "Manga Countries",
 };
 
-// Type definitions for category keys and item types
+/**
+ * Genre entry as stored in AniCards stats data.
+ * @source
+ */
 type GenreItem = { genre: string; count: number };
+
+/**
+ * Tag entry as stored in AniCards stats data.
+ * @source
+ */
 type TagItem = { tag: { name: string }; count: number };
+
+/**
+ * Voice actor entry as stored in AniCards stats data.
+ * @source
+ */
 type VoiceActorItem = { voiceActor: { name: { full: string } }; count: number };
+
+/**
+ * Studio entry as stored in AniCards stats data.
+ * @source
+ */
 type StudioItem = { studio: { name: string }; count: number };
+
+/**
+ * Staff entry as stored in AniCards stats data.
+ * @source
+ */
 type StaffItem = { staff: { name: { full: string } }; count: number };
 
+/**
+ * Rendering variants used by pie or bar templates.
+ * @source
+ */
 type PieBarVariant = "default" | "pie" | "bar";
 
-// Function to generate SVG error response
+/**
+ * Builds an error SVG carrying the provided message.
+ * @param message - Text shown inside the error graphic.
+ * @returns SVG markup alerting the caller of a failure.
+ * @source
+ */
 function svgError(message: string) {
   return `<?xml version="1.0" encoding="UTF-8"?>
   <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
@@ -103,7 +145,11 @@ function svgError(message: string) {
   </svg>`;
 }
 
-// Headers for successful SVG responses (with caching)
+/**
+ * Provides headers for cached, successful SVG responses.
+ * @returns Response headers used on success.
+ * @source
+ */
 function svgHeaders() {
   return {
     "Content-Type": "image/svg+xml",
@@ -114,7 +160,11 @@ function svgHeaders() {
   };
 }
 
-// Headers for error SVG responses (no caching)
+/**
+ * Supplies headers for error SVG responses to prevent caching.
+ * @returns Response headers used on failure.
+ * @source
+ */
 function errorHeaders() {
   return {
     "Content-Type": "image/svg+xml",
@@ -125,6 +175,13 @@ function errorHeaders() {
   };
 }
 
+/**
+ * Extracts favorite names for the supported card types.
+ * @param favoritesData - Raw favorites payload from AniList.
+ * @param baseCardType - Base card type indicating the favorite category.
+ * @returns Array of favorite names or an empty list.
+ * @source
+ */
 function getFavoritesForCardType(
   favoritesData: unknown,
   baseCardType: string,
@@ -148,7 +205,10 @@ function getFavoritesForCardType(
   }
 }
 
-// Adapter helpers: convert stored UserRecord.stats (UserStatsData) into template-friendly shapes
+/**
+ * Metadata used by the SVG templates to describe milestone progress.
+ * @source
+ */
 type MilestoneFields = {
   previousMilestone: number;
   currentMilestone: number;
@@ -157,6 +217,13 @@ type MilestoneFields = {
   dashoffset: string;
 };
 
+/**
+ * Converts AniList stats into template-friendly fields shared by anime and manga cards.
+ * @param stats - Raw anime or manga statistics from AniList.
+ * @param milestoneData - Calculated milestone progress data.
+ * @returns Shared template fields augmented with milestone metadata.
+ * @source
+ */
 function buildCommonTemplateFields(
   stats:
     | UserStatsData["User"]["statistics"]["anime"]
@@ -198,6 +265,13 @@ function buildCommonTemplateFields(
   } as Partial<TemplateAnimeStats & TemplateMangaStats> & MilestoneFields;
 }
 
+/**
+ * Adapts anime metrics into the template shape required by SVGs.
+ * @param stats - Raw anime statistics from AniList.
+ * @param milestoneData - Milestone metadata for progress visuals.
+ * @returns Anime template stats enriched with milestone fields.
+ * @source
+ */
 function toTemplateAnimeStats(
   stats: UserStatsData["User"]["statistics"]["anime"],
   milestoneData: ReturnType<typeof calculateMilestones>,
@@ -216,6 +290,13 @@ function toTemplateAnimeStats(
   } as TemplateAnimeStats & MilestoneFields;
 }
 
+/**
+ * Adapts manga metrics into the template shape required by SVGs.
+ * @param stats - Raw manga statistics from AniList.
+ * @param milestoneData - Milestone metadata for progress visuals.
+ * @returns Manga template stats enriched with milestone fields.
+ * @source
+ */
 function toTemplateMangaStats(
   stats: UserStatsData["User"]["statistics"]["manga"],
   milestoneData: ReturnType<typeof calculateMilestones>,
@@ -228,6 +309,12 @@ function toTemplateMangaStats(
   } as TemplateMangaStats & MilestoneFields;
 }
 
+/**
+ * Converts AniList user records into social stats for the card.
+ * @param userRecord - AniList user data containing social attachments.
+ * @returns Template-ready social stats for the rendered card.
+ * @source
+ */
 function toTemplateSocialStats(userRecord: UserRecord): SocialStats {
   return {
     followersPage: userRecord.stats.followersPage,
@@ -239,7 +326,10 @@ function toTemplateSocialStats(userRecord: UserRecord): SocialStats {
   } as SocialStats;
 }
 
-// Common interface for card generation parameters
+/**
+ * Parameters shared across every card generation helper.
+ * @source
+ */
 interface CardGenerationParams {
   cardConfig: StoredCardConfig;
   userRecord: UserRecord;
@@ -247,7 +337,13 @@ interface CardGenerationParams {
   favorites?: string[];
 }
 
-// Handle anime/manga stats cards
+/**
+ * Builds anime or manga stats cards from user data and templates.
+ * @param params - Common card configuration and user data.
+ * @param mediaType - Indicates whether the stats are anime or manga.
+ * @returns Serialized SVG string or cached error response.
+ * @source
+ */
 function generateStatsCard(
   params: CardGenerationParams,
   mediaType: "anime" | "manga",
@@ -293,7 +389,12 @@ function generateStatsCard(
   });
 }
 
-// Handle social stats card
+/**
+ * Renders the social stats card from the provided configuration.
+ * @param params - Shared card configuration and AniList user data.
+ * @returns Serialized SVG string for the social stats card.
+ * @source
+ */
 function generateSocialStatsCard(params: CardGenerationParams): string {
   const { cardConfig, userRecord, variant } = params;
 
@@ -306,7 +407,13 @@ function generateSocialStatsCard(params: CardGenerationParams): string {
   });
 }
 
-// Map category items to consistent format
+/**
+ * Normalizes AniList category entries for generic templates.
+ * @param item - Raw category data (genre, tag, voice actor, etc.).
+ * @param categoryKey - Normalized category identifier used by templates.
+ * @returns Object containing name and count for the template.
+ * @source
+ */
 function mapCategoryItem(
   item: GenreItem | TagItem | VoiceActorItem | StudioItem | StaffItem,
   categoryKey: string,
@@ -330,7 +437,13 @@ function mapCategoryItem(
   }
 }
 
-// Handle category-based cards (genres, tags, voice actors, studios, staff)
+/**
+ * Renders category-based cards such as genres or staff using template data.
+ * @param params - Shared card configuration and user data.
+ * @param baseCardType - Specific card type determining the dataset.
+ * @returns Generated SVG string or a Response signaling missing data.
+ * @source
+ */
 function generateCategoryCard(
   params: CardGenerationParams,
   baseCardType: string,
@@ -394,7 +507,13 @@ function generateCategoryCard(
   });
 }
 
-// Handle status distribution cards
+/**
+ * Delegates status distribution card creation to the simple list helper.
+ * @param params - Shared card configuration and user data.
+ * @param baseCardType - Base card type for the distribution.
+ * @returns SVG string or Response when no status data exists.
+ * @source
+ */
 function generateStatusDistributionCard(
   params: CardGenerationParams,
   baseCardType: string,
@@ -409,7 +528,13 @@ function generateStatusDistributionCard(
   );
 }
 
-// Handle format distribution cards
+/**
+ * Delegates format distribution card creation to the simple list helper.
+ * @param params - Shared card configuration and user data.
+ * @param baseCardType - Base card type for the distribution.
+ * @returns SVG string or Response when no format data exists.
+ * @source
+ */
 function generateFormatDistributionCard(
   params: CardGenerationParams,
   baseCardType: string,
@@ -423,6 +548,17 @@ function generateFormatDistributionCard(
   );
 }
 
+/**
+ * Builds generic list cards backed by pie/bar templates.
+ * @param params - Shared configuration including user stats and styles.
+ * @param baseCardType - Base card type used for formatting and analytics.
+ * @param listKey - Stats property name (formats or statuses) to read.
+ * @param nameKey - Property name that holds the item label.
+ * @param notFoundMessage - Error message when no data exists.
+ * @param extraTemplateProps - Optional template overrides for rendering.
+ * @returns SVG string or Response when the list is empty.
+ * @source
+ */
 function generateSimpleListCard(
   params: CardGenerationParams,
   baseCardType: string,
@@ -471,7 +607,14 @@ function generateSimpleListCard(
   });
 }
 
-// Handle score/year distribution cards
+/**
+ * Builds score or year distribution cards using the distribution template.
+ * @param params - Shared configuration including stats and styles.
+ * @param baseCardType - Base card type to determine anime vs manga data.
+ * @param kind - Indicates whether the distribution is by score or year.
+ * @returns SVG string or Response when no distribution data exists.
+ * @source
+ */
 function generateDistributionCard(
   params: CardGenerationParams,
   baseCardType: string,
@@ -525,7 +668,13 @@ function generateDistributionCard(
   });
 }
 
-// Handle country distribution cards
+/**
+ * Renders country distribution cards for anime or manga stats.
+ * @param params - Shared configuration including stats and styles.
+ * @param baseCardType - Base card type to determine anime vs manga sets.
+ * @returns SVG string or Response when no country data exists.
+ * @source
+ */
 function generateCountryCard(
   params: CardGenerationParams,
   baseCardType: string,
@@ -571,7 +720,15 @@ function generateCountryCard(
   });
 }
 
-// Function to generate SVG content based on card configuration and user stats
+/**
+ * Routes card configuration and stats to the correct SVG template.
+ * @param cardConfig - Stored card configuration document.
+ * @param userRecord - AniList user record containing statistics.
+ * @param variant - Rendering variant overriding the stored configuration.
+ * @param favorites - Optional favorites list used by category cards.
+ * @returns Serialized SVG markup or a Response on validation failures.
+ * @source
+ */
 function generateCardSVG(
   cardConfig: StoredCardConfig,
   userRecord: UserRecord,
@@ -657,7 +814,10 @@ function generateCardSVG(
   }
 }
 
-// Interface for validated request parameters
+/**
+ * Parameters extracted and validated from the incoming request.
+ * @source
+ */
 interface ValidatedParams {
   userId: string;
   cardType: string;
@@ -669,7 +829,12 @@ interface ValidatedParams {
   piePercentagesParam: string | null;
 }
 
-// Extract and validate request parameters
+/**
+ * Parses query parameters, validates them, and returns typed data.
+ * @param request - Incoming HTTP request to the card SVG route.
+ * @returns Validated parameters or an error Response for invalid inputs.
+ * @source
+ */
 function extractAndValidateParams(
   request: Request,
 ): ValidatedParams | Response {
@@ -719,7 +884,13 @@ function extractAndValidateParams(
   };
 }
 
-// Handle analytics tracking for failed requests
+/**
+ * Sends analytics events for failed SVG requests.
+ * @param baseCardType - Optional base card type for scoped metrics.
+ * @param status - Optional HTTP status code associated with the failure.
+ * @returns Promise that resolves once analytics increments are attempted.
+ * @source
+ */
 async function trackFailedRequest(
   baseCardType?: string,
   status?: number,
@@ -742,7 +913,12 @@ async function trackFailedRequest(
   }
 }
 
-// Handle analytics tracking for successful requests
+/**
+ * Sends analytics events for successful SVG requests.
+ * @param baseCardType - Base card type tied to the successful request.
+ * @returns Promise that resolves once analytics increments are attempted.
+ * @source
+ */
 async function trackSuccessfulRequest(baseCardType: string): Promise<void> {
   incrementAnalytics("analytics:card_svg:successful_requests").catch(() => {});
   incrementAnalytics(
@@ -750,7 +926,13 @@ async function trackSuccessfulRequest(baseCardType: string): Promise<void> {
   ).catch(() => {});
 }
 
-// Fetch and validate user data from Redis
+/**
+ * Loads card and user documents from Redis for the given user.
+ * @param numericUserId - Numeric AniList user ID used as the Redis key suffix.
+ * @param baseCardType - Base card type used for analytics on failures.
+ * @returns Stored card and user documents or an error Response.
+ * @source
+ */
 async function fetchUserData(
   numericUserId: number,
   baseCardType: string,
@@ -783,7 +965,14 @@ async function fetchUserData(
   return { cardDoc, userDoc };
 }
 
-// Process card configuration and apply query parameters
+/**
+ * Applies query parameters and favorites info to the stored card configuration.
+ * @param cardDoc - Stored cards document retrieved from Redis.
+ * @param params - Validated request parameters.
+ * @param userDoc - AniList user document containing favorites/stats.
+ * @returns Modified card config with resolved variation/favorites or a Response.
+ * @source
+ */
 function processCardConfig(
   cardDoc: CardsRecord,
   params: ValidatedParams,
@@ -857,7 +1046,12 @@ function processCardConfig(
   return { cardConfig: effectiveCardConfig, effectiveVariation, favorites };
 }
 
-// Main GET handler for card SVG generation
+/**
+ * GET handler that orchestrates parameter validation, data loading, and SVG rendering.
+ * @param request - Incoming HTTP request for the card SVG endpoint.
+ * @returns SVG response or error Response when validation or rendering fails.
+ * @source
+ */
 export async function GET(request: Request) {
   const startTime = Date.now();
   const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";

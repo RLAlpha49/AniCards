@@ -1,6 +1,14 @@
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+/**
+ * Props for the stat card component showing a small icon and a statistic.
+ * @property className - Optional class names to customize the card styling.
+ * @property icon - Lucide icon component to render visually.
+ * @property title - Small descriptive label for the statistic.
+ * @property description - Prominent value or description to display.
+ * @source
+ */
 interface StatCardProps {
   className?: string;
   icon: LucideIcon;
@@ -8,7 +16,12 @@ interface StatCardProps {
   description: string;
 }
 
-// Reusable statistic card component with icon and text
+/**
+ * Small reusable statistic card used to surface a numeric or textual metric.
+ * @param props - Props for rendering the icon, label, and value.
+ * @returns A small horizontal card with an icon and two lines of text.
+ * @source
+ */
 export function StatCard({
   className,
   icon: Icon,

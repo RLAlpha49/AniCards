@@ -1,6 +1,14 @@
 import { SocialStats } from "@/lib/types/card";
 import { calculateDynamicFontSize } from "../utils";
 
+/**
+ * Renders an SVG string visualizing a user's social metrics: followers,
+ * following, activity span, threads and reviews. The function returns
+ * a ready-to-embed SVG string for the card endpoint.
+ * @param data - Template input including username, styles, metrics and optional activity history.
+ * @returns The generated SVG markup as a string.
+ * @source
+ */
 export const socialStatsTemplate = (data: {
   username: string;
   variant?: "default" | "compact" | "minimal";

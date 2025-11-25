@@ -1,16 +1,35 @@
 import { POST } from "./route";
 
-// Set up mocks for @upstash/redis.
+/**
+ * Mocks the Redis keys command used by the cron job.
+ * @source
+ */
 const mockKeys = jest.fn();
+/**
+ * Mocks the Redis get command used to fetch user payloads.
+ * @source
+ */
 const mockGet = jest.fn();
+/**
+ * Mocks the Redis set command for writing updated user data.
+ * @source
+ */
 const mockSet = jest.fn();
+/**
+ * Mocks the Redis del command for cleanup and removal operations.
+ * @source
+ */
 const mockDel = jest.fn();
+/**
+ * Aggregated fake Redis client that exposes stubbed methods for the cron tests.
+ * @source
+ */
 const fakeRedisClient = {
   keys: mockKeys,
   get: mockGet,
   set: mockSet,
   del: mockDel,
-  incr: jest.fn(() => Promise.resolve(1)),
+  incr: jest.fn(async () => 1),
 };
 
 jest.mock("@upstash/redis", () => ({
@@ -19,7 +38,10 @@ jest.mock("@upstash/redis", () => ({
   },
 }));
 
-// Set a dummy CRON_SECRET for testing.
+/**
+ * Dummy cron secret used to satisfy authorization checks in tests.
+ * @source
+ */
 const CRON_SECRET = "testsecret";
 process.env.CRON_SECRET = CRON_SECRET;
 
@@ -76,8 +98,7 @@ describe("Cron API POST Endpoint", () => {
     mockSet.mockResolvedValue(true);
     mockDel.mockResolvedValue(1); // Mock successful deletion for clearing failure tracking
 
-    // Mock global.fetch to always return a successful AniList response
-    global.fetch = jest.fn().mockResolvedValue({
+    globalThis.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
       json: async () => ({ data: { stats: "mocked" } }),
@@ -129,8 +150,7 @@ describe("Cron API POST Endpoint", () => {
     mockSet.mockResolvedValue(true);
     mockDel.mockResolvedValue(1);
 
-    // Mock global.fetch to return 404 errors (user not found on AniList)
-    global.fetch = jest.fn().mockResolvedValue({
+    globalThis.fetch = jest.fn().mockResolvedValue({
       ok: false,
       status: 404,
       json: async () => ({ error: "User not found" }),

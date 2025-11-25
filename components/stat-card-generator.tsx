@@ -47,6 +47,13 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 
+/**
+ * Props for the StatCardGenerator component.
+ * @property isOpen - Whether the generator dialog is visible.
+ * @property onClose - Called to request closing the dialog.
+ * @property className - Optional additional CSS class names for the dialog.
+ * @source
+ */
 interface StatCardGeneratorProps {
   isOpen: boolean;
   onClose: () => void;
@@ -57,17 +64,20 @@ interface StatCardGeneratorProps {
  * Configuration objects:
  * - Reusable variation patterns for different card types
  */
+/** Allowed visual variations for pie/bar style breakdown cards. @source */
 const pieBarVariations = [
   { id: "default", label: "Default" },
   { id: "pie", label: "Pie Chart" },
   { id: "bar", label: "Bar Chart" },
 ];
 
+/** Allowed visual variations for distribution cards using vertical/horizontal layouts. @source */
 const verticalHorizontalVariations = [
   { id: "default", label: "Vertical" },
   { id: "horizontal", label: "Horizontal" },
 ];
 
+/** Variation options for the main-stats cards. @source */
 const mainStatsVariations = [
   { id: "default", label: "Default" },
   { id: "vertical", label: "Vertical" },
@@ -75,6 +85,7 @@ const mainStatsVariations = [
   { id: "minimal", label: "Minimal" },
 ];
 
+/** Variation options for the social-stats card. @source */
 const socialStatsVariations = [
   { id: "default", label: "Default" },
   { id: "compact", label: "Compact" },
@@ -82,6 +93,15 @@ const socialStatsVariations = [
 ];
 
 // Helper function to create card type objects with consistent structure
+/**
+ * Build a normalized card type object for the selection UI.
+ * @param id - Unique identifier for the card type.
+ * @param group - Display group label for the card type.
+ * @param label - Human friendly name for the card type.
+ * @param variations - Supported variations for the card type.
+ * @returns A standardized card type descriptor used throughout the UI.
+ * @source
+ */
 const createCardType = (
   id: string,
   group: string,
@@ -95,6 +115,7 @@ const createCardType = (
 });
 
 // Helper arrays for similar card types to reduce repetition
+/** Reusable anime breakdown card options (top 5 counts and similar) used to produce selection items. @source */
 const animeBreakdownCards = [
   { id: "animeGenres", label: "Anime Genres (Top 5 Count)" },
   { id: "animeTags", label: "Anime Tags (Top 5 Count)" },
@@ -109,6 +130,7 @@ const animeBreakdownCards = [
   { id: "animeCountry", label: "Anime Country" },
 ];
 
+/** Reusable manga breakdown card options (top 5 counts and similar) used to produce selection items. @source */
 const mangaBreakdownCards = [
   { id: "mangaGenres", label: "Manga Genres (Top 5 Count)" },
   { id: "mangaTags", label: "Manga Tags (Top 5 Count)" },
@@ -121,6 +143,7 @@ const mangaBreakdownCards = [
   { id: "mangaCountry", label: "Manga Country" },
 ];
 
+/** Distribution card options (score/year distributions) that use vertical/horizontal variants. @source */
 const distributionCards = [
   {
     id: "animeScoreDistribution",
@@ -144,6 +167,7 @@ const distributionCards = [
   },
 ];
 
+/** All available stat card types with their groupings and variation metadata. @source */
 export const statCardTypes = [
   // Main Stats Cards
   createCardType(
@@ -186,6 +210,12 @@ export const statCardTypes = [
   ),
 ];
 
+/**
+ * Named color presets exposed to the UI.
+ * Each preset provides an array of colors and a light/dark mode hint.
+ * The `custom` preset is used when a user selects custom colors.
+ * @source
+ */
 export const colorPresets = {
   default: {
     colors: ["#fe428e", "#141321", "#a9fef7", "#fe428e"],
@@ -328,6 +358,7 @@ export const colorPresets = {
   custom: { colors: ["", "", "", ""], mode: "custom" },
 };
 
+/** Steps used by the multi-stage generator wizard. Each step includes an id, label and icon. @source */
 const STEPS = [
   { id: "user", label: "User", icon: User },
   { id: "colors", label: "Colors", icon: Palette },
@@ -335,12 +366,22 @@ const STEPS = [
   { id: "advanced", label: "Advanced", icon: Settings2 },
 ];
 
+/**
+ * Modal UI for generating and previewing stat cards.
+ * Accepts a username, color settings and selected card types and submits them to the backend.
+ * @param isOpen - Whether the dialog is open.
+ * @param onClose - Function called to close the dialog.
+ * @param className - Optional additional classes applied to the container.
+ * @returns React element for the stat card generator modal.
+ * @source
+ */
 export function StatCardGenerator({
   isOpen,
   onClose,
   className,
 }: Readonly<StatCardGeneratorProps>) {
   // State management for form inputs and UI states
+  // Form and UI state values
   const [username, setUsername] = useState("");
   const [titleColor, setTitleColor] = useState(colorPresets.default.colors[0]);
   const [backgroundColor, setBackgroundColor] = useState(
@@ -373,6 +414,7 @@ export function StatCardGenerator({
   const { loading, error, submit, clearError } = useStatCardSubmit();
 
   // Map detailed errors from the hook into friendlier UI messages. Log details for debugging.
+  /** Map internal errors to a friendly UI message. @source */
   const friendlyErrorMessage = (() => {
     if (!error) return null;
     const msg = error.message || "An error occurred.";
@@ -418,6 +460,7 @@ export function StatCardGenerator({
   })();
 
   // Load defaults on component mount
+  // Initialize defaults and localStorage-sourced preferences on mount
   useEffect(() => {
     const defaults = loadDefaultSettings();
     const presetColors = getPresetColors(defaults.colorPreset);
@@ -489,12 +532,14 @@ export function StatCardGenerator({
     }
   }, []);
 
+  /** Whether all available card types are currently selected. @source */
   const allSelected = useMemo(
     () => statCardTypes.every((type) => selectedCards.includes(type.id)),
     [selectedCards],
   );
 
   // Static preview data
+  /** Static preview demo data rendered in the live-preview. @source */
   const previewData = {
     mediaType: "anime" as const,
     username: "PreviewUser",
@@ -519,10 +564,12 @@ export function StatCardGenerator({
   };
 
   // Generate preview SVG
+  /** Generated SVG markup for the preview using the template helper. @source */
   const previewSVG = mediaStatsTemplate(previewData);
 
   const router = useRouter();
 
+  /** Toggle the presence of a card (base id) in the selected cards list. @source */
   const handleToggleCard = (cardId: string) => {
     const [baseId] = cardId.split("-"); // Always use base ID for selection
     setSelectedCards((prev) =>
@@ -533,6 +580,7 @@ export function StatCardGenerator({
   };
 
   // Handle changes in the variant for a card type that supports variants.
+  /** Set the variant for a card type (e.g., 'pie' vs 'bar'). @source */
   const handleVariantChange = (cardType: string, variant: string) => {
     setSelectedCardVariants((old) => ({
       ...old,
@@ -540,6 +588,7 @@ export function StatCardGenerator({
     }));
   };
 
+  /** Select or unselect all available cards and initialize default variants where applicable. @source */
   const handleSelectAll = () => {
     if (allSelected) {
       // Unselect all cards
@@ -562,6 +611,7 @@ export function StatCardGenerator({
   };
 
   // Preview expects the base card id and its currently selected variant.
+  /** Prepare and open a preview modal for a specific card type + variant. @source */
   const handlePreview = (cardType: string) => {
     const variant = selectedCardVariants[cardType] || "default";
     setPreviewType(cardType);
@@ -570,6 +620,7 @@ export function StatCardGenerator({
   };
 
   // Handler to toggle showFavorites for a specific card
+  /** Toggle whether favorites should be shown for a specific card. @source */
   const handleToggleShowFavorites = (cardId: string) => {
     setShowFavoritesByCard((prev) => ({
       ...prev,
@@ -577,6 +628,7 @@ export function StatCardGenerator({
     }));
   };
 
+  /** Toggle use of fixed anime status colors and persist preference. @source */
   const handleToggleAnimeStatusColors = () => {
     setUseAnimeStatusColors((prev) => {
       const next = !prev;
@@ -590,6 +642,7 @@ export function StatCardGenerator({
     });
   };
 
+  /** Toggle use of fixed manga status colors and persist preference. @source */
   const handleToggleMangaStatusColors = () => {
     setUseMangaStatusColors((prev) => {
       const next = !prev;
@@ -603,6 +656,7 @@ export function StatCardGenerator({
     });
   };
 
+  /** Toggle showing pie chart percentages in legends and persist preference. @source */
   const handleToggleShowPiePercentages = () => {
     setShowPiePercentages((prev) => {
       const next = !prev;
@@ -616,6 +670,7 @@ export function StatCardGenerator({
     });
   };
 
+  /** Toggle the optional card border option and persist default state. @source */
   const handleToggleBorder = () => {
     setHasBorder((prev) => {
       const next = !prev;
@@ -624,6 +679,10 @@ export function StatCardGenerator({
     });
   };
 
+  /**
+   * Update and persist a user-provided border color value. Accepts short hex variants
+   * (e.g. "fff") or full ones ("#ffffff"). @source
+   */
   const handleBorderColorChange = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) {
@@ -637,6 +696,12 @@ export function StatCardGenerator({
 
   // When submitting, we reassemble the selectedCards array. For card types with variants,
   // we append the variant suffix only if it is not "default". (If it is "default", we leave it off.)
+  /**
+   * Gather form data and submit a card generation request. On success navigates
+   * to the generated user page with query params describing the cards.
+   * @returns void
+   * @source
+   */
   const handleSubmit = async () => {
     // Track user search in Google Analytics
     if (username) {
@@ -713,6 +778,7 @@ export function StatCardGenerator({
   };
 
   // Prepare configuration for the color pickers
+  /** Configuration for color pickers used in the UI. @source */
   const colorPickers = [
     {
       id: "titleColor",
@@ -752,6 +818,7 @@ export function StatCardGenerator({
     },
   ];
 
+  /** Configuration for the border color picker and its change handler. @source */
   const borderColorPicker = {
     id: "borderColor",
     label: "Border color",
@@ -759,12 +826,14 @@ export function StatCardGenerator({
     onChange: handleBorderColorChange,
   };
 
+  /** Advance wizard to the next step if possible. @source */
   const nextStep = () => {
     if (currentStep < STEPS.length - 1) {
       setCurrentStep((prev) => prev + 1);
     }
   };
 
+  /** Move wizard to previous step or close if already at the first step. @source */
   const prevStep = () => {
     if (currentStep === 0) {
       onClose();

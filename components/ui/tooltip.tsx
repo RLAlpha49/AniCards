@@ -5,12 +5,28 @@ import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 
 import { cn } from "@/lib/utils";
 
+/**
+ * Provider to configure tooltip delays and inheritance for nested tooltips.
+ * @source
+ */
 const TooltipProvider = TooltipPrimitive.Provider;
 
+/**
+ * Root primitive for tooltips; handles open state and accessibility features.
+ * @source
+ */
 const Tooltip = TooltipPrimitive.Root;
 
+/**
+ * Trigger element that toggles the tooltip display when hovered or focused.
+ * @source
+ */
 const TooltipTrigger = TooltipPrimitive.Trigger;
 
+/**
+ * Content area shown as the tooltip popup with configurable offset and side.
+ * @source
+ */
 const TooltipContent = React.forwardRef<
   React.ComponentRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>

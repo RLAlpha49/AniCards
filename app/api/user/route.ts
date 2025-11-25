@@ -7,9 +7,12 @@ import {
 import { UserRecord } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
 
-// API endpoint for fetching user data from Redis.
-// Accepts either a userId or username parameter.
-// If only username is provided, it uses the username index to infer the userId.
+/**
+ * Retrieves user data by userId or username and records analytics around the lookup.
+ * @param request - Incoming request with query parameters and headers.
+ * @returns NextResponse carrying the user data or the relevant error payload.
+ * @source
+ */
 export async function GET(request: Request) {
   const startTime = Date.now();
   const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
@@ -56,6 +59,12 @@ export async function GET(request: Request) {
       );
     }
 
+    /**
+     * Resolves a normalized username to a numeric user ID via the Redis username index.
+     * @param u - The username to normalize and resolve.
+     * @returns The resolved user ID or null when the lookup fails.
+     * @source
+     */
     async function resolveUserIdFromUsername(
       u: string,
     ): Promise<number | null> {

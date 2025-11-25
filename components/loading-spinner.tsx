@@ -4,18 +4,34 @@ import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { useId } from "react";
 
+/**
+ * Props for the inline loading spinner.
+ * @property size - Visual size variant for the spinner: 'sm' | 'md' | 'lg'.
+ * @property className - Optional className to adjust styling.
+ * @property text - Accessible label or status text shown below the spinner.
+ * @source
+ */
 interface LoadingSpinnerProps {
   size?: "sm" | "md" | "lg";
   className?: string;
   text?: string;
 }
 
+/**
+ * A compact animated spinner with optional label.
+ * - Uses Framer Motion for subtle animation.
+ * - Provides accessible labeling and reduced-motion respect via aria attributes.
+ * @param props - Spinner props.
+ * @returns A spinner element and optional label.
+ * @source
+ */
 export function LoadingSpinner({
   size = "md",
   className,
   text,
 }: Readonly<LoadingSpinnerProps>) {
   const id = useId();
+  // Convert React id to a safe HTML id for SVG titles.
   const safeId = id.replaceAll(".", "-").replaceAll(":", "-");
 
   // Size variants for different usage contexts
@@ -102,6 +118,9 @@ interface LoadingOverlayProps {
 
 /**
  * Full-screen loading overlay with backdrop blur.
+ * @param props - Optional text shown to the user while waiting.
+ * @returns A full-screen overlay with a centered spinner.
+ * @source
  */
 export function LoadingOverlay({
   text = "Generating your cards...",

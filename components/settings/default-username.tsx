@@ -2,11 +2,25 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { motion } from "framer-motion";
 
+/**
+ * Props for the DefaultUsernameSettings component.
+ * @property defaultUsername - The username value to pre-fill in forms.
+ * @property onUsernameChange - Callback invoked when username input changes.
+ * @source
+ */
 interface DefaultUsernameSettingsProps {
   defaultUsername: string;
   onUsernameChange: (value: string) => void;
 }
 
+/**
+ * UI component for configuring a default AniList username.
+ * This value is used to pre-fill any forms that require an AniList username.
+ * @param defaultUsername - Current configured default username.
+ * @param onUsernameChange - Called with the updated username string.
+ * @returns A React element for the default username settings.
+ * @source
+ */
 export function DefaultUsernameSettings({
   defaultUsername,
   onUsernameChange,
@@ -72,6 +86,7 @@ export function DefaultUsernameSettings({
               onChange={(e) => onUsernameChange(e.target.value)}
               placeholder="Enter your AniList username"
             />
+            {/* Show a checkmark icon when a default username is set */}
             {defaultUsername && (
               <div className="absolute right-4 top-1/2 -translate-y-1/2 text-green-500">
                 <svg

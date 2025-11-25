@@ -1,6 +1,8 @@
-// This route will match URLs like /StatCards/<username>/<key>.svg
-// It returns an SVG message to let the user know that AniCards has been updated
-
+/**
+ * Serves the /StatCards/<username>/<key>.svg route with a static notice SVG.
+ * @returns Response containing the update prompt SVG content.
+ * @source
+ */
 export async function GET() {
   const svgContent = `
     <svg xmlns="http://www.w3.org/2000/svg" width="300" height="150">

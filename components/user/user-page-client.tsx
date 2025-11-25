@@ -12,11 +12,25 @@ import { LoadingSpinner } from "@/components/loading-spinner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { GridPattern } from "../ui/grid-pattern";
 
+/**
+ * Basic user identity returned from the API.
+ * @property userId - AniList numeric user id.
+ * @property username - Optional AniList username for display.
+ * @source
+ */
 interface UserData {
   userId: string;
   username?: string;
 }
 
+/**
+ * Shape of a card configuration entry used to request or render a stat card.
+ * @property cardName - Internal card key used to generate the SVG.
+ * @property variation - Optional card variation identifier.
+ * @property useStatusColors - Optional flag to render status distribution with color hints.
+ * @property showPiePercentages - Optional flag to toggle pie chart percentage labels.
+ * @source
+ */
 interface CardData {
   cardName: string;
   variation?: string;
@@ -25,12 +39,24 @@ interface CardData {
 }
 
 // Validation helpers
+/**
+ * Narrowing helper that checks whether the given userId is a valid AniList numeric id string.
+ * @param userId - The candidate userId string or null.
+ * @returns True if userId is a numeric string.
+ * @source
+ */
 const isValidUserId = (userId: string | null): userId is string => {
   if (!userId) return false;
   // userId should be numeric string from AniList
   return /^\d+$/.test(userId);
 };
 
+/**
+ * Narrowing helper that checks whether the username matches expected AniList username patterns.
+ * @param username - The candidate username string or null.
+ * @returns True if username is valid.
+ * @source
+ */
 const isValidUsername = (username: string | null): username is string => {
   if (!username) return false;
   // Username can contain letters, numbers, underscores, hyphens (AniList standard)
@@ -38,6 +64,13 @@ const isValidUsername = (username: string | null): username is string => {
 };
 
 // Helper to load and validate cards from parameter
+/**
+ * Parse a JSON-encoded cards parameter and filter invalid entries.
+ * @param cardsParam - JSON string representing an array of CardData entries.
+ * @returns Filtered CardData array.
+ * @throws {TypeError} If the parameter is not an array.
+ * @source
+ */
 const parseAndValidateCards = (cardsParam: string): CardData[] => {
   try {
     const parsedCards = JSON.parse(cardsParam);
@@ -64,6 +97,13 @@ const parseAndValidateCards = (cardsParam: string): CardData[] => {
 };
 
 // Client component for the interactive user page
+/**
+ * Client-side component rendering an interactive user page with stat cards.
+ * It reads query parameters to resolve a user and card configurations, fetches
+ * required data if needed, then renders a grid of cards with actions.
+ * @returns JSX element for the user's stat cards page.
+ * @source
+ */
 export function UserPageClient() {
   const searchParams = useSearchParams();
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -103,6 +143,8 @@ export function UserPageClient() {
         }
 
         // Load user data and cards based on parameters
+        // If cards parameter is present alongside userId/username, prefer it and avoid
+        // fetching the user's full card list from the server.
         if (cardsParam && (userId || username)) {
           if (userId) {
             resolvedUserData = { userId, username: username || undefined };
@@ -112,6 +154,7 @@ export function UserPageClient() {
             );
             resolvedUserData = await userRes.json();
           }
+          // If we only have a userId (no shipped card config), fetch user and cards
         } else if (userId) {
           const [userRes, cardsRes] = await Promise.all([
             fetch(`/api/user?userId=${userId}`),
@@ -121,6 +164,7 @@ export function UserPageClient() {
           const cardsData = await cardsRes.json();
           resolvedCards = cardsData.cards || [];
           setShowAllCards(true);
+          // If we only have a username, resolve userId first, then fetch cards by userId
         } else if (username) {
           const userRes = await fetch(
             `/api/user?username=${encodeURIComponent(username)}`,
@@ -178,10 +222,12 @@ export function UserPageClient() {
   const cardTypes = cards.map((card) => {
     const variation = card.variation || "default";
     const displayName = displayNames[card.cardName] || card.cardName;
+    // Flag indicating whether this card is a status distribution style card
     const isStatusDist = [
       "animeStatusDistribution",
       "mangaStatusDistribution",
     ].includes(card.cardName);
+    // Flag indicating whether this card uses pie charts and can optionally show percentages
     const isPieCapable = [
       "animeGenres",
       "animeTags",
@@ -198,12 +244,14 @@ export function UserPageClient() {
       "animeCountry",
       "mangaCountry",
     ].includes(card.cardName);
+    // Build optional query string parameters for the SVG API based on card flags
     const extraParams = [
       isStatusDist && card.useStatusColors ? "statusColors=true" : null,
       isPieCapable && card.showPiePercentages ? "piePercentages=true" : null,
     ]
       .filter(Boolean)
       .join("&");
+    // Base SVG URL for a card with the selected variation and userId
     const svgUrlBase = `/api/card.svg?cardType=${card.cardName}&userId=${userData?.userId}&variation=${variation}`;
     const svgUrl = extraParams ? `${svgUrlBase}&${extraParams}` : svgUrlBase;
     return {
@@ -213,6 +261,10 @@ export function UserPageClient() {
     };
   });
 
+  /**
+   * Preferred ordering for specific card types so they appear earlier in the UI.
+   * @source
+   */
   const priorityOrder = ["animeStats", "mangaStats", "socialStats"];
 
   const sortedCardTypes = [...cardTypes].sort((a, b) => {

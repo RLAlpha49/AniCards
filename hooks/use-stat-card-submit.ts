@@ -1,6 +1,19 @@
 import { useState } from "react";
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
 
+/**
+ * Parameters for creating and storing user stat cards.
+ * @property username - AniList username of the user.
+ * @property selectedCards - List of selected card identifiers (may include variation suffixes).
+ * @property colors - Array of colors applied to cards: [title, background, text, circle].
+ * @property showFavoritesByCard - Map of card IDs to a boolean to show favorites on that card.
+ * @property showPiePercentages - Whether chart cards include pie percentages.
+ * @property useAnimeStatusColors - Apply anime status color scheme for relevant charts.
+ * @property useMangaStatusColors - Apply manga status color scheme for relevant charts.
+ * @property borderEnabled - Whether cards should show a border.
+ * @property borderColor - Hex or CSS color string to use for a border.
+ * @source
+ */
 interface SubmitParams {
   username: string;
   selectedCards: string[];
@@ -13,7 +26,10 @@ interface SubmitParams {
   borderColor?: string;
 }
 
-// Only these card types support showFavorites
+/**
+ * The subset of card names that support showing favorites.
+ * @source
+ */
 const FAVORITE_CARD_IDS = new Set([
   "animeVoiceActors",
   "animeStudios",
@@ -21,7 +37,14 @@ const FAVORITE_CARD_IDS = new Set([
   "mangaStaff",
 ]);
 
-// Build the card configuration payload for store-cards API
+/**
+ * Build the payload of card configuration objects to send to the store-cards API.
+ * Splits selected card ids into card name and optional variation and enriches
+ * each entry with the provided display and styling options.
+ * @param params - Object containing selection and display options.
+ * @returns An array of card configuration objects.
+ * @source
+ */
 function buildCardsPayload(params: {
   selectedCards: string[];
   colors: string[];
@@ -44,6 +67,7 @@ function buildCardsPayload(params: {
   } = params;
 
   return selectedCards.map((cardId) => {
+    // Card identifiers may include a variation suffix, e.g. `cardName-variation`.
     const [cardName, rawVariation] = cardId.split("-");
     const variation = rawVariation || "default";
     const baseConfig = {
@@ -72,6 +96,12 @@ function buildCardsPayload(params: {
   });
 }
 
+/**
+ * Attempt to extract a human-friendly error message from an API payload.
+ * @param payload - The response payload to inspect.
+ * @returns A string message if found, otherwise undefined.
+ * @source
+ */
 function extractErrorMessageFromPayload(payload: unknown) {
   if (!payload) return undefined;
   if (typeof payload !== "object" || payload === null) return undefined;
@@ -88,11 +118,27 @@ function extractErrorMessageFromPayload(payload: unknown) {
   return undefined;
 }
 
+/**
+ * Hook exposing stat-card submission helpers and state.
+ * Provides `loading`, `error`, `submit`, and `clearError` to callers.
+ * Use `submit` to begin the multi-step write process (fetch AniList data and store results).
+ * @returns An object containing submission state and control functions.
+ * @source
+ */
 export function useStatCardSubmit() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  // Helper to perform fetches with an abort timeout and consistent error handling.
+  /**
+   * Perform a fetch with an abort timeout and normalize errors with context.
+   * @param url - Resource path to request.
+   * @param options - RequestInit options for fetch.
+   * @param timeoutMs - Timeout in milliseconds before aborting the request.
+   * @param contextName - Context string used in thrown errors.
+   * @returns The original Response when successful.
+   * @throws Error with contextual message on failure.
+   * @source
+   */
   async function fetchWithTimeout(
     url: string,
     options: RequestInit,
@@ -124,6 +170,12 @@ export function useStatCardSubmit() {
     }
   }
 
+  /**
+   * Validate the submission parameters and throw a descriptive Error if invalid.
+   * @param params - The submission input to validate.
+   * @throws {Error} When validation fails (missing or invalid fields).
+   * @source
+   */
   function validateSubmission(params: {
     username: string;
     selectedCards: string[];
@@ -142,6 +194,13 @@ export function useStatCardSubmit() {
       throw new Error("Border color must be set when the border is enabled");
   }
 
+  /**
+   * Assert that a fetch response is ok, otherwise throw an Error with an extracted message.
+   * @param response - The fetch Response to validate.
+   * @param context - A human-readable context used in the thrown error.
+   * @throws Error when the response is not ok.
+   * @source
+   */
   async function checkResponseOrThrow(response: Response, context: string) {
     if (response.ok) return;
     let errorData: unknown = undefined;
@@ -154,6 +213,16 @@ export function useStatCardSubmit() {
     throw new Error(`${context}: ${errMsg}`);
   }
 
+  /**
+   * Helper to POST GraphQL queries to the local AniList proxy endpoint with timeout behavior.
+   * @param query - GraphQL query string.
+   * @param variables - Query variables to send.
+   * @param timeoutMs - Optional fetch timeout.
+   * @param contextLabel - Context label used for error messages.
+   * @returns The parsed response JSON.
+   * @throws Error when AniList returns a non-OK response.
+   * @source
+   */
   async function fetchAniListQuery(
     query: string,
     variables: Record<string, unknown>,
@@ -184,6 +253,14 @@ export function useStatCardSubmit() {
     return response.json();
   }
 
+  /**
+   * Perform the full submission sequence: validate inputs, fetch AniList user/data,
+   * build card payloads, and call storage endpoints. Returns an object with success status
+   * and userId on success.
+   * @param params - The submission parameters.
+   * @returns A Promise resolving to an object with success and optional userId.
+   * @source
+   */
   const submit = async ({
     username,
     selectedCards,
@@ -293,7 +370,11 @@ export function useStatCardSubmit() {
     }
   };
 
-  // New function to clear the error state
+  /**
+   * Clear the current error state for the hook.
+   * @returns {void}
+   * @source
+   */
   const clearError = () => setError(null);
 
   return { loading, error, submit, clearError };

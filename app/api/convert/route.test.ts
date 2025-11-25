@@ -7,32 +7,65 @@ import {
 import { NextRequest } from "next/server";
 import sharp from "sharp";
 
-// Capture the last buffer passed into sharp so we can inspect the input SVG
+/**
+ * Captures the buffer passed into `sharp` so tests can inspect the SVG payload.
+ * @source
+ */
 let lastSharpBuffer: Buffer | null = null;
+
+/**
+ * Create a named async function for returning a fake PNG buffer.
+ * We extract this so the implementation won't be a deeply nested arrow function.
+ */
+function createToBufferSuccess() {
+  return async function toBuffer() {
+    return Buffer.from("FAKEPNG");
+  };
+}
+
+/**
+ * Create a named async function that throws to simulate conversion failures.
+ */
+function createToBufferFailure() {
+  return async function toBuffer() {
+    throw new Error("Sharp failure");
+  };
+}
+
+/**
+ * Returns a sharp-like object with png() -> { toBuffer() }
+ */
+function createSharpInstance(buf?: Buffer) {
+  if (buf) lastSharpBuffer = Buffer.from(buf);
+  return {
+    png: () => ({ toBuffer: createToBufferSuccess() }),
+  };
+}
 
 process.env.NEXT_PUBLIC_API_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost";
 
+/** Create a named redis mock for convert tests */
+function createRedisFromEnvMock() {
+  return {
+    incr: jest.fn(async () => 1),
+  };
+}
+
 jest.mock("@upstash/redis", () => ({
   Redis: {
-    fromEnv: jest.fn(() => ({
-      incr: jest.fn(() => Promise.resolve(1)),
-    })),
+    fromEnv: jest.fn(createRedisFromEnvMock),
   },
 }));
 
 // Mocking "sharp" so we can simulate the PNG conversion.
-jest.mock("sharp", () => {
-  // Return a function that records the buffer argument so tests can inspect it
-  return jest.fn((buf?: Buffer) => {
-    if (buf) lastSharpBuffer = Buffer.from(buf);
-    return {
-      png: () => ({ toBuffer: async () => Buffer.from("FAKEPNG") }),
-    };
-  });
-});
+jest.mock("sharp", () => jest.fn(createSharpInstance));
 
 describe("Convert API POST Endpoint", () => {
+  /**
+   * Retains the original fetch implementation so it can be restored after tests.
+   * @source
+   */
   const originalFetch = globalThis.fetch;
 
   afterEach(() => {
@@ -130,11 +163,7 @@ describe("Convert API POST Endpoint", () => {
 
     // Override the sharp mock for this test to simulate an error.
     (sharp as unknown as jest.Mock).mockImplementationOnce(() => ({
-      png: () => ({
-        toBuffer: async () => {
-          throw new Error("Sharp failure");
-        },
-      }),
+      png: () => ({ toBuffer: createToBufferFailure() }),
     }));
 
     const res = await POST(req);
@@ -144,11 +173,21 @@ describe("Convert API POST Endpoint", () => {
   });
 
   describe("SVG sanitization policy", () => {
+    /**
+     * Default headers used when crafting conversion requests.
+     * @source
+     */
     const defaultHeaders = {
       "Content-Type": "application/json",
       "x-forwarded-for": "127.0.0.1",
     };
 
+    /**
+     * Constructs a POST `NextRequest` for the convert API using the given SVG URL.
+     * @param url - SVG URL to embed in the request payload.
+     * @returns Prepared POST request targeting the convert endpoint.
+     * @source
+     */
     const makeRequestForSvgUrl = (url = "http://localhost/dummy.svg") =>
       new Request("http://localhost/api/convert", {
         method: "POST",
@@ -156,6 +195,13 @@ describe("Convert API POST Endpoint", () => {
         body: JSON.stringify({ svgUrl: url }),
       }) as unknown as NextRequest;
 
+    /**
+     * Stubs `fetch` to return controlled SVG responses.
+     * @param svg - SVG payload to return.
+     * @param ok - Whether the response is considered successful.
+     * @param status - HTTP status code to mimic.
+     * @source
+     */
     const mockFetchSvg = (svg: string, ok = true, status = 200) => {
       globalThis.fetch = jest.fn().mockResolvedValue({
         ok,
@@ -164,6 +210,14 @@ describe("Convert API POST Endpoint", () => {
       });
     };
 
+    /**
+     * Posts sanitized SVG and exposes the buffer captured by `sharp`.
+     * @param svg - SVG markup to send to the convert endpoint.
+     * @param url - Optional URL to assign when fetching the SVG.
+     * @param expectStatus - Expected HTTP status for the POST response.
+     * @returns Response and captured SVG buffer contents.
+     * @source
+     */
     const postAndCaptureSvg = async (
       svg: string,
       url = "http://localhost/dummy.svg",
