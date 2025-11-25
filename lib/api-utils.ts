@@ -128,6 +128,15 @@ export interface ApiError {
   error: string;
 }
 
+function normalizeOrigin(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Enforces a rate limit for an IP address using the configured Upstash
  * rate limiter. Records analytics and returns a 429 response on limit.
@@ -165,14 +174,18 @@ export function validateSameOrigin(
   endpoint: string,
 ): NextResponse<ApiError> | null {
   const origin = request.headers.get("origin");
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  const requestOrigin = new URL(request.url).origin;
+  const configuredAppOrigin = normalizeOrigin(
+    process.env.NEXT_PUBLIC_APP_URL,
+  );
+  const allowedOrigin = configuredAppOrigin ?? requestOrigin;
 
   // Allow internal requests (no origin) or same-origin requests
-  const isSameOrigin = !origin || origin === appUrl;
+  const isSameOrigin = !origin || origin === allowedOrigin;
 
   if (process.env.NODE_ENV === "production" && !isSameOrigin) {
     console.warn(
-      `🔐 [${endpoint}] Rejected cross-origin request from: ${origin}`,
+      `🔐 [${endpoint}] Rejected cross-origin request from: ${origin} (allowed: ${allowedOrigin})`,
     );
     incrementAnalytics(
       `analytics:${endpoint.toLowerCase().replace(" ", "_")}:failed_requests`,
