@@ -3,6 +3,7 @@ import { Metadata } from "next";
 import { generateMetadata as createMetadata, seoConfigs } from "@/lib/seo";
 import { UserPageClient } from "@/components/user/user-page-client";
 import { LoadingSpinner } from "@/components/loading-spinner";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 /**
  * Forces Next.js to render this route on each request so user data stays fresh.
@@ -65,7 +66,9 @@ export default function UserPage() {
         </div>
       }
     >
-      <UserPageClient />
+      <ErrorBoundary>
+        <UserPageClient />
+      </ErrorBoundary>
     </Suspense>
   );
 }

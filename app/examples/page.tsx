@@ -30,6 +30,7 @@ import {
 } from "@/lib/card-groups";
 import { usePageSEO } from "@/hooks/use-page-seo";
 import { Input } from "@/components/ui/input";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 /**
  * Represents a single card variant shown in the gallery.
@@ -542,59 +543,168 @@ export default function ExamplesPage() {
   );
 
   return (
-    <div className="relative min-h-[90vh] w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
-      <GridPattern className="z-0" includeGradients={true} gradientCount={9} />
-      <div className="relative z-10">
-        {/* Header Section */}
-        <section className="relative overflow-hidden border-b border-slate-200/60 dark:border-slate-800/60">
-          <div className="container relative z-10 mx-auto px-4 py-12">
-            <div className="mx-auto max-w-6xl">
+    <ErrorBoundary
+      resetKeys={[
+        isGeneratorOpen ? "generator_open" : "generator_closed",
+        searchQuery,
+      ]}
+      onReset={() => {
+        setIsGeneratorOpen(false);
+        setSearchQuery("");
+      }}
+    >
+      <div className="relative min-h-[90vh] w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
+        <GridPattern
+          className="z-0"
+          includeGradients={true}
+          gradientCount={9}
+        />
+        <div className="relative z-10">
+          {/* Header Section */}
+          <section className="relative overflow-hidden border-b border-slate-200/60 dark:border-slate-800/60">
+            <div className="container relative z-10 mx-auto px-4 py-12">
+              <div className="mx-auto max-w-6xl">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6 }}
+                  className="space-y-8"
+                >
+                  {/* Navigation */}
+                  <div className="flex items-center justify-between">
+                    <Link href="/">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="group text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                      >
+                        <ArrowLeft className="mr-2 h-4 w-4 transition-transform group-hover:-translate-x-1" />
+                        Back to Home
+                      </Button>
+                    </Link>
+                    <div className="relative w-full max-w-xs">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <Input
+                        type="text"
+                        placeholder="Search cards..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Title & Description */}
+                  <div className="space-y-6 text-center sm:text-left">
+                    <div className="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Gallery
+                    </div>
+                    <h1 className="text-4xl font-bold leading-tight text-slate-900 dark:text-white sm:text-5xl lg:text-6xl">
+                      Explore All{" "}
+                      <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                        Card Types
+                      </span>
+                    </h1>
+                    <p className="max-w-2xl text-lg text-slate-600 dark:text-slate-300 lg:text-xl">
+                      Browse our complete collection of statistical
+                      visualizations. All examples are generated in real-time
+                      using data from{" "}
+                      <a
+                        href="https://anilist.co/user/Alpha49"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                      >
+                        @Alpha49
+                      </a>
+                      {""}.
+                    </p>
+                  </div>
+
+                  {/* Quick Stats */}
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                    {categories.map((category) => {
+                      const count = cardTypesWithGeneratedVariants.filter(
+                        (card) => card.category === category,
+                      ).length;
+                      const Icon = getCategoryIcon(category);
+                      const colors = getCategoryColor(category);
+
+                      return (
+                        <div
+                          key={category}
+                          className="rounded-xl border border-slate-200 bg-white/50 p-4 text-center backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/50"
+                        >
+                          <div
+                            className={`mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full ${colors.bg}`}
+                          >
+                            <Icon className={`h-5 w-5 ${colors.text}`} />
+                          </div>
+                          <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                            {count}
+                          </div>
+                          <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                            {category}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div className="rounded-xl border border-slate-200 bg-white/50 p-4 text-center backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/50">
+                      <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+                        <TrendingUp className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      </div>
+                      <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                        {cardTypesWithGeneratedVariants.reduce(
+                          (total, card) => total + card.variants.length,
+                          0,
+                        )}
+                      </div>
+                      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                        Total Variants
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+            </div>
+          </section>
+
+          {/* Card Showcase by Category */}
+          <section className="relative overflow-hidden py-20">
+            <div className="container relative z-10 mx-auto px-4">
+              <div className="mx-auto max-w-7xl space-y-24">
+                {categories.map((category, categoryIndex) => (
+                  <CategorySection
+                    key={category}
+                    category={category}
+                    categoryIndex={categoryIndex}
+                    filteredCardTypes={filteredCardTypes}
+                    isFirstCategory={categoryIndex === 0}
+                    onOpenGenerator={() => setIsGeneratorOpen(true)}
+                    userId={USER_ID}
+                  />
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* Call to Action */}
+          <section className="relative overflow-hidden border-t border-slate-200 bg-slate-50 py-24 dark:border-slate-800 dark:bg-slate-900/50">
+            <div className="container relative z-10 mx-auto px-4">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6 }}
-                className="space-y-8"
+                viewport={{ once: true }}
+                className="mx-auto max-w-4xl space-y-8 text-center"
               >
-                {/* Navigation */}
-                <div className="flex items-center justify-between">
-                  <Link href="/">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="group text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-                    >
-                      <ArrowLeft className="mr-2 h-4 w-4 transition-transform group-hover:-translate-x-1" />
-                      Back to Home
-                    </Button>
-                  </Link>
-                  <div className="relative w-full max-w-xs">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <Input
-                      type="text"
-                      placeholder="Search cards..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
-
-                {/* Title & Description */}
-                <div className="space-y-6 text-center sm:text-left">
-                  <div className="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Gallery
-                  </div>
-                  <h1 className="text-4xl font-bold leading-tight text-slate-900 dark:text-white sm:text-5xl lg:text-6xl">
-                    Explore All{" "}
-                    <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                      Card Types
-                    </span>
-                  </h1>
-                  <p className="max-w-2xl text-lg text-slate-600 dark:text-slate-300 lg:text-xl">
-                    Browse our complete collection of statistical
-                    visualizations. All examples are generated in real-time
-                    using data from{" "}
+                <div className="space-y-4">
+                  <h2 className="text-3xl font-bold text-slate-900 dark:text-white lg:text-4xl">
+                    Ready to create your own?
+                  </h2>
+                  <p className="mx-auto max-w-2xl text-lg text-slate-600 dark:text-slate-300">
+                    These are live examples using real AniList data from user{" "}
                     <a
                       href="https://anilist.co/user/Alpha49"
                       target="_blank"
@@ -603,135 +713,41 @@ export default function ExamplesPage() {
                     >
                       @Alpha49
                     </a>
-                    {""}.
+                    {""}. Generate your personalized cards with your own AniList
+                    statistics!
                   </p>
                 </div>
 
-                {/* Quick Stats */}
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                  {categories.map((category) => {
-                    const count = cardTypesWithGeneratedVariants.filter(
-                      (card) => card.category === category,
-                    ).length;
-                    const Icon = getCategoryIcon(category);
-                    const colors = getCategoryColor(category);
+                <div className="flex flex-col items-center space-y-4 sm:flex-row sm:justify-center sm:space-x-6 sm:space-y-0">
+                  <Button
+                    size="lg"
+                    onClick={() => setIsGeneratorOpen(true)}
+                    className="group h-14 min-w-[200px] rounded-full bg-gradient-to-r from-blue-600 to-purple-600 px-8 text-lg font-semibold text-white shadow-lg transition-all duration-200 hover:scale-[1.02] hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
+                  >
+                    <Play className="mr-2 h-5 w-5 fill-current" />
+                    Create Your Cards
+                  </Button>
 
-                    return (
-                      <div
-                        key={category}
-                        className="rounded-xl border border-slate-200 bg-white/50 p-4 text-center backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/50"
-                      >
-                        <div
-                          className={`mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full ${colors.bg}`}
-                        >
-                          <Icon className={`h-5 w-5 ${colors.text}`} />
-                        </div>
-                        <div className="text-2xl font-bold text-slate-900 dark:text-white">
-                          {count}
-                        </div>
-                        <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                          {category}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  <div className="rounded-xl border border-slate-200 bg-white/50 p-4 text-center backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/50">
-                    <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
-                      <TrendingUp className="h-5 w-5 text-green-600 dark:text-green-400" />
-                    </div>
-                    <div className="text-2xl font-bold text-slate-900 dark:text-white">
-                      {cardTypesWithGeneratedVariants.reduce(
-                        (total, card) => total + card.variants.length,
-                        0,
-                      )}
-                    </div>
-                    <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                      Total Variants
-                    </div>
-                  </div>
+                  <Link href="/search">
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      className="h-14 min-w-[200px] rounded-full border-2 text-lg font-semibold"
+                    >
+                      Browse User Cards
+                    </Button>
+                  </Link>
                 </div>
               </motion.div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        {/* Card Showcase by Category */}
-        <section className="relative overflow-hidden py-20">
-          <div className="container relative z-10 mx-auto px-4">
-            <div className="mx-auto max-w-7xl space-y-24">
-              {categories.map((category, categoryIndex) => (
-                <CategorySection
-                  key={category}
-                  category={category}
-                  categoryIndex={categoryIndex}
-                  filteredCardTypes={filteredCardTypes}
-                  isFirstCategory={categoryIndex === 0}
-                  onOpenGenerator={() => setIsGeneratorOpen(true)}
-                  userId={USER_ID}
-                />
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Call to Action */}
-        <section className="relative overflow-hidden border-t border-slate-200 bg-slate-50 py-24 dark:border-slate-800 dark:bg-slate-900/50">
-          <div className="container relative z-10 mx-auto px-4">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              viewport={{ once: true }}
-              className="mx-auto max-w-4xl space-y-8 text-center"
-            >
-              <div className="space-y-4">
-                <h2 className="text-3xl font-bold text-slate-900 dark:text-white lg:text-4xl">
-                  Ready to create your own?
-                </h2>
-                <p className="mx-auto max-w-2xl text-lg text-slate-600 dark:text-slate-300">
-                  These are live examples using real AniList data from user{" "}
-                  <a
-                    href="https://anilist.co/user/Alpha49"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-semibold text-blue-600 hover:underline dark:text-blue-400"
-                  >
-                    @Alpha49
-                  </a>
-                  {""}. Generate your personalized cards with your own AniList
-                  statistics!
-                </p>
-              </div>
-
-              <div className="flex flex-col items-center space-y-4 sm:flex-row sm:justify-center sm:space-x-6 sm:space-y-0">
-                <Button
-                  size="lg"
-                  onClick={() => setIsGeneratorOpen(true)}
-                  className="group h-14 min-w-[200px] rounded-full bg-gradient-to-r from-blue-600 to-purple-600 px-8 text-lg font-semibold text-white shadow-lg transition-all duration-200 hover:scale-[1.02] hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
-                >
-                  <Play className="mr-2 h-5 w-5 fill-current" />
-                  Create Your Cards
-                </Button>
-
-                <Link href="/search">
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="h-14 min-w-[200px] rounded-full border-2 text-lg font-semibold"
-                  >
-                    Browse User Cards
-                  </Button>
-                </Link>
-              </div>
-            </motion.div>
-          </div>
-        </section>
-
-        <StatCardGenerator
-          isOpen={isGeneratorOpen}
-          onClose={() => setIsGeneratorOpen(false)}
-        />
+          <StatCardGenerator
+            isOpen={isGeneratorOpen}
+            onClose={() => setIsGeneratorOpen(false)}
+          />
+        </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 }

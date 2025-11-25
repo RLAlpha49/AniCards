@@ -9,6 +9,7 @@ import GoogleAnalytics from "@/components/google-analytics";
 import AnalyticsProvider from "@/components/analytics-provider";
 import { LayoutShell } from "@/components/layout-shell";
 import { CustomScrollbar } from "@/components/custom-scrollbar";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { Suspense } from "react";
 import { generateMetadata as createMetadata } from "@/lib/seo";
 import { generateStructuredData, generateJsonLd } from "@/lib/structured-data";
@@ -93,11 +94,13 @@ export default function RootLayout({
         <Providers>
           <Suspense fallback={<div>Loading...</div>}>
             <AnalyticsProvider>
-              <LayoutShell>
-                <GithubCorner />
-                <CustomScrollbar />
-                {children}
-              </LayoutShell>
+              <ErrorBoundary>
+                <LayoutShell>
+                  <GithubCorner />
+                  <CustomScrollbar />
+                  {children}
+                </LayoutShell>
+              </ErrorBoundary>
             </AnalyticsProvider>
           </Suspense>
           <Analytics />
