@@ -128,7 +128,11 @@ function isRetryableError(error: unknown, statusCode?: number) {
   if (typeof error === "object" && error !== null) {
     const candidate = error as Error & { name?: string };
     // Guard DOMException checks for non-browser environments
-    if (typeof DOMException !== "undefined" && candidate instanceof DOMException && candidate.name === "AbortError") {
+    if (
+      typeof DOMException !== "undefined" &&
+      candidate instanceof DOMException &&
+      candidate.name === "AbortError"
+    ) {
       return true;
     }
     if (candidate.name === "AbortError") {
@@ -161,7 +165,11 @@ function attemptSuffix(retries: number) {
   return ` after ${retries} attempt${plural}`;
 }
 
-function formatFailure(operationName: string, retries: number, message: string) {
+function formatFailure(
+  operationName: string,
+  retries: number,
+  message: string,
+) {
   return `${operationName} failed${attemptSuffix(retries)}: ${message}`;
 }
 
@@ -174,11 +182,22 @@ function ensureBudgetForNextRetry(
   errorInstance: Error,
 ) {
   const remaining = remainingBudgetMs(start, totalTimeoutMs);
-  if (remaining <= 0) throw new Error(formatFailure(operationName, retries, errorInstance.message));
-  if (delay >= remaining) throw new Error(formatFailure(operationName, retries, errorInstance.message));
+  if (remaining <= 0)
+    throw new Error(
+      formatFailure(operationName, retries, errorInstance.message),
+    );
+  if (delay >= remaining)
+    throw new Error(
+      formatFailure(operationName, retries, errorInstance.message),
+    );
 }
 
-function computeAttemptTimeout(start: number, totalTimeoutMs: number | undefined, timeoutMs: number, operationName: string) {
+function computeAttemptTimeout(
+  start: number,
+  totalTimeoutMs: number | undefined,
+  timeoutMs: number,
+  operationName: string,
+) {
   const rem = remainingBudgetMs(start, totalTimeoutMs);
   const t = Math.min(timeoutMs, rem);
   if (t <= 0) {
@@ -196,16 +215,28 @@ async function handleAttemptFailure(
   maxRetries: number,
   onRetry?: (attempt: number, operation: string) => void,
 ): Promise<number> {
-  const errorInstance = err instanceof Error ? err : new Error(String(err ?? "Unknown error"));
+  const errorInstance =
+    err instanceof Error ? err : new Error(String(err ?? "Unknown error"));
   const statusCode =
     typeof (err as { statusCode?: number }).statusCode === "number"
       ? (err as { statusCode?: number }).statusCode
       : undefined;
-  const shouldRetry = retries < maxRetries && isRetryableError(errorInstance, statusCode);
-  if (!shouldRetry) throw new Error(formatFailure(operationName, retries, errorInstance.message));
+  const shouldRetry =
+    retries < maxRetries && isRetryableError(errorInstance, statusCode);
+  if (!shouldRetry)
+    throw new Error(
+      formatFailure(operationName, retries, errorInstance.message),
+    );
 
   const delay = calculateBackoffDelay(retries);
-  ensureBudgetForNextRetry(start, totalTimeoutMs, delay, operationName, retries, errorInstance);
+  ensureBudgetForNextRetry(
+    start,
+    totalTimeoutMs,
+    delay,
+    operationName,
+    retries,
+    errorInstance,
+  );
   const nextRetries = retries + 1;
   onRetry?.(nextRetries, operationName);
   await new Promise((resolve) => setTimeout(resolve, delay));
@@ -258,9 +289,14 @@ export function useStatCardSubmit() {
       return response;
     } catch (err) {
       // Normalize AbortError across environments
-      const errName = typeof err === "object" && err !== null ? (err as { name?: string }).name : undefined;
+      const errName =
+        typeof err === "object" && err !== null
+          ? (err as { name?: string }).name
+          : undefined;
       if (
-        (typeof DOMException !== "undefined" && err instanceof DOMException && errName === "AbortError") ||
+        (typeof DOMException !== "undefined" &&
+          err instanceof DOMException &&
+          errName === "AbortError") ||
         errName === "AbortError"
       ) {
         throw new Error(
@@ -276,19 +312,25 @@ export function useStatCardSubmit() {
     }
   }
 
-  
-
-  
-
   async function attemptFetchOnce(
     url: string,
     options: RequestInit,
     timeoutMs: number,
     contextName: string,
   ) {
-    const response = await fetchWithTimeout(url, options, timeoutMs, contextName);
+    const response = await fetchWithTimeout(
+      url,
+      options,
+      timeoutMs,
+      contextName,
+    );
     if (!response.ok) {
-      if (isRetryableError(new Error(`HTTP status ${response.status}`), response.status)) {
+      if (
+        isRetryableError(
+          new Error(`HTTP status ${response.status}`),
+          response.status,
+        )
+      ) {
         const statusError = new Error(`HTTP status ${response.status}`);
         (statusError as { statusCode?: number }).statusCode = response.status;
         throw statusError;
@@ -323,10 +365,25 @@ export function useStatCardSubmit() {
 
     while (true) {
       try {
-        const attemptTimeout = computeAttemptTimeout(start, totalTimeoutMs, timeoutMs, operationName);
-        const response = await attemptFetchOnce(url, options, attemptTimeout, contextName);
+        const attemptTimeout = computeAttemptTimeout(
+          start,
+          totalTimeoutMs,
+          timeoutMs,
+          operationName,
+        );
+        const response = await attemptFetchOnce(
+          url,
+          options,
+          attemptTimeout,
+          contextName,
+        );
         if (response.ok) return response;
-        if (isRetryableError(new Error(`HTTP status ${response.status}`), response.status)) {
+        if (
+          isRetryableError(
+            new Error(`HTTP status ${response.status}`),
+            response.status,
+          )
+        ) {
           const statusError = new Error(`HTTP status ${response.status}`);
           (statusError as { statusCode?: number }).statusCode = response.status;
           throw statusError;
@@ -334,12 +391,18 @@ export function useStatCardSubmit() {
         return response;
       } catch (err) {
         // Delegate retry decision, budget checks and delay / backoff handling
-        retries = await handleAttemptFailure(err, start, totalTimeoutMs, operationName, retries, maxRetries, onRetry);
+        retries = await handleAttemptFailure(
+          err,
+          start,
+          totalTimeoutMs,
+          operationName,
+          retries,
+          maxRetries,
+          onRetry,
+        );
       }
     }
   }
-
-  
 
   /**
    * Validate the submission parameters and throw a descriptive Error if invalid.
