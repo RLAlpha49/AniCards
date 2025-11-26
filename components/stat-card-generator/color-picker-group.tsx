@@ -286,7 +286,7 @@ function GradientStopEditor({
         <div className="space-y-2">
           {stops.map((stop, index) => (
             <div
-              key={`stop-${stop.color}-${stop.offset}`}
+              key={`gradient-stop-${stop.color}-${stop.offset}-${index}`}
               className="flex items-center gap-2"
             >
               <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded border border-gray-200 dark:border-gray-700">
@@ -302,17 +302,25 @@ function GradientStopEditor({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Input
-                    type="number"
-                    min={0}
-                    max={100}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={stop.offset}
-                    onChange={(e) =>
-                      handleStopChange(
-                        index,
-                        "offset",
-                        Number.parseInt(e.target.value) || 0,
-                      )
-                    }
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "") {
+                        handleStopChange(index, "offset", 0);
+                        return;
+                      }
+                      const parsed = Number.parseInt(val, 10);
+                      if (!Number.isNaN(parsed)) {
+                        handleStopChange(
+                          index,
+                          "offset",
+                          Math.min(100, Math.max(0, parsed)),
+                        );
+                      }
+                    }}
                     className="h-8 w-16 text-xs"
                     aria-label={`Stop ${index + 1} position`}
                   />
