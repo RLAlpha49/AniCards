@@ -2,9 +2,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { cn, isGradient, validateColorValue } from "@/lib/utils";
-import type { ColorValue, GradientDefinition, GradientStop } from "@/lib/types/card";
+import type {
+  ColorValue,
+  GradientDefinition,
+  GradientStop,
+} from "@/lib/types/card";
 import React, { useState, useCallback, useMemo } from "react";
-import { Plus, Minus, Palette, Layers } from "lucide-react";
+import { Plus, Minus, Palette, Layers, HelpCircle } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 /**
  * A color picker item used by the color picker group.
@@ -16,6 +26,8 @@ export interface ColorPickerItem {
   label: string;
   value: ColorValue;
   onChange: (newValue: ColorValue) => void;
+  /** When true, disables the gradient mode toggle button */
+  disableGradient?: boolean;
 }
 
 /**
@@ -96,8 +108,7 @@ function gradientToCss(gradient: GradientDefinition): string {
   const stops = gradient.stops
     .map((stop) => {
       const opacity = stop.opacity ?? 1;
-      const color =
-        opacity < 1 ? hexToRgba(stop.color, opacity) : stop.color;
+      const color = opacity < 1 ? hexToRgba(stop.color, opacity) : stop.color;
       return `${color} ${stop.offset}%`;
     })
     .join(", ");
@@ -166,73 +177,123 @@ function GradientStopEditor({
   );
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-          Gradient Stops
-        </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={addStop}
-          disabled={stops.length >= 5}
-          className="h-6 px-2 text-xs"
-        >
-          <Plus className="mr-1 h-3 w-3" /> Add
-        </Button>
-      </div>
+    <TooltipProvider delayDuration={0}>
       <div className="space-y-2">
-        {stops.map((stop, index) => (
-          <div key={`stop-${stop.color}-${stop.offset}`} className="flex items-center gap-2">
-            <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded border border-gray-200 dark:border-gray-700">
-              <Input
-                type="color"
-                value={isValidHex(stop.color) ? stop.color : "#000000"}
-                onChange={(e) => handleStopChange(index, "color", e.target.value)}
-                className="absolute -left-1/2 -top-1/2 h-[200%] w-[200%] cursor-pointer border-0 p-0"
-              />
-            </div>
-            <Input
-              type="number"
-              min={0}
-              max={100}
-              value={stop.offset}
-              onChange={(e) =>
-                handleStopChange(index, "offset", Number.parseInt(e.target.value) || 0)
-              }
-              className="h-8 w-16 text-xs"
-              aria-label={`Stop ${index + 1} offset`}
-            />
-            <span className="text-xs text-gray-400">%</span>
-            <Input
-              type="range"
-              min={0}
-              max={100}
-              value={(stop.opacity ?? 1) * 100}
-              onChange={(e) =>
-                handleStopChange(index, "opacity", Number.parseInt(e.target.value) / 100)
-              }
-              className="h-2 flex-1"
-              aria-label={`Stop ${index + 1} opacity`}
-            />
-            <span className="w-8 text-xs text-gray-400">
-              {Math.round((stop.opacity ?? 1) * 100)}%
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+              Gradient Stops
             </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => removeStop(index)}
-              disabled={stops.length <= 2}
-              className="h-6 w-6 p-0"
-            >
-              <Minus className="h-3 w-3" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <HelpCircle className="h-3 w-3" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs text-xs">
+                <p className="mb-1 font-semibold">How Gradient Stops Work</p>
+                <p>
+                  Each stop defines a color at a position (0-100%) along the
+                  gradient. Colors blend smoothly between stops.
+                </p>
+              </TooltipContent>
+            </Tooltip>
           </div>
-        ))}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={addStop}
+            disabled={stops.length >= 5}
+            className="h-6 px-2 text-xs"
+          >
+            <Plus className="mr-1 h-3 w-3" /> Add
+          </Button>
+        </div>
+        {/* Column headers */}
+        <div className="flex items-center gap-2 text-[10px] text-gray-400 dark:text-gray-500">
+          <span className="w-8">Color</span>
+          <span className="w-16">Position</span>
+          <span className="w-4" />
+          <span className="flex-1 text-center">Opacity</span>
+          <span className="w-8" />
+          <span className="w-6" />
+        </div>
+        <div className="space-y-2">
+          {stops.map((stop, index) => (
+            <div
+              key={`stop-${stop.color}-${stop.offset}`}
+              className="flex items-center gap-2"
+            >
+              <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded border border-gray-200 dark:border-gray-700">
+                <Input
+                  type="color"
+                  value={isValidHex(stop.color) ? stop.color : "#000000"}
+                  onChange={(e) =>
+                    handleStopChange(index, "color", e.target.value)
+                  }
+                  className="absolute -left-1/2 -top-1/2 h-[200%] w-[200%] cursor-pointer border-0 p-0"
+                />
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={stop.offset}
+                    onChange={(e) =>
+                      handleStopChange(
+                        index,
+                        "offset",
+                        Number.parseInt(e.target.value) || 0,
+                      )
+                    }
+                    className="h-8 w-16 text-xs"
+                    aria-label={`Stop ${index + 1} position`}
+                  />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  Position along gradient (0% = start, 100% = end)
+                </TooltipContent>
+              </Tooltip>
+              <span className="text-xs text-gray-400">%</span>
+              <Input
+                type="range"
+                min={0}
+                max={100}
+                value={(stop.opacity ?? 1) * 100}
+                onChange={(e) =>
+                  handleStopChange(
+                    index,
+                    "opacity",
+                    Number.parseInt(e.target.value) / 100,
+                  )
+                }
+                className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-gray-200 dark:bg-gray-700 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500"
+                aria-label={`Stop ${index + 1} opacity`}
+              />
+              <span className="w-8 text-xs text-gray-400">
+                {Math.round((stop.opacity ?? 1) * 100)}%
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => removeStop(index)}
+                disabled={stops.length <= 2}
+                className="h-6 w-6 p-0"
+              >
+                <Minus className="h-3 w-3" />
+              </Button>
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+    </TooltipProvider>
   );
 }
 
@@ -297,7 +358,9 @@ function GradientControls({
             <span className="text-xs text-gray-500 dark:text-gray-400">
               Angle
             </span>
-            <span className="text-xs text-gray-400">{gradient.angle ?? 90}°</span>
+            <span className="text-xs text-gray-400">
+              {gradient.angle ?? 90}°
+            </span>
           </div>
           <Input
             type="range"
@@ -305,7 +368,7 @@ function GradientControls({
             max={360}
             value={gradient.angle ?? 90}
             onChange={(e) => handleAngleChange(Number.parseInt(e.target.value))}
-            className="h-2"
+            className="h-2 w-full cursor-pointer appearance-none rounded-full bg-gray-200 dark:bg-gray-700 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500"
           />
         </div>
       ) : (
@@ -367,9 +430,15 @@ function GradientControls({
  */
 function SingleColorPicker({ picker }: Readonly<{ picker: ColorPickerItem }>) {
   const parsed = useMemo(() => parseColorValue(picker.value), [picker.value]);
-  const [mode, setMode] = useState<"solid" | "gradient">(
-    parsed.isSolid ? "solid" : "gradient",
-  );
+
+  // Derive mode from the current value - sync with external changes (e.g., from preset selection)
+  const derivedMode = parsed.isSolid ? "solid" : "gradient";
+  const [mode, setMode] = useState<"solid" | "gradient">(derivedMode);
+
+  // Sync internal mode state when external value changes (e.g., preset with gradients selected)
+  React.useEffect(() => {
+    setMode(derivedMode);
+  }, [derivedMode]);
 
   const handleModeToggle = useCallback(() => {
     if (mode === "solid") {
@@ -424,24 +493,26 @@ function SingleColorPicker({ picker }: Readonly<{ picker: ColorPickerItem }>) {
         >
           {picker.label}
         </Label>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={handleModeToggle}
-          className="h-6 gap-1 px-2 text-xs"
-          title={mode === "solid" ? "Switch to gradient" : "Switch to solid"}
-        >
-          {mode === "solid" ? (
-            <>
-              <Layers className="h-3 w-3" /> Gradient
-            </>
-          ) : (
-            <>
-              <Palette className="h-3 w-3" /> Solid
-            </>
-          )}
-        </Button>
+        {!picker.disableGradient && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleModeToggle}
+            className="h-6 gap-1 px-2 text-xs"
+            title={mode === "solid" ? "Switch to gradient" : "Switch to solid"}
+          >
+            {mode === "solid" ? (
+              <>
+                <Layers className="h-3 w-3" /> Gradient
+              </>
+            ) : (
+              <>
+                <Palette className="h-3 w-3" /> Solid
+              </>
+            )}
+          </Button>
+        )}
       </div>
 
       {mode === "solid" ? (
