@@ -4,22 +4,12 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
 import { useStatCardSubmit } from "@/hooks/use-stat-card-submit";
-import {
-  loadDefaultSettings,
-  getPresetColors,
-  DEFAULT_BORDER_COLOR,
-  saveDefaultBorderColor,
-  saveDefaultBorderEnabled,
-  saveDefaultCardTypes,
-  saveColorConfig,
-  loadColorConfig,
-} from "@/lib/data";
+import { useUserPreferences, useCardSettings } from "@/lib/stores";
 import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
 import {
   trackCardGeneration,
@@ -105,6 +95,18 @@ const GeneratorContext = createContext<GeneratorContextValue | undefined>(
 
 const STEP_COUNT = 4;
 
+/**
+ * Returns the color palette for a given preset name; falls back to default
+ * preset colors if the requested preset is missing.
+ * @param presetName - Name of the preset to look up.
+ * @returns Color definitions for the preset.
+ * @source
+ */
+function getPresetColors(presetName: string) {
+  const preset = colorPresets[presetName];
+  return preset?.colors || colorPresets.default.colors;
+}
+
 function buildFriendlyErrorMessage(error: Error | null): string | null {
   if (!error) return null;
   const msg = error.message || "An error occurred.";
@@ -167,36 +169,51 @@ export function GeneratorProvider({
   children,
   router,
 }: GeneratorProviderProps) {
-  const [username, setUsername] = useState("");
-  const [titleColor, setTitleColor] = useState<ColorValue>(
-    colorPresets.default.colors[0],
+  const { defaultUsername, setDefaultUsername } = useUserPreferences();
+
+  const {
+    savedColorConfig,
+    defaultCardTypes,
+    defaultVariants,
+    defaultShowFavoritesByCard,
+    defaultBorderEnabled,
+    defaultBorderColor,
+    useAnimeStatusColors,
+    useMangaStatusColors,
+    showPiePercentages,
+    setSavedColorConfig,
+    setDefaultCardTypes,
+    setDefaultVariant,
+    toggleShowFavorites,
+    setDefaultBorderEnabled,
+    setDefaultBorderColor,
+    setUseAnimeStatusColors,
+    setUseMangaStatusColors,
+    setShowPiePercentages,
+  } = useCardSettings();
+
+  const effectiveColors = useMemo(
+    () => savedColorConfig?.colors ?? colorPresets.default.colors,
+    [savedColorConfig],
   );
-  const [backgroundColor, setBackgroundColor] = useState<ColorValue>(
-    colorPresets.default.colors[1],
-  );
-  const [textColor, setTextColor] = useState<ColorValue>(
-    colorPresets.default.colors[2],
-  );
-  const [circleColor, setCircleColor] = useState<ColorValue>(
-    colorPresets.default.colors[3],
-  );
-  const [selectedCards, setSelectedCards] = useState<string[]>([]);
-  const [selectedCardVariants, setSelectedCardVariants] = useState<
-    Record<string, string>
-  >({});
-  const [selectedPreset, setSelectedPreset] =
-    useState<ColorPresetKey>("default");
+
+  const [titleColor, backgroundColor, textColor, circleColor] = effectiveColors;
+
+  const effectivePreset = useMemo<ColorPresetKey>(() => {
+    if (!savedColorConfig) {
+      return "default";
+    }
+    const presetName = savedColorConfig.presetName;
+    return presetName in colorPresets ? presetName : "custom";
+  }, [savedColorConfig]);
+
+  const effectiveBorderColor = defaultBorderColor || "#e4e2e2";
+  const selectedPreset = effectivePreset;
+  const borderColor = effectiveBorderColor;
+
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewType, setPreviewType] = useState("");
   const [previewVariation, setPreviewVariation] = useState("");
-  const [showFavoritesByCard, setShowFavoritesByCard] = useState<
-    Record<string, boolean>
-  >({});
-  const [useAnimeStatusColors, setUseAnimeStatusColors] = useState(false);
-  const [useMangaStatusColors, setUseMangaStatusColors] = useState(false);
-  const [showPiePercentages, setShowPiePercentages] = useState(false);
-  const [hasBorder, setHasBorder] = useState(false);
-  const [borderColor, setBorderColor] = useState<string>(DEFAULT_BORDER_COLOR);
   const [currentStep, setCurrentStep] = useState(0);
   const [maxReachedStep, setMaxReachedStep] = useState(0);
 
@@ -209,102 +226,6 @@ export function GeneratorProvider({
     retryOperation,
     retryLimit,
   } = useStatCardSubmit();
-
-  useEffect(() => {
-    const defaults = loadDefaultSettings();
-
-    // Try to load saved color config first (preferred), fallback to preset
-    const savedColors = loadColorConfig();
-    if (savedColors) {
-      const { colors, presetName } = savedColors;
-      setTitleColor(colors[0]);
-      setBackgroundColor(colors[1]);
-      setTextColor(colors[2]);
-      setCircleColor(colors[3]);
-      // Set preset if it's a valid key, otherwise "custom"
-      const validPreset = presetName in colorPresets ? presetName : "custom";
-      setSelectedPreset(validPreset);
-    } else {
-      // Fallback to legacy preset-only loading
-      const presetColors = getPresetColors(defaults.colorPreset);
-      const validPreset =
-        defaults.colorPreset in colorPresets ? defaults.colorPreset : "default";
-      setSelectedPreset(validPreset);
-      const setters = [
-        setTitleColor,
-        setBackgroundColor,
-        setTextColor,
-        setCircleColor,
-      ];
-      for (const [index, setter] of setters.entries()) {
-        setter(presetColors[index]);
-      }
-    }
-
-    const savedVariantsData = localStorage.getItem("anicards-defaultVariants");
-    const defaultVariants = savedVariantsData
-      ? JSON.parse(savedVariantsData).value
-      : {};
-    setSelectedCardVariants(defaultVariants);
-
-    setSelectedCards(defaults.defaultCards);
-    setHasBorder(defaults.borderEnabled);
-    setBorderColor(defaults.borderColor ?? DEFAULT_BORDER_COLOR);
-
-    const savedUsernameData = localStorage.getItem("anicards-defaultUsername");
-    const defaultUsername = savedUsernameData
-      ? JSON.parse(savedUsernameData).value
-      : "";
-    setUsername(defaultUsername);
-
-    const savedShowFavorites = localStorage.getItem(
-      "anicards-defaultShowFavoritesByCard",
-    );
-    const showFavoritesDefaults = savedShowFavorites
-      ? JSON.parse(savedShowFavorites).value
-      : {};
-    setShowFavoritesByCard(showFavoritesDefaults);
-
-    const savedAnimeStatusColors = localStorage.getItem(
-      "anicards-useAnimeStatusColors",
-    );
-    if (savedAnimeStatusColors) {
-      try {
-        setUseAnimeStatusColors(JSON.parse(savedAnimeStatusColors).value);
-      } catch {}
-    }
-
-    const savedMangaStatusColors = localStorage.getItem(
-      "anicards-useMangaStatusColors",
-    );
-    if (savedMangaStatusColors) {
-      try {
-        setUseMangaStatusColors(JSON.parse(savedMangaStatusColors).value);
-      } catch {}
-    }
-
-    const savedShowPiePercentages = localStorage.getItem(
-      "anicards-showPiePercentages",
-    );
-    if (savedShowPiePercentages) {
-      try {
-        setShowPiePercentages(JSON.parse(savedShowPiePercentages).value);
-      } catch {}
-    }
-  }, []);
-
-  // Auto-save colors whenever they change
-  useEffect(() => {
-    // Only save after initial load (colors won't be empty strings from preset)
-    const hasValidColors =
-      titleColor && backgroundColor && textColor && circleColor;
-    if (hasValidColors) {
-      saveColorConfig(
-        [titleColor, backgroundColor, textColor, circleColor],
-        selectedPreset,
-      );
-    }
-  }, [titleColor, backgroundColor, textColor, circleColor, selectedPreset]);
 
   const isRetrying = loading && retryAttempt > 0;
   const overlayText = isRetrying
@@ -324,6 +245,12 @@ export function GeneratorProvider({
     () => buildFriendlyErrorMessage(error),
     [error],
   );
+
+  const username = defaultUsername;
+  const selectedCards = defaultCardTypes;
+  const selectedCardVariants = defaultVariants;
+  const showFavoritesByCard = defaultShowFavoritesByCard;
+  const hasBorder = defaultBorderEnabled;
 
   const allSelected = useMemo(
     () => statCardTypes.every((type) => selectedCards.includes(type.id)),
@@ -369,128 +296,114 @@ export function GeneratorProvider({
     [previewData],
   );
 
-  const handleToggleCard = useCallback((cardId: string) => {
-    const [baseId] = cardId.split("-");
-    updateSelectedCards((prev) =>
-      prev.includes(baseId)
-        ? prev.filter((id) => id !== baseId)
-        : [...prev, baseId],
-    );
-  }, []);
+  const handleToggleCard = useCallback(
+    (cardId: string) => {
+      const [baseId] = cardId.split("-");
+      const newTypes = selectedCards.includes(baseId)
+        ? selectedCards.filter((id) => id !== baseId)
+        : [...selectedCards, baseId];
+      setDefaultCardTypes(newTypes);
+    },
+    [selectedCards, setDefaultCardTypes],
+  );
 
   const handleVariantChange = useCallback(
     (cardType: string, variant: string) => {
-      updateSelectedCardVariants((old) => ({
-        ...old,
-        [cardType]: variant,
-      }));
+      setDefaultVariant(cardType, variant);
     },
-    [],
+    [setDefaultVariant],
   );
 
   const handleSelectAll = useCallback(() => {
     const selectingAll = selectedCards.length !== statCardTypes.length;
-    updateSelectedCards(
-      selectingAll ? statCardTypes.map((type) => type.id) : [],
-    );
+    const newTypes = selectingAll ? statCardTypes.map((type) => type.id) : [];
+    setDefaultCardTypes(newTypes);
 
     if (selectingAll) {
-      updateSelectedCardVariants((old) => {
-        const newObj = { ...old };
-        for (const type of statCardTypes) {
-          if (type.variations && !newObj[type.id]) {
-            newObj[type.id] = "default";
-          }
+      // Set default variants for newly selected cards
+      for (const type of statCardTypes) {
+        if (type.variations && !selectedCardVariants[type.id]) {
+          setDefaultVariant(type.id, "default");
         }
-        return newObj;
-      });
+      }
     }
-  }, [selectedCards.length]);
+  }, [
+    selectedCards.length,
+    selectedCardVariants,
+    setDefaultCardTypes,
+    setDefaultVariant,
+  ]);
 
-  const handleToggleShowFavorites = useCallback((cardId: string) => {
-    updateShowFavoritesByCard((prev) => ({
-      ...prev,
-      [cardId]: !prev[cardId],
-    }));
-  }, []);
+  const handleToggleShowFavorites = useCallback(
+    (cardId: string) => {
+      toggleShowFavorites(cardId);
+    },
+    [toggleShowFavorites],
+  );
 
   const handleToggleAnimeStatusColors = useCallback(() => {
-    setUseAnimeStatusColors((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(
-          "anicards-useAnimeStatusColors",
-          JSON.stringify({ value: next }),
-        );
-      } catch {}
-      return next;
-    });
-  }, []);
+    setUseAnimeStatusColors(!useAnimeStatusColors);
+  }, [useAnimeStatusColors, setUseAnimeStatusColors]);
 
   const handleToggleMangaStatusColors = useCallback(() => {
-    setUseMangaStatusColors((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(
-          "anicards-useMangaStatusColors",
-          JSON.stringify({ value: next }),
-        );
-      } catch {}
-      return next;
-    });
-  }, []);
+    setUseMangaStatusColors(!useMangaStatusColors);
+  }, [useMangaStatusColors, setUseMangaStatusColors]);
 
   const handleToggleShowPiePercentages = useCallback(() => {
-    setShowPiePercentages((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(
-          "anicards-showPiePercentages",
-          JSON.stringify({ value: next }),
-        );
-      } catch {}
-      return next;
-    });
-  }, []);
+    setShowPiePercentages(!showPiePercentages);
+  }, [showPiePercentages, setShowPiePercentages]);
 
   const handleToggleBorder = useCallback(() => {
-    setHasBorder((prev) => {
-      const next = !prev;
-      saveDefaultBorderEnabled(next);
-      return next;
-    });
-  }, []);
+    setDefaultBorderEnabled(!hasBorder);
+  }, [hasBorder, setDefaultBorderEnabled]);
 
-  const handleBorderColorChange = useCallback((value: ColorValue) => {
-    if (typeof value !== "string") {
-      return;
-    }
-    const trimmed = value.trim();
-    if (!trimmed) {
-      setBorderColor("");
-      return;
-    }
-    const normalized = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
-    setBorderColor(normalized);
-    saveDefaultBorderColor(normalized);
-  }, []);
+  const updateColorAtIndex = useCallback(
+    (index: number, value: ColorValue) => {
+      const baseColors =
+        savedColorConfig?.colors ?? colorPresets.default.colors;
+      const newColors = [...baseColors];
+      newColors[index] = value;
+      setSavedColorConfig({
+        colors: newColors,
+        presetName: "custom",
+      });
+    },
+    [savedColorConfig, setSavedColorConfig],
+  );
 
-  const handlePresetChange = useCallback((preset: ColorPresetKey) => {
-    setSelectedPreset(preset);
-    if (preset === "custom") {
-      return;
-    }
-    const colors = colorPresets[preset].colors;
-    const setters = [
-      setTitleColor,
-      setBackgroundColor,
-      setTextColor,
-      setCircleColor,
-    ];
-    for (const [index, setter] of setters.entries()) {
-      setter(colors[index]);
-    }
-  }, []);
+  const handleBorderColorChange = useCallback(
+    (value: ColorValue) => {
+      if (typeof value !== "string") {
+        return;
+      }
+      const trimmed = value.trim();
+      if (!trimmed) {
+        setDefaultBorderColor("");
+        return;
+      }
+      const normalized = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+      setDefaultBorderColor(normalized);
+    },
+    [setDefaultBorderColor],
+  );
+
+  const handlePresetChange = useCallback(
+    (preset: ColorPresetKey) => {
+      if (preset === "custom") {
+        setSavedColorConfig({
+          colors: effectiveColors,
+          presetName: "custom",
+        });
+        return;
+      }
+      const colors = colorPresets[preset].colors;
+      setSavedColorConfig({
+        colors,
+        presetName: preset,
+      });
+    },
+    [effectiveColors, setSavedColorConfig],
+  );
 
   const nextStep = useCallback(() => {
     setCurrentStep((prev) => {
@@ -613,112 +526,11 @@ export function GeneratorProvider({
     router,
   ]);
 
-  /* ---------- Persistence-aware setters and behaviors ---------- */
-
-  const updateUsername = useCallback((next: string) => {
-    setUsername(next);
-    try {
-      localStorage.setItem(
-        "anicards-defaultUsername",
-        JSON.stringify({ value: next, lastModified: new Date().toISOString() }),
-      );
-    } catch {}
-  }, []);
-
-  const updateSelectedCards = useCallback(
-    (next: string[] | ((prev: string[]) => string[])) => {
-      if (typeof next === "function") {
-        setSelectedCards((prev) => {
-          const nextArr = next(prev);
-          try {
-            saveDefaultCardTypes(nextArr);
-          } catch {}
-          return nextArr;
-        });
-        return;
-      }
-      setSelectedCards(next);
-      try {
-        saveDefaultCardTypes(next);
-      } catch {}
+  const updateUsername = useCallback(
+    (next: string) => {
+      setDefaultUsername(next);
     },
-    [],
-  );
-
-  const updateSelectedCardVariants = useCallback(
-    (
-      next:
-        | Record<string, string>
-        | ((prev: Record<string, string>) => Record<string, string>),
-    ) => {
-      if (typeof next === "function") {
-        setSelectedCardVariants((prev) => {
-          const newObj = (
-            next as (p: Record<string, string>) => Record<string, string>
-          )(prev);
-          try {
-            localStorage.setItem(
-              "anicards-defaultVariants",
-              JSON.stringify({
-                value: newObj,
-                lastModified: new Date().toISOString(),
-              }),
-            );
-          } catch {}
-          return newObj;
-        });
-        return;
-      }
-      setSelectedCardVariants(next);
-      try {
-        localStorage.setItem(
-          "anicards-defaultVariants",
-          JSON.stringify({
-            value: next,
-            lastModified: new Date().toISOString(),
-          }),
-        );
-      } catch {}
-    },
-    [],
-  );
-
-  const updateShowFavoritesByCard = useCallback(
-    (
-      next:
-        | Record<string, boolean>
-        | ((prev: Record<string, boolean>) => Record<string, boolean>),
-    ) => {
-      if (typeof next === "function") {
-        setShowFavoritesByCard((prev) => {
-          const newObj = (
-            next as (p: Record<string, boolean>) => Record<string, boolean>
-          )(prev);
-          try {
-            localStorage.setItem(
-              "anicards-defaultShowFavoritesByCard",
-              JSON.stringify({
-                value: newObj,
-                lastModified: new Date().toISOString(),
-              }),
-            );
-          } catch {}
-          return newObj;
-        });
-        return;
-      }
-      setShowFavoritesByCard(next);
-      try {
-        localStorage.setItem(
-          "anicards-defaultShowFavoritesByCard",
-          JSON.stringify({
-            value: next,
-            lastModified: new Date().toISOString(),
-          }),
-        );
-      } catch {}
-    },
-    [],
+    [setDefaultUsername],
   );
 
   const openPreview = useCallback((cardType: string, variant?: string) => {
@@ -744,47 +556,35 @@ export function GeneratorProvider({
         id: "titleColor",
         label: "Title",
         value: titleColor,
-        onChange: (value: ColorValue) => {
-          setTitleColor(value);
-          setSelectedPreset("custom");
-        },
+        onChange: (value: ColorValue) => updateColorAtIndex(0, value),
       },
       {
         id: "backgroundColor",
         label: "Background",
         value: backgroundColor,
-        onChange: (value: ColorValue) => {
-          setBackgroundColor(value);
-          setSelectedPreset("custom");
-        },
+        onChange: (value: ColorValue) => updateColorAtIndex(1, value),
       },
       {
         id: "textColor",
         label: "Text",
         value: textColor,
-        onChange: (value: ColorValue) => {
-          setTextColor(value);
-          setSelectedPreset("custom");
-        },
+        onChange: (value: ColorValue) => updateColorAtIndex(2, value),
       },
       {
         id: "circleColor",
         label: "Circle",
         value: circleColor,
-        onChange: (value: ColorValue) => {
-          setCircleColor(value);
-          setSelectedPreset("custom");
-        },
+        onChange: (value: ColorValue) => updateColorAtIndex(3, value),
       },
     ],
-    [titleColor, backgroundColor, textColor, circleColor],
+    [titleColor, backgroundColor, textColor, circleColor, updateColorAtIndex],
   );
 
   const borderColorPicker = useMemo<ColorPickerConfig>(
     () => ({
       id: "borderColor",
       label: "Border color",
-      value: borderColor || DEFAULT_BORDER_COLOR,
+      value: borderColor,
       onChange: handleBorderColorChange,
       disableGradient: true,
     }),

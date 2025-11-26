@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { statCardTypes } from "@/components/stat-card-generator";
 import { ColorPickerGroup } from "@/components/stat-card-generator/color-picker-group";
-import { DEFAULT_BORDER_COLOR } from "@/lib/data";
 import type { ColorValue } from "@/lib/types/card";
 import { isGradient } from "@/lib/utils";
 
@@ -134,7 +133,7 @@ export function DefaultCardSettings({
     (value: ColorValue) => {
       if (isGradient(value)) {
         // Border only supports solid colors, use first stop
-        onBorderColorChange(value.stops[0]?.color ?? DEFAULT_BORDER_COLOR);
+        onBorderColorChange(value.stops[0]?.color ?? "#e4e2e2");
       } else {
         onBorderColorChange(value);
       }
@@ -212,7 +211,7 @@ export function DefaultCardSettings({
                     {
                       id: "default-border-color",
                       label: "Border color",
-                      value: defaultBorderColor || DEFAULT_BORDER_COLOR,
+                      value: defaultBorderColor || "#e4e2e2",
                       onChange: handleBorderColorChange,
                     },
                   ]}

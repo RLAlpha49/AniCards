@@ -1,22 +1,13 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useSidebar } from "@/components/ui/sidebar";
-import {
-  getSiteSpecificCache,
-  clearSiteCache,
-  DEFAULT_BORDER_COLOR,
-  saveDefaultBorderColor,
-  saveDefaultBorderEnabled,
-} from "@/lib/data";
+import { useUserPreferences, useCardSettings, useCache } from "@/lib/stores";
 import { ThemePreferences } from "@/components/settings/theme-preferences";
 import { SidebarBehavior } from "@/components/settings/sidebar-behavior";
-import {
-  CacheManagement,
-  CacheItem,
-} from "@/components/settings/cache-management";
+import { CacheManagement } from "@/components/settings/cache-management";
 import { DefaultCardSettings } from "@/components/settings/default-card-settings";
 import { ResetSettings } from "@/components/settings/reset-settings";
 import { DefaultUsernameSettings } from "@/components/settings/default-username";
@@ -31,106 +22,63 @@ export default function SettingsPage() {
   usePageSEO("settings");
 
   const { setTheme, theme, themes } = useTheme();
-  const { open, setOpen } = useSidebar();
+  const { setOpen } = useSidebar();
   const [mounted, setMounted] = useState(false);
-  const [sidebarDefault, setSidebarDefault] = useState(open);
-  const [cachedItems, setCachedItems] = useState<CacheItem[]>([]);
-  const [defaultCardTypes, setDefaultCardTypes] = useState<string[]>([]);
-  const [defaultUsername, setDefaultUsername] = useState("");
-  const [cacheVersion, setCacheVersion] = useState(0);
-  const [defaultVariants, setDefaultVariants] = useState<
-    Record<string, string>
-  >({});
-  const [defaultShowFavoritesByCard, setDefaultShowFavoritesByCard] = useState<
-    Record<string, boolean>
-  >(() => {
-    if (globalThis.window !== undefined) {
-      const saved = localStorage.getItem("anicards-defaultShowFavoritesByCard");
-      if (saved) return JSON.parse(saved).value;
-    }
-    return {};
-  });
-  const [defaultBorderEnabled, setDefaultBorderEnabled] = useState(false);
-  const [defaultBorderColor, setDefaultBorderColor] =
-    useState(DEFAULT_BORDER_COLOR);
+
+  // Zustand stores
+  const {
+    sidebarDefaultOpen,
+    defaultUsername,
+    setSidebarDefaultOpen,
+    setDefaultUsername,
+    resetUserPreferences,
+  } = useUserPreferences();
+
+  const {
+    defaultCardTypes,
+    defaultVariants,
+    defaultShowFavoritesByCard,
+    defaultBorderEnabled,
+    defaultBorderColor,
+    setDefaultCardTypes,
+    toggleCardType,
+    setDefaultVariant,
+    toggleShowFavorites,
+    setDefaultBorderEnabled,
+    setDefaultBorderColor,
+    resetCardSettings,
+  } = useCardSettings();
+
+  const {
+    getCacheItems,
+    clearAllCache,
+    deleteCacheItem,
+    cacheVersion,
+    incrementCacheVersion,
+  } = useCache();
+
+  // Compute cached items from store
+  const cachedItems = useMemo(
+    () => getCacheItems(),
+    [cacheVersion, getCacheItems],
+  );
 
   // Listen for local storage changes from other tabs
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key?.startsWith("anicards-")) {
-        setCacheVersion((v) => v + 1);
+        incrementCacheVersion();
       }
     };
 
     globalThis.addEventListener("storage", handleStorageChange);
     return () => globalThis.removeEventListener("storage", handleStorageChange);
-  }, []);
+  }, [incrementCacheVersion]);
 
-  // Update state from local storage whenever cacheVersion changes
+  // Mount effect
   useEffect(() => {
     setMounted(true);
-    const savedSidebarStateString = localStorage.getItem(
-      "anicards-sidebarDefaultOpen",
-    );
-    if (savedSidebarStateString) {
-      const parsedSidebar = JSON.parse(savedSidebarStateString);
-      setSidebarDefault(parsedSidebar.value === true);
-    }
-
-    // Load cached items and defaults on mount or when local storage updates
-    setCachedItems(getSiteSpecificCache());
-
-    const savedCardTypesString = localStorage.getItem(
-      "anicards-defaultCardTypes",
-    );
-    const cardTypesValue = savedCardTypesString
-      ? JSON.parse(savedCardTypesString).value
-      : [];
-    setDefaultCardTypes(cardTypesValue);
-
-    // Load the default username
-    const savedUsernameString = localStorage.getItem(
-      "anicards-defaultUsername",
-    );
-    const usernameValue = savedUsernameString
-      ? JSON.parse(savedUsernameString).value
-      : "";
-    setDefaultUsername(usernameValue);
-
-    // Load default variants
-    const savedVariantsString = localStorage.getItem(
-      "anicards-defaultVariants",
-    );
-    const variantsValue = savedVariantsString
-      ? JSON.parse(savedVariantsString).value
-      : {};
-    setDefaultVariants(variantsValue);
-
-    // Load default show favorites by card
-    const savedShowFavoritesString = localStorage.getItem(
-      "anicards-defaultShowFavoritesByCard",
-    );
-    const showFavoritesValue = savedShowFavoritesString
-      ? JSON.parse(savedShowFavoritesString).value
-      : {};
-    setDefaultShowFavoritesByCard(showFavoritesValue);
-
-    const savedBorderEnabled = localStorage.getItem(
-      "anicards-defaultBorderEnabled",
-    );
-    const borderEnabledValue = savedBorderEnabled
-      ? JSON.parse(savedBorderEnabled).value
-      : false;
-    setDefaultBorderEnabled(borderEnabledValue);
-
-    const savedBorderColor = localStorage.getItem(
-      "anicards-defaultBorderColor",
-    );
-    const borderColorValue = savedBorderColor
-      ? JSON.parse(savedBorderColor).value
-      : DEFAULT_BORDER_COLOR;
-    setDefaultBorderColor(borderColorValue);
-  }, [cacheVersion]);
+  }, []);
 
   if (!mounted) return null;
 
@@ -145,28 +93,21 @@ export default function SettingsPage() {
   };
 
   /**
-   * Persist the preferred sidebar open state and refresh cache indicators.
+   * Persist the preferred sidebar open state.
    * @param checked - Whether the sidebar should default to open.
    * @source
    */
   const handleSidebarDefaultChange = (checked: boolean) => {
-    const data = {
-      value: checked,
-      lastModified: new Date().toISOString(),
-    };
-    localStorage.setItem("anicards-sidebarDefaultOpen", JSON.stringify(data));
-    setSidebarDefault(checked);
+    setSidebarDefaultOpen(checked);
     setOpen(checked);
-    setCacheVersion((v) => v + 1);
   };
 
   /**
-   * Clear cached site data and force dependent state to reload.
+   * Clear cached site data.
    * @source
    */
   const handleClearCache = () => {
-    clearSiteCache();
-    setCacheVersion((v) => v + 1);
+    clearAllCache();
   };
 
   /**
@@ -175,28 +116,16 @@ export default function SettingsPage() {
    * @source
    */
   const handleCardTypeToggle = (cardType: string) => {
-    const newTypes = defaultCardTypes.includes(cardType)
-      ? defaultCardTypes.filter((t) => t !== cardType)
-      : [...defaultCardTypes, cardType];
-
-    const data = {
-      value: newTypes,
-      lastModified: new Date().toISOString(),
-    };
-
-    setDefaultCardTypes(newTypes);
-    localStorage.setItem("anicards-defaultCardTypes", JSON.stringify(data));
-    setCacheVersion((v) => v + 1);
+    toggleCardType(cardType);
   };
 
   /**
-   * Remove a cached entry for a specific key and refresh the cache version.
+   * Remove a cached entry for a specific key.
    * @param key - Cache suffix used in localStorage under the "anicards-" namespace.
    * @source
    */
   const handleDeleteCacheItem = (key: string) => {
-    localStorage.removeItem(`anicards-${key}`);
-    setCacheVersion((v) => v + 1);
+    deleteCacheItem(key);
   };
 
   /**
@@ -204,34 +133,20 @@ export default function SettingsPage() {
    * @source
    */
   const handleToggleAllCardTypes = () => {
-    // Check if all card types are selected (statCardTypes is imported in DefaultCardSettings)
-    // This comparison assumes that statCardTypes is available and that each card type has a unique "id".
-    // If all types are selected, unselect all; otherwise, select all.
-    let allTypes: string[] = [];
-    // Dynamically require statCardTypes if needed. Here we mimic that check by comparing array lengths.
-    if (
-      defaultCardTypes.length ===
-      require("@/components/stat-card-generator").statCardTypes.length
-    ) {
-      allTypes = [];
-    } else {
-      allTypes = require("@/components/stat-card-generator").statCardTypes.map(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (type: any) => type.id,
-      );
-    }
-    const data = {
-      value: allTypes,
-      lastModified: new Date().toISOString(),
-    };
-    setDefaultCardTypes(allTypes);
-    localStorage.setItem("anicards-defaultCardTypes", JSON.stringify(data));
-    setCacheVersion((v) => v + 1);
+    // Check if all card types are selected
+    const statCardTypesModule =
+      require("@/components/stat-card-generator").statCardTypes;
+    const allTypes: string[] = statCardTypesModule.map(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (type: any) => type.id,
+    );
 
-    // Reset variants when unselecting all
-    if (allTypes.length === 0) {
-      setDefaultVariants({});
-      localStorage.removeItem("anicards-defaultVariants");
+    if (defaultCardTypes.length === allTypes.length) {
+      // Deselect all
+      setDefaultCardTypes([]);
+    } else {
+      // Select all
+      setDefaultCardTypes(allTypes);
     }
   };
 
@@ -240,38 +155,18 @@ export default function SettingsPage() {
    * @source
    */
   const handleResetSettings = () => {
-    const keysToRemove = [
-      "anicards-sidebarDefaultOpen",
-      "anicards-defaultColorPreset",
-      "anicards-defaultCardTypes",
-      "anicards-defaultUsername",
-      "anicards-defaultVariants",
-      "anicards-defaultBorderEnabled",
-      "anicards-defaultBorderColor",
-    ];
-    for (const key of keysToRemove) {
-      localStorage.removeItem(key);
-    }
-    clearSiteCache();
-    setCacheVersion((v) => v + 1);
-    setDefaultVariants({});
-    setDefaultBorderEnabled(false);
-    setDefaultBorderColor(DEFAULT_BORDER_COLOR);
+    resetUserPreferences();
+    resetCardSettings();
+    clearAllCache();
   };
 
   /**
-   * Persist the new default username and increment the cache version.
+   * Persist the new default username.
    * @param value - Username string provided by the user.
    * @source
    */
   const handleDefaultUsernameChange = (value: string) => {
-    const data = {
-      value,
-      lastModified: new Date().toISOString(),
-    };
     setDefaultUsername(value);
-    localStorage.setItem("anicards-defaultUsername", JSON.stringify(data));
-    setCacheVersion((v) => v + 1);
   };
 
   /**
@@ -281,14 +176,7 @@ export default function SettingsPage() {
    * @source
    */
   const handleVariantChange = (cardType: string, variant: string) => {
-    const newVariants = { ...defaultVariants, [cardType]: variant };
-    const data = {
-      value: newVariants,
-      lastModified: new Date().toISOString(),
-    };
-    setDefaultVariants(newVariants);
-    localStorage.setItem("anicards-defaultVariants", JSON.stringify(data));
-    setCacheVersion((v) => v + 1);
+    setDefaultVariant(cardType, variant);
   };
 
   /**
@@ -297,40 +185,25 @@ export default function SettingsPage() {
    * @source
    */
   const handleToggleShowFavoritesDefault = (cardId: string) => {
-    setDefaultShowFavoritesByCard((prev) => {
-      const updated = { ...prev, [cardId]: !prev[cardId] };
-      localStorage.setItem(
-        "anicards-defaultShowFavoritesByCard",
-        JSON.stringify({
-          value: updated,
-          lastModified: new Date().toISOString(),
-        }),
-      );
-      setCacheVersion((v) => v + 1);
-      return updated;
-    });
+    toggleShowFavorites(cardId);
   };
 
   /**
-   * Persist the default border enabled flag and refresh cached version.
+   * Persist the default border enabled flag.
    * @param value - Whether borders should be enabled by default.
    * @source
    */
   const handleBorderEnabledChange = (value: boolean) => {
-    saveDefaultBorderEnabled(value);
     setDefaultBorderEnabled(value);
-    setCacheVersion((v) => v + 1);
   };
 
   /**
-   * Persist the default border color selection and bump the cache version.
+   * Persist the default border color selection.
    * @param value - Hex or CSS color string chosen by the user.
    * @source
    */
   const handleBorderColorChange = (value: string) => {
-    saveDefaultBorderColor(value);
     setDefaultBorderColor(value);
-    setCacheVersion((v) => v + 1);
   };
 
   return (
@@ -369,7 +242,7 @@ export default function SettingsPage() {
             />
 
             <SidebarBehavior
-              sidebarDefault={sidebarDefault}
+              sidebarDefault={sidebarDefaultOpen}
               onSidebarChange={handleSidebarDefaultChange}
             />
 
