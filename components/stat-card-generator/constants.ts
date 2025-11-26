@@ -292,8 +292,6 @@ export const colorPresets: Record<string, ColorPreset> = {
     colors: ["#22c55e", "#021102", "#dcfce7", "#4ade80"],
     mode: "dark",
   },
-  // ==================== Gradient Presets ====================
-  // Presets featuring gradient colors for enhanced visual appeal
   sunsetGradient: {
     colors: [
       // Title: Orange to pink gradient (45°)
@@ -584,6 +582,243 @@ export const colorPresets: Record<string, ColorPreset> = {
       },
     ],
     mode: "dark",
+  },
+  anilistLightGradient: {
+    colors: [
+      // Title: AniList blue gradient
+      {
+        type: "linear",
+        angle: 90,
+        stops: [
+          { color: "#3cc8ff", offset: 0 },
+          { color: "#02a9ff", offset: 100 },
+        ],
+      },
+      // Background: white to light blue gradient
+      {
+        type: "linear",
+        angle: 180,
+        stops: [
+          { color: "#FFFFFF", offset: 0 },
+          { color: "#f0f9ff", offset: 100 },
+        ],
+      },
+      "#333333", // Text: dark gray (solid)
+      // Circle: blue gradient
+      {
+        type: "linear",
+        angle: 135,
+        stops: [
+          { color: "#3cc8ff", offset: 0 },
+          { color: "#02a9ff", offset: 100 },
+        ],
+      },
+    ],
+    mode: "light",
+  },
+  anilistDarkGradient: {
+    colors: [
+      // Title: AniList blue gradient
+      {
+        type: "linear",
+        angle: 90,
+        stops: [
+          { color: "#3cc8ff", offset: 0 },
+          { color: "#02a9ff", offset: 100 },
+        ],
+      },
+      // Background: dark blue gradient
+      {
+        type: "linear",
+        angle: 180,
+        stops: [
+          { color: "#0b1622", offset: 0 },
+          { color: "#11202f", offset: 50 },
+          { color: "#152238", offset: 100 },
+        ],
+      },
+      "#E8E8E8", // Text: light gray (solid)
+      // Circle: blue gradient
+      {
+        type: "linear",
+        angle: 135,
+        stops: [
+          { color: "#3cc8ff", offset: 0 },
+          { color: "#0295e5", offset: 100 },
+        ],
+      },
+    ],
+    mode: "dark",
+  },
+  sunriseMeadow: {
+    colors: [
+      // Title: warm orange to gold gradient
+      {
+        type: "linear",
+        angle: 90,
+        stops: [
+          { color: "#f97316", offset: 0 },
+          { color: "#fbbf24", offset: 100 },
+        ],
+      },
+      // Background: cream to warm white gradient
+      {
+        type: "linear",
+        angle: 180,
+        stops: [
+          { color: "#fffbeb", offset: 0 },
+          { color: "#fef3c7", offset: 50 },
+          { color: "#fff7ed", offset: 100 },
+        ],
+      },
+      "#78350f", // Text: dark amber (solid)
+      // Circle: sunrise gradient
+      {
+        type: "linear",
+        angle: 45,
+        stops: [
+          { color: "#fb923c", offset: 0 },
+          { color: "#fbbf24", offset: 100 },
+        ],
+      },
+    ],
+    mode: "light",
+  },
+  lavenderBloom: {
+    colors: [
+      // Title: purple to violet gradient
+      {
+        type: "linear",
+        angle: 90,
+        stops: [
+          { color: "#8b5cf6", offset: 0 },
+          { color: "#a78bfa", offset: 100 },
+        ],
+      },
+      // Background: soft lavender gradient
+      {
+        type: "linear",
+        angle: 180,
+        stops: [
+          { color: "#faf5ff", offset: 0 },
+          { color: "#f3e8ff", offset: 50 },
+          { color: "#ede9fe", offset: 100 },
+        ],
+      },
+      "#4c1d95", // Text: dark purple (solid)
+      // Circle: lavender gradient
+      {
+        type: "linear",
+        angle: 135,
+        stops: [
+          { color: "#a78bfa", offset: 0 },
+          { color: "#c4b5fd", offset: 100 },
+        ],
+      },
+    ],
+    mode: "light",
+  },
+  skylineAzure: {
+    colors: [
+      // Title: sky blue gradient
+      {
+        type: "linear",
+        angle: 90,
+        stops: [
+          { color: "#0ea5e9", offset: 0 },
+          { color: "#38bdf8", offset: 100 },
+        ],
+      },
+      // Background: light sky gradient
+      {
+        type: "linear",
+        angle: 180,
+        stops: [
+          { color: "#f0f9ff", offset: 0 },
+          { color: "#e0f2fe", offset: 50 },
+          { color: "#f0f9ff", offset: 100 },
+        ],
+      },
+      "#0c4a6e", // Text: dark blue (solid)
+      // Circle: azure gradient
+      {
+        type: "linear",
+        angle: 45,
+        stops: [
+          { color: "#38bdf8", offset: 0 },
+          { color: "#7dd3fc", offset: 100 },
+        ],
+      },
+    ],
+    mode: "light",
+  },
+  coralReef: {
+    colors: [
+      // Title: coral to pink gradient
+      {
+        type: "linear",
+        angle: 90,
+        stops: [
+          { color: "#f43f5e", offset: 0 },
+          { color: "#fb7185", offset: 100 },
+        ],
+      },
+      // Background: soft coral gradient
+      {
+        type: "linear",
+        angle: 180,
+        stops: [
+          { color: "#fff1f2", offset: 0 },
+          { color: "#ffe4e6", offset: 50 },
+          { color: "#fecdd3", offset: 100 },
+        ],
+      },
+      "#881337", // Text: dark rose (solid)
+      // Circle: coral gradient
+      {
+        type: "linear",
+        angle: 135,
+        stops: [
+          { color: "#fb7185", offset: 0 },
+          { color: "#fda4af", offset: 100 },
+        ],
+      },
+    ],
+    mode: "light",
+  },
+  springGarden: {
+    colors: [
+      // Title: green to teal gradient
+      {
+        type: "linear",
+        angle: 90,
+        stops: [
+          { color: "#10b981", offset: 0 },
+          { color: "#34d399", offset: 100 },
+        ],
+      },
+      // Background: soft green gradient
+      {
+        type: "linear",
+        angle: 180,
+        stops: [
+          { color: "#ecfdf5", offset: 0 },
+          { color: "#d1fae5", offset: 50 },
+          { color: "#f0fdf4", offset: 100 },
+        ],
+      },
+      "#064e3b", // Text: dark green (solid)
+      // Circle: garden gradient
+      {
+        type: "linear",
+        angle: 45,
+        stops: [
+          { color: "#34d399", offset: 0 },
+          { color: "#6ee7b7", offset: 100 },
+        ],
+      },
+    ],
+    mode: "light",
   },
   custom: { colors: ["", "", "", ""], mode: "custom" },
 };
