@@ -348,18 +348,16 @@ export function ColorPresetSelector({
           })}
         </TooltipProvider>
       </div>
-      {hasMorePresets && (
+      {hasMorePresets && !isExpanded && (
         <div className="flex justify-end">
           <Button
             variant="ghost"
             size="sm"
             type="button"
-            onClick={() => setIsExpanded((prev) => !prev)}
+            onClick={() => setIsExpanded(true)}
             className="text-xs text-muted-foreground"
           >
-            {isExpanded
-              ? "Show fewer presets"
-              : `Show all ${totalPresets} presets`}
+            {`Show all ${totalPresets} presets`}
           </Button>
         </div>
       )}
