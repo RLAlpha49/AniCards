@@ -224,16 +224,13 @@ export function GeneratorProvider({
       setTextColor(colors[2]);
       setCircleColor(colors[3]);
       // Set preset if it's a valid key, otherwise "custom"
-      const validPreset =
-        presetName in colorPresets ? (presetName) : "custom";
+      const validPreset = presetName in colorPresets ? presetName : "custom";
       setSelectedPreset(validPreset);
     } else {
       // Fallback to legacy preset-only loading
       const presetColors = getPresetColors(defaults.colorPreset);
       const validPreset =
-        defaults.colorPreset in colorPresets
-          ? (defaults.colorPreset)
-          : "default";
+        defaults.colorPreset in colorPresets ? defaults.colorPreset : "default";
       setSelectedPreset(validPreset);
       const setters = [
         setTitleColor,

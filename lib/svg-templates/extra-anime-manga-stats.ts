@@ -1,5 +1,27 @@
-import { calculateDynamicFontSize, processColorsForSVG } from "../utils";
+import {
+  calculateDynamicFontSize,
+  isGradient,
+  isValidHexColor,
+  processColorsForSVG,
+} from "../utils";
 import type { ColorValue } from "@/lib/types/card";
+
+const DEFAULT_STAT_BASE_COLOR = "#2563eb";
+
+const resolveCircleBaseColor = (value: ColorValue | undefined): string => {
+  if (typeof value === "string" && isValidHexColor(value)) {
+    return value;
+  }
+
+  if (value && isGradient(value)) {
+    const firstStopColor = value.stops[0]?.color;
+    if (firstStopColor && isValidHexColor(firstStopColor)) {
+      return firstStopColor;
+    }
+  }
+
+  return DEFAULT_STAT_BASE_COLOR;
+};
 
 /**
  * Render an SVG card for additional anime/manga statistics including pie/bar
@@ -43,6 +65,8 @@ export const extraAnimeMangaStatsTemplate = (data: {
       "borderColor",
     ],
   );
+
+  const statBaseCircleColor = resolveCircleBaseColor(data.styles.circleColor);
 
   // Determine variant flags
   const isPie = data.showPieChart || data.variant === "pie";
@@ -95,7 +119,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
       const fillColor = getStatColor(
         index,
         stat.name,
-        resolvedColors.circleColor,
+        statBaseCircleColor,
         data.fixedStatusColors && data.format.endsWith("Statuses"),
       );
       const pct = ((stat.count / totalForPie) * 100).toFixed(0);
@@ -137,7 +161,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
                 fill="${getStatColor(
                   index,
                   stat.name,
-                  resolvedColors.circleColor,
+                  statBaseCircleColor,
                   data.fixedStatusColors && data.format.endsWith("Statuses"),
                 )}"
                 stroke="${resolvedColors.backgroundColor}"
@@ -166,7 +190,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
                 <text class="stat" y="12">${stat.name}:</text>
                 <rect x="150" y="2" width="${barWidth}" height="14" rx="3" fill="${getColorByIndex(
                   index,
-                  resolvedColors.circleColor,
+                  statBaseCircleColor,
                 )}" />
                 <text class="stat" x="${155 + Number(barWidth)}" y="13">${stat.count}</text>
               </g>`;
@@ -279,7 +303,10 @@ export const extraAnimeMangaStatsTemplate = (data: {
 const getColorByIndex = (index: number, baseColor: string) => {
   // Convert base color to HSL for easy manipulation
   const hexToHSL = (hex: string) => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)!;
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    if (!result) {
+      return hexToHSL(DEFAULT_STAT_BASE_COLOR);
+    }
     const r = Number.parseInt(result[1], 16) / 255;
     const g = Number.parseInt(result[2], 16) / 255;
     const b = Number.parseInt(result[3], 16) / 255;

@@ -176,9 +176,7 @@ export function validateSameOrigin(
 ): NextResponse<ApiError> | null {
   const origin = request.headers.get("origin");
   const requestOrigin = new URL(request.url).origin;
-  const configuredAppOrigin = normalizeOrigin(
-    process.env.NEXT_PUBLIC_APP_URL,
-  );
+  const configuredAppOrigin = normalizeOrigin(process.env.NEXT_PUBLIC_APP_URL);
   const allowedOrigin = configuredAppOrigin ?? requestOrigin;
 
   // Allow internal requests (no origin) or same-origin requests
