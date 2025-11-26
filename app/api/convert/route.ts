@@ -603,6 +603,141 @@ export function sanitizeInlineStyleAttributes(svg: string): string {
 }
 
 /**
+ * Detects whether the hostname represents an IPv4 or IPv6 address.
+ * @param hostname - Hostname string to inspect.
+ * @returns True when the hostname is a literal IP.
+ */
+function isIpAddress(hostname: string): boolean {
+  return (
+    /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname) || // IPv4
+    /^\[[0-9a-fA-F:]+\]$/.test(hostname) // IPv6 in brackets
+  );
+}
+
+/**
+ * Checks whether an IPv4 address belongs to private or loopback ranges.
+ * @param hostname - Hostname to evaluate.
+ */
+function isPrivateOrLoopbackIp(hostname: string): boolean {
+  if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)) return false;
+  const parts = hostname.split(".").map((x) => Number.parseInt(x, 10));
+  if (parts[0] === 10) return true;
+  if (parts[0] === 127) return true;
+  if (parts[0] === 192 && parts[1] === 168) return true;
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+  return false;
+}
+
+/**
+ * Recognizes literal localhost hostnames or IPv6 loopback.
+ * @param hostname - Hostname to test.
+ */
+function isLocalhost(hostname: string): boolean {
+  return (
+    hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1"
+  );
+}
+
+/**
+ * Sanitizes an SVG by extracting <style> blocks and inline styles, cleaning both,
+ * and returning the updated markup and a list of class tokens to strip.
+ */
+function sanitizeFullSvg(svgContent: string): {
+  svg: string;
+  classesToStrip: string[];
+} {
+  const styleMatch = /<style>([\s\S]*?)<\/style>/.exec(svgContent);
+  let cssContent = styleMatch?.[1] || "";
+  const { css: sanitizedCss, classesToStrip } = sanitizeCssContent(cssContent);
+
+  if (styleMatch) {
+    svgContent =
+      svgContent.slice(0, styleMatch.index) +
+      `<style>${sanitizedCss}</style>` +
+      svgContent.slice(styleMatch.index + styleMatch[0].length);
+  }
+  svgContent = removeClassTokensFromMarkup(svgContent, classesToStrip);
+  svgContent = sanitizeInlineStyleAttributes(svgContent);
+  svgContent = svgContent.replaceAll(/\sstyle=(['"])\1/g, "");
+  return { svg: svgContent, classesToStrip };
+}
+
+/**
+ * Determines whether a parsed URL is allowed for conversion given the
+ * configured allowed domains and whether we are in development.
+ * @returns True when the URL is safe and allowed.
+ */
+function isUrlAuthorized(
+  parsedUrl: URL,
+  allowedDomains: string[],
+  isDevelopment: boolean,
+): boolean {
+  const protocolValid = isDevelopment
+    ? parsedUrl.protocol === "https:" || parsedUrl.protocol === "http:"
+    : parsedUrl.protocol === "https:";
+  if (!allowedDomains.includes(parsedUrl.hostname)) return false;
+  if (!protocolValid) return false;
+  if (isIpAddress(parsedUrl.hostname) && !isLocalhost(parsedUrl.hostname))
+    return false;
+  if (
+    isPrivateOrLoopbackIp(parsedUrl.hostname) &&
+    !isLocalhost(parsedUrl.hostname)
+  )
+    return false;
+  return true;
+}
+
+/**
+ * Fetches an SVG from the provided URL, returning a NextResponse on failure
+ * (so callers can early-return) or the SVG text on success.
+ */
+async function fetchSvgContent(
+  parsedUrl: URL,
+  ip: string,
+): Promise<{ errorResponse?: NextResponse; svg?: string }> {
+  try {
+    const response = await fetch(parsedUrl.href);
+    if (!response.ok) {
+      incrementAnalytics("analytics:convert_api:failed_requests").catch(
+        () => {},
+      );
+      return {
+        errorResponse: NextResponse.json(
+          { error: "Failed to fetch SVG" },
+          { status: response.status },
+        ),
+      };
+    }
+    const svgText = await response.text();
+    return { svg: svgText };
+  } catch (err: unknown) {
+    console.error("🔴 [Convert API] fetchSvgContent error:", err);
+    incrementAnalytics("analytics:convert_api:failed_requests").catch(() => {});
+    return {
+      errorResponse: NextResponse.json(
+        { error: "Failed to fetch SVG" },
+        { status: 500 },
+      ),
+    };
+  }
+}
+
+/**
+ * Converts an SVG string into a raster data URL using sharp.
+ */
+async function convertSvgToDataUrl(
+  svg: string,
+  requestedFormat: ConversionFormat,
+) {
+  const transformer = sharp(Buffer.from(svg));
+  if (requestedFormat === "webp") transformer.webp({ quality: 90 });
+  else transformer.png();
+  const convertedBuffer = await transformer.toBuffer();
+  const mimeType = requestedFormat === "webp" ? "image/webp" : "image/png";
+  return `data:${mimeType};base64,${convertedBuffer.toString("base64")}`;
+}
+
+/**
  * Handles POST requests that sanitize SVGs and convert them to PNG data URLs.
  * @param request - Incoming Next.js request with the svgUrl payload.
  * @returns NextResponse containing pngDataUrl on success or an error description.
@@ -679,60 +814,8 @@ export async function POST(request: NextRequest) {
           domain === "::1",
       );
 
-    /**
-     * Detects whether the hostname represents an IPv4 or IPv6 address.
-     * @param hostname - Hostname string to inspect.
-     * @returns True when the hostname is a literal IP.
-     * @source
-     */
-    function isIpAddress(hostname: string): boolean {
-      // Detect IPv4 and IPv6 addresses
-      return (
-        /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname) || // IPv4
-        /^\[[0-9a-fA-F:]+\]$/.test(hostname) // IPv6 in brackets
-      );
-    }
-    /**
-     * Checks whether an IPv4 address belongs to private or loopback ranges.
-     * @param hostname - Hostname to evaluate.
-     * @returns True when the IPv4 address is private or loopback.
-     * @source
-     */
-    function isPrivateOrLoopbackIp(hostname: string): boolean {
-      if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)) return false;
-      const parts = hostname.split(".").map((x) => Number.parseInt(x, 10));
-      if (parts[0] === 10) return true;
-      if (parts[0] === 127) return true;
-      if (parts[0] === 192 && parts[1] === 168) return true;
-      if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
-      return false;
-    }
-    /**
-     * Recognizes literal localhost hostnames or IPv6 loopback.
-     * @param hostname - Hostname to test.
-     * @returns True when the hostname refers to localhost.
-     * @source
-     */
-    function isLocalhost(hostname: string): boolean {
-      return (
-        hostname === "localhost" ||
-        hostname === "127.0.0.1" ||
-        hostname === "::1"
-      );
-    }
-
     // In production, require HTTPS. In development, allow HTTP for localhost
-    const protocolValid = isDevelopment
-      ? parsedUrl.protocol === "https:" || parsedUrl.protocol === "http:"
-      : parsedUrl.protocol === "https:";
-
-    if (
-      !allowedDomains.includes(parsedUrl.hostname) ||
-      !protocolValid ||
-      (isIpAddress(parsedUrl.hostname) && !isLocalhost(parsedUrl.hostname)) ||
-      (isPrivateOrLoopbackIp(parsedUrl.hostname) &&
-        !isLocalhost(parsedUrl.hostname))
-    ) {
+    if (!isUrlAuthorized(parsedUrl, allowedDomains, isDevelopment)) {
       console.warn(
         `⚠️ [Convert API] Unauthorized or unsafe domain/protocol in 'svgUrl': ${parsedUrl.href} from ${ip}`,
       );
@@ -743,20 +826,9 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`🔍 [Convert API] Fetching SVG from: ${parsedUrl.href}`);
-    const response = await fetch(parsedUrl.href);
-    if (!response.ok) {
-      console.error(
-        `🔥 [Convert API] Failed to fetch SVG. HTTP status: ${response.status}`,
-      );
-      incrementAnalytics("analytics:convert_api:failed_requests").catch(
-        () => {},
-      );
-      return NextResponse.json(
-        { error: "Failed to fetch SVG" },
-        { status: response.status },
-      );
-    }
-    let svgContent = await response.text();
+    const fetched = await fetchSvgContent(parsedUrl, ip);
+    if (fetched.errorResponse) return fetched.errorResponse;
+    let svgContent = fetched.svg || "";
     console.log(
       `📝 [Convert API] Received SVG content (${svgContent.length} characters)`,
     );
@@ -764,45 +836,18 @@ export async function POST(request: NextRequest) {
     // 1. Extract and sanitize CSS style blocks
     // Regex explanation:
     // - <style>([\s\S]*?)<\/style> matches the <style> tag and everything inside it
-    const styleMatch = new RegExp(/<style>([\s\S]*?)<\/style>/).exec(
-      svgContent,
-    );
-    let cssContent = styleMatch?.[1] || "";
-    const { css: sanitizedCss, classesToStrip } =
-      sanitizeCssContent(cssContent);
-
-    // Remove/replace the <style> tag only if it exists
-    // Rebuild SVG with processed styles
-    // Regex explanation:
-    // - <style>([\s\S]*?)<\/style> matches the <style> tag and everything inside it
-    if (styleMatch) {
-      svgContent =
-        svgContent.slice(0, styleMatch.index) +
-        `<style>${sanitizedCss}</style>` +
-        svgContent.slice(styleMatch.index + styleMatch[0].length);
-    }
-    console.log("🖌️  [Convert API] CSS styles normalized.");
-    // 2. Remove class tokens from markup according to sanitized CSS rules
-    svgContent = removeClassTokensFromMarkup(svgContent, classesToStrip);
-    // 3. Sanitize inline style attributes (remove animation declarations and normalize opacity/visibility)
-    svgContent = sanitizeInlineStyleAttributes(svgContent);
-    // 4. Remove trivial cruft such as empty style attributes
-    svgContent = svgContent.replaceAll(/\sstyle=(['"])\1/g, "");
+    const { svg: sanitizedSvg } = sanitizeFullSvg(svgContent);
+    svgContent = sanitizedSvg;
     console.log("🧼 [Convert API] Final SVG cleanup completed.");
 
     // 4. Convert the processed SVG to the requested raster format using sharp
     console.log(
       `🔄 [Convert API] Converting SVG to ${requestedFormat.toUpperCase()} using sharp...`,
     );
-    const transformer = sharp(Buffer.from(svgContent));
-    if (requestedFormat === "webp") {
-      transformer.webp({ quality: 90 });
-    } else {
-      transformer.png();
-    }
-    const convertedBuffer = await transformer.toBuffer();
-    const mimeType = requestedFormat === "webp" ? "image/webp" : "image/png";
-    const pngDataUrl = `data:${mimeType};base64,${convertedBuffer.toString("base64")}`;
+    const pngDataUrl = await convertSvgToDataUrl(
+      svgContent,
+      requestedFormat as ConversionFormat,
+    );
     const conversionDuration = Date.now() - startTime;
     console.log(
       `✅ [Convert API] SVG converted to ${requestedFormat.toUpperCase()} successfully in ${conversionDuration}ms`,

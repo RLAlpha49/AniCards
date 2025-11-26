@@ -76,11 +76,7 @@ export const CSP_DIRECTIVES = {
    * Font sources - controls which fonts can be loaded
    * Google Fonts serves font files from fonts.gstatic.com
    */
-  fontSrc: [
-    CSP_KEYWORDS.SELF,
-    "https://fonts.gstatic.com",
-    CSP_KEYWORDS.DATA,
-  ],
+  fontSrc: [CSP_KEYWORDS.SELF, "https://fonts.gstatic.com", CSP_KEYWORDS.DATA],
 
   /**
    * Connect sources - controls which URLs can be used for fetch, XHR, WebSocket
@@ -128,7 +124,7 @@ export function buildCSPHeader(nonce: string): string {
     CSP_KEYWORDS.SELF,
     `'nonce-${nonce}'`,
     ...CSP_DIRECTIVES.scriptSrc.filter(
-      (src) => src !== CSP_KEYWORDS.SELF // Avoid duplicate 'self'
+      (src) => src !== CSP_KEYWORDS.SELF, // Avoid duplicate 'self'
     ),
   ];
 

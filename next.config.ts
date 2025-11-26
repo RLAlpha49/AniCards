@@ -41,10 +41,10 @@ const nextConfig: NextConfig = {
    * Security Headers Configuration
    *
    * These headers provide defense-in-depth security measures.
-    * The CSP directives themselves are defined in `lib/csp-config.ts` and injected per request
-    * in `app/middleware.ts` so that nonces can be generated via `crypto.getRandomValues`.
-    * `next.config.ts` only hosts the static headers below and purposely avoids duplicating
-    * CSP logic.
+   * The CSP directives themselves are defined in `lib/csp-config.ts` and injected per request
+   * in `app/middleware.ts` so that nonces can be generated via `crypto.getRandomValues`.
+   * `next.config.ts` only hosts the static headers below and purposely avoids duplicating
+   * CSP logic.
    *
    * Headers applied:
    * - X-DNS-Prefetch-Control: Enable DNS prefetching for performance

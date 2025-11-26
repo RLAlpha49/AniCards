@@ -278,6 +278,16 @@ export function logSuccess(
   console.log(message);
 }
 
+/** Provide a human-readable reason when a color value is invalid. */
+function getColorInvalidReason(value: unknown): string {
+  if (typeof value === "string") {
+    if (isValidHexColor(value))
+      return "hex string passed regex but failed shared validation";
+    return "invalid hex string";
+  }
+  return "invalid gradient definition";
+}
+
 /**
  * Validates that the provided request data contains a valid userId.
  * @param data - The payload to validate.
@@ -379,50 +389,57 @@ function validateCardRequiredFields(
     "circleColor",
   ];
 
-  // Validate string fields
-  for (const field of requiredStringFields) {
-    if (typeof card[field] !== "string") {
-      console.warn(
-        `⚠️ [${endpoint}] Card ${cardIndex} missing or invalid field: ${field}`,
-      );
-      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+  /** Validate required string fields with length constraints. */
+  function validateRequiredStringFields(
+    cardObj: Record<string, unknown>,
+    fields: string[],
+  ): NextResponse<ApiError> | null {
+    for (const field of fields) {
+      if (typeof cardObj[field] !== "string") {
+        console.warn(
+          `⚠️ [${endpoint}] Card ${cardIndex} missing or invalid field: ${field}`,
+        );
+        return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+      }
+      const value = cardObj[field];
+      if (value.length === 0 || value.length > 100) {
+        console.warn(
+          `⚠️ [${endpoint}] Card ${cardIndex} field ${field} exceeds length limits`,
+        );
+        return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+      }
     }
-
-    const value = card[field];
-    if (typeof value !== "string") continue;
-
-    // Validate length constraints
-    if (value.length === 0 || value.length > 100) {
-      console.warn(
-        `⚠️ [${endpoint}] Card ${cardIndex} field ${field} exceeds length limits`,
-      );
-      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
-    }
+    return null;
   }
 
-  // Validate color fields (can be hex string or gradient object)
-  for (const field of requiredColorFields) {
-    const value = card[field];
-    if (value === undefined || value === null) {
-      console.warn(
-        `⚠️ [${endpoint}] Card ${cardIndex} missing required color field: ${field}`,
-      );
-      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+  /** Validate required color fields, allowing hex string or gradient defs. */
+  function validateRequiredColorFields(
+    cardObj: Record<string, unknown>,
+    fields: string[],
+  ): NextResponse<ApiError> | null {
+    for (const field of fields) {
+      const value = cardObj[field];
+      if (value === undefined || value === null) {
+        console.warn(
+          `⚠️ [${endpoint}] Card ${cardIndex} missing required color field: ${field}`,
+        );
+        return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+      }
+      if (!validateColorValue(value)) {
+        const reason = getColorInvalidReason(value);
+        console.warn(
+          `⚠️ [${endpoint}] Card ${cardIndex} invalid color or gradient format for ${field} (${reason})`,
+        );
+        return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+      }
     }
-
-    if (!validateColorValue(value)) {
-      const isStringValue = typeof value === "string";
-      const reason = isStringValue
-        ? isValidHexColor(value)
-          ? "hex string passed regex but failed shared validation"
-          : "invalid hex string"
-        : "invalid gradient definition";
-      console.warn(
-        `⚠️ [${endpoint}] Card ${cardIndex} invalid color or gradient format for ${field} (${reason})`,
-      );
-      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
-    }
+    return null;
   }
+
+  const reqStrErr = validateRequiredStringFields(card, requiredStringFields);
+  if (reqStrErr) return reqStrErr;
+  const reqColorErr = validateRequiredColorFields(card, requiredColorFields);
+  if (reqColorErr) return reqColorErr;
 
   return null;
 }
@@ -462,12 +479,7 @@ function validateCardOptionalFields(
   const borderColorValue = card.borderColor;
   if (borderColorValue !== undefined && borderColorValue !== null) {
     if (!validateColorValue(borderColorValue)) {
-      const isStringValue = typeof borderColorValue === "string";
-      const reason = isStringValue
-        ? isValidHexColor(borderColorValue)
-          ? "hex string passed regex but failed shared validation"
-          : "invalid hex string"
-        : "invalid gradient definition";
+      const reason = getColorInvalidReason(borderColorValue);
       console.warn(
         `⚠️ [${endpoint}] Card ${cardIndex} invalid borderColor format (${reason})`,
       );
