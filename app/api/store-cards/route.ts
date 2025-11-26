@@ -9,6 +9,34 @@ import {
   validateCardData,
 } from "@/lib/api-utils";
 
+function parseStoredCardsRecord(
+  rawValue: unknown,
+  endpoint: string,
+  cardsKey: string,
+): StoredCardConfig[] {
+  if (rawValue === undefined || rawValue === null) return [];
+
+  try {
+    const parsedValue =
+      typeof rawValue === "string" ? JSON.parse(rawValue) : rawValue;
+
+    if (parsedValue && typeof parsedValue === "object") {
+      const cards = (parsedValue as CardsRecord).cards;
+      if (Array.isArray(cards)) {
+        return cards;
+      }
+    }
+  } catch (error) {
+    console.warn(
+      `⚠️ [${endpoint}] Unable to parse stored cards for ${cardsKey}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+
+  return [];
+}
+
 /**
  * Validates, persists, and reports analytics for the user card configuration payload.
  * @param request - Incoming request containing the user ID, stats, and card array.
@@ -52,9 +80,22 @@ export async function POST(request: Request): Promise<NextResponse> {
       `📝 [${endpoint}] Storing card configuration using key: ${cardsKey}`,
     );
 
-    const cardData: CardsRecord = {
-      userId,
-      cards: incomingCards.map((card: StoredCardConfig) => ({
+    // Fetch existing cards from Redis to merge with incoming cards
+    const existingData = await redisClient.get(cardsKey);
+    const existingCards = parseStoredCardsRecord(
+      existingData,
+      endpoint,
+      cardsKey,
+    );
+
+    // Build a map of existing cards by cardName for efficient merging
+    const existingCardsMap = new Map<string, StoredCardConfig>(
+      existingCards.map((card) => [card.cardName, card]),
+    );
+
+    // Process incoming cards: update existing or add new ones
+    for (const card of incomingCards as StoredCardConfig[]) {
+      existingCardsMap.set(card.cardName, {
         cardName: card.cardName,
         variation: card.variation,
         titleColor: card.titleColor,
@@ -65,7 +106,12 @@ export async function POST(request: Request): Promise<NextResponse> {
         showFavorites: card.showFavorites,
         useStatusColors: card.useStatusColors,
         showPiePercentages: card.showPiePercentages,
-      })),
+      });
+    }
+
+    const cardData: CardsRecord = {
+      userId,
+      cards: Array.from(existingCardsMap.values()),
       updatedAt: new Date().toISOString(),
     };
 

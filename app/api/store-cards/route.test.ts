@@ -8,6 +8,7 @@ let mockLimit = jest.fn().mockResolvedValue({ success: true });
  * @source
  */
 let mockRedisSet = jest.fn();
+let mockRedisGet = jest.fn();
 
 /**
  * Supplies the mocked Redis client referenced by the handler under test.
@@ -17,6 +18,7 @@ let mockRedisSet = jest.fn();
 function createRedisFromEnvMock() {
   return {
     set: mockRedisSet,
+    get: mockRedisGet,
     incr: jest.fn(async () => 1),
   };
 }
@@ -61,6 +63,10 @@ describe("Store Cards API POST Endpoint", () => {
    */
   afterEach(() => {
     jest.clearAllMocks();
+  });
+
+  beforeEach(() => {
+    mockRedisGet.mockResolvedValue(null);
   });
 
   /**
@@ -150,6 +156,7 @@ describe("Store Cards API POST Endpoint", () => {
   it("should store card configurations successfully and return success", async () => {
     mockLimit.mockResolvedValueOnce({ success: true });
     mockRedisSet.mockResolvedValueOnce(true); // Simulate successful Redis storage
+    mockRedisGet.mockResolvedValueOnce(null);
 
     const reqBody = {
       userId: 123,
@@ -194,6 +201,48 @@ describe("Store Cards API POST Endpoint", () => {
     expect(storedData).toHaveProperty("updatedAt");
   });
 
+  it("should recover from corrupted Redis payload and continue", async () => {
+    mockLimit.mockResolvedValueOnce({ success: true });
+    mockRedisGet.mockResolvedValueOnce("[object Object]");
+    mockRedisSet.mockResolvedValueOnce(true);
+
+    const reqBody = {
+      userId: 77,
+      statsData: { score: 42 },
+      cards: [
+        {
+          cardName: "badData",
+          variation: "default",
+          titleColor: "#000",
+          backgroundColor: "#fff",
+          textColor: "#333",
+          circleColor: "#f00",
+          borderColor: "#e4e2e2",
+        },
+      ],
+    };
+
+    const req = new Request("http://localhost/api/store-cards", {
+      method: "POST",
+      headers: {
+        "x-forwarded-for": "127.0.0.1",
+        origin: "http://localhost",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(reqBody),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.success).toBe(true);
+
+    expect(mockRedisSet).toHaveBeenCalledWith(
+      `cards:${reqBody.userId}`,
+      expect.any(String),
+    );
+  });
+
   /**
    * Checks that Redis failures surface as 500 server errors.
    * @source
@@ -202,6 +251,7 @@ describe("Store Cards API POST Endpoint", () => {
     mockLimit.mockResolvedValueOnce({ success: true });
     // Simulate a failure in redisClient.set.
     mockRedisSet.mockRejectedValueOnce(new Error("Redis failure"));
+    mockRedisGet.mockResolvedValueOnce(null);
 
     const reqBody = {
       userId: 1,
