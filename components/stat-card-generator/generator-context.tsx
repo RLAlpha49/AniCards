@@ -17,6 +17,8 @@ import {
   saveDefaultBorderColor,
   saveDefaultBorderEnabled,
   saveDefaultCardTypes,
+  saveColorConfig,
+  loadColorConfig,
 } from "@/lib/data";
 import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
 import {
@@ -24,6 +26,8 @@ import {
   trackUserSearch,
 } from "@/lib/utils/google-analytics";
 import { colorPresets, statCardTypes } from "./constants";
+import type { ColorValue } from "@/lib/types/card";
+import { isGradient, colorValueToString } from "@/lib/utils";
 
 type ColorPresetKey = keyof typeof colorPresets;
 type MediaStatsPreviewData = Parameters<typeof mediaStatsTemplate>[0];
@@ -31,18 +35,20 @@ type MediaStatsPreviewData = Parameters<typeof mediaStatsTemplate>[0];
 interface ColorPickerConfig {
   id: string;
   label: string;
-  value: string;
-  onChange: (value: string) => void;
+  value: ColorValue;
+  onChange: (value: ColorValue) => void;
+  /** When true, disables the gradient mode toggle button */
+  disableGradient?: boolean;
 }
 
 interface GeneratorContextValue {
   username: string;
   updateUsername: (next: string) => void;
-  titleColor: string;
-  backgroundColor: string;
-  textColor: string;
-  circleColor: string;
-  borderColor: string;
+  titleColor: ColorValue;
+  backgroundColor: ColorValue;
+  textColor: ColorValue;
+  circleColor: ColorValue;
+  borderColor: ColorValue;
   selectedCards: string[];
   selectedCardVariants: Record<string, string>;
   allSelected: boolean;
@@ -82,7 +88,7 @@ interface GeneratorContextValue {
   handleToggleMangaStatusColors: () => void;
   handleToggleShowPiePercentages: () => void;
   handleToggleBorder: () => void;
-  handleBorderColorChange: (value: string) => void;
+  handleBorderColorChange: (value: ColorValue) => void;
   handlePresetChange: (preset: ColorPresetKey) => void;
   handleSubmit: () => Promise<void>;
   openPreview: (cardType: string, variant?: string) => void;
@@ -163,12 +169,16 @@ export function GeneratorProvider({
   router,
 }: GeneratorProviderProps) {
   const [username, setUsername] = useState("");
-  const [titleColor, setTitleColor] = useState(colorPresets.default.colors[0]);
-  const [backgroundColor, setBackgroundColor] = useState(
+  const [titleColor, setTitleColor] = useState<ColorValue>(
+    colorPresets.default.colors[0],
+  );
+  const [backgroundColor, setBackgroundColor] = useState<ColorValue>(
     colorPresets.default.colors[1],
   );
-  const [textColor, setTextColor] = useState(colorPresets.default.colors[2]);
-  const [circleColor, setCircleColor] = useState(
+  const [textColor, setTextColor] = useState<ColorValue>(
+    colorPresets.default.colors[2],
+  );
+  const [circleColor, setCircleColor] = useState<ColorValue>(
     colorPresets.default.colors[3],
   );
   const [selectedCards, setSelectedCards] = useState<string[]>([]);
@@ -187,7 +197,8 @@ export function GeneratorProvider({
   const [useMangaStatusColors, setUseMangaStatusColors] = useState(false);
   const [showPiePercentages, setShowPiePercentages] = useState(false);
   const [hasBorder, setHasBorder] = useState(false);
-  const [borderColor, setBorderColor] = useState(DEFAULT_BORDER_COLOR);
+  const [borderColor, setBorderColor] =
+    useState<ColorValue>(DEFAULT_BORDER_COLOR);
   const [currentStep, setCurrentStep] = useState(0);
   const [maxReachedStep, setMaxReachedStep] = useState(0);
 
@@ -203,17 +214,36 @@ export function GeneratorProvider({
 
   useEffect(() => {
     const defaults = loadDefaultSettings();
-    const presetColors = getPresetColors(defaults.colorPreset);
 
-    setSelectedPreset(defaults.colorPreset as ColorPresetKey);
-    const setters = [
-      setTitleColor,
-      setBackgroundColor,
-      setTextColor,
-      setCircleColor,
-    ];
-    for (const [index, setter] of setters.entries()) {
-      setter(presetColors[index]);
+    // Try to load saved color config first (preferred), fallback to preset
+    const savedColors = loadColorConfig();
+    if (savedColors) {
+      const { colors, presetName } = savedColors;
+      setTitleColor(colors[0]);
+      setBackgroundColor(colors[1]);
+      setTextColor(colors[2]);
+      setCircleColor(colors[3]);
+      // Set preset if it's a valid key, otherwise "custom"
+      const validPreset =
+        presetName in colorPresets ? (presetName) : "custom";
+      setSelectedPreset(validPreset);
+    } else {
+      // Fallback to legacy preset-only loading
+      const presetColors = getPresetColors(defaults.colorPreset);
+      const validPreset =
+        defaults.colorPreset in colorPresets
+          ? (defaults.colorPreset)
+          : "default";
+      setSelectedPreset(validPreset);
+      const setters = [
+        setTitleColor,
+        setBackgroundColor,
+        setTextColor,
+        setCircleColor,
+      ];
+      for (const [index, setter] of setters.entries()) {
+        setter(presetColors[index]);
+      }
     }
 
     const savedVariantsData = localStorage.getItem("anicards-defaultVariants");
@@ -267,6 +297,19 @@ export function GeneratorProvider({
       } catch {}
     }
   }, []);
+
+  // Auto-save colors whenever they change
+  useEffect(() => {
+    // Only save after initial load (colors won't be empty strings from preset)
+    const hasValidColors =
+      titleColor && backgroundColor && textColor && circleColor;
+    if (hasValidColors) {
+      saveColorConfig(
+        [titleColor, backgroundColor, textColor, circleColor],
+        selectedPreset,
+      );
+    }
+  }, [titleColor, backgroundColor, textColor, circleColor, selectedPreset]);
 
   const isRetrying = loading && retryAttempt > 0;
   const overlayText = isRetrying
@@ -423,7 +466,11 @@ export function GeneratorProvider({
     });
   }, []);
 
-  const handleBorderColorChange = useCallback((value: string) => {
+  const handleBorderColorChange = useCallback((value: ColorValue) => {
+    // Border color currently only supports solid colors
+    if (isGradient(value)) {
+      return;
+    }
     const trimmed = value.trim();
     if (!trimmed) {
       setBorderColor("");
@@ -526,7 +573,7 @@ export function GeneratorProvider({
       useAnimeStatusColors,
       useMangaStatusColors,
       borderEnabled: hasBorder,
-      borderColor,
+      borderColor: colorValueToString(borderColor),
     });
 
     if (result.success && result.userId) {
@@ -703,7 +750,7 @@ export function GeneratorProvider({
         id: "titleColor",
         label: "Title",
         value: titleColor,
-        onChange: (value: string) => {
+        onChange: (value: ColorValue) => {
           setTitleColor(value);
           setSelectedPreset("custom");
         },
@@ -712,7 +759,7 @@ export function GeneratorProvider({
         id: "backgroundColor",
         label: "Background",
         value: backgroundColor,
-        onChange: (value: string) => {
+        onChange: (value: ColorValue) => {
           setBackgroundColor(value);
           setSelectedPreset("custom");
         },
@@ -721,7 +768,7 @@ export function GeneratorProvider({
         id: "textColor",
         label: "Text",
         value: textColor,
-        onChange: (value: string) => {
+        onChange: (value: ColorValue) => {
           setTextColor(value);
           setSelectedPreset("custom");
         },
@@ -730,7 +777,7 @@ export function GeneratorProvider({
         id: "circleColor",
         label: "Circle",
         value: circleColor,
-        onChange: (value: string) => {
+        onChange: (value: ColorValue) => {
           setCircleColor(value);
           setSelectedPreset("custom");
         },
@@ -745,6 +792,7 @@ export function GeneratorProvider({
       label: "Border color",
       value: borderColor || DEFAULT_BORDER_COLOR,
       onChange: handleBorderColorChange,
+      disableGradient: true,
     }),
     [borderColor, handleBorderColorChange],
   );

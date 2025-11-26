@@ -1,4 +1,5 @@
-import { calculateDynamicFontSize } from "../utils";
+import { calculateDynamicFontSize, processColorsForSVG } from "../utils";
+import type { ColorValue } from "@/lib/types/card";
 
 /**
  * Render an SVG card for additional anime/manga statistics including pie/bar
@@ -12,11 +13,11 @@ export const extraAnimeMangaStatsTemplate = (data: {
   username: string;
   variant?: "default" | "pie" | "bar";
   styles: {
-    titleColor: string;
-    backgroundColor: string;
-    textColor: string;
-    circleColor: string;
-    borderColor?: string;
+    titleColor: ColorValue;
+    backgroundColor: ColorValue;
+    textColor: ColorValue;
+    circleColor: ColorValue;
+    borderColor?: ColorValue;
   };
   format: string;
   stats: { name: string; count: number }[];
@@ -25,6 +26,24 @@ export const extraAnimeMangaStatsTemplate = (data: {
   fixedStatusColors?: boolean;
   showPiePercentages?: boolean;
 }) => {
+  // Process colors for gradient support
+  const { gradientDefs, resolvedColors } = processColorsForSVG(
+    {
+      titleColor: data.styles.titleColor,
+      backgroundColor: data.styles.backgroundColor,
+      textColor: data.styles.textColor,
+      circleColor: data.styles.circleColor,
+      borderColor: data.styles.borderColor,
+    },
+    [
+      "titleColor",
+      "backgroundColor",
+      "textColor",
+      "circleColor",
+      "borderColor",
+    ],
+  );
+
   // Determine variant flags
   const isPie = data.showPieChart || data.variant === "pie";
   const isBar = data.variant === "bar";
@@ -76,7 +95,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
       const fillColor = getStatColor(
         index,
         stat.name,
-        data.styles.circleColor,
+        resolvedColors.circleColor,
         data.fixedStatusColors && data.format.endsWith("Statuses"),
       );
       const pct = ((stat.count / totalForPie) * 100).toFixed(0);
@@ -118,10 +137,10 @@ export const extraAnimeMangaStatsTemplate = (data: {
                 fill="${getStatColor(
                   index,
                   stat.name,
-                  data.styles.circleColor,
+                  resolvedColors.circleColor,
                   data.fixedStatusColors && data.format.endsWith("Statuses"),
                 )}"
-                stroke="${data.styles.backgroundColor}"
+                stroke="${resolvedColors.backgroundColor}"
                 stroke-width="1.5"
                 stroke-linejoin="round"
                 class="stagger"
@@ -147,7 +166,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
                 <text class="stat" y="12">${stat.name}:</text>
                 <rect x="150" y="2" width="${barWidth}" height="14" rx="3" fill="${getColorByIndex(
                   index,
-                  data.styles.circleColor,
+                  resolvedColors.circleColor,
                 )}" />
                 <text class="stat" x="${155 + Number(barWidth)}" y="13">${stat.count}</text>
               </g>`;
@@ -181,6 +200,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
       role="img"
       aria-labelledby="desc-id"
     >
+      ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
       <title id="title-id">${data.username}'s ${data.format}</title>
       <desc id="desc-id">
         ${data.stats.map((stat) => `${stat.name}: ${stat.count}`).join(", ")}
@@ -188,7 +208,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
       <style>
         /* stylelint-disable selector-class-pattern, keyframes-name-pattern */
         .header { 
-          fill: ${data.styles.titleColor};
+          fill: ${resolvedColors.titleColor};
           font: 600 ${calculateDynamicFontSize(
             `${data.username}'s ${data.format}`,
           )}px 'Segoe UI', Ubuntu, Sans-Serif;
@@ -196,20 +216,20 @@ export const extraAnimeMangaStatsTemplate = (data: {
         }
         
         [data-testid="card-title"] text {
-          fill: ${data.styles.titleColor};
+          fill: ${resolvedColors.titleColor};
         }
   
         [data-testid="main-card-body"] text {
-          fill: ${data.styles.textColor};
+          fill: ${resolvedColors.textColor};
         }
   
         .stat { 
-          fill: ${data.styles.textColor};
+          fill: ${resolvedColors.textColor};
           font: 400 13px 'Segoe UI', Ubuntu, Sans-Serif;
         }
   
         .stat.bold {
-          fill: ${data.styles.textColor};
+          fill: ${resolvedColors.textColor};
           font: 600 13px 'Segoe UI', Ubuntu, Sans-Serif;
         }
   
@@ -230,8 +250,8 @@ export const extraAnimeMangaStatsTemplate = (data: {
         rx="4.5"
         height="99%"
         width="${rectWidth}"
-        fill="${data.styles.backgroundColor}"
-        stroke="${data.styles.borderColor ?? "none"}"
+        fill="${resolvedColors.backgroundColor}"
+        stroke="${resolvedColors.borderColor}"
         stroke-width="2"
       />
       <g data-testid="card-title" transform="translate(25, 35)">

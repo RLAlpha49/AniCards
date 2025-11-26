@@ -1,5 +1,5 @@
-import { SocialStats } from "@/lib/types/card";
-import { calculateDynamicFontSize } from "../utils";
+import { SocialStats, ColorValue } from "@/lib/types/card";
+import { calculateDynamicFontSize, processColorsForSVG } from "../utils";
 
 /**
  * Renders an SVG string visualizing a user's social metrics: followers,
@@ -13,15 +13,33 @@ export const socialStatsTemplate = (data: {
   username: string;
   variant?: "default" | "compact" | "minimal";
   styles: {
-    titleColor: string;
-    backgroundColor: string;
-    textColor: string;
-    circleColor: string;
-    borderColor?: string;
+    titleColor: ColorValue;
+    backgroundColor: ColorValue;
+    textColor: ColorValue;
+    circleColor: ColorValue;
+    borderColor?: ColorValue;
   };
   stats: SocialStats;
   activityHistory?: { date: number; amount: number }[];
 }) => {
+  // Process colors for gradient support
+  const { gradientDefs, resolvedColors } = processColorsForSVG(
+    {
+      titleColor: data.styles.titleColor,
+      backgroundColor: data.styles.backgroundColor,
+      textColor: data.styles.textColor,
+      circleColor: data.styles.circleColor,
+      borderColor: data.styles.borderColor,
+    },
+    [
+      "titleColor",
+      "backgroundColor",
+      "textColor",
+      "circleColor",
+      "borderColor",
+    ],
+  );
+
   // Defensive handling for activityHistory: can be undefined or empty
   const activityHistory = data.activityHistory ?? [];
   // Calculate total activity amount
@@ -67,6 +85,7 @@ export const socialStatsTemplate = (data: {
   role="img"
   aria-labelledby="desc-id"
 >
+  ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
   <title id="title-id">${data.username}'s Social Stats</title>
   ${(() => {
     const activityTimespanStr = hasActivity
@@ -86,7 +105,7 @@ export const socialStatsTemplate = (data: {
   <style>
     /* stylelint-disable selector-class-pattern, keyframes-name-pattern */
     .header { 
-      fill: ${data.styles.titleColor};
+      fill: ${resolvedColors.titleColor};
       font: 600 ${calculateDynamicFontSize(
         `${data.username}'s Social Stats`,
       )}px 'Segoe UI', Ubuntu, Sans-Serif;
@@ -95,23 +114,23 @@ export const socialStatsTemplate = (data: {
 
     
     [data-testid="card-title"] text {
-      fill: ${data.styles.titleColor};
+      fill: ${resolvedColors.titleColor};
     }
 
     [data-testid="main-card-body"] circle {
-      stroke: ${data.styles.circleColor};
+      stroke: ${resolvedColors.circleColor};
     }
 
     [data-testid="card-bg"] {
-      fill: ${data.styles.backgroundColor};
+      fill: ${resolvedColors.backgroundColor};
     }
 
     [data-testid="main-card-body"] text {
-      fill: ${data.styles.textColor};
+      fill: ${resolvedColors.textColor};
     }
 
     .stat { 
-      fill: ${data.styles.textColor};
+      fill: ${resolvedColors.textColor};
       font: 400 13px 'Segoe UI', Ubuntu, Sans-Serif;
     }
 
@@ -132,8 +151,8 @@ export const socialStatsTemplate = (data: {
     rx="4.5"
     height="${dims.h - 1}"
     width="${dims.w - 1}"
-    fill="${data.styles.backgroundColor}"
-    stroke="${data.styles.borderColor ?? "none"}"
+    fill="${resolvedColors.backgroundColor}"
+    stroke="${resolvedColors.borderColor}"
     stroke-width="2"
   />
   <g data-testid="card-title" transform="translate(25, 35)">

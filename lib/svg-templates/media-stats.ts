@@ -1,5 +1,5 @@
-import { AnimeStats, MangaStats } from "@/lib/types/card";
-import { calculateDynamicFontSize } from "../utils";
+import { AnimeStats, MangaStats, ColorValue } from "@/lib/types/card";
+import { calculateDynamicFontSize, processColorsForSVG } from "../utils";
 
 /** Media type used by the media stats templates — either anime or manga. @source */
 type MediaType = "anime" | "manga";
@@ -81,6 +81,7 @@ function renderStatsList(
  * @param dims - Width and height for the card.
  * @param scaledDasharray - Pre-scaled dasharray for rank visualization.
  * @param scaledDashoffset - Pre-scaled dashoffset for rank visualization.
+ * @param resolvedColors - Pre-processed color values as strings.
  * @returns SVG markup fragment appropriate for the chosen variant.
  * @source
  */
@@ -88,11 +89,11 @@ function getVariantContent(
   data: {
     variant?: "default" | "vertical" | "compact" | "minimal";
     styles: {
-      titleColor: string;
-      backgroundColor: string;
-      textColor: string;
-      circleColor: string;
-      borderColor?: string;
+      titleColor: ColorValue;
+      backgroundColor: ColorValue;
+      textColor: ColorValue;
+      circleColor: ColorValue;
+      borderColor?: ColorValue;
     };
     stats: (AnimeStats | MangaStats) & {
       previousMilestone: number;
@@ -115,6 +116,7 @@ function getVariantContent(
   dims: { w: number; h: number },
   scaledDasharray: string,
   scaledDashoffset: string,
+  resolvedColors: Record<string, string>,
 ): string {
   if (data.variant === "vertical") {
     const stats = [
@@ -133,7 +135,7 @@ function getVariantContent(
         <text x="-100" y="-130" class="milestone" text-anchor="middle">${data.stats.currentMilestone}</text>
         <text x="-100" y="-70" class="main-stat" text-anchor="middle">${config.mainStat.value}</text>
         <text x="-100" y="-10" class="label" text-anchor="middle">${config.mainStat.label}</text>
-        ${renderCircle(-100, -72, 40, data.styles.circleColor, scaledDasharray, scaledDashoffset)}
+        ${renderCircle(-100, -72, 40, resolvedColors.circleColor, scaledDasharray, scaledDashoffset)}
       </g>
       <svg x="0" y="0">
         ${renderStatsList(stats, "translate(0, 150)")}
@@ -151,8 +153,8 @@ function getVariantContent(
 
     return `
       <g transform="translate(${dims.w - 50}, 20)">
-        <text x="-10" y="15" class="main-stat" text-anchor="middle" fill="${data.styles.textColor}" font-size="16">${config.mainStat.value}</text>
-        ${renderCircle(-10, 10, 30, data.styles.textColor, scaledDasharray, scaledDashoffset, 5)}
+        <text x="-10" y="15" class="main-stat" text-anchor="middle" fill="${resolvedColors.textColor}" font-size="16">${config.mainStat.value}</text>
+        ${renderCircle(-10, 10, 30, resolvedColors.textColor, scaledDasharray, scaledDashoffset, 5)}
       </g>
       <svg x="0" y="0">
         ${renderStatsList(stats, "translate(0, 0)", 120, 22, 450, 120)}
@@ -161,9 +163,9 @@ function getVariantContent(
   } else if (data.variant === "minimal") {
     return `
       <g transform="translate(${Math.round(dims.w / 2)}, 20)">
-        <text x="0" y="5" class="main-stat" text-anchor="middle" fill="${data.styles.textColor}" font-size="16">${config.mainStat.value}</text>
-        <text x="0" y="50" class="label" text-anchor="middle" fill="${data.styles.circleColor}" font-size="14">${config.mainStat.label}</text>
-        ${renderCircle(0, 0, 28, data.styles.textColor, scaledDasharray, scaledDashoffset, 5)}
+        <text x="0" y="5" class="main-stat" text-anchor="middle" fill="${resolvedColors.textColor}" font-size="16">${config.mainStat.value}</text>
+        <text x="0" y="50" class="label" text-anchor="middle" fill="${resolvedColors.circleColor}" font-size="14">${config.mainStat.label}</text>
+        ${renderCircle(0, 0, 28, resolvedColors.textColor, scaledDasharray, scaledDashoffset, 5)}
       </g>
     `;
   } else {
@@ -181,16 +183,16 @@ function getVariantContent(
 
     return `
       <g transform="translate(375, 37.5)">
-        <text x="-10" y="-50" class="milestone" text-anchor="middle" fill="${data.styles.circleColor}">
+        <text x="-10" y="-50" class="milestone" text-anchor="middle" fill="${resolvedColors.circleColor}">
           ${data.stats.currentMilestone}
         </text>
-        <text x="-10" y="10" class="main-stat" text-anchor="middle" fill="${data.styles.textColor}">
+        <text x="-10" y="10" class="main-stat" text-anchor="middle" fill="${resolvedColors.textColor}">
           ${config.mainStat.value}
         </text>
-        <text x="-10" y="70" class="label" text-anchor="middle" fill="${data.styles.circleColor}">
+        <text x="-10" y="70" class="label" text-anchor="middle" fill="${resolvedColors.circleColor}">
           ${config.mainStat.label}
         </text>
-        ${renderCircle(-10, 8, 40, data.styles.textColor, scaledDasharray, scaledDashoffset)}
+        ${renderCircle(-10, 8, 40, resolvedColors.textColor, scaledDasharray, scaledDashoffset)}
       </g>
       <svg x="0" y="0">
         ${renderStatsList(stats, "translate(0, 0)", 199.01)}
@@ -212,11 +214,11 @@ export const mediaStatsTemplate = (data: {
   username: string;
   variant?: "default" | "vertical" | "compact" | "minimal";
   styles: {
-    titleColor: string;
-    backgroundColor: string;
-    textColor: string;
-    circleColor: string;
-    borderColor?: string;
+    titleColor: ColorValue;
+    backgroundColor: ColorValue;
+    textColor: ColorValue;
+    circleColor: ColorValue;
+    borderColor?: ColorValue;
   };
   stats: (AnimeStats | MangaStats) & {
     previousMilestone: number;
@@ -225,6 +227,24 @@ export const mediaStatsTemplate = (data: {
     dashoffset: string;
   };
 }) => {
+  // Process colors for gradient support
+  const { gradientDefs, resolvedColors } = processColorsForSVG(
+    {
+      titleColor: data.styles.titleColor,
+      backgroundColor: data.styles.backgroundColor,
+      textColor: data.styles.textColor,
+      circleColor: data.styles.circleColor,
+      borderColor: data.styles.borderColor,
+    },
+    [
+      "titleColor",
+      "backgroundColor",
+      "textColor",
+      "circleColor",
+      "borderColor",
+    ],
+  );
+
   const config = {
     anime: {
       title: `${data.username}'s Anime Stats`,
@@ -302,6 +322,7 @@ export const mediaStatsTemplate = (data: {
   aria-labelledby="desc-id"
   style="overflow: visible"
 >
+  ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
   <title id="title-id">${config.title}</title>
   <desc id="desc-id">
     Count: ${data.stats.count}, 
@@ -313,18 +334,18 @@ export const mediaStatsTemplate = (data: {
   <style>
     /* stylelint-disable selector-class-pattern, keyframes-name-pattern */
     .header { 
-      fill: ${data.styles.titleColor};
+      fill: ${resolvedColors.titleColor};
       font: 600 ${calculateDynamicFontSize(config.title)}px 'Segoe UI', Ubuntu, Sans-Serif;
       animation: fadeInAnimation 0.8s ease-in-out forwards;
     }
     
-    [data-testid="card-title"] text { fill: ${data.styles.titleColor}; }
-    [data-testid="main-card-body"] circle { stroke: ${data.styles.circleColor}; }
-    [data-testid="card-bg"] { fill: ${data.styles.backgroundColor}; }
-    [data-testid="main-card-body"] text { fill: ${data.styles.textColor}; }
+    [data-testid="card-title"] text { fill: ${resolvedColors.titleColor}; }
+    [data-testid="main-card-body"] circle { stroke: ${resolvedColors.circleColor}; }
+    [data-testid="card-bg"] { fill: ${resolvedColors.backgroundColor}; }
+    [data-testid="main-card-body"] text { fill: ${resolvedColors.textColor}; }
 
     .stat { 
-      fill: ${data.styles.textColor};
+      fill: ${resolvedColors.textColor};
       font: 400 13px 'Segoe UI', Ubuntu, Sans-Serif;
     }
 
@@ -340,7 +361,7 @@ export const mediaStatsTemplate = (data: {
 
     .rank-circle {
       stroke-dasharray: ${scaledDasharray};
-      stroke: ${data.styles.circleColor};
+      stroke: ${resolvedColors.circleColor};
       fill: none;
       stroke-width: 6;
       stroke-linecap: round;
@@ -370,8 +391,8 @@ export const mediaStatsTemplate = (data: {
     rx="4.5"
     height="${dims.h - 1}"
     width="${dims.w - 1}"
-    fill="${data.styles.backgroundColor}"
-    stroke="${data.styles.borderColor ?? "none"}"
+    fill="${resolvedColors.backgroundColor}"
+    stroke="${resolvedColors.borderColor}"
     stroke-width="2"
   />
   <g data-testid="card-title" transform="translate(25, 35)">
@@ -380,7 +401,7 @@ export const mediaStatsTemplate = (data: {
     </g>
   </g>
   <g data-testid="main-card-body" transform="translate(0, 55)">
-    ${getVariantContent(data, config, dims, scaledDasharray, scaledDashoffset)}
+    ${getVariantContent(data, config, dims, scaledDasharray, scaledDashoffset, resolvedColors)}
   </g>
 </svg>`;
 };

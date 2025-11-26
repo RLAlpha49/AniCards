@@ -1,5 +1,6 @@
 // Centralized data management for user preferences
 import { colorPresets, statCardTypes } from "@/components/stat-card-generator";
+import type { ColorValue } from "@/lib/types/card";
 
 /** Default border color used for cards when a user-selected value is not present. @source */
 export const DEFAULT_BORDER_COLOR = "#e4e2e2";
@@ -12,6 +13,15 @@ type UserPreferences = {
   defaultCards: string[];
   borderEnabled: boolean;
   borderColor: string;
+};
+
+/**
+ * Shape representing saved color configuration (custom or from preset).
+ * @source
+ */
+type SavedColorConfig = {
+  colors: ColorValue[];
+  presetName: string; // "custom" if manually modified
 };
 
 /** Prefix used for all persisted keys in localStorage for this app. @source */
@@ -30,6 +40,7 @@ const VALID_CACHE_KEYS = [
   "defaultCardTypes",
   "defaultBorderEnabled",
   "defaultBorderColor",
+  "savedColorConfig",
 ].map((key) => `${APP_PREFIX}${key}`);
 
 /**
@@ -114,6 +125,41 @@ export function saveDefaultBorderColor(color: string) {
   localStorage.setItem(`${APP_PREFIX}defaultBorderColor`, JSON.stringify(data));
 }
 
+/**
+ * Save the current color configuration (colors + preset name) to localStorage.
+ * This is called whenever colors change, allowing restoration on next visit.
+ * @param colors - Array of ColorValue (4 items: title, background, text, circle)
+ * @param presetName - Name of the preset or "custom" if manually modified
+ * @source
+ */
+export function saveColorConfig(colors: ColorValue[], presetName: string) {
+  const data = {
+    value: { colors, presetName },
+    lastModified: new Date().toISOString(),
+  };
+  localStorage.setItem(`${APP_PREFIX}savedColorConfig`, JSON.stringify(data));
+}
+
+/**
+ * Load the saved color configuration from localStorage.
+ * @returns The saved color config or null if not found
+ * @source
+ */
+export function loadColorConfig(): SavedColorConfig | null {
+  const stored = localStorage.getItem(`${APP_PREFIX}savedColorConfig`);
+  if (!stored) return null;
+
+  try {
+    const parsed = JSON.parse(stored);
+    const value = parsed.value ?? parsed;
+    if (value && Array.isArray(value.colors) && value.colors.length === 4) {
+      return value as SavedColorConfig;
+    }
+  } catch {}
+
+  return null;
+}
+
 // Helper to get actual color values from preset name
 /**
  * Returns the color palette for a given preset name; falls back to default
@@ -123,10 +169,8 @@ export function saveDefaultBorderColor(color: string) {
  * @source
  */
 export function getPresetColors(presetName: string) {
-  return (
-    colorPresets[presetName as keyof typeof colorPresets]?.colors ||
-    colorPresets.default.colors
-  );
+  const preset = colorPresets[presetName];
+  return preset?.colors || colorPresets.default.colors;
 }
 
 // Helper to get card type labels for display
