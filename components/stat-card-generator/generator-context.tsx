@@ -487,26 +487,8 @@ export function GeneratorProvider({
       const params = new URLSearchParams({
         userId: result.userId,
         username,
-        cards: JSON.stringify(
-          finalSelectedCards.map((card) => {
-            const [cardName, variation] = card.split("-");
-            const obj: Record<string, unknown> = variation
-              ? { cardName, variation }
-              : { cardName };
-            const isAnimeStatus = cardName === "animeStatusDistribution";
-            const isMangaStatus = cardName === "mangaStatusDistribution";
-            if (
-              (isAnimeStatus && useAnimeStatusColors) ||
-              (isMangaStatus && useMangaStatusColors)
-            ) {
-              obj.useStatusColors = true;
-            }
-            if (showPiePercentages) obj.showPiePercentages = true;
-            return obj;
-          }),
-        ),
       });
-      router.push(`/user?${params.toString()}`);
+      globalThis.location.href = `/user?${params.toString()}`;
     }
   }, [
     username,
