@@ -12,14 +12,17 @@ import JSZip from "jszip";
 // These helpers assist in merging class names, performing clipboard operations,
 // converting SVG to various image formats, calculating dynamic font sizes, formatting bytes, and safely parsing JSON data.
 
+/** Export formats supported for image conversion. @source */
 export type ConversionFormat = "png" | "webp";
 
+/** A card entry used for batch export operations. @source */
 export interface BatchExportCard {
   type: string;
   svgUrl: string;
   rawType: string;
 }
 
+/** Progress payload passed to a progress callback during batch conversion. @source */
 export interface BatchConversionProgress {
   current: number;
   total: number;
@@ -544,6 +547,7 @@ export function extractStyles(
   };
 }
 
+/** Successful result for a single conversion in a batch. @source */
 type BatchConversionSuccess = {
   success: true;
   card: BatchExportCard;
@@ -552,6 +556,7 @@ type BatchConversionSuccess = {
   cardIndex: number;
 };
 
+/** Failure result representation for a single conversion in a batch. @source */
 type BatchConversionFailure = {
   success: false;
   card: BatchExportCard;
@@ -559,22 +564,26 @@ type BatchConversionFailure = {
   cardIndex: number;
 };
 
+/** Union type representing the result of a batch conversion (success or failure). @source */
 export type BatchConversionResult =
   | BatchConversionSuccess
   | BatchConversionFailure;
 
+/** Image data used internally when packaging converted images into a ZIP. @source */
 interface BatchConversionImage {
   filename: string;
   dataUrl: string;
   format: ConversionFormat;
 }
 
+/** Summary after exporting a batch of converted images. @source */
 export interface BatchExportSummary {
   total: number;
   exported: number;
   failed: number;
 }
 
+/** Max number of concurrent conversions during batch processing. @source */
 const BATCH_CONCURRENCY_LIMIT = 4;
 
 /**
@@ -584,6 +593,7 @@ const BATCH_CONCURRENCY_LIMIT = 4;
  * @param format - Target format for conversion (png | webp).
  * @param progressCallback - Optional progress callback invoked per card.
  * @returns Array of success/failure results.
+ * @source
  */
 export async function batchConvertSvgsToPngs(
   cards: BatchExportCard[],
@@ -655,6 +665,7 @@ export async function batchConvertSvgsToPngs(
  *
  * @param images - Image data with filenames and formats.
  * @returns ZIP blob ready for download.
+ * @source
  */
 export async function generateZipFromImages(
   images: BatchConversionImage[],
@@ -673,6 +684,7 @@ export async function generateZipFromImages(
  *
  * @param blob - Binary data to download.
  * @param filename - Desired filename for the download.
+ * @source
  */
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -692,6 +704,7 @@ export function downloadBlob(blob: Blob, filename: string) {
  * @param format - Target export format.
  * @param progressCallback - Optional progress callback for UI updates.
  * @returns Summary containing counts of success and failures.
+ * @source
  */
 export async function batchConvertAndZip(
   cards: BatchExportCard[],

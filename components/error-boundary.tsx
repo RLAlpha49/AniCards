@@ -50,10 +50,6 @@ function haveResetKeysChanged(prev?: ResetKey[], next?: ResetKey[]): boolean {
 /**
  * React error boundary that reports issues to analytics and renders a styled fallback.
  * Designed to work with Next.js 16 + React 19 projects.
- * @example
- * <ErrorBoundary onReset={() => setModalOpen(false)}>
- *   <AppShell />
- * </ErrorBoundary>
  * @source
  */
 export class ErrorBoundary extends Component<
