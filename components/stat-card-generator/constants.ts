@@ -1,36 +1,22 @@
-/**
- * Shared constants for the stat card generator.
- * These include the card type definitions and color presets used by both the
- * main generator component and the generator context.
- */
-
 import type { ColorValue } from "@/lib/types/card";
 
-/**
- * Color preset configuration supporting both solid colors and gradients.
- * Colors array order: [titleColor, backgroundColor, textColor, circleColor]
- * @source
- */
 export interface ColorPreset {
   colors: ColorValue[];
   mode: "dark" | "light" | "custom";
 }
 
-/** Allowed visual variations for pie/bar style breakdown cards. */
 const pieBarVariations = [
   { id: "default", label: "Default" },
   { id: "pie", label: "Pie Chart" },
   { id: "bar", label: "Bar Chart" },
 ];
 
-/** Allowed visual variations for distribution cards using vertical/horizontal layouts. */
 const verticalHorizontalVariations = [
   { id: "default", label: "Default" },
   { id: "vertical", label: "Vertical" },
   { id: "horizontal", label: "Horizontal" },
 ];
 
-/** Variation options for the main-stats cards. */
 const mainStatsVariations = [
   { id: "default", label: "Default" },
   { id: "vertical", label: "Vertical" },
@@ -38,14 +24,12 @@ const mainStatsVariations = [
   { id: "minimal", label: "Minimal" },
 ];
 
-/** Variation options for the social-stats card. */
 const socialStatsVariations = [
   { id: "default", label: "Default" },
   { id: "compact", label: "Compact" },
   { id: "minimal", label: "Minimal" },
 ];
 
-// Helper function to create card type objects with consistent structure
 const createCardType = (
   id: string,
   group: string,
@@ -107,7 +91,6 @@ const distributionCards = [
   },
 ];
 
-/** All available stat card types with their groupings and variation metadata. */
 export const statCardTypes = [
   createCardType(
     "animeStats",
@@ -143,11 +126,7 @@ export const statCardTypes = [
   ),
 ];
 
-/** Named color presets exposed to the UI. Supports both solid colors and gradients.
- * Colors order: [titleColor, backgroundColor, textColor, circleColor]
- * @source
- */
-export const colorPresets: Record<string, ColorPreset> = {
+const _unsortedColorPresets: Record<string, ColorPreset> = {
   default: {
     colors: ["#fe428e", "#141321", "#a9fef7", "#fe428e"],
     mode: "dark",
@@ -294,7 +273,6 @@ export const colorPresets: Record<string, ColorPreset> = {
   },
   sunsetGradient: {
     colors: [
-      // Title: Orange to pink gradient (45°)
       {
         type: "linear",
         angle: 45,
@@ -304,9 +282,9 @@ export const colorPresets: Record<string, ColorPreset> = {
           { color: "#ff6b6b", offset: 100 },
         ],
       },
-      "#141321", // Background: solid dark
-      "#fff7ed", // Text: solid light
-      // Circle: matching gradient
+      "#141321",
+      "#fff7ed",
+
       {
         type: "linear",
         angle: 45,
@@ -320,8 +298,8 @@ export const colorPresets: Record<string, ColorPreset> = {
   },
   oceanWaves: {
     colors: [
-      "#00b4d8", // Title: solid cyan
-      // Background: deep blue to cyan gradient (180°)
+      "#00b4d8",
+
       {
         type: "linear",
         angle: 180,
@@ -331,8 +309,8 @@ export const colorPresets: Record<string, ColorPreset> = {
           { color: "#0f2846", offset: 100 },
         ],
       },
-      "#e0f7ff", // Text: light blue
-      // Circle: ocean gradient
+      "#e0f7ff",
+
       {
         type: "linear",
         angle: 90,
@@ -346,7 +324,6 @@ export const colorPresets: Record<string, ColorPreset> = {
   },
   purpleHaze: {
     colors: [
-      // Title: purple to lavender gradient (90°)
       {
         type: "linear",
         angle: 90,
@@ -355,9 +332,9 @@ export const colorPresets: Record<string, ColorPreset> = {
           { color: "#a78bfa", offset: 100 },
         ],
       },
-      "#1e1b4b", // Background: dark purple
-      "#e9d5ff", // Text: light purple
-      // Circle: matching purple gradient
+      "#1e1b4b",
+      "#e9d5ff",
+
       {
         type: "linear",
         angle: 135,
@@ -371,10 +348,10 @@ export const colorPresets: Record<string, ColorPreset> = {
   },
   fireEmber: {
     colors: [
-      "#ff4500", // Title: solid orange-red
-      "#1a0a0a", // Background: very dark red
-      "#fef3c7", // Text: cream
-      // Circle: fire gradient (red to orange to yellow)
+      "#ff4500",
+      "#1a0a0a",
+      "#fef3c7",
+
       {
         type: "linear",
         angle: 45,
@@ -389,8 +366,8 @@ export const colorPresets: Record<string, ColorPreset> = {
   },
   forestDepth: {
     colors: [
-      "#22c55e", // Title: solid green
-      // Background: dark green gradient (180°)
+      "#22c55e",
+
       {
         type: "linear",
         angle: 180,
@@ -399,8 +376,8 @@ export const colorPresets: Record<string, ColorPreset> = {
           { color: "#064e3b", offset: 100 },
         ],
       },
-      "#dcfce7", // Text: light green
-      // Circle: forest gradient
+      "#dcfce7",
+
       {
         type: "linear",
         angle: 90,
@@ -414,7 +391,6 @@ export const colorPresets: Record<string, ColorPreset> = {
   },
   twilightSky: {
     colors: [
-      // Title: dark blue to purple to pink gradient (135°)
       {
         type: "linear",
         angle: 135,
@@ -424,9 +400,9 @@ export const colorPresets: Record<string, ColorPreset> = {
           { color: "#ec4899", offset: 100 },
         ],
       },
-      "#0f0f23", // Background: dark blue-black
-      "#f0f0ff", // Text: very light blue
-      // Circle: twilight gradient
+      "#0f0f23",
+      "#f0f0ff",
+
       {
         type: "linear",
         angle: 135,
@@ -440,10 +416,10 @@ export const colorPresets: Record<string, ColorPreset> = {
   },
   neonGlow: {
     colors: [
-      "#00ffff", // Title: solid cyan
-      "#0a0a0a", // Background: near black
-      "#ffffff", // Text: white
-      // Circle: radial neon glow (cyan center to dark blue edges)
+      "#00ffff",
+      "#0a0a0a",
+      "#ffffff",
+
       {
         type: "radial",
         cx: 50,
@@ -460,7 +436,6 @@ export const colorPresets: Record<string, ColorPreset> = {
   },
   goldenHour: {
     colors: [
-      // Title: gold to orange gradient (0°)
       {
         type: "linear",
         angle: 0,
@@ -470,9 +445,9 @@ export const colorPresets: Record<string, ColorPreset> = {
           { color: "#d97706", offset: 100 },
         ],
       },
-      "#1c1917", // Background: dark brown
-      "#fef3c7", // Text: cream
-      // Circle: matching gold gradient
+      "#1c1917",
+      "#fef3c7",
+
       {
         type: "linear",
         angle: 45,
@@ -486,8 +461,8 @@ export const colorPresets: Record<string, ColorPreset> = {
   },
   mintFresh: {
     colors: [
-      "#10b981", // Title: solid emerald
-      // Background: mint to white gradient (180°)
+      "#10b981",
+
       {
         type: "linear",
         angle: 180,
@@ -497,8 +472,8 @@ export const colorPresets: Record<string, ColorPreset> = {
           { color: "#f0fdf4", offset: 100 },
         ],
       },
-      "#065f46", // Text: dark green
-      // Circle: mint gradient
+      "#065f46",
+
       {
         type: "linear",
         angle: 90,
@@ -512,8 +487,8 @@ export const colorPresets: Record<string, ColorPreset> = {
   },
   cosmicNebula: {
     colors: [
-      "#e879f9", // Title: solid pink
-      // Background: radial gradient (purple center to dark blue edges)
+      "#e879f9",
+
       {
         type: "radial",
         cx: 30,
@@ -525,8 +500,8 @@ export const colorPresets: Record<string, ColorPreset> = {
           { color: "#0c0a1d", offset: 100 },
         ],
       },
-      "#f5d0fe", // Text: light pink
-      // Circle: nebula gradient
+      "#f5d0fe",
+
       {
         type: "linear",
         angle: 45,
@@ -541,7 +516,6 @@ export const colorPresets: Record<string, ColorPreset> = {
   },
   cherryBlossom: {
     colors: [
-      // Title: pink to white gradient (90°)
       {
         type: "linear",
         angle: 90,
@@ -550,9 +524,9 @@ export const colorPresets: Record<string, ColorPreset> = {
           { color: "#fbcfe8", offset: 100 },
         ],
       },
-      "#fdf2f8", // Background: very light pink
-      "#831843", // Text: dark pink
-      // Circle: cherry blossom gradient
+      "#fdf2f8",
+      "#831843",
+
       {
         type: "linear",
         angle: 45,
@@ -566,10 +540,10 @@ export const colorPresets: Record<string, ColorPreset> = {
   },
   arcticAurora: {
     colors: [
-      "#22d3ee", // Title: solid cyan
-      "#0f172a", // Background: dark blue
-      "#e0f2fe", // Text: light blue
-      // Circle: aurora gradient (green to blue to purple)
+      "#22d3ee",
+      "#0f172a",
+      "#e0f2fe",
+
       {
         type: "linear",
         angle: 135,
@@ -585,7 +559,6 @@ export const colorPresets: Record<string, ColorPreset> = {
   },
   anilistLightGradient: {
     colors: [
-      // Title: AniList blue gradient
       {
         type: "linear",
         angle: 90,
@@ -594,7 +567,7 @@ export const colorPresets: Record<string, ColorPreset> = {
           { color: "#02a9ff", offset: 100 },
         ],
       },
-      // Background: white to light blue gradient
+
       {
         type: "linear",
         angle: 180,
@@ -603,8 +576,8 @@ export const colorPresets: Record<string, ColorPreset> = {
           { color: "#f0f9ff", offset: 100 },
         ],
       },
-      "#333333", // Text: dark gray (solid)
-      // Circle: blue gradient
+      "#333333",
+
       {
         type: "linear",
         angle: 135,
@@ -618,7 +591,6 @@ export const colorPresets: Record<string, ColorPreset> = {
   },
   anilistDarkGradient: {
     colors: [
-      // Title: AniList blue gradient
       {
         type: "linear",
         angle: 90,
@@ -627,7 +599,7 @@ export const colorPresets: Record<string, ColorPreset> = {
           { color: "#02a9ff", offset: 100 },
         ],
       },
-      // Background: dark blue gradient
+
       {
         type: "linear",
         angle: 180,
@@ -637,8 +609,8 @@ export const colorPresets: Record<string, ColorPreset> = {
           { color: "#152238", offset: 100 },
         ],
       },
-      "#E8E8E8", // Text: light gray (solid)
-      // Circle: blue gradient
+      "#E8E8E8",
+
       {
         type: "linear",
         angle: 135,
@@ -652,7 +624,6 @@ export const colorPresets: Record<string, ColorPreset> = {
   },
   sunriseMeadow: {
     colors: [
-      // Title: warm orange to gold gradient
       {
         type: "linear",
         angle: 90,
@@ -661,7 +632,7 @@ export const colorPresets: Record<string, ColorPreset> = {
           { color: "#fbbf24", offset: 100 },
         ],
       },
-      // Background: cream to warm white gradient
+
       {
         type: "linear",
         angle: 180,
@@ -671,8 +642,8 @@ export const colorPresets: Record<string, ColorPreset> = {
           { color: "#fff7ed", offset: 100 },
         ],
       },
-      "#78350f", // Text: dark amber (solid)
-      // Circle: sunrise gradient
+      "#78350f",
+
       {
         type: "linear",
         angle: 45,
@@ -686,7 +657,6 @@ export const colorPresets: Record<string, ColorPreset> = {
   },
   lavenderBloom: {
     colors: [
-      // Title: purple to violet gradient
       {
         type: "linear",
         angle: 90,
@@ -695,7 +665,7 @@ export const colorPresets: Record<string, ColorPreset> = {
           { color: "#a78bfa", offset: 100 },
         ],
       },
-      // Background: soft lavender gradient
+
       {
         type: "linear",
         angle: 180,
@@ -705,8 +675,8 @@ export const colorPresets: Record<string, ColorPreset> = {
           { color: "#ede9fe", offset: 100 },
         ],
       },
-      "#4c1d95", // Text: dark purple (solid)
-      // Circle: lavender gradient
+      "#4c1d95",
+
       {
         type: "linear",
         angle: 135,
@@ -720,7 +690,6 @@ export const colorPresets: Record<string, ColorPreset> = {
   },
   skylineAzure: {
     colors: [
-      // Title: sky blue gradient
       {
         type: "linear",
         angle: 90,
@@ -729,7 +698,7 @@ export const colorPresets: Record<string, ColorPreset> = {
           { color: "#38bdf8", offset: 100 },
         ],
       },
-      // Background: light sky gradient
+
       {
         type: "linear",
         angle: 180,
@@ -739,8 +708,8 @@ export const colorPresets: Record<string, ColorPreset> = {
           { color: "#f0f9ff", offset: 100 },
         ],
       },
-      "#0c4a6e", // Text: dark blue (solid)
-      // Circle: azure gradient
+      "#0c4a6e",
+
       {
         type: "linear",
         angle: 45,
@@ -754,7 +723,6 @@ export const colorPresets: Record<string, ColorPreset> = {
   },
   coralReef: {
     colors: [
-      // Title: coral to pink gradient
       {
         type: "linear",
         angle: 90,
@@ -763,7 +731,7 @@ export const colorPresets: Record<string, ColorPreset> = {
           { color: "#fb7185", offset: 100 },
         ],
       },
-      // Background: soft coral gradient
+
       {
         type: "linear",
         angle: 180,
@@ -773,8 +741,8 @@ export const colorPresets: Record<string, ColorPreset> = {
           { color: "#fecdd3", offset: 100 },
         ],
       },
-      "#881337", // Text: dark rose (solid)
-      // Circle: coral gradient
+      "#881337",
+
       {
         type: "linear",
         angle: 135,
@@ -788,7 +756,6 @@ export const colorPresets: Record<string, ColorPreset> = {
   },
   springGarden: {
     colors: [
-      // Title: green to teal gradient
       {
         type: "linear",
         angle: 90,
@@ -797,7 +764,7 @@ export const colorPresets: Record<string, ColorPreset> = {
           { color: "#34d399", offset: 100 },
         ],
       },
-      // Background: soft green gradient
+
       {
         type: "linear",
         angle: 180,
@@ -807,8 +774,8 @@ export const colorPresets: Record<string, ColorPreset> = {
           { color: "#f0fdf4", offset: 100 },
         ],
       },
-      "#064e3b", // Text: dark green (solid)
-      // Circle: garden gradient
+      "#064e3b",
+
       {
         type: "linear",
         angle: 45,
@@ -822,3 +789,15 @@ export const colorPresets: Record<string, ColorPreset> = {
   },
   custom: { colors: ["", "", "", ""], mode: "custom" },
 };
+
+export const colorPresets: Record<string, ColorPreset> = Object.keys(
+  _unsortedColorPresets,
+)
+  .sort((a, b) => a.localeCompare(b))
+  .reduce(
+    (acc, key) => {
+      acc[key] = _unsortedColorPresets[key];
+      return acc;
+    },
+    {} as Record<string, ColorPreset>,
+  );

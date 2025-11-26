@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { devtools, persist, createJSONStorage } from "zustand/middleware";
+import { createBackwardCompatibleStorage } from "@/lib/stores/storage-adapter";
 
 /**
  * State shape for user preferences.
@@ -39,52 +40,8 @@ const defaultState: UserPreferencesState = {
   defaultUsername: "",
 };
 
-/**
- * Custom storage adapter that handles the {value, lastModified} format
- * for backward compatibility with existing localStorage data.
- */
-function createUserPreferencesStorage() {
-  const maybeWindow = globalThis.window;
-
-  if (!maybeWindow || maybeWindow.localStorage === undefined) {
-    const memory = new Map<string, string>();
-    return {
-      getItem: (name: string) => memory.get(name) ?? null,
-      setItem: (name: string, value: string) => memory.set(name, value),
-      removeItem: (name: string) => memory.delete(name),
-    };
-  }
-
-  const storage = maybeWindow.localStorage;
-
-  return {
-    getItem: (name: string): string | null => {
-      const item = storage.getItem(name);
-      if (!item) return null;
-      try {
-        const parsed = JSON.parse(item);
-        if (parsed && typeof parsed === "object" && "state" in parsed) {
-          return item;
-        }
-        return JSON.stringify({
-          state: parsed.value ?? parsed,
-          version: 1,
-        });
-      } catch {
-        return null;
-      }
-    },
-    setItem: (name: string, value: string): void => {
-      storage.setItem(name, value);
-    },
-    removeItem: (name: string): void => {
-      storage.removeItem(name);
-    },
-  };
-}
-
 const customStorage = createJSONStorage<UserPreferencesStore>(() =>
-  createUserPreferencesStorage(),
+  createBackwardCompatibleStorage(),
 );
 
 /**

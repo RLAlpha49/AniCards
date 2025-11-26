@@ -30,47 +30,67 @@ async function getResponseJson(response: Response): Promise<any> {
   return response.json();
 }
 
+const API_BASE = "http://localhost/api/user";
+const DEFAULT_HEADERS = { "x-forwarded-for": "127.0.0.1" };
+
+function createReq(query?: string): Request {
+  const url = query?.length ? `${API_BASE}?${query}` : API_BASE;
+  return new Request(url, {
+    headers: DEFAULT_HEADERS as Record<string, string>,
+  });
+}
+
+async function callGet(query?: string): Promise<Response> {
+  return GET(createReq(query));
+}
+
+async function expectError(
+  query: string | undefined,
+  status: number,
+  errorMsg: string,
+) {
+  const res = await callGet(query);
+  expect(res.status).toBe(status);
+  const json = await getResponseJson(res);
+  expect(json?.error).toBe(errorMsg);
+}
+
+async function expectOkJson(query: string | undefined, expected: unknown) {
+  const res = await callGet(query);
+  expect(res.status).toBe(200);
+  const json = await getResponseJson(res);
+  expect(json).toEqual(expected);
+}
+
+function mockRedisSequence(...values: Array<unknown>) {
+  for (const v of values) {
+    if (v instanceof Error) {
+      mockRedisGet.mockRejectedValueOnce(v);
+    } else {
+      mockRedisGet.mockResolvedValueOnce(v);
+    }
+  }
+}
+
 describe("User API GET Endpoint", () => {
   afterEach(() => {
     jest.clearAllMocks();
   });
 
   it("should return 400 error for missing userId parameter", async () => {
-    // Create a request without the required 'userId' query parameter.
-    const req = new Request("http://localhost/api/user", {
-      headers: { "x-forwarded-for": "127.0.0.1" },
-    });
-    const res = await GET(req);
-    expect(res.status).toBe(400);
-
-    const json = await getResponseJson(res);
-    expect(json.error).toBe("Missing userId or username parameter");
+    // Call the API without the required 'userId' query parameter and expect an error
+    await expectError(undefined, 400, "Missing userId or username parameter");
   });
 
   it("should return 400 error for invalid userId format", async () => {
     // A non‑numeric userId should trigger an error.
-    const req = new Request("http://localhost/api/user?userId=abc", {
-      headers: { "x-forwarded-for": "127.0.0.1" },
-    });
-    const res = await GET(req);
-    expect(res.status).toBe(400);
-
-    const json = await getResponseJson(res);
-    expect(json.error).toBe("Invalid userId parameter");
+    await expectError("userId=abc", 400, "Invalid userId parameter");
   });
 
   it("should return 404 error if user data is not found", async () => {
     // Simulate Redis returning no data for the given key.
-    mockRedisGet.mockResolvedValueOnce(null);
-
-    const req = new Request("http://localhost/api/user?userId=123", {
-      headers: { "x-forwarded-for": "127.0.0.1" },
-    });
-    const res = await GET(req);
-    expect(res.status).toBe(404);
-
-    const json = await getResponseJson(res);
-    expect(json.error).toBe("User not found");
+    mockRedisSequence(null);
+    await expectError("userId=123", 404, "User not found");
   });
 
   it("should return 200 and the user data when found", async () => {
@@ -80,44 +100,22 @@ describe("User API GET Endpoint", () => {
       username: "testUser",
       stats: { score: 10 },
     };
-    mockRedisGet.mockResolvedValueOnce(JSON.stringify(userData));
-
-    const req = new Request("http://localhost/api/user?userId=123", {
-      headers: { "x-forwarded-for": "127.0.0.1" },
-    });
-    const res = await GET(req);
-    expect(res.status).toBe(200);
-
-    const json = await getResponseJson(res);
-    expect(json).toEqual(userData);
+    mockRedisSequence(JSON.stringify(userData));
+    await expectOkJson("userId=123", userData);
   });
 
   it("should return 400 for invalid username parameter", async () => {
-    const req = new Request(
-      "http://localhost/api/user?username=***invalid***",
-      {
-        headers: { "x-forwarded-for": "127.0.0.1" },
-      },
+    await expectError(
+      "username=***invalid***",
+      400,
+      "Invalid username parameter",
     );
-    const res = await GET(req);
-    expect(res.status).toBe(400);
-
-    const json = await getResponseJson(res);
-    expect(json.error).toBe("Invalid username parameter");
   });
 
   it("should return 404 when username is valid but user not found", async () => {
     // Simulate no index record for the username
-    mockRedisGet.mockResolvedValueOnce(null);
-
-    const req = new Request("http://localhost/api/user?username=unknownuser", {
-      headers: { "x-forwarded-for": "127.0.0.1" },
-    });
-    const res = await GET(req);
-    expect(res.status).toBe(404);
-
-    const json = await getResponseJson(res);
-    expect(json.error).toBe("User not found");
+    mockRedisSequence(null);
+    await expectError("username=unknownuser", 404, "User not found");
   });
 
   it("should return 200 and the user data when username maps to an existing user", async () => {
@@ -127,30 +125,13 @@ describe("User API GET Endpoint", () => {
       username: "testUser",
       stats: { score: 10 },
     };
-    mockRedisGet.mockResolvedValueOnce("123"); // username index key -> userId
-    mockRedisGet.mockResolvedValueOnce(JSON.stringify(userData)); // user key -> data
-
-    const req = new Request("http://localhost/api/user?username=testUser", {
-      headers: { "x-forwarded-for": "127.0.0.1" },
-    });
-    const res = await GET(req);
-    expect(res.status).toBe(200);
-
-    const json = await getResponseJson(res);
-    expect(json).toEqual(userData);
+    mockRedisSequence("123", JSON.stringify(userData));
+    await expectOkJson("username=testUser", userData);
   });
 
   it("should return 500 error if an error occurs during Redis fetch", async () => {
     // Simulate an error when fetching data from Redis.
-    mockRedisGet.mockRejectedValueOnce(new Error("Redis error"));
-
-    const req = new Request("http://localhost/api/user?userId=123", {
-      headers: { "x-forwarded-for": "127.0.0.1" },
-    });
-    const res = await GET(req);
-    expect(res.status).toBe(500);
-
-    const json = await getResponseJson(res);
-    expect(json.error).toBe("Failed to fetch user data");
+    mockRedisSequence(new Error("Redis error"));
+    await expectError("userId=123", 500, "Failed to fetch user data");
   });
 });

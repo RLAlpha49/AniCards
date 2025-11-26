@@ -93,17 +93,20 @@ import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
 // distributionTemplate may be mocked in tests above; no direct import needed here
 import { POST as storeCardsPOST } from "@/app/api/store-cards/route";
 
-jest.mock("@/lib/utils", () => ({
-  safeParse: (str: string) => JSON.parse(str),
-  extractStyles: jest.fn((cardConfig: Partial<Record<string, unknown>>) => ({
-    titleColor: cardConfig.titleColor,
-    backgroundColor: cardConfig.backgroundColor,
-    textColor: cardConfig.textColor,
-    circleColor: cardConfig.circleColor,
-    borderColor: cardConfig.borderColor,
-  })),
-  // Keep calculateMilestones from the dedicated module above.
-}));
+jest.mock("@/lib/utils", () => {
+  const actual = jest.requireActual("@/lib/utils");
+  return {
+    ...actual,
+    safeParse: (str: string) => JSON.parse(str),
+    extractStyles: jest.fn((cardConfig: Partial<Record<string, unknown>>) => ({
+      titleColor: cardConfig.titleColor,
+      backgroundColor: cardConfig.backgroundColor,
+      textColor: cardConfig.textColor,
+      circleColor: cardConfig.circleColor,
+      borderColor: cardConfig.borderColor,
+    })),
+  };
+});
 
 /**
  * Reads the text body from a Response for later assertion.
