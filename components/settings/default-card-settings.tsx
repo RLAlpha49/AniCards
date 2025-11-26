@@ -48,8 +48,6 @@ const FAVORITE_CARD_IDS = new Set([
  * @source
  */
 interface DefaultCardSettingsProps {
-  defaultPreset: string;
-  onPresetChange: (value: string) => void;
   defaultCardTypes: string[];
   defaultVariants: Record<string, string>;
   onToggleCardType: (cardType: string) => void;
@@ -66,8 +64,6 @@ interface DefaultCardSettingsProps {
 /**
  * Renders the default card settings pane used to configure presets and card defaults.
  * This includes color presets, border defaults, and which stat card types/variants are enabled by default.
- * @param defaultPreset - The currently selected color preset id.
- * @param onPresetChange - Callback invoked when the preset selection changes.
  * @param defaultCardTypes - List of card type ids currently enabled by default.
  * @param defaultVariants - Mapping of card type id to the selected variant id.
  * @param onToggleCardType - Toggles a single card type's default enabled state.
@@ -83,8 +79,6 @@ interface DefaultCardSettingsProps {
  * @source
  */
 export function DefaultCardSettings({
-  defaultPreset,
-  onPresetChange,
   defaultCardTypes,
   defaultVariants,
   onToggleCardType,

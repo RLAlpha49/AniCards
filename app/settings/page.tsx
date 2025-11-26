@@ -35,7 +35,6 @@ export default function SettingsPage() {
   const [mounted, setMounted] = useState(false);
   const [sidebarDefault, setSidebarDefault] = useState(open);
   const [cachedItems, setCachedItems] = useState<CacheItem[]>([]);
-  const [defaultPreset, setDefaultPreset] = useState("default");
   const [defaultCardTypes, setDefaultCardTypes] = useState<string[]>([]);
   const [defaultUsername, setDefaultUsername] = useState("");
   const [cacheVersion, setCacheVersion] = useState(0);
@@ -80,14 +79,6 @@ export default function SettingsPage() {
 
     // Load cached items and defaults on mount or when local storage updates
     setCachedItems(getSiteSpecificCache());
-
-    const savedPresetString = localStorage.getItem(
-      "anicards-defaultColorPreset",
-    );
-    const presetValue = savedPresetString
-      ? JSON.parse(savedPresetString).value
-      : "default";
-    setDefaultPreset(presetValue);
 
     const savedCardTypesString = localStorage.getItem(
       "anicards-defaultCardTypes",
@@ -175,21 +166,6 @@ export default function SettingsPage() {
    */
   const handleClearCache = () => {
     clearSiteCache();
-    setCacheVersion((v) => v + 1);
-  };
-
-  /**
-   * Update the default color preset and refresh related storage data.
-   * @param value - New preset identifier from the picker.
-   * @source
-   */
-  const handlePresetChange = (value: string) => {
-    const data = {
-      value: value,
-      lastModified: new Date().toISOString(),
-    };
-    setDefaultPreset(value);
-    localStorage.setItem("anicards-defaultColorPreset", JSON.stringify(data));
     setCacheVersion((v) => v + 1);
   };
 
@@ -413,8 +389,6 @@ export default function SettingsPage() {
 
           <div className="col-span-1 lg:col-span-2">
             <DefaultCardSettings
-              defaultPreset={defaultPreset}
-              onPresetChange={handlePresetChange}
               defaultCardTypes={defaultCardTypes}
               defaultVariants={defaultVariants}
               onToggleCardType={handleCardTypeToggle}
