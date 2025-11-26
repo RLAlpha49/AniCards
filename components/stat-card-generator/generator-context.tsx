@@ -17,6 +17,8 @@ import {
   saveDefaultBorderColor,
   saveDefaultBorderEnabled,
   saveDefaultCardTypes,
+  saveColorConfig,
+  loadColorConfig,
 } from "@/lib/data";
 import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
 import {
@@ -35,6 +37,8 @@ interface ColorPickerConfig {
   label: string;
   value: ColorValue;
   onChange: (value: ColorValue) => void;
+  /** When true, disables the gradient mode toggle button */
+  disableGradient?: boolean;
 }
 
 interface GeneratorContextValue {
@@ -193,9 +197,8 @@ export function GeneratorProvider({
   const [useMangaStatusColors, setUseMangaStatusColors] = useState(false);
   const [showPiePercentages, setShowPiePercentages] = useState(false);
   const [hasBorder, setHasBorder] = useState(false);
-  const [borderColor, setBorderColor] = useState<ColorValue>(
-    DEFAULT_BORDER_COLOR,
-  );
+  const [borderColor, setBorderColor] =
+    useState<ColorValue>(DEFAULT_BORDER_COLOR);
   const [currentStep, setCurrentStep] = useState(0);
   const [maxReachedStep, setMaxReachedStep] = useState(0);
 
@@ -211,17 +214,36 @@ export function GeneratorProvider({
 
   useEffect(() => {
     const defaults = loadDefaultSettings();
-    const presetColors = getPresetColors(defaults.colorPreset);
 
-    setSelectedPreset(defaults.colorPreset);
-    const setters = [
-      setTitleColor,
-      setBackgroundColor,
-      setTextColor,
-      setCircleColor,
-    ];
-    for (const [index, setter] of setters.entries()) {
-      setter(presetColors[index]);
+    // Try to load saved color config first (preferred), fallback to preset
+    const savedColors = loadColorConfig();
+    if (savedColors) {
+      const { colors, presetName } = savedColors;
+      setTitleColor(colors[0]);
+      setBackgroundColor(colors[1]);
+      setTextColor(colors[2]);
+      setCircleColor(colors[3]);
+      // Set preset if it's a valid key, otherwise "custom"
+      const validPreset =
+        presetName in colorPresets ? (presetName) : "custom";
+      setSelectedPreset(validPreset);
+    } else {
+      // Fallback to legacy preset-only loading
+      const presetColors = getPresetColors(defaults.colorPreset);
+      const validPreset =
+        defaults.colorPreset in colorPresets
+          ? (defaults.colorPreset)
+          : "default";
+      setSelectedPreset(validPreset);
+      const setters = [
+        setTitleColor,
+        setBackgroundColor,
+        setTextColor,
+        setCircleColor,
+      ];
+      for (const [index, setter] of setters.entries()) {
+        setter(presetColors[index]);
+      }
     }
 
     const savedVariantsData = localStorage.getItem("anicards-defaultVariants");
@@ -275,6 +297,19 @@ export function GeneratorProvider({
       } catch {}
     }
   }, []);
+
+  // Auto-save colors whenever they change
+  useEffect(() => {
+    // Only save after initial load (colors won't be empty strings from preset)
+    const hasValidColors =
+      titleColor && backgroundColor && textColor && circleColor;
+    if (hasValidColors) {
+      saveColorConfig(
+        [titleColor, backgroundColor, textColor, circleColor],
+        selectedPreset,
+      );
+    }
+  }, [titleColor, backgroundColor, textColor, circleColor, selectedPreset]);
 
   const isRetrying = loading && retryAttempt > 0;
   const overlayText = isRetrying
@@ -761,6 +796,7 @@ export function GeneratorProvider({
       label: "Border color",
       value: borderColor || DEFAULT_BORDER_COLOR,
       onChange: handleBorderColorChange,
+      disableGradient: true,
     }),
     [borderColor, handleBorderColorChange],
   );
