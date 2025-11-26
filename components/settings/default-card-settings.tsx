@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { colorPresets, statCardTypes } from "@/components/stat-card-generator";
+import { statCardTypes } from "@/components/stat-card-generator";
 import { ColorPickerGroup } from "@/components/stat-card-generator/color-picker-group";
 import { DEFAULT_BORDER_COLOR } from "@/lib/data";
 import type { ColorValue } from "@/lib/types/card";
@@ -177,32 +177,18 @@ export function DefaultCardSettings({
               Default Card Settings
             </Label>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Configure default color presets and card types for new generations
+              Configure default card types and border settings for new
+              generations
             </p>
           </div>
         </div>
 
-        {/* Color Preset Selection */}
-        <div className="mb-8 space-y-3">
-          <Label className="text-base font-semibold text-slate-900 dark:text-white">
-            Color Preset
-          </Label>
-          <Select value={defaultPreset} onValueChange={onPresetChange}>
-            <SelectTrigger className="h-12 w-full max-w-sm border-slate-200 bg-white px-4 text-base transition-all hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-blue-500 dark:focus:border-blue-400">
-              <SelectValue placeholder="Select color preset" />
-            </SelectTrigger>
-            <SelectContent className="border-slate-200 bg-white/95 backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900/95">
-              {Object.keys(colorPresets).map((preset) => (
-                <SelectItem
-                  key={preset}
-                  value={preset}
-                  className="cursor-pointer py-2 transition-colors focus:bg-blue-50 dark:focus:bg-slate-800"
-                >
-                  {preset.charAt(0).toUpperCase() + preset.slice(1)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="mb-8 rounded-xl border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
+          <p className="text-sm text-blue-700 dark:text-blue-300">
+            <strong>💡 Tip:</strong> Your color selections are automatically
+            saved when you customize them in the card generator. The selected
+            preset or custom colors will be restored on your next visit.
+          </p>
         </div>
 
         <div className="mb-8 space-y-3">
