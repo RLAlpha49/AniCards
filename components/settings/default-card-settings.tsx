@@ -213,6 +213,7 @@ export function DefaultCardSettings({
                       label: "Border color",
                       value: defaultBorderColor || "#e4e2e2",
                       onChange: handleBorderColorChange,
+                      disableGradient: true,
                     },
                   ]}
                 />
