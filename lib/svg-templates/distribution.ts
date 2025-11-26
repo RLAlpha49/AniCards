@@ -181,7 +181,13 @@ export function distributionTemplate(input: DistributionTemplateInput) {
       circleColor: styles.circleColor,
       borderColor: styles.borderColor,
     },
-    ["titleColor", "backgroundColor", "textColor", "circleColor", "borderColor"],
+    [
+      "titleColor",
+      "backgroundColor",
+      "textColor",
+      "circleColor",
+      "borderColor",
+    ],
   );
 
   // Normalize and sort data

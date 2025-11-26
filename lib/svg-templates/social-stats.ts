@@ -31,7 +31,13 @@ export const socialStatsTemplate = (data: {
       circleColor: data.styles.circleColor,
       borderColor: data.styles.borderColor,
     },
-    ["titleColor", "backgroundColor", "textColor", "circleColor", "borderColor"],
+    [
+      "titleColor",
+      "backgroundColor",
+      "textColor",
+      "circleColor",
+      "borderColor",
+    ],
   );
 
   // Defensive handling for activityHistory: can be undefined or empty

@@ -35,7 +35,13 @@ export const extraAnimeMangaStatsTemplate = (data: {
       circleColor: data.styles.circleColor,
       borderColor: data.styles.borderColor,
     },
-    ["titleColor", "backgroundColor", "textColor", "circleColor", "borderColor"],
+    [
+      "titleColor",
+      "backgroundColor",
+      "textColor",
+      "circleColor",
+      "borderColor",
+    ],
   );
 
   // Determine variant flags

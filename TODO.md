@@ -1,10 +1,7 @@
 # TODO List
 
-- If the border color cannot use a gradient, the option to select a gradient should be removed.
-- All the progress bars for gradient selections do not extend the full progress bar width and have a small gap on both sides.
-- What do the inputs alongside the progress bars for gradients steps do. It is unintuitive to the user and adding explanation text would help for explaining how gradients work.
-- when selecting a color preset which uses gradients, it does not change the color modes to gradient or solid correctly.
-- The color presets should have 2 views. One for solid colors and one for gradients. The views should further split up by light and dark themes.
-- Remove the default color preset from settings. When selecting colors for the cards it should save the current colors so they can be loaded as the default next time. Essentially making the users current colors the default colors. If they relate to a preset, the preset name should be saved as well. Otherwise it should be saved as "custom".
-- Create gradient versions of AniList Dark and Light color presets.
-- Create light verson gradient as there are currently none.
+- When typing a position percentage, after typing once it unfocuses the input field and seems to focus the dialog instead.
+- Do not show the show more button if there is no more color presets to show.
+- When saving the cards in the database it should only overwrite the specific card instead of the whole array of cards.
+- When generating cards it should go to the user page how you go to the user page when searching a user and not add the parameters of the cards to the URL.
+- Remove comments and sort color presets in constants.ts

@@ -2,14 +2,14 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { trackColorPresetSelection } from "@/lib/utils/google-analytics";
 import { cn, isGradient, colorValueToString } from "@/lib/utils";
-import { Check, Moon, Sun, Palette, Layers } from "lucide-react";
+import { Check, Moon, Sun, Palette, Layers, Filter } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { ColorValue } from "@/lib/types/card";
 
 /**
@@ -43,9 +43,7 @@ function hasGradient(colors: ColorValue[]): boolean {
 /** Convert a ColorValue to a CSS background style string. */
 function colorToCssBackground(color: ColorValue): string {
   if (isGradient(color)) {
-    const stops = color.stops
-      .map((s) => `${s.color} ${s.offset * 100}%`)
-      .join(", ");
+    const stops = color.stops.map((s) => `${s.color} ${s.offset}%`).join(", ");
     if (color.type === "radial") {
       const cx = color.cx ?? 50;
       const cy = color.cy ?? 50;
@@ -59,6 +57,7 @@ function colorToCssBackground(color: ColorValue): string {
 /**
  * Renders the available color presets and lets the user pick one.
  * Presets are sorted deterministically and the list can expand when many are present.
+ * Includes filter tabs to filter by color type (solid/gradient) and theme (light/dark).
  * @param selectedPreset - Key of the currently selected preset.
  * @param presets - Map of preset definitions keyed by string.
  * @param onPresetChange - Callback called with the selected preset key.
@@ -71,6 +70,13 @@ export function ColorPresetSelector({
   onPresetChange,
 }: Readonly<ColorPresetSelectorProps>) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [colorTypeFilter, setColorTypeFilter] = useState<
+    "all" | "solid" | "gradient"
+  >("all");
+  const [themeFilter, setThemeFilter] = useState<"all" | "light" | "dark">(
+    "all",
+  );
+
   // Wrapper that tracks selection for analytics then notifies caller.
   const handlePresetChange = (preset: string) => {
     trackColorPresetSelection(preset);
@@ -81,31 +87,61 @@ export function ColorPresetSelector({
   //  - keep known keys (default, anilistLight, anilistDark) in a fixed order
   //  - push 'custom' to the end
   //  - otherwise sort by mode (light before dark)
-  const sortedPresets: PresetEntry[] = Object.entries(presets).sort(
-    ([aKey, aVal], [bKey, bVal]) => {
-      const fixedOrder = ["default", "anilistLight", "anilistDark"];
-      const aFixedIndex = fixedOrder.indexOf(aKey);
-      const bFixedIndex = fixedOrder.indexOf(bKey);
-      if (aFixedIndex !== -1 || bFixedIndex !== -1) {
-        if (aFixedIndex !== -1 && bFixedIndex !== -1) {
-          return aFixedIndex - bFixedIndex;
+  const sortedPresets: PresetEntry[] = useMemo(
+    () =>
+      Object.entries(presets).sort(([aKey, aVal], [bKey, bVal]) => {
+        const fixedOrder = [
+          "default",
+          "anilistLight",
+          "anilistDark",
+          "anilistLightGradient",
+          "anilistDarkGradient",
+        ];
+        const aFixedIndex = fixedOrder.indexOf(aKey);
+        const bFixedIndex = fixedOrder.indexOf(bKey);
+        if (aFixedIndex !== -1 || bFixedIndex !== -1) {
+          if (aFixedIndex !== -1 && bFixedIndex !== -1) {
+            return aFixedIndex - bFixedIndex;
+          }
+          return aFixedIndex === -1 ? 1 : -1;
         }
-        return aFixedIndex === -1 ? 1 : -1;
-      }
-      if (aKey === "custom") return 1;
-      if (bKey === "custom") return -1;
-      if (aVal.mode === bVal.mode) return 0;
-      return aVal.mode === "light" ? -1 : 1;
-    },
+        if (aKey === "custom") return 1;
+        if (bKey === "custom") return -1;
+        if (aVal.mode === bVal.mode) return 0;
+        return aVal.mode === "light" ? -1 : 1;
+      }),
+    [presets],
   );
 
-  const totalPresets = sortedPresets.length;
+  // Apply filters to presets
+  const filteredPresets = useMemo(() => {
+    return sortedPresets.filter(([key, { colors, mode }]) => {
+      // Always show custom preset
+      if (key === "custom") return true;
+
+      // Filter by color type
+      const containsGradient = hasGradient(colors);
+      if (colorTypeFilter === "solid" && containsGradient) return false;
+      if (colorTypeFilter === "gradient" && !containsGradient) return false;
+
+      // Filter by theme
+      if (themeFilter === "light" && mode !== "light") return false;
+      if (themeFilter === "dark" && mode !== "dark") return false;
+
+      return true;
+    });
+  }, [sortedPresets, colorTypeFilter, themeFilter]);
+
+  const totalPresets = filteredPresets.length;
   const hasMorePresets = totalPresets > DEFAULT_VISIBLE_PRESETS;
-  const selectedIndex = sortedPresets.findIndex(
+  const selectedIndex = filteredPresets.findIndex(
     ([key]) => key === selectedPreset,
   );
-  const initialVisiblePresets = sortedPresets.slice(0, DEFAULT_VISIBLE_PRESETS);
-  const customPresetEntry = sortedPresets.find(([key]) => key === "custom");
+  const initialVisiblePresets = filteredPresets.slice(
+    0,
+    DEFAULT_VISIBLE_PRESETS,
+  );
+  const customPresetEntry = filteredPresets.find(([key]) => key === "custom");
 
   // Ensure 'custom' preset, if present, appears in the visible list
   const ensureCustomVisible = (list: PresetEntry[]): PresetEntry[] => {
@@ -116,18 +152,32 @@ export function ColorPresetSelector({
 
   const baseVisiblePresets = (() => {
     if (isExpanded || !hasMorePresets) {
-      return sortedPresets;
+      return filteredPresets;
     }
     if (
       selectedIndex >= DEFAULT_VISIBLE_PRESETS &&
-      selectedIndex < sortedPresets.length
+      selectedIndex < filteredPresets.length
     ) {
-      return [...initialVisiblePresets, sortedPresets[selectedIndex]];
+      return [...initialVisiblePresets, filteredPresets[selectedIndex]];
     }
     return initialVisiblePresets;
   })();
 
   const visiblePresets = ensureCustomVisible(baseVisiblePresets);
+
+  // Count presets by type for filter badges
+  const presetCounts = useMemo(() => {
+    const counts = { solid: 0, gradient: 0, light: 0, dark: 0 };
+    for (const [key, { colors, mode }] of sortedPresets) {
+      if (key === "custom") continue;
+      const containsGradient = hasGradient(colors);
+      if (containsGradient) counts.gradient++;
+      else counts.solid++;
+      if (mode === "light") counts.light++;
+      else if (mode === "dark") counts.dark++;
+    }
+    return counts;
+  }, [sortedPresets]);
 
   return (
     <div className="space-y-4">
@@ -136,8 +186,82 @@ export function ColorPresetSelector({
           Color Preset
         </Label>
         <span className="text-xs text-muted-foreground">
-          {sortedPresets.length} presets available
+          {filteredPresets.length} of {sortedPresets.length} presets
         </span>
+      </div>
+
+      {/* Filter Tabs */}
+      <div className="space-y-2">
+        {/* Color Type Filter */}
+        <div className="flex items-center gap-2">
+          <Filter className="h-3.5 w-3.5 text-gray-400" />
+          <div className="flex gap-1">
+            <Button
+              type="button"
+              variant={colorTypeFilter === "all" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setColorTypeFilter("all")}
+              className="h-7 px-2.5 text-xs"
+            >
+              All
+            </Button>
+            <Button
+              type="button"
+              variant={colorTypeFilter === "solid" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setColorTypeFilter("solid")}
+              className="h-7 gap-1 px-2.5 text-xs"
+            >
+              <Palette className="h-3 w-3" />
+              Solid ({presetCounts.solid})
+            </Button>
+            <Button
+              type="button"
+              variant={colorTypeFilter === "gradient" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setColorTypeFilter("gradient")}
+              className="h-7 gap-1 px-2.5 text-xs"
+            >
+              <Layers className="h-3 w-3" />
+              Gradient ({presetCounts.gradient})
+            </Button>
+          </div>
+        </div>
+        {/* Theme Filter */}
+        <div className="flex items-center gap-2">
+          <span className="h-3.5 w-3.5" /> {/* Spacer to align with above */}
+          <div className="flex gap-1">
+            <Button
+              type="button"
+              variant={themeFilter === "all" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setThemeFilter("all")}
+              className="h-7 px-2.5 text-xs"
+            >
+              All Themes
+            </Button>
+            <Button
+              type="button"
+              variant={themeFilter === "light" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setThemeFilter("light")}
+              className="h-7 gap-1 px-2.5 text-xs"
+            >
+              <Sun className="h-3 w-3" />
+              Light ({presetCounts.light})
+            </Button>
+            <Button
+              type="button"
+              variant={themeFilter === "dark" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setThemeFilter("dark")}
+              className="h-7 gap-1 px-2.5 text-xs"
+            >
+              <Moon className="h-3 w-3" />
+              Dark ({presetCounts.dark})
+            </Button>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(96px,1fr))] gap-3">
@@ -188,7 +312,7 @@ export function ColorPresetSelector({
 
                     {/* Gradient Indicator (Top Left) */}
                     {containsGradient && !isCustom && (
-                      <div className="absolute top-1 left-1 rounded-full bg-black/10 p-0.5 backdrop-blur-sm dark:bg-white/10">
+                      <div className="absolute left-1 top-1 rounded-full bg-black/10 p-0.5 backdrop-blur-sm dark:bg-white/10">
                         <Layers className="h-2.5 w-2.5 text-purple-600 dark:text-purple-300" />
                       </div>
                     )}
