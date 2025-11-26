@@ -44,8 +44,50 @@ interface ColorPickerGroupProps {
  * @returns Whether the string is a valid hex color.
  * @source
  */
+const HEX_COLOR_REGEX = /^#([A-Fa-f0-9]{3}|[A-Fa-f0-9]{6}|[A-Fa-f0-9]{8})$/;
+
 function isValidHex(color: string): boolean {
-  return /^#([A-Fa-f0-9]{3}|[A-Fa-f0-9]{6})$/.test(color);
+  return HEX_COLOR_REGEX.test(color);
+}
+
+function normalizeHexString(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const candidate = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+  const match = HEX_COLOR_REGEX.exec(candidate);
+  if (!match) return null;
+  let hex = match[1];
+  if (hex.length === 3) {
+    hex = hex
+      .split("")
+      .map((char) => `${char}${char}`)
+      .join("");
+  }
+  return `#${hex.toUpperCase()}`;
+}
+
+function buildHexWithOpacity(baseColor: string, opacity: number): string {
+  const clampedOpacity = Math.max(0, Math.min(1, opacity));
+  const normalizedBase =
+    normalizeHexString(baseColor)?.slice(0, 7) ?? "#000000";
+  if (clampedOpacity === 1) {
+    return normalizedBase;
+  }
+  const alphaHex = Math.round(clampedOpacity * 255)
+    .toString(16)
+    .padStart(2, "0")
+    .toUpperCase();
+  return `${normalizedBase}${alphaHex}`;
+}
+
+function extractOpacityFromHex(normalizedHex: string): number {
+  if (normalizedHex.length !== 9) return 1;
+  const alphaHex = normalizedHex.slice(7);
+  const parsed = Number.parseInt(alphaHex, 16);
+  if (Number.isNaN(parsed)) return 1;
+  return Number.parseFloat(
+    (Math.max(0, Math.min(255, parsed)) / 255).toFixed(3),
+  );
 }
 
 /**
@@ -57,12 +99,31 @@ function isValidHex(color: string): boolean {
 function parseColorValue(value: ColorValue): {
   isSolid: boolean;
   hex?: string;
+  fullHex?: string;
+  opacity?: number;
   gradient?: GradientDefinition;
 } {
   if (isGradient(value)) {
     return { isSolid: false, gradient: value };
   }
-  return { isSolid: true, hex: value };
+  const raw = typeof value === "string" ? value : "";
+  const fallback = raw.startsWith("#") ? raw : `#${raw}`;
+  const normalized = normalizeHexString(raw);
+  if (!normalized) {
+    return {
+      isSolid: true,
+      hex: "#000000",
+      fullHex: fallback,
+      opacity: 1,
+    };
+  }
+  const base = normalized.slice(0, 7);
+  return {
+    isSolid: true,
+    hex: base,
+    fullHex: normalized,
+    opacity: extractOpacityFromHex(normalized),
+  };
 }
 
 /**
@@ -273,7 +334,7 @@ function GradientStopEditor({
                     Number.parseInt(e.target.value) / 100,
                   )
                 }
-                className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-gray-200 dark:bg-gray-700 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500"
+                className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-gray-200 px-0 dark:bg-gray-700 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500"
                 aria-label={`Stop ${index + 1} opacity`}
               />
               <span className="w-8 text-xs text-gray-400">
@@ -368,7 +429,7 @@ function GradientControls({
             max={360}
             value={gradient.angle ?? 90}
             onChange={(e) => handleAngleChange(Number.parseInt(e.target.value))}
-            className="h-2 w-full cursor-pointer appearance-none rounded-full bg-gray-200 dark:bg-gray-700 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500"
+            className="h-2 w-full cursor-pointer appearance-none rounded-full bg-gray-200 px-0 dark:bg-gray-700 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500"
           />
         </div>
       ) : (
@@ -430,6 +491,7 @@ function GradientControls({
  */
 function SingleColorPicker({ picker }: Readonly<{ picker: ColorPickerItem }>) {
   const parsed = useMemo(() => parseColorValue(picker.value), [picker.value]);
+  const solidOpacity = parsed.opacity ?? 1;
 
   // Derive mode from the current value - sync with external changes (e.g., from preset selection)
   const derivedMode = parsed.isSolid ? "solid" : "gradient";
@@ -456,9 +518,37 @@ function SingleColorPicker({ picker }: Readonly<{ picker: ColorPickerItem }>) {
 
   const handleSolidChange = useCallback(
     (hex: string) => {
-      picker.onChange(hex);
+      const normalized = normalizeHexString(hex) ?? "#000000";
+      const base = normalized.slice(0, 7);
+      const nextValue = buildHexWithOpacity(base, solidOpacity);
+      picker.onChange(nextValue);
     },
-    [picker],
+    [picker, solidOpacity],
+  );
+
+  const handleHexInputChange = useCallback(
+    (value: string) => {
+      const candidate = value.startsWith("#") ? value : `#${value}`;
+      const normalized = normalizeHexString(candidate);
+      if (!normalized) {
+        picker.onChange(candidate);
+        return;
+      }
+      if (normalized.length === 7) {
+        picker.onChange(buildHexWithOpacity(normalized, solidOpacity));
+        return;
+      }
+      picker.onChange(normalized);
+    },
+    [picker, solidOpacity],
+  );
+
+  const handleOpacityChange = useCallback(
+    (percent: number) => {
+      const base = parsed.hex ?? "#000000";
+      picker.onChange(buildHexWithOpacity(base, percent / 100));
+    },
+    [picker, parsed.hex],
   );
 
   const handleGradientChange = useCallback(
@@ -481,8 +571,10 @@ function SingleColorPicker({ picker }: Readonly<{ picker: ColorPickerItem }>) {
     return validateColorValue(picker.value);
   }, [picker.value]);
 
-  const solidHex = parsed.hex || "#000000";
+  const solidBaseHex = parsed.hex || "#000000";
+  const solidDisplayHex = (parsed.fullHex ?? "#000000").replace("#", "");
   const gradient = parsed.gradient;
+  const solidOpacityPercent = Math.round((parsed.opacity ?? 1) * 100);
 
   return (
     <div className="space-y-2">
@@ -516,38 +608,54 @@ function SingleColorPicker({ picker }: Readonly<{ picker: ColorPickerItem }>) {
       </div>
 
       {mode === "solid" ? (
-        <div className="group relative flex items-center gap-2">
+        <div className="group relative flex flex-wrap gap-2">
           <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-gray-200 shadow-sm transition-all group-hover:scale-105 dark:border-gray-700">
             <Input
               id={picker.id}
               type="color"
-              value={isValidHex(solidHex) ? solidHex : "#000000"}
+              value={isValidHex(solidBaseHex) ? solidBaseHex : "#000000"}
               onChange={(e) => handleSolidChange(e.target.value)}
               className="absolute -left-1/2 -top-1/2 h-[200%] w-[200%] cursor-pointer border-0 p-0"
               aria-label={`${picker.label} color picker`}
             />
           </div>
-          <div className="relative flex-grow">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400">
-              #
-            </span>
-            <Input
-              type="text"
-              value={solidHex.replace("#", "")}
-              onChange={(e) => {
-                const val = e.target.value;
-                handleSolidChange(val.startsWith("#") ? val : `#${val}`);
-              }}
-              className={cn(
-                "min-w-0 pl-7 font-mono text-sm uppercase transition-all",
-                valid
-                  ? "border-gray-200 focus-visible:ring-blue-500 dark:border-gray-700"
-                  : "border-red-500 focus-visible:ring-red-500",
-              )}
-              maxLength={7}
-              aria-label={`${picker.label} color hex code input`}
-              placeholder="000000"
-            />
+          <div className="flex flex-1 flex-col gap-2">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400">
+                #
+              </span>
+              <Input
+                type="text"
+                value={solidDisplayHex}
+                onChange={(e) => handleHexInputChange(e.target.value)}
+                className={cn(
+                  "min-w-0 pl-7 font-mono text-sm uppercase transition-all",
+                  valid
+                    ? "border-gray-200 focus-visible:ring-blue-500 dark:border-gray-700"
+                    : "border-red-500 focus-visible:ring-red-500",
+                )}
+                maxLength={8}
+                aria-label={`${picker.label} color hex code input`}
+                placeholder="000000"
+              />
+            </div>
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <span>Opacity</span>
+              <Input
+                type="range"
+                min={0}
+                max={100}
+                value={solidOpacityPercent}
+                onChange={(e) =>
+                  handleOpacityChange(Number.parseInt(e.target.value) || 0)
+                }
+                className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-gray-200 px-0 dark:bg-gray-700 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500"
+                aria-label={`${picker.label} opacity slider`}
+              />
+              <span className="w-12 text-right text-xs text-gray-400">
+                {solidOpacityPercent}%
+              </span>
+            </div>
           </div>
         </div>
       ) : (

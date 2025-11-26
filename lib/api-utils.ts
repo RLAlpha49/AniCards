@@ -3,7 +3,7 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import type { Agent as HttpAgent } from "node:http";
 import type { Agent as HttpsAgent } from "node:https";
-import { isValidGradient } from "@/lib/utils";
+import { isValidHexColor, validateColorValue } from "@/lib/utils";
 
 // Shared Redis client and rate limiter configuration
 // Edge runtime compatibility: don't require Node-only modules on edge.
@@ -342,31 +342,6 @@ export function validateUserData(
 }
 
 /**
- * Verifies a hex color string is a 3/6/8 character hex (with leading #).
- * Note: This only validates hex strings, not gradient objects.
- * Use isValidColorValue for validating both hex strings and gradients.
- * @param color - Hex color string to validate.
- * @returns True when color matches expected hex format.
- * @source
- */
-function isValidHexColor(color: string): boolean {
-  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/.test(color);
-}
-
-/**
- * Validates a color value which can be either a hex string or a gradient object.
- * @param value - The color value to validate.
- * @returns True if the value is a valid hex color or gradient definition.
- * @source
- */
-function isValidColorValue(value: unknown): boolean {
-  if (typeof value === "string") {
-    return isValidHexColor(value);
-  }
-  return isValidGradient(value);
-}
-
-/**
  * Validates a username string following project constraints: length,
  * permitted characters, and trimming. Used by both GET and POST paths.
  * @param value - Username value to validate.
@@ -435,9 +410,15 @@ function validateCardRequiredFields(
       return NextResponse.json({ error: "Invalid data" }, { status: 400 });
     }
 
-    if (!isValidColorValue(value)) {
+    if (!validateColorValue(value)) {
+      const isStringValue = typeof value === "string";
+      const reason = isStringValue
+        ? isValidHexColor(value)
+          ? "hex string passed regex but failed shared validation"
+          : "invalid hex string"
+        : "invalid gradient definition";
       console.warn(
-        `⚠️ [${endpoint}] Card ${cardIndex} invalid color or gradient format for ${field}`,
+        `⚠️ [${endpoint}] Card ${cardIndex} invalid color or gradient format for ${field} (${reason})`,
       );
       return NextResponse.json({ error: "Invalid data" }, { status: 400 });
     }
@@ -478,10 +459,17 @@ function validateCardOptionalFields(
   }
 
   // Validate borderColor if present (optional, can be hex string or gradient)
-  if (card.borderColor !== undefined && card.borderColor !== null) {
-    if (!isValidColorValue(card.borderColor)) {
+  const borderColorValue = card.borderColor;
+  if (borderColorValue !== undefined && borderColorValue !== null) {
+    if (!validateColorValue(borderColorValue)) {
+      const isStringValue = typeof borderColorValue === "string";
+      const reason = isStringValue
+        ? isValidHexColor(borderColorValue)
+          ? "hex string passed regex but failed shared validation"
+          : "invalid hex string"
+        : "invalid gradient definition";
       console.warn(
-        `⚠️ [${endpoint}] Card ${cardIndex} invalid borderColor format`,
+        `⚠️ [${endpoint}] Card ${cardIndex} invalid borderColor format (${reason})`,
       );
       return NextResponse.json({ error: "Invalid data" }, { status: 400 });
     }

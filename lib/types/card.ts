@@ -46,7 +46,7 @@ export interface TemplateCardConfig {
   backgroundColor: ColorValue;
   textColor: ColorValue;
   circleColor: ColorValue;
-  borderColor?: ColorValue;
+  borderColor?: string;
   useStatusColors?: boolean;
 }
 

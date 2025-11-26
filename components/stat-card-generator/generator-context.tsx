@@ -27,7 +27,6 @@ import {
 } from "@/lib/utils/google-analytics";
 import { colorPresets, statCardTypes } from "./constants";
 import type { ColorValue } from "@/lib/types/card";
-import { isGradient, colorValueToString } from "@/lib/utils";
 
 type ColorPresetKey = keyof typeof colorPresets;
 type MediaStatsPreviewData = Parameters<typeof mediaStatsTemplate>[0];
@@ -48,7 +47,7 @@ interface GeneratorContextValue {
   backgroundColor: ColorValue;
   textColor: ColorValue;
   circleColor: ColorValue;
-  borderColor: ColorValue;
+  borderColor: string;
   selectedCards: string[];
   selectedCardVariants: Record<string, string>;
   allSelected: boolean;
@@ -197,8 +196,7 @@ export function GeneratorProvider({
   const [useMangaStatusColors, setUseMangaStatusColors] = useState(false);
   const [showPiePercentages, setShowPiePercentages] = useState(false);
   const [hasBorder, setHasBorder] = useState(false);
-  const [borderColor, setBorderColor] =
-    useState<ColorValue>(DEFAULT_BORDER_COLOR);
+  const [borderColor, setBorderColor] = useState<string>(DEFAULT_BORDER_COLOR);
   const [currentStep, setCurrentStep] = useState(0);
   const [maxReachedStep, setMaxReachedStep] = useState(0);
 
@@ -464,8 +462,7 @@ export function GeneratorProvider({
   }, []);
 
   const handleBorderColorChange = useCallback((value: ColorValue) => {
-    // Border color currently only supports solid colors
-    if (isGradient(value)) {
+    if (typeof value !== "string") {
       return;
     }
     const trimmed = value.trim();
@@ -570,7 +567,7 @@ export function GeneratorProvider({
       useAnimeStatusColors,
       useMangaStatusColors,
       borderEnabled: hasBorder,
-      borderColor: colorValueToString(borderColor),
+      borderColor,
     });
 
     if (result.success && result.userId) {
