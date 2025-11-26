@@ -3,10 +3,8 @@
 import { useTheme } from "next-themes";
 import { useEffect, useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { useSidebar } from "@/components/ui/sidebar";
 import { useUserPreferences, useCardSettings, useCache } from "@/lib/stores";
 import { ThemePreferences } from "@/components/settings/theme-preferences";
-import { SidebarBehavior } from "@/components/settings/sidebar-behavior";
 import { CacheManagement } from "@/components/settings/cache-management";
 import { DefaultCardSettings } from "@/components/settings/default-card-settings";
 import { ResetSettings } from "@/components/settings/reset-settings";
@@ -22,17 +20,11 @@ export default function SettingsPage() {
   usePageSEO("settings");
 
   const { setTheme, theme, themes } = useTheme();
-  const { setOpen } = useSidebar();
   const [mounted, setMounted] = useState(false);
 
   // Zustand stores
-  const {
-    sidebarDefaultOpen,
-    defaultUsername,
-    setSidebarDefaultOpen,
-    setDefaultUsername,
-    resetUserPreferences,
-  } = useUserPreferences();
+  const { defaultUsername, setDefaultUsername, resetUserPreferences } =
+    useUserPreferences();
 
   const {
     defaultCardTypes,
@@ -90,16 +82,6 @@ export default function SettingsPage() {
    */
   const handleThemeChange = (value: string) => {
     setTheme(value);
-  };
-
-  /**
-   * Persist the preferred sidebar open state.
-   * @param checked - Whether the sidebar should default to open.
-   * @source
-   */
-  const handleSidebarDefaultChange = (checked: boolean) => {
-    setSidebarDefaultOpen(checked);
-    setOpen(checked);
   };
 
   /**
@@ -239,11 +221,6 @@ export default function SettingsPage() {
               theme={theme || "system"}
               themes={themes}
               onThemeChange={handleThemeChange}
-            />
-
-            <SidebarBehavior
-              sidebarDefault={sidebarDefaultOpen}
-              onSidebarChange={handleSidebarDefaultChange}
             />
 
             <DefaultUsernameSettings

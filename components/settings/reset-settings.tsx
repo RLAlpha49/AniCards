@@ -79,10 +79,6 @@ export function ResetSettings({ onReset }: Readonly<ResetSettingsProps>) {
                   </li>
                   <li className="flex items-center gap-2">
                     <span className="h-1 w-1 rounded-full bg-red-500" />
-                    <span>Sidebar behavior settings</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="h-1 w-1 rounded-full bg-red-500" />
                     <span>Default username</span>
                   </li>
                   <li className="flex items-center gap-2">
