@@ -61,7 +61,6 @@ export default function GithubCorner() {
           </Link>
         </motion.div>
 
-        {/* Enhanced Tooltip */}
         <AnimatePresence>
           {isHovered && (
             <motion.div
@@ -69,7 +68,7 @@ export default function GithubCorner() {
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 10, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="absolute right-full top-1/2 mr-3 -translate-y-1/2"
+              className="absolute right-full top-0 mr-3"
             >
               <div className="relative">
                 {/* Tooltip Card */}
@@ -136,7 +135,7 @@ export default function GithubCorner() {
                 </div>
 
                 {/* Tooltip Arrow */}
-                <div className="absolute right-0 top-1/2 h-3 w-3 -translate-y-1/2 translate-x-1.5 rotate-45 border-r border-t border-slate-200/50 bg-white/95 dark:border-slate-700/50 dark:bg-slate-800/95" />
+                <div className="absolute right-0 top-[15%] h-3 w-3 -translate-y-1/2 translate-x-1.5 rotate-45 border-r border-t border-slate-200/50 bg-white/95 dark:border-slate-700/50 dark:bg-slate-800/95" />
               </div>
             </motion.div>
           )}
