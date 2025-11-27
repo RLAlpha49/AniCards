@@ -1,5 +1,9 @@
 import { AnimeStats, MangaStats, ColorValue } from "@/lib/types/card";
-import { calculateDynamicFontSize, processColorsForSVG } from "../utils";
+import {
+  calculateDynamicFontSize,
+  processColorsForSVG,
+  getCardBorderRadius,
+} from "../utils";
 
 /** Media type used by the media stats templates — either anime or manga. @source */
 type MediaType = "anime" | "manga";
@@ -219,6 +223,7 @@ export const mediaStatsTemplate = (data: {
     textColor: ColorValue;
     circleColor: ColorValue;
     borderColor?: ColorValue;
+    borderRadius?: number;
   };
   stats: (AnimeStats | MangaStats) & {
     previousMilestone: number;
@@ -310,6 +315,7 @@ export const mediaStatsTemplate = (data: {
   const scaledDashoffset = Number.isFinite(originalDashoffset)
     ? (originalDashoffset * scale).toFixed(2)
     : (0 * scale).toFixed(2);
+  const cardRadius = getCardBorderRadius(data.styles.borderRadius);
 
   return `
 <svg
@@ -388,11 +394,11 @@ export const mediaStatsTemplate = (data: {
     data-testid="card-bg"
     x="0.5"
     y="0.5"
-    rx="4.5"
+    rx="${cardRadius}"
     height="${dims.h - 1}"
     width="${dims.w - 1}"
     fill="${resolvedColors.backgroundColor}"
-    stroke="${resolvedColors.borderColor}"
+    ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""}
     stroke-width="2"
   />
   <g data-testid="card-title" transform="translate(25, 35)">

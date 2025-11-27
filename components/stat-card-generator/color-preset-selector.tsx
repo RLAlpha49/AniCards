@@ -348,7 +348,7 @@ export function ColorPresetSelector({
           })}
         </TooltipProvider>
       </div>
-      {hasMorePresets && !isExpanded && (
+      {visiblePresets.length < filteredPresets.length && (
         <div className="flex justify-end">
           <Button
             variant="ghost"

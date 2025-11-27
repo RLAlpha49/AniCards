@@ -1,5 +1,9 @@
 import { SocialStats, ColorValue } from "@/lib/types/card";
-import { calculateDynamicFontSize, processColorsForSVG } from "../utils";
+import {
+  calculateDynamicFontSize,
+  processColorsForSVG,
+  getCardBorderRadius,
+} from "../utils";
 
 /**
  * Renders an SVG string visualizing a user's social metrics: followers,
@@ -18,6 +22,7 @@ export const socialStatsTemplate = (data: {
     textColor: ColorValue;
     circleColor: ColorValue;
     borderColor?: ColorValue;
+    borderRadius?: number;
   };
   stats: SocialStats;
   activityHistory?: { date: number; amount: number }[];
@@ -74,6 +79,7 @@ export const socialStatsTemplate = (data: {
         return { w: 280, h: 195 };
     }
   })();
+  const cardRadius = getCardBorderRadius(data.styles.borderRadius);
 
   return `
 <svg
@@ -148,11 +154,11 @@ export const socialStatsTemplate = (data: {
     data-testid="card-bg"
     x="0.5"
     y="0.5"
-    rx="4.5"
+    rx="${cardRadius}"
     height="${dims.h - 1}"
     width="${dims.w - 1}"
     fill="${resolvedColors.backgroundColor}"
-    stroke="${resolvedColors.borderColor}"
+    ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""}
     stroke-width="2"
   />
   <g data-testid="card-title" transform="translate(25, 35)">

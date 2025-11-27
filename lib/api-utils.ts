@@ -3,7 +3,11 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import type { Agent as HttpAgent } from "node:http";
 import type { Agent as HttpsAgent } from "node:https";
-import { isValidHexColor, validateColorValue } from "@/lib/utils";
+import {
+  isValidHexColor,
+  validateBorderRadius,
+  validateColorValue,
+} from "@/lib/utils";
 
 // Shared Redis client and rate limiter configuration
 // Edge runtime compatibility: don't require Node-only modules on edge.
@@ -477,7 +481,8 @@ function validateCardOptionalFields(
 
   // Validate borderColor if present (optional, can be hex string or gradient)
   const borderColorValue = card.borderColor;
-  if (borderColorValue !== undefined && borderColorValue !== null) {
+  const hasBorder = borderColorValue !== undefined && borderColorValue !== null;
+  if (hasBorder) {
     if (!validateColorValue(borderColorValue)) {
       const reason = getColorInvalidReason(borderColorValue);
       console.warn(
@@ -487,6 +492,46 @@ function validateCardOptionalFields(
     }
   }
 
+  const borderRadiusValue = card.borderRadius;
+  const borderRadiusError = validateBorderRadiusField(
+    borderRadiusValue,
+    cardIndex,
+    endpoint,
+    { requireValue: hasBorder },
+  );
+  if (borderRadiusError) return borderRadiusError;
+
+  return null;
+}
+
+function validateBorderRadiusField(
+  borderRadiusValue: unknown,
+  cardIndex: number,
+  endpoint: string,
+  options?: { requireValue?: boolean },
+): NextResponse<ApiError> | null {
+  const { requireValue = false } = options ?? {};
+  if (borderRadiusValue === undefined || borderRadiusValue === null) {
+    if (requireValue) {
+      console.warn(
+        `⚠️ [${endpoint}] Card ${cardIndex} borderRadius required when border is enabled`,
+      );
+      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+    }
+    return null;
+  }
+  if (typeof borderRadiusValue !== "number") {
+    console.warn(
+      `⚠️ [${endpoint}] Card ${cardIndex} borderRadius must be a number`,
+    );
+    return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+  }
+  if (!validateBorderRadius(borderRadiusValue)) {
+    console.warn(
+      `⚠️ [${endpoint}] Card ${cardIndex} borderRadius out of range: ${borderRadiusValue}`,
+    );
+    return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+  }
   return null;
 }
 

@@ -12,6 +12,10 @@ import JSZip from "jszip";
 // These helpers assist in merging class names, performing clipboard operations,
 // converting SVG to various image formats, calculating dynamic font sizes, formatting bytes, and safely parsing JSON data.
 
+export const DEFAULT_CARD_BORDER_RADIUS = 8;
+const BORDER_RADIUS_MIN = 0;
+const BORDER_RADIUS_MAX = 50;
+
 /** Export formats supported for image conversion. @source */
 export type ConversionFormat = "png" | "webp";
 
@@ -257,7 +261,7 @@ export function processColorsForSVG(
   for (const key of colorKeys) {
     const value = styles[key];
     if (value === undefined) {
-      resolvedColors[key] = "none";
+      resolvedColors[key] = "";
       continue;
     }
 
@@ -544,7 +548,55 @@ export function extractStyles(
     textColor: cardConfig.textColor,
     circleColor: cardConfig.circleColor,
     borderColor: cardConfig.borderColor,
+    borderRadius: cardConfig.borderRadius,
   };
+}
+
+/**
+ * Clamp a numeric border radius value to the allowed range and normalize precision.
+ * @param value - The radius value to clamp.
+ * @returns A number between the min and max border radius bounds, rounded to one decimal place.
+ */
+export function clampBorderRadius(value: number) {
+  const safeValue = Number.isFinite(value) ? value : DEFAULT_CARD_BORDER_RADIUS;
+  const clamped = Math.max(
+    BORDER_RADIUS_MIN,
+    Math.min(BORDER_RADIUS_MAX, safeValue),
+  );
+  return Math.round(clamped * 10) / 10;
+}
+
+/**
+ * Validates that the provided value is a finite number within the allowed border radius range.
+ * @param value - The value to validate.
+ * @returns True when the value is numeric and between the configured bounds.
+ */
+export function validateBorderRadius(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= BORDER_RADIUS_MIN &&
+    value <= BORDER_RADIUS_MAX
+  );
+}
+
+/**
+ * Determines the corner radius for the card background rectangle.
+ * Custom radius is honored only when a border color is defined.
+ * @param borderColor - Configured border color (falsy when a border is not rendered).
+ * @param borderRadius - Configured border radius value.
+ * @param defaultRadius - Radius to use when no custom radius is provided (defaults to DEFAULT_CARD_BORDER_RADIUS).
+ * @returns A number between the min and max border radius bounds.
+ * @source
+ */
+export function getCardBorderRadius(
+  borderRadius: number | undefined,
+  defaultRadius = DEFAULT_CARD_BORDER_RADIUS,
+) {
+  if (typeof borderRadius === "number") {
+    return clampBorderRadius(borderRadius);
+  }
+  return defaultRadius;
 }
 
 /** Successful result for a single conversion in a batch. @source */

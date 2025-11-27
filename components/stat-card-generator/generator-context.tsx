@@ -4,7 +4,9 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -15,6 +17,7 @@ import {
   trackCardGeneration,
   trackUserSearch,
 } from "@/lib/utils/google-analytics";
+import { clampBorderRadius } from "@/lib/utils";
 import { colorPresets, statCardTypes } from "./constants";
 import type { ColorValue } from "@/lib/types/card";
 
@@ -37,7 +40,11 @@ interface GeneratorContextValue {
   backgroundColor: ColorValue;
   textColor: ColorValue;
   circleColor: ColorValue;
-  borderColor: string;
+  borderColor?: string;
+  borderRadius: number;
+  borderColorEnabled: boolean;
+  isBorderColorCustom: boolean;
+  handleToggleBorderColorEnabled: (enabled: boolean) => void;
   selectedCards: string[];
   selectedCardVariants: Record<string, string>;
   allSelected: boolean;
@@ -78,6 +85,7 @@ interface GeneratorContextValue {
   handleToggleShowPiePercentages: () => void;
   handleToggleBorder: () => void;
   handleBorderColorChange: (value: ColorValue) => void;
+  handleBorderRadiusChange: (value: number) => void;
   handlePresetChange: (preset: ColorPresetKey) => void;
   handleSubmit: () => Promise<void>;
   openPreview: (cardType: string, variant?: string) => void;
@@ -94,6 +102,7 @@ const GeneratorContext = createContext<GeneratorContextValue | undefined>(
 );
 
 const STEP_COUNT = 4;
+const DEFAULT_BORDER_COLOR = "#e4e2e2";
 
 /**
  * Returns the color palette for a given preset name; falls back to default
@@ -178,6 +187,7 @@ export function GeneratorProvider({
     defaultShowFavoritesByCard,
     defaultBorderEnabled,
     defaultBorderColor,
+    defaultBorderRadius,
     useAnimeStatusColors,
     useMangaStatusColors,
     showPiePercentages,
@@ -187,6 +197,7 @@ export function GeneratorProvider({
     toggleShowFavorites,
     setDefaultBorderEnabled,
     setDefaultBorderColor,
+    setDefaultBorderRadius,
     setUseAnimeStatusColors,
     setUseMangaStatusColors,
     setShowPiePercentages,
@@ -207,9 +218,31 @@ export function GeneratorProvider({
     return presetName in colorPresets ? presetName : "custom";
   }, [savedColorConfig]);
 
-  const effectiveBorderColor = defaultBorderColor || "#e4e2e2";
   const selectedPreset = effectivePreset;
-  const borderColor = effectiveBorderColor;
+  const borderColor = defaultBorderColor || undefined;
+  const borderColorPickerValue = defaultBorderColor || DEFAULT_BORDER_COLOR;
+  const borderColorEnabled = Boolean(defaultBorderColor);
+  const borderRadius = defaultBorderRadius;
+  const isBorderColorCustom = Boolean(
+    defaultBorderColor && defaultBorderColor !== DEFAULT_BORDER_COLOR,
+  );
+  const lastBorderColorRef = useRef(defaultBorderColor || DEFAULT_BORDER_COLOR);
+  useEffect(() => {
+    if (defaultBorderColor) {
+      lastBorderColorRef.current = defaultBorderColor;
+    }
+  }, [defaultBorderColor]);
+  const handleToggleBorderColorEnabled = useCallback(
+    (enabled: boolean) => {
+      if (enabled) {
+        const restoreColor = lastBorderColorRef.current || DEFAULT_BORDER_COLOR;
+        setDefaultBorderColor(restoreColor);
+        return;
+      }
+      setDefaultBorderColor("");
+    },
+    [setDefaultBorderColor],
+  );
 
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewType, setPreviewType] = useState("");
@@ -268,6 +301,7 @@ export function GeneratorProvider({
           textColor,
           circleColor,
           borderColor: hasBorder ? borderColor : undefined,
+          borderRadius: hasBorder ? borderRadius : undefined,
         },
         stats: {
           count: 456,
@@ -288,6 +322,7 @@ export function GeneratorProvider({
       circleColor,
       borderColor,
       hasBorder,
+      borderRadius,
     ],
   );
 
@@ -387,6 +422,13 @@ export function GeneratorProvider({
     [setDefaultBorderColor],
   );
 
+  const handleBorderRadiusChange = useCallback(
+    (value: number) => {
+      setDefaultBorderRadius(clampBorderRadius(value));
+    },
+    [setDefaultBorderRadius],
+  );
+
   const handlePresetChange = useCallback(
     (preset: ColorPresetKey) => {
       if (preset === "custom") {
@@ -481,6 +523,7 @@ export function GeneratorProvider({
       useMangaStatusColors,
       borderEnabled: hasBorder,
       borderColor,
+      borderRadius,
     });
 
     if (result.success && result.userId) {
@@ -504,6 +547,7 @@ export function GeneratorProvider({
     useMangaStatusColors,
     hasBorder,
     borderColor,
+    borderRadius,
     submit,
     router,
   ]);
@@ -566,11 +610,11 @@ export function GeneratorProvider({
     () => ({
       id: "borderColor",
       label: "Border color",
-      value: borderColor,
+      value: borderColorPickerValue,
       onChange: handleBorderColorChange,
       disableGradient: true,
     }),
-    [borderColor, handleBorderColorChange],
+    [borderColorPickerValue, handleBorderColorChange],
   );
 
   const contextObj: GeneratorContextValue = {
@@ -581,6 +625,7 @@ export function GeneratorProvider({
     textColor,
     circleColor,
     borderColor,
+    borderRadius,
     selectedCards,
     selectedCardVariants,
     allSelected,
@@ -621,6 +666,10 @@ export function GeneratorProvider({
     handleToggleShowPiePercentages,
     handleToggleBorder,
     handleBorderColorChange,
+    borderColorEnabled,
+    handleToggleBorderColorEnabled,
+    isBorderColorCustom,
+    handleBorderRadiusChange,
     handlePresetChange,
     handleSubmit,
     openPreview,

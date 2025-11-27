@@ -205,6 +205,8 @@ export interface StoredCardConfig {
   circleColor: string;
   // Optional border color for the card background.
   borderColor?: string;
+  // Optional border radius for the card background (applies when border is enabled).
+  borderRadius?: number;
   // Whether to show favorites (pink heart) for this card
   showFavorites?: boolean;
   // Whether to use fixed status distribution colors (only meaningful for status distribution cards)

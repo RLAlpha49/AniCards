@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { devtools, persist, createJSONStorage } from "zustand/middleware";
 import { createBackwardCompatibleStorage } from "@/lib/stores/storage-adapter";
+import { DEFAULT_CARD_BORDER_RADIUS } from "@/lib/utils";
 import type { ColorValue } from "@/lib/types/card";
 
 /**
@@ -31,6 +32,8 @@ export interface CardSettingsState {
   defaultBorderEnabled: boolean;
   /** Default border color (hex string) */
   defaultBorderColor: string;
+  /** Default border radius in pixels */
+  defaultBorderRadius: number;
   /** Use status-specific colors for anime distribution */
   useAnimeStatusColors: boolean;
   /** Use status-specific colors for manga distribution */
@@ -58,6 +61,8 @@ export interface CardSettingsActions {
   setDefaultBorderEnabled: (enabled: boolean) => void;
   /** Update border color */
   setDefaultBorderColor: (color: string) => void;
+  /** Update border radius */
+  setDefaultBorderRadius: (radius: number) => void;
   /** Toggle anime status colors */
   setUseAnimeStatusColors: (enabled: boolean) => void;
   /** Toggle manga status colors */
@@ -83,6 +88,7 @@ const defaultState: CardSettingsState = {
   defaultShowFavoritesByCard: {},
   defaultBorderEnabled: false,
   defaultBorderColor: "#e4e2e2",
+  defaultBorderRadius: DEFAULT_CARD_BORDER_RADIUS,
   useAnimeStatusColors: false,
   useMangaStatusColors: false,
   showPiePercentages: false,
@@ -106,6 +112,7 @@ const legacyKeyMappings: Array<{
   { key: "defaultShowFavoritesByCard", stateKey: "defaultShowFavoritesByCard" },
   { key: "defaultBorderEnabled", stateKey: "defaultBorderEnabled" },
   { key: "defaultBorderColor", stateKey: "defaultBorderColor" },
+  { key: "defaultBorderRadius", stateKey: "defaultBorderRadius" },
   { key: "useAnimeStatusColors", stateKey: "useAnimeStatusColors" },
   { key: "useMangaStatusColors", stateKey: "useMangaStatusColors" },
   { key: "showPiePercentages", stateKey: "showPiePercentages" },
@@ -230,6 +237,10 @@ export const useCardSettings = create<CardSettingsStore>()(
 
         setDefaultBorderColor: (color: string) => {
           set({ defaultBorderColor: color }, false, "setDefaultBorderColor");
+        },
+
+        setDefaultBorderRadius: (radius: number) => {
+          set({ defaultBorderRadius: radius }, false, "setDefaultBorderRadius");
         },
 
         setUseAnimeStatusColors: (enabled: boolean) => {

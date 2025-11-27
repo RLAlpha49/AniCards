@@ -47,6 +47,7 @@ export interface TemplateCardConfig {
   textColor: ColorValue;
   circleColor: ColorValue;
   borderColor?: string;
+  borderRadius?: number;
   useStatusColors?: boolean;
 }
 

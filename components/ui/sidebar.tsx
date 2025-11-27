@@ -18,6 +18,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useUserPreferences } from "@/lib/stores";
 
 /**
  * Cookie key used to persist sidebar open/closed state between sessions.
@@ -96,6 +97,7 @@ const SidebarProvider = React.forwardRef<
   ) => {
     const isMobile = useIsMobile();
     const [openMobile, setOpenMobile] = React.useState(false);
+    const { setSidebarDefaultOpen } = useUserPreferences();
 
     // This is the internal state of the sidebar.
     // We use openProp and setOpenProp for control from outside the component.
@@ -112,8 +114,11 @@ const SidebarProvider = React.forwardRef<
 
         // This sets the cookie to keep the sidebar state.
         document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
+
+        // Also update the user preferences store
+        setSidebarDefaultOpen(openState);
       },
-      [setOpenProp, open],
+      [setOpenProp, open, setSidebarDefaultOpen],
     );
 
     // Helper to toggle the sidebar.

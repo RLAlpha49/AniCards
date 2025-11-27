@@ -1,5 +1,6 @@
 import {
   calculateDynamicFontSize,
+  getCardBorderRadius,
   isGradient,
   isValidHexColor,
   processColorsForSVG,
@@ -40,6 +41,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
     textColor: ColorValue;
     circleColor: ColorValue;
     borderColor?: ColorValue;
+    borderRadius?: number;
   };
   format: string;
   stats: { name: string; count: number }[];
@@ -82,6 +84,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
   }
   const viewBoxWidth = svgWidth;
   const rectWidth = svgWidth - 1;
+  const cardRadius = getCardBorderRadius(data.styles.borderRadius);
 
   /** List of formats that should render hearts for favorites (pink heart). @source */
   const FAVORITE_FORMATS = [
@@ -271,11 +274,11 @@ export const extraAnimeMangaStatsTemplate = (data: {
         data-testid="card-bg"
         x="0.5"
         y="0.5"
-        rx="4.5"
+        rx="${cardRadius}"
         height="99%"
         width="${rectWidth}"
         fill="${resolvedColors.backgroundColor}"
-        stroke="${resolvedColors.borderColor}"
+        ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""}
         stroke-width="2"
       />
       <g data-testid="card-title" transform="translate(25, 35)">

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
+import { clampBorderRadius, validateBorderRadius } from "@/lib/utils";
 import type { ColorValue } from "@/lib/types/card";
 
 /**
@@ -25,6 +26,7 @@ interface SubmitParams {
   useMangaStatusColors?: boolean;
   borderEnabled?: boolean;
   borderColor?: string;
+  borderRadius?: number;
 }
 
 /**
@@ -54,6 +56,7 @@ function buildCardsPayload(params: {
   useMangaStatusColors?: boolean;
   borderEnabled?: boolean;
   borderColor?: string;
+  borderRadius?: number;
   showFavoritesByCard: Record<string, boolean>;
 }) {
   const {
@@ -64,6 +67,7 @@ function buildCardsPayload(params: {
     useMangaStatusColors,
     borderEnabled,
     borderColor,
+    borderRadius,
     showFavoritesByCard,
   } = params;
 
@@ -86,6 +90,11 @@ function buildCardsPayload(params: {
         ? { useStatusColors: true }
         : {}),
       ...(borderEnabled && borderColor ? { borderColor } : {}),
+      ...(borderEnabled && typeof borderRadius === "number"
+        ? {
+            borderRadius: clampBorderRadius(borderRadius),
+          }
+        : {}),
     } as Record<string, unknown>;
     if (FAVORITE_CARD_IDS.has(cardName)) {
       return {
@@ -417,16 +426,25 @@ export function useStatCardSubmit() {
     colors: ColorValue[];
     borderEnabled?: boolean;
     borderColor?: string;
+    borderRadius?: number;
   }) {
-    const { username, selectedCards, colors, borderEnabled, borderColor } =
+    const { username, selectedCards, colors, borderEnabled, borderRadius } =
       params;
     if (!username.trim()) throw new Error("Please enter your AniList username");
     if (selectedCards.length === 0)
       throw new Error("Please select at least one stat card");
     if (colors.some((color) => !color))
       throw new Error("All color fields must be filled");
-    if (borderEnabled && !borderColor)
-      throw new Error("Border color must be set when the border is enabled");
+    if (borderEnabled) {
+      if (typeof borderRadius !== "number" || !Number.isFinite(borderRadius)) {
+        throw new TypeError(
+          "Border radius must be set when the border is enabled",
+        );
+      }
+      if (!validateBorderRadius(borderRadius)) {
+        throw new Error("Border radius must be between 0 and 50");
+      }
+    }
   }
 
   /**
@@ -513,6 +531,7 @@ export function useStatCardSubmit() {
     useMangaStatusColors,
     borderEnabled,
     borderColor,
+    borderRadius,
   }: SubmitParams): Promise<{ success: boolean; userId?: string }> => {
     setLoading(true);
     setError(null);
@@ -531,6 +550,7 @@ export function useStatCardSubmit() {
         colors,
         borderEnabled,
         borderColor,
+        borderRadius,
       });
 
       const userIdData = await fetchAniListQuery(
@@ -568,6 +588,7 @@ export function useStatCardSubmit() {
         useMangaStatusColors,
         borderEnabled,
         borderColor,
+        borderRadius,
         showFavoritesByCard,
       });
 

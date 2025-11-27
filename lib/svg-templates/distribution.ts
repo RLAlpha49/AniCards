@@ -1,4 +1,8 @@
-import { calculateDynamicFontSize, processColorsForSVG } from "../utils";
+import {
+  calculateDynamicFontSize,
+  getCardBorderRadius,
+  processColorsForSVG,
+} from "../utils";
 import type { ColorValue } from "@/lib/types/card";
 
 /** Simple representation of a distribution item with value and a count. @source */
@@ -22,6 +26,7 @@ interface DistributionTemplateInput {
     textColor: ColorValue;
     circleColor: ColorValue;
     borderColor?: ColorValue;
+    borderRadius?: number;
   };
   variant?: "default" | "horizontal";
   data: DistributionDatum[];
@@ -189,6 +194,7 @@ export function distributionTemplate(input: DistributionTemplateInput) {
       "borderColor",
     ],
   );
+  const cardRadius = getCardBorderRadius(styles.borderRadius);
 
   // Normalize and sort data
   const data = normalizeDistributionData(input.data, kind);
@@ -244,9 +250,9 @@ export function distributionTemplate(input: DistributionTemplateInput) {
       y="0.5"
       width="${dims.w - 1}"
       height="${dims.h - 1}"
-      rx="4.5"
+      rx="${cardRadius}"
       fill="${resolvedColors.backgroundColor}"
-      stroke="${resolvedColors.borderColor}"
+      ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""}
       stroke-width="2"
     />
     <g transform="translate(20,35)"><text class="header">${title}</text></g>
