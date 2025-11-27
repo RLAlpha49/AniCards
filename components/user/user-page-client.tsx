@@ -4,13 +4,22 @@ import { CardList } from "@/components/user/card-list";
 import { displayNames } from "@/components/stat-card-generator/stat-card-preview";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Info, Sparkles, ArrowRight, ExternalLink } from "lucide-react";
+import {
+  Info,
+  Sparkles,
+  ArrowRight,
+  ExternalLink,
+  User,
+  BarChart2,
+  Heart,
+  AlertCircle,
+} from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { LoadingSpinner } from "@/components/loading-spinner";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { GridPattern } from "../ui/grid-pattern";
+import { GridPattern } from "@/components/ui/grid-pattern";
+import { FloatingCardsLayer } from "@/components/ui/floating-cards";
 
 /**
  * Basic user identity returned from the API.
@@ -38,6 +47,23 @@ interface CardData {
   showPiePercentages?: boolean;
 }
 
+/**
+ * Animation variants for staggered content reveal.
+ * @source
+ */
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1, delayChildren: 0.1 },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
+};
+
 // Validation helpers
 /**
  * Narrowing helper that checks whether the given userId is a valid AniList numeric id string.
@@ -47,7 +73,6 @@ interface CardData {
  */
 const isValidUserId = (userId: string | null): userId is string => {
   if (!userId) return false;
-  // userId should be numeric string from AniList
   return /^\d+$/.test(userId);
 };
 
@@ -59,11 +84,9 @@ const isValidUserId = (userId: string | null): userId is string => {
  */
 const isValidUsername = (username: string | null): username is string => {
   if (!username) return false;
-  // Username can contain letters, numbers, underscores, hyphens (AniList standard)
   return /^[a-zA-Z0-9_-]{2,}$/.test(username);
 };
 
-// Helper to load and validate cards from parameter
 /**
  * Parse a JSON-encoded cards parameter and filter invalid entries.
  * @param cardsParam - JSON string representing an array of CardData entries.
@@ -96,7 +119,6 @@ const parseAndValidateCards = (cardsParam: string): CardData[] => {
   }
 };
 
-// Client component for the interactive user page
 /**
  * Client-side component rendering an interactive user page with stat cards.
  * It reads query parameters to resolve a user and card configurations, fetches
@@ -119,7 +141,6 @@ export function UserPageClient() {
         let username = searchParams.get("username");
         const cardsParam = searchParams.get("cards");
 
-        // Validate parameters before using them
         if (!isValidUserId(userId)) {
           userId = null;
         }
@@ -130,7 +151,6 @@ export function UserPageClient() {
         let resolvedUserData: UserData | null = null;
         let resolvedCards: CardData[] = [];
 
-        // Try to parse cards if provided
         if (cardsParam) {
           try {
             resolvedCards = parseAndValidateCards(cardsParam);
@@ -142,9 +162,6 @@ export function UserPageClient() {
           }
         }
 
-        // Load user data and cards based on parameters
-        // If cards parameter is present alongside userId/username, prefer it and avoid
-        // fetching the user's full card list from the server.
         if (cardsParam && (userId || username)) {
           if (userId) {
             resolvedUserData = { userId, username: username || undefined };
@@ -154,7 +171,6 @@ export function UserPageClient() {
             );
             resolvedUserData = await userRes.json();
           }
-          // If we only have a userId (no shipped card config), fetch user and cards
         } else if (userId) {
           const [userRes, cardsRes] = await Promise.all([
             fetch(`/api/user?userId=${userId}`),
@@ -164,7 +180,6 @@ export function UserPageClient() {
           const cardsData = await cardsRes.json();
           resolvedCards = cardsData.cards || [];
           setShowAllCards(true);
-          // If we only have a username, resolve userId first, then fetch cards by userId
         } else if (username) {
           const userRes = await fetch(
             `/api/user?username=${encodeURIComponent(username)}`,
@@ -193,26 +208,55 @@ export function UserPageClient() {
     loadUserData();
   }, [searchParams]);
 
+  // Loading state with consistent styling
   if (loading) {
     return (
-      <div className="relative min-h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
-        <div className="container mx-auto flex min-h-screen items-center justify-center px-4">
+      <div className="relative min-h-screen w-full overflow-hidden">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.15),transparent)] dark:bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.3),transparent)]" />
+          <div className="absolute -top-40 left-1/2 h-[600px] w-[600px] -translate-x-1/2 rounded-full bg-gradient-to-r from-blue-400/20 via-purple-400/20 to-pink-400/20 blur-3xl" />
+        </div>
+        <GridPattern className="z-0" />
+        <div className="container relative z-10 mx-auto flex min-h-screen items-center justify-center px-4">
           <LoadingSpinner size="lg" text="Loading user data..." />
         </div>
       </div>
     );
   }
 
+  // Error state with consistent styling
   if (error) {
     return (
-      <div className="relative min-h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
-        <div className="container mx-auto flex min-h-screen items-center justify-center px-4">
-          <div className="text-center">
-            <h1 className="mb-4 text-2xl font-bold text-gray-900 dark:text-white">
-              Error
-            </h1>
-            <p className="text-gray-600 dark:text-gray-300">{error}</p>
-          </div>
+      <div className="relative min-h-screen w-full overflow-hidden">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.15),transparent)] dark:bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.3),transparent)]" />
+          <div className="absolute -top-40 left-1/2 h-[600px] w-[600px] -translate-x-1/2 rounded-full bg-gradient-to-r from-blue-400/20 via-purple-400/20 to-pink-400/20 blur-3xl" />
+        </div>
+        <GridPattern className="z-0" />
+        <div className="container relative z-10 mx-auto flex min-h-screen items-center justify-center px-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-md"
+          >
+            <div className="rounded-3xl border border-red-200/50 bg-white/80 p-8 text-center shadow-2xl backdrop-blur-xl dark:border-red-800/30 dark:bg-slate-900/80">
+              <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+                <AlertCircle className="h-10 w-10 text-red-500" />
+              </div>
+              <h1 className="mb-3 text-2xl font-bold text-slate-900 dark:text-white">
+                Something Went Wrong
+              </h1>
+              <p className="mb-6 text-slate-600 dark:text-slate-300">{error}</p>
+              <Button
+                asChild
+                className="rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white shadow-lg"
+              >
+                <Link href="/">Return Home</Link>
+              </Button>
+            </div>
+          </motion.div>
         </div>
       </div>
     );
@@ -222,12 +266,10 @@ export function UserPageClient() {
   const cardTypes = cards.map((card) => {
     const variation = card.variation || "default";
     const displayName = displayNames[card.cardName] || card.cardName;
-    // Flag indicating whether this card is a status distribution style card
     const isStatusDist = [
       "animeStatusDistribution",
       "mangaStatusDistribution",
     ].includes(card.cardName);
-    // Flag indicating whether this card uses pie charts and can optionally show percentages
     const isPieCapable = [
       "animeGenres",
       "animeTags",
@@ -244,14 +286,12 @@ export function UserPageClient() {
       "animeCountry",
       "mangaCountry",
     ].includes(card.cardName);
-    // Build optional query string parameters for the SVG API based on card flags
     const extraParams = [
       isStatusDist && card.useStatusColors ? "statusColors=true" : null,
       isPieCapable && card.showPiePercentages ? "piePercentages=true" : null,
     ]
       .filter(Boolean)
       .join("&");
-    // Base SVG URL for a card with the selected variation and userId
     const svgUrlBase = `/api/card.svg?cardType=${card.cardName}&userId=${userData?.userId}&variation=${variation}`;
     const svgUrl = extraParams ? `${svgUrlBase}&${extraParams}` : svgUrlBase;
     return {
@@ -283,280 +323,368 @@ export function UserPageClient() {
   // Guard: Ensure userData is present before rendering URLs
   if (!userData) {
     return (
-      <div className="relative min-h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
-        <div className="container mx-auto flex min-h-screen items-center justify-center px-4">
-          <div className="text-center">
-            <h1 className="mb-4 text-2xl font-bold text-gray-900 dark:text-white">
-              Invalid User
-            </h1>
-            <p className="text-gray-600 dark:text-gray-300">
-              Unable to load user data. Please try again.
-            </p>
-          </div>
+      <div className="relative min-h-screen w-full overflow-hidden">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.15),transparent)] dark:bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.3),transparent)]" />
+          <div className="absolute -top-40 left-1/2 h-[600px] w-[600px] -translate-x-1/2 rounded-full bg-gradient-to-r from-blue-400/20 via-purple-400/20 to-pink-400/20 blur-3xl" />
+        </div>
+        <GridPattern className="z-0" />
+        <div className="container relative z-10 mx-auto flex min-h-screen items-center justify-center px-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-md"
+          >
+            <div className="rounded-3xl border border-slate-200/50 bg-white/80 p-8 text-center shadow-2xl backdrop-blur-xl dark:border-slate-700/50 dark:bg-slate-900/80">
+              <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
+                <User className="h-10 w-10 text-slate-400" />
+              </div>
+              <h1 className="mb-3 text-2xl font-bold text-slate-900 dark:text-white">
+                User Not Found
+              </h1>
+              <p className="mb-6 text-slate-600 dark:text-slate-300">
+                Unable to load user data. Please try again.
+              </p>
+              <Button
+                asChild
+                className="rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white shadow-lg"
+              >
+                <Link href="/">Return Home</Link>
+              </Button>
+            </div>
+          </motion.div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
-      <GridPattern className="z-0" includeGradients={true} />
+    <div className="relative w-full overflow-hidden">
+      {/* Background effects matching other pages */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.15),transparent)] dark:bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.3),transparent)]" />
+        <div className="absolute -top-40 left-1/2 h-[600px] w-[600px] -translate-x-1/2 rounded-full bg-gradient-to-r from-blue-400/20 via-purple-400/20 to-pink-400/20 blur-3xl" />
+        <div className="absolute -bottom-20 left-1/4 h-[400px] w-[400px] rounded-full bg-gradient-to-r from-cyan-400/15 to-blue-400/15 blur-3xl" />
+        <div className="absolute left-0 top-1/4 h-[500px] w-[500px] rounded-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 blur-3xl" />
+        <div className="absolute bottom-1/4 right-0 h-[500px] w-[500px] rounded-full bg-gradient-to-r from-pink-500/10 to-orange-500/10 blur-3xl" />
+      </div>
 
-      <div className="container relative z-10 mx-auto px-4 py-12">
+      <GridPattern className="z-0" />
+
+      <div className="relative z-10">
         {/* Hero Section */}
-        <div className="mb-16 flex flex-col items-center text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="mb-8 inline-flex items-center rounded-full border border-blue-200 bg-blue-50/80 px-4 py-1.5 text-sm font-medium text-blue-600 backdrop-blur-sm dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
-          >
-            <Sparkles className="mr-2 h-4 w-4" />
-            <span>User Statistics</span>
-          </motion.div>
+        <section className="relative w-full overflow-hidden">
+          {cardTypes.length > 0 && <FloatingCardsLayer layout="search" />}
 
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="mb-6 text-4xl font-extrabold leading-tight tracking-tight text-slate-900 dark:text-white sm:text-5xl md:text-6xl"
-          >
-            {userData?.username ? (
-              <>
-                {userData.username}&apos;s{" "}
-                <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                  Stat Cards
-                </span>
-              </>
-            ) : (
-              <>
-                User{" "}
-                <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                  Stat Cards
-                </span>
-              </>
-            )}
-          </motion.h1>
-
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="mx-auto max-w-2xl text-lg text-slate-600 dark:text-slate-300"
-          >
-            {userData?.username
-              ? `View and download ${userData.username}'s beautiful anime and manga statistics`
-              : "View and download beautiful anime and manga statistics"}
-          </motion.p>
-        </div>
-
-        {cardTypes.length > 0 && (
-          <div className="mb-8 space-y-6">
-            {/* Cache Notice */}
+          <div className="container relative z-10 mx-auto px-4 py-16 lg:py-24">
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="mx-auto w-fit"
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              className="mx-auto flex max-w-4xl flex-col items-center text-center"
             >
-              <Card className="h-full border-blue-200/50 bg-blue-50/50 backdrop-blur-sm dark:border-blue-800/30 dark:bg-blue-900/20">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center gap-2">
-                    <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                    <CardTitle className="text-lg font-semibold text-blue-900 dark:text-blue-100">
-                      Cache Information
-                    </CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="mb-3 text-sm text-blue-800 dark:text-blue-200">
-                    SVG cards are cached for 24 hours for better performance. If
-                    your updates aren&apos;t visible immediately:
-                  </p>
-                  <ul className="space-y-1 text-sm text-blue-700 dark:text-blue-300">
-                    <li className="flex items-center gap-2">
-                      <div className="h-1.5 w-1.5 rounded-full bg-blue-500"></div>
-                      <span>
-                        Hard refresh ({" "}
-                        <kbd className="rounded border bg-blue-100 px-1.5 py-0.5 text-xs dark:bg-blue-800">
-                          Ctrl+F5
-                        </kbd>{" "}
-                        or{" "}
-                        <kbd className="rounded border bg-blue-100 px-1.5 py-0.5 text-xs dark:bg-blue-800">
-                          Cmd+Shift+R
-                        </kbd>{" "}
-                        )
-                      </span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <div className="h-1.5 w-1.5 rounded-full bg-blue-500"></div>
-                      Clear your browser cache
-                    </li>
-                  </ul>
-                </CardContent>
-              </Card>
-            </motion.div>
+              {/* Badge */}
+              <motion.div variants={itemVariants}>
+                <span className="inline-flex items-center gap-2 rounded-full border border-blue-200/50 bg-blue-50/80 px-4 py-2 text-sm font-medium text-blue-700 shadow-sm backdrop-blur-sm dark:border-blue-700/50 dark:bg-blue-950/50 dark:text-blue-300">
+                  <Sparkles className="h-4 w-4" />
+                  User Statistics
+                </span>
+              </motion.div>
 
-            {/* Credits Notice */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-              className="mx-auto w-fit"
-            >
-              <Card className="h-full border-green-200/50 bg-green-50/50 backdrop-blur-sm dark:border-green-800/30 dark:bg-green-900/20">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-white">
-                      <svg
-                        className="h-3 w-3"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={3}
-                          d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-                        />
-                      </svg>
-                    </div>
-                    <CardTitle className="text-lg font-semibold text-green-900 dark:text-green-100">
-                      Spread the Love
-                    </CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="mb-4 text-sm text-green-800 dark:text-green-200">
-                    Found AniCards useful? Help others discover it too! Consider
-                    crediting:
-                  </p>
-                  <div className="flex flex-wrap gap-3">
-                    <a
-                      href="https://anilist.co/user/Alpha49"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 rounded-lg bg-green-100 px-3 py-2 text-sm font-medium text-green-800 transition-colors hover:bg-green-200 dark:bg-green-800/50 dark:text-green-200 dark:hover:bg-green-700/50"
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                      @Alpha49 on AniList
-                    </a>
-                    <a
-                      href={process.env.NEXT_PUBLIC_API_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 rounded-lg bg-green-100 px-3 py-2 text-sm font-medium text-green-800 transition-colors hover:bg-green-200 dark:bg-green-800/50 dark:text-green-200 dark:hover:bg-green-700/50"
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                      AniCards Website
-                    </a>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          </div>
-        )}
-
-        {cardTypes.length > 0 ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-            className="flex flex-col items-center gap-8"
-          >
-            {/* Action Buttons */}
-            {!showAllCards && cardTypes.length < 11 && (
-              <div className="flex flex-wrap justify-center gap-4">
-                <Button
-                  asChild
-                  size="lg"
-                  className="group rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl"
-                >
-                  <Link
-                    href={{
-                      pathname: "/user",
-                      query: {
-                        userId: userData?.userId,
-                        username: userData?.username,
-                      },
-                    }}
-                  >
-                    <span className="mr-2">View All Generated Cards</span>
-                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                  </Link>
-                </Button>
-              </div>
-            )}
-
-            {/* Cards Display */}
-            <div className="w-full">
-              <CardList cardTypes={sortedCardTypes} />
-            </div>
-          </motion.div>
-        ) : (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="flex flex-col items-center justify-center py-16"
-          >
-            <Card className="w-full max-w-md border-gray-200 bg-white/80 text-center shadow-2xl backdrop-blur-xl dark:border-gray-800 dark:bg-gray-900/80">
-              <CardContent className="pt-12">
-                <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
-                  <Info className="h-10 w-10 text-slate-400" />
-                </div>
-                <h3 className="mb-2 text-2xl font-bold text-slate-900 dark:text-white">
-                  No Cards Found
-                </h3>
-                <p className="mb-8 text-slate-600 dark:text-slate-300">
-                  This user hasn&apos;t generated any stat cards yet.
-                </p>
-                <Button
-                  asChild
-                  size="lg"
-                  className="group w-full rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl"
-                >
-                  <Link href="/">
-                    Generate Your First Card
-                    <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-
-        {/* Other Projects CTA */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.6 }}
-          className="mt-24 text-center"
-        >
-          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 to-slate-800 px-6 py-16 text-white shadow-2xl dark:from-slate-800 dark:to-slate-900 sm:px-12">
-            <div className="relative z-10 mx-auto max-w-2xl">
-              <h2 className="mb-4 text-3xl font-bold sm:text-4xl">
-                Explore More Projects
-              </h2>
-              <p className="mb-8 text-lg text-slate-300">
-                Discover other tools and utilities I&apos;ve built for the anime
-                community.
-              </p>
-              <Button
-                asChild
-                size="lg"
-                variant="outline"
-                className="border-white/20 bg-white/10 text-white backdrop-blur-sm transition-all hover:bg-white/20 hover:text-white"
+              {/* Main heading */}
+              <motion.h1
+                variants={itemVariants}
+                className="mt-8 text-4xl font-extrabold leading-[1.1] tracking-tight text-slate-900 dark:text-white sm:text-5xl md:text-6xl"
               >
-                <Link href="/projects">
-                  Check Out My Other Projects
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </div>
+                {userData?.username ? (
+                  <>
+                    {userData.username}&apos;s{" "}
+                    <span className="relative">
+                      <span className="relative z-10 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                        Stat Cards
+                      </span>
+                      <motion.span
+                        className="absolute -inset-1 -z-10 block rounded-lg bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 blur-xl"
+                        animate={{ opacity: [0.5, 0.8, 0.5] }}
+                        transition={{ duration: 3, repeat: Infinity }}
+                      />
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    User{" "}
+                    <span className="relative">
+                      <span className="relative z-10 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                        Stat Cards
+                      </span>
+                      <motion.span
+                        className="absolute -inset-1 -z-10 block rounded-lg bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 blur-xl"
+                        animate={{ opacity: [0.5, 0.8, 0.5] }}
+                        transition={{ duration: 3, repeat: Infinity }}
+                      />
+                    </span>
+                  </>
+                )}
+              </motion.h1>
+
+              {/* Subheading */}
+              <motion.p
+                variants={itemVariants}
+                className="mt-6 max-w-2xl text-lg text-slate-600 dark:text-slate-300 sm:text-xl"
+              >
+                {userData?.username
+                  ? `View and download ${userData.username}'s beautiful anime and manga statistics`
+                  : "View and download beautiful anime and manga statistics"}
+              </motion.p>
+
+              {/* Stats Summary */}
+              {cardTypes.length > 0 && (
+                <motion.div
+                  variants={itemVariants}
+                  className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-2"
+                >
+                  <div className="rounded-2xl border border-slate-200/50 bg-white/80 p-5 backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-800/80">
+                    <div className="mb-3 inline-flex rounded-xl bg-blue-100 p-2.5 dark:bg-blue-900/30">
+                      <BarChart2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div className="text-3xl font-bold text-slate-900 dark:text-white">
+                      {cardTypes.length}
+                    </div>
+                    <div className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                      Stat Cards
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200/50 bg-white/80 p-5 backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-800/80">
+                    <div className="mb-3 inline-flex rounded-xl bg-purple-100 p-2.5 dark:bg-purple-900/30">
+                      <User className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <div className="truncate text-3xl font-bold text-slate-900 dark:text-white">
+                      {userData?.username || `#${userData?.userId}`}
+                    </div>
+                    <div className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                      AniList User
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </motion.div>
           </div>
-        </motion.div>
+        </section>
+
+        {/* Info Cards Section */}
+        {cardTypes.length > 0 && (
+          <section className="relative w-full overflow-hidden pb-8">
+            <div className="container relative mx-auto px-4">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5 }}
+                className="mx-auto grid max-w-4xl gap-6 md:grid-cols-2"
+              >
+                {/* Cache Notice */}
+                <div className="group rounded-2xl border border-blue-200/50 bg-white/80 p-6 backdrop-blur-sm transition-all hover:border-blue-300/50 hover:shadow-lg dark:border-blue-800/30 dark:bg-slate-800/80 dark:hover:border-blue-700/50">
+                  <div className="flex items-start gap-4">
+                    <div className="rounded-xl bg-blue-100 p-3 dark:bg-blue-900/30">
+                      <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="mb-2 font-semibold text-slate-900 dark:text-white">
+                        Cache Information
+                      </h3>
+                      <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
+                        SVG cards are cached for 24 hours for better
+                        performance.
+                      </p>
+                      <div className="space-y-1.5 text-sm text-slate-500 dark:text-slate-400">
+                        <p className="flex items-center gap-2">
+                          <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                          Hard refresh:{" "}
+                          <kbd className="rounded bg-slate-100 px-1.5 py-0.5 text-xs dark:bg-slate-700">
+                            Ctrl+F5
+                          </kbd>{" "}
+                          or{" "}
+                          <kbd className="rounded bg-slate-100 px-1.5 py-0.5 text-xs dark:bg-slate-700">
+                            Cmd+Shift+R
+                          </kbd>
+                        </p>
+                        <p className="flex items-center gap-2">
+                          <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                          <span>Clear your browser cache</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Credits Notice */}
+                <div className="group rounded-2xl border border-green-200/50 bg-white/80 p-6 backdrop-blur-sm transition-all hover:border-green-300/50 hover:shadow-lg dark:border-green-800/30 dark:bg-slate-800/80 dark:hover:border-green-700/50">
+                  <div className="flex items-start gap-4">
+                    <div className="rounded-xl bg-green-100 p-3 dark:bg-green-900/30">
+                      <Heart className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="mb-2 font-semibold text-slate-900 dark:text-white">
+                        Spread the Love
+                      </h3>
+                      <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
+                        Found AniCards useful? Help others discover it too! A
+                        credit to myself or the site would be greatly
+                        appreciated.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <a
+                          href="https://anilist.co/user/Alpha49"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-200 dark:bg-green-900/30 dark:text-green-300 dark:hover:bg-green-800/50"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          @Alpha49
+                        </a>
+                        <a
+                          href={process.env.NEXT_PUBLIC_API_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-200 dark:bg-green-900/30 dark:text-green-300 dark:hover:bg-green-800/50"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          AniCards
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </section>
+        )}
+
+        {/* Cards Section */}
+        <section className="relative w-full overflow-hidden py-8 lg:py-16">
+          <div className="container relative mx-auto px-4">
+            {cardTypes.length > 0 ? (
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5 }}
+                className="flex flex-col items-center gap-8"
+              >
+                {/* View All Cards Button */}
+                {!showAllCards && cardTypes.length < 11 && (
+                  <Button
+                    asChild
+                    size="lg"
+                    className="group rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/25 transition-all hover:scale-105 hover:shadow-xl hover:shadow-purple-500/30"
+                  >
+                    <Link
+                      href={{
+                        pathname: "/user",
+                        query: {
+                          userId: userData?.userId,
+                          username: userData?.username,
+                        },
+                      }}
+                    >
+                      <span className="mr-2">View All Generated Cards</span>
+                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    </Link>
+                  </Button>
+                )}
+
+                {/* Cards Display */}
+                <div className="w-full">
+                  <CardList cardTypes={sortedCardTypes} />
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex justify-center py-16"
+              >
+                <div className="w-full max-w-md rounded-3xl border border-slate-200/50 bg-white/80 p-8 text-center shadow-2xl backdrop-blur-xl dark:border-slate-700/50 dark:bg-slate-900/80">
+                  <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
+                    <Info className="h-10 w-10 text-slate-400" />
+                  </div>
+                  <h3 className="mb-3 text-2xl font-bold text-slate-900 dark:text-white">
+                    No Cards Found
+                  </h3>
+                  <p className="mb-8 text-slate-600 dark:text-slate-300">
+                    This user hasn&apos;t generated any stat cards yet.
+                  </p>
+                  <Button
+                    asChild
+                    size="lg"
+                    className="group w-full rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl"
+                  >
+                    <Link href="/">
+                      Generate Your First Card
+                      <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    </Link>
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+          </div>
+        </section>
+
+        {/* CTA Section */}
+        <section className="relative w-full overflow-hidden py-20">
+          {/* Background gradient orbs */}
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="absolute -left-1/4 top-0 h-[500px] w-[500px] rounded-full bg-gradient-to-r from-blue-500/20 to-purple-500/20 blur-3xl" />
+            <div className="absolute -right-1/4 bottom-0 h-[500px] w-[500px] rounded-full bg-gradient-to-r from-pink-500/20 to-orange-500/20 blur-3xl" />
+          </div>
+
+          <div className="container relative mx-auto px-4">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.6 }}
+              className="mx-auto max-w-4xl"
+            >
+              <div className="rounded-3xl border border-slate-200/50 bg-gradient-to-br from-white/80 via-white/60 to-slate-100/80 p-8 text-center shadow-2xl shadow-slate-200/50 backdrop-blur-xl dark:border-slate-700/50 dark:from-slate-800/80 dark:via-slate-800/60 dark:to-slate-900/80 dark:shadow-slate-900/50 sm:p-12 lg:p-16">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: 0.2 }}
+                  className="space-y-6"
+                >
+                  <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-4xl">
+                    Explore More{" "}
+                    <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                      Projects
+                    </span>
+                  </h2>
+
+                  <p className="mx-auto max-w-2xl text-lg text-slate-600 dark:text-slate-300">
+                    Discover other tools and utilities built for the anime
+                    community.
+                  </p>
+
+                  <div className="flex flex-col items-center justify-center gap-4 pt-4 sm:flex-row">
+                    <Button
+                      asChild
+                      size="lg"
+                      className="group h-14 min-w-[220px] rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-lg font-semibold shadow-lg shadow-blue-500/25 transition-all hover:scale-105 hover:shadow-xl hover:shadow-blue-500/30"
+                    >
+                      <Link href="/projects">
+                        View Projects
+                        <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+                      </Link>
+                    </Button>
+                  </div>
+                </motion.div>
+              </div>
+            </motion.div>
+          </div>
+        </section>
       </div>
     </div>
   );

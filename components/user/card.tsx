@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
-import { useState } from "react";
-import { Download, Link, Check } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Download, Link, Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -12,9 +12,11 @@ import {
   copyToClipboard,
   cn,
   getAbsoluteUrl,
+  DEFAULT_CARD_BORDER_RADIUS,
   type ConversionFormat,
 } from "@/lib/utils";
 import { LoadingSpinner } from "@/components/loading-spinner";
+import { motion } from "framer-motion";
 
 import { displayNames } from "../stat-card-generator/stat-card-preview";
 import {
@@ -41,7 +43,6 @@ interface CardProps {
   svgUrl: string;
 }
 
-// Component for individual stat card display with download/copy actions
 /**
  * Renders an interactive stat card preview with download and link-copy actions.
  * @param props - Component properties.
@@ -51,12 +52,59 @@ interface CardProps {
  * @source
  */
 export function Card({ type, svgUrl }: Readonly<CardProps>) {
-  // Track copied state and image loading status
   const [copied, setCopied] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [cardBorderRadius, setCardBorderRadius] = useState(
+    DEFAULT_CARD_BORDER_RADIUS,
+  );
 
   // Add cache-busting timestamp to force SVG reload
   const cacheBustedSvgUrl = `${svgUrl}${svgUrl.includes("?") ? "&" : "?"}_t=${Date.now()}`;
+
+  useEffect(() => {
+    if (!svgUrl) {
+      return undefined;
+    }
+
+    let isCancelled = false;
+
+    const fetchBorderRadius = async () => {
+      try {
+        const absoluteUrl = getAbsoluteUrl(svgUrl);
+        const response = await fetch(absoluteUrl, { cache: "no-cache" });
+        if (!response.ok) {
+          return;
+        }
+
+        const svgText = await response.text();
+        if (isCancelled) return;
+
+        const match = new RegExp(
+          /<rect[^>]*data-testid=["']card-bg["'][^>]*rx=["'](\d+(?:\.\d+)?)["']/i,
+        ).exec(svgText);
+        if (!match) {
+          return;
+        }
+
+        const parsed = Number.parseFloat(match[1]);
+        if (!Number.isFinite(parsed)) {
+          return;
+        }
+
+        if (!isCancelled) {
+          setCardBorderRadius(parsed);
+        }
+      } catch (error) {
+        console.error("Unable to determine card border radius", error);
+      }
+    };
+
+    void fetchBorderRadius();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [svgUrl]);
 
   /**
    * Convert the currently displayed SVG to a PNG URL and trigger a browser download.
@@ -75,7 +123,6 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
 
   /**
    * Copy a given text to the clipboard and show brief feedback to the user.
-   * Also records the copy action via analytics with a label including the card type.
    * @param text - The text to copy to clipboard.
    * @param label - Identifier for the format (e.g., 'svg', 'anilist').
    * @returns Promise<void>
@@ -84,11 +131,10 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
   const handleCopy = async (text: string, label: string) => {
     trackCopyAction(`${label}_${type}`);
     await copyToClipboard(text);
-    setCopied(label); // Show success feedback
+    setCopied(label);
     setTimeout(() => setCopied(null), 2000);
   };
 
-  // Pre-formatted links for copy operations
   /**
    * Absolute URL for the displayed SVG (suitable for sharing/copying).
    * @source
@@ -98,191 +144,214 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
    * AniList bio format (img150) using the absolute SVG URL.
    * @source
    */
-  const anilistBioLink = `img150(${getAbsoluteUrl(svgUrl)})`; // Anilist-specific image syntax
+  const anilistBioLink = `img150(${getAbsoluteUrl(svgUrl)})`;
 
   return (
-    <div className="group relative">
-      <div className="rounded-2xl border border-white/20 bg-white/10 p-6 shadow-xl backdrop-blur-sm transition-all duration-300 hover:border-white/30 hover:bg-white/15 hover:shadow-2xl dark:border-gray-700/30 dark:bg-gray-800/20 dark:hover:border-gray-600/40 dark:hover:bg-gray-700/30">
+    <motion.div
+      whileHover={{ y: -4 }}
+      transition={{ duration: 0.2 }}
+      className="group relative h-full"
+    >
+      <div className="flex h-full flex-col rounded-2xl border border-slate-200/50 bg-white/80 shadow-lg backdrop-blur-sm transition-all duration-300 hover:border-slate-300/50 hover:shadow-xl dark:border-slate-700/50 dark:bg-slate-800/80 dark:hover:border-slate-600/50">
         {/* Card Header */}
-        <div className="mb-4">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+        <div className="border-b border-slate-200/50 p-5 dark:border-slate-700/50">
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white">
             {displayNames[type] || type}
           </h3>
-          <div className="mt-1 h-1 w-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500"></div>
+          <div className="mt-2 h-1 w-12 rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500" />
         </div>
 
-        <div
-          className="relative mb-6 overflow-hidden bg-gray-100/50 dark:bg-gray-800/50"
-          style={{ borderRadius: "8px" }}
-        >
-          <img
-            src={cacheBustedSvgUrl || "/placeholder.svg"}
-            alt={type}
-            width={400}
-            height={600}
-            style={{
-              width: "100%",
-              height: "auto",
-              maxWidth: "400px",
-              borderRadius: "8px",
-            }}
-            onLoad={() => setIsLoading(false)}
-            onError={() => setIsLoading(false)}
-            className={cn(
-              "transition-opacity duration-300",
-              isLoading ? "opacity-0" : "opacity-100",
+        {/* Card Image */}
+        <div className="flex-1 p-5">
+          <div
+            className="relative overflow-hidden rounded-xl bg-slate-100/50 dark:bg-slate-900/50"
+            style={{ aspectRatio: "auto", borderRadius: cardBorderRadius }}
+          >
+            <img
+              src={cacheBustedSvgUrl || "/placeholder.svg"}
+              alt={type}
+              width={400}
+              height={600}
+              style={{
+                width: "100%",
+                height: "auto",
+                maxWidth: "400px",
+                borderRadius: cardBorderRadius,
+              }}
+              onLoad={() => setIsLoading(false)}
+              onError={() => setIsLoading(false)}
+              className={cn(
+                "mx-auto transition-opacity duration-300",
+                isLoading ? "opacity-0" : "opacity-100",
+              )}
+            />
+
+            {/* Loading overlay */}
+            {isLoading && (
+              <div
+                className="absolute inset-0 flex min-h-[200px] items-center justify-center"
+                style={{ borderRadius: cardBorderRadius }}
+              >
+                <LoadingSpinner
+                  size="md"
+                  className="text-blue-500"
+                  text="Loading card..."
+                />
+              </div>
             )}
-          />
-
-          {/* Loading overlay */}
-          {isLoading && (
-            <div className="absolute inset-0 flex min-h-[200px] items-center justify-center">
-              <LoadingSpinner
-                size="md"
-                className="text-blue-500"
-                text="Loading card..."
-              />
-            </div>
-          )}
+          </div>
         </div>
 
-        {/* Action buttons container */}
-        <div className="flex items-center gap-3">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                className="flex-1 bg-gradient-to-r from-green-600 to-green-700 text-white transition-all duration-300 hover:from-green-700 hover:to-green-800 hover:shadow-lg"
-                aria-label={`Choose a download format for ${displayNames[type] || type} card`}
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Download
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80 border-white/20 bg-white/90 backdrop-blur-md dark:border-gray-600/30 dark:bg-gray-800/90">
-              <div className="space-y-4">
-                <div>
-                  <h4 className="font-semibold text-gray-900 dark:text-white">
-                    Download Format
-                  </h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                    Pick the image format you want to save
-                  </p>
+        {/* Action buttons */}
+        <div className="border-t border-slate-200/50 p-5 dark:border-slate-700/50">
+          <div className="flex items-center gap-3">
+            {/* Download Button */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  className="flex-1 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 font-medium text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg"
+                  aria-label={`Choose a download format for ${displayNames[type] || type} card`}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Download
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 rounded-2xl border-slate-200/50 bg-white/95 p-5 shadow-xl backdrop-blur-md dark:border-slate-700/50 dark:bg-slate-800/95">
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-lg bg-emerald-100 p-2 dark:bg-emerald-900/30">
+                      <Download className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-slate-900 dark:text-white">
+                        Download Format
+                      </h4>
+                      <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+                        Choose your preferred format
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {downloadFormatOptions.map((option) => (
+                      <Button
+                        key={option.value}
+                        variant="outline"
+                        className="rounded-lg font-semibold transition-all hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-900/30 dark:hover:text-emerald-400"
+                        onClick={() => {
+                          void handleDownload(option.value);
+                        }}
+                      >
+                        {option.label}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {downloadFormatOptions.map((option) => (
-                    <Button
-                      key={option.value}
-                      variant={"outline"}
-                      className="flex-col gap-1 text-xs font-semibold"
-                      onClick={() => {
-                        void handleDownload(option.value);
-                      }}
-                    >
-                      <span className="text-sm">{option.label}</span>
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
+              </PopoverContent>
+            </Popover>
 
-          {/* Popover for link copy options */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className="flex-1 border-blue-200 text-blue-600 transition-all duration-300 hover:border-blue-300 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:border-blue-600 dark:hover:bg-blue-900/20"
-                aria-label={`Copy ${displayNames[type]} card links in various formats`}
-              >
-                <Link className="mr-2 h-4 w-4" />
-                Copy Link
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80 border-white/20 bg-white/90 backdrop-blur-md dark:border-gray-600/30 dark:bg-gray-800/90">
-              <div className="space-y-4">
-                <div className="mb-3">
-                  <h4 className="font-semibold text-gray-900 dark:text-white">
-                    Copy Options
-                  </h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                    Choose the format that works best for you
-                  </p>
-                </div>
+            {/* Copy Link Button */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="flex-1 rounded-xl border-slate-200 font-medium transition-all hover:scale-[1.02] hover:border-blue-300 hover:bg-blue-50 dark:border-slate-700 dark:hover:border-blue-600 dark:hover:bg-blue-900/20"
+                  aria-label={`Copy ${displayNames[type]} card links in various formats`}
+                >
+                  <Link className="mr-2 h-4 w-4" />
+                  Copy Link
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 rounded-2xl border-slate-200/50 bg-white/95 p-5 shadow-xl backdrop-blur-md dark:border-slate-700/50 dark:bg-slate-800/95">
+                <div className="space-y-5">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-lg bg-blue-100 p-2 dark:bg-blue-900/30">
+                      <Copy className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-slate-900 dark:text-white">
+                        Copy Options
+                      </h4>
+                      <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+                        Choose your preferred format
+                      </p>
+                    </div>
+                  </div>
 
-                {/* SVG link copy section */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full bg-blue-500"></div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      Direct SVG Link
-                    </p>
+                  {/* SVG Link */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-blue-500" />
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                        Direct SVG Link
+                      </span>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/50">
+                      <input
+                        className="w-full truncate border-none bg-transparent text-xs text-slate-600 outline-none dark:text-slate-400"
+                        value={svgLink}
+                        readOnly
+                      />
+                      <Button
+                        onClick={() => handleCopy(svgLink, "svg")}
+                        size="sm"
+                        className="mt-2 w-full rounded-lg"
+                        aria-label="Copy SVG link to clipboard"
+                      >
+                        {copied === "svg" ? (
+                          <>
+                            <Check className="mr-2 h-4 w-4" />
+                            Copied!
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="mr-2 h-4 w-4" />
+                            Copy SVG Link
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                  <div className="rounded-lg border border-gray-200/50 bg-gray-50/50 p-3 dark:border-gray-700/50 dark:bg-gray-800/50">
-                    <input
-                      className="w-full border-none bg-transparent text-xs text-gray-600 outline-none dark:text-gray-400"
-                      value={svgLink}
-                      readOnly
-                    />
-                    <Button
-                      onClick={() => handleCopy(svgLink, "svg")}
-                      size="sm"
-                      className="mt-2 w-full"
-                      aria-label="Copy SVG link to clipboard"
-                    >
-                      {copied === "svg" ? (
-                        <>
-                          <Check className="mr-2 h-4 w-4" />
-                          Copied!
-                        </>
-                      ) : (
-                        <>
-                          <Link className="mr-2 h-4 w-4" />
-                          Copy SVG Link
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
 
-                {/* Anilist bio format copy section */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      AniList Bio Format
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-gray-200/50 bg-gray-50/50 p-3 dark:border-gray-700/50 dark:bg-gray-800/50">
-                    <input
-                      className="w-full border-none bg-transparent text-xs text-gray-600 outline-none dark:text-gray-400"
-                      value={anilistBioLink}
-                      readOnly
-                    />
-                    <Button
-                      onClick={() => handleCopy(anilistBioLink, "anilist")}
-                      size="sm"
-                      className="mt-2 w-full"
-                      aria-label="Copy AniList bio format link to clipboard"
-                    >
-                      {copied === "anilist" ? (
-                        <>
-                          <Check className="mr-2 h-4 w-4" />
-                          Copied!
-                        </>
-                      ) : (
-                        <>
-                          <Link className="mr-2 h-4 w-4" />
-                          Copy AniList Format
-                        </>
-                      )}
-                    </Button>
+                  {/* AniList Format */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-green-500" />
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                        AniList Bio Format
+                      </span>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/50">
+                      <input
+                        className="w-full truncate border-none bg-transparent text-xs text-slate-600 outline-none dark:text-slate-400"
+                        value={anilistBioLink}
+                        readOnly
+                      />
+                      <Button
+                        onClick={() => handleCopy(anilistBioLink, "anilist")}
+                        size="sm"
+                        className="mt-2 w-full rounded-lg"
+                        aria-label="Copy AniList bio format link to clipboard"
+                      >
+                        {copied === "anilist" ? (
+                          <>
+                            <Check className="mr-2 h-4 w-4" />
+                            Copied!
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="mr-2 h-4 w-4" />
+                            Copy AniList Format
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </PopoverContent>
-          </Popover>
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

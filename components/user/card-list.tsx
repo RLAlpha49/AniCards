@@ -18,7 +18,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Check, Download, Link } from "lucide-react";
+import { Check, Download, Link, Copy, FileArchive } from "lucide-react";
 import { motion } from "framer-motion";
 
 /**
@@ -47,7 +47,6 @@ const formatOptions: Array<{
   { value: "webp", label: "WebP" },
 ];
 
-// Component for displaying a grid of cards with copyable SVG links
 /**
  * Renders a grid of stat cards with bulk export/copy options.
  * @param props - Component properties.
@@ -56,7 +55,6 @@ const formatOptions: Array<{
  * @source
  */
 export function CardList({ cardTypes }: Readonly<CardListProps>) {
-  // Track which type of link was copied last (svg/anilist)
   const [copied, setCopied] = useState<string | null>(null);
   const [isBatchExporting, setIsBatchExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<BatchConversionProgress>(
@@ -74,7 +72,6 @@ export function CardList({ cardTypes }: Readonly<CardListProps>) {
     ? Math.min(100, (exportProgress.current / exportProgress.total) * 100)
     : 0;
 
-  // Generate different link formats for copy functionality
   /**
    * Absolute SVG links for each card, used in the direct SVG copy option.
    * @source
@@ -88,10 +85,8 @@ export function CardList({ cardTypes }: Readonly<CardListProps>) {
     (card) => `img150(${getAbsoluteUrl(card.svgUrl)})`,
   );
 
-  // Extract userId from the first card's svgUrl using URL/URLSearchParams
   /**
    * Attempt to resolve a userId from the first card's svgUrl query params.
-   * This is used to include a link back to the user's profile in the AniList format.
    * @source
    */
   const firstCardUrl = cardTypes[0]?.svgUrl;
@@ -103,7 +98,6 @@ export function CardList({ cardTypes }: Readonly<CardListProps>) {
       const url = new URL(firstCardUrl, origin);
       userId = url.searchParams.get("userId");
     } catch (error) {
-      // Gracefully handle malformed URLs, but log for debugging
       console.error("Failed to extract userId from card URL:", error);
       userId = null;
     }
@@ -124,11 +118,10 @@ export function CardList({ cardTypes }: Readonly<CardListProps>) {
    * @source
    */
   const handleCopyLinks = async (type: "svg" | "anilist") => {
-    // If copying AniList format, prepend the user's stats link for context
     const links = type === "svg" ? svgLinks : [statsLink, ...anilistBioLinks];
-    await copyToClipboard(links.join("\n")); // Join array with newlines
+    await copyToClipboard(links.join("\n"));
     setCopied(type);
-    setTimeout(() => setCopied(null), 2000); // Reset copied state after 2s
+    setTimeout(() => setCopied(null), 2000);
   };
 
   const handleBatchExport = async () => {
@@ -180,185 +173,229 @@ export function CardList({ cardTypes }: Readonly<CardListProps>) {
           text={`Converting ${exportProgress.current}/${exportProgress.total} cards...`}
         >
           <div className="w-full max-w-xs space-y-2 text-center">
-            <div className="h-1.5 rounded-full bg-gray-200 dark:bg-gray-700">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500"
-                style={{ width: `${progressPercent}%` }}
+            <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+              <motion.div
+                className="h-full rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"
+                initial={{ width: 0 }}
+                animate={{ width: `${progressPercent}%` }}
+                transition={{ duration: 0.3 }}
               />
             </div>
-            <p className="text-xs text-gray-600 dark:text-gray-300">
-              {exportProgress.success} succeeded • {exportProgress.failure}{" "}
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              <span className="font-medium text-green-500">
+                {exportProgress.success}
+              </span>{" "}
+              succeeded •{" "}
+              <span className="font-medium text-red-500">
+                {exportProgress.failure}
+              </span>{" "}
               failed
             </p>
           </div>
         </LoadingOverlay>
       )}
-      {/* Header Section with Copy Links */}
+
+      {/* Export Actions Section */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="mb-8 flex justify-center"
+        className="mb-10"
       >
-        <div className="rounded-2xl border border-white/20 bg-white/10 p-6 backdrop-blur-sm dark:border-gray-700/30 dark:bg-gray-800/20">
-          <div className="flex items-center gap-4">
-            <div className="rounded-lg bg-gradient-to-r from-blue-500 to-purple-500 p-2">
-              <Link className="h-5 w-5 text-white" />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Export Your Cards
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                Copy links in different formats for sharing
-              </p>
-            </div>
-
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-lg"
-                  aria-label="Copy all card links in bulk for multiple formats"
-                >
-                  <Link className="mr-2 h-4 w-4" />
-                  Copy All Links
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-96 border-white/20 bg-white/90 backdrop-blur-md dark:border-gray-600/30 dark:bg-gray-800/90">
-                <div className="space-y-4">
-                  <div className="mb-4">
-                    <h4 className="font-semibold text-gray-900 dark:text-white">
-                      Export Options
-                    </h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-300">
-                      Choose the format that works best for your needs
-                    </p>
-                  </div>
-
-                  {/* SVG links copy section */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-blue-500"></div>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">
-                        Direct SVG Links
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-gray-200/50 bg-gray-50/50 p-3 dark:border-gray-700/50 dark:bg-gray-800/50">
-                      <textarea
-                        className="w-full resize-none border-none bg-transparent text-xs text-gray-600 outline-none dark:text-gray-400"
-                        value={svgLinks.join("\n")}
-                        readOnly
-                        rows={3}
-                      />
-                      <Button
-                        onClick={() => handleCopyLinks("svg")}
-                        size="sm"
-                        className="mt-2 w-full"
-                        aria-label="Copy all SVG links to clipboard"
-                      >
-                        {copied === "svg" ? (
-                          <>
-                            <Check className="mr-2 h-4 w-4" />
-                            Copied!
-                          </>
-                        ) : (
-                          <>
-                            <Link className="mr-2 h-4 w-4" />
-                            Copy SVG Links
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Anilist bio format copy section */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">
-                        AniList Bio Format
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-gray-200/50 bg-gray-50/50 p-3 dark:border-gray-700/50 dark:bg-gray-800/50">
-                      <textarea
-                        className="w-full resize-none border-none bg-transparent text-xs text-gray-600 outline-none dark:text-gray-400"
-                        value={[statsLink, ...anilistBioLinks].join("\n")}
-                        readOnly
-                        rows={4}
-                      />
-                      <Button
-                        onClick={() => handleCopyLinks("anilist")}
-                        size="sm"
-                        className="mt-2 w-full"
-                        aria-label="Copy all AniList bio format links to clipboard"
-                      >
-                        {copied === "anilist" ? (
-                          <>
-                            <Check className="mr-2 h-4 w-4" />
-                            Copied!
-                          </>
-                        ) : (
-                          <>
-                            <Link className="mr-2 h-4 w-4" />
-                            Copy AniList Format
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
+        <div className="mx-auto max-w-3xl">
+          <div className="rounded-2xl border border-slate-200/50 bg-white/80 p-6 backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-800/80">
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+              {/* Section Header */}
+              <div className="flex items-center gap-4">
+                <div className="rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 p-3 shadow-lg">
+                  <Copy className="h-5 w-5 text-white" />
                 </div>
-              </PopoverContent>
-            </Popover>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white transition-all duration-300 hover:from-emerald-600 hover:to-teal-500 hover:shadow-lg"
-                  aria-label="Download all cards as a ZIP archive"
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Download All
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80 border-white/20 bg-white/90 backdrop-blur-md dark:border-gray-600/30 dark:bg-gray-800/90">
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="font-semibold text-gray-900 dark:text-white">
-                      Batch Export
-                    </h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-300">
-                      Choose a format and bundle all cards in one ZIP file.
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {formatOptions.map((option) => (
-                      <Button
-                        key={option.value}
-                        variant={
-                          exportFormat === option.value ? "default" : "outline"
-                        }
-                        className="flex-col gap-1 text-xs font-semibold"
-                        onClick={() => setExportFormat(option.value)}
-                      >
-                        <span className="text-sm">{option.label}</span>
-                      </Button>
-                    ))}
-                  </div>
-                  <Button
-                    onClick={handleBatchExport}
-                    className="w-full"
-                    disabled={isBatchExporting || cardTypes.length === 0}
-                  >
-                    Start Export
-                  </Button>
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                    Export Your Cards
+                  </h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Copy links or download in bulk
+                  </p>
                 </div>
-              </PopoverContent>
-            </Popover>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap gap-3">
+                {/* Copy Links Popover */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      className="group rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 px-5 text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg"
+                      aria-label="Copy all card links in bulk for multiple formats"
+                    >
+                      <Link className="mr-2 h-4 w-4" />
+                      Copy Links
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[380px] rounded-2xl border-slate-200/50 bg-white/95 p-5 shadow-xl backdrop-blur-md dark:border-slate-700/50 dark:bg-slate-800/95">
+                    <div className="space-y-5">
+                      <div>
+                        <h4 className="text-base font-semibold text-slate-900 dark:text-white">
+                          Export Options
+                        </h4>
+                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                          Choose the format that works best for you
+                        </p>
+                      </div>
+
+                      {/* SVG Links */}
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <span className="h-2 w-2 rounded-full bg-blue-500" />
+                          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                            Direct SVG Links
+                          </span>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/50">
+                          <textarea
+                            className="w-full resize-none border-none bg-transparent text-xs text-slate-600 outline-none dark:text-slate-400"
+                            value={svgLinks.join("\n")}
+                            readOnly
+                            rows={3}
+                          />
+                          <Button
+                            onClick={() => handleCopyLinks("svg")}
+                            size="sm"
+                            className="mt-2 w-full rounded-lg"
+                            aria-label="Copy SVG links to clipboard"
+                          >
+                            {copied === "svg" ? (
+                              <>
+                                <Check className="mr-2 h-4 w-4" />
+                                Copied!
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="mr-2 h-4 w-4" />
+                                Copy SVG Links
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* AniList Format */}
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <span className="h-2 w-2 rounded-full bg-green-500" />
+                          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                            AniList Bio Format
+                          </span>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/50">
+                          <textarea
+                            className="w-full resize-none border-none bg-transparent text-xs text-slate-600 outline-none dark:text-slate-400"
+                            value={[statsLink, ...anilistBioLinks].join("\n")}
+                            readOnly
+                            rows={4}
+                          />
+                          <Button
+                            onClick={() => handleCopyLinks("anilist")}
+                            size="sm"
+                            className="mt-2 w-full rounded-lg"
+                            aria-label="Copy AniList bio format links to clipboard"
+                          >
+                            {copied === "anilist" ? (
+                              <>
+                                <Check className="mr-2 h-4 w-4" />
+                                Copied!
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="mr-2 h-4 w-4" />
+                                Copy AniList Format
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
+                {/* Download All Popover */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      className="group rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg"
+                      aria-label="Download all cards as a ZIP archive"
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Download All
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 rounded-2xl border-slate-200/50 bg-white/95 p-5 shadow-xl backdrop-blur-md dark:border-slate-700/50 dark:bg-slate-800/95">
+                    <div className="space-y-5">
+                      <div className="flex items-start gap-3">
+                        <div className="rounded-lg bg-emerald-100 p-2 dark:bg-emerald-900/30">
+                          <FileArchive className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-slate-900 dark:text-white">
+                            Batch Export
+                          </h4>
+                          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+                            Download all cards as a ZIP file
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                          Select Format
+                        </span>
+                        <div className="grid grid-cols-2 gap-2">
+                          {formatOptions.map((option) => (
+                            <Button
+                              key={option.value}
+                              variant={
+                                exportFormat === option.value
+                                  ? "default"
+                                  : "outline"
+                              }
+                              className={`rounded-lg font-semibold transition-all ${
+                                exportFormat === option.value
+                                  ? "bg-emerald-500 text-white hover:bg-emerald-600"
+                                  : ""
+                              }`}
+                              onClick={() => setExportFormat(option.value)}
+                            >
+                              {option.label}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <Button
+                        onClick={handleBatchExport}
+                        className="w-full rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 font-semibold text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg"
+                        disabled={isBatchExporting || cardTypes.length === 0}
+                      >
+                        {isBatchExporting ? "Exporting..." : "Start Export"}
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+
+            {/* Export Message */}
+            {exportMessage && (
+              <motion.p
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-4 text-center text-sm font-medium text-emerald-600 dark:text-emerald-400"
+              >
+                {exportMessage}
+              </motion.p>
+            )}
           </div>
-          {exportMessage && (
-            <p className="mt-2 text-center text-sm text-emerald-500 dark:text-emerald-300">
-              {exportMessage}
-            </p>
-          )}
         </div>
       </motion.div>
 
@@ -369,7 +406,7 @@ export function CardList({ cardTypes }: Readonly<CardListProps>) {
             key={card.rawType}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: index * 0.1 }}
+            transition={{ duration: 0.4, delay: index * 0.05 }}
           >
             <Card {...card} />
           </motion.div>
