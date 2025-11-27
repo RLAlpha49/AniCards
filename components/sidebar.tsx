@@ -134,7 +134,7 @@ export function AppSidebar() {
                       asChild
                       isActive={isActive}
                       tooltip={item.title}
-                      className="group relative"
+                      className="relative"
                     >
                       <Link
                         href={item.href}
@@ -150,7 +150,7 @@ export function AppSidebar() {
                           className={`flex min-h-8 min-w-8 translate-x-[-8px] items-center justify-center rounded-xl transition-all ${
                             isActive
                               ? `bg-gradient-to-br ${item.gradient} text-white shadow-sm`
-                              : "bg-slate-100 text-slate-500 group-hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:group-hover:bg-slate-700"
+                              : "bg-slate-100 text-slate-500 group-hover/menu-item:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:group-hover/menu-item:bg-slate-700"
                           }`}
                         >
                           <item.icon className="h-4 w-4" />

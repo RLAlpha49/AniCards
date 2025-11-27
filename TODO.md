@@ -1,7 +1,5 @@
 # TODO List
 
-- Sidebar icons/items have hover state if sidebar is hovered at all. Not just when hovering over the specific item.
-
 - Add more params to the card.svg url
   - The card at minimum should always have 2 params ((userId or userName) and cardType). The rest of the params are optional and if not provided should fallback to the saved options in the database. If no saved options exist then the default values should be used.
   - Params to include:

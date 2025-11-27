@@ -72,7 +72,7 @@ export function WizardNavigation({ steps }: Readonly<WizardNavigationProps>) {
                 <button
                   type="button"
                   onClick={() => goToStep(index)}
-                  className="group relative flex flex-col items-center gap-2 transition-all cursor-pointer"
+                  className="group relative flex cursor-pointer flex-col items-center gap-2 transition-all"
                 >
                   {/* Step Circle */}
                   <motion.div
