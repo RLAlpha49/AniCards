@@ -2,7 +2,15 @@
 
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Play, Sparkles, ArrowDown } from "lucide-react";
+import {
+  ArrowRight,
+  Play,
+  Sparkles,
+  Star,
+  TrendingUp,
+  Palette,
+  ArrowDown,
+} from "lucide-react";
 import { FloatingCardsLayer } from "@/components/ui/floating-cards";
 
 /**
@@ -15,6 +23,33 @@ interface HeroSectionProps {
   onGetStarted: () => void;
   onSeeExamples: () => void;
 }
+
+/**
+ * Quick value proposition badges shown below the hero buttons.
+ * @source
+ */
+const VALUE_PROPS = [
+  { icon: Star, text: "Free Forever" },
+  { icon: TrendingUp, text: "No Login Required" },
+  { icon: Palette, text: "Fully Customizable" },
+];
+
+/**
+ * Animation variants for staggered text reveal.
+ * @source
+ */
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1, delayChildren: 0.1 },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
+};
 
 /**
  * Renders the hero section on the landing page with main actions and a
@@ -31,90 +66,100 @@ export function HeroSection({
   onSeeExamples,
 }: Readonly<HeroSectionProps>) {
   return (
-    <section className="relative min-h-[95vh] w-full overflow-hidden overflow-x-visible bg-transparent">
+    <section className="relative min-h-[100dvh] w-full overflow-hidden">
       {/* Floating Cards Layer */}
       <FloatingCardsLayer />
 
-      <div className="container relative z-10 mx-auto flex min-h-[95vh] flex-col items-center justify-center px-4 py-20 text-center">
+      <div className="container relative z-10 mx-auto flex min-h-[100dvh] flex-col items-center justify-center px-4 py-20 text-center">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mb-8 inline-flex items-center rounded-full border border-blue-200 bg-blue-50/80 px-4 py-1.5 text-sm font-medium text-blue-600 backdrop-blur-sm dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="flex max-w-5xl flex-col items-center gap-8"
         >
-          <Sparkles className="mr-2 h-4 w-4" />
-          <span>The Ultimate AniList Companion</span>
-        </motion.div>
+          {/* Badge */}
+          <motion.div variants={itemVariants}>
+            <span className="inline-flex items-center gap-2 rounded-full border border-blue-200/50 bg-blue-50/80 px-4 py-2 text-sm font-medium text-blue-700 shadow-sm backdrop-blur-sm dark:border-blue-700/50 dark:bg-blue-950/50 dark:text-blue-300">
+              <Sparkles className="h-4 w-4" />
+              Your AniList Stats, Beautifully Visualized
+            </span>
+          </motion.div>
 
-        <motion.h1
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="mb-6 max-w-4xl text-5xl font-extrabold leading-tight tracking-tight text-slate-900 dark:text-white sm:text-6xl lg:text-7xl"
-        >
-          Visualize Your <br />
-          <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-            Anime Journey
-          </span>
-        </motion.h1>
-
-        <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="mb-10 max-w-2xl text-lg text-slate-600 dark:text-slate-300 sm:text-xl"
-        >
-          Turn your AniList profile into stunning, shareable stat cards. Track
-          your progress, showcase your favorites, and express your style with
-          over 20+ customizable card types.
-        </motion.p>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-          className="flex flex-col items-center justify-center gap-4 sm:flex-row"
-        >
-          <Button
-            size="lg"
-            onClick={onGetStarted}
-            className="group h-14 min-w-[200px] rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-lg font-semibold shadow-lg transition-all hover:scale-105 hover:shadow-xl hover:shadow-blue-500/25"
+          {/* Main heading */}
+          <motion.h1
+            variants={itemVariants}
+            className="text-4xl font-extrabold leading-[1.1] tracking-tight text-slate-900 dark:text-white sm:text-5xl md:text-6xl lg:text-7xl"
           >
-            <Play className="mr-2 h-5 w-5 fill-current" />
-            Create Cards
-            <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
-          </Button>
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={onSeeExamples}
-            className="h-14 min-w-[200px] rounded-full border-2 bg-white/50 text-lg font-semibold backdrop-blur-sm hover:bg-slate-100 dark:bg-slate-900/50 dark:hover:bg-slate-800"
+            Transform Your{" "}
+            <span className="relative">
+              <span className="relative z-10 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                Anime Journey
+              </span>
+              <motion.span
+                className="absolute -inset-1 -z-10 block rounded-lg bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 blur-xl"
+                animate={{ opacity: [0.5, 0.8, 0.5] }}
+                transition={{ duration: 3, repeat: Infinity }}
+              />
+            </span>
+            <br />
+            Into Stunning Cards
+          </motion.h1>
+
+          {/* Subheading */}
+          <motion.p
+            variants={itemVariants}
+            className="max-w-2xl text-lg text-slate-600 dark:text-slate-300 sm:text-xl"
           >
-            View Gallery
-          </Button>
+            Create beautiful, shareable stat cards from your AniList profile.
+            Over 20+ card types with full customization — colors, themes, and
+            layouts that match your style.
+          </motion.p>
+
+          {/* CTA buttons */}
+          <motion.div
+            variants={itemVariants}
+            className="flex flex-col items-center gap-4 sm:flex-row"
+          >
+            <Button
+              size="lg"
+              onClick={onGetStarted}
+              className="group relative h-14 min-w-[200px] overflow-hidden rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-lg font-semibold shadow-lg shadow-purple-500/25 transition-all hover:scale-105 hover:shadow-xl hover:shadow-purple-500/30"
+            >
+              <span className="relative z-10 flex items-center">
+                <Play className="mr-2 h-5 w-5 fill-current" />
+                Create Your Card
+                <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+              </span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={onSeeExamples}
+              className="h-14 min-w-[180px] rounded-full border-2 border-slate-300 bg-white/50 text-lg font-medium backdrop-blur-sm transition-all hover:border-slate-400 hover:bg-white dark:border-slate-700 dark:bg-slate-900/50 dark:hover:border-slate-600 dark:hover:bg-slate-800/80"
+            >
+              View Examples
+            </Button>
+          </motion.div>
+
+          {/* Value props */}
+          <motion.div
+            variants={itemVariants}
+            className="flex flex-wrap items-center justify-center gap-6 pt-4"
+          >
+            {VALUE_PROPS.map((prop) => (
+              <div
+                key={prop.text}
+                className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400"
+              >
+                <prop.icon className="h-4 w-4 text-green-500" />
+                <span>{prop.text}</span>
+              </div>
+            ))}
+          </motion.div>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-          className="mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-4 text-sm font-medium text-slate-500 dark:text-slate-400"
-        >
-          <div className="flex items-center gap-2">
-            <div className="h-2 w-2 rounded-full bg-green-500" />
-            Free Forever
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="h-2 w-2 rounded-full bg-blue-500" />
-            No Login Required
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="h-2 w-2 rounded-full bg-purple-500" />
-            Instant Generation
-          </div>
-        </motion.div>
-
-        {/* Scroll Indicator */}
+        {/* Scroll indicator */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1, y: [0, 10, 0] }}
@@ -122,7 +167,7 @@ export function HeroSection({
             opacity: { delay: 1, duration: 0.5 },
             y: { repeat: Infinity, duration: 2 },
           }}
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 text-slate-400"
+          className="absolute bottom-[10vh] left-1/2"
         >
           <ArrowDown className="h-6 w-6" />
         </motion.div>
