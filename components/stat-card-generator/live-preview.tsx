@@ -1,5 +1,7 @@
 import React from "react";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { Eye, Sparkles } from "lucide-react";
 
 /**
  * Props for LivePreview component.
@@ -25,23 +27,61 @@ export const LivePreview = React.memo(function LivePreview({
   className,
 }: LivePreviewProps) {
   return (
-    <div className={cn("flex flex-col items-center space-y-3", className)}>
-      <div className="flex justify-center">
-        <div
-          className="overflow-hidden border border-gray-200 bg-gray-50/50 p-4 shadow-sm transition-all dark:border-gray-800 dark:bg-gray-900/50"
-          style={{ borderRadius: "8px" }}
-        >
+    <div className={cn("flex flex-col items-center", className)}>
+      {/* Preview Container */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="group relative"
+      >
+        {/* Glow effect */}
+        <div className="absolute -inset-4 rounded-3xl bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 opacity-0 blur-xl transition-opacity duration-500 group-hover:opacity-100" />
+
+        {/* Preview frame */}
+        <div className="dark:via-slate-850 relative overflow-hidden rounded-2xl border border-slate-200/50 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-4 shadow-lg shadow-slate-200/50 transition-all duration-300 group-hover:shadow-xl dark:border-slate-700/50 dark:from-slate-800 dark:to-slate-900 dark:shadow-slate-900/50">
+          {/* Checkerboard pattern for transparency indication */}
+          <div
+            className="absolute inset-0 opacity-[0.02] dark:opacity-[0.03]"
+            style={{
+              backgroundImage: `
+              linear-gradient(45deg, #000 25%, transparent 25%),
+              linear-gradient(-45deg, #000 25%, transparent 25%),
+              linear-gradient(45deg, transparent 75%, #000 75%),
+              linear-gradient(-45deg, transparent 75%, #000 75%)
+            `,
+              backgroundSize: "16px 16px",
+              backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0px",
+            }}
+          />
+
+          {/* SVG Content */}
           <div
             // Unsafe HTML is intentionally rendered from trusted sources only.
             dangerouslySetInnerHTML={{ __html: previewSVG }}
-            className="transition-transform duration-300 hover:scale-[1.02]"
+            className="relative transition-transform duration-300 group-hover:scale-[1.01]"
           />
         </div>
-      </div>
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
-        <span>Updates automatically</span>
-      </div>
+      </motion.div>
+
+      {/* Status indicator */}
+      <motion.div
+        initial={{ opacity: 0, y: 5 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="mt-4 flex items-center gap-2"
+      >
+        <div className="flex items-center gap-2 rounded-full border border-slate-200/50 bg-white/80 px-3 py-1.5 shadow-sm backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-800/80">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+          </span>
+          <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400">
+            <Eye className="h-3 w-3" />
+            Live Preview
+          </span>
+          <Sparkles className="h-3 w-3 text-purple-500" />
+        </div>
+      </motion.div>
     </div>
   );
 });

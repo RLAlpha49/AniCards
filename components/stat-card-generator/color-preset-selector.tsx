@@ -1,15 +1,25 @@
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { trackColorPresetSelection } from "@/lib/utils/google-analytics";
 import { cn, isGradient, colorValueToString } from "@/lib/utils";
-import { Check, Moon, Sun, Palette, Layers, Filter } from "lucide-react";
+import {
+  Check,
+  Moon,
+  Sun,
+  Palette,
+  Layers,
+  Filter,
+  ChevronDown,
+  Sparkles,
+} from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ColorValue } from "@/lib/types/card";
 
 /**
@@ -28,7 +38,9 @@ export interface ColorPresetSelectorProps {
 }
 
 /** Default number of visible presets before expanding. @source */
-const DEFAULT_VISIBLE_PRESETS = 8;
+const DEFAULT_VISIBLE_PRESET_ROWS = 2;
+const MIN_PRESET_COLUMN_WIDTH = 120;
+const PRESET_GRID_GAP_PX = 10;
 /**
  * Tuple for preset entries, [key, { colors, mode }].
  * @source
@@ -76,6 +88,8 @@ export function ColorPresetSelector({
   const [themeFilter, setThemeFilter] = useState<"all" | "light" | "dark">(
     "all",
   );
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const [columnCount, setColumnCount] = useState(1);
 
   // Wrapper that tracks selection for analytics then notifies caller.
   const handlePresetChange = (preset: string) => {
@@ -132,6 +146,10 @@ export function ColorPresetSelector({
     });
   }, [sortedPresets, colorTypeFilter, themeFilter]);
 
+  const DEFAULT_VISIBLE_PRESETS = Math.max(
+    1,
+    columnCount * DEFAULT_VISIBLE_PRESET_ROWS - 1,
+  );
   const totalPresets = filteredPresets.length;
   const hasMorePresets = totalPresets > DEFAULT_VISIBLE_PRESETS;
   const selectedIndex = filteredPresets.findIndex(
@@ -179,187 +197,286 @@ export function ColorPresetSelector({
     return counts;
   }, [sortedPresets]);
 
+  useEffect(() => {
+    const gridElement = gridRef.current;
+    if (!gridElement) return;
+
+    const computeColumns = () => {
+      const width = gridElement.clientWidth;
+      if (width === 0) {
+        setColumnCount(1);
+        return;
+      }
+      const possibleColumns = Math.max(
+        1,
+        Math.floor(
+          (width + PRESET_GRID_GAP_PX) /
+            (MIN_PRESET_COLUMN_WIDTH + PRESET_GRID_GAP_PX),
+        ),
+      );
+      setColumnCount((prev) =>
+        prev === possibleColumns ? prev : possibleColumns,
+      );
+    };
+
+    computeColumns();
+
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const observer = new ResizeObserver(computeColumns);
+    observer.observe(gridElement);
+
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <Label className="text-base font-semibold text-gray-900 dark:text-gray-100">
-          Color Preset
+        <Label className="text-base font-bold text-slate-900 dark:text-white">
+          Choose a Preset
         </Label>
-        <span className="text-xs text-muted-foreground">
-          {filteredPresets.length} of {sortedPresets.length} presets
+        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+          {filteredPresets.length} of {sortedPresets.length}
         </span>
       </div>
 
       {/* Filter Tabs */}
-      <div className="space-y-2">
+      <div className="space-y-3">
         {/* Color Type Filter */}
         <div className="flex items-center gap-2">
-          <Filter className="h-3.5 w-3.5 text-gray-400" />
-          <div className="flex gap-1">
-            <Button
-              type="button"
-              variant={colorTypeFilter === "all" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setColorTypeFilter("all")}
-              className="h-7 px-2.5 text-xs"
-            >
-              All
-            </Button>
-            <Button
-              type="button"
-              variant={colorTypeFilter === "solid" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setColorTypeFilter("solid")}
-              className="h-7 gap-1 px-2.5 text-xs"
-            >
-              <Palette className="h-3 w-3" />
-              Solid ({presetCounts.solid})
-            </Button>
-            <Button
-              type="button"
-              variant={colorTypeFilter === "gradient" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setColorTypeFilter("gradient")}
-              className="h-7 gap-1 px-2.5 text-xs"
-            >
-              <Layers className="h-3 w-3" />
-              Gradient ({presetCounts.gradient})
-            </Button>
+          <Filter className="h-4 w-4 text-slate-400" />
+          <div className="flex gap-1.5">
+            {[
+              { value: "all", label: "All Types" },
+              {
+                value: "solid",
+                label: "Solid",
+                icon: Palette,
+                count: presetCounts.solid,
+              },
+              {
+                value: "gradient",
+                label: "Gradient",
+                icon: Layers,
+                count: presetCounts.gradient,
+              },
+            ].map((option) => (
+              <Button
+                key={option.value}
+                type="button"
+                variant={
+                  colorTypeFilter === option.value ? "default" : "outline"
+                }
+                size="sm"
+                onClick={() =>
+                  setColorTypeFilter(option.value as typeof colorTypeFilter)
+                }
+                className={cn(
+                  "h-8 gap-1.5 rounded-lg px-3 text-xs font-medium transition-all",
+                  colorTypeFilter === option.value
+                    ? "bg-slate-900 text-white shadow-md dark:bg-white dark:text-slate-900"
+                    : "border-slate-200/50 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700/50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700",
+                )}
+              >
+                {option.icon && <option.icon className="h-3 w-3" />}
+                {option.label}
+                {option.count !== undefined && (
+                  <span className="text-[10px] opacity-70">
+                    ({option.count})
+                  </span>
+                )}
+              </Button>
+            ))}
           </div>
         </div>
+
         {/* Theme Filter */}
         <div className="flex items-center gap-2">
-          <span className="h-3.5 w-3.5" /> {/* Spacer to align with above */}
-          <div className="flex gap-1">
-            <Button
-              type="button"
-              variant={themeFilter === "all" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setThemeFilter("all")}
-              className="h-7 px-2.5 text-xs"
-            >
-              All Themes
-            </Button>
-            <Button
-              type="button"
-              variant={themeFilter === "light" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setThemeFilter("light")}
-              className="h-7 gap-1 px-2.5 text-xs"
-            >
-              <Sun className="h-3 w-3" />
-              Light ({presetCounts.light})
-            </Button>
-            <Button
-              type="button"
-              variant={themeFilter === "dark" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setThemeFilter("dark")}
-              className="h-7 gap-1 px-2.5 text-xs"
-            >
-              <Moon className="h-3 w-3" />
-              Dark ({presetCounts.dark})
-            </Button>
+          <span className="h-4 w-4" />
+          <div className="flex gap-1.5">
+            {[
+              { value: "all", label: "All Themes" },
+              {
+                value: "light",
+                label: "Light",
+                icon: Sun,
+                count: presetCounts.light,
+              },
+              {
+                value: "dark",
+                label: "Dark",
+                icon: Moon,
+                count: presetCounts.dark,
+              },
+            ].map((option) => (
+              <Button
+                key={option.value}
+                type="button"
+                variant={themeFilter === option.value ? "default" : "outline"}
+                size="sm"
+                onClick={() =>
+                  setThemeFilter(option.value as typeof themeFilter)
+                }
+                className={cn(
+                  "h-8 gap-1.5 rounded-lg px-3 text-xs font-medium transition-all",
+                  themeFilter === option.value
+                    ? "bg-slate-900 text-white shadow-md dark:bg-white dark:text-slate-900"
+                    : "border-slate-200/50 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700/50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700",
+                )}
+              >
+                {option.icon && <option.icon className="h-3 w-3" />}
+                {option.label}
+                {option.count !== undefined && (
+                  <span className="text-[10px] opacity-70">
+                    ({option.count})
+                  </span>
+                )}
+              </Button>
+            ))}
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(96px,1fr))] gap-3">
+      {/* Presets Grid */}
+      <div
+        ref={gridRef}
+        className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-2.5"
+      >
         <TooltipProvider delayDuration={0}>
-          {visiblePresets.map(([key, { colors, mode }]) => {
-            const isSelected = selectedPreset === key;
-            const isCustom = key === "custom";
-            const containsGradient = hasGradient(colors);
+          <AnimatePresence mode="popLayout">
+            {visiblePresets.map(([key, { colors, mode }], index) => {
+              const isSelected = selectedPreset === key;
+              const isCustom = key === "custom";
+              const containsGradient = hasGradient(colors);
 
-            return (
-              <Tooltip key={key}>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={() => handlePresetChange(key)}
-                    className={cn(
-                      "group relative flex h-14 w-full items-center justify-center overflow-hidden rounded-xl border-2 transition-all duration-200",
-                      isSelected
-                        ? "border-blue-500 ring-2 ring-blue-500/20 dark:border-blue-400"
-                        : "border-transparent hover:border-gray-200 dark:hover:border-gray-700",
-                      "bg-white dark:bg-gray-800",
-                    )}
-                  >
-                    {isCustom ? (
-                      <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900">
-                        <Palette className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                      </div>
-                    ) : (
-                      <div className="flex h-full w-full">
-                        {colors.map((color, i) => (
-                          <div
-                            key={`${colorValueToString(color)}-${i}`}
-                            className="h-full flex-1"
-                            style={{ background: colorToCssBackground(color) }}
-                          />
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Selection Indicator */}
-                    {isSelected && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
-                        <div className="rounded-full bg-white p-1 shadow-sm dark:bg-gray-900">
-                          <Check className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+              return (
+                <Tooltip key={key}>
+                  <TooltipTrigger asChild>
+                    <motion.button
+                      layout
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={{ duration: 0.2, delay: index * 0.02 }}
+                      type="button"
+                      onClick={() => handlePresetChange(key)}
+                      className={cn(
+                        "group relative flex aspect-[3/2] w-full items-center justify-center overflow-hidden rounded-xl border-2 transition-all duration-200",
+                        isSelected
+                          ? "border-blue-500 ring-4 ring-blue-500/20 dark:border-blue-400 dark:ring-blue-400/20"
+                          : "border-transparent hover:border-slate-300 hover:shadow-lg dark:hover:border-slate-600",
+                        "bg-white shadow-sm dark:bg-slate-800",
+                      )}
+                    >
+                      {isCustom ? (
+                        <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900">
+                          <Sparkles className="h-5 w-5 text-slate-400 transition-colors group-hover:text-purple-500 dark:text-slate-500" />
+                          <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                            Custom
+                          </span>
                         </div>
-                      </div>
-                    )}
+                      ) : (
+                        <div className="flex h-full w-full">
+                          {colors.map((color, i) => (
+                            <div
+                              key={`${colorValueToString(color)}-${i}`}
+                              className="h-full flex-1"
+                              style={{
+                                background: colorToCssBackground(color),
+                              }}
+                            />
+                          ))}
+                        </div>
+                      )}
 
-                    {/* Gradient Indicator (Top Left) */}
-                    {containsGradient && !isCustom && (
-                      <div className="absolute left-1 top-1 rounded-full bg-black/10 p-0.5 backdrop-blur-sm dark:bg-white/10">
-                        <Layers className="h-2.5 w-2.5 text-purple-600 dark:text-purple-300" />
-                      </div>
-                    )}
+                      {/* Selection Indicator */}
+                      {isSelected && (
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-[2px]"
+                        >
+                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-lg dark:bg-slate-900">
+                            <Check className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                          </div>
+                        </motion.div>
+                      )}
 
-                    {/* Mode Indicator (Corner) */}
-                    {!isCustom && (
-                      <div className="absolute bottom-1 right-1 rounded-full bg-black/10 p-0.5 backdrop-blur-sm dark:bg-white/10">
-                        {mode === "light" ? (
-                          <Sun className="h-2.5 w-2.5 text-yellow-600 dark:text-yellow-300" />
-                        ) : (
-                          <Moon className="h-2.5 w-2.5 text-indigo-600 dark:text-indigo-300" />
-                        )}
-                      </div>
+                      {/* Badges */}
+                      {!isCustom && (
+                        <div className="absolute left-1.5 top-1.5 flex gap-1">
+                          {containsGradient && (
+                            <div className="rounded-full bg-purple-500/90 p-1 shadow-sm">
+                              <Layers className="h-2.5 w-2.5 text-white" />
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {!isCustom && (
+                        <div className="absolute bottom-1.5 right-1.5">
+                          <div
+                            className={cn(
+                              "rounded-full p-1 shadow-sm",
+                              mode === "light"
+                                ? "bg-amber-400/90"
+                                : "bg-indigo-500/90",
+                            )}
+                          >
+                            {mode === "light" ? (
+                              <Sun className="h-2.5 w-2.5 text-white" />
+                            ) : (
+                              <Moon className="h-2.5 w-2.5 text-white" />
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </motion.button>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="bottom"
+                    className="flex items-center gap-2 rounded-lg border-slate-200/50 bg-white/95 px-3 py-2 shadow-lg backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-900/95"
+                  >
+                    <span className="font-semibold capitalize text-slate-900 dark:text-white">
+                      {key.replaceAll(/([A-Z])/g, " $1").trim()}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      {mode === "light" ? "Light" : "Dark"}
+                    </span>
+                    {containsGradient && (
+                      <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-600 dark:bg-purple-900/50 dark:text-purple-400">
+                        Gradient
+                      </span>
                     )}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent
-                  side="bottom"
-                  className="flex items-center gap-2"
-                >
-                  <span className="font-medium capitalize">
-                    {key.replaceAll(/([A-Z])/g, " $1").trim()}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    ({mode === "light" ? "Light" : "Dark"})
-                  </span>
-                  {containsGradient && (
-                    <span className="text-xs text-purple-500">• Gradient</span>
-                  )}
-                </TooltipContent>
-              </Tooltip>
-            );
-          })}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </AnimatePresence>
         </TooltipProvider>
       </div>
+
+      {/* Expand Button */}
       {visiblePresets.length < filteredPresets.length && (
-        <div className="flex justify-end">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex justify-center pt-2"
+        >
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             type="button"
             onClick={() => setIsExpanded(true)}
-            className="text-xs text-muted-foreground"
+            className="gap-2 rounded-full border-slate-200/50 bg-white px-4 text-sm font-medium text-slate-600 shadow-sm hover:bg-slate-50 hover:shadow-md dark:border-slate-700/50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
           >
-            {`Show all ${totalPresets} presets`}
+            <ChevronDown className="h-4 w-4" />
+            Show all {totalPresets} presets
           </Button>
-        </div>
+        </motion.div>
       )}
     </div>
   );

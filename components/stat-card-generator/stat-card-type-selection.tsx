@@ -18,7 +18,7 @@ import {
   List,
   Star,
   Eye,
-  Check,
+  CheckCircle2,
 } from "lucide-react";
 
 /**
@@ -125,50 +125,86 @@ export function StatCardTypeSelection({
   // Default active group is the first group calculated from the card types.
   const [activeGroup, setActiveGroup] = useState<string>(grouped.order[0]);
 
+  // Count selected cards per group
+  const groupCounts = useMemo(() => {
+    const counts: Record<string, { total: number; selected: number }> = {};
+    for (const group of grouped.order) {
+      const cards = grouped.map[group] || [];
+      counts[group] = {
+        total: cards.length,
+        selected: cards.filter((c) => selectedCards.includes(c.id)).length,
+      };
+    }
+    return counts;
+  }, [grouped, selectedCards]);
+
   return (
-    <div className="space-y-6">
-      {/* Header Actions */}
+    <div className="space-y-5">
+      {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
-            <LayoutGrid className="h-4 w-4" />
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 shadow-md shadow-blue-500/25">
+            <LayoutGrid className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-              Available Cards
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+              Select Your Cards
             </h3>
-            <p className="text-xs text-muted-foreground">
-              Select the cards you want to generate
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              {selectedCards.length} of {cardTypes.length} cards selected
             </p>
           </div>
         </div>
         <Button
-          variant={allSelected ? "secondary" : "outline"}
+          variant={allSelected ? "default" : "outline"}
           size="sm"
           onClick={onSelectAll}
-          className="gap-2"
+          className={cn(
+            "gap-2 rounded-full px-4 font-medium transition-all",
+            allSelected
+              ? "bg-slate-900 text-white shadow-md hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+              : "border-slate-200/50 bg-white text-slate-600 hover:bg-slate-50 hover:shadow-md dark:border-slate-700/50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700",
+          )}
         >
-          <Check className={cn("h-4 w-4", allSelected && "opacity-100")} />
+          <CheckCircle2 className="h-4 w-4" />
           {allSelected ? "Unselect All" : "Select All"}
         </Button>
       </div>
 
       {/* Group Navigation */}
-      <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-4 dark:border-gray-800">
-        {grouped.order.map((group) => (
-          <button
-            key={group}
-            onClick={() => setActiveGroup(group)}
-            className={cn(
-              "rounded-full px-4 py-1.5 text-sm font-medium transition-all",
-              activeGroup === group
-                ? "bg-gray-900 text-white shadow-md dark:bg-white dark:text-gray-900"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700",
-            )}
-          >
-            {group}
-          </button>
-        ))}
+      <div className="flex flex-wrap gap-2 border-b border-slate-200/50 pb-4 dark:border-slate-700/50">
+        {grouped.order.map((group) => {
+          const { selected, total } = groupCounts[group];
+          const isActive = activeGroup === group;
+
+          return (
+            <button
+              key={group}
+              onClick={() => setActiveGroup(group)}
+              className={cn(
+                "group flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all",
+                isActive
+                  ? "bg-slate-900 text-white shadow-lg dark:bg-white dark:text-slate-900"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:shadow-md dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700",
+              )}
+            >
+              {group}
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-0.5 text-[10px] font-bold transition-all",
+                  isActive
+                    ? "bg-white/20 text-white dark:bg-slate-900/30 dark:text-slate-900"
+                    : "bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400",
+                  selected > 0 &&
+                    !isActive &&
+                    "bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400",
+                )}
+              >
+                {selected}/{total}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Cards Grid */}
@@ -180,9 +216,9 @@ export function StatCardTypeSelection({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
-            className="grid grid-cols-1 gap-4 md:grid-cols-2"
+            className="grid grid-cols-1 gap-3 md:grid-cols-2"
           >
-            {grouped.map[activeGroup]?.map((type) => {
+            {grouped.map[activeGroup]?.map((type, index) => {
               const isSelected = selectedCards.includes(type.id);
               const currentVariation =
                 selectedCardVariants[type.id] ||
@@ -205,28 +241,45 @@ export function StatCardTypeSelection({
               else if (currentVariation === "bar") VariationIcon = BarChart;
 
               return (
-                <div
+                <motion.div
                   key={type.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2, delay: index * 0.03 }}
                   className={cn(
-                    "group relative flex flex-col gap-4 rounded-xl border-2 p-4 transition-all duration-200 hover:shadow-md",
+                    "group relative flex flex-col gap-3 rounded-2xl border-2 p-4 transition-all duration-200",
                     isSelected
-                      ? "border-blue-500 bg-blue-50/50 dark:border-blue-500/50 dark:bg-blue-900/10"
-                      : "border-transparent bg-white hover:border-gray-200 dark:bg-gray-800 dark:hover:border-gray-700",
+                      ? "border-blue-400 bg-gradient-to-br from-blue-50 via-white to-indigo-50/50 shadow-lg shadow-blue-500/10 dark:border-blue-500/50 dark:from-blue-950/30 dark:via-slate-900 dark:to-indigo-950/20"
+                      : "border-transparent bg-white shadow-sm hover:border-slate-200 hover:shadow-md dark:bg-slate-800/80 dark:hover:border-slate-700",
                   )}
                 >
-                  <div className="flex items-start justify-between gap-4">
+                  {/* Selection Indicator */}
+                  {isSelected && (
+                    <div className="absolute -right-1 -top-1">
+                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 shadow-md">
+                        <CheckCircle2 className="h-4 w-4 text-white" />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
                       <Checkbox
                         checked={isSelected}
                         onCheckedChange={() => onToggle(type.id)}
-                        className="mt-1"
+                        className={cn(
+                          "mt-1 h-5 w-5 rounded-md border-2 transition-all",
+                          isSelected
+                            ? "border-blue-500 bg-blue-500 text-white"
+                            : "border-slate-300 dark:border-slate-600",
+                        )}
                       />
                       <div className="space-y-1">
-                        <Label className="cursor-pointer text-base font-semibold leading-none">
+                        <Label className="cursor-pointer text-base font-semibold leading-tight text-slate-900 dark:text-white">
                           {type.label.split(" (")[0]}
                         </Label>
                         {type.label.includes("(") && labelTextInParens && (
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
                             {labelTextInParens}
                           </p>
                         )}
@@ -235,7 +288,10 @@ export function StatCardTypeSelection({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 shrink-0 text-muted-foreground hover:text-blue-600"
+                      className={cn(
+                        "h-8 w-8 shrink-0 rounded-lg transition-all",
+                        "text-slate-400 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/30 dark:hover:text-blue-400",
+                      )}
                       onClick={(e) => {
                         e.stopPropagation();
                         onPreview(type.id, currentVariation);
@@ -248,27 +304,27 @@ export function StatCardTypeSelection({
 
                   {/* Controls Area */}
                   {(type.variations || supportsFavorites) && (
-                    <div className="mt-auto flex flex-wrap items-center gap-3 border-t border-gray-100 pt-3 dark:border-gray-700/50">
+                    <div className="mt-auto flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3 dark:border-slate-700/50">
                       {type.variations && (
-                        <div className="min-w-[120px] flex-1">
+                        <div className="min-w-[130px] flex-1">
                           <Select
                             value={currentVariation}
                             onValueChange={(value) =>
                               onVariantChange(type.id, value)
                             }
                           >
-                            <SelectTrigger className="h-8 text-xs">
+                            <SelectTrigger className="h-9 rounded-lg border-slate-200/50 bg-slate-50 text-sm font-medium shadow-sm dark:border-slate-700/50 dark:bg-slate-900">
                               <div className="flex items-center gap-2">
-                                <VariationIcon className="h-3 w-3" />
+                                <VariationIcon className="h-3.5 w-3.5 text-slate-400" />
                                 <SelectValue />
                               </div>
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className="rounded-xl border-slate-200/50 bg-white/95 shadow-lg backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-900/95">
                               {type.variations.map((v) => (
                                 <SelectItem
                                   key={v.id}
                                   value={v.id}
-                                  className="text-xs"
+                                  className="rounded-lg text-sm"
                                 >
                                   {v.label}
                                 </SelectItem>
@@ -279,34 +335,37 @@ export function StatCardTypeSelection({
                       )}
 
                       {supportsFavorites && (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 rounded-lg bg-amber-50/80 px-3 py-1.5 dark:bg-amber-900/20">
                           <Checkbox
                             id={`fav-${type.id}`}
                             checked={isFavorite}
                             onCheckedChange={() =>
                               onToggleShowFavorites(type.id)
                             }
-                            className="h-4 w-4"
+                            className={cn(
+                              "h-4 w-4 rounded border-amber-300 transition-all",
+                              isFavorite && "border-amber-500 bg-amber-500",
+                            )}
                           />
                           <Label
                             htmlFor={`fav-${type.id}`}
-                            className="flex cursor-pointer items-center gap-1.5 text-xs font-medium"
+                            className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400"
                           >
                             <Star
                               className={cn(
-                                "h-3 w-3",
+                                "h-3.5 w-3.5 transition-all",
                                 isFavorite
-                                  ? "fill-yellow-400 text-yellow-400"
-                                  : "text-muted-foreground",
+                                  ? "fill-amber-400 text-amber-400"
+                                  : "text-amber-400/50",
                               )}
                             />
-                            Show Favorites
+                            Favorites Only
                           </Label>
                         </div>
                       )}
                     </div>
                   )}
-                </div>
+                </motion.div>
               );
             })}
           </motion.div>
