@@ -267,7 +267,7 @@ export function ColorPresetManager() {
                               <Input
                                 type="number"
                                 min={0}
-                                max={50}
+                                max={100}
                                 step={0.1}
                                 value={borderRadius}
                                 onChange={(e) => {

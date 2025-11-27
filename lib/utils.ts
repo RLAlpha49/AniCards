@@ -14,7 +14,7 @@ import JSZip from "jszip";
 
 export const DEFAULT_CARD_BORDER_RADIUS = 8;
 const BORDER_RADIUS_MIN = 0;
-const BORDER_RADIUS_MAX = 50;
+const BORDER_RADIUS_MAX = 100;
 
 /** Export formats supported for image conversion. @source */
 export type ConversionFormat = "png" | "webp";
