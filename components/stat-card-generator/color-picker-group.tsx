@@ -286,7 +286,7 @@ function GradientStopEditor({
         <div className="space-y-2">
           {stops.map((stop, index) => (
             <div
-              key={`gradient-stop-${stop.color}-${stop.offset}-${index}`}
+              key={`gradient-stop-${index}`}
               className="flex items-center gap-2"
             >
               <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded border border-gray-200 dark:border-gray-700">
