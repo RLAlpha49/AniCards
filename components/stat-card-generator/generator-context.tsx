@@ -248,7 +248,6 @@ export function GeneratorProvider({
   const [previewType, setPreviewType] = useState("");
   const [previewVariation, setPreviewVariation] = useState("");
   const [currentStep, setCurrentStep] = useState(0);
-  const [maxReachedStep, setMaxReachedStep] = useState(0);
 
   const {
     loading,
@@ -448,11 +447,7 @@ export function GeneratorProvider({
   );
 
   const nextStep = useCallback(() => {
-    setCurrentStep((prev) => {
-      const next = prev >= STEP_COUNT - 1 ? prev : prev + 1;
-      setMaxReachedStep((m) => Math.max(m, next));
-      return next;
-    });
+    setCurrentStep((prev) => Math.min(prev + 1, STEP_COUNT - 1));
   }, []);
 
   const prevStep = useCallback(() => {
@@ -461,27 +456,17 @@ export function GeneratorProvider({
 
   const goToStep = useCallback(
     (index: number) => {
-      // Only allow backward navigation freely
-      if (index <= currentStep) {
-        setCurrentStep(index);
+      if (index < 0 || index >= STEP_COUNT) {
         return;
       }
 
-      // Prevent arbitrary forward jumps; allow only if index is less than or equal to
-      // the max reached step or immediately next step if validation passes.
-      if (index <= maxReachedStep) {
-        setCurrentStep(index);
+      if (index > 0 && username.trim().length === 0) {
         return;
       }
 
-      if (index === currentStep + 1) {
-        // Basic validation: require username when moving beyond step 0
-        if (currentStep === 0 && username.trim().length === 0) return;
-        setCurrentStep(index);
-        setMaxReachedStep((m) => Math.max(m, index));
-      }
+      setCurrentStep(index);
     },
-    [currentStep, maxReachedStep, username],
+    [username],
   );
 
   const handleSubmit = useCallback(async () => {

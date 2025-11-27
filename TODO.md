@@ -1,7 +1,5 @@
 # TODO List
 
-- When expanding anything on the settings page the gradients in the background also move since the page height is expanding which looks very odd.
-- User should be able to skip stat card generator steps by clicking on the step icons at the top.
 - Sidebar icons/items have hover state if sidebar is hovered at all. Not just when hovering over the specific item.
 
 - Add more params to the card.svg url

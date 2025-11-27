@@ -29,9 +29,9 @@ export function WizardNavigation({ steps }: Readonly<WizardNavigationProps>) {
           Step {currentStep + 1} of {steps.length}
         </span>
         <div className="flex flex-1 gap-1">
-          {steps.map((_, index) => (
+          {steps.map((step, index) => (
             <div
-              key={index}
+              key={step.id}
               className={cn(
                 "h-1.5 flex-1 rounded-full transition-all duration-300",
                 index <= currentStep
@@ -50,7 +50,6 @@ export function WizardNavigation({ steps }: Readonly<WizardNavigationProps>) {
             const Icon = step.icon;
             const isActive = index === currentStep;
             const isCompleted = index < currentStep;
-            const isClickable = index <= currentStep;
 
             return (
               <Fragment key={step.id}>
@@ -72,12 +71,8 @@ export function WizardNavigation({ steps }: Readonly<WizardNavigationProps>) {
                 {/* Step Button */}
                 <button
                   type="button"
-                  onClick={() => isClickable && goToStep(index)}
-                  disabled={!isClickable}
-                  className={cn(
-                    "group relative flex flex-col items-center gap-2 transition-all",
-                    isClickable ? "cursor-pointer" : "cursor-not-allowed",
-                  )}
+                  onClick={() => goToStep(index)}
+                  className="group relative flex flex-col items-center gap-2 transition-all cursor-pointer"
                 >
                   {/* Step Circle */}
                   <motion.div
@@ -98,8 +93,7 @@ export function WizardNavigation({ steps }: Readonly<WizardNavigationProps>) {
                       !isActive &&
                         !isCompleted && [
                           "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800",
-                          isClickable &&
-                            "group-hover:border-slate-300 group-hover:shadow-md dark:group-hover:border-slate-600",
+                          "group-hover:border-slate-300 group-hover:shadow-md dark:group-hover:border-slate-600",
                         ],
                     )}
                   >
