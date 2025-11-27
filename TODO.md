@@ -1,5 +1,10 @@
 # TODO List
 
+- When expanding anything on the settings page the gradients in the background also move since the page height is expanding which looks very odd.
+- The border settings in the settings page should have the same process as the color settings where they are automatically saved when customizing them in the card generator not the settings page.
+- User should be able to skip stat card generator steps by clicking on the step icons at the top.
+- Sidebar icons/items have hover state if sidebar is hovered at all. Not just when hovering over the specific item.
+
 - Add more params to the card.svg url
   - The card at minimum should always have 2 params ((userId or userName) and cardType). The rest of the params are optional and if not provided should fallback to the saved options in the database. If no saved options exist then the default values should be used.
   - Params to include:
