@@ -170,6 +170,7 @@ describe("Store Cards API POST Endpoint", () => {
           textColor: "#333",
           circleColor: "#f00",
           borderColor: "#e4e2e2",
+          borderRadius: 8,
         },
       ],
     };
@@ -218,6 +219,7 @@ describe("Store Cards API POST Endpoint", () => {
           textColor: "#333",
           circleColor: "#f00",
           borderColor: "#e4e2e2",
+          borderRadius: 8,
         },
       ],
     };
@@ -265,6 +267,7 @@ describe("Store Cards API POST Endpoint", () => {
           textColor: "#333",
           circleColor: "#f00",
           borderColor: "#e4e2e2",
+          borderRadius: 8,
         },
       ],
     };

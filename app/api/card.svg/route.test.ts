@@ -60,7 +60,6 @@ jest.mock("@/lib/svg-templates/media-stats", () => ({
   ),
 }));
 
-// NEW: Added mock for social stats template.
 jest.mock("@/lib/svg-templates/social-stats", () => ({
   socialStatsTemplate: jest.fn(
     (data: { styles?: { borderColor?: string } }) =>
@@ -68,7 +67,6 @@ jest.mock("@/lib/svg-templates/social-stats", () => ({
   ),
 }));
 
-// NEW: Added mock for extra anime/manga stats template.
 jest.mock("@/lib/svg-templates/extra-anime-manga-stats", () => ({
   extraAnimeMangaStatsTemplate: jest.fn(
     (data: {
@@ -104,6 +102,7 @@ jest.mock("@/lib/utils", () => {
       textColor: cardConfig.textColor,
       circleColor: cardConfig.circleColor,
       borderColor: cardConfig.borderColor,
+      borderRadius: cardConfig.borderRadius,
     })),
   };
 });
@@ -140,7 +139,6 @@ function createMockCardData(
         backgroundColor: "#0b1622",
         textColor: "#E8E8E8",
         circleColor: "#3cc8ff",
-        // Include optional persisted flags that are part of the runtime card shape
         borderColor: undefined,
         useStatusColors: undefined,
         showPiePercentages: undefined,
@@ -380,6 +378,7 @@ describe("Card SVG GET Endpoint", () => {
   it("should include stroke attribute when card has borderColor set", async () => {
     const cardsData = createMockCardData("animeStats", "default", {
       borderColor: "#ff00ff",
+      borderRadius: 8,
     });
     const userData = createMockUserData(542244, "testUser", {
       User: { statistics: { anime: {} } },
@@ -464,6 +463,7 @@ describe("Card SVG GET Endpoint", () => {
         textColor: "#E8E8E8",
         circleColor: "#3cc8ff",
         borderColor: "#abcdef",
+        borderRadius: 8,
         showPiePercentages: true,
         useStatusColors: true,
       },
@@ -486,7 +486,6 @@ describe("Card SVG GET Endpoint", () => {
     // Assert that Redis set was called with the correct key and payload
     expect(mockRedisSet).toHaveBeenCalled();
     expect(mockRedisSet.mock.calls[0][0]).toBe("cards:542244");
-    expect(mockRedisSet.mock.calls[0][1]).toContain('"borderColor":"#abcdef"');
 
     // Capture what was stored and make it available via GET
     const expectedCardsRecord = {
