@@ -1,8 +1,15 @@
 import React from "react";
-import { motion } from "framer-motion";
-import { Label } from "@/components/ui/label";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { formatBytes } from "@/lib/utils";
+import {
+  Database,
+  Trash2,
+  HardDrive,
+  Clock,
+  FileBox,
+  Sparkles,
+} from "lucide-react";
 
 /**
  * Represents a cached item with size and last-modified metadata.
@@ -50,171 +57,152 @@ export function CacheManagement({
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.3 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.5 }}
       className="h-full"
     >
-      <div className="flex h-full flex-col rounded-2xl border border-white/50 bg-white/80 p-6 shadow-xl backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/80">
-        <div className="mb-6 flex items-center gap-4">
-          <div className="rounded-xl bg-gradient-to-br from-orange-500 to-red-600 p-3 shadow-lg shadow-orange-500/20">
-            <svg
-              className="h-6 w-6 text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+      <div className="flex h-full flex-col overflow-hidden rounded-3xl border border-slate-200/50 bg-gradient-to-br from-white/80 via-white/60 to-slate-100/80 shadow-xl shadow-slate-200/50 backdrop-blur-xl dark:border-slate-700/50 dark:from-slate-800/80 dark:via-slate-800/60 dark:to-slate-900/80 dark:shadow-slate-900/50">
+        {/* Header */}
+        <div className="border-b border-slate-200/50 bg-white/50 p-6 dark:border-slate-700/50 dark:bg-slate-800/50">
+          <div className="flex items-center gap-4">
+            <div className="rounded-2xl bg-gradient-to-br from-orange-500 via-red-500 to-pink-500 p-3.5 shadow-lg shadow-orange-500/25">
+              <Database className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                Cache Management
+              </h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Manage stored data to improve performance
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex flex-1 flex-col p-6">
+          {/* Statistics Cards */}
+          <div className="mb-6 grid grid-cols-2 gap-4">
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              className="rounded-2xl border border-slate-200/50 bg-gradient-to-br from-blue-50 to-cyan-50 p-5 shadow-sm dark:border-slate-700/50 dark:from-blue-900/20 dark:to-cyan-900/20"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"
-              />
-            </svg>
-          </div>
-          <div>
-            <Label className="text-xl font-bold text-slate-900 dark:text-white">
-              Cache Management
-            </Label>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Manage stored data to improve loading times and performance
-            </p>
-          </div>
-        </div>
+              <div className="mb-2 flex items-center gap-2">
+                <div className="rounded-lg bg-blue-100 p-2 dark:bg-blue-900/50">
+                  <FileBox className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                </div>
+              </div>
+              <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+                {cachedItems.length}
+              </div>
+              <div className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                Cached Items
+              </div>
+            </motion.div>
 
-        {/* Cache Statistics */}
-        <div className="mb-6 grid grid-cols-2 gap-4">
-          <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 text-center backdrop-blur-sm dark:border-slate-700 dark:bg-slate-800/50">
-            <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
-              {cachedItems.length}
-            </div>
-            <div className="text-sm font-medium text-slate-600 dark:text-slate-300">
-              Items
-            </div>
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              className="rounded-2xl border border-slate-200/50 bg-gradient-to-br from-green-50 to-emerald-50 p-5 shadow-sm dark:border-slate-700/50 dark:from-green-900/20 dark:to-emerald-900/20"
+            >
+              <div className="mb-2 flex items-center gap-2">
+                <div className="rounded-lg bg-green-100 p-2 dark:bg-green-900/50">
+                  <HardDrive className="h-4 w-4 text-green-600 dark:text-green-400" />
+                </div>
+              </div>
+              <div className="text-3xl font-bold text-green-600 dark:text-green-400">
+                {formatBytes(totalSize)}
+              </div>
+              <div className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                Total Size
+              </div>
+            </motion.div>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 text-center backdrop-blur-sm dark:border-slate-700 dark:bg-slate-800/50">
-            <div className="text-3xl font-bold text-green-600 dark:text-green-400">
-              {formatBytes(totalSize)}
-            </div>
-            <div className="text-sm font-medium text-slate-600 dark:text-slate-300">
-              Total Size
-            </div>
-          </div>
-        </div>
-        {/* Clear Cache Button */}
-        <div className="mb-8 flex justify-center">
-          <Button
-            variant="destructive"
-            onClick={onClearCache}
-            disabled={cachedItems.length === 0}
-            className="w-full max-w-xs rounded-full bg-gradient-to-r from-red-500 to-red-600 py-6 text-base font-semibold shadow-lg transition-all hover:scale-105 hover:from-red-600 hover:to-red-700 hover:shadow-red-500/25 disabled:opacity-50"
-          >
-            Clear All Cache
-          </Button>
-        </div>
 
-        {/* Cache Items Table */}
-        {cachedItems.length > 0 ? (
-          <div className="space-y-4">
-            <h3 className="font-semibold text-slate-900 dark:text-white">
-              Cached Items
-            </h3>
-            <div className="scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700 max-h-80 space-y-3 overflow-y-auto pr-2">
-              {cachedItems.map((item) => (
-                <motion.div
-                  key={item.key}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md dark:border-slate-700 dark:bg-slate-800"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-slate-900 dark:text-white">
-                      {item.key}
-                    </p>
-                    <div className="mt-1 flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
-                      <span className="flex items-center gap-1">
-                        <svg
-                          className="h-3.5 w-3.5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m-9 0h10a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2z"
-                          />
-                        </svg>
-                        {formatBytes(item.size)}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <svg
-                          className="h-3.5 w-3.5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                          />
-                        </svg>
-                        {new Date(item.lastModified).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onDeleteCacheItem(item.key)}
-                    className="ml-3 h-8 w-8 rounded-full p-0 text-red-500 hover:bg-red-50 hover:text-red-600 dark:text-red-400 dark:hover:bg-red-900/20"
-                  >
-                    <svg
-                      className="h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                      />
-                    </svg>
-                  </Button>
-                </motion.div>
-              ))}
-            </div>
+          {/* Clear Cache Button */}
+          <div className="mb-6">
+            <Button
+              variant="destructive"
+              onClick={onClearCache}
+              disabled={cachedItems.length === 0}
+              className="group h-12 w-full rounded-xl bg-gradient-to-r from-red-500 via-red-600 to-rose-600 font-semibold shadow-lg shadow-red-500/25 transition-all hover:scale-[1.02] hover:shadow-xl hover:shadow-red-500/30 disabled:from-slate-400 disabled:to-slate-500 disabled:opacity-50 disabled:shadow-none"
+            >
+              <Trash2 className="mr-2 h-4 w-4 transition-transform group-hover:scale-110" />
+              Clear All Cache
+            </Button>
           </div>
-        ) : (
-          <div className="py-12 text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
-              <svg
-                className="h-8 w-8 text-slate-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+
+          {/* Cache Items List */}
+          <div className="flex-1">
+            {cachedItems.length > 0 ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-slate-900 dark:text-white">
+                    Cached Items
+                  </h4>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    {cachedItems.length} item
+                    {cachedItems.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <div className="scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700 max-h-64 space-y-2 overflow-y-auto pr-1">
+                  <AnimatePresence mode="popLayout">
+                    {cachedItems.map((item, index) => (
+                      <motion.div
+                        key={item.key}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20, scale: 0.95 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="group flex items-center justify-between rounded-xl border border-slate-200/50 bg-white/80 p-4 shadow-sm transition-all hover:border-slate-300 hover:shadow-md dark:border-slate-700/50 dark:bg-slate-800/80 dark:hover:border-slate-600"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium text-slate-900 dark:text-white">
+                            {item.key}
+                          </p>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+                            <span className="flex items-center gap-1.5 rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-700/50">
+                              <HardDrive className="h-3 w-3" />
+                              {formatBytes(item.size)}
+                            </span>
+                            <span className="flex items-center gap-1.5 rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-700/50">
+                              <Clock className="h-3 w-3" />
+                              {new Date(item.lastModified).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onDeleteCacheItem(item.key)}
+                          className="ml-3 h-9 w-9 rounded-xl p-0 text-slate-400 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              </div>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex flex-1 flex-col items-center justify-center py-8 text-center"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-            </div>
-            <p className="text-lg font-medium text-slate-900 dark:text-white">
-              No cached data found
-            </p>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Data will appear here as you use the application
-            </p>
+                <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700">
+                  <Sparkles className="h-10 w-10 text-slate-400 dark:text-slate-500" />
+                </div>
+                <p className="text-lg font-semibold text-slate-900 dark:text-white">
+                  No cached data
+                </p>
+                <p className="mt-1 max-w-[200px] text-sm text-slate-500 dark:text-slate-400">
+                  Data will appear here as you use the application
+                </p>
+              </motion.div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </motion.div>
   );

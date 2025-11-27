@@ -1,7 +1,15 @@
-import React from "react";
-import { motion } from "framer-motion";
-import { Label } from "@/components/ui/label";
+import React, { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import {
+  AlertTriangle,
+  RotateCcw,
+  Palette,
+  User,
+  CreditCard,
+  Database,
+  ChevronDown,
+} from "lucide-react";
 
 /**
  * Props for the ResetSettings component.
@@ -13,6 +21,21 @@ interface ResetSettingsProps {
 }
 
 /**
+ * List of items that will be reset.
+ * @source
+ */
+const RESET_ITEMS = [
+  { icon: Palette, text: "Theme preferences", color: "text-purple-500" },
+  { icon: User, text: "Default username", color: "text-pink-500" },
+  {
+    icon: CreditCard,
+    text: "Default card settings and presets",
+    color: "text-blue-500",
+  },
+  { icon: Database, text: "All cached data", color: "text-orange-500" },
+];
+
+/**
  * Renders UI to confirm and trigger a full reset of the application settings.
  * Displays which settings will be reset and a destructive button to apply the reset.
  * @param onReset - Callback invoked to perform the reset action.
@@ -20,108 +43,130 @@ interface ResetSettingsProps {
  * @source
  */
 export function ResetSettings({ onReset }: Readonly<ResetSettingsProps>) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+
+  const handleReset = () => {
+    if (confirmReset) {
+      onReset();
+      setConfirmReset(false);
+      setIsExpanded(false);
+    } else {
+      setConfirmReset(true);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.6 }}
-      className="space-y-4"
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.5 }}
+      className="w-full"
     >
-      <div className="rounded-2xl border border-red-200 bg-red-50/50 p-6 shadow-xl backdrop-blur-xl dark:border-red-900/50 dark:bg-red-950/30">
-        <div className="mb-6 flex items-center gap-4">
-          <div className="rounded-xl bg-gradient-to-br from-red-500 to-orange-600 p-3 shadow-lg shadow-red-500/20">
-            <svg
-              className="h-6 w-6 text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
-              />
-            </svg>
-          </div>
-          <div>
-            <Label className="text-xl font-bold text-red-900 dark:text-red-200">
-              Reset Settings
-            </Label>
-            <p className="text-sm text-red-700 dark:text-red-300">
-              Reset all application settings to their default values
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <div className="rounded-xl border border-red-200 bg-white/50 p-5 backdrop-blur-sm dark:border-red-900/50 dark:bg-red-900/20">
-            <div className="mb-4 flex items-start gap-3">
-              <svg
-                className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600 dark:text-red-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              <div className="text-sm text-red-800 dark:text-red-200">
-                <p className="mb-2 font-semibold">This action will reset:</p>
-                <ul className="space-y-1.5 text-xs opacity-90">
-                  <li className="flex items-center gap-2">
-                    <span className="h-1 w-1 rounded-full bg-red-500" />
-                    <span>Theme preferences</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="h-1 w-1 rounded-full bg-red-500" />
-                    <span>Default username</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="h-1 w-1 rounded-full bg-red-500" />
-                    <span>Default card settings and presets</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="h-1 w-1 rounded-full bg-red-500" />
-                    <span>All cached data</span>
-                  </li>
-                </ul>
-              </div>
+      <div className="mx-auto max-w-3xl overflow-hidden rounded-3xl border border-red-200/50 bg-gradient-to-br from-red-50/80 via-rose-50/60 to-orange-50/80 shadow-xl shadow-red-200/30 backdrop-blur-xl dark:border-red-900/30 dark:from-red-950/30 dark:via-rose-950/20 dark:to-orange-950/30 dark:shadow-red-900/20">
+        {/* Header - Clickable to expand */}
+        <button
+          onClick={() => {
+            setIsExpanded(!isExpanded);
+            if (!isExpanded) setConfirmReset(false);
+          }}
+          className="flex w-full items-center justify-between p-6 text-left transition-colors hover:bg-red-100/30 dark:hover:bg-red-900/10"
+        >
+          <div className="flex items-center gap-4">
+            <div className="rounded-2xl bg-gradient-to-br from-red-500 via-rose-500 to-orange-500 p-3.5 shadow-lg shadow-red-500/25">
+              <AlertTriangle className="h-6 w-6 text-white" />
             </div>
-
-            {/* Trigger the reset of all application settings */}
-            <Button
-              variant="destructive"
-              onClick={onReset}
-              className="w-full rounded-lg bg-gradient-to-r from-red-500 to-red-600 py-6 text-base font-semibold shadow-lg transition-all hover:scale-[1.02] hover:from-red-600 hover:to-red-700 hover:shadow-red-500/25"
-              aria-label="Reset all application settings to their default values"
-            >
-              <svg
-                className="mr-2 h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-              Reset to Default Settings
-            </Button>
+            <div>
+              <h3 className="text-xl font-bold text-red-900 dark:text-red-200">
+                Reset All Settings
+              </h3>
+              <p className="text-sm text-red-700/70 dark:text-red-300/70">
+                Restore application to default state
+              </p>
+            </div>
           </div>
+          <motion.div
+            animate={{ rotate: isExpanded ? 180 : 0 }}
+            transition={{ duration: 0.2 }}
+            className="rounded-full bg-red-100 p-2 dark:bg-red-900/30"
+          >
+            <ChevronDown className="h-5 w-5 text-red-600 dark:text-red-400" />
+          </motion.div>
+        </button>
 
-          <p className="text-center text-xs font-medium text-red-600 dark:text-red-400">
-            This action cannot be undone. Your settings will be permanently
-            reset.
-          </p>
-        </div>
+        {/* Expandable Content */}
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+              className="overflow-hidden"
+            >
+              <div className="border-t border-red-200/50 p-6 dark:border-red-900/30">
+                {/* Warning Box */}
+                <div className="mb-6 rounded-2xl border border-red-200/50 bg-white/60 p-5 dark:border-red-900/30 dark:bg-red-950/20">
+                  <div className="mb-4 flex items-start gap-3">
+                    <div className="mt-0.5 rounded-lg bg-red-100 p-2 dark:bg-red-900/50">
+                      <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-red-800 dark:text-red-200">
+                        This action will reset:
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {RESET_ITEMS.map((item, index) => (
+                      <motion.div
+                        key={item.text}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        className="flex items-center gap-3 rounded-xl bg-red-50/50 px-4 py-3 dark:bg-red-900/20"
+                      >
+                        <item.icon className={`h-4 w-4 ${item.color}`} />
+                        <span className="text-sm font-medium text-red-800 dark:text-red-200">
+                          {item.text}
+                        </span>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Reset Button */}
+                <div className="space-y-3">
+                  <Button
+                    variant="destructive"
+                    onClick={handleReset}
+                    className={`group h-14 w-full rounded-xl font-semibold shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl ${
+                      confirmReset
+                        ? "animate-pulse bg-gradient-to-r from-red-600 via-rose-600 to-red-600 shadow-red-600/30 hover:shadow-red-600/40"
+                        : "bg-gradient-to-r from-red-500 via-rose-500 to-orange-500 shadow-red-500/25 hover:shadow-red-500/35"
+                    }`}
+                    aria-label="Reset all application settings to their default values"
+                  >
+                    <RotateCcw
+                      className={`mr-2 h-5 w-5 transition-transform ${confirmReset ? "animate-spin" : "group-hover:-rotate-180"}`}
+                    />
+                    {confirmReset
+                      ? "Click Again to Confirm Reset"
+                      : "Reset to Default Settings"}
+                  </Button>
+
+                  <p className="text-center text-xs font-medium text-red-600/80 dark:text-red-400/80">
+                    {confirmReset
+                      ? "⚠️ Are you sure? This action cannot be undone."
+                      : "Your settings will be permanently reset to defaults."}
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </motion.div>
   );
