@@ -1,7 +1,6 @@
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState } from "react";
 import { AnimatePresence, motion as m, motion } from "framer-motion";
 
-import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -13,14 +12,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { statCardTypes } from "@/components/stat-card-generator";
-import { ColorPickerGroup } from "@/components/stat-card-generator/color-picker-group";
-import type { ColorValue } from "@/lib/types/card";
-import { isGradient } from "@/lib/utils";
 import {
   Layers,
   ChevronDown,
   Heart,
-  Frame,
   Lightbulb,
   Tv,
   BookOpen,
@@ -83,8 +78,6 @@ const GROUP_COLORS: Record<
 
 /**
  * Props for the DefaultCardSettings component.
- * @property defaultPreset - Currently selected color preset ID.
- * @property onPresetChange - Called when the selected preset changes.
  * @property defaultCardTypes - IDs of card types enabled by default.
  * @property defaultVariants - Mapping from card type ID to default variant ID.
  * @property onToggleCardType - Toggle handler for single card type selection changes.
@@ -92,10 +85,6 @@ const GROUP_COLORS: Record<
  * @property onVariantChange - Handler to change the default variant for a card type.
  * @property defaultShowFavoritesByCard - Default 'show favorites' flags per card ID.
  * @property onToggleShowFavoritesDefault - Toggle handler for the 'show favorites' default per card.
- * @property defaultBorderEnabled - Whether borders are enabled by default for generated cards.
- * @property defaultBorderColor - Default border color used when borders are enabled.
- * @property onBorderEnabledChange - Handler to toggle default border enabled state.
- * @property onBorderColorChange - Handler to update default border color.
  * @source
  */
 interface DefaultCardSettingsProps {
@@ -106,15 +95,12 @@ interface DefaultCardSettingsProps {
   onVariantChange: (cardType: string, variant: string) => void;
   defaultShowFavoritesByCard: Record<string, boolean>;
   onToggleShowFavoritesDefault: (cardId: string) => void;
-  defaultBorderEnabled: boolean;
-  defaultBorderColor: string;
-  onBorderEnabledChange: (value: boolean) => void;
-  onBorderColorChange: (color: string) => void;
 }
 
 /**
- * Renders the default card settings pane used to configure presets and card defaults.
- * This includes color presets, border defaults, and which stat card types/variants are enabled by default.
+ * Renders the default card settings pane used to configure which stat card types
+ * and variants are enabled by default. Color and border persistence is handled
+ * through the card generator workflow mentioned in the tip above.
  * @param defaultCardTypes - List of card type ids currently enabled by default.
  * @param defaultVariants - Mapping of card type id to the selected variant id.
  * @param onToggleCardType - Toggles a single card type's default enabled state.
@@ -122,10 +108,6 @@ interface DefaultCardSettingsProps {
  * @param onVariantChange - Change handler to set the default variant for a card type.
  * @param defaultShowFavoritesByCard - Default preferences to show favorites per card id.
  * @param onToggleShowFavoritesDefault - Toggle handler to change the default show favorites setting.
- * @param defaultBorderEnabled - Whether a border is enabled by default.
- * @param defaultBorderColor - Color used for the default border when enabled.
- * @param onBorderEnabledChange - Callback to change the default border enabled state.
- * @param onBorderColorChange - Callback to change the default border color.
  * @returns A React component with interactive default card settings.
  * @source
  */
@@ -137,10 +119,6 @@ export function DefaultCardSettings({
   onVariantChange,
   defaultShowFavoritesByCard,
   onToggleShowFavoritesDefault,
-  defaultBorderEnabled,
-  defaultBorderColor,
-  onBorderEnabledChange,
-  onBorderColorChange,
 }: Readonly<DefaultCardSettingsProps>) {
   // Group stat card types by 'group' to present them in stable, ordered sections.
   const groups = useMemo(() => {
@@ -175,23 +153,6 @@ export function DefaultCardSettings({
    * @source
    */
   const toggle = (g: string) => setOpenGroups((o) => ({ ...o, [g]: !o[g] }));
-
-  /**
-   * Wrapper for border color change that handles ColorValue type.
-   * Border only supports solid colors, so gradients are converted to their first stop.
-   * @source
-   */
-  const handleBorderColorChange = useCallback(
-    (value: ColorValue) => {
-      if (isGradient(value)) {
-        // Border only supports solid colors, use first stop
-        onBorderColorChange(value.stops[0]?.color ?? "#e4e2e2");
-      } else {
-        onBorderColorChange(value);
-      }
-    },
-    [onBorderColorChange],
-  );
 
   // Count selected cards per group
   const groupCounts = useMemo(() => {
@@ -244,64 +205,15 @@ export function DefaultCardSettings({
             <div className="flex-shrink-0 rounded-lg bg-blue-100 p-2 dark:bg-blue-900/50">
               <Lightbulb className="h-4 w-4 text-blue-600 dark:text-blue-400" />
             </div>
-            <p className="text-sm text-blue-700 dark:text-blue-300">
-              <strong>Tip:</strong> Your color selections are automatically
-              saved when you customize them in the card generator. The selected
-              preset or custom colors will be restored on your next visit.
-            </p>
+            <div className="space-y-1 text-sm text-blue-700 dark:text-blue-300">
+              <p>
+                <strong>Tip:</strong> Color and border selections are
+                automatically preserved when you customize them inside the card
+                generator, leaving the chosen preset, colors, and frame styles
+                waiting for your next visit.
+              </p>
+            </div>
           </motion.div>
-
-          {/* Border Settings */}
-          <div className="mb-8">
-            <div className="mb-4 flex items-center gap-2">
-              <Frame className="h-5 w-5 text-slate-500 dark:text-slate-400" />
-              <Label className="text-base font-semibold text-slate-900 dark:text-white">
-                Card Border Defaults
-              </Label>
-            </div>
-            <div className="rounded-2xl border border-slate-200/50 bg-white/60 p-5 dark:border-slate-700/50 dark:bg-slate-800/60">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex-1">
-                  <Label className="font-medium text-slate-900 dark:text-white">
-                    Enable border by default
-                  </Label>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                    Generate cards with a decorative frame around the edges
-                  </p>
-                </div>
-                <Switch
-                  checked={defaultBorderEnabled}
-                  onCheckedChange={onBorderEnabledChange}
-                  className="data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-indigo-500 data-[state=checked]:to-purple-500"
-                />
-              </div>
-              <AnimatePresence>
-                {defaultBorderEnabled && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="mt-4 rounded-xl border border-slate-200/50 bg-slate-50/50 p-4 dark:border-slate-700/50 dark:bg-slate-900/50">
-                      <ColorPickerGroup
-                        pickers={[
-                          {
-                            id: "default-border-color",
-                            label: "Border color",
-                            value: defaultBorderColor || "#e4e2e2",
-                            onChange: handleBorderColorChange,
-                            disableGradient: true,
-                          },
-                        ]}
-                      />
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
 
           {/* Card Types Section */}
           <div className="space-y-4">

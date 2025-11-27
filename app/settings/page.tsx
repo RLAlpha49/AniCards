@@ -49,14 +49,10 @@ export default function SettingsPage() {
     defaultCardTypes,
     defaultVariants,
     defaultShowFavoritesByCard,
-    defaultBorderEnabled,
-    defaultBorderColor,
     setDefaultCardTypes,
     toggleCardType,
     setDefaultVariant,
     toggleShowFavorites,
-    setDefaultBorderEnabled,
-    setDefaultBorderColor,
     resetCardSettings,
   } = useCardSettings();
 
@@ -189,24 +185,6 @@ export default function SettingsPage() {
     toggleShowFavorites(cardId);
   };
 
-  /**
-   * Persist the default border enabled flag.
-   * @param value - Whether borders should be enabled by default.
-   * @source
-   */
-  const handleBorderEnabledChange = (value: boolean) => {
-    setDefaultBorderEnabled(value);
-  };
-
-  /**
-   * Persist the default border color selection.
-   * @param value - Hex or CSS color string chosen by the user.
-   * @source
-   */
-  const handleBorderColorChange = (value: string) => {
-    setDefaultBorderColor(value);
-  };
-
   return (
     <ErrorBoundary>
       <div className="relative w-full overflow-hidden">
@@ -316,10 +294,6 @@ export default function SettingsPage() {
                       onToggleShowFavoritesDefault={
                         handleToggleShowFavoritesDefault
                       }
-                      defaultBorderEnabled={defaultBorderEnabled}
-                      defaultBorderColor={defaultBorderColor}
-                      onBorderEnabledChange={handleBorderEnabledChange}
-                      onBorderColorChange={handleBorderColorChange}
                     />
                   </div>
 
