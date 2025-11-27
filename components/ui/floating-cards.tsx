@@ -275,10 +275,14 @@ export function FloatingCardsLayer({
             }}
             className={cn(
               card.className,
-              "rounded-xl bg-white p-1 shadow-2xl dark:bg-slate-800",
+              "bg-white p-1 shadow-2xl dark:bg-slate-800",
             )}
+            style={{ borderRadius: "8px" }}
           >
-            <div className="h-full w-full overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-900">
+            <div
+              className="h-full w-full overflow-hidden bg-slate-100 dark:bg-slate-900"
+              style={{ borderRadius: `calc(8px - 4px)` }}
+            >
               <ImageWithSkeleton
                 src={card.displaySrc}
                 alt={card.displayAlt}

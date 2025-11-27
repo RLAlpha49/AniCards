@@ -55,6 +55,9 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
   const [copied, setCopied] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Add cache-busting timestamp to force SVG reload
+  const cacheBustedSvgUrl = `${svgUrl}${svgUrl.includes("?") ? "&" : "?"}_t=${Date.now()}`;
+
   /**
    * Convert the currently displayed SVG to a PNG URL and trigger a browser download.
    * @returns Promise<void>
@@ -108,9 +111,12 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
           <div className="mt-1 h-1 w-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500"></div>
         </div>
 
-        <div className="relative mb-6 overflow-hidden rounded-xl bg-gray-100/50 dark:bg-gray-800/50">
+        <div
+          className="relative mb-6 overflow-hidden bg-gray-100/50 dark:bg-gray-800/50"
+          style={{ borderRadius: "8px" }}
+        >
           <img
-            src={svgUrl || "/placeholder.svg"}
+            src={cacheBustedSvgUrl || "/placeholder.svg"}
             alt={type}
             width={400}
             height={600}
@@ -118,6 +124,7 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
               width: "100%",
               height: "auto",
               maxWidth: "400px",
+              borderRadius: "8px",
             }}
             onLoad={() => setIsLoading(false)}
             onError={() => setIsLoading(false)}

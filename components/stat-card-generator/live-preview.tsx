@@ -27,7 +27,10 @@ export const LivePreview = React.memo(function LivePreview({
   return (
     <div className={cn("flex flex-col items-center space-y-3", className)}>
       <div className="flex justify-center">
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-gray-50/50 p-4 shadow-sm transition-all dark:border-gray-800 dark:bg-gray-900/50">
+        <div
+          className="overflow-hidden border border-gray-200 bg-gray-50/50 p-4 shadow-sm transition-all dark:border-gray-800 dark:bg-gray-900/50"
+          style={{ borderRadius: "8px" }}
+        >
           <div
             // Unsafe HTML is intentionally rendered from trusted sources only.
             dangerouslySetInnerHTML={{ __html: previewSVG }}

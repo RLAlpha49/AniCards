@@ -136,7 +136,10 @@ export function StatCardPreview({
 
         <div className="bg-gray-50/50 p-8 dark:bg-gray-900/50">
           {/* Image container with loading overlay */}
-          <div className="relative mx-auto overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700">
+          <div
+            className="relative mx-auto overflow-hidden bg-white shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700"
+            style={{ borderRadius: "8px" }}
+          >
             {isLoading && (
               <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm dark:bg-gray-900/80">
                 <LoadingSpinner
@@ -152,6 +155,7 @@ export function StatCardPreview({
                 width={800}
                 height={600}
                 className="h-auto w-full object-contain transition-transform duration-500 hover:scale-[1.02]"
+                style={{ borderRadius: "8px" }}
                 onLoad={() => setIsLoading(false)}
                 onError={() => setIsLoading(false)}
                 decoding="async"
