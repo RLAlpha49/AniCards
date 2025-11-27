@@ -92,7 +92,8 @@ export default function HomePage() {
                       Ready to Showcase Your{" "}
                       <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
                         Anime Journey
-                      </span>?
+                      </span>
+                      ?
                     </h2>
 
                     <p className="mx-auto max-w-2xl text-lg text-slate-600 dark:text-slate-300">
