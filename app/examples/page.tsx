@@ -17,6 +17,7 @@ import {
   buildCardUrl,
   VARIATION_LABEL_MAP,
   DEFAULT_BASE_CARD_URL,
+  DEFAULT_EXAMPLE_USER_ID,
 } from "@/lib/card-groups";
 import { usePageSEO } from "@/hooks/use-page-seo";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -218,6 +219,9 @@ const CATEGORIES = [
   "Manga Breakdowns",
 ] as const;
 
+const BASE_URL = DEFAULT_BASE_CARD_URL;
+const USER_ID = DEFAULT_EXAMPLE_USER_ID;
+
 /**
  * Displays the examples gallery with search, statistics, and generator CTA.
  * @returns The examples page layout composed of category sections and the generator modal.
@@ -226,9 +230,6 @@ export default function ExamplesPage() {
   usePageSEO("examples");
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-
-  const BASE_URL = DEFAULT_BASE_CARD_URL;
-  const USER_ID = "542244";
 
   const handleOpenGenerator = useCallback(() => {
     setIsGeneratorOpen(true);
@@ -270,7 +271,7 @@ export default function ExamplesPage() {
 
       return { ...ct, variants, gradient } as CardType;
     });
-  }, [BASE_URL, USER_ID]);
+  }, []);
 
   const filteredCardTypes = useMemo(() => {
     if (!searchQuery.trim()) return cardTypesWithVariants;
