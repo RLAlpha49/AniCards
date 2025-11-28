@@ -56,6 +56,7 @@ jest.mock("@/lib/utils/milestones", () => ({
 jest.mock("@/lib/svg-templates/media-stats", () => ({
   mediaStatsTemplate: jest.fn(
     (data: { styles?: { borderColor?: string } }) =>
+      `<!--ANICARDS_TRUSTED_SVG-->` +
       `<svg data-template="media" stroke="${data.styles?.borderColor ?? "none"}">Anime Stats</svg>`,
   ),
 }));
@@ -372,9 +373,14 @@ describe("Card SVG GET Endpoint", () => {
     expect(callArgs.styles).toHaveProperty("backgroundColor");
     expect(callArgs.styles).toHaveProperty("textColor");
     expect(callArgs.styles).toHaveProperty("circleColor");
-    // Ensure no persisted flags are accidentally passed in styles
+
     expect(callArgs.styles.showPiePercentages).toBeUndefined();
     expect(callArgs.styles.useStatusColors).toBeUndefined();
+
+    const templateReturn = (mediaStatsTemplate as jest.Mock).mock.results[0]
+      .value as string;
+    expect(templateReturn.startsWith("<!--ANICARDS_TRUSTED_SVG-->")).toBeTruthy();
+    expect(body).not.toContain("ANICARDS_TRUSTED_SVG");
   });
 
   it("should include stroke attribute when card has borderColor set", async () => {
