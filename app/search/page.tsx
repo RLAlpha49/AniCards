@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import PageShell from "@/components/page-shell";
-import { FloatingCardsLayer } from "@/components/ui/floating-cards";
+import { FloatingCardsLayer } from "@/components/floating-cards";
 import { LoadingOverlay } from "@/components/loading-spinner";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { usePageSEO } from "@/hooks/use-page-seo";

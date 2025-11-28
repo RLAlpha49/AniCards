@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { useMemo } from "react";
 
 import { cn } from "@/lib/utils";
-import { ImageWithSkeleton } from "@/components/ui/image-with-skeleton";
+import { ImageWithSkeleton } from "@/components/image-with-skeleton";
 import {
   VARIATION_LABEL_MAP,
   buildCardUrl,

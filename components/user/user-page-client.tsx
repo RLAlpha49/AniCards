@@ -4,7 +4,7 @@ import { CardList } from "@/components/user/card-list";
 import { displayNames } from "@/components/stat-card-generator/stat-card-preview";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import CTASection from "@/components/ui/cta-section";
+import CTASection from "@/components/cta-section";
 import {
   Info,
   Sparkles,
@@ -19,7 +19,7 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { LoadingSpinner } from "@/components/loading-spinner";
-import { FloatingCardsLayer } from "@/components/ui/floating-cards";
+import { FloatingCardsLayer } from "@/components/floating-cards";
 import { getAbsoluteUrl } from "@/lib/utils";
 
 /**

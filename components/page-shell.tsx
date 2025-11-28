@@ -2,7 +2,7 @@
 
 import React from "react";
 import { motion } from "framer-motion";
-import { GridPattern } from "@/components/ui/grid-pattern";
+import { GridPattern } from "@/components/grid-pattern";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { cn } from "@/lib/utils";
 

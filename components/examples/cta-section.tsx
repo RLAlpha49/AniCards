@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRight, Play, Sparkles } from "lucide-react";
-import UiCtaSection from "@/components/ui/cta-section";
+import UiCtaSection from "@/components/cta-section";
 import HeroBadge from "@/components/hero-badge";
 
 interface CTASectionProps {

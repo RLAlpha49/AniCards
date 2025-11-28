@@ -11,7 +11,7 @@ import {
   Palette,
   ArrowDown,
 } from "lucide-react";
-import { FloatingCardsLayer } from "@/components/ui/floating-cards";
+import { FloatingCardsLayer } from "@/components/floating-cards";
 
 /**
  * Props for the home page hero section.
