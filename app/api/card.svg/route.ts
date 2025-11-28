@@ -18,7 +18,7 @@ import {
 } from "@/lib/types/records";
 
 import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
-import { stripTrustedSvgMarker } from "@/lib/types/svg";
+import { toCleanSvgResponse, type TrustedSVG } from "@/lib/types/svg";
 
 /**
  * Limits card SVG generation to 150 requests per 10 seconds per IP.
@@ -348,7 +348,7 @@ interface CardGenerationParams {
 function generateStatsCard(
   params: CardGenerationParams,
   mediaType: "anime" | "manga",
-): string | Response {
+): TrustedSVG | Response {
   const { cardConfig, userRecord, variant } = params;
   const recordsStats = userRecord.stats?.User?.statistics?.[mediaType];
   if (!recordsStats) {
@@ -396,7 +396,7 @@ function generateStatsCard(
  * @returns Serialized SVG string for the social stats card.
  * @source
  */
-function generateSocialStatsCard(params: CardGenerationParams): string {
+function generateSocialStatsCard(params: CardGenerationParams): TrustedSVG {
   const { cardConfig, userRecord, variant } = params;
 
   return socialStatsTemplate({
@@ -448,7 +448,7 @@ function mapCategoryItem(
 function generateCategoryCard(
   params: CardGenerationParams,
   baseCardType: string,
-): string | Response {
+): TrustedSVG | Response {
   const { cardConfig, userRecord, variant, favorites } = params;
   const isAnime = baseCardType.startsWith("anime");
 
@@ -567,7 +567,7 @@ function generateSimpleListCard(
   nameKey: string,
   notFoundMessage: string,
   extraTemplateProps?: Record<string, unknown>,
-): string | Response {
+): TrustedSVG | Response {
   const { cardConfig, userRecord, variant } = params;
   const isAnime = baseCardType.startsWith("anime");
   const statsRoot = isAnime
@@ -620,7 +620,7 @@ function generateDistributionCard(
   params: CardGenerationParams,
   baseCardType: string,
   kind: "score" | "year",
-): string | Response {
+): TrustedSVG | Response {
   const { cardConfig, userRecord, variant } = params;
   const isAnime = baseCardType.startsWith("anime");
   const stats = isAnime
@@ -679,7 +679,7 @@ function generateDistributionCard(
 function generateCountryCard(
   params: CardGenerationParams,
   baseCardType: string,
-): string | Response {
+): TrustedSVG | Response {
   const { cardConfig, userRecord, variant } = params;
   const isAnime = baseCardType.startsWith("anime");
   const statsRoot = isAnime
@@ -735,7 +735,7 @@ function generateCardSVG(
   userRecord: UserRecord,
   variant: "default" | "vertical" | "pie" | "compact" | "minimal" | "bar",
   favorites?: string[],
-): string | Response {
+): TrustedSVG | Response {
   // Basic validation: card config and user stats must be present
   if (!cardConfig || !userRecord?.stats) {
     const baseCardType = cardConfig
@@ -1108,8 +1108,8 @@ export async function GET(request: Request) {
       `🎨 [Card SVG] Generating ${params.cardType} (${effectiveVariation}) SVG for user ${params.numericUserId}`,
     );
 
-    // Generate SVG content
-    const svgContent = generateCardSVG(
+    // Generate SVG content (TrustedSVG or a Response on error)
+    const svgContent: TrustedSVG | Response = generateCardSVG(
       cardConfig,
       userDoc,
       effectiveVariation as "default" | "vertical" | "pie" | "bar",
@@ -1133,7 +1133,7 @@ export async function GET(request: Request) {
       return svgContent;
     }
 
-    const cleaned = stripTrustedSvgMarker(svgContent);
+    const cleaned = toCleanSvgResponse(svgContent);
 
     return new Response(cleaned, {
       headers: svgHeaders(),

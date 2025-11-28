@@ -20,3 +20,14 @@ export function stripTrustedSvgMarker(svg: string) {
   if (svg.startsWith(prefix)) return svg.slice(prefix.length);
   return svg;
 }
+
+/**
+ * Helper used in API routes to extract a clean SVG string suitable as the
+ * Response body. Accepts a TrustedSVG-typed value and returns a plain string
+ * with the marker stripped. The runtime implementation reuses
+ * `stripTrustedSvgMarker` to keep behaviour consistent.
+ * @param svg - TrustedSVG value returned by internal templates.
+ */
+export function toCleanSvgResponse(svg: TrustedSVG): string {
+  return stripTrustedSvgMarker(svg as string);
+}
