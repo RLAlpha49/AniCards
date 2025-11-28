@@ -1,5 +1,5 @@
-export { ExamplesHeroSection } from "./hero-section";
-export { CategorySection } from "./category-section";
-export { ExampleCard } from "./example-card";
-export { CTASection } from "./cta-section";
-export type { CardType, CardVariant } from "./category-section";
+export { ExamplesHeroSection } from "./ExamplesHeroSection";
+export { CategorySection } from "./CategorySection";
+export { ExampleCard } from "./ExampleCard";
+export { CTASection } from "./CTASection";
+export type { CardType, CardVariant } from "./CategorySection";

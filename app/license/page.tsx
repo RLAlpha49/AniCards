@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import PageShell from "@/components/page-shell";
+import PageShell from "@/components/PageShell";
 import {
   FileText,
   AlertCircle,
@@ -14,13 +14,13 @@ import {
   Check,
   ExternalLink,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LoadingSpinner } from "@/components/loading-spinner";
+import { Button } from "@/components/ui/Button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/Alert";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { usePageSEO } from "@/hooks/use-page-seo";
-import { SimpleGithubIcon } from "@/components/simple-icons";
-import HeroHighlights from "@/components/hero-highlights";
-import HeroBadge from "@/components/hero-badge";
+import { SimpleGithubIcon } from "@/components/SimpleIcons";
+import HeroHighlights from "@/components/HeroHighlights";
+import HeroBadge from "@/components/HeroBadge";
 
 /**
  * License benefits/features highlights.

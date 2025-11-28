@@ -178,7 +178,9 @@ Variants:
  * @returns A string containing the generated SVG markup.
  * @source
  */
-export function distributionTemplate(input: DistributionTemplateInput): TrustedSVG {
+export function distributionTemplate(
+  input: DistributionTemplateInput,
+): TrustedSVG {
   const { username, mediaType, styles, variant = "default", kind } = input;
 
   // Process colors for gradient support

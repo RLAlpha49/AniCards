@@ -282,7 +282,9 @@ export const mediaStatsTemplate = (data: {
   const titleText = String(config.title);
   const safeTitle = escapeForXml(titleText);
   const safeMainStatLabel = escapeForXml(String(config.mainStat.label));
-  const safeSecondaryStatLabel = escapeForXml(String(config.mainStat.secondary.label));
+  const safeSecondaryStatLabel = escapeForXml(
+    String(config.mainStat.secondary.label),
+  );
 
   // Dimensions per variant
   const dims = (() => {

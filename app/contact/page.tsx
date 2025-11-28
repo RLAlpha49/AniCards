@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/Button";
 import { motion } from "framer-motion";
-import PageShell from "@/components/page-shell";
-import HeroBadge from "@/components/hero-badge";
+import PageShell from "@/components/PageShell";
+import HeroBadge from "@/components/HeroBadge";
 import {
   trackExternalLinkClick,
   safeTrack,
@@ -14,7 +14,7 @@ import {
   SimpleDiscordIcon,
   SimpleGithubIcon,
   SimpleAniListIcon,
-} from "@/components/simple-icons";
+} from "@/components/SimpleIcons";
 import {
   Mail,
   MessageSquare,

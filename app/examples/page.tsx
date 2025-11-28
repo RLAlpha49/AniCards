@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import PageShell from "@/components/page-shell";
-import { StatCardGenerator } from "@/components/stat-card-generator";
+import PageShell from "@/components/PageShell";
+import { StatCardGenerator } from "@/components/StatCardGenerator";
 import {
   BarChart2,
   Users,
@@ -20,7 +20,7 @@ import {
   DEFAULT_EXAMPLE_USER_ID,
 } from "@/lib/card-groups";
 import { usePageSEO } from "@/hooks/use-page-seo";
-import { ErrorBoundary } from "@/components/error-boundary";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import {
   ExamplesHeroSection,
   CategorySection,

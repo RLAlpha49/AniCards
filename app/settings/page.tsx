@@ -4,14 +4,14 @@ import { useTheme } from "next-themes";
 import { useEffect, useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useUserPreferences, useCardSettings, useCache } from "@/lib/stores";
-import { ThemePreferences } from "@/components/settings/theme-preferences";
-import { CacheManagement } from "@/components/settings/cache-management";
-import { DefaultCardSettings } from "@/components/settings/default-card-settings";
-import { ResetSettings } from "@/components/settings/reset-settings";
-import { DefaultUsernameSettings } from "@/components/settings/default-username";
+import { ThemePreferences } from "@/components/settings/ThemePreferences";
+import { CacheManagement } from "@/components/settings/CacheManagement";
+import { DefaultCardSettings } from "@/components/settings/DefaultCardSettings";
+import { ResetSettings } from "@/components/settings/ResetSettings";
+import { DefaultUsernameSettings } from "@/components/settings/DefaultUsername";
 import { usePageSEO } from "@/hooks/use-page-seo";
-import PageShell from "@/components/page-shell";
-import { ErrorBoundary } from "@/components/error-boundary";
+import PageShell from "@/components/PageShell";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Settings } from "lucide-react";
 
 /**
@@ -132,7 +132,7 @@ export default function SettingsPage() {
   const handleToggleAllCardTypes = () => {
     // Check if all card types are selected
     const statCardTypesModule =
-      require("@/components/stat-card-generator").statCardTypes;
+      require("@/components/StatCardGenerator").statCardTypes;
     const allTypes: string[] = statCardTypesModule.map(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (type: any) => type.id,

@@ -379,7 +379,9 @@ describe("Card SVG GET Endpoint", () => {
 
     const templateReturn = (mediaStatsTemplate as jest.Mock).mock.results[0]
       .value as string;
-    expect(templateReturn.startsWith("<!--ANICARDS_TRUSTED_SVG-->")).toBeTruthy();
+    expect(
+      templateReturn.startsWith("<!--ANICARDS_TRUSTED_SVG-->"),
+    ).toBeTruthy();
     expect(body).not.toContain("ANICARDS_TRUSTED_SVG");
   });
 

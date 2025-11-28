@@ -1,10 +1,10 @@
 import { Suspense } from "react";
 import { Metadata } from "next";
 import { generateMetadata as createMetadata, seoConfigs } from "@/lib/seo";
-import { UserPageClient } from "@/components/user/user-page-client";
-import { LoadingSpinner } from "@/components/loading-spinner";
-import { ErrorBoundary } from "@/components/error-boundary";
-import PageShell from "@/components/page-shell";
+import { UserPageClient } from "@/components/user/UserPageClient";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import PageShell from "@/components/PageShell";
 
 /**
  * Forces Next.js to render this route on each request so user data stays fresh.

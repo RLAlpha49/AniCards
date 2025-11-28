@@ -1,18 +1,18 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import PageShell from "@/components/page-shell";
-import { StatCardGenerator } from "@/components/stat-card-generator";
+import PageShell from "@/components/PageShell";
+import { StatCardGenerator } from "@/components/StatCardGenerator";
 import {
   trackButtonClick,
   trackDialogOpen,
   safeTrack,
 } from "@/lib/utils/google-analytics";
-import { HeroSection } from "@/components/home/hero-section";
-import { PreviewShowcase } from "@/components/home/preview-showcase";
-import { FeaturesSection } from "@/components/home/features-section";
-import { Button } from "@/components/ui/button";
-import { ErrorBoundary } from "@/components/error-boundary";
+import { HeroSection } from "@/components/home/HeroSection";
+import { PreviewShowcase } from "@/components/home/PreviewShowcase";
+import { FeaturesSection } from "@/components/home/FeaturesSection";
+import { Button } from "@/components/ui/Button";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 

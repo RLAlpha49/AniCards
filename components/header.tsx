@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import DarkModeToggle from "@/components/dark-mode-toggle";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import DarkModeToggle from "@/components/DarkModeToggle";
+import { SidebarTrigger } from "@/components/ui/Sidebar";
 import { Sparkles } from "lucide-react";
 
 /**

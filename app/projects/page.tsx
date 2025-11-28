@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/Button";
 import { usePageSEO } from "@/hooks/use-page-seo";
-import { SimpleGithubIcon } from "@/components/simple-icons";
-import HeroHighlights from "@/components/hero-highlights";
-import HeroBadge from "@/components/hero-badge";
+import { SimpleGithubIcon } from "@/components/SimpleIcons";
+import HeroHighlights from "@/components/HeroHighlights";
+import HeroBadge from "@/components/HeroBadge";
 import {
   ExternalLink,
   Code2,
@@ -15,7 +15,7 @@ import {
   Play,
   Sparkles,
 } from "lucide-react";
-import PageShell from "@/components/page-shell";
+import PageShell from "@/components/PageShell";
 
 /**
  * Open-source project metadata used to render the grid cards.

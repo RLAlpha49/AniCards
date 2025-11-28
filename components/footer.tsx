@@ -11,7 +11,7 @@ import {
   SimpleAniListIcon,
   SimpleDiscordIcon,
   SimpleGithubIcon,
-} from "@/components/simple-icons";
+} from "@/components/SimpleIcons";
 
 /**
  * Social link metadata for the footer icons.
