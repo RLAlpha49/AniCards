@@ -21,12 +21,12 @@ import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
 import { stripTrustedSvgMarker } from "@/lib/types/svg";
 
 /**
- * Limits card SVG generation to 100 requests per 10 seconds per IP.
+ * Limits card SVG generation to 150 requests per 10 seconds per IP.
  * @source
  */
 const ratelimit = new Ratelimit({
   redis: redisClient,
-  limiter: Ratelimit.slidingWindow(100, "10 s"),
+  limiter: Ratelimit.slidingWindow(150, "10 s"),
 });
 
 /**
