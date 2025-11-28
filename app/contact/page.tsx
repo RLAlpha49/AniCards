@@ -101,9 +101,10 @@ export default function ContactPage() {
       subtitle={
         "Have a question, suggestion, or just want to say hi? I'd love to hear from you. Choose your preferred way to reach out below."
       }
+      mainClassName="pt-16 lg:pt-24"
     >
       {/* Contact Options Section */}
-      <section className="relative w-full overflow-hidden pb-16 lg:pb-24">
+      <section className="relative w-full overflow-hidden py-16 lg:py-24">
         <div className="container relative mx-auto px-4">
           <div className="mx-auto max-w-5xl">
             {/* Social Links Grid */}

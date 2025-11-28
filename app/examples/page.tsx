@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
+import PageShell from "@/components/page-shell";
 import { StatCardGenerator } from "@/components/stat-card-generator";
-import { GridPattern } from "@/components/ui/grid-pattern";
 import {
   BarChart2,
   Users,
@@ -314,56 +314,46 @@ export default function ExamplesPage() {
         setSearchQuery("");
       }}
     >
-      <div className="relative w-full overflow-hidden">
-        {/* Background effects matching home page */}
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.15),transparent)] dark:bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.3),transparent)]" />
-          <div className="absolute -top-40 left-1/2 h-[600px] w-[600px] -translate-x-1/2 rounded-full bg-gradient-to-r from-blue-400/20 via-purple-400/20 to-pink-400/20 blur-3xl" />
-          <div className="absolute -bottom-20 left-1/4 h-[400px] w-[400px] rounded-full bg-gradient-to-r from-cyan-400/15 to-blue-400/15 blur-3xl" />
-        </div>
-
-        <GridPattern className="z-0" />
-
-        <div className="relative z-10">
-          {/* Hero Section */}
+      <PageShell
+        heroContent={
           <ExamplesHeroSection
             searchQuery={searchQuery}
             onSearchChange={handleSearchChange}
             stats={stats}
           />
-
-          {/* Card Showcase by Category */}
-          <section className="relative w-full overflow-hidden py-20 lg:py-28">
-            <div className="container relative mx-auto px-4">
-              <div className="mx-auto max-w-7xl space-y-24">
-                {CATEGORIES.map((category, categoryIndex) => {
-                  const categoryCardTypes = filteredCardTypes.filter(
-                    (card) => card.category === category,
-                  );
-                  return (
-                    <CategorySection
-                      key={category}
-                      category={category}
-                      cardTypes={categoryCardTypes}
-                      onOpenGenerator={handleOpenGenerator}
-                      isFirstCategory={categoryIndex === 0}
-                    />
-                  );
-                })}
-              </div>
+        }
+        heroContentClassName="w-full"
+      >
+        {/* Card Showcase by Category */}
+        <section className="relative w-full overflow-hidden py-20 lg:py-28">
+          <div className="container relative mx-auto px-4">
+            <div className="mx-auto max-w-7xl space-y-24">
+              {CATEGORIES.map((category, categoryIndex) => {
+                const categoryCardTypes = filteredCardTypes.filter(
+                  (card) => card.category === category,
+                );
+                return (
+                  <CategorySection
+                    key={category}
+                    category={category}
+                    cardTypes={categoryCardTypes}
+                    onOpenGenerator={handleOpenGenerator}
+                    isFirstCategory={categoryIndex === 0}
+                  />
+                );
+              })}
             </div>
-          </section>
+          </div>
+        </section>
 
-          {/* Call to Action */}
-          <CTASection onOpenGenerator={handleOpenGenerator} />
+        {/* Call to Action */}
+        <CTASection onOpenGenerator={handleOpenGenerator} />
 
-          <StatCardGenerator
-            isOpen={isGeneratorOpen}
-            onClose={handleCloseGenerator}
-          />
-        </div>
-      </div>
+        <StatCardGenerator
+          isOpen={isGeneratorOpen}
+          onClose={handleCloseGenerator}
+        />
+      </PageShell>
     </ErrorBoundary>
   );
 }

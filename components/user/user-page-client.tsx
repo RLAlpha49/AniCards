@@ -19,7 +19,6 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { LoadingSpinner } from "@/components/loading-spinner";
-import { GridPattern } from "@/components/ui/grid-pattern";
 import { FloatingCardsLayer } from "@/components/ui/floating-cards";
 import { getAbsoluteUrl } from "@/lib/utils";
 
@@ -352,16 +351,8 @@ export function UserPageClient() {
   // Loading state with consistent styling
   if (loading) {
     return (
-      <div className="relative min-h-screen w-full overflow-hidden">
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.15),transparent)] dark:bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.3),transparent)]" />
-          <div className="absolute -top-40 left-1/2 h-[600px] w-[600px] -translate-x-1/2 rounded-full bg-gradient-to-r from-blue-400/20 via-purple-400/20 to-pink-400/20 blur-3xl" />
-        </div>
-        <GridPattern className="z-0" />
-        <div className="container relative z-10 mx-auto flex min-h-screen items-center justify-center px-4">
-          <LoadingSpinner size="lg" text="Loading user data..." />
-        </div>
+      <div className="container relative z-10 mx-auto flex min-h-screen items-center justify-center px-4">
+        <LoadingSpinner size="lg" text="Loading user data..." />
       </div>
     );
   }
@@ -369,36 +360,28 @@ export function UserPageClient() {
   // Error state with consistent styling
   if (error) {
     return (
-      <div className="relative min-h-screen w-full overflow-hidden">
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.15),transparent)] dark:bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.3),transparent)]" />
-          <div className="absolute -top-40 left-1/2 h-[600px] w-[600px] -translate-x-1/2 rounded-full bg-gradient-to-r from-blue-400/20 via-purple-400/20 to-pink-400/20 blur-3xl" />
-        </div>
-        <GridPattern className="z-0" />
-        <div className="container relative z-10 mx-auto flex min-h-screen items-center justify-center px-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-md"
-          >
-            <div className="rounded-3xl border border-red-200/50 bg-white/80 p-8 text-center shadow-2xl backdrop-blur-xl dark:border-red-800/30 dark:bg-slate-900/80">
-              <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-                <AlertCircle className="h-10 w-10 text-red-500" />
-              </div>
-              <h1 className="mb-3 text-2xl font-bold text-slate-900 dark:text-white">
-                Something Went Wrong
-              </h1>
-              <p className="mb-6 text-slate-600 dark:text-slate-300">{error}</p>
-              <Button
-                asChild
-                className="rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white shadow-lg"
-              >
-                <Link href="/">Return Home</Link>
-              </Button>
+      <div className="container relative z-10 mx-auto flex min-h-screen items-center justify-center px-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full max-w-md"
+        >
+          <div className="rounded-3xl border border-red-200/50 bg-white/80 p-8 text-center shadow-2xl backdrop-blur-xl dark:border-red-800/30 dark:bg-slate-900/80">
+            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+              <AlertCircle className="h-10 w-10 text-red-500" />
             </div>
-          </motion.div>
-        </div>
+            <h1 className="mb-3 text-2xl font-bold text-slate-900 dark:text-white">
+              Something Went Wrong
+            </h1>
+            <p className="mb-6 text-slate-600 dark:text-slate-300">{error}</p>
+            <Button
+              asChild
+              className="rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white shadow-lg"
+            >
+              <Link href="/">Return Home</Link>
+            </Button>
+          </div>
+        </motion.div>
       </div>
     );
   }
@@ -464,56 +447,36 @@ export function UserPageClient() {
   // Guard: Ensure userData is present before rendering URLs
   if (!userData) {
     return (
-      <div className="relative min-h-screen w-full overflow-hidden">
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.15),transparent)] dark:bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.3),transparent)]" />
-          <div className="absolute -top-40 left-1/2 h-[600px] w-[600px] -translate-x-1/2 rounded-full bg-gradient-to-r from-blue-400/20 via-purple-400/20 to-pink-400/20 blur-3xl" />
-        </div>
-        <GridPattern className="z-0" />
-        <div className="container relative z-10 mx-auto flex min-h-screen items-center justify-center px-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-md"
-          >
-            <div className="rounded-3xl border border-slate-200/50 bg-white/80 p-8 text-center shadow-2xl backdrop-blur-xl dark:border-slate-700/50 dark:bg-slate-900/80">
-              <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
-                <User className="h-10 w-10 text-slate-400" />
-              </div>
-              <h1 className="mb-3 text-2xl font-bold text-slate-900 dark:text-white">
-                User Not Found
-              </h1>
-              <p className="mb-6 text-slate-600 dark:text-slate-300">
-                Unable to load user data. Please try again.
-              </p>
-              <Button
-                asChild
-                className="rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white shadow-lg"
-              >
-                <Link href="/">Return Home</Link>
-              </Button>
+      <div className="container relative z-10 mx-auto flex min-h-screen items-center justify-center px-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full max-w-md"
+        >
+          <div className="rounded-3xl border border-slate-200/50 bg-white/80 p-8 text-center shadow-2xl backdrop-blur-xl dark:border-slate-700/50 dark:bg-slate-900/80">
+            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
+              <User className="h-10 w-10 text-slate-400" />
             </div>
-          </motion.div>
-        </div>
+            <h1 className="mb-3 text-2xl font-bold text-slate-900 dark:text-white">
+              User Not Found
+            </h1>
+            <p className="mb-6 text-slate-600 dark:text-slate-300">
+              Unable to load user data. Please try again.
+            </p>
+            <Button
+              asChild
+              className="rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white shadow-lg"
+            >
+              <Link href="/">Return Home</Link>
+            </Button>
+          </div>
+        </motion.div>
       </div>
     );
   }
 
   return (
     <div className="relative w-full overflow-hidden">
-      {/* Background effects matching other pages */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.15),transparent)] dark:bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.3),transparent)]" />
-        <div className="absolute -top-40 left-1/2 h-[600px] w-[600px] -translate-x-1/2 rounded-full bg-gradient-to-r from-blue-400/20 via-purple-400/20 to-pink-400/20 blur-3xl" />
-        <div className="absolute -bottom-20 left-1/4 h-[400px] w-[400px] rounded-full bg-gradient-to-r from-cyan-400/15 to-blue-400/15 blur-3xl" />
-        <div className="absolute left-0 top-1/4 h-[500px] w-[500px] rounded-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 blur-3xl" />
-        <div className="absolute bottom-1/4 right-0 h-[500px] w-[500px] rounded-full bg-gradient-to-r from-pink-500/10 to-orange-500/10 blur-3xl" />
-      </div>
-
-      <GridPattern className="z-0" />
-
       <div className="relative z-10">
         {/* Hero Section */}
         <section className="relative w-full overflow-hidden">
@@ -569,16 +532,6 @@ export function UserPageClient() {
                   </>
                 )}
               </motion.h1>
-
-              {/* Subheading */}
-              <motion.p
-                variants={itemVariants}
-                className="mt-6 max-w-2xl text-lg text-slate-600 dark:text-slate-300 sm:text-xl"
-              >
-                {userData?.username
-                  ? `View and download ${userData.username}'s beautiful anime and manga statistics`
-                  : "View and download beautiful anime and manga statistics"}
-              </motion.p>
 
               {/* Stats Summary */}
               {cardTypes.length > 0 && (

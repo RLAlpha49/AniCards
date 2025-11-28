@@ -10,7 +10,7 @@ import { DefaultCardSettings } from "@/components/settings/default-card-settings
 import { ResetSettings } from "@/components/settings/reset-settings";
 import { DefaultUsernameSettings } from "@/components/settings/default-username";
 import { usePageSEO } from "@/hooks/use-page-seo";
-import { GridPattern } from "../../components/ui/grid-pattern";
+import PageShell from "@/components/page-shell";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Settings } from "lucide-react";
 
@@ -187,21 +187,10 @@ export default function SettingsPage() {
 
   return (
     <ErrorBoundary>
-      <div className="relative w-full overflow-hidden">
-        {/* Background effects matching other pages */}
-        <div className="pointer-events-none fixed inset-0 -z-10">
-          <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.15),transparent)] dark:bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.3),transparent)]" />
-          <div className="absolute -top-40 left-1/2 h-[600px] w-[600px] -translate-x-1/2 rounded-full bg-gradient-to-r from-blue-400/20 via-purple-400/20 to-pink-400/20 blur-3xl" />
-          <div className="absolute -bottom-20 left-1/4 h-[400px] w-[400px] rounded-full bg-gradient-to-r from-cyan-400/15 to-blue-400/15 blur-3xl" />
-          <div className="absolute left-0 top-1/4 h-[500px] w-[500px] rounded-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 blur-3xl" />
-          <div className="absolute bottom-1/4 right-0 h-[500px] w-[500px] rounded-full bg-gradient-to-r from-pink-500/10 to-orange-500/10 blur-3xl" />
-          <GridPattern className="z-0" />
-        </div>
-
-        <div className="relative z-10">
-          {/* Hero Section */}
-          <section className="relative w-full overflow-hidden py-16 lg:py-24">
+      <PageShell
+        backgroundClassName="fixed inset-0 -z-10"
+        heroContent={
+          <section className="relative w-full overflow-hidden">
             <div className="container relative z-10 mx-auto px-4">
               <motion.div
                 variants={containerVariants}
@@ -246,66 +235,67 @@ export default function SettingsPage() {
               </motion.div>
             </div>
           </section>
+        }
+        mainClassName="pt-20 lg:pt-28"
+      >
+        {/* Settings Container */}
+        <section className="relative w-full overflow-hidden py-20 lg:py-28">
+          <div className="container relative mx-auto px-4">
+            <div className="mx-auto max-w-6xl">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5 }}
+                className="grid grid-cols-1 gap-8 lg:grid-cols-2"
+              >
+                {/* Left Column */}
+                <div className="space-y-8">
+                  <ThemePreferences
+                    theme={theme || "system"}
+                    themes={themes}
+                    onThemeChange={handleThemeChange}
+                  />
 
-          {/* Settings Container */}
-          <section className="relative w-full overflow-hidden pb-20 lg:pb-28">
-            <div className="container relative mx-auto px-4">
-              <div className="mx-auto max-w-6xl">
-                <motion.div
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5 }}
-                  className="grid grid-cols-1 gap-8 lg:grid-cols-2"
-                >
-                  {/* Left Column */}
-                  <div className="space-y-8">
-                    <ThemePreferences
-                      theme={theme || "system"}
-                      themes={themes}
-                      onThemeChange={handleThemeChange}
-                    />
+                  <DefaultUsernameSettings
+                    defaultUsername={defaultUsername}
+                    onUsernameChange={handleDefaultUsernameChange}
+                  />
+                </div>
 
-                    <DefaultUsernameSettings
-                      defaultUsername={defaultUsername}
-                      onUsernameChange={handleDefaultUsernameChange}
-                    />
-                  </div>
+                {/* Right Column */}
+                <div className="space-y-8">
+                  <CacheManagement
+                    cachedItems={cachedItems}
+                    onClearCache={handleClearCache}
+                    onDeleteCacheItem={handleDeleteCacheItem}
+                  />
+                </div>
 
-                  {/* Right Column */}
-                  <div className="space-y-8">
-                    <CacheManagement
-                      cachedItems={cachedItems}
-                      onClearCache={handleClearCache}
-                      onDeleteCacheItem={handleDeleteCacheItem}
-                    />
-                  </div>
+                {/* Full Width Card Settings */}
+                <div className="col-span-1 lg:col-span-2">
+                  <DefaultCardSettings
+                    defaultCardTypes={defaultCardTypes}
+                    defaultVariants={defaultVariants}
+                    onToggleCardType={handleCardTypeToggle}
+                    onToggleAllCardTypes={handleToggleAllCardTypes}
+                    onVariantChange={handleVariantChange}
+                    defaultShowFavoritesByCard={defaultShowFavoritesByCard}
+                    onToggleShowFavoritesDefault={
+                      handleToggleShowFavoritesDefault
+                    }
+                  />
+                </div>
 
-                  {/* Full Width Card Settings */}
-                  <div className="col-span-1 lg:col-span-2">
-                    <DefaultCardSettings
-                      defaultCardTypes={defaultCardTypes}
-                      defaultVariants={defaultVariants}
-                      onToggleCardType={handleCardTypeToggle}
-                      onToggleAllCardTypes={handleToggleAllCardTypes}
-                      onVariantChange={handleVariantChange}
-                      defaultShowFavoritesByCard={defaultShowFavoritesByCard}
-                      onToggleShowFavoritesDefault={
-                        handleToggleShowFavoritesDefault
-                      }
-                    />
-                  </div>
-
-                  {/* Reset Settings */}
-                  <div className="col-span-1 lg:col-span-2">
-                    <ResetSettings onReset={handleResetSettings} />
-                  </div>
-                </motion.div>
-              </div>
+                {/* Reset Settings */}
+                <div className="col-span-1 lg:col-span-2">
+                  <ResetSettings onReset={handleResetSettings} />
+                </div>
+              </motion.div>
             </div>
-          </section>
-        </div>
-      </div>
+          </div>
+        </section>
+      </PageShell>
     </ErrorBoundary>
   );
 }

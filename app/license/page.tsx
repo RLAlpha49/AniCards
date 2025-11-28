@@ -190,12 +190,13 @@ export default function LicensePage() {
       heroContent={
         <HeroHighlights
           items={LICENSE_HIGHLIGHTS}
-          className="mt-10 grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-3"
+          className="mt-10 grid w-full max-w-3xl grid-cols-1 justify-items-center gap-4 sm:grid-cols-3"
         />
       }
+      mainClassName="pt-20 lg:pt-28"
     >
       {/* License Content Section */}
-      <section className="relative w-full overflow-hidden pb-16 lg:pb-24">
+      <section className="relative w-full overflow-hidden py-16 lg:py-24">
         <div className="container relative mx-auto px-4">
           <div className="mx-auto max-w-4xl">
             {/* License Card */}

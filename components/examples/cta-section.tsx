@@ -51,6 +51,7 @@ export function CTASection({ onOpenGenerator }: Readonly<CTASectionProps>) {
         className:
           "h-14 min-w-[180px] rounded-full border-2 text-lg font-medium",
       }}
+      className="pb-16 lg:pb-24"
     />
   );
 }
