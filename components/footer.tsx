@@ -66,7 +66,7 @@ export default function Footer() {
       {/* Subtle gradient line at the top */}
       <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-purple-500/50 to-transparent" />
 
-      <div className="container py-10">
+      <div className="container p-5">
         <div className="flex flex-col items-center gap-8 md:flex-row md:justify-between">
           {/* Brand & Copyright */}
           <div className="flex flex-col items-center gap-4 md:items-start">
