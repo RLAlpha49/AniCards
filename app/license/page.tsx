@@ -17,7 +17,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/Alert";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { usePageSEO } from "@/hooks/use-page-seo";
+import { usePageSEO } from "@/hooks/usePageSEO";
 import { SimpleGithubIcon } from "@/components/SimpleIcons";
 import HeroHighlights from "@/components/HeroHighlights";
 import HeroBadge from "@/components/HeroBadge";

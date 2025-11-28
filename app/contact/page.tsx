@@ -9,7 +9,7 @@ import {
   trackExternalLinkClick,
   safeTrack,
 } from "@/lib/utils/google-analytics";
-import { usePageSEO } from "@/hooks/use-page-seo";
+import { usePageSEO } from "@/hooks/usePageSEO";
 import {
   SimpleDiscordIcon,
   SimpleGithubIcon,

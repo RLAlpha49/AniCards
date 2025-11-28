@@ -5,7 +5,7 @@ import PageShell from "@/components/PageShell";
 import { FloatingCardsLayer } from "@/components/FloatingCardsLayer";
 import { LoadingOverlay } from "@/components/LoadingSpinner";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { usePageSEO } from "@/hooks/use-page-seo";
+import { usePageSEO } from "@/hooks/usePageSEO";
 import { SearchHeroSection } from "@/components/search/SearchHeroSection";
 import { SearchForm } from "@/components/search/SearchForm";
 

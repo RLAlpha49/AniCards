@@ -19,7 +19,7 @@ import {
   DEFAULT_BASE_CARD_URL,
   DEFAULT_EXAMPLE_USER_ID,
 } from "@/lib/card-groups";
-import { usePageSEO } from "@/hooks/use-page-seo";
+import { usePageSEO } from "@/hooks/usePageSEO";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import {
   ExamplesHeroSection,

@@ -5,7 +5,7 @@ import Header from "@/components/Header";
 import { AppSidebar } from "@/components/AppSidebar";
 import { SidebarProvider, useSidebar } from "@/components/ui/Sidebar";
 import Footer from "@/components/Footer";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 /**
  * Application layout wrapper that provides persistent header, sidebar and footer.

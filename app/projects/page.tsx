@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
-import { usePageSEO } from "@/hooks/use-page-seo";
+import { usePageSEO } from "@/hooks/usePageSEO";
 import { SimpleGithubIcon } from "@/components/SimpleIcons";
 import HeroHighlights from "@/components/HeroHighlights";
 import HeroBadge from "@/components/HeroBadge";

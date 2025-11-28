@@ -1,6 +1,6 @@
 "use client";
 
-import { useGoogleAnalytics } from "@/hooks/use-google-analytics";
+import { useGoogleAnalytics } from "@/hooks/useGoogleAnalytics";
 
 /**
  * Client wrapper that initializes Google Analytics once on the client

@@ -9,7 +9,7 @@ import { CacheManagement } from "@/components/settings/CacheManagement";
 import { DefaultCardSettings } from "@/components/settings/DefaultCardSettings";
 import { ResetSettings } from "@/components/settings/ResetSettings";
 import { DefaultUsernameSettings } from "@/components/settings/DefaultUsername";
-import { usePageSEO } from "@/hooks/use-page-seo";
+import { usePageSEO } from "@/hooks/usePageSEO";
 import PageShell from "@/components/PageShell";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Settings } from "lucide-react";
