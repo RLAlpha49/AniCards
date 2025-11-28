@@ -120,7 +120,7 @@ export default function Footer() {
                   onClick={() => trackExternalLinkClick(link.name, "footer")}
                   aria-label={link.label}
                 >
-                  <link.icon size={18} className="fill-current" />
+                  <link.icon size={18} />
                 </Link>
               </motion.div>
             ))}
