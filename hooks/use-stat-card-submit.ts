@@ -442,7 +442,7 @@ export function useStatCardSubmit() {
         );
       }
       if (!validateBorderRadius(borderRadius)) {
-        throw new Error("Border radius must be between 0 and 50");
+        throw new Error("Border radius must be between 0 and 100");
       }
     }
   }
