@@ -170,6 +170,7 @@ describe("Store Cards API POST Endpoint", () => {
           textColor: "#333",
           circleColor: "#f00",
           borderColor: "#e4e2e2",
+          borderRadius: 8.27,
         },
       ],
     };
@@ -199,6 +200,7 @@ describe("Store Cards API POST Endpoint", () => {
     expect(storedData).toHaveProperty("userId", 123);
     expect(storedData).toHaveProperty("cards");
     expect(storedData).toHaveProperty("updatedAt");
+    expect(storedData.cards[0]).toHaveProperty("borderRadius", 8.3);
   });
 
   it("should recover from corrupted Redis payload and continue", async () => {
@@ -218,6 +220,7 @@ describe("Store Cards API POST Endpoint", () => {
           textColor: "#333",
           circleColor: "#f00",
           borderColor: "#e4e2e2",
+          borderRadius: 12.3,
         },
       ],
     };
@@ -265,6 +268,7 @@ describe("Store Cards API POST Endpoint", () => {
           textColor: "#333",
           circleColor: "#f00",
           borderColor: "#e4e2e2",
+          borderRadius: 0,
         },
       ],
     };

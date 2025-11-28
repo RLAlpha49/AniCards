@@ -464,6 +464,7 @@ describe("Card SVG GET Endpoint", () => {
         textColor: "#E8E8E8",
         circleColor: "#3cc8ff",
         borderColor: "#abcdef",
+        borderRadius: 6.25,
         showPiePercentages: true,
         useStatusColors: true,
       },

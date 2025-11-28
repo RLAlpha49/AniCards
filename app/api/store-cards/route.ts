@@ -8,6 +8,7 @@ import {
   initializeApiRequest,
   validateCardData,
 } from "@/lib/api-utils";
+import { clampBorderRadius } from "@/lib/utils";
 
 function parseStoredCardsRecord(
   rawValue: unknown,
@@ -103,7 +104,10 @@ export async function POST(request: Request): Promise<NextResponse> {
         textColor: card.textColor,
         circleColor: card.circleColor,
         borderColor: card.borderColor,
-        borderRadius: card.borderRadius,
+        borderRadius:
+          typeof card.borderRadius === "number"
+            ? clampBorderRadius(card.borderRadius)
+            : card.borderRadius,
         showFavorites: card.showFavorites,
         useStatusColors: card.useStatusColors,
         showPiePercentages: card.showPiePercentages,
