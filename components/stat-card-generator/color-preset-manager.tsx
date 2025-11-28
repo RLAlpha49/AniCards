@@ -269,13 +269,28 @@ export function ColorPresetManager() {
                                 min={0}
                                 max={100}
                                 step={0.1}
-                                value={borderRadius}
+                                value={
+                                  Number.isFinite(borderRadius)
+                                    ? borderRadius.toFixed(1)
+                                    : String(DEFAULT_CARD_BORDER_RADIUS)
+                                }
                                 onChange={(e) => {
                                   const parsed = Number.parseFloat(
                                     e.target.value,
                                   );
                                   handleBorderRadiusChange(
-                                    Number.isFinite(parsed) ? parsed : 0,
+                                    Number.isFinite(parsed)
+                                      ? parsed
+                                      : DEFAULT_CARD_BORDER_RADIUS,
+                                  );
+                                }}
+                                onBlur={(e) => {
+                                  // Ensure the displayed value snaps back to a clamped value
+                                  const parsed = Number.parseFloat(e.target.value);
+                                  handleBorderRadiusChange(
+                                    Number.isFinite(parsed)
+                                      ? parsed
+                                      : DEFAULT_CARD_BORDER_RADIUS,
                                   );
                                 }}
                                 className="h-10 w-20 rounded-xl border-slate-200/50 bg-slate-50 text-center font-mono text-sm shadow-sm dark:border-slate-700/50 dark:bg-slate-900"
@@ -302,6 +317,9 @@ export function ColorPresetManager() {
                               ))}
                             </div>
                           </div>
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            0–100px, rounded to one decimal place; default is {DEFAULT_CARD_BORDER_RADIUS}px
+                          </p>
                         </div>
 
                         {/* Border Color */}
