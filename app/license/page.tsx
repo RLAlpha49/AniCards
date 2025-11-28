@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import PageShell from "@/components/page-shell";
 import {
   FileText,
   AlertCircle,
@@ -18,25 +19,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { usePageSEO } from "@/hooks/use-page-seo";
 import { SimpleGithubIcon } from "@/components/simple-icons";
-import { GridPattern } from "@/components/ui/grid-pattern";
-import { ErrorBoundary } from "@/components/error-boundary";
-
-/**
- * Animation variants for staggered content reveal.
- * @source
- */
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.1 },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
-};
+import HeroHighlights from "@/components/hero-highlights";
+import HeroBadge from "@/components/hero-badge";
 
 /**
  * License benefits/features highlights.
@@ -176,184 +160,127 @@ export default function LicensePage() {
   };
 
   return (
-    <ErrorBoundary>
-      <div className="relative w-full overflow-hidden">
-        {/* Background effects matching home page */}
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.15),transparent)] dark:bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.3),transparent)]" />
-          <div className="absolute -top-40 left-1/2 h-[600px] w-[600px] -translate-x-1/2 rounded-full bg-gradient-to-r from-blue-400/20 via-purple-400/20 to-pink-400/20 blur-3xl" />
-          <div className="absolute -bottom-20 left-1/4 h-[400px] w-[400px] rounded-full bg-gradient-to-r from-cyan-400/15 to-blue-400/15 blur-3xl" />
-          <div className="absolute left-0 top-1/4 h-[500px] w-[500px] rounded-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 blur-3xl" />
-          <div className="absolute bottom-1/4 right-0 h-[500px] w-[500px] rounded-full bg-gradient-to-r from-pink-500/10 to-orange-500/10 blur-3xl" />
-        </div>
-
-        <GridPattern className="z-0" />
-
-        <div className="relative z-10">
-          {/* Hero Section */}
-          <section className="relative w-full overflow-hidden py-20 lg:py-28">
-            <div className="container relative z-10 mx-auto px-4">
-              <motion.div
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-                className="mx-auto flex max-w-4xl flex-col items-center text-center"
-              >
-                {/* Badge */}
-                <motion.div variants={itemVariants}>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-green-200/50 bg-green-50/80 px-4 py-2 text-sm font-medium text-green-700 shadow-sm backdrop-blur-sm dark:border-green-700/50 dark:bg-green-950/50 dark:text-green-300">
-                    <Scale className="h-4 w-4" />
-                    Open Source
-                  </span>
-                </motion.div>
-
-                {/* Main heading */}
-                <motion.h1
-                  variants={itemVariants}
-                  className="mt-8 text-4xl font-extrabold leading-[1.1] tracking-tight text-slate-900 dark:text-white sm:text-5xl md:text-6xl lg:text-7xl"
-                >
-                  Software{" "}
-                  <span className="relative">
-                    <span className="relative z-10 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                      License
-                    </span>
-                    <motion.span
-                      className="absolute -inset-1 -z-10 block rounded-lg bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 blur-xl"
-                      animate={{ opacity: [0.5, 0.8, 0.5] }}
-                      transition={{ duration: 3, repeat: Infinity }}
-                    />
-                  </span>
-                </motion.h1>
-
-                {/* Subheading */}
-                <motion.p
-                  variants={itemVariants}
-                  className="mt-6 max-w-2xl text-lg text-slate-600 dark:text-slate-300 sm:text-xl"
-                >
-                  AniCards is free and open source software released under the
-                  MIT License.
-                </motion.p>
-
-                {/* License Highlights */}
-                <motion.div
-                  variants={itemVariants}
-                  className="mt-10 grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-3"
-                >
-                  {LICENSE_HIGHLIGHTS.map((highlight) => (
-                    <div
-                      key={highlight.title}
-                      className="flex flex-col items-center rounded-2xl border border-slate-200/50 bg-white/80 p-5 backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-800/80"
-                    >
-                      <div
-                        className={`mb-3 rounded-xl p-2.5 ${highlight.bgLight}`}
-                      >
-                        <highlight.icon
-                          className={`h-5 w-5 ${highlight.textColor}`}
-                        />
-                      </div>
-                      <h3 className="font-bold text-slate-900 dark:text-white">
-                        {highlight.title}
-                      </h3>
-                      <p className="mt-1 text-center text-sm text-slate-600 dark:text-slate-400">
-                        {highlight.description}
+    <PageShell
+      badge={
+        <HeroBadge
+          icon={Scale}
+          className="border-green-200/50 bg-green-50/80 text-green-700 dark:border-green-700/50 dark:bg-green-950/50 dark:text-green-300"
+        >
+          Open Source
+        </HeroBadge>
+      }
+      title={
+        <>
+          Software{" "}
+          <span className="relative">
+            <span className="relative z-10 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+              License
+            </span>
+            <motion.span
+              className="absolute -inset-1 -z-10 block rounded-lg bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 blur-xl"
+              animate={{ opacity: [0.5, 0.8, 0.5] }}
+              transition={{ duration: 3, repeat: Infinity }}
+            />
+          </span>
+        </>
+      }
+      subtitle={
+        "AniCards is free and open source software released under the MIT License."
+      }
+      heroContent={
+        <HeroHighlights
+          items={LICENSE_HIGHLIGHTS}
+          className="mt-10 grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-3"
+        />
+      }
+    >
+      {/* License Content Section */}
+      <section className="relative w-full overflow-hidden pb-16 lg:pb-24">
+        <div className="container relative mx-auto px-4">
+          <div className="mx-auto max-w-4xl">
+            {/* License Card */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+            >
+              <div className="overflow-hidden rounded-3xl border border-slate-200/50 bg-white/80 shadow-xl shadow-slate-200/50 backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-800/80 dark:shadow-slate-900/50">
+                {/* Card Header */}
+                <div className="flex flex-col gap-4 border-b border-slate-200/50 bg-slate-50/50 px-6 py-5 dark:border-slate-700/50 dark:bg-slate-900/50 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900/50">
+                      <FileText className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                        MIT License
+                      </h2>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        Permissive free software license
                       </p>
                     </div>
-                  ))}
-                </motion.div>
-              </motion.div>
-            </div>
-          </section>
-
-          {/* License Content Section */}
-          <section className="relative w-full overflow-hidden pb-16 lg:pb-24">
-            <div className="container relative mx-auto px-4">
-              <div className="mx-auto max-w-4xl">
-                {/* License Card */}
-                <motion.div
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5 }}
-                >
-                  <div className="overflow-hidden rounded-3xl border border-slate-200/50 bg-white/80 shadow-xl shadow-slate-200/50 backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-800/80 dark:shadow-slate-900/50">
-                    {/* Card Header */}
-                    <div className="flex flex-col gap-4 border-b border-slate-200/50 bg-slate-50/50 px-6 py-5 dark:border-slate-700/50 dark:bg-slate-900/50 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900/50">
-                          <FileText className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                        </div>
-                        <div>
-                          <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                            MIT License
-                          </h2>
-                          <p className="text-sm text-slate-500 dark:text-slate-400">
-                            Permissive free software license
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={copyToClipboard}
-                          disabled={isLoading || !!error}
-                          className="rounded-full"
-                        >
-                          {copied ? (
-                            <>
-                              <Check className="mr-2 h-4 w-4 text-green-500" />
-                              Copied!
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="mr-2 h-4 w-4" />
-                              Copy
-                            </>
-                          )}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          asChild
-                          className="hidden rounded-full sm:flex"
-                        >
-                          <Link
-                            href="https://github.com/RLAlpha49/Anicards/blob/main/LICENSE"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <SimpleGithubIcon className="mr-2 h-4 w-4" />
-                            GitHub
-                          </Link>
-                        </Button>
-                        <Button
-                          size="sm"
-                          asChild
-                          className="rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700"
-                        >
-                          <Link
-                            href="https://opensource.org/licenses/MIT"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            Official Definition
-                            <ExternalLink className="ml-2 h-3.5 w-3.5" />
-                          </Link>
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Card Content */}
-                    <div className="p-6 sm:p-8">{renderContent()}</div>
                   </div>
-                </motion.div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={copyToClipboard}
+                      disabled={isLoading || !!error}
+                      className="rounded-full"
+                    >
+                      {copied ? (
+                        <>
+                          <Check className="mr-2 h-4 w-4 text-green-500" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="mr-2 h-4 w-4" />
+                          Copy
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      asChild
+                      className="hidden rounded-full sm:flex"
+                    >
+                      <Link
+                        href="https://github.com/RLAlpha49/Anicards/blob/main/LICENSE"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <SimpleGithubIcon className="mr-2 h-4 w-4" />
+                        GitHub
+                      </Link>
+                    </Button>
+                    <Button
+                      size="sm"
+                      asChild
+                      className="rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700"
+                    >
+                      <Link
+                        href="https://opensource.org/licenses/MIT"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Official Definition
+                        <ExternalLink className="ml-2 h-3.5 w-3.5" />
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Card Content */}
+                <div className="p-6 sm:p-8">{renderContent()}</div>
               </div>
-            </div>
-          </section>
+            </motion.div>
+          </div>
         </div>
-      </div>
-    </ErrorBoundary>
+      </section>
+    </PageShell>
   );
 }

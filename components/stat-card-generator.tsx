@@ -271,9 +271,9 @@ function GeneratorContent({ onClose, className }: GeneratorContentProps) {
             <div className="flex items-center gap-4">
               {/* Progress indicator */}
               <div className="hidden items-center gap-1.5 sm:flex">
-                {STEPS.map((_, index) => (
+                {STEPS.map((step, index) => (
                   <div
-                    key={index}
+                    key={step.id}
                     className={cn(
                       "h-1.5 w-6 rounded-full transition-all duration-300",
                       index <= currentStep

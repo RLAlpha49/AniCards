@@ -146,7 +146,7 @@ export function ExamplesHeroSection({
               className="font-semibold text-blue-600 transition-colors hover:text-blue-700 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
             >
               @Alpha49
-            </a>
+            </a>{" "}
             .
           </motion.p>
 

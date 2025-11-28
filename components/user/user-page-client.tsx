@@ -4,6 +4,7 @@ import { CardList } from "@/components/user/card-list";
 import { displayNames } from "@/components/stat-card-generator/stat-card-preview";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import CTASection from "@/components/ui/cta-section";
 import {
   Info,
   Sparkles,
@@ -641,47 +642,33 @@ export function UserPageClient() {
           </div>
 
           <div className="container relative mx-auto px-4">
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-100px" }}
-              transition={{ duration: 0.6 }}
-              className="mx-auto max-w-4xl"
-            >
-              <div className="rounded-3xl border border-slate-200/50 bg-gradient-to-br from-white/80 via-white/60 to-slate-100/80 p-8 text-center shadow-2xl shadow-slate-200/50 backdrop-blur-xl dark:border-slate-700/50 dark:from-slate-800/80 dark:via-slate-800/60 dark:to-slate-900/80 dark:shadow-slate-900/50 sm:p-12 lg:p-16">
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.2 }}
-                  className="space-y-6"
-                >
-                  <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-4xl">
+            <motion.div className="mx-auto max-w-4xl">
+              <CTASection
+                title={
+                  <>
                     Explore More{" "}
                     <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
                       Projects
                     </span>
-                  </h2>
-
-                  <p className="mx-auto max-w-2xl text-lg text-slate-600 dark:text-slate-300">
-                    Discover other tools and utilities built for the anime
-                    community.
-                  </p>
-
-                  <div className="flex flex-col items-center justify-center gap-4 pt-4 sm:flex-row">
-                    <Button
-                      asChild
-                      size="lg"
-                      className="group h-14 min-w-[220px] rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-lg font-semibold shadow-lg shadow-blue-500/25 transition-all hover:scale-105 hover:shadow-xl hover:shadow-blue-500/30"
-                    >
-                      <Link href="/projects">
-                        View Projects
-                        <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
-                      </Link>
-                    </Button>
-                  </div>
-                </motion.div>
-              </div>
+                  </>
+                }
+                subtitle={
+                  "Discover other tools and utilities built for the anime community."
+                }
+                primary={{
+                  label: (
+                    <>
+                      View Projects
+                      <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+                    </>
+                  ),
+                  href: "/projects",
+                  asChild: true,
+                  variant: "outline",
+                  className:
+                    "border-white/20 bg-white/10 text-white backdrop-blur-sm transition-all hover:bg-white/20 hover:text-white",
+                }}
+              />
             </motion.div>
           </div>
         </section>

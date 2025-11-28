@@ -14,6 +14,151 @@ import {
   Percent,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { ComponentType, SVGProps } from "react";
+
+type OptionListItem = {
+  id: string;
+  icon: ComponentType<SVGProps<SVGSVGElement>>;
+  label: string;
+  description?: string;
+  checked: boolean;
+  onChange: (checked?: boolean) => void;
+  color?: string;
+};
+
+type OptionListGroupProps = {
+  title: string;
+  Icon: ComponentType<SVGProps<SVGSVGElement>>;
+  headerGradientClasses?: string;
+  items: OptionListItem[];
+  groupDelay?: number;
+  itemDelayStart?: number;
+};
+
+const colorClasses: Record<
+  string,
+  { checkedContainer: string; checkedIcon: string; switchClass: string }
+> = {
+  blue: {
+    checkedContainer:
+      "border-blue-200 bg-blue-50/80 shadow-sm dark:border-blue-800/50 dark:bg-blue-900/20",
+    checkedIcon: "bg-blue-500 shadow-md shadow-blue-500/25",
+    switchClass: "data-[state=checked]:bg-blue-500",
+  },
+  purple: {
+    checkedContainer:
+      "border-purple-200 bg-purple-50/80 shadow-sm dark:border-purple-800/50 dark:bg-purple-900/20",
+    checkedIcon: "bg-purple-500 shadow-md shadow-purple-500/25",
+    switchClass: "data-[state=checked]:bg-purple-500",
+  },
+  emerald: {
+    checkedContainer:
+      "border-emerald-200 bg-emerald-50/80 shadow-sm dark:border-emerald-800/50 dark:bg-emerald-900/20",
+    checkedIcon: "bg-emerald-500 shadow-md shadow-emerald-500/25",
+    switchClass: "data-[state=checked]:bg-emerald-500",
+  },
+  amber: {
+    checkedContainer:
+      "border-amber-200 bg-amber-50/80 shadow-sm dark:border-amber-800/50 dark:bg-amber-900/20",
+    checkedIcon: "bg-amber-500 shadow-md shadow-amber-500/25",
+    switchClass: "data-[state=checked]:bg-amber-500",
+  },
+  gray: {
+    checkedContainer:
+      "border-slate-200 bg-slate-50/80 shadow-sm dark:border-slate-700/50 dark:bg-slate-800/20",
+    checkedIcon: "bg-slate-500 shadow-md shadow-slate-500/25",
+    switchClass: "data-[state=checked]:bg-slate-500",
+  },
+};
+
+function OptionListGroup({
+  title,
+  Icon,
+  headerGradientClasses = "",
+  items,
+  groupDelay = 0,
+  itemDelayStart = 0,
+}: Readonly<OptionListGroupProps>) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2, delay: groupDelay }}
+      className="space-y-3 rounded-2xl border border-slate-200/50 bg-gradient-to-br from-white/80 via-white/60 to-slate-50/80 p-5 shadow-sm backdrop-blur-xl dark:border-slate-700/50 dark:from-slate-800/80 dark:via-slate-800/60 dark:to-slate-900/80"
+    >
+      <div className="flex items-center gap-2">
+        <div
+          className={cn(
+            "flex h-8 w-8 items-center justify-center rounded-lg shadow-md shadow-slate-700/25",
+            headerGradientClasses,
+          )}
+        >
+          <Icon className="h-4 w-4 text-white" />
+        </div>
+        <Label className="text-sm font-bold text-slate-800 dark:text-slate-200">
+          {title}
+        </Label>
+      </div>
+
+      <div className="space-y-2.5">
+        {items.map((option, index) => {
+          const classes =
+            colorClasses[option.color ?? "blue"] ?? colorClasses.blue;
+          return (
+            <motion.div
+              key={option.id}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{
+                duration: 0.2,
+                delay: itemDelayStart + index * 0.05,
+              }}
+              className={cn(
+                "group flex items-center justify-between rounded-xl border p-3.5 transition-all",
+                option.checked
+                  ? classes.checkedContainer
+                  : "border-slate-200/50 bg-white hover:border-slate-300 hover:shadow-sm dark:border-slate-700/50 dark:bg-slate-800/50 dark:hover:border-slate-600",
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className={cn(
+                    "flex h-9 w-9 items-center justify-center rounded-lg transition-all",
+                    option.checked
+                      ? classes.checkedIcon
+                      : "bg-slate-100 group-hover:bg-slate-200 dark:bg-slate-700 dark:group-hover:bg-slate-600",
+                  )}
+                >
+                  <option.icon
+                    className={cn(
+                      "h-4 w-4 transition-colors",
+                      option.checked
+                        ? "text-white"
+                        : "text-slate-500 dark:text-slate-400",
+                    )}
+                  />
+                </div>
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-semibold text-slate-900 dark:text-white">
+                    {option.label}
+                  </Label>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {option.description}
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={option.checked}
+                onCheckedChange={option.onChange}
+                className={classes.switchClass}
+              />
+            </motion.div>
+          );
+        })}
+      </div>
+    </motion.div>
+  );
+}
 
 export function AdvancedOptions() {
   const {
@@ -78,139 +223,23 @@ export function AdvancedOptions() {
 
       {/* Options Grid */}
       <div className="grid gap-4 md:grid-cols-2">
-        {/* Status Colors Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
-          className="space-y-3 rounded-2xl border border-slate-200/50 bg-gradient-to-br from-white/80 via-white/60 to-slate-50/80 p-5 shadow-sm backdrop-blur-xl dark:border-slate-700/50 dark:from-slate-800/80 dark:via-slate-800/60 dark:to-slate-900/80"
-        >
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 shadow-md shadow-orange-500/25">
-              <Palette className="h-4 w-4 text-white" />
-            </div>
-            <Label className="text-sm font-bold text-slate-800 dark:text-slate-200">
-              Status Colors
-            </Label>
-          </div>
+        <OptionListGroup
+          title="Status Colors"
+          Icon={Palette}
+          items={statusColorOptions}
+          headerGradientClasses="bg-gradient-to-br from-amber-500 to-orange-500 shadow-md shadow-orange-500/25"
+          groupDelay={0}
+          itemDelayStart={0}
+        />
 
-          <div className="space-y-2.5">
-            {statusColorOptions.map((option, index) => (
-              <motion.div
-                key={option.id}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.2, delay: index * 0.05 }}
-                className={cn(
-                  "group flex items-center justify-between rounded-xl border p-3.5 transition-all",
-                  option.checked
-                    ? "border-blue-200 bg-blue-50/80 shadow-sm dark:border-blue-800/50 dark:bg-blue-900/20"
-                    : "border-slate-200/50 bg-white hover:border-slate-300 hover:shadow-sm dark:border-slate-700/50 dark:bg-slate-800/50 dark:hover:border-slate-600",
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      "flex h-9 w-9 items-center justify-center rounded-lg transition-all",
-                      option.checked
-                        ? "bg-blue-500 shadow-md shadow-blue-500/25"
-                        : "bg-slate-100 group-hover:bg-slate-200 dark:bg-slate-700 dark:group-hover:bg-slate-600",
-                    )}
-                  >
-                    <option.icon
-                      className={cn(
-                        "h-4 w-4 transition-colors",
-                        option.checked
-                          ? "text-white"
-                          : "text-slate-500 dark:text-slate-400",
-                      )}
-                    />
-                  </div>
-                  <div className="space-y-0.5">
-                    <Label className="text-sm font-semibold text-slate-900 dark:text-white">
-                      {option.label}
-                    </Label>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {option.description}
-                    </p>
-                  </div>
-                </div>
-                <Switch
-                  checked={option.checked}
-                  onCheckedChange={option.onChange}
-                  className="data-[state=checked]:bg-blue-500"
-                />
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Chart Options Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2, delay: 0.1 }}
-          className="space-y-3 rounded-2xl border border-slate-200/50 bg-gradient-to-br from-white/80 via-white/60 to-slate-50/80 p-5 shadow-sm backdrop-blur-xl dark:border-slate-700/50 dark:from-slate-800/80 dark:via-slate-800/60 dark:to-slate-900/80"
-        >
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 shadow-md shadow-emerald-500/25">
-              <PieChart className="h-4 w-4 text-white" />
-            </div>
-            <Label className="text-sm font-bold text-slate-800 dark:text-slate-200">
-              Chart Options
-            </Label>
-          </div>
-
-          <div className="space-y-2.5">
-            {chartOptions.map((option, index) => (
-              <motion.div
-                key={option.id}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.2, delay: 0.1 + index * 0.05 }}
-                className={cn(
-                  "group flex items-center justify-between rounded-xl border p-3.5 transition-all",
-                  option.checked
-                    ? "border-emerald-200 bg-emerald-50/80 shadow-sm dark:border-emerald-800/50 dark:bg-emerald-900/20"
-                    : "border-slate-200/50 bg-white hover:border-slate-300 hover:shadow-sm dark:border-slate-700/50 dark:bg-slate-800/50 dark:hover:border-slate-600",
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      "flex h-9 w-9 items-center justify-center rounded-lg transition-all",
-                      option.checked
-                        ? "bg-emerald-500 shadow-md shadow-emerald-500/25"
-                        : "bg-slate-100 group-hover:bg-slate-200 dark:bg-slate-700 dark:group-hover:bg-slate-600",
-                    )}
-                  >
-                    <option.icon
-                      className={cn(
-                        "h-4 w-4 transition-colors",
-                        option.checked
-                          ? "text-white"
-                          : "text-slate-500 dark:text-slate-400",
-                      )}
-                    />
-                  </div>
-                  <div className="space-y-0.5">
-                    <Label className="text-sm font-semibold text-slate-900 dark:text-white">
-                      {option.label}
-                    </Label>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {option.description}
-                    </p>
-                  </div>
-                </div>
-                <Switch
-                  checked={option.checked}
-                  onCheckedChange={option.onChange}
-                  className="data-[state=checked]:bg-emerald-500"
-                />
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
+        <OptionListGroup
+          title="Chart Options"
+          Icon={PieChart}
+          items={chartOptions}
+          headerGradientClasses="bg-gradient-to-br from-emerald-500 to-teal-500 shadow-md shadow-emerald-500/25"
+          groupDelay={0.1}
+          itemDelayStart={0.1}
+        />
       </div>
 
       {/* Info Card */}
