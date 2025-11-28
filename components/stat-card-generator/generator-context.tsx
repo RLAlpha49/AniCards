@@ -96,7 +96,6 @@ interface GeneratorContextValue {
 
 interface GeneratorProviderProps {
   readonly children: ReactNode;
-  readonly router: ReturnType<typeof import("next/navigation").useRouter>;
 }
 
 const GeneratorContext = createContext<GeneratorContextValue | undefined>(
@@ -176,10 +175,7 @@ function buildFriendlyErrorMessage(error: Error | null): string | null {
   return "An unexpected error occurred. Please try again later.";
 }
 
-export function GeneratorProvider({
-  children,
-  router,
-}: GeneratorProviderProps) {
+export function GeneratorProvider({ children }: GeneratorProviderProps) {
   const { defaultUsername, setDefaultUsername } = useUserPreferences();
 
   const {
@@ -544,7 +540,6 @@ export function GeneratorProvider({
     borderColor,
     borderRadius,
     submit,
-    router,
   ]);
 
   const updateUsername = useCallback(

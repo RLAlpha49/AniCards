@@ -21,7 +21,6 @@ import {
   useGeneratorContext,
 } from "@/components/stat-card-generator/generator-context";
 import { statCardTypes } from "@/components/stat-card-generator/constants";
-import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   User,
@@ -91,11 +90,10 @@ export function StatCardGenerator({
   onClose,
   className,
 }: Readonly<StatCardGeneratorProps>) {
-  const router = useRouter();
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <GeneratorProvider router={router}>
+      <GeneratorProvider>
         <GeneratorContent onClose={onClose} className={className} />
       </GeneratorProvider>
     </Dialog>
