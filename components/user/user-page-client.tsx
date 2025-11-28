@@ -21,6 +21,7 @@ import { useSearchParams } from "next/navigation";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { GridPattern } from "@/components/ui/grid-pattern";
 import { FloatingCardsLayer } from "@/components/ui/floating-cards";
+import { getAbsoluteUrl } from "@/lib/utils";
 
 /**
  * Basic user identity returned from the API.
@@ -546,7 +547,7 @@ export function UserPageClient() {
                           @Alpha49
                         </a>
                         <a
-                          href={process.env.NEXT_PUBLIC_API_URL}
+                          href={getAbsoluteUrl("/")}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-200 dark:bg-green-900/30 dark:text-green-300 dark:hover:bg-green-800/50"
