@@ -1,7 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { Switch } from "@/components/ui/switch";
-import { trackSettingsChanged } from "@/lib/utils/google-analytics";
+import { trackSettingsChanged, safeTrack } from "@/lib/utils/google-analytics";
 import { PanelLeftClose, PanelLeft, LayoutPanelLeft } from "lucide-react";
 
 /**
@@ -33,10 +33,12 @@ export function SidebarBehavior({
    * @source
    */
   const handleSidebarChange = (checked: boolean) => {
-    trackSettingsChanged(
-      `sidebar_default_${checked ? "expanded" : "collapsed"}`,
-    );
     onSidebarChange(checked);
+    safeTrack(() =>
+      trackSettingsChanged(
+        `sidebar_default_${checked ? "expanded" : "collapsed"}`,
+      ),
+    );
   };
 
   return (

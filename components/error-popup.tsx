@@ -9,7 +9,8 @@ import {
 } from "@/components/ui/dialog";
 import { AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { trackError } from "@/lib/utils/google-analytics";
+import { trackError, safeTrack } from "@/lib/utils/google-analytics";
+import { useEffect } from "react";
 
 /**
  * Props for the error dialog component.
@@ -44,9 +45,11 @@ export function ErrorPopup({
   className,
 }: Readonly<ErrorPopupProps>) {
   // Track error when popup opens so analytics can capture details.
-  if (isOpen) {
-    trackError(title, description);
-  }
+  useEffect(() => {
+    if (isOpen) {
+      safeTrack(() => trackError(title, description));
+    }
+  }, [isOpen, title, description]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

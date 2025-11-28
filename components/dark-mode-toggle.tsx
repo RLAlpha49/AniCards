@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useTheme } from "next-themes";
 import { motion } from "framer-motion";
 import { Sun, Moon } from "lucide-react";
-import { trackSettingsChanged } from "@/lib/utils/google-analytics";
+import { trackSettingsChanged, safeTrack } from "@/lib/utils/google-analytics";
 
 /**
  * Interactive toggle to switch between light and dark themes.
@@ -27,8 +27,8 @@ export default function DarkModeToggle() {
 
   const handleThemeToggle = useCallback(() => {
     const newTheme = currentTheme === "dark" ? "light" : "dark";
-    trackSettingsChanged(`theme_${newTheme}`);
     setTheme(newTheme);
+    safeTrack(() => trackSettingsChanged(`theme_${newTheme}`));
   }, [currentTheme, setTheme]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {

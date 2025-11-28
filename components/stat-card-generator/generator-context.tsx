@@ -17,6 +17,7 @@ import type { TrustedSVG } from "@/lib/types/svg";
 import {
   trackCardGeneration,
   trackUserSearch,
+  safeTrack,
 } from "@/lib/utils/google-analytics";
 import { clampBorderRadius, isTrustedSvgString } from "@/lib/utils";
 import { colorPresets, statCardTypes } from "./constants";
@@ -480,7 +481,7 @@ export function GeneratorProvider({
 
   const handleSubmit = useCallback(async () => {
     if (username) {
-      trackUserSearch(username);
+      safeTrack(() => trackUserSearch(username));
     }
 
     const uniqueCards = new Set(
@@ -496,7 +497,7 @@ export function GeneratorProvider({
     });
 
     for (const cardType of finalSelectedCards) {
-      trackCardGeneration(cardType);
+      safeTrack(() => trackCardGeneration(cardType));
     }
 
     const showFavoritesConfig = Array.from(uniqueCards).reduce(

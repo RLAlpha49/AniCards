@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { pageview } from "@/lib/utils/google-analytics";
+import { pageview, safeTrack } from "@/lib/utils/google-analytics";
 
 /**
  * Send pageview events to Google Analytics when the pathname or query changes.
@@ -19,7 +19,7 @@ export function useGoogleAnalytics() {
     if (process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID) {
       const queryString = searchParams.toString();
       const url = pathname + (queryString ? "?" + queryString : "");
-      pageview(url);
+      safeTrack(() => pageview(url));
     }
   }, [pathname, searchParams]);
 }

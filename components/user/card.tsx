@@ -22,6 +22,7 @@ import { displayNames } from "../stat-card-generator/stat-card-preview";
 import {
   trackCardDownload,
   trackCopyAction,
+  safeTrack,
 } from "@/lib/utils/google-analytics";
 
 const downloadFormatOptions: ReadonlyArray<{
@@ -112,13 +113,12 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
    * @source
    */
   const handleDownload = async (fmt: ConversionFormat = "png") => {
-    trackCardDownload(`${type}_${fmt}`);
-
     const url = await svgToPng(svgUrl, fmt);
     const link = document.createElement("a");
     link.href = url;
     link.download = `${type}.${fmt}`;
     link.click();
+    safeTrack(() => trackCardDownload(`${type}_${fmt}`));
   };
 
   /**
@@ -129,10 +129,10 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
    * @source
    */
   const handleCopy = async (text: string, label: string) => {
-    trackCopyAction(`${label}_${type}`);
     await copyToClipboard(text);
     setCopied(label);
     setTimeout(() => setCopied(null), 2000);
+    safeTrack(() => trackCopyAction(`${label}_${type}`));
   };
 
   /**

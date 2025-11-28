@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/sidebar";
 
 import { useState, useEffect } from "react";
-import { trackNavigation } from "@/lib/utils/google-analytics";
+import { trackNavigation, safeTrack } from "@/lib/utils/google-analytics";
 
 /**
  * Navigation items rendered in the sidebar. Each item contains a title,
@@ -107,7 +107,7 @@ export function AppSidebar() {
   }, []);
 
   const handleNavClick = (item: (typeof navItems)[0]) => {
-    trackNavigation(item.title.toLowerCase(), "sidebar");
+    safeTrack(() => trackNavigation(item.title.toLowerCase(), "sidebar"));
   };
 
   if (!mounted) {

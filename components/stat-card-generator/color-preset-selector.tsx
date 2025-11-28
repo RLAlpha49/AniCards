@@ -1,7 +1,10 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { trackColorPresetSelection } from "@/lib/utils/google-analytics";
+import {
+  trackColorPresetSelection,
+  safeTrack,
+} from "@/lib/utils/google-analytics";
 import { cn, isGradient, colorValueToString } from "@/lib/utils";
 import {
   Check,
@@ -93,8 +96,8 @@ export function ColorPresetSelector({
 
   // Wrapper that tracks selection for analytics then notifies caller.
   const handlePresetChange = (preset: string) => {
-    trackColorPresetSelection(preset);
     onPresetChange(preset);
+    safeTrack(() => trackColorPresetSelection(preset));
   };
 
   // Sort presets with a specific ordering:

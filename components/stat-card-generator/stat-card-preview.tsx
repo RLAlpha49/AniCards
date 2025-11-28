@@ -14,6 +14,7 @@ import {
   trackCardPreview,
   trackDialogOpen,
   trackDialogClose,
+  safeTrack,
 } from "@/lib/utils/google-analytics";
 import { Eye, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -92,15 +93,16 @@ export function StatCardPreview({
   }, [isOpen, cardType, variation]);
 
   const handleClose = () => {
-    trackDialogClose("card_preview");
     onClose();
+    safeTrack(() => trackDialogClose("card_preview"));
   };
 
-  // Track when preview opens
-  if (isOpen && cardType) {
-    trackCardPreview(cardType);
-    trackDialogOpen("card_preview");
-  }
+  useEffect(() => {
+    if (isOpen && cardType) {
+      safeTrack(() => trackCardPreview(cardType));
+      safeTrack(() => trackDialogOpen("card_preview"));
+    }
+  }, [isOpen, cardType]);
 
   // Use the provided variation or default to "default"
   const effectiveVariation = variation ?? "default";

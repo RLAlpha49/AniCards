@@ -12,7 +12,7 @@ import {
   copyToClipboard,
   getAbsoluteUrl,
 } from "@/lib/utils";
-import { trackBatchExport } from "@/lib/utils/google-analytics";
+import { trackBatchExport, safeTrack } from "@/lib/utils/google-analytics";
 import {
   Popover,
   PopoverContent,
@@ -160,7 +160,9 @@ export function CardList({ cardTypes }: Readonly<CardListProps>) {
         error instanceof Error ? error.message : "Batch export failed.";
       setExportMessage(message);
     } finally {
-      trackBatchExport(exportFormat, exportedCount, exportedCount > 0);
+      safeTrack(() =>
+        trackBatchExport(exportFormat, exportedCount, exportedCount > 0),
+      );
       setIsBatchExporting(false);
       setTimeout(() => setExportMessage(null), 4000);
     }

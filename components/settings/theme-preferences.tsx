@@ -1,6 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { trackSettingsChanged } from "@/lib/utils/google-analytics";
+import { trackSettingsChanged, safeTrack } from "@/lib/utils/google-analytics";
 import { Palette, Sun, Moon, Monitor } from "lucide-react";
 
 /**
@@ -74,8 +74,8 @@ export function ThemePreferences({
    * @source
    */
   const handleThemeChange = (value: string) => {
-    trackSettingsChanged(`theme-${value}`);
     onThemeChange(value);
+    safeTrack(() => trackSettingsChanged(`theme-${value}`));
   };
 
   return (

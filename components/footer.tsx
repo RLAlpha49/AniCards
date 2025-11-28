@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { trackExternalLinkClick } from "@/lib/utils/google-analytics";
+import {
+  trackExternalLinkClick,
+  safeTrack,
+} from "@/lib/utils/google-analytics";
 import { Mail, Heart, ExternalLink, Scale } from "lucide-react";
 import {
   SimpleAniListIcon,
@@ -117,7 +120,9 @@ export default function Footer() {
                     link.name === "email" ? undefined : "noopener noreferrer"
                   }
                   className={`flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200/50 bg-white/50 text-slate-500 shadow-sm transition-all dark:border-slate-700/50 dark:bg-slate-800/50 dark:text-slate-400 ${link.hoverColor} ${link.bgHover}`}
-                  onClick={() => trackExternalLinkClick(link.name, "footer")}
+                  onClick={() =>
+                    safeTrack(() => trackExternalLinkClick(link.name, "footer"))
+                  }
                   aria-label={link.label}
                 >
                   <link.icon size={18} />

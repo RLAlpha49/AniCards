@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import {
   trackFormSubmission,
   trackNavigation,
+  safeTrack,
 } from "@/lib/utils/google-analytics";
 
 /** Supported lookup modes for the search form. @source */
@@ -63,13 +64,13 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
       setError(
         `Please enter a ${searchMethod === "username" ? "username" : "user ID"}`,
       );
-      trackFormSubmission("user_search", false);
+      safeTrack(() => trackFormSubmission("user_search", false));
       return;
     }
 
     setLoading(true);
     onLoadingChange?.(true);
-    trackFormSubmission("user_search", true);
+    safeTrack(() => trackFormSubmission("user_search", true));
 
     const params = new URLSearchParams();
 
@@ -79,7 +80,7 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
       params.set("userId", value.trim());
     }
 
-    trackNavigation("user_page", "search_form");
+    safeTrack(() => trackNavigation("user_page", "search_form"));
     router.push(`/user?${params.toString()}`);
   };
 

@@ -6,6 +6,7 @@ import { StatCardGenerator } from "@/components/stat-card-generator";
 import {
   trackButtonClick,
   trackDialogOpen,
+  safeTrack,
 } from "@/lib/utils/google-analytics";
 import { HeroSection } from "@/components/home/hero-section";
 import { PreviewShowcase } from "@/components/home/preview-showcase";
@@ -24,16 +25,18 @@ export default function HomePage() {
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
 
   const handleGetStartedClick = useCallback(() => {
-    trackButtonClick("get_started", "homepage");
-    trackDialogOpen("stat_card_generator");
     setIsGeneratorOpen(true);
+
+    safeTrack(() => trackButtonClick("get_started", "homepage"));
+    safeTrack(() => trackDialogOpen("stat_card_generator"));
   }, []);
 
   const handleSeeExamplesClick = useCallback(() => {
-    trackButtonClick("see_examples", "homepage");
     document.getElementById("preview-showcase")?.scrollIntoView({
       behavior: "smooth",
     });
+
+    safeTrack(() => trackButtonClick("see_examples", "homepage"));
   }, []);
 
   return (

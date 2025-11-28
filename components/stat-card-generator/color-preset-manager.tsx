@@ -286,7 +286,9 @@ export function ColorPresetManager() {
                                 }}
                                 onBlur={(e) => {
                                   // Ensure the displayed value snaps back to a clamped value
-                                  const parsed = Number.parseFloat(e.target.value);
+                                  const parsed = Number.parseFloat(
+                                    e.target.value,
+                                  );
                                   handleBorderRadiusChange(
                                     Number.isFinite(parsed)
                                       ? parsed
@@ -318,7 +320,8 @@ export function ColorPresetManager() {
                             </div>
                           </div>
                           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                            0–100px, rounded to one decimal place; default is {DEFAULT_CARD_BORDER_RADIUS}px
+                            0–100px, rounded to one decimal place; default is{" "}
+                            {DEFAULT_CARD_BORDER_RADIUS}px
                           </p>
                         </div>
 

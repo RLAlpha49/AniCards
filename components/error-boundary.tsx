@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { AlertCircle, Home, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { trackError } from "@/lib/utils/google-analytics";
+import { trackError, safeTrack } from "@/lib/utils/google-analytics";
 import { cn } from "@/lib/utils";
 import { Component } from "react";
 import type { ErrorInfo, ReactNode } from "react";
@@ -100,7 +100,7 @@ export class ErrorBoundary extends Component<
       eventMessage = eventMessage.slice(0, MAX_LEN - 3) + "...";
     }
 
-    trackError(error.name ?? "ErrorBoundary", eventMessage);
+    safeTrack(() => trackError(error.name ?? "ErrorBoundary", eventMessage));
   }
 
   /**

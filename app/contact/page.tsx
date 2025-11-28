@@ -5,7 +5,10 @@ import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import PageShell from "@/components/page-shell";
 import HeroBadge from "@/components/hero-badge";
-import { trackExternalLinkClick } from "@/lib/utils/google-analytics";
+import {
+  trackExternalLinkClick,
+  safeTrack,
+} from "@/lib/utils/google-analytics";
 import { usePageSEO } from "@/hooks/use-page-seo";
 import {
   SimpleDiscordIcon,
@@ -70,7 +73,7 @@ export default function ContactPage() {
    * @source
    */
   const handleSocialLinkClick = (platform: string) => {
-    trackExternalLinkClick(platform, "contact_page");
+    safeTrack(() => trackExternalLinkClick(platform, "contact_page"));
   };
 
   return (
