@@ -137,7 +137,104 @@ export function UserPageClient() {
   const [showAllCards, setShowAllCards] = useState(false);
 
   useEffect(() => {
+    const normalizeCardEntry = (raw: unknown): CardData | null => {
+      if (!raw || typeof raw !== "object") return null;
+      const r = raw as Record<string, unknown>;
+      if (typeof r.cardName !== "string" || !r.cardName) return null;
+      return {
+        cardName: r.cardName,
+        variation: typeof r.variation === "string" ? r.variation : undefined,
+        useStatusColors:
+          typeof r.useStatusColors === "boolean"
+            ? r.useStatusColors
+            : undefined,
+        showPiePercentages:
+          typeof r.showPiePercentages === "boolean"
+            ? r.showPiePercentages
+            : undefined,
+      };
+    };
     const loadUserData = async () => {
+      /**
+       * Helper to fetch a JSON response and validate http status and payload.
+       * Returns parsed JSON on success, or null on failure (and sets error state).
+       */
+      // Minimal shapes for server API payloads used on the client
+      type ApiUser = { userId?: string | number; username?: string };
+      type ApiCards = { userId?: number | string; cards?: CardData[] };
+
+      const fetchJsonWithValidation = async <T,>(
+        url: string,
+        kind: "user" | "cards",
+      ): Promise<T | null> => {
+        try {
+          const res = await fetch(url);
+
+          if (!res.ok) {
+            // Attempt to read a JSON error body, otherwise fall back to status/statusText
+            let bodyMsg = "";
+            try {
+              const errPayload = await res.json();
+              if (
+                errPayload &&
+                typeof errPayload === "object" &&
+                "error" in errPayload
+              ) {
+                bodyMsg = `: ${(errPayload as { error?: string }).error ?? ""}`;
+              } else {
+                bodyMsg = `: ${JSON.stringify(errPayload)}`;
+              }
+            } catch (e) {
+              console.warn("Failed to parse error body", e);
+              bodyMsg = "";
+            }
+
+            setError(
+              kind === "user"
+                ? `Failed to load user (${res.status} ${res.statusText}${bodyMsg})`
+                : `Failed to load cards (${res.status} ${res.statusText}${bodyMsg})`,
+            );
+            return null;
+          }
+
+          // Safe parse JSON
+          let payload: unknown;
+          try {
+            payload = await res.json();
+          } catch (e) {
+            setError(
+              kind === "user"
+                ? "Failed to parse user response"
+                : "Failed to parse cards response",
+            );
+            console.warn("Failed to parse JSON payload from", url, e);
+            return null;
+          }
+
+          // Minimal payload validation
+          if (kind === "user") {
+            const p = payload as ApiUser;
+            if (!p || typeof p !== "object" || (!p.userId && !p.username)) {
+              setError("Failed to load user: invalid response format");
+              return null;
+            }
+          } else {
+            const p = payload as ApiCards;
+            if (!p || typeof p !== "object" || !Array.isArray(p.cards)) {
+              setError("Failed to load cards: invalid response format");
+              return null;
+            }
+          }
+
+          return payload as T;
+        } catch (error_) {
+          setError(
+            kind === "user" ? "Failed to load user" : "Failed to load cards",
+          );
+          console.error("Network error while fetching", url, error_);
+          return null;
+        }
+      };
       try {
         let userId = searchParams.get("userId");
         let username = searchParams.get("username");
@@ -168,31 +265,73 @@ export function UserPageClient() {
           if (userId) {
             resolvedUserData = { userId, username: username || undefined };
           } else if (username) {
-            const userRes = await fetch(
+            const userResult = await fetchJsonWithValidation(
               `/api/user?username=${encodeURIComponent(username)}`,
+              "user",
             );
-            resolvedUserData = await userRes.json();
+            if (!userResult) {
+              setLoading(false);
+              return;
+            }
+            // Ensure we map to the local UserData interface
+            resolvedUserData = {
+              userId: String((userResult as ApiUser).userId),
+              username: (userResult as ApiUser).username || undefined,
+            };
           }
         } else if (userId) {
-          const [userRes, cardsRes] = await Promise.all([
-            fetch(`/api/user?userId=${userId}`),
-            fetch(`/api/cards?userId=${userId}`),
-          ]);
-          resolvedUserData = await userRes.json();
-          const cardsData = await cardsRes.json();
-          resolvedCards = cardsData.cards || [];
+          const userResult = await fetchJsonWithValidation(
+            `/api/user?userId=${userId}`,
+            "user",
+          );
+          if (!userResult) {
+            setLoading(false);
+            return;
+          }
+          const cardsResult = await fetchJsonWithValidation(
+            `/api/cards?userId=${userId}`,
+            "cards",
+          );
+          if (!cardsResult) {
+            setLoading(false);
+            return;
+          }
+          resolvedUserData = {
+            userId: String((userResult as ApiUser).userId),
+            username: (userResult as ApiUser).username || undefined,
+          };
+          const rawCards = (cardsResult as ApiCards).cards || [];
+          // Minimal validation: ensure every card entry has a cardName string.
+          resolvedCards = rawCards
+            .map(normalizeCardEntry)
+            .filter(Boolean) as CardData[];
           setShowAllCards(true);
         } else if (username) {
-          const userRes = await fetch(
+          const userResult = await fetchJsonWithValidation(
             `/api/user?username=${encodeURIComponent(username)}`,
+            "user",
           );
-          resolvedUserData = await userRes.json();
+          if (!userResult) {
+            setLoading(false);
+            return;
+          }
+          resolvedUserData = {
+            userId: String((userResult as ApiUser).userId),
+            username: (userResult as ApiUser).username || undefined,
+          };
           if (resolvedUserData?.userId) {
-            const cardsRes = await fetch(
+            const cardsResult = await fetchJsonWithValidation(
               `/api/cards?userId=${resolvedUserData.userId}`,
+              "cards",
             );
-            const cardsData = await cardsRes.json();
-            resolvedCards = cardsData.cards || [];
+            if (!cardsResult) {
+              setLoading(false);
+              return;
+            }
+            const rawCards2 = (cardsResult as ApiCards).cards || [];
+            resolvedCards = rawCards2
+              .map(normalizeCardEntry)
+              .filter(Boolean) as CardData[];
             setShowAllCards(true);
           }
         }
@@ -636,12 +775,6 @@ export function UserPageClient() {
 
         {/* CTA Section */}
         <section className="relative w-full overflow-hidden py-20">
-          {/* Background gradient orbs */}
-          <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div className="absolute -left-1/4 top-0 h-[500px] w-[500px] rounded-full bg-gradient-to-r from-blue-500/20 to-purple-500/20 blur-3xl" />
-            <div className="absolute -right-1/4 bottom-0 h-[500px] w-[500px] rounded-full bg-gradient-to-r from-pink-500/20 to-orange-500/20 blur-3xl" />
-          </div>
-
           <div className="container relative mx-auto px-4">
             <motion.div className="mx-auto max-w-4xl">
               <CTASection

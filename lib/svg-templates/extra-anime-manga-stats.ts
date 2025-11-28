@@ -53,7 +53,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
   favorites?: string[];
   fixedStatusColors?: boolean;
   showPiePercentages?: boolean;
-}) : TrustedSVG => {
+}): TrustedSVG => {
   // Process colors for gradient support
   const { gradientDefs, resolvedColors } = processColorsForSVG(
     {
@@ -181,7 +181,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
               />
             `;
       })
-        .join("");
+      .join("");
   })();
 
   const barsContent = isBar

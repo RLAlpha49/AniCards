@@ -72,7 +72,9 @@ export const LivePreview = React.memo(function LivePreview({
             // Unsafe HTML is intentionally rendered from trusted sources only.
             // The runtime assertion above ensures the string was generated from
             // a template or sanitized helper and carries the Trusted SVG marker.
-            dangerouslySetInnerHTML={{ __html: stripTrustedSvgMarker(previewSVG) }}
+            dangerouslySetInnerHTML={{
+              __html: stripTrustedSvgMarker(previewSVG),
+            }}
             className="relative transition-transform duration-300 group-hover:scale-[1.01]"
           />
         </div>

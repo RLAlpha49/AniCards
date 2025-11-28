@@ -235,7 +235,7 @@ export const mediaStatsTemplate = (data: {
     dasharray: string;
     dashoffset: string;
   };
-}) : TrustedSVG => {
+}): TrustedSVG => {
   // Process colors for gradient support
   const { gradientDefs, resolvedColors } = processColorsForSVG(
     {

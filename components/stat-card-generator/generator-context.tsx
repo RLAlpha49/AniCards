@@ -326,7 +326,10 @@ export function GeneratorProvider({
     ],
   );
 
-  const previewSVG = useMemo(() => mediaStatsTemplate(previewData), [previewData]);
+  const previewSVG = useMemo(
+    () => mediaStatsTemplate(previewData),
+    [previewData],
+  );
 
   if (process.env.NODE_ENV !== "production") {
     if (!isTrustedSvgString(previewSVG)) {
