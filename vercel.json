@@ -8,5 +8,13 @@
         { "key": "Edge-Cache-Control", "value": "no-store" }
       ]
     }
+    ,
+    {
+      "source": "/api/card",
+      "headers": [
+        { "key": "CDN-Cache-Control", "value": "no-store" },
+        { "key": "Edge-Cache-Control", "value": "no-store" }
+      ]
+    }
   ]
 }
