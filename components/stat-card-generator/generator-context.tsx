@@ -13,11 +13,12 @@ import {
 import { useStatCardSubmit } from "@/hooks/use-stat-card-submit";
 import { useUserPreferences, useCardSettings } from "@/lib/stores";
 import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
+import type { TrustedSVG } from "@/lib/types/svg";
 import {
   trackCardGeneration,
   trackUserSearch,
 } from "@/lib/utils/google-analytics";
-import { clampBorderRadius } from "@/lib/utils";
+import { clampBorderRadius, isTrustedSvgString } from "@/lib/utils";
 import { colorPresets, statCardTypes } from "./constants";
 import type { ColorValue } from "@/lib/types/card";
 
@@ -67,7 +68,7 @@ interface GeneratorContextValue {
   overlayText: string;
   retryStatusText: string | null;
   friendlyErrorMessage: string | null;
-  previewSVG: string;
+  previewSVG: TrustedSVG;
   previewData: MediaStatsPreviewData;
   colorPickers: ColorPickerConfig[];
   borderColorPicker: ColorPickerConfig;
@@ -325,10 +326,15 @@ export function GeneratorProvider({
     ],
   );
 
-  const previewSVG = useMemo(
-    () => mediaStatsTemplate(previewData),
-    [previewData],
-  );
+  const previewSVG = useMemo(() => mediaStatsTemplate(previewData), [previewData]);
+
+  if (process.env.NODE_ENV !== "production") {
+    if (!isTrustedSvgString(previewSVG)) {
+      console.warn(
+        "GeneratorProvider: previewSVG produced without TrustedSVG marker",
+      );
+    }
+  }
 
   const handleToggleCard = useCallback(
     (cardId: string) => {

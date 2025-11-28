@@ -1,9 +1,13 @@
+import type { TrustedSVG } from "@/lib/types/svg";
+
 import {
   calculateDynamicFontSize,
   getCardBorderRadius,
   isGradient,
   isValidHexColor,
   processColorsForSVG,
+  escapeForXml,
+  markTrustedSvg,
 } from "../utils";
 import type { ColorValue } from "@/lib/types/card";
 
@@ -49,7 +53,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
   favorites?: string[];
   fixedStatusColors?: boolean;
   showPiePercentages?: boolean;
-}) => {
+}) : TrustedSVG => {
   // Process colors for gradient support
   const { gradientDefs, resolvedColors } = processColorsForSVG(
     {
@@ -69,6 +73,8 @@ export const extraAnimeMangaStatsTemplate = (data: {
   );
 
   const statBaseCircleColor = resolveCircleBaseColor(data.styles.circleColor);
+  const titleText = `${data.username}'s ${data.format}`;
+  const safeTitle = escapeForXml(titleText);
 
   // Determine variant flags
   const isPie = data.showPieChart || data.variant === "pie";
@@ -107,7 +113,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
         index * 25
       })">
         ${isFavorite ? heartSVG : ""}
-        <text class="stat bold" y="12.5">${stat.name}:</text>
+        <text class="stat bold" y="12.5">${escapeForXml(stat.name)}:</text>
         <text class="stat bold" x="199.01" y="12.5">${stat.count}</text>
       </g>
     `;
@@ -132,7 +138,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
         })">
           ${isFavorite ? heartLegendSVG : ""}
           <rect x="-20" y="2" width="12" height="12" fill="${fillColor}" />
-          <text class="stat" y="12.5">${stat.name}:</text>
+          <text class="stat" y="12.5">${escapeForXml(stat.name)}:</text>
           <text class="stat" x="125" y="12.5">${stat.count}${data.showPiePercentages ? ` (${pct}%)` : ""}</text>
         </g>`;
     })
@@ -175,7 +181,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
               />
             `;
       })
-      .join("");
+        .join("");
   })();
 
   const barsContent = isBar
@@ -217,7 +223,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
     mainStatsContent = statsContentWithoutPie;
   }
 
-  return `
+  return markTrustedSvg(`
     <svg
       xmlns="http://www.w3.org/2000/svg"
       width="${svgWidth}"
@@ -228,17 +234,15 @@ export const extraAnimeMangaStatsTemplate = (data: {
       aria-labelledby="desc-id"
     >
       ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
-      <title id="title-id">${data.username}'s ${data.format}</title>
+      <title id="title-id">${safeTitle}</title>
       <desc id="desc-id">
-        ${data.stats.map((stat) => `${stat.name}: ${stat.count}`).join(", ")}
+        ${data.stats.map((stat) => `${escapeForXml(stat.name)}: ${stat.count}`).join(", ")}
       </desc>
       <style>
         /* stylelint-disable selector-class-pattern, keyframes-name-pattern */
         .header { 
           fill: ${resolvedColors.titleColor};
-          font: 600 ${calculateDynamicFontSize(
-            `${data.username}'s ${data.format}`,
-          )}px 'Segoe UI', Ubuntu, Sans-Serif;
+          font: 600 ${calculateDynamicFontSize(titleText)}px 'Segoe UI', Ubuntu, Sans-Serif;
           animation: fadeInAnimation 0.8s ease-in-out forwards;
         }
         
@@ -284,7 +288,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
       <g data-testid="card-title" transform="translate(25, 35)">
         <g transform="translate(0, 0)">
           <text x="0" y="0" class="header" data-testid="header">
-            ${data.username}'s ${data.format}
+            ${safeTitle}
           </text>
         </g>
       </g>
@@ -292,7 +296,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
         ${mainStatsContent}
       </g>
     </svg>
-  `;
+  `);
 };
 
 /**

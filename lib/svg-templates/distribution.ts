@@ -1,7 +1,11 @@
+import type { TrustedSVG } from "@/lib/types/svg";
+
 import {
   calculateDynamicFontSize,
   getCardBorderRadius,
   processColorsForSVG,
+  escapeForXml,
+  markTrustedSvg,
 } from "../utils";
 import type { ColorValue } from "@/lib/types/card";
 
@@ -204,6 +208,7 @@ export function distributionTemplate(input: DistributionTemplateInput) {
   const baseTitle =
     kind === "score" ? "Score Distribution" : "Year Distribution";
   const title = `${username}'s ${capitalize(mediaType)} ${baseTitle}`;
+  const safeTitle = escapeForXml(title);
   const dims = getDimensions(variant);
 
   // Layout constants
@@ -220,7 +225,8 @@ export function distributionTemplate(input: DistributionTemplateInput) {
 
   const headerFontSize = calculateDynamicFontSize(title, 18, 300);
 
-  return `<svg
+  return markTrustedSvg(`
+<svg
     xmlns="http://www.w3.org/2000/svg"
     width="${dims.w}"
     height="${dims.h}"
@@ -230,7 +236,7 @@ export function distributionTemplate(input: DistributionTemplateInput) {
     aria-labelledby="desc-id"
   >
     ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
-    <title id="title-id">${title}</title>
+    <title id="title-id">${safeTitle}</title>
     <desc id="desc-id">${data.map((d) => `${d.value}:${d.count}`).join(", ")}</desc>
     <style>
       /* stylelint-disable selector-class-pattern, keyframes-name-pattern */
@@ -255,9 +261,9 @@ export function distributionTemplate(input: DistributionTemplateInput) {
       ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""}
       stroke-width="2"
     />
-    <g transform="translate(20,35)"><text class="header">${title}</text></g>
+    <g transform="translate(20,35)"><text class="header">${safeTitle}</text></g>
     ${mainContent}
-  </svg>`;
+  </svg>`);
 }
 
 /** Capitalize the first letter of a string. @source */

@@ -1,6 +1,8 @@
 import React from "react";
+import { isTrustedSvgString, cn } from "@/lib/utils";
+import type { TrustedSVG } from "@/lib/types/svg";
+import { stripTrustedSvgMarker } from "@/lib/types/svg";
 import { motion } from "framer-motion";
-import { cn } from "@/lib/utils";
 import { Eye, Sparkles } from "lucide-react";
 
 /**
@@ -10,7 +12,7 @@ import { Eye, Sparkles } from "lucide-react";
  * @source
  */
 interface LivePreviewProps {
-  previewSVG: string;
+  previewSVG: TrustedSVG;
   className?: string;
 }
 
@@ -26,6 +28,17 @@ export const LivePreview = React.memo(function LivePreview({
   previewSVG,
   className,
 }: LivePreviewProps) {
+  // Runtime guard to ensure only marked trusted SVGs are rendered.
+  if (
+    process.env.NODE_ENV !== "production" &&
+    !isTrustedSvgString(previewSVG)
+  ) {
+    // Fail fast in dev to catch untrusted usage; in production prefer a
+    // warning to avoid crashing the experience for end users.
+    throw new Error(
+      "LivePreview: `previewSVG` must be a TrustedSVG. Use a template or markTrustedSvg() to produce a trusted value.",
+    );
+  }
   return (
     <div className={cn("flex flex-col items-center", className)}>
       {/* Preview Container */}
@@ -57,7 +70,9 @@ export const LivePreview = React.memo(function LivePreview({
           {/* SVG Content */}
           <div
             // Unsafe HTML is intentionally rendered from trusted sources only.
-            dangerouslySetInnerHTML={{ __html: previewSVG }}
+            // The runtime assertion above ensures the string was generated from
+            // a template or sanitized helper and carries the Trusted SVG marker.
+            dangerouslySetInnerHTML={{ __html: stripTrustedSvgMarker(previewSVG) }}
             className="relative transition-transform duration-300 group-hover:scale-[1.01]"
           />
         </div>

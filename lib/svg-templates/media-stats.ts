@@ -1,8 +1,12 @@
 import { AnimeStats, MangaStats, ColorValue } from "@/lib/types/card";
+import type { TrustedSVG } from "@/lib/types/svg";
+
 import {
   calculateDynamicFontSize,
   processColorsForSVG,
   getCardBorderRadius,
+  escapeForXml,
+  markTrustedSvg,
 } from "../utils";
 
 /** Media type used by the media stats templates — either anime or manga. @source */
@@ -231,7 +235,7 @@ export const mediaStatsTemplate = (data: {
     dasharray: string;
     dashoffset: string;
   };
-}) => {
+}) : TrustedSVG => {
   // Process colors for gradient support
   const { gradientDefs, resolvedColors } = processColorsForSVG(
     {
@@ -275,6 +279,9 @@ export const mediaStatsTemplate = (data: {
     },
   }[data.mediaType];
 
+  const titleText = String(config.title);
+  const safeTitle = escapeForXml(titleText);
+
   // Dimensions per variant
   const dims = (() => {
     switch (data.variant) {
@@ -317,7 +324,7 @@ export const mediaStatsTemplate = (data: {
     : (0 * scale).toFixed(2);
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);
 
-  return `
+  return markTrustedSvg(`
 <svg
   xmlns="http://www.w3.org/2000/svg"
   width="${dims.w}"
@@ -329,7 +336,7 @@ export const mediaStatsTemplate = (data: {
   style="overflow: visible"
 >
   ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
-  <title id="title-id">${config.title}</title>
+  <title id="title-id">${safeTitle}</title>
   <desc id="desc-id">
     Count: ${data.stats.count}, 
     ${config.mainStat.label}: ${config.mainStat.value},
@@ -341,7 +348,7 @@ export const mediaStatsTemplate = (data: {
     /* stylelint-disable selector-class-pattern, keyframes-name-pattern */
     .header { 
       fill: ${resolvedColors.titleColor};
-      font: 600 ${calculateDynamicFontSize(config.title)}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${calculateDynamicFontSize(titleText)}px 'Segoe UI', Ubuntu, Sans-Serif;
       animation: fadeInAnimation 0.8s ease-in-out forwards;
     }
     
@@ -403,11 +410,11 @@ export const mediaStatsTemplate = (data: {
   />
   <g data-testid="card-title" transform="translate(25, 35)">
     <g transform="translate(0, 0)">
-      <text x="0" y="0" class="header" data-testid="header">${config.title}</text>
+      <text x="0" y="0" class="header" data-testid="header">${safeTitle}</text>
     </g>
   </g>
   <g data-testid="main-card-body" transform="translate(0, 55)">
-    ${getVariantContent(data, config, dims, scaledDasharray, scaledDashoffset, resolvedColors)}
+      ${getVariantContent(data, config, dims, scaledDasharray, scaledDashoffset, resolvedColors)}
   </g>
-</svg>`;
+</svg>`);
 };

@@ -18,6 +18,7 @@ import {
 } from "@/lib/types/records";
 
 import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
+import { stripTrustedSvgMarker } from "@/lib/types/svg";
 
 /**
  * Limits card SVG generation to 100 requests per 10 seconds per IP.
@@ -1132,7 +1133,9 @@ export async function GET(request: Request) {
       return svgContent;
     }
 
-    return new Response(svgContent, {
+    const cleaned = stripTrustedSvgMarker(svgContent);
+
+    return new Response(cleaned, {
       headers: svgHeaders(),
     });
   } catch (error: unknown) {
