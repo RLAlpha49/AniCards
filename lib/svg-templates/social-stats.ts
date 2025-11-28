@@ -104,12 +104,13 @@ export const socialStatsTemplate = (data: {
     const activityTimespanStr = hasActivity
       ? `${totalActivity} over ${daysDifference} ${dayLabel}`
       : "Unknown";
+    const safeActivityTimespanStr = escapeForXml(activityTimespanStr);
 
     return `
     <desc id="desc-id">
       Total Followers: ${data.stats.followersPage.pageInfo.total},
       Total Following: ${data.stats.followingPage.pageInfo.total},
-      Total Activity: ${activityTimespanStr},
+      Total Activity: ${safeActivityTimespanStr},
       Thread Posts/Comments Count: ${data.stats.threadCommentsPage.pageInfo.total},
       Total Reviews: ${data.stats.reviewsPage.pageInfo.total}
     </desc>`;

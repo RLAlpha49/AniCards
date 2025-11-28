@@ -281,6 +281,8 @@ export const mediaStatsTemplate = (data: {
 
   const titleText = String(config.title);
   const safeTitle = escapeForXml(titleText);
+  const safeMainStatLabel = escapeForXml(String(config.mainStat.label));
+  const safeSecondaryStatLabel = escapeForXml(String(config.mainStat.secondary.label));
 
   // Dimensions per variant
   const dims = (() => {
@@ -339,8 +341,8 @@ export const mediaStatsTemplate = (data: {
   <title id="title-id">${safeTitle}</title>
   <desc id="desc-id">
     Count: ${data.stats.count}, 
-    ${config.mainStat.label}: ${config.mainStat.value},
-    ${config.mainStat.secondary.label}: ${config.mainStat.secondary.value}, 
+    ${safeMainStatLabel}: ${config.mainStat.value},
+    ${safeSecondaryStatLabel}: ${config.mainStat.secondary.value}, 
     Mean Score: ${data.stats.meanScore},
     Standard Deviation: ${data.stats.standardDeviation}
   </desc>
