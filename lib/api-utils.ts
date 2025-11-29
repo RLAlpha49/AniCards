@@ -143,6 +143,31 @@ function normalizeOrigin(value: string | null | undefined): string | null {
 }
 
 /**
+ * Determine the Access-Control-Allow-Origin value used by the Card SVG API.
+ * Priority: NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN env -> production fallback -> request origin or '*'.
+ * This helper centralizes CORS policy and is used by card route header helpers.
+ * @param request - Optional Request used to extract the request origin in development.
+ */
+export function getAllowedCardSvgOrigin(request?: Request): string {
+  // Use the configured override first when present
+  const configured = normalizeOrigin(
+    process.env.NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN,
+  );
+  if (configured) return configured;
+
+  // In production, fall back to AniList origin
+  if (process.env.NODE_ENV === "production") return "https://anilist.co";
+
+  // Prefer request origin in development to make local testing safe and predictable
+  const requestOrigin = request?.headers?.get("origin");
+  const requestNormalized = normalizeOrigin(requestOrigin);
+  if (requestNormalized) return requestNormalized;
+
+  // As a last resort for dev or unknown contexts, allow any origin to simplify local testing
+  return "*";
+}
+
+/**
  * Enforces a rate limit for an IP address using the configured Upstash
  * rate limiter. Records analytics and returns a 429 response on limit.
  * @param ip - IP address to check.

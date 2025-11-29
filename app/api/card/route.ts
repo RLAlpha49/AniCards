@@ -1,5 +1,5 @@
 import { Ratelimit } from "@upstash/ratelimit";
-import { redisClient, incrementAnalytics } from "@/lib/api-utils";
+import { redisClient, incrementAnalytics, getAllowedCardSvgOrigin } from "@/lib/api-utils";
 import {
   SocialStats,
   AnimeStats as TemplateAnimeStats,
@@ -9,7 +9,7 @@ import { calculateMilestones } from "@/lib/utils/milestones";
 import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
 import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats";
 import { distributionTemplate } from "@/lib/svg-templates/distribution";
-import { safeParse, extractStyles } from "@/lib/utils";
+import { safeParse, extractStyles, escapeForXml } from "@/lib/utils";
 import {
   UserRecord,
   CardsRecord,
@@ -128,6 +128,7 @@ type PieBarVariant = "default" | "pie" | "bar";
  * @source
  */
 function svgError(message: string) {
+  const escaped = escapeForXml(message);
   return `<?xml version="1.0" encoding="UTF-8"?>
   <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
   <svg width="800" height="400" viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
@@ -141,7 +142,7 @@ function svgError(message: string) {
     <rect width="100%" height="100%" fill="#1a1a1a"/>
     <text x="50%" y="50%" class="error-text"
           text-anchor="middle" dominant-baseline="middle">
-      ${message}
+      ${escaped}
     </text>
   </svg>`;
 }
@@ -151,11 +152,12 @@ function svgError(message: string) {
  * @returns Response headers used on success.
  * @source
  */
-function svgHeaders() {
+function svgHeaders(request?: Request) {
+  const allowedOrigin = getAllowedCardSvgOrigin(request);
   return {
     "Content-Type": "image/svg+xml",
     "Cache-Control": "public, max-age=86400, stale-while-revalidate=86400", // 24 hour cache, revalidate in background
-    "Access-Control-Allow-Origin": "https://anilist.co", // For cross-origin requests from AniList
+    "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Methods": "GET",
     Vary: "Origin", // Cache varies based on Origin header
   };
@@ -166,11 +168,12 @@ function svgHeaders() {
  * @returns Response headers used on failure.
  * @source
  */
-function errorHeaders() {
+function errorHeaders(request?: Request) {
+  const allowedOrigin = getAllowedCardSvgOrigin(request);
   return {
     "Content-Type": "image/svg+xml",
     "Cache-Control": "no-store, max-age=0, must-revalidate", // No cache, force revalidation
-    "Access-Control-Allow-Origin": "https://anilist.co", // For cross-origin requests from AniList
+    "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Methods": "GET",
     Vary: "Origin", // Header varies based on Origin
   };
@@ -348,6 +351,7 @@ interface CardGenerationParams {
 function generateStatsCard(
   params: CardGenerationParams,
   mediaType: "anime" | "manga",
+  request?: Request,
 ): TrustedSVG | Response {
   const { cardConfig, userRecord, variant } = params;
   const recordsStats = userRecord.stats?.User?.statistics?.[mediaType];
@@ -355,7 +359,7 @@ function generateStatsCard(
     // Metrics: missing stats data for this card type -> Not Found
     void trackFailedRequest(cardConfig.cardName.split("-")[0], 404);
     return new Response(svgError("Missing stats data for user"), {
-      headers: errorHeaders(),
+      headers: errorHeaders(request),
       status: 404,
     });
   }
@@ -396,7 +400,7 @@ function generateStatsCard(
  * @returns Serialized SVG string for the social stats card.
  * @source
  */
-function generateSocialStatsCard(params: CardGenerationParams): TrustedSVG {
+function generateSocialStatsCard(params: CardGenerationParams, request?: Request): TrustedSVG {
   const { cardConfig, userRecord, variant } = params;
 
   return socialStatsTemplate({
@@ -448,6 +452,7 @@ function mapCategoryItem(
 function generateCategoryCard(
   params: CardGenerationParams,
   baseCardType: string,
+  request?: Request,
 ): TrustedSVG | Response {
   const { cardConfig, userRecord, variant, favorites } = params;
   const isAnime = baseCardType.startsWith("anime");
@@ -491,7 +496,7 @@ function generateCategoryCard(
     // Metrics: no category items found for this user -> Not Found
     void trackFailedRequest(baseCardType, 404);
     return new Response(svgError("No category data available for this user"), {
-      headers: errorHeaders(),
+      headers: errorHeaders(request),
       status: 404,
     });
   }
@@ -518,6 +523,7 @@ function generateCategoryCard(
 function generateStatusDistributionCard(
   params: CardGenerationParams,
   baseCardType: string,
+  request?: Request,
 ): string | Response {
   return generateSimpleListCard(
     params,
@@ -526,6 +532,7 @@ function generateStatusDistributionCard(
     "status",
     "No status distribution data for this user",
     { fixedStatusColors: !!params.cardConfig.useStatusColors },
+    request,
   );
 }
 
@@ -539,6 +546,7 @@ function generateStatusDistributionCard(
 function generateFormatDistributionCard(
   params: CardGenerationParams,
   baseCardType: string,
+  request?: Request,
 ): string | Response {
   return generateSimpleListCard(
     params,
@@ -546,6 +554,8 @@ function generateFormatDistributionCard(
     "formats",
     "format",
     "No format distribution data for this user",
+    undefined,
+    request,
   );
 }
 
@@ -567,6 +577,7 @@ function generateSimpleListCard(
   nameKey: string,
   notFoundMessage: string,
   extraTemplateProps?: Record<string, unknown>,
+  request?: Request,
 ): TrustedSVG | Response {
   const { cardConfig, userRecord, variant } = params;
   const isAnime = baseCardType.startsWith("anime");
@@ -587,7 +598,7 @@ function generateSimpleListCard(
   if (!statsList.length) {
     void trackFailedRequest(baseCardType, 404);
     return new Response(svgError(notFoundMessage), {
-      headers: errorHeaders(),
+      headers: errorHeaders(request),
       status: 404,
     });
   }
@@ -620,6 +631,7 @@ function generateDistributionCard(
   params: CardGenerationParams,
   baseCardType: string,
   kind: "score" | "year",
+  request?: Request,
 ): TrustedSVG | Response {
   const { cardConfig, userRecord, variant } = params;
   const isAnime = baseCardType.startsWith("anime");
@@ -647,7 +659,7 @@ function generateDistributionCard(
     // Metrics: no distribution data -> Not Found
     void trackFailedRequest(baseCardType, 404);
     return new Response(svgError("No distribution data for this user"), {
-      headers: errorHeaders(),
+      headers: errorHeaders(request),
       status: 404,
     });
   }
@@ -679,6 +691,7 @@ function generateDistributionCard(
 function generateCountryCard(
   params: CardGenerationParams,
   baseCardType: string,
+  request?: Request,
 ): TrustedSVG | Response {
   const { cardConfig, userRecord, variant } = params;
   const isAnime = baseCardType.startsWith("anime");
@@ -701,7 +714,7 @@ function generateCountryCard(
     // Metrics: no country data -> Not Found
     void trackFailedRequest(baseCardType, 404);
     return new Response(svgError("No country data for this user"), {
-      headers: errorHeaders(),
+      headers: errorHeaders(request),
       status: 404,
     });
   }
@@ -735,6 +748,7 @@ function generateCardSVG(
   userRecord: UserRecord,
   variant: "default" | "vertical" | "pie" | "compact" | "minimal" | "bar",
   favorites?: string[],
+  request?: Request,
 ): TrustedSVG | Response {
   // Basic validation: card config and user stats must be present
   if (!cardConfig || !userRecord?.stats) {
@@ -743,7 +757,7 @@ function generateCardSVG(
       : undefined;
     void trackFailedRequest(baseCardType, 404);
     return new Response(svgError("Missing card configuration or stats data"), {
-      headers: errorHeaders(),
+      headers: errorHeaders(request),
       status: 404,
     });
   }
@@ -756,7 +770,7 @@ function generateCardSVG(
     // Base card type is available because cardConfig is present
     void trackFailedRequest(cardConfig.cardName.split("-")[0], 404);
     return new Response(svgError("Missing card configuration or stats data"), {
-      headers: errorHeaders(),
+      headers: errorHeaders(request),
       status: 404,
     });
   }
@@ -772,13 +786,13 @@ function generateCardSVG(
   // Handle different card types using dedicated functions
   switch (baseCardType) {
     case "animeStats":
-      return generateStatsCard(params, "anime");
+      return generateStatsCard(params, "anime", request);
 
     case "mangaStats":
-      return generateStatsCard(params, "manga");
+      return generateStatsCard(params, "manga", request);
 
     case "socialStats":
-      return generateSocialStatsCard(params);
+      return generateSocialStatsCard(params, request);
 
     case "animeGenres":
     case "animeTags":
@@ -788,27 +802,27 @@ function generateCardSVG(
     case "mangaGenres":
     case "mangaTags":
     case "mangaStaff":
-      return generateCategoryCard(params, baseCardType);
+      return generateCategoryCard(params, baseCardType, request);
 
     case "animeStatusDistribution":
     case "mangaStatusDistribution":
-      return generateStatusDistributionCard(params, baseCardType);
+      return generateStatusDistributionCard(params, baseCardType, request);
 
     case "animeFormatDistribution":
     case "mangaFormatDistribution":
-      return generateFormatDistributionCard(params, baseCardType);
+      return generateFormatDistributionCard(params, baseCardType, request);
 
     case "animeScoreDistribution":
     case "mangaScoreDistribution":
-      return generateDistributionCard(params, baseCardType, "score");
+      return generateDistributionCard(params, baseCardType, "score", request);
 
     case "animeYearDistribution":
     case "mangaYearDistribution":
-      return generateDistributionCard(params, baseCardType, "year");
+      return generateDistributionCard(params, baseCardType, "year", request);
 
     case "animeCountry":
     case "mangaCountry":
-      return generateCountryCard(params, baseCardType);
+      return generateCountryCard(params, baseCardType, request);
 
     default:
       throw new Error("Unsupported card type");
@@ -848,7 +862,7 @@ function extractAndValidateParams(
     const missingParam = userId ? "cardType" : "userId";
     console.warn(`⚠️ [Card SVG] Missing parameter: ${missingParam}`);
     return new Response(svgError("Missing parameters"), {
-      headers: errorHeaders(),
+      headers: errorHeaders(request),
       status: 400,
     });
   }
@@ -858,7 +872,7 @@ function extractAndValidateParams(
   if (Number.isNaN(numericUserId)) {
     console.warn(`⚠️ [Card SVG] Invalid user ID format: ${userId}`);
     return new Response(svgError("Invalid user ID"), {
-      headers: errorHeaders(),
+      headers: errorHeaders(request),
       status: 400,
     });
   }
@@ -868,7 +882,7 @@ function extractAndValidateParams(
   if (!ALLOWED_CARD_TYPES.has(baseCardType)) {
     console.warn(`⚠️ [Card SVG] Invalid card type: ${cardType}`);
     return new Response(svgError("Invalid card type"), {
-      headers: errorHeaders(),
+      headers: errorHeaders(request),
       status: 400,
     });
   }
@@ -937,6 +951,7 @@ async function trackSuccessfulRequest(baseCardType: string): Promise<void> {
 async function fetchUserData(
   numericUserId: number,
   baseCardType: string,
+  request?: Request,
 ): Promise<{ cardDoc: CardsRecord; userDoc: UserRecord } | Response> {
   console.log(`🔍 [Card SVG] Fetching data for user ${numericUserId}`);
 
@@ -955,7 +970,7 @@ async function fetchUserData(
     console.warn(`⚠️ [Card SVG] User ${numericUserId} data not found in Redis`);
     await trackFailedRequest(baseCardType, 404);
     return new Response(svgError("User data not found"), {
-      headers: errorHeaders(),
+      headers: errorHeaders(request),
       status: 404,
     });
   }
@@ -978,6 +993,7 @@ function processCardConfig(
   cardDoc: CardsRecord,
   params: ValidatedParams,
   userDoc: UserRecord,
+  request?: Request,
 ):
   | {
       cardConfig: StoredCardConfig;
@@ -999,7 +1015,7 @@ function processCardConfig(
     return new Response(
       svgError("Card config not found. Try to regenerate the card."),
       {
-        headers: errorHeaders(),
+        headers: errorHeaders(request),
         status: 404,
       },
     );
@@ -1063,7 +1079,7 @@ export async function GET(request: Request) {
     console.warn(`🚨 [Card SVG] Rate limit exceeded for IP: ${ip}`);
     await trackFailedRequest(undefined, 429);
     return new Response(svgError("Too many requests - try again later"), {
-      headers: errorHeaders(),
+      headers: errorHeaders(request),
       status: 429,
     });
   }
@@ -1088,6 +1104,7 @@ export async function GET(request: Request) {
     const dataResult = await fetchUserData(
       params.numericUserId,
       params.baseCardType,
+      request,
     );
     if (dataResult instanceof Response) {
       return dataResult;
@@ -1096,7 +1113,7 @@ export async function GET(request: Request) {
     const { cardDoc, userDoc } = dataResult;
 
     // Process card configuration and apply parameters
-    const configResult = processCardConfig(cardDoc, params, userDoc);
+    const configResult = processCardConfig(cardDoc, params, userDoc, request);
     if (configResult instanceof Response) {
       await trackFailedRequest(params.baseCardType, configResult.status);
       return configResult;
@@ -1114,6 +1131,7 @@ export async function GET(request: Request) {
       userDoc,
       effectiveVariation as "default" | "vertical" | "pie" | "bar",
       favorites,
+      request,
     );
 
     const duration = Date.now() - startTime;
@@ -1136,7 +1154,7 @@ export async function GET(request: Request) {
     const cleaned = toCleanSvgResponse(svgContent);
 
     return new Response(cleaned, {
-      headers: svgHeaders(),
+      headers: svgHeaders(request),
     });
   } catch (error: unknown) {
     const duration = Date.now() - startTime;
@@ -1153,7 +1171,7 @@ export async function GET(request: Request) {
     await trackFailedRequest(params.baseCardType, 500);
 
     return new Response(svgError("Server Error"), {
-      headers: errorHeaders(),
+      headers: errorHeaders(request),
       status: 500,
     });
   }

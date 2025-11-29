@@ -234,6 +234,7 @@ async function expectSuccessfulSvgResponse(
 ) {
   expect(res.status).toBe(200);
   expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
+  expect(res.headers.get("Vary")).toBe("Origin");
   const text = bodyText ?? (await getResponseText(res));
   expect(text).toBe(expectedSvg);
 }
@@ -253,6 +254,7 @@ async function expectErrorResponse(
 ) {
   expect(res.status).toBe(expectedStatus);
   expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
+  expect(res.headers.get("Vary")).toBe("Origin");
   const text = await getResponseText(res);
   expect(text).toContain(expectedError);
 }
@@ -602,6 +604,83 @@ describe("Card SVG GET Endpoint", () => {
     expect(callArgs.styles).toHaveProperty("textColor");
     expect(callArgs.styles.showPiePercentages).toBeUndefined();
     expect(callArgs.styles.useStatusColors).toBeUndefined();
+  });
+
+  it("should set CORS Access-Control-Allow-Origin to the request origin when present in dev", async () => {
+    const cardsData = createMockCardData("animeStats", "default");
+    const userData = createMockUserData(542244, "testUser", {
+      User: { statistics: { anime: {} } },
+    });
+    setupSuccessfulMocks(cardsData, userData);
+
+    const req = new Request(
+      createRequestUrl(baseUrl, {
+        userId: "542244",
+        cardType: "animeStats",
+      }),
+      { headers: { origin: "http://example.dev" } },
+    );
+    const res = await GET(req);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe("http://example.dev");
+  });
+
+  it("should use configured NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN when set (overrides request origin)", async () => {
+    const prev = process.env.NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN;
+    (process.env as Record<string, string | undefined>)[
+      "NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN"
+    ] = "https://configured.example";
+    const cardsData = createMockCardData("animeStats", "default");
+    const userData = createMockUserData(542244, "testUser", {
+      User: { statistics: { anime: {} } },
+    });
+    setupSuccessfulMocks(cardsData, userData);
+
+    const req = new Request(
+      createRequestUrl(baseUrl, {
+        userId: "542244",
+        cardType: "animeStats",
+      }),
+      { headers: { origin: "http://ignored-origin" } },
+    );
+    const res = await GET(req);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe("https://configured.example");
+    // restore
+    (process.env as Record<string, string | undefined>)[
+      "NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN"
+    ] = prev;
+  });
+
+  it("should default to https://anilist.co in production when no env var set", async () => {
+    const prevNodeEnv = process.env.NODE_ENV;
+    const prevConfig = process.env.NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN;
+    (process.env as Record<string, string | undefined>)["NODE_ENV"] =
+      "production";
+    delete (process.env as Record<string, string | undefined>)[
+      "NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN"
+    ];
+
+    const cardsData = createMockCardData("animeStats", "default");
+    const userData = createMockUserData(542244, "testUser", {
+      User: { statistics: { anime: {} } },
+    });
+    setupSuccessfulMocks(cardsData, userData);
+
+    const req = new Request(
+      createRequestUrl(baseUrl, {
+        userId: "542244",
+        cardType: "animeStats",
+      }),
+      { headers: { origin: "http://localhost:3000" } },
+    );
+    const res = await GET(req);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe("https://anilist.co");
+
+    // restore env
+    (process.env as Record<string, string | undefined>)["NODE_ENV"] =
+      prevNodeEnv;
+    (process.env as Record<string, string | undefined>)[
+      "NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN"
+    ] = prevConfig;
   });
 
   it("should return server error when SVG generation fails (inner try)", async () => {
