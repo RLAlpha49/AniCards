@@ -256,19 +256,13 @@ export default function SettingsPage() {
                     themes={themes}
                     onThemeChange={handleThemeChange}
                   />
-
-                  <DefaultUsernameSettings
-                    defaultUsername={defaultUsername}
-                    onUsernameChange={handleDefaultUsernameChange}
-                  />
                 </div>
 
                 {/* Right Column */}
                 <div className="space-y-8">
-                  <CacheManagement
-                    cachedItems={cachedItems}
-                    onClearCache={handleClearCache}
-                    onDeleteCacheItem={handleDeleteCacheItem}
+                  <DefaultUsernameSettings
+                    defaultUsername={defaultUsername}
+                    onUsernameChange={handleDefaultUsernameChange}
                   />
                 </div>
 

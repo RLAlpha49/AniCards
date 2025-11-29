@@ -70,7 +70,7 @@ export function DefaultUsernameSettings({
                 <motion.div
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
-                  className="absolute right-4 top-1/4 "
+                  className="absolute right-4 top-1/4"
                 >
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-green-500 to-emerald-600 shadow-lg shadow-green-500/30">
                     <Check className="h-4 w-4 text-white" strokeWidth={3} />

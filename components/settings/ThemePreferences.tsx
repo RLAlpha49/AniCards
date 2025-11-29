@@ -117,7 +117,7 @@ export function ThemePreferences({
                   onClick={() => handleThemeChange(t)}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  className={`group relative flex flex-col items-center overflow-hidden rounded-2xl border-2 p-6 transition-all duration-300 ${
+                  className={`group relative flex flex-col items-center overflow-hidden rounded-2xl border-2 p-2.5 transition-all duration-300 ${
                     isActive
                       ? "border-blue-500 bg-blue-50/80 shadow-lg shadow-blue-500/20 dark:border-blue-400 dark:bg-blue-900/30"
                       : "border-slate-200 bg-white/50 hover:border-slate-300 hover:bg-slate-50 hover:shadow-md dark:border-slate-700 dark:bg-slate-800/50 dark:hover:border-slate-600 dark:hover:bg-slate-800"
@@ -160,11 +160,6 @@ export function ThemePreferences({
                     }`}
                   >
                     {t}
-                  </span>
-
-                  {/* Description */}
-                  <span className="relative mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    {meta.description}
                   </span>
 
                   {/* Checkmark badge */}

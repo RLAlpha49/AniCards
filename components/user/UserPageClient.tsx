@@ -349,9 +349,7 @@ export function UserPageClient() {
     return { user: null, cards: parsed, showAll: false };
   }
 
-  async function handleUserIdFlow(
-    userIdArg: string,
-  ): Promise<{
+  async function handleUserIdFlow(userIdArg: string): Promise<{
     user: UserData | null;
     cards: CardData[];
     showAll: boolean;
@@ -361,9 +359,7 @@ export function UserPageClient() {
     return { user: resolved.user, cards: resolved.cards || [], showAll: true };
   }
 
-  async function handleUsernameFlow(
-    usernameArg: string,
-  ): Promise<{
+  async function handleUsernameFlow(usernameArg: string): Promise<{
     user: UserData | null;
     cards: CardData[];
     showAll: boolean;
