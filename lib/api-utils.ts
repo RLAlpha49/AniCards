@@ -138,9 +138,8 @@ export function createRateLimiter(options?: {
   redis?: Redis;
 }): Ratelimit {
   const limit = options?.limit ?? 10;
-  const window = options?.window ?? ("5 s" as Parameters<
-    typeof Ratelimit.slidingWindow
-  >[1]);
+  const window =
+    options?.window ?? ("5 s" as Parameters<typeof Ratelimit.slidingWindow>[1]);
   const redis = options?.redis ?? createRealRedisClient();
 
   return new Ratelimit({

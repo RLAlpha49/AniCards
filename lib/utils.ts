@@ -225,6 +225,11 @@ function isValidGradientStop(stop: unknown): boolean {
       return false;
   }
 
+  // Validate optional id
+  if (s.id !== undefined) {
+    if (typeof s.id !== "string") return false;
+  }
+
   return true;
 }
 
@@ -377,7 +382,9 @@ export async function svgToPng(
  * If both attempts fail, return null.
  * @source
  */
-async function parseResponsePayload(response: Response): Promise<unknown> {
+export async function parseResponsePayload(
+  response: Response,
+): Promise<unknown> {
   try {
     return await response.json();
   } catch {
@@ -395,7 +402,10 @@ async function parseResponsePayload(response: Response): Promise<unknown> {
  * If the payload contains an `error` or `message` field those are prioritized.
  * @source
  */
-function getResponseErrorMessage(response: Response, payload: unknown): string {
+export function getResponseErrorMessage(
+  response: Response,
+  payload: unknown,
+): string {
   let message = `HTTP ${response.status} ${response.statusText}`;
   if (!payload) return message;
   if (typeof payload === "object" && payload !== null) {

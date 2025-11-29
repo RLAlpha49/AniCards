@@ -284,7 +284,11 @@ describe("Card SVG GET Endpoint", () => {
     const req = new Request(createRequestUrl(baseUrl, { userId: "542244" }));
 
     const res = await GET(req);
-    await expectErrorResponse(res, "Client Error: Too many requests - try again later", 429);
+    await expectErrorResponse(
+      res,
+      "Client Error: Too many requests - try again later",
+      429,
+    );
   });
 
   it("should return error for missing parameters", async () => {
@@ -292,7 +296,11 @@ describe("Card SVG GET Endpoint", () => {
     const req = new Request(createRequestUrl(baseUrl, { userId: "542244" }));
 
     const res = await GET(req);
-    await expectErrorResponse(res, "Client Error: Missing parameter: cardType", 400);
+    await expectErrorResponse(
+      res,
+      "Client Error: Missing parameter: cardType",
+      400,
+    );
   });
 
   it("should return error for invalid card type", async () => {
@@ -728,6 +736,10 @@ describe("Card SVG GET Endpoint", () => {
       createRequestUrl(baseUrl, { userId: "123", cardType: "animeStats" }),
     );
     const res = await GET(req);
-    await expectErrorResponse(res, "Server Error: An internal error occurred", 500);
+    await expectErrorResponse(
+      res,
+      "Server Error: An internal error occurred",
+      500,
+    );
   });
 });

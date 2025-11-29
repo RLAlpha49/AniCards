@@ -8,7 +8,7 @@ import type {
   GradientDefinition,
   GradientStop,
 } from "@/lib/types/card";
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   Plus,
   Minus,
@@ -149,10 +149,24 @@ function createDefaultGradient(baseColor: string): GradientDefinition {
     type: "linear",
     angle: 90,
     stops: [
-      { color: baseColor, offset: 0 },
-      { color: adjustColor(baseColor, 30), offset: 100 },
+      { id: generateStopId("default-0"), color: baseColor, offset: 0 },
+      {
+        id: generateStopId("default-1"),
+        color: adjustColor(baseColor, 30),
+        offset: 100,
+      },
     ],
   };
+}
+
+/**
+ * Generates a stable-ish ID for gradient stops for usage as React keys.
+ * The ID is not cryptographically unique but is deterministic per generation.
+ */
+function generateStopId(prefix = "s") {
+  return `${prefix}-${Math.random().toString(36).slice(2, 9)}-${Date.now()
+    .toString(36)
+    .slice(-6)}`;
 }
 
 /**
@@ -236,8 +250,20 @@ function GradientStopEditor({
     const newOffset = Math.min(100, (lastStop?.offset ?? 50) + 25);
     onStopsChange([
       ...stops,
-      { color: lastStop?.color ?? "#888888", offset: newOffset },
+      {
+        id: generateStopId("add"),
+        color: lastStop?.color ?? "#888888",
+        offset: newOffset,
+      },
     ]);
+  }, [stops, onStopsChange]);
+
+  // Ensure all stops have IDs so we can use them as stable React keys.
+  useEffect(() => {
+    const missingId = stops.some((s) => s.id === undefined);
+    if (!missingId) return;
+    const updated = stops.map((s) => ({ ...s, id: s.id ?? generateStopId() }));
+    onStopsChange(updated);
   }, [stops, onStopsChange]);
 
   const removeStop = useCallback(
@@ -298,7 +324,7 @@ function GradientStopEditor({
         <div className="space-y-2">
           {stops.map((stop, index) => (
             <motion.div
-              key={`gradient-stop-${index}`}
+              key={stop.id ?? `gradient-stop-${index}`}
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.2 }}

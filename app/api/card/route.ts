@@ -505,10 +505,13 @@ function generateCategoryCard(
   if (!items || items.length === 0) {
     // Metrics: no category items found for this user -> Not Found
     void trackFailedRequest(baseCardType, 404);
-    return new Response(svgError("Not Found: No category data available for this user"), {
-      headers: errorHeaders(request),
-      status: 404,
-    });
+    return new Response(
+      svgError("Not Found: No category data available for this user"),
+      {
+        headers: errorHeaders(request),
+        status: 404,
+      },
+    );
   }
 
   return extraAnimeMangaStatsTemplate({
@@ -668,10 +671,13 @@ function generateDistributionCard(
   if (!statsList.length) {
     // Metrics: no distribution data -> Not Found
     void trackFailedRequest(baseCardType, 404);
-    return new Response(svgError("Not Found: No distribution data for this user"), {
-      headers: errorHeaders(request),
-      status: 404,
-    });
+    return new Response(
+      svgError("Not Found: No distribution data for this user"),
+      {
+        headers: errorHeaders(request),
+        status: 404,
+      },
+    );
   }
 
   const mappedVariant = (
@@ -766,10 +772,13 @@ function generateCardSVG(
       ? cardConfig.cardName.split("-")[0]
       : undefined;
     void trackFailedRequest(baseCardType, 404);
-    return new Response(svgError("Not Found: Missing card configuration or stats data"), {
-      headers: errorHeaders(request),
-      status: 404,
-    });
+    return new Response(
+      svgError("Not Found: Missing card configuration or stats data"),
+      {
+        headers: errorHeaders(request),
+        status: 404,
+      },
+    );
   }
 
   // Validate that the stored stats contain user statistics
@@ -779,10 +788,13 @@ function generateCardSVG(
   ) {
     // Base card type is available because cardConfig is present
     void trackFailedRequest(cardConfig.cardName.split("-")[0], 404);
-    return new Response(svgError("Not Found: Missing card configuration or stats data"), {
-      headers: errorHeaders(request),
-      status: 404,
-    });
+    return new Response(
+      svgError("Not Found: Missing card configuration or stats data"),
+      {
+        headers: errorHeaders(request),
+        status: 404,
+      },
+    );
   }
 
   const [baseCardType] = cardConfig.cardName.split("-");
@@ -871,10 +883,13 @@ function extractAndValidateParams(
   if (!userId || !cardType) {
     const missingParam = userId ? "cardType" : "userId";
     console.warn(`⚠️ [Card SVG] Missing parameter: ${missingParam}`);
-    return new Response(svgError(`Client Error: Missing parameter: ${missingParam}`), {
-      headers: errorHeaders(request),
-      status: 400,
-    });
+    return new Response(
+      svgError(`Client Error: Missing parameter: ${missingParam}`),
+      {
+        headers: errorHeaders(request),
+        status: 400,
+      },
+    );
   }
 
   // Validate userId format (must be a number)
@@ -1106,10 +1121,13 @@ export async function GET(request: Request) {
   // Rate limiter check
   const rateLimitResponse = await checkRateLimit(ip, "Card SVG", ratelimit);
   if (rateLimitResponse) {
-    return new Response(svgError("Client Error: Too many requests - try again later"), {
-      headers: errorHeaders(request),
-      status: 429,
-    });
+    return new Response(
+      svgError("Client Error: Too many requests - try again later"),
+      {
+        headers: errorHeaders(request),
+        status: 429,
+      },
+    );
   }
 
   console.log(`🚀 [Card SVG] New request from IP: ${ip} - URL: ${request.url}`);
