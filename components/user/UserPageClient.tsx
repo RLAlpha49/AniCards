@@ -137,7 +137,6 @@ export function UserPageClient() {
   const [error, setError] = useState<string | null>(null);
   const [showAllCards, setShowAllCards] = useState(false);
   const pageTimestamp = useMemo(() => Date.now(), []);
-  const isDev = process.env.NODE_ENV !== "production";
 
   useEffect(() => {
     const normalizeCardEntry = (raw: unknown): CardData | null => {
@@ -413,9 +412,7 @@ export function UserPageClient() {
     );
   }
 
-  const cardTimestamp = isDev
-    ? pageTimestamp
-    : (cardsUpdatedAt ?? pageTimestamp);
+  const cardTimestamp = pageTimestamp;
 
   const cardTypes = cards.map((card) => {
     const variation = card.variation || "default";
