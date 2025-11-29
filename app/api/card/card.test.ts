@@ -92,6 +92,7 @@ import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-ma
 import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
 // distributionTemplate may be mocked in tests above; no direct import needed here
 import { POST as storeCardsPOST } from "@/app/api/store-cards/route";
+import { escapeForXml } from "@/lib/utils";
 
 jest.mock("@/lib/utils", () => {
   const actual = jest.requireActual("@/lib/utils");
@@ -255,7 +256,25 @@ async function expectErrorResponse(
   expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
   expect(res.headers.get("Vary")).toBe("Origin");
   const text = await getResponseText(res);
-  expect(text).toContain(expectedError);
+  // Build expected SVG error string exactly as server does and assert equality
+  const escaped = escapeForXml(expectedError);
+  const expectedSvg = `<?xml version="1.0" encoding="UTF-8"?>
+  <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+  <svg width="800" height="400" viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+    <style>
+      .error-text {
+        font-family: monospace;
+        font-size: 20px;
+        fill: #ff5555;
+      }
+    </style>
+    <rect width="100%" height="100%" fill="#1a1a1a"/>
+    <text x="50%" y="50%" class="error-text"
+          text-anchor="middle" dominant-baseline="middle">
+      ${escaped}
+    </text>
+  </svg>`;
+  expect(text).toBe(expectedSvg);
 }
 
 describe("Card SVG GET Endpoint", () => {
@@ -355,7 +374,11 @@ describe("Card SVG GET Endpoint", () => {
       createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
     );
     const res = await GET(req);
-    await expectErrorResponse(res, "Not Found: Card config not found", 404);
+    await expectErrorResponse(
+      res,
+      "Not Found: Card config not found. Try to regenerate the card.",
+      404,
+    );
   });
 
   it("should successfully generate SVG content", async () => {

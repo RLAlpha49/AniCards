@@ -19,6 +19,7 @@ import {
   extractStyles,
   escapeForXml,
   getCardBorderRadius,
+  markTrustedSvg,
 } from "@/lib/utils";
 import {
   UserRecord,
@@ -134,9 +135,9 @@ type PieBarVariant = "default" | "pie" | "bar";
  * @returns SVG markup alerting the caller of a failure.
  * @source
  */
-function svgError(message: string) {
+function svgError(message: string): TrustedSVG {
   const escaped = escapeForXml(message);
-  return `<?xml version="1.0" encoding="UTF-8"?>
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
   <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
   <svg width="800" height="400" viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
     <style>
@@ -152,6 +153,7 @@ function svgError(message: string) {
       ${escaped}
     </text>
   </svg>`;
+  return markTrustedSvg(svg);
 }
 
 /**
@@ -365,10 +367,13 @@ function generateStatsCard(
   if (!recordsStats) {
     // Metrics: missing stats data for this card type -> Not Found
     void trackFailedRequest(cardConfig.cardName.split("-")[0], 404);
-    return new Response(svgError("Not Found: Missing stats data for user"), {
-      headers: errorHeaders(request),
-      status: 404,
-    });
+    return new Response(
+      toCleanSvgResponse(svgError("Not Found: Missing stats data for user")),
+      {
+        headers: errorHeaders(request),
+        status: 404,
+      },
+    );
   }
   let milestoneCount = 0;
   if (mediaType === "anime") {
@@ -506,7 +511,9 @@ function generateCategoryCard(
     // Metrics: no category items found for this user -> Not Found
     void trackFailedRequest(baseCardType, 404);
     return new Response(
-      svgError("Not Found: No category data available for this user"),
+      toCleanSvgResponse(
+        svgError("Not Found: No category data available for this user"),
+      ),
       {
         headers: errorHeaders(request),
         status: 404,
@@ -610,10 +617,13 @@ function generateSimpleListCard(
 
   if (!statsList.length) {
     void trackFailedRequest(baseCardType, 404);
-    return new Response(svgError(`Not Found: ${notFoundMessage}`), {
-      headers: errorHeaders(request),
-      status: 404,
-    });
+    return new Response(
+      toCleanSvgResponse(svgError(`Not Found: ${notFoundMessage}`)),
+      {
+        headers: errorHeaders(request),
+        status: 404,
+      },
+    );
   }
 
   const mappedVariant = (
@@ -672,7 +682,9 @@ function generateDistributionCard(
     // Metrics: no distribution data -> Not Found
     void trackFailedRequest(baseCardType, 404);
     return new Response(
-      svgError("Not Found: No distribution data for this user"),
+      toCleanSvgResponse(
+        svgError("Not Found: No distribution data for this user"),
+      ),
       {
         headers: errorHeaders(request),
         status: 404,
@@ -729,10 +741,13 @@ function generateCountryCard(
   if (!list.length) {
     // Metrics: no country data -> Not Found
     void trackFailedRequest(baseCardType, 404);
-    return new Response(svgError("Not Found: No country data for this user"), {
-      headers: errorHeaders(request),
-      status: 404,
-    });
+    return new Response(
+      toCleanSvgResponse(svgError("Not Found: No country data for this user")),
+      {
+        headers: errorHeaders(request),
+        status: 404,
+      },
+    );
   }
 
   const mappedVariant = (
@@ -773,7 +788,9 @@ function generateCardSVG(
       : undefined;
     void trackFailedRequest(baseCardType, 404);
     return new Response(
-      svgError("Not Found: Missing card configuration or stats data"),
+      toCleanSvgResponse(
+        svgError("Not Found: Missing card configuration or stats data"),
+      ),
       {
         headers: errorHeaders(request),
         status: 404,
@@ -789,7 +806,9 @@ function generateCardSVG(
     // Base card type is available because cardConfig is present
     void trackFailedRequest(cardConfig.cardName.split("-")[0], 404);
     return new Response(
-      svgError("Not Found: Missing card configuration or stats data"),
+      toCleanSvgResponse(
+        svgError("Not Found: Missing card configuration or stats data"),
+      ),
       {
         headers: errorHeaders(request),
         status: 404,
@@ -884,7 +903,9 @@ function extractAndValidateParams(
     const missingParam = userId ? "cardType" : "userId";
     console.warn(`⚠️ [Card SVG] Missing parameter: ${missingParam}`);
     return new Response(
-      svgError(`Client Error: Missing parameter: ${missingParam}`),
+      toCleanSvgResponse(
+        svgError(`Client Error: Missing parameter: ${missingParam}`),
+      ),
       {
         headers: errorHeaders(request),
         status: 400,
@@ -896,20 +917,26 @@ function extractAndValidateParams(
   const numericUserId = Number.parseInt(userId);
   if (Number.isNaN(numericUserId)) {
     console.warn(`⚠️ [Card SVG] Invalid user ID format: ${userId}`);
-    return new Response(svgError("Client Error: Invalid user ID"), {
-      headers: errorHeaders(request),
-      status: 400,
-    });
+    return new Response(
+      toCleanSvgResponse(svgError("Client Error: Invalid user ID")),
+      {
+        headers: errorHeaders(request),
+        status: 400,
+      },
+    );
   }
 
   // Validate cardType against allowed types
   const [baseCardType] = cardType.split("-");
   if (!ALLOWED_CARD_TYPES.has(baseCardType)) {
     console.warn(`⚠️ [Card SVG] Invalid card type: ${cardType}`);
-    return new Response(svgError("Client Error: Invalid card type"), {
-      headers: errorHeaders(request),
-      status: 400,
-    });
+    return new Response(
+      toCleanSvgResponse(svgError("Client Error: Invalid card type")),
+      {
+        headers: errorHeaders(request),
+        status: 400,
+      },
+    );
   }
 
   return {
@@ -994,10 +1021,13 @@ async function fetchUserData(
   ) {
     console.warn(`⚠️ [Card SVG] User ${numericUserId} data not found in Redis`);
     await trackFailedRequest(baseCardType, 404);
-    return new Response(svgError("Not Found: User data not found"), {
-      headers: errorHeaders(request),
-      status: 404,
-    });
+    return new Response(
+      toCleanSvgResponse(svgError("Not Found: User data not found")),
+      {
+        headers: errorHeaders(request),
+        status: 404,
+      },
+    );
   }
 
   const cardDoc: CardsRecord = safeParse<CardsRecord>(cardsDataStr);
@@ -1038,7 +1068,11 @@ function processCardConfig(
       `⚠️ [Card SVG] Card config for ${cardType} not found for user ${numericUserId}`,
     );
     return new Response(
-      svgError("Not Found: Card config not found. Try to regenerate the card."),
+      toCleanSvgResponse(
+        svgError(
+          "Not Found: Card config not found. Try to regenerate the card.",
+        ),
+      ),
       {
         headers: errorHeaders(request),
         status: 404,
@@ -1122,7 +1156,9 @@ export async function GET(request: Request) {
   const rateLimitResponse = await checkRateLimit(ip, "Card SVG", ratelimit);
   if (rateLimitResponse) {
     return new Response(
-      svgError("Client Error: Too many requests - try again later"),
+      toCleanSvgResponse(
+        svgError("Client Error: Too many requests - try again later"),
+      ),
       {
         headers: errorHeaders(request),
         status: 429,
@@ -1223,9 +1259,12 @@ export async function GET(request: Request) {
 
     await trackFailedRequest(params.baseCardType, 500);
 
-    return new Response(svgError("Server Error: An internal error occurred"), {
-      headers: errorHeaders(request),
-      status: 500,
-    });
+    return new Response(
+      toCleanSvgResponse(svgError("Server Error: An internal error occurred")),
+      {
+        headers: errorHeaders(request),
+        status: 500,
+      },
+    );
   }
 }
