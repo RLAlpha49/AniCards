@@ -6,7 +6,7 @@ import {
   trackExternalLinkClick,
   safeTrack,
 } from "@/lib/utils/google-analytics";
-import { Mail, Heart, ExternalLink, Scale } from "lucide-react";
+import { Mail, ExternalLink, Scale } from "lucide-react";
 import {
   SimpleAniListIcon,
   SimpleDiscordIcon,
@@ -73,20 +73,6 @@ export default function Footer() {
         <div className="flex flex-col items-center gap-8 md:flex-row md:justify-between">
           {/* Brand & Copyright */}
           <div className="flex flex-col items-center gap-4 md:items-start">
-            {/* Logo */}
-            <Link href="/" className="group flex items-center gap-2">
-              <motion.div
-                className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500"
-                whileHover={{ scale: 1.05, rotate: 5 }}
-                transition={{ type: "spring", stiffness: 400, damping: 17 }}
-              >
-                <Heart className="h-4 w-4 text-white" />
-              </motion.div>
-              <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-lg font-bold text-transparent">
-                AniCards
-              </span>
-            </Link>
-
             {/* Copyright & License */}
             <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-400 md:justify-start">
               <span>&copy; {new Date().getFullYear()} RLAlpha49</span>
