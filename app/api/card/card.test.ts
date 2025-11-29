@@ -680,6 +680,7 @@ describe("Card SVG GET Endpoint", () => {
     expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
       "https://anilist.co",
     );
+    expect(res.headers.get("Access-Control-Allow-Origin")).not.toBe("*");
 
     // restore env
     (process.env as Record<string, string | undefined>)["NODE_ENV"] =

@@ -149,22 +149,29 @@ function normalizeOrigin(value: string | null | undefined): string | null {
  * @param request - Optional Request used to extract the request origin in development.
  */
 export function getAllowedCardSvgOrigin(request?: Request): string {
-  // Use the configured override first when present
-  const configured = normalizeOrigin(
-    process.env.NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN,
-  );
-  if (configured) return configured;
+  const rawConfigured = process.env.NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN;
+  const configured = normalizeOrigin(rawConfigured);
 
-  // In production, fall back to AniList origin
-  if (process.env.NODE_ENV === "production") return "https://anilist.co";
+  let origin: string | undefined;
 
-  // Prefer request origin in development to make local testing safe and predictable
-  const requestOrigin = request?.headers?.get("origin");
-  const requestNormalized = normalizeOrigin(requestOrigin);
-  if (requestNormalized) return requestNormalized;
+  if (configured) {
+    origin = configured;
+  } else if (process.env.NODE_ENV === "production") {
+    origin = "https://anilist.co";
+  } else {
+    const requestOrigin = request?.headers?.get("origin");
+    const requestNormalized = normalizeOrigin(requestOrigin);
+    origin = requestNormalized ?? "*";
+  }
 
-  // As a last resort for dev or unknown contexts, allow any origin to simplify local testing
-  return "*";
+  if (process.env.NODE_ENV === "production" && origin === "*") {
+    console.warn(
+      "[Card CORS] Computed Access-Control-Allow-Origin is '*' in production; forcing to https://anilist.co",
+    );
+    origin = "https://anilist.co";
+  }
+
+  return origin;
 }
 
 /**
