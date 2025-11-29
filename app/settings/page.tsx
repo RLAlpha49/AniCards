@@ -1,11 +1,10 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useUserPreferences, useCardSettings, useCache } from "@/lib/stores";
 import { ThemePreferences } from "@/components/settings/ThemePreferences";
-import { CacheManagement } from "@/components/settings/CacheManagement";
 import { DefaultCardSettings } from "@/components/settings/DefaultCardSettings";
 import { ResetSettings } from "@/components/settings/ResetSettings";
 import { DefaultUsernameSettings } from "@/components/settings/DefaultUsername";
@@ -56,19 +55,7 @@ export default function SettingsPage() {
     resetCardSettings,
   } = useCardSettings();
 
-  const {
-    getCacheItems,
-    clearAllCache,
-    deleteCacheItem,
-    cacheVersion,
-    incrementCacheVersion,
-  } = useCache();
-
-  // Compute cached items from store
-  const cachedItems = useMemo(
-    () => getCacheItems(),
-    [cacheVersion, getCacheItems],
-  );
+  const { clearAllCache, incrementCacheVersion } = useCache();
 
   // Listen for local storage changes from other tabs
   useEffect(() => {
@@ -100,29 +87,12 @@ export default function SettingsPage() {
   };
 
   /**
-   * Clear cached site data.
-   * @source
-   */
-  const handleClearCache = () => {
-    clearAllCache();
-  };
-
-  /**
    * Toggle inclusion of a stat card type in the default selection.
    * @param cardType - Identifier that represents the stat card.
    * @source
    */
   const handleCardTypeToggle = (cardType: string) => {
     toggleCardType(cardType);
-  };
-
-  /**
-   * Remove a cached entry for a specific key.
-   * @param key - Cache suffix used in localStorage under the "anicards-" namespace.
-   * @source
-   */
-  const handleDeleteCacheItem = (key: string) => {
-    deleteCacheItem(key);
   };
 
   /**
