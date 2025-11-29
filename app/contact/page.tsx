@@ -228,7 +228,7 @@ export default function ContactPage() {
               initial={{ opacity: 0 }}
               whileInView={{ opacity: 1 }}
               viewport={{ once: true }}
-              transition={{ delay: 0.4 }}
+              transition={{ delay: 0.2 }}
               className="mt-12 text-center"
             >
               <div className="inline-flex items-center gap-3 rounded-2xl border border-slate-200/50 bg-white/50 px-6 py-4 backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-800/50">
