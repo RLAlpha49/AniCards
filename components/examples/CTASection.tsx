@@ -43,14 +43,6 @@ export function CTASection({ onOpenGenerator }: Readonly<CTASectionProps>) {
         className:
           "group h-14 min-w-[220px] rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-lg font-semibold shadow-lg shadow-purple-500/25 transition-all hover:scale-105 hover:shadow-xl hover:shadow-purple-500/30",
       }}
-      secondary={{
-        label: "Browse User Cards",
-        href: "/search",
-        asChild: true,
-        variant: "outline",
-        className:
-          "h-14 min-w-[180px] rounded-full border-2 text-lg font-medium",
-      }}
       className="pb-16 lg:pb-24"
     />
   );

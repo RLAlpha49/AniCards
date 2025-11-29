@@ -135,9 +135,9 @@ export function ExamplesHeroSection({
 
           <motion.p
             variants={itemVariants}
-            className="mb-12 max-w-2xl text-lg text-slate-600 dark:text-slate-300 sm:text-xl"
+            className="mb-12 mx-auto max-w-2xl text-lg text-slate-600 dark:text-slate-300 sm:text-xl"
           >
-            Browse our complete collection of statistical visualizations. All
+            Browse the complete collection of statistical visualizations. All
             examples are generated in real-time using data from{" "}
             <a
               href="https://anilist.co/user/Alpha49"
@@ -146,7 +146,7 @@ export function ExamplesHeroSection({
               className="font-semibold text-blue-600 transition-colors hover:text-blue-700 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
             >
               @Alpha49
-            </a>{" "}
+            </a>{""}
             .
           </motion.p>
 
