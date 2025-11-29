@@ -1,5 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Download, Link, Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import {
@@ -13,6 +13,7 @@ import {
   cn,
   getAbsoluteUrl,
   DEFAULT_CARD_BORDER_RADIUS,
+  getSvgBorderRadius,
   type ConversionFormat,
 } from "@/lib/utils";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
@@ -42,6 +43,7 @@ const downloadFormatOptions: ReadonlyArray<{
 interface CardProps {
   type: string;
   svgUrl: string;
+  borderRadius?: number;
 }
 
 /**
@@ -52,18 +54,26 @@ interface CardProps {
  * @returns JSX element that displays the card preview and actions.
  * @source
  */
-export function Card({ type, svgUrl }: Readonly<CardProps>) {
+export function Card({ type, svgUrl, borderRadius }: Readonly<CardProps>) {
   const [copied, setCopied] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [cardBorderRadius, setCardBorderRadius] = useState(
-    DEFAULT_CARD_BORDER_RADIUS,
+    borderRadius ?? DEFAULT_CARD_BORDER_RADIUS,
   );
 
-  // Add cache-busting timestamp to force SVG reload
-  const cacheBustedSvgUrl = `${svgUrl}${svgUrl.includes("?") ? "&" : "?"}_t=${Date.now()}`;
+  // Add cache-busting timestamp to force SVG reload. Prefer a timestamp provided
+  // in the svgUrl (via `_t=`) and fall back to a local per-instance timestamp.
+  const cacheBustedSvgUrl = useMemo(() => {
+    if (svgUrl.includes("_t=")) return svgUrl;
+    return `${svgUrl}${svgUrl.includes("?") ? "&" : "?"}_t=${Date.now()}`;
+  }, [svgUrl]);
 
   useEffect(() => {
     if (!svgUrl) {
+      return undefined;
+    }
+    if (typeof borderRadius === "number") {
+      // We have a configured border radius, no need to fetch the SVG.
       return undefined;
     }
 
@@ -71,30 +81,8 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
 
     const fetchBorderRadius = async () => {
       try {
-        const absoluteUrl = getAbsoluteUrl(svgUrl);
-        const response = await fetch(absoluteUrl, { cache: "no-cache" });
-        if (!response.ok) {
-          return;
-        }
-
-        const svgText = await response.text();
-        if (isCancelled) return;
-
-        const match = new RegExp(
-          /<rect[^>]*data-testid=["']card-bg["'][^>]*rx=["'](\d+(?:\.\d+)?)["']/i,
-        ).exec(svgText);
-        if (!match) {
-          return;
-        }
-
-        const parsed = Number.parseFloat(match[1]);
-        if (!Number.isFinite(parsed)) {
-          return;
-        }
-
-        if (!isCancelled) {
-          setCardBorderRadius(parsed);
-        }
+        const parsed = await getSvgBorderRadius(cacheBustedSvgUrl);
+        if (parsed !== null && !isCancelled) setCardBorderRadius(parsed);
       } catch (error) {
         console.error("Unable to determine card border radius", error);
       }
@@ -105,7 +93,7 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
     return () => {
       isCancelled = true;
     };
-  }, [svgUrl]);
+  }, [svgUrl, borderRadius, cacheBustedSvgUrl]);
 
   /**
    * Convert the currently displayed SVG to a PNG URL and trigger a browser download.
@@ -113,7 +101,7 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
    * @source
    */
   const handleDownload = async (fmt: ConversionFormat = "png") => {
-    const url = await svgToPng(svgUrl, fmt);
+    const url = await svgToPng(cacheBustedSvgUrl, fmt);
     const link = document.createElement("a");
     link.href = url;
     link.download = `${type}.${fmt}`;
@@ -139,12 +127,12 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
    * Absolute URL for the displayed SVG (suitable for sharing/copying).
    * @source
    */
-  const svgLink = getAbsoluteUrl(svgUrl);
+  const svgLink = getAbsoluteUrl(cacheBustedSvgUrl);
   /**
    * AniList bio format (img150) using the absolute SVG URL.
    * @source
    */
-  const anilistBioLink = `img150(${getAbsoluteUrl(svgUrl)})`;
+  const anilistBioLink = `img150(${getAbsoluteUrl(cacheBustedSvgUrl)})`;
 
   return (
     <motion.div
@@ -165,7 +153,7 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
         <div className="flex-1 p-5">
           <div
             className="relative overflow-hidden rounded-xl bg-slate-100/50 dark:bg-slate-900/50"
-            style={{ aspectRatio: "auto", borderRadius: cardBorderRadius }}
+            style={{ aspectRatio: "auto", borderRadius: cardBorderRadius - 2 }}
           >
             <img
               src={cacheBustedSvgUrl || "/placeholder.svg"}
@@ -176,7 +164,7 @@ export function Card({ type, svgUrl }: Readonly<CardProps>) {
                 width: "100%",
                 height: "auto",
                 maxWidth: "400px",
-                borderRadius: cardBorderRadius,
+                borderRadius: cardBorderRadius - 2,
               }}
               onLoad={() => setIsLoading(false)}
               onError={() => setIsLoading(false)}

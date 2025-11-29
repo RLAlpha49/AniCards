@@ -1,6 +1,6 @@
 "use client";
 
-import { Card } from "@/components/user/Card";
+import { Card } from "@/components/user/UserCard";
 import { Button } from "@/components/ui/Button";
 import { LoadingOverlay } from "@/components/LoadingSpinner";
 import { useState } from "react";

@@ -9,13 +9,67 @@ import type {
 import type { TrustedSVG } from "@/lib/types/svg";
 import JSZip from "jszip";
 
-// Utility functions for common application needs.
-// These helpers assist in merging class names, performing clipboard operations,
-// converting SVG to various image formats, calculating dynamic font sizes, formatting bytes, and safely parsing JSON data.
-
 export const DEFAULT_CARD_BORDER_RADIUS = 8;
 const BORDER_RADIUS_MIN = 0;
 const BORDER_RADIUS_MAX = 100;
+
+const _borderRadiusPromiseCache = new Map<string, Promise<number | null>>();
+
+type GlobalWithCache = typeof globalThis & {
+  __ANICARDS__borderRadiusCache?: Map<string, Promise<number | null>>;
+};
+
+/**
+ * Extracts a card border radius from a remote SVG by fetching and parsing
+ * the <rect data-testid="card-bg" rx="..."> attribute. Results are
+ * memoized by absolute URL to avoid duplicate requests across instances.
+ */
+export function getSvgBorderRadius(svgUrl: string): Promise<number | null> {
+  const absoluteUrl = getAbsoluteUrl(svgUrl);
+  // Prefer a global cache (persisted across HMR) but fall back to the
+  // module-level cache otherwise.
+  const g = globalThis as GlobalWithCache;
+  const cache =
+    g.__ANICARDS__borderRadiusCache ??
+    (g.__ANICARDS__borderRadiusCache = _borderRadiusPromiseCache);
+
+  let promise = cache.get(absoluteUrl);
+  if (!promise) {
+    promise = (async () => {
+      // Try a lightweight HEAD request first to read the X-Card-Border-Radius header.
+      try {
+        const headRes = await fetch(absoluteUrl, { method: "HEAD" });
+        if (headRes.ok) {
+          const headerVal = headRes.headers.get("x-card-border-radius");
+          if (headerVal) {
+            const parsedFromHeader = Number.parseFloat(headerVal);
+            if (Number.isFinite(parsedFromHeader)) return parsedFromHeader;
+          }
+        }
+      } catch {}
+
+      // Fallback: fetch the full SVG and parse the rx from the <rect> element.
+      try {
+        const res = await fetch(absoluteUrl);
+        if (!res.ok) return null;
+        const text = await res.text();
+        const match = new RegExp(
+          /<rect[^>]*data-testid=["']card-bg["'][^>]*rx=["'](\d+(?:\.\d+)?)['"]/i,
+        ).exec(text);
+        if (!match) return null;
+        const parsed = Number.parseFloat(match[1]);
+        if (!Number.isFinite(parsed)) return null;
+        return parsed;
+      } catch (err) {
+        // Remove the cached promise on error so subsequent attempts can retry.
+        cache.delete(absoluteUrl);
+        throw err;
+      }
+    })();
+    cache.set(absoluteUrl, promise);
+  }
+  return promise;
+}
 
 /** Export formats supported for image conversion. @source */
 export type ConversionFormat = "png" | "webp";
@@ -47,8 +101,6 @@ export interface BatchConversionProgress {
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
-
-// ==================== Gradient Utilities ====================
 
 /**
  * Type guard to check if a color value is a gradient definition.

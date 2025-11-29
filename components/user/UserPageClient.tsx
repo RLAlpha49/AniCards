@@ -16,11 +16,11 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { FloatingCardsLayer } from "@/components/FloatingCardsLayer";
-import { getAbsoluteUrl } from "@/lib/utils";
+import { getAbsoluteUrl, getCardBorderRadius } from "@/lib/utils";
 
 /**
  * Basic user identity returned from the API.
@@ -46,6 +46,7 @@ interface CardData {
   variation?: string;
   useStatusColors?: boolean;
   showPiePercentages?: boolean;
+  borderRadius?: number;
 }
 
 /**
@@ -131,9 +132,12 @@ export function UserPageClient() {
   const searchParams = useSearchParams();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [cards, setCards] = useState<CardData[]>([]);
+  const [cardsUpdatedAt, setCardsUpdatedAt] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAllCards, setShowAllCards] = useState(false);
+  const pageTimestamp = useMemo(() => Date.now(), []);
+  const isDev = process.env.NODE_ENV !== "production";
 
   useEffect(() => {
     const normalizeCardEntry = (raw: unknown): CardData | null => {
@@ -150,6 +154,10 @@ export function UserPageClient() {
         showPiePercentages:
           typeof r.showPiePercentages === "boolean"
             ? r.showPiePercentages
+            : undefined,
+        borderRadius:
+          typeof r.borderRadius === "number" && Number.isFinite(r.borderRadius)
+            ? r.borderRadius
             : undefined,
       };
     };
@@ -252,6 +260,7 @@ export function UserPageClient() {
         if (cardsParam) {
           try {
             resolvedCards = parseAndValidateCards(cardsParam);
+            setCardsUpdatedAt(Date.now());
           } catch (error_) {
             console.error("Failed to parse cards parameter:", error_);
             setError("Invalid card configuration. Please try again.");
@@ -300,6 +309,15 @@ export function UserPageClient() {
             username: (userResult as ApiUser).username || undefined,
           };
           const rawCards = (cardsResult as ApiCards).cards || [];
+          const updatedAtStr = (
+            cardsResult as ApiCards & { updatedAt?: string }
+          ).updatedAt;
+          const parsedUpdatedAt = updatedAtStr
+            ? Date.parse(updatedAtStr)
+            : Number.NaN;
+          setCardsUpdatedAt(
+            Number.isFinite(parsedUpdatedAt) ? parsedUpdatedAt : Date.now(),
+          );
           // Minimal validation: ensure every card entry has a cardName string.
           resolvedCards = rawCards
             .map(normalizeCardEntry)
@@ -328,6 +346,15 @@ export function UserPageClient() {
               return;
             }
             const rawCards2 = (cardsResult as ApiCards).cards || [];
+            const updatedAtStr3 = (
+              cardsResult as ApiCards & { updatedAt?: string }
+            ).updatedAt;
+            const parsedUpdatedAt3 = updatedAtStr3
+              ? Date.parse(updatedAtStr3)
+              : Number.NaN;
+            setCardsUpdatedAt(
+              Number.isFinite(parsedUpdatedAt3) ? parsedUpdatedAt3 : Date.now(),
+            );
             resolvedCards = rawCards2
               .map(normalizeCardEntry)
               .filter(Boolean) as CardData[];
@@ -386,7 +413,10 @@ export function UserPageClient() {
     );
   }
 
-  // Transform card data into format suitable for CardList component
+  const cardTimestamp = isDev
+    ? pageTimestamp
+    : (cardsUpdatedAt ?? pageTimestamp);
+
   const cardTypes = cards.map((card) => {
     const variation = card.variation || "default";
     const displayName = displayNames[card.cardName] || card.cardName;
@@ -418,10 +448,13 @@ export function UserPageClient() {
       .join("&");
     const svgUrlBase = `/api/card.svg?cardType=${card.cardName}&userId=${userData?.userId}&variation=${variation}`;
     const svgUrl = extraParams ? `${svgUrlBase}&${extraParams}` : svgUrlBase;
+    const urlWithTimestamp = `${svgUrl}${svgUrl.includes("?") ? "&" : "?"}_t=${cardTimestamp}`;
+    const cardBorderRadiusValue = getCardBorderRadius(card.borderRadius);
     return {
       type: displayName,
-      svgUrl,
+      svgUrl: urlWithTimestamp,
       rawType: card.cardName,
+      borderRadius: cardBorderRadiusValue,
     };
   });
 

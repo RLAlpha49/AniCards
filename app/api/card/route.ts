@@ -13,7 +13,12 @@ import { calculateMilestones } from "@/lib/utils/milestones";
 import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
 import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats";
 import { distributionTemplate } from "@/lib/svg-templates/distribution";
-import { safeParse, extractStyles, escapeForXml } from "@/lib/utils";
+import {
+  safeParse,
+  extractStyles,
+  escapeForXml,
+  getCardBorderRadius,
+} from "@/lib/utils";
 import {
   UserRecord,
   CardsRecord,
@@ -1160,8 +1165,15 @@ export async function GET(request: Request) {
 
     const cleaned = toCleanSvgResponse(svgContent);
 
+    // Include header for border radius so clients can read via HEAD requests
+    const headerRadius = getCardBorderRadius(cardConfig.borderRadius);
+    const responseHeaders = {
+      ...svgHeaders(request),
+      "X-Card-Border-Radius": String(headerRadius),
+    } as Record<string, string>;
+
     return new Response(cleaned, {
-      headers: svgHeaders(request),
+      headers: responseHeaders,
     });
   } catch (error: unknown) {
     const duration = Date.now() - startTime;
