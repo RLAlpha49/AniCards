@@ -51,6 +51,7 @@ jest.mock("@upstash/ratelimit", () => {
 process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
 
 import { POST } from "./route";
+import { Ratelimit as RatelimitMock } from "@upstash/ratelimit";
 
 /**
  * Verifies the store-cards POST endpoint across rate limit, validation, and persistence scenarios.
@@ -67,6 +68,23 @@ describe("Store Cards API POST Endpoint", () => {
 
   beforeEach(() => {
     mockRedisGet.mockResolvedValue(null);
+  });
+
+  it("should construct default shared rate limiter with 10/5s", async () => {
+    // Trigger the POST handler to ensure initializeApiRequest invokes the shared rate limiter
+    mockLimit.mockResolvedValueOnce({ success: true });
+    mockRedisGet.mockResolvedValueOnce(null);
+    const req = new Request("http://localhost/api/store-cards", {
+      method: "POST",
+      headers: {
+        "x-forwarded-for": "127.0.0.1",
+        origin: "http://localhost",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ userId: 1, statsData: {}, cards: [] }),
+    });
+    await POST(req);
+    expect(RatelimitMock.slidingWindow).toHaveBeenCalledWith(10, "5 s");
   });
 
   /**

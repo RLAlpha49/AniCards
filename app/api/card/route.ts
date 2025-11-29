@@ -1,8 +1,9 @@
-import { Ratelimit } from "@upstash/ratelimit";
 import {
   redisClient,
   incrementAnalytics,
   getAllowedCardSvgOrigin,
+  createRateLimiter,
+  checkRateLimit,
 } from "@/lib/api-utils";
 import {
   SocialStats,
@@ -33,10 +34,7 @@ import { toCleanSvgResponse, type TrustedSVG } from "@/lib/types/svg";
  * Limits card SVG generation to 150 requests per 10 seconds per IP.
  * @source
  */
-const ratelimit = new Ratelimit({
-  redis: redisClient,
-  limiter: Ratelimit.slidingWindow(150, "10 s"),
-});
+const ratelimit = createRateLimiter({ limit: 150, window: "10 s" });
 
 /**
  * Allowed base card types that can be requested via the SVG API.
@@ -1086,10 +1084,8 @@ export async function GET(request: Request) {
   const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
 
   // Rate limiter check
-  const { success } = await ratelimit.limit(ip);
-  if (!success) {
-    console.warn(`🚨 [Card SVG] Rate limit exceeded for IP: ${ip}`);
-    await trackFailedRequest(undefined, 429);
+  const rateLimitResponse = await checkRateLimit(ip, "Card SVG", ratelimit);
+  if (rateLimitResponse) {
     return new Response(svgError("Too many requests - try again later"), {
       headers: errorHeaders(request),
       status: 429,

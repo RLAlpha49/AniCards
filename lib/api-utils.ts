@@ -126,6 +126,30 @@ export const ratelimit: Ratelimit = new Proxy({} as Record<string, unknown>, {
 }) as unknown as Ratelimit;
 
 /**
+ * Creates a new Upstash Ratelimit instance using the shared Redis client.
+ * Allows per-endpoint overrides for window/limit settings.
+ * @param options.limit - Maximum number of requests allowed per window
+ * @param options.window - Duration string (e.g. "10 s", "1 m")
+ * @returns A configured Ratelimit instance ready to be used for limiting
+ */
+export function createRateLimiter(options?: {
+  limit?: number;
+  window?: Parameters<typeof Ratelimit.slidingWindow>[1];
+  redis?: Redis;
+}): Ratelimit {
+  const limit = options?.limit ?? 10;
+  const window = options?.window ?? ("5 s" as Parameters<
+    typeof Ratelimit.slidingWindow
+  >[1]);
+  const redis = options?.redis ?? createRealRedisClient();
+
+  return new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(limit, window),
+  });
+}
+
+/**
  * Standardized API error response shape returned from API routes.
  * @source
  */
@@ -185,8 +209,10 @@ export function getAllowedCardSvgOrigin(request?: Request): string {
 export async function checkRateLimit(
   ip: string,
   endpoint: string,
+  limiter?: Ratelimit,
 ): Promise<NextResponse<ApiError> | null> {
-  const { success } = await ratelimit.limit(ip);
+  const effectiveLimiter = limiter ?? ratelimit;
+  const { success } = await effectiveLimiter.limit(ip);
   if (!success) {
     console.warn(`🚨 [${endpoint}] Rate limited IP: ${ip}`);
     await incrementAnalytics(

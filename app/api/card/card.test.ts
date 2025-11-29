@@ -37,6 +37,7 @@ jest.mock("@upstash/redis", () => ({
 }));
 
 import { GET } from "./route";
+import { Ratelimit as RatelimitMock } from "@upstash/ratelimit";
 
 // --- Mocks for external dependencies --- //
 jest.mock("@upstash/ratelimit", () => {
@@ -268,6 +269,11 @@ describe("Card SVG GET Endpoint", () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+  });
+
+  it("should construct card-specific rate limiter with 150/10s", async () => {
+    // The route module creates a per-endpoint limiter with these settings using the factory
+    expect(RatelimitMock.slidingWindow).toHaveBeenCalledWith(150, "10 s");
   });
 
   it("should return rate limit error when limit exceeded", async () => {
