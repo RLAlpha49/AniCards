@@ -284,7 +284,7 @@ describe("Card SVG GET Endpoint", () => {
     const req = new Request(createRequestUrl(baseUrl, { userId: "542244" }));
 
     const res = await GET(req);
-    await expectErrorResponse(res, "Too many requests - try again later", 429);
+    await expectErrorResponse(res, "Client Error: Too many requests - try again later", 429);
   });
 
   it("should return error for missing parameters", async () => {
@@ -292,7 +292,7 @@ describe("Card SVG GET Endpoint", () => {
     const req = new Request(createRequestUrl(baseUrl, { userId: "542244" }));
 
     const res = await GET(req);
-    await expectErrorResponse(res, "Missing parameters", 400);
+    await expectErrorResponse(res, "Client Error: Missing parameter: cardType", 400);
   });
 
   it("should return error for invalid card type", async () => {
@@ -302,7 +302,7 @@ describe("Card SVG GET Endpoint", () => {
     );
 
     const res = await GET(req);
-    await expectErrorResponse(res, "Invalid card type", 400);
+    await expectErrorResponse(res, "Client Error: Invalid card type", 400);
   });
 
   it("should return error for invalid user ID format", async () => {
@@ -311,7 +311,7 @@ describe("Card SVG GET Endpoint", () => {
       createRequestUrl(baseUrl, { userId: "abc", cardType: "animeStats" }),
     );
     const res = await GET(req);
-    await expectErrorResponse(res, "Invalid user ID", 400);
+    await expectErrorResponse(res, "Client Error: Invalid user ID", 400);
   });
 
   it("should return error if user data is not found in Redis", async () => {
@@ -323,7 +323,7 @@ describe("Card SVG GET Endpoint", () => {
       createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
     );
     const res = await GET(req);
-    await expectErrorResponse(res, "User data not found", 404);
+    await expectErrorResponse(res, "Not Found: User data not found", 404);
   });
 
   it("should return error when card config is not found", async () => {
@@ -349,7 +349,7 @@ describe("Card SVG GET Endpoint", () => {
       createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
     );
     const res = await GET(req);
-    await expectErrorResponse(res, "Card config not found", 404);
+    await expectErrorResponse(res, "Not Found: Card config not found", 404);
   });
 
   it("should successfully generate SVG content", async () => {
@@ -716,7 +716,7 @@ describe("Card SVG GET Endpoint", () => {
     const res = await GET(req);
     await expectErrorResponse(
       res,
-      "Missing card configuration or stats data",
+      "Not Found: Missing card configuration or stats data",
       404,
     );
   });
@@ -728,6 +728,6 @@ describe("Card SVG GET Endpoint", () => {
       createRequestUrl(baseUrl, { userId: "123", cardType: "animeStats" }),
     );
     const res = await GET(req);
-    await expectErrorResponse(res, "Server Error", 500);
+    await expectErrorResponse(res, "Server Error: An internal error occurred", 500);
   });
 });
