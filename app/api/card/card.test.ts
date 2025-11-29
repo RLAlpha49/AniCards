@@ -621,7 +621,9 @@ describe("Card SVG GET Endpoint", () => {
       { headers: { origin: "http://example.dev" } },
     );
     const res = await GET(req);
-    expect(res.headers.get("Access-Control-Allow-Origin")).toBe("http://example.dev");
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
+      "http://example.dev",
+    );
   });
 
   it("should use configured NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN when set (overrides request origin)", async () => {
@@ -643,7 +645,9 @@ describe("Card SVG GET Endpoint", () => {
       { headers: { origin: "http://ignored-origin" } },
     );
     const res = await GET(req);
-    expect(res.headers.get("Access-Control-Allow-Origin")).toBe("https://configured.example");
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
+      "https://configured.example",
+    );
     // restore
     (process.env as Record<string, string | undefined>)[
       "NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN"
@@ -673,7 +677,9 @@ describe("Card SVG GET Endpoint", () => {
       { headers: { origin: "http://localhost:3000" } },
     );
     const res = await GET(req);
-    expect(res.headers.get("Access-Control-Allow-Origin")).toBe("https://anilist.co");
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
+      "https://anilist.co",
+    );
 
     // restore env
     (process.env as Record<string, string | undefined>)["NODE_ENV"] =

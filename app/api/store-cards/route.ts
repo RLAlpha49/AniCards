@@ -96,6 +96,15 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     // Process incoming cards: update existing or add new ones
     for (const card of incomingCards as StoredCardConfig[]) {
+      const previous = existingCardsMap.get(card.cardName);
+      const incomingRadius = Number.isFinite(card.borderRadius as number)
+        ? (card.borderRadius as number)
+        : undefined;
+      const previousRadius = Number.isFinite(previous?.borderRadius as number)
+        ? (previous!.borderRadius as number)
+        : undefined;
+      const effectiveRadius = incomingRadius ?? previousRadius;
+
       existingCardsMap.set(card.cardName, {
         cardName: card.cardName,
         variation: card.variation,
@@ -105,9 +114,9 @@ export async function POST(request: Request): Promise<NextResponse> {
         circleColor: card.circleColor,
         borderColor: card.borderColor,
         borderRadius:
-          typeof card.borderRadius === "number"
-            ? clampBorderRadius(card.borderRadius)
-            : card.borderRadius,
+          typeof effectiveRadius === "number"
+            ? clampBorderRadius(effectiveRadius)
+            : (previous?.borderRadius ?? card.borderRadius),
         showFavorites: card.showFavorites,
         useStatusColors: card.useStatusColors,
         showPiePercentages: card.showPiePercentages,

@@ -1,5 +1,9 @@
 import { Ratelimit } from "@upstash/ratelimit";
-import { redisClient, incrementAnalytics, getAllowedCardSvgOrigin } from "@/lib/api-utils";
+import {
+  redisClient,
+  incrementAnalytics,
+  getAllowedCardSvgOrigin,
+} from "@/lib/api-utils";
 import {
   SocialStats,
   AnimeStats as TemplateAnimeStats,
@@ -400,7 +404,10 @@ function generateStatsCard(
  * @returns Serialized SVG string for the social stats card.
  * @source
  */
-function generateSocialStatsCard(params: CardGenerationParams, request?: Request): TrustedSVG {
+function generateSocialStatsCard(
+  params: CardGenerationParams,
+  request?: Request,
+): TrustedSVG {
   const { cardConfig, userRecord, variant } = params;
 
   return socialStatsTemplate({
