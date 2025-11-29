@@ -5,7 +5,6 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import DarkModeToggle from "@/components/DarkModeToggle";
 import { SidebarTrigger } from "@/components/ui/Sidebar";
-import { Sparkles } from "lucide-react";
 
 /**
  * Application header that anchors to the top of the viewport.
@@ -44,17 +43,6 @@ export default function Header() {
           </motion.div>
 
           <Link href="/" className="group flex items-center gap-2.5">
-            {/* Logo icon */}
-            <motion.div
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg shadow-purple-500/20 transition-shadow group-hover:shadow-xl group-hover:shadow-purple-500/30"
-              whileHover={{ scale: 1.05, rotate: 5 }}
-              whileTap={{ scale: 0.95 }}
-              transition={{ type: "spring", stiffness: 400, damping: 17 }}
-            >
-              <Sparkles className="h-5 w-5 text-white" />
-            </motion.div>
-
-            {/* Logo text */}
             <motion.span
               className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-xl font-extrabold tracking-tight text-transparent"
               whileHover={{ scale: 1.02 }}
