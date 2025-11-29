@@ -92,6 +92,21 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+
+  /**
+   * Rewrites preserve the public path `/api/card.svg` while allowing the
+   * server-side implementation to live under `/api/card` for a cleaner
+   * filesystem layout. This keeps all external links unchanged while
+   * removing the unusual folder name that embeds a file extension.
+   */
+  async rewrites() {
+    return [
+      {
+        source: "/api/card.svg",
+        destination: "/api/card",
+      },
+    ];
+  },
 };
 
 export default nextConfig;

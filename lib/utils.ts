@@ -6,15 +6,70 @@ import type {
   ColorValue,
   GradientDefinition,
 } from "@/lib/types/card";
+import type { TrustedSVG } from "@/lib/types/svg";
 import JSZip from "jszip";
-
-// Utility functions for common application needs.
-// These helpers assist in merging class names, performing clipboard operations,
-// converting SVG to various image formats, calculating dynamic font sizes, formatting bytes, and safely parsing JSON data.
 
 export const DEFAULT_CARD_BORDER_RADIUS = 8;
 const BORDER_RADIUS_MIN = 0;
-const BORDER_RADIUS_MAX = 50;
+const BORDER_RADIUS_MAX = 100;
+
+const _borderRadiusPromiseCache = new Map<string, Promise<number | null>>();
+
+type GlobalWithCache = typeof globalThis & {
+  __ANICARDS__borderRadiusCache?: Map<string, Promise<number | null>>;
+};
+
+/**
+ * Extracts a card border radius from a remote SVG by fetching and parsing
+ * the <rect data-testid="card-bg" rx="..."> attribute. Results are
+ * memoized by absolute URL to avoid duplicate requests across instances.
+ */
+export function getSvgBorderRadius(svgUrl: string): Promise<number | null> {
+  const absoluteUrl = getAbsoluteUrl(svgUrl);
+  // Prefer a global cache (persisted across HMR) but fall back to the
+  // module-level cache otherwise.
+  const g = globalThis as GlobalWithCache;
+  const cache =
+    g.__ANICARDS__borderRadiusCache ??
+    (g.__ANICARDS__borderRadiusCache = _borderRadiusPromiseCache);
+
+  let promise = cache.get(absoluteUrl);
+  if (!promise) {
+    promise = (async () => {
+      // Try a lightweight HEAD request first to read the X-Card-Border-Radius header.
+      try {
+        const headRes = await fetch(absoluteUrl, { method: "HEAD" });
+        if (headRes.ok) {
+          const headerVal = headRes.headers.get("x-card-border-radius");
+          if (headerVal) {
+            const parsedFromHeader = Number.parseFloat(headerVal);
+            if (Number.isFinite(parsedFromHeader)) return parsedFromHeader;
+          }
+        }
+      } catch {}
+
+      // Fallback: fetch the full SVG and parse the rx from the <rect> element.
+      try {
+        const res = await fetch(absoluteUrl);
+        if (!res.ok) return null;
+        const text = await res.text();
+        const match = new RegExp(
+          /<rect[^>]*data-testid=["']card-bg["'][^>]*rx=["'](\d+(?:\.\d+)?)['"]/i,
+        ).exec(text);
+        if (!match) return null;
+        const parsed = Number.parseFloat(match[1]);
+        if (!Number.isFinite(parsed)) return null;
+        return parsed;
+      } catch (err) {
+        // Remove the cached promise on error so subsequent attempts can retry.
+        cache.delete(absoluteUrl);
+        throw err;
+      }
+    })();
+    cache.set(absoluteUrl, promise);
+  }
+  return promise;
+}
 
 /** Export formats supported for image conversion. @source */
 export type ConversionFormat = "png" | "webp";
@@ -46,8 +101,6 @@ export interface BatchConversionProgress {
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
-
-// ==================== Gradient Utilities ====================
 
 /**
  * Type guard to check if a color value is a gradient definition.
@@ -170,6 +223,11 @@ function isValidGradientStop(stop: unknown): boolean {
   if (s.opacity !== undefined) {
     if (typeof s.opacity !== "number" || s.opacity < 0 || s.opacity > 1)
       return false;
+  }
+
+  // Validate optional id
+  if (s.id !== undefined) {
+    if (typeof s.id !== "string") return false;
   }
 
   return true;
@@ -324,7 +382,9 @@ export async function svgToPng(
  * If both attempts fail, return null.
  * @source
  */
-async function parseResponsePayload(response: Response): Promise<unknown> {
+export async function parseResponsePayload(
+  response: Response,
+): Promise<unknown> {
   try {
     return await response.json();
   } catch {
@@ -342,7 +402,10 @@ async function parseResponsePayload(response: Response): Promise<unknown> {
  * If the payload contains an `error` or `message` field those are prioritized.
  * @source
  */
-function getResponseErrorMessage(response: Response, payload: unknown): string {
+export function getResponseErrorMessage(
+  response: Response,
+  payload: unknown,
+): string {
   let message = `HTTP ${response.status} ${response.statusText}`;
   if (!payload) return message;
   if (typeof payload === "object" && payload !== null) {
@@ -597,6 +660,55 @@ export function getCardBorderRadius(
     return clampBorderRadius(borderRadius);
   }
   return defaultRadius;
+}
+
+/**
+ * Escape a string for safe embedding inside XML/SVG text nodes or attributes.
+ * This function escapes the five XML special characters and normalizes inputs
+ * to a string. It is intentionally small and deterministic — templates should
+ * use the original unescaped values for measurement (e.g. dynamic font sizing)
+ * and only embed escaped values in the final markup.
+ * @param value - The potentially unsafe string value.
+ * @returns An escaped string safe to include inside an XML document.
+ * @source
+ */
+export function escapeForXml(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const s = String(value);
+  return s
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+/**
+ * Simple runtime branding for trusted SVG strings. The return value prepends a
+ * compact marker comment to the serialized SVG. This allows client-side checks
+ * to assert that a string was produced by one of the project's templates or
+ * explicitly sanitized pipelines.
+ * NOTE: The comment itself is harmless and will not affect the rendering of
+ * the resulting SVG, but it gives us a deterministic signal at runtime.
+ * @param svg - The sanitized SVG string.
+ * @returns A marked string typed as TrustedSVG.
+ */
+export function markTrustedSvg(svg: string): TrustedSVG {
+  const prefix = "<!--ANICARDS_TRUSTED_SVG-->";
+  return `${prefix}${svg}` as TrustedSVG;
+}
+
+/**
+ * Check whether the provided string is a marked Trusted SVG.
+ * This is a lightweight runtime guard used by client components that render
+ * pre-sanitized SVG markup to ensure the string passed to
+ * `dangerouslySetInnerHTML` came from one of our trusted template helpers.
+ * @param svg - The string to check.
+ * @returns True if the string is marked as trusted.
+ */
+export function isTrustedSvgString(svg: unknown): boolean {
+  if (typeof svg !== "string") return false;
+  return svg.startsWith("<!--ANICARDS_TRUSTED_SVG-->");
 }
 
 /** Successful result for a single conversion in a batch. @source */

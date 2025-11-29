@@ -3,6 +3,8 @@
  * @source
  */
 export interface GradientStop {
+  /** Optional stable id for this stop; helps use as React key */
+  id?: string;
   /** Hex color for this stop (e.g., "#ff0000") */
   color: string;
   /** Offset position as a percentage (0-100) */
