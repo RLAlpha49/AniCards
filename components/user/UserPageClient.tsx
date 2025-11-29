@@ -132,7 +132,6 @@ export function UserPageClient() {
   const searchParams = useSearchParams();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [cards, setCards] = useState<CardData[]>([]);
-  const [cardsUpdatedAt, setCardsUpdatedAt] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAllCards, setShowAllCards] = useState(false);
@@ -259,7 +258,6 @@ export function UserPageClient() {
         if (cardsParam) {
           try {
             resolvedCards = parseAndValidateCards(cardsParam);
-            setCardsUpdatedAt(Date.now());
           } catch (error_) {
             console.error("Failed to parse cards parameter:", error_);
             setError("Invalid card configuration. Please try again.");
@@ -308,16 +306,6 @@ export function UserPageClient() {
             username: (userResult as ApiUser).username || undefined,
           };
           const rawCards = (cardsResult as ApiCards).cards || [];
-          const updatedAtStr = (
-            cardsResult as ApiCards & { updatedAt?: string }
-          ).updatedAt;
-          const parsedUpdatedAt = updatedAtStr
-            ? Date.parse(updatedAtStr)
-            : Number.NaN;
-          setCardsUpdatedAt(
-            Number.isFinite(parsedUpdatedAt) ? parsedUpdatedAt : Date.now(),
-          );
-          // Minimal validation: ensure every card entry has a cardName string.
           resolvedCards = rawCards
             .map(normalizeCardEntry)
             .filter(Boolean) as CardData[];
@@ -345,15 +333,6 @@ export function UserPageClient() {
               return;
             }
             const rawCards2 = (cardsResult as ApiCards).cards || [];
-            const updatedAtStr3 = (
-              cardsResult as ApiCards & { updatedAt?: string }
-            ).updatedAt;
-            const parsedUpdatedAt3 = updatedAtStr3
-              ? Date.parse(updatedAtStr3)
-              : Number.NaN;
-            setCardsUpdatedAt(
-              Number.isFinite(parsedUpdatedAt3) ? parsedUpdatedAt3 : Date.now(),
-            );
             resolvedCards = rawCards2
               .map(normalizeCardEntry)
               .filter(Boolean) as CardData[];
@@ -562,37 +541,6 @@ export function UserPageClient() {
                   </>
                 )}
               </motion.h1>
-
-              {/* Stats Summary */}
-              {cardTypes.length > 0 && (
-                <motion.div
-                  variants={itemVariants}
-                  className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-2"
-                >
-                  <div className="rounded-2xl border border-slate-200/50 bg-white/80 p-5 backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-800/80">
-                    <div className="mb-3 inline-flex rounded-xl bg-blue-100 p-2.5 dark:bg-blue-900/30">
-                      <BarChart2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div className="text-3xl font-bold text-slate-900 dark:text-white">
-                      {cardTypes.length}
-                    </div>
-                    <div className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                      Stat Cards
-                    </div>
-                  </div>
-                  <div className="rounded-2xl border border-slate-200/50 bg-white/80 p-5 backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-800/80">
-                    <div className="mb-3 inline-flex rounded-xl bg-purple-100 p-2.5 dark:bg-purple-900/30">
-                      <User className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                    </div>
-                    <div className="truncate text-3xl font-bold text-slate-900 dark:text-white">
-                      {userData?.username || `#${userData?.userId}`}
-                    </div>
-                    <div className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                      AniList User
-                    </div>
-                  </div>
-                </motion.div>
-              )}
             </motion.div>
           </div>
         </section>
