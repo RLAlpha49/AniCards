@@ -20,11 +20,20 @@ type GlobalWithCache = typeof globalThis & {
 };
 
 /**
- * Extracts a card border radius from a remote SVG by fetching and parsing
- * the <rect data-testid="card-bg" rx="..."> attribute. Results are
- * memoized by absolute URL to avoid duplicate requests across instances.
+ * Extracts a card border radius from a remote SVG by reading a lightweight
+ * header or, optionally, parsing the SVG contents for the <rect>'s rx
+ * attribute. Results are memoized by absolute URL to avoid duplicate
+ * requests across instances.
+ *
+ * @param svgUrl - The SVG URL to inspect (absolute or relative).
+ * @param opts - Options controlling fallback behavior. `allowFallback`
+ *               enables the full GET + parsing fallback when `true`.
+ *               Default: false (no fallback).
  */
-export function getSvgBorderRadius(svgUrl: string): Promise<number | null> {
+export function getSvgBorderRadius(
+  svgUrl: string,
+  opts?: { allowFallback?: boolean },
+): Promise<number | null> {
   const absoluteUrl = getAbsoluteUrl(svgUrl);
   // Prefer a global cache (persisted across HMR) but fall back to the
   // module-level cache otherwise.
@@ -36,7 +45,19 @@ export function getSvgBorderRadius(svgUrl: string): Promise<number | null> {
   let promise = cache.get(absoluteUrl);
   if (!promise) {
     promise = (async () => {
-      // Try a lightweight HEAD request first to read the X-Card-Border-Radius header.
+      const allowFallback = opts?.allowFallback ?? false;
+      let isFirstPartyCardEndpoint = false;
+      try {
+        const hasWindow = globalThis.window !== undefined;
+        const baseOrigin = hasWindow
+          ? globalThis.window.location.origin
+          : "http://localhost";
+        const parsed = new URL(absoluteUrl, baseOrigin);
+        const pathname = (parsed.pathname || "").toLowerCase();
+        if (pathname.startsWith("/api/card")) {
+          isFirstPartyCardEndpoint = true;
+        }
+      } catch {}
       try {
         const headRes = await fetch(absoluteUrl, { method: "HEAD" });
         if (headRes.ok) {
@@ -48,7 +69,7 @@ export function getSvgBorderRadius(svgUrl: string): Promise<number | null> {
         }
       } catch {}
 
-      // Fallback: fetch the full SVG and parse the rx from the <rect> element.
+      if (!allowFallback || isFirstPartyCardEndpoint) return null;
       try {
         const res = await fetch(absoluteUrl);
         if (!res.ok) return null;

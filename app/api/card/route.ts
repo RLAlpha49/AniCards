@@ -20,6 +20,7 @@ import {
   extractStyles,
   escapeForXml,
   getCardBorderRadius,
+  DEFAULT_CARD_BORDER_RADIUS,
   markTrustedSvg,
 } from "@/lib/utils";
 import {
@@ -174,8 +175,10 @@ function svgHeaders(request?: Request) {
     "Content-Type": "image/svg+xml",
     "Cache-Control": "public, max-age=86400, stale-while-revalidate=86400", // 24 hour cache, revalidate in background
     "Access-Control-Allow-Origin": allowedOrigin,
-    "Access-Control-Allow-Methods": "GET",
+    "Access-Control-Allow-Methods": "GET, HEAD",
+    "Access-Control-Expose-Headers": "X-Card-Border-Radius",
     Vary: "Origin", // Cache varies based on Origin header
+    "X-Card-Border-Radius": String(DEFAULT_CARD_BORDER_RADIUS),
   };
 }
 
@@ -190,8 +193,10 @@ function errorHeaders(request?: Request) {
     "Content-Type": "image/svg+xml",
     "Cache-Control": "no-store, max-age=0, must-revalidate", // No cache, force revalidation
     "Access-Control-Allow-Origin": allowedOrigin,
-    "Access-Control-Allow-Methods": "GET",
+    "Access-Control-Allow-Methods": "GET, HEAD",
+    "Access-Control-Expose-Headers": "X-Card-Border-Radius",
     Vary: "Origin", // Header varies based on Origin
+    "X-Card-Border-Radius": String(DEFAULT_CARD_BORDER_RADIUS),
   };
 }
 
