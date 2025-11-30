@@ -33,13 +33,10 @@ try {
       maxSockets: 100,
     });
   }
-} catch (err) {
-  // Keep agent undefined if anything fails (safe fallback for edge or restricted runtimes)
-  // Log for debugging in dev environments to help find problems
+} catch {
   if (process.env.NODE_ENV !== "production") {
     console.debug(
       "Warning: HTTPS Agent not available; continuing without keepAlive agent.",
-      err,
     );
   }
   agent = undefined;
