@@ -236,7 +236,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
       ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
       <title id="title-id">${safeTitle}</title>
       <desc id="desc-id">
-        ${data.stats.map((stat) => `${escapeForXml(stat.name)}: ${stat.count}`).join(", ")}
+        ${data.stats.map((stat) => `${escapeForXml(stat.name)}: ${escapeForXml(stat.count)}`).join(", ")}
       </desc>
       <style>
         /* stylelint-disable selector-class-pattern, keyframes-name-pattern */

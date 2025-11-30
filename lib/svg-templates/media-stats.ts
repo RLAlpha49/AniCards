@@ -342,11 +342,11 @@ export const mediaStatsTemplate = (data: {
   ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
   <title id="title-id">${safeTitle}</title>
   <desc id="desc-id">
-    Count: ${data.stats.count}, 
-    ${safeMainStatLabel}: ${config.mainStat.value},
-    ${safeSecondaryStatLabel}: ${config.mainStat.secondary.value}, 
-    Mean Score: ${data.stats.meanScore},
-    Standard Deviation: ${data.stats.standardDeviation}
+    Count: ${escapeForXml(data.stats.count)}, 
+    ${safeMainStatLabel}: ${escapeForXml(config.mainStat.value)},
+    ${safeSecondaryStatLabel}: ${escapeForXml(config.mainStat.secondary.value)}, 
+    Mean Score: ${escapeForXml(data.stats.meanScore)},
+    Standard Deviation: ${escapeForXml(data.stats.standardDeviation)}
   </desc>
   <style>
     /* stylelint-disable selector-class-pattern, keyframes-name-pattern */

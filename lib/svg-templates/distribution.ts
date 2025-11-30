@@ -239,7 +239,7 @@ export function distributionTemplate(
   >
     ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
     <title id="title-id">${safeTitle}</title>
-    <desc id="desc-id">${data.map((d) => `${d.value}:${d.count}`).join(", ")}</desc>
+    <desc id="desc-id">${escapeForXml(data.map((d) => `${d.value}:${d.count}`).join(", "))}</desc>
     <style>
       /* stylelint-disable selector-class-pattern, keyframes-name-pattern */
       .header { 

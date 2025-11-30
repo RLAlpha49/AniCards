@@ -108,11 +108,11 @@ export const socialStatsTemplate = (data: {
 
     return `
     <desc id="desc-id">
-      Total Followers: ${data.stats.followersPage.pageInfo.total},
-      Total Following: ${data.stats.followingPage.pageInfo.total},
+      Total Followers: ${escapeForXml(data.stats.followersPage.pageInfo.total)},
+      Total Following: ${escapeForXml(data.stats.followingPage.pageInfo.total)},
       Total Activity: ${safeActivityTimespanStr},
-      Thread Posts/Comments Count: ${data.stats.threadCommentsPage.pageInfo.total},
-      Total Reviews: ${data.stats.reviewsPage.pageInfo.total}
+      Thread Posts/Comments Count: ${escapeForXml(data.stats.threadCommentsPage.pageInfo.total)},
+      Total Reviews: ${escapeForXml(data.stats.reviewsPage.pageInfo.total)}
     </desc>`;
   })()}
 
