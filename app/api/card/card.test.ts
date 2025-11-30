@@ -23,6 +23,13 @@ let mockRedisGet = jest.fn();
 let mockRedisSet = jest.fn();
 let mockRedisIncr = jest.fn(async () => 1);
 
+/**
+ * Creates a simple mocked Redis client used by the Redis mock factory.
+ *
+ * The returned object only implements the subset of Redis methods required by
+ * the route tests: `get`, `set`, and `incr`.
+ * @source
+ */
 function createRedisFromEnvMock() {
   return {
     get: mockRedisGet,
@@ -94,6 +101,7 @@ import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
 // distributionTemplate may be mocked in tests above; no direct import needed here
 import { POST as storeCardsPOST } from "@/app/api/store-cards/route";
 import { escapeForXml } from "@/lib/utils";
+import { distributionTemplate } from "@/lib/svg-templates/distribution";
 
 jest.mock("@/lib/utils", () => {
   const actual = jest.requireActual("@/lib/utils");
@@ -279,10 +287,6 @@ async function expectErrorResponse(
 }
 
 describe("Card SVG GET Endpoint", () => {
-  /**
-   * Base URL used for constructing test requests.
-   * @source
-   */
   const baseUrl = "http://localhost/api/card.svg";
 
   afterEach(() => {
@@ -354,6 +358,18 @@ describe("Card SVG GET Endpoint", () => {
     );
     const res = await GET(req);
     await expectErrorResponse(res, "Not Found: User data not found", 404);
+    expect(mockRedisIncr).toHaveBeenCalledWith(
+      "analytics:card_svg:failed_requests",
+    );
+    expect(mockRedisIncr).toHaveBeenCalledWith(
+      "analytics:card_svg:failed_requests:animeStats",
+    );
+    expect(mockRedisIncr).toHaveBeenCalledWith(
+      "analytics:card_svg:failed_requests:status:404",
+    );
+    expect(mockRedisIncr).toHaveBeenCalledWith(
+      "analytics:card_svg:failed_requests:animeStats:status:404",
+    );
   });
 
   it("should return error when card config is not found", async () => {
@@ -666,6 +682,71 @@ describe("Card SVG GET Endpoint", () => {
     );
   });
 
+  it("should fallback to 'default' variant when an invalid variation is provided for stats cards", async () => {
+    const cardsData = createMockCardData("animeStats", "default");
+    const userData = createMockUserData(542244, "testUser", {
+      User: { statistics: { anime: {} } },
+    });
+    setupSuccessfulMocks(cardsData, userData);
+
+    const req = new Request(
+      createRequestUrl(baseUrl, {
+        userId: "542244",
+        cardType: "animeStats",
+        variation: "unsupported-variant",
+      }),
+    );
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+    // The template should be invoked with the normalized 'default' variant
+    expect(mediaStatsTemplate).toHaveBeenCalled();
+    const callArgs = (mediaStatsTemplate as jest.Mock).mock.calls[0][0];
+    expect(callArgs.variant).toBe("default");
+  });
+
+  it("should fallback to 'default' variant when an invalid variation is provided for pie/bar templates", async () => {
+    // return a card configured as pie (but query param invalid)
+    const cardsData = createMockCardData("animeStatusDistribution", "pie");
+    const userData = createMockUserData(542244, "testUser", {
+      User: { statistics: { anime: { statuses: [{ status: "current", count: 1 }] } }, },
+    });
+    setupSuccessfulMocks(cardsData, userData);
+
+    const req = new Request(
+      createRequestUrl(baseUrl, {
+        userId: "542244",
+        cardType: "animeStatusDistribution",
+        variation: "unknown-variant",
+      }),
+    );
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+    expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
+    const callArgs = (extraAnimeMangaStatsTemplate as jest.Mock).mock.calls[0][0];
+    expect(callArgs.variant).toBe("default");
+  });
+
+  it("should fallback to 'default' variant when an invalid variation is provided for distribution templates", async () => {
+    const cardsData = createMockCardData("animeScoreDistribution", "default");
+    const userData = createMockUserData(542244, "testUser", {
+      User: { statistics: { anime: { scores: [{ score: 10, count: 1 }] } }, },
+    });
+    setupSuccessfulMocks(cardsData, userData);
+
+    const req = new Request(
+      createRequestUrl(baseUrl, {
+        userId: "542244",
+        cardType: "animeScoreDistribution",
+        variation: "pie",
+      }),
+    );
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+    expect(distributionTemplate).toHaveBeenCalled();
+    const callArgs = (distributionTemplate as jest.Mock).mock.calls[0][0];
+    expect(callArgs.variant).toBe("default");
+  });
+
   it("should use configured NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN when set (overrides request origin)", async () => {
     const prev = process.env.NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN;
     (process.env as Record<string, string | undefined>)[
@@ -837,5 +918,33 @@ describe("Card SVG GET Endpoint", () => {
     expect(res.status).toBe(200);
     expect(mediaStatsTemplate).toHaveBeenCalled();
     expect(body).toContain("Anime Stats");
+  });
+
+  it("should map CardDataError thrown by generator to a Client Error SVG message", async () => {
+    const cardsData = createMockCardData("animeStats", "default");
+    const userData = createMockUserData(542244, "testUser", {
+      User: { statistics: { anime: {} } },
+    });
+    setupSuccessfulMocks(cardsData, userData);
+
+    // Force generator to throw a 400 CardDataError without the 'Client Error:' prefix
+    const genMod = require("@/lib/card-generator");
+    const dataMod = require("@/lib/card-data");
+    const spy = jest.spyOn(genMod, "default").mockImplementation(() => {
+      throw new dataMod.CardDataError("Unsupported card type", 400);
+    });
+
+    const req = new Request(
+      createRequestUrl(baseUrl, {
+        userId: "542244",
+        cardType: "animeStats",
+        variation: "default",
+      }),
+    );
+    const res = await GET(req);
+    await expectErrorResponse(res, "Client Error: Unsupported card type", 400);
+
+    // restore original generator implementation
+    spy.mockRestore();
   });
 });

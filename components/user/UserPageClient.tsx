@@ -548,151 +548,152 @@ export function UserPageClient() {
     <div className="relative w-full overflow-hidden">
       <div className="relative z-10">
         {/* Hero Section */}
-        <section className="relative w-full overflow-hidden">
+        <div className="relative">
           {cardTypes.length > 0 && <FloatingCardsLayer layout="search" />}
-
-          <div className="container relative z-10 mx-auto px-4 py-16 lg:py-24">
-            <motion.div
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-              className="mx-auto flex max-w-4xl flex-col items-center text-center"
-            >
-              {/* Badge */}
-              <motion.div variants={itemVariants}>
-                <span className="inline-flex items-center gap-2 rounded-full border border-blue-200/50 bg-blue-50/80 px-4 py-2 text-sm font-medium text-blue-700 shadow-sm backdrop-blur-sm dark:border-blue-700/50 dark:bg-blue-950/50 dark:text-blue-300">
-                  <Sparkles className="h-4 w-4" />
-                  User Statistics
-                </span>
-              </motion.div>
-
-              {/* Main heading */}
-              <motion.h1
-                variants={itemVariants}
-                className="mt-8 text-4xl font-extrabold leading-[1.1] tracking-tight text-slate-900 dark:text-white sm:text-5xl md:text-6xl"
-              >
-                {userData?.username ? (
-                  <>
-                    {userData.username}&apos;s{" "}
-                    <span className="relative">
-                      <span className="relative z-10 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                        Stat Cards
-                      </span>
-                      <motion.span
-                        className="absolute -inset-1 -z-10 block rounded-lg bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 blur-xl"
-                        animate={{ opacity: [0.5, 0.8, 0.5] }}
-                        transition={{ duration: 3, repeat: Infinity }}
-                      />
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    User{" "}
-                    <span className="relative">
-                      <span className="relative z-10 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                        Stat Cards
-                      </span>
-                      <motion.span
-                        className="absolute -inset-1 -z-10 block rounded-lg bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 blur-xl"
-                        animate={{ opacity: [0.5, 0.8, 0.5] }}
-                        transition={{ duration: 3, repeat: Infinity }}
-                      />
-                    </span>
-                  </>
-                )}
-              </motion.h1>
-            </motion.div>
-          </div>
-        </section>
-
-        {/* Info Cards Section */}
-        {cardTypes.length > 0 && (
-          <section className="relative w-full overflow-hidden pb-8">
-            <div className="container relative mx-auto px-4">
+          <section className="relative w-full overflow-hidden">
+            <div className="container relative z-10 mx-auto px-4 py-16 lg:py-24">
               <motion.div
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5 }}
-                className="mx-auto grid max-w-4xl gap-6 md:grid-cols-2"
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+                className="mx-auto flex max-w-4xl flex-col items-center text-center"
               >
-                {/* Cache Notice */}
-                <div className="group rounded-2xl border border-blue-200/50 bg-white/80 p-6 backdrop-blur-sm transition-all hover:border-blue-300/50 hover:shadow-lg dark:border-blue-800/30 dark:bg-slate-800/80 dark:hover:border-blue-700/50">
-                  <div className="flex items-start gap-4">
-                    <div className="rounded-xl bg-blue-100 p-3 dark:bg-blue-900/30">
-                      <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="mb-2 font-semibold text-slate-900 dark:text-white">
-                        Cache Information
-                      </h3>
-                      <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
-                        SVG cards are cached for 24 hours for better
-                        performance.
-                      </p>
-                      <div className="space-y-1.5 text-sm text-slate-500 dark:text-slate-400">
-                        <p className="flex items-center gap-2">
-                          <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-                          Hard refresh:{" "}
-                          <kbd className="rounded bg-slate-100 px-1.5 py-0.5 text-xs dark:bg-slate-700">
-                            Ctrl+F5
-                          </kbd>{" "}
-                          or{" "}
-                          <kbd className="rounded bg-slate-100 px-1.5 py-0.5 text-xs dark:bg-slate-700">
-                            Cmd+Shift+R
-                          </kbd>
-                        </p>
-                        <p className="flex items-center gap-2">
-                          <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-                          <span>Clear your browser cache</span>
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                {/* Badge */}
+                <motion.div variants={itemVariants}>
+                  <span className="inline-flex items-center gap-2 rounded-full border border-blue-200/50 bg-blue-50/80 px-4 py-2 text-sm font-medium text-blue-700 shadow-sm backdrop-blur-sm dark:border-blue-700/50 dark:bg-blue-950/50 dark:text-blue-300">
+                    <Sparkles className="h-4 w-4" />
+                    User Statistics
+                  </span>
+                </motion.div>
 
-                {/* Credits Notice */}
-                <div className="group rounded-2xl border border-green-200/50 bg-white/80 p-6 backdrop-blur-sm transition-all hover:border-green-300/50 hover:shadow-lg dark:border-green-800/30 dark:bg-slate-800/80 dark:hover:border-green-700/50">
-                  <div className="flex items-start gap-4">
-                    <div className="rounded-xl bg-green-100 p-3 dark:bg-green-900/30">
-                      <Heart className="h-5 w-5 text-green-600 dark:text-green-400" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="mb-2 font-semibold text-slate-900 dark:text-white">
-                        Spread the Love
-                      </h3>
-                      <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
-                        Found AniCards useful? Help others discover it too! A
-                        credit to myself or the site would be greatly
-                        appreciated.
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        <a
-                          href="https://anilist.co/user/Alpha49"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-200 dark:bg-green-900/30 dark:text-green-300 dark:hover:bg-green-800/50"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                          @Alpha49
-                        </a>
-                        <a
-                          href={getAbsoluteUrl("/")}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-200 dark:bg-green-900/30 dark:text-green-300 dark:hover:bg-green-800/50"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                          AniCards
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                {/* Main heading */}
+                <motion.h1
+                  variants={itemVariants}
+                  className="mt-8 text-4xl font-extrabold leading-[1.1] tracking-tight text-slate-900 dark:text-white sm:text-5xl md:text-6xl"
+                >
+                  {userData?.username ? (
+                    <>
+                      {userData.username}&apos;s{" "}
+                      <span className="relative">
+                        <span className="relative z-10 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                          Stat Cards
+                        </span>
+                        <motion.span
+                          className="absolute -inset-1 -z-10 block rounded-lg bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 blur-xl"
+                          animate={{ opacity: [0.5, 0.8, 0.5] }}
+                          transition={{ duration: 3, repeat: Infinity }}
+                        />
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      User{" "}
+                      <span className="relative">
+                        <span className="relative z-10 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                          Stat Cards
+                        </span>
+                        <motion.span
+                          className="absolute -inset-1 -z-10 block rounded-lg bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 blur-xl"
+                          animate={{ opacity: [0.5, 0.8, 0.5] }}
+                          transition={{ duration: 3, repeat: Infinity }}
+                        />
+                      </span>
+                    </>
+                  )}
+                </motion.h1>
               </motion.div>
             </div>
           </section>
-        )}
+
+          {/* Info Cards Section */}
+          {cardTypes.length > 0 && (
+            <section className="relative w-full overflow-hidden pb-8">
+              <div className="container relative mx-auto px-4">
+                <motion.div
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5 }}
+                  className="mx-auto grid max-w-4xl gap-6 md:grid-cols-2"
+                >
+                  {/* Cache Notice */}
+                  <div className="group rounded-2xl border border-blue-200/50 bg-white/80 p-6 backdrop-blur-sm transition-all hover:border-blue-300/50 hover:shadow-lg dark:border-blue-800/30 dark:bg-slate-800/80 dark:hover:border-blue-700/50">
+                    <div className="flex items-start gap-4">
+                      <div className="rounded-xl bg-blue-100 p-3 dark:bg-blue-900/30">
+                        <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="mb-2 font-semibold text-slate-900 dark:text-white">
+                          Cache Information
+                        </h3>
+                        <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
+                          SVG cards are cached for 24 hours for better
+                          performance.
+                        </p>
+                        <div className="space-y-1.5 text-sm text-slate-500 dark:text-slate-400">
+                          <p className="flex items-center gap-2">
+                            <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                            Hard refresh:{" "}
+                            <kbd className="rounded bg-slate-100 px-1.5 py-0.5 text-xs dark:bg-slate-700">
+                              Ctrl+F5
+                            </kbd>{" "}
+                            or{" "}
+                            <kbd className="rounded bg-slate-100 px-1.5 py-0.5 text-xs dark:bg-slate-700">
+                              Cmd+Shift+R
+                            </kbd>
+                          </p>
+                          <p className="flex items-center gap-2">
+                            <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                            <span>Clear your browser cache</span>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Credits Notice */}
+                  <div className="group rounded-2xl border border-green-200/50 bg-white/80 p-6 backdrop-blur-sm transition-all hover:border-green-300/50 hover:shadow-lg dark:border-green-800/30 dark:bg-slate-800/80 dark:hover:border-green-700/50">
+                    <div className="flex items-start gap-4">
+                      <div className="rounded-xl bg-green-100 p-3 dark:bg-green-900/30">
+                        <Heart className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="mb-2 font-semibold text-slate-900 dark:text-white">
+                          Spread the Love
+                        </h3>
+                        <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
+                          Found AniCards useful? Help others discover it too! A
+                          credit to myself or the site would be greatly
+                          appreciated.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <a
+                            href="https://anilist.co/user/Alpha49"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-200 dark:bg-green-900/30 dark:text-green-300 dark:hover:bg-green-800/50"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            @Alpha49
+                          </a>
+                          <a
+                            href={getAbsoluteUrl("/")}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-200 dark:bg-green-900/30 dark:text-green-300 dark:hover:bg-green-800/50"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            AniCards
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+            </section>
+          )}
+        </div>
 
         {/* Cards Section */}
         <section className="relative w-full overflow-hidden py-8 lg:py-16">
