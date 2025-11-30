@@ -120,7 +120,8 @@ export const extraAnimeMangaStatsTemplate = (data: {
     })
     .join("");
 
-  const totalForPie = data.stats.reduce((acc, s) => acc + s.count, 0) || 1;
+  const normalizedStats = data.stats.map((s) => ({ ...s, count: Math.max(0, s.count) }));
+  const totalForPie = normalizedStats.reduce((acc, s) => acc + s.count, 0) || 1;
   const statsContentWithPie = data.stats
     .map((stat, index) => {
       const isFavorite = showFavorites && data.favorites?.includes(stat.name);
@@ -131,7 +132,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
         statBaseCircleColor,
         data.fixedStatusColors && data.format.endsWith("Statuses"),
       );
-      const pct = ((stat.count / totalForPie) * 100).toFixed(0);
+      const pct = ((Math.max(0, stat.count) / totalForPie) * 100).toFixed(0);
       return `
         <g class="stagger" style="animation-delay: ${450 + index * 150}ms" transform="translate(0, ${
           index * 25
@@ -145,10 +146,35 @@ export const extraAnimeMangaStatsTemplate = (data: {
     .join("");
 
   const pieChartContent = (() => {
-    const total = data.stats.reduce((acc, stat) => acc + stat.count, 0);
+    const statsForPie = data.stats.map((stat, index) => ({ ...stat, index, count: Math.max(0, stat.count) }));
+    const total = statsForPie.reduce((acc, stat) => acc + stat.count, 0);
     let currentAngle = 0;
-    return data.stats
-      .map((stat, index) => {
+    if (total <= 0) {
+      const cx = 40,
+        cy = 40,
+        r = 40;
+      const fillColor = getStatColor(
+        0,
+        "no-data",
+        statBaseCircleColor,
+        data.fixedStatusColors && data.format.endsWith("Statuses"),
+      );
+      return `
+        <circle
+          cx="${cx}"
+          cy="${cy}"
+          r="${r}"
+          fill="${fillColor}"
+          stroke="${resolvedColors.backgroundColor}"
+          stroke-width="1.5"
+          class="stagger"
+          style="animation-delay: 450ms"
+        />
+      `;
+    }
+    return statsForPie
+      .filter((s) => s.count > 0)
+      .map((stat) => {
         const angle = (stat.count / total) * 360;
         const startAngle = currentAngle;
         currentAngle += angle;
@@ -168,7 +194,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
                   ${cx + r * Math.cos(endRadians)} ${cy + r * Math.sin(endRadians)}
                   Z"
                 fill="${getStatColor(
-                  index,
+                  stat.index,
                   stat.name,
                   statBaseCircleColor,
                   data.fixedStatusColors && data.format.endsWith("Statuses"),
@@ -177,7 +203,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
                 stroke-width="1.5"
                 stroke-linejoin="round"
                 class="stagger"
-                style="animation-delay: ${450 + index * 150}ms"
+                style="animation-delay: ${450 + stat.index * 150}ms"
               />
             `;
       })
