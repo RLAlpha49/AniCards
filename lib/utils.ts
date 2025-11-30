@@ -515,43 +515,44 @@ export function formatBytes(bytes: number, decimals = 2) {
  * If the input is not a string, it is assumed to already be parsed and is returned as-is.
  *
  * @param data - The data to parse, which may be a JSON string or an already-parsed object.
+ * @param context - Optional human-friendly label used in logs to indicate parse context.
  * @returns The parsed object of type T.
  * @throws Error if JSON.parse fails.
  * @source
  */
-export function safeParse<T>(data: unknown): T {
-  if (typeof data === "string") {
-    try {
-      // Attempt to parse the data string as JSON.
-      return JSON.parse(data);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const isProduction =
-        typeof process !== "undefined" &&
-        process.env?.NODE_ENV === "production";
+export function safeParse<T>(data: unknown, context?: string): T {
+  if (typeof data !== "string") return data as T;
+  const logParseError = (error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    const isProduction =
+      typeof process !== "undefined" && process.env?.NODE_ENV === "production";
 
-      const maxSnippet = 200;
-      const length = data.length;
-
-      if (isProduction) {
-        console.error(
-          `Failed to parse JSON: ${message}. Payload length: ${length}`,
-        );
-      } else {
-        const snippet = data.slice(0, maxSnippet);
-        const truncated = length > maxSnippet ? "..." : "";
-        console.error(
-          `Failed to parse JSON: ${message}. Payload snippet (first ${Math.min(
-            maxSnippet,
-            length,
-          )} chars, length ${length}): ${snippet}${truncated}`,
-        );
-      }
-      throw error;
+    const maxSnippet = 200;
+    const length = data.length;
+    const ctxLabel = context ? ` [${context}]` : "";
+    if (isProduction) {
+      console.error(
+        `Failed to parse JSON${ctxLabel}: ${message}. Payload length: ${length}`,
+      );
+      return;
     }
+
+    const snippet = data.slice(0, maxSnippet);
+    const truncated = length > maxSnippet ? "..." : "";
+    console.error(
+      `Failed to parse JSON${ctxLabel}: ${message}. Payload snippet (first ${Math.min(
+        maxSnippet,
+        length,
+      )} chars, length ${length}): ${snippet}${truncated}`,
+    );
+  };
+
+  try {
+    return JSON.parse(data);
+  } catch (error) {
+    logParseError(error);
+    throw error;
   }
-  // If data is not a string, return it as is.
-  return data as T;
 }
 
 /**

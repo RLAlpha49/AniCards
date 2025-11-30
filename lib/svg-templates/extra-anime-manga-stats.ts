@@ -120,7 +120,10 @@ export const extraAnimeMangaStatsTemplate = (data: {
     })
     .join("");
 
-  const normalizedStats = data.stats.map((s) => ({ ...s, count: Math.max(0, s.count) }));
+  const normalizedStats = data.stats.map((s) => ({
+    ...s,
+    count: Math.max(0, s.count),
+  }));
   const totalForPie = normalizedStats.reduce((acc, s) => acc + s.count, 0) || 1;
   const statsContentWithPie = data.stats
     .map((stat, index) => {
@@ -146,7 +149,11 @@ export const extraAnimeMangaStatsTemplate = (data: {
     .join("");
 
   const pieChartContent = (() => {
-    const statsForPie = data.stats.map((stat, index) => ({ ...stat, index, count: Math.max(0, stat.count) }));
+    const statsForPie = data.stats.map((stat, index) => ({
+      ...stat,
+      index,
+      count: Math.max(0, stat.count),
+    }));
     const total = statsForPie.reduce((acc, stat) => acc + stat.count, 0);
     let currentAngle = 0;
     if (total <= 0) {

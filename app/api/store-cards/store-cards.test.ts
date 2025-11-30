@@ -9,6 +9,7 @@ let mockLimit = jest.fn().mockResolvedValue({ success: true });
  */
 let mockRedisSet = jest.fn();
 let mockRedisGet = jest.fn();
+let mockRedisIncr = jest.fn(async () => 1);
 
 /**
  * Supplies the mocked Redis client referenced by the handler under test.
@@ -19,7 +20,7 @@ function createRedisFromEnvMock() {
   return {
     set: mockRedisSet,
     get: mockRedisGet,
-    incr: jest.fn(async () => 1),
+    incr: mockRedisIncr,
   };
 }
 
@@ -261,6 +262,44 @@ describe("Store Cards API POST Endpoint", () => {
     expect(mockRedisSet).toHaveBeenCalledWith(
       `cards:${reqBody.userId}`,
       expect.any(String),
+    );
+  });
+
+  it("should increment analytics when stored cards payload is corrupted", async () => {
+    mockLimit.mockResolvedValueOnce({ success: true });
+    // Simulate corrupted existing payload in Redis
+    mockRedisGet.mockResolvedValueOnce("[object Object]");
+    mockRedisSet.mockResolvedValueOnce(true);
+
+    const reqBody = {
+      userId: 77,
+      statsData: { score: 42 },
+      cards: [
+        {
+          cardName: "badData",
+          variation: "default",
+          titleColor: "#000",
+          backgroundColor: "#fff",
+          textColor: "#333",
+          circleColor: "#f00",
+        },
+      ],
+    };
+
+    const req = new Request("http://localhost/api/store-cards", {
+      method: "POST",
+      headers: {
+        "x-forwarded-for": "127.0.0.1",
+        origin: "http://localhost",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(reqBody),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    expect(mockRedisIncr).toHaveBeenCalledWith(
+      "analytics:store_cards:corrupted_records",
     );
   });
 

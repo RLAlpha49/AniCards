@@ -8,7 +8,7 @@ import {
   initializeApiRequest,
   validateCardData,
 } from "@/lib/api-utils";
-import { clampBorderRadius } from "@/lib/utils";
+import { clampBorderRadius, safeParse } from "@/lib/utils";
 
 function parseStoredCardsRecord(
   rawValue: unknown,
@@ -19,7 +19,9 @@ function parseStoredCardsRecord(
 
   try {
     const parsedValue =
-      typeof rawValue === "string" ? JSON.parse(rawValue) : rawValue;
+      typeof rawValue === "string"
+        ? safeParse(rawValue, `${endpoint}:stored-cards:${cardsKey}`)
+        : rawValue;
 
     if (parsedValue && typeof parsedValue === "object") {
       const cards = (parsedValue as CardsRecord).cards;
@@ -29,9 +31,12 @@ function parseStoredCardsRecord(
     }
   } catch (error) {
     console.warn(
-      `⚠️ [${endpoint}] Unable to parse stored cards for ${cardsKey}: ${
+      `⚠️ [${endpoint}] Stored card record corrupted for ${cardsKey}: ${
         error instanceof Error ? error.message : String(error)
       }`,
+    );
+    incrementAnalytics("analytics:store_cards:corrupted_records").catch(
+      () => {},
     );
   }
 

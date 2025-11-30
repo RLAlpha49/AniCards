@@ -769,6 +769,49 @@ describe("Card SVG GET Endpoint", () => {
     );
   });
 
+  it("should return server error when stored card record is corrupted", async () => {
+    const invalidCardsData = "not-a-json";
+    const userData = createMockUserData(542244, "testUser", {
+      User: { statistics: { anime: {} } },
+    });
+    // cardsData invalid JSON triggers parse error, user data valid
+    mockRedisGet
+      .mockResolvedValueOnce(invalidCardsData)
+      .mockResolvedValueOnce(userData);
+    const req = new Request(
+      createRequestUrl(baseUrl, {
+        userId: "542244",
+        cardType: "animeStats",
+      }),
+    );
+    const res = await GET(req);
+    await expectErrorResponse(
+      res,
+      "Server Error: Corrupted card configuration",
+      500,
+    );
+    expect(mockRedisIncr).toHaveBeenCalledWith(
+      "analytics:card_svg:corrupted_card_records",
+    );
+  });
+
+  it("should return server error when user record is corrupted", async () => {
+    const cardsData = createMockCardData("animeStats", "default");
+    const invalidUserData = "not-a-json";
+    // first call returns cards, second returns invalid user JSON
+    mockRedisGet
+      .mockResolvedValueOnce(cardsData)
+      .mockResolvedValueOnce(invalidUserData);
+    const req = new Request(
+      createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
+    );
+    const res = await GET(req);
+    await expectErrorResponse(res, "Server Error: Corrupted user record", 500);
+    expect(mockRedisIncr).toHaveBeenCalledWith(
+      "analytics:card_svg:corrupted_user_records",
+    );
+  });
+
   it("should normalize nested fields even when malformed in Redis and proceed", async () => {
     const cardsData = createMockCardData("animeStats", "default");
     const userData = createMockUserData(542244, "testUser", {

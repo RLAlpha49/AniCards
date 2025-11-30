@@ -1454,8 +1454,53 @@ async function fetchUserData(
     );
   }
 
-  const cardDoc: CardsRecord = safeParse<CardsRecord>(cardsDataStr);
-  const userDoc: UserRecord = safeParse<UserRecord>(userDataStr);
+  let cardDoc: CardsRecord;
+  let userDoc: UserRecord;
+  try {
+    cardDoc = safeParse<CardsRecord>(
+      cardsDataStr,
+      `Card SVG: cards:${numericUserId}`,
+    );
+  } catch (error) {
+    console.warn(
+      `⚠️ [Card SVG] Failed to parse stored card record for user ${numericUserId}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    // Distinct metric for corrupt card records
+    incrementAnalytics("analytics:card_svg:corrupted_card_records").catch(
+      () => {},
+    );
+    await trackFailedRequest(baseCardType, 500);
+    return new Response(
+      toCleanSvgResponse(
+        svgError("Server Error: Corrupted card configuration"),
+      ),
+      { headers: errorHeaders(request), status: 500 },
+    );
+  }
+
+  try {
+    userDoc = safeParse<UserRecord>(
+      userDataStr,
+      `Card SVG: user:${numericUserId}`,
+    );
+  } catch (error) {
+    console.warn(
+      `⚠️ [Card SVG] Failed to parse user record for user ${numericUserId}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    // Distinct metric for corrupt user records
+    incrementAnalytics("analytics:card_svg:corrupted_user_records").catch(
+      () => {},
+    );
+    await trackFailedRequest(baseCardType, 500);
+    return new Response(
+      toCleanSvgResponse(svgError("Server Error: Corrupted user record")),
+      { headers: errorHeaders(request), status: 500 },
+    );
+  }
 
   return { cardDoc, userDoc };
 }
