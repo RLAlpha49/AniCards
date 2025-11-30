@@ -30,8 +30,22 @@ const nextConfig: NextConfig = {
         port: "3000",
       },
       {
+        hostname: "api.anicards.alpha49.com",
+        protocol: "https",
+      },
+      {
         hostname: "anicards.alpha49.com",
         protocol: "https",
+      },
+      {
+        hostname: "lvh.me",
+        protocol: "http",
+        port: "3000",
+      },
+      {
+        hostname: "api.localhost",
+        protocol: "http",
+        port: "3000",
       },
     ],
     qualities: [100, 75],
@@ -93,14 +107,57 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  /**
-   * Rewrites preserve the public path `/api/card.svg` while allowing the
-   * server-side implementation to live under `/api/card` for a cleaner
-   * filesystem layout. This keeps all external links unchanged while
-   * removing the unusual folder name that embeds a file extension.
-   */
   async rewrites() {
+    const primaryRules = [
+      {
+        source: "/:path*",
+        has: [
+          {
+            type: "host" as const,
+            value: "api.anicards.alpha49.com",
+          },
+        ],
+        destination: "/api/:path*",
+      },
+    ];
+
+    const devPort = process.env.PORT ?? "3000";
+    const devHosts = [
+      "api.localhost",
+      "api.lvh.me",
+      "api.anicards.localhost",
+      "api.anicards.lvh.me",
+    ];
+
+    const isProd = process.env.NODE_ENV === "production";
+    const devRules = isProd
+      ? []
+      : devHosts.flatMap((h) => [
+            {
+              source: "/:path*",
+              has: [
+                {
+                  type: "host" as const,
+                  value: h,
+                },
+              ],
+              destination: "/api/:path*",
+            },
+            {
+              source: "/:path*",
+              has: [
+                {
+                  type: "host" as const,
+                  value: `${h}:${devPort}`,
+                },
+              ],
+              destination: "/api/:path*",
+            },
+          ]);
+
     return [
+      ...primaryRules,
+      ...devRules,
       {
         source: "/api/card.svg",
         destination: "/api/card",
