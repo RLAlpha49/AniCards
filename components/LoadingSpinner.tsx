@@ -19,8 +19,6 @@ interface LoadingSpinnerProps {
 
 /**
  * A compact animated spinner with optional label.
- * - Uses Framer Motion for subtle animation.
- * - Provides accessible labeling and reduced-motion respect via aria attributes.
  * @param props - Spinner props.
  * @returns A spinner element and optional label.
  * @source
@@ -50,7 +48,6 @@ export function LoadingSpinner({
       aria-busy="true"
       className="inline-flex flex-col items-center gap-2"
     >
-      {/* Rotating container; disabled when user prefers reduced motion */}
       <motion.div
         initial={{ rotate: 0, scale: 1 }}
         animate={{ rotate: 360, scale: [1, 1.06, 1] }}

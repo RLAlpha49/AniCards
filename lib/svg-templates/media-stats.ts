@@ -7,6 +7,7 @@ import {
   getCardBorderRadius,
   escapeForXml,
   markTrustedSvg,
+  toFiniteNumber,
 } from "../utils";
 
 /** Media type used by the media stats templates — either anime or manga. @source */
@@ -29,14 +30,18 @@ function renderCircle(
   cy: number,
   radius: number,
   strokeColor: string,
-  scaledDasharray: string,
-  scaledDashoffset: string,
+  scaledDasharray?: string | null,
+  scaledDashoffset?: string | null,
   strokeWidth: number = 6,
 ): string {
   return `
     <circle class="rank-circle-rim" cx="${cx}" cy="${cy}" r="${radius}" fill="none" stroke="${strokeColor}" stroke-opacity="0.2" stroke-width="${strokeWidth}"></circle>
     <g transform="rotate(-90 ${cx} ${cy})">
-      <circle class="rank-circle" cx="${cx}" cy="${cy}" r="${radius}" stroke-width="${strokeWidth}" stroke-dasharray="${scaledDasharray}" stroke-dashoffset="${scaledDashoffset}"></circle>
+      <circle class="rank-circle" cx="${cx}" cy="${cy}" r="${radius}" stroke-width="${strokeWidth}" ${
+        scaledDasharray ? `stroke-dasharray="${scaledDasharray}"` : ""
+      } ${
+        scaledDashoffset ? `stroke-dashoffset="${scaledDashoffset}"` : ""
+      }></circle>
     </g>
   `;
 }
@@ -122,8 +127,8 @@ function getVariantContent(
     };
   },
   dims: { w: number; h: number },
-  scaledDasharray: string,
-  scaledDashoffset: string,
+  scaledDasharray: string | null,
+  scaledDashoffset: string | null,
   resolvedColors: Record<string, string>,
 ): string {
   if (data.variant === "vertical") {
@@ -316,17 +321,48 @@ export const mediaStatsTemplate = (data: {
   // Scale dasharray & dashoffset relative to base radius 40 to avoid overfill on smaller circles
   const baseRadius = 40;
   const scale = circleRadius / baseRadius;
-  const originalDasharray =
-    Number.parseFloat(String(data.stats.dasharray)) ?? 0;
-  const originalDashoffset =
-    Number.parseFloat(String(data.stats.dashoffset)) ?? 0;
-  const scaledDasharray = Number.isFinite(originalDasharray)
+  const originalDasharray = toFiniteNumber(data.stats.dasharray, {
+    label: "dasharray",
+  });
+  const originalDashoffset = toFiniteNumber(data.stats.dashoffset, {
+    label: "dashoffset",
+  });
+  const hasValidDash =
+    originalDasharray !== null && originalDashoffset !== null;
+  const scaledDasharray = hasValidDash
     ? (originalDasharray * scale).toFixed(2)
-    : (0 * scale).toFixed(2);
-  const scaledDashoffset = Number.isFinite(originalDashoffset)
+    : null;
+  const scaledDashoffset = hasValidDash
     ? (originalDashoffset * scale).toFixed(2)
-    : (0 * scale).toFixed(2);
+    : null;
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);
+  const rankCircleStyle = hasValidDash
+    ? `
+    .rank-circle {
+      stroke-dasharray: ${scaledDasharray};
+      stroke: ${resolvedColors.circleColor};
+      fill: none;
+      stroke-width: 6;
+      stroke-linecap: round;
+      opacity: 0.8;
+      animation: rankAnimation 1s forwards ease-in-out;
+    }
+
+    @keyframes rankAnimation {
+      from { stroke-dashoffset: ${scaledDasharray}; }
+      to { stroke-dashoffset: ${scaledDashoffset}; }
+    }
+  `
+    : `
+    .rank-circle {
+      stroke: ${resolvedColors.circleColor};
+      fill: none;
+      stroke-width: 6;
+      stroke-linecap: round;
+      opacity: 0.5;
+      animation: none;
+    }
+  `;
 
   return markTrustedSvg(`
 <svg
@@ -376,20 +412,7 @@ export const mediaStatsTemplate = (data: {
       stroke-width: 6;
     }
 
-    .rank-circle {
-      stroke-dasharray: ${scaledDasharray};
-      stroke: ${resolvedColors.circleColor};
-      fill: none;
-      stroke-width: 6;
-      stroke-linecap: round;
-      opacity: 0.8;
-      animation: rankAnimation 1s forwards ease-in-out;
-    }
-
-    @keyframes rankAnimation {
-      from { stroke-dashoffset: ${scaledDasharray}; }
-      to { stroke-dashoffset: ${scaledDashoffset}; }
-    }
+    ${rankCircleStyle}
 
     @keyframes scaleInAnimation {
       from { transform: translate(0, 0) scale(0); }

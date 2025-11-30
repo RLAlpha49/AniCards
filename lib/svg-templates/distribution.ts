@@ -6,6 +6,7 @@ import {
   processColorsForSVG,
   escapeForXml,
   markTrustedSvg,
+  toFiniteNumber,
 } from "../utils";
 import type { ColorValue } from "@/lib/types/card";
 
@@ -77,7 +78,16 @@ function normalizeDistributionData(
   inputData: DistributionDatum[],
   kind: "score" | "year",
 ): DistributionDatum[] {
-  const provided = [...inputData];
+  const provided = inputData
+    .map((d) => {
+      const v = toFiniteNumber(d.value, { label: "distribution.value" });
+      const c = toFiniteNumber(d.count, { label: "distribution.count" });
+      return v === null || c === null
+        ? null
+        : { value: v, count: Math.max(0, c) };
+    })
+    .filter((d): d is DistributionDatum => d !== null);
+
   const existing = new Set(provided.map((d) => d.value));
 
   if (kind === "score") {
