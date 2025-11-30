@@ -17,7 +17,11 @@ import {
   AnimeStatStaff,
   MangaStatStaff,
 } from "@/lib/types/records";
-import { SocialStats, AnimeStats as TemplateAnimeStats, MangaStats as TemplateMangaStats } from "@/lib/types/card";
+import {
+  SocialStats,
+  AnimeStats as TemplateAnimeStats,
+  MangaStats as TemplateMangaStats,
+} from "@/lib/types/card";
 
 /**
  * Error wrapper including an HTTP status code for API responses.
@@ -37,7 +41,10 @@ export type GenreItem = { genre: string; count: number };
 /** Tag item (name + count) used in tag distribution lists. @source */
 export type TagItem = { tag: { name: string }; count: number };
 /** Voice actor item with full name and count (for anime voice actor stats). @source */
-export type VoiceActorItem = { voiceActor: { name: { full: string } }; count: number };
+export type VoiceActorItem = {
+  voiceActor: { name: { full: string } };
+  count: number;
+};
 /** Studio item (name + count) used for studio distribution lists. @source */
 export type StudioItem = { studio: { name: string }; count: number };
 /** Staff item with full name and count (for anime or manga staff stats). @source */
@@ -514,15 +521,27 @@ export function validateAndNormalizeUserRecord(
           },
         },
         statistics: {
-          anime: normalizeStatBlock(statsData.User?.statistics?.anime, "anime") as AnimeStats | undefined,
-          manga: normalizeStatBlock(statsData.User?.statistics?.manga, "manga") as MangaStats | undefined,
+          anime: normalizeStatBlock(
+            statsData.User?.statistics?.anime,
+            "anime",
+          ) as AnimeStats | undefined,
+          manga: normalizeStatBlock(
+            statsData.User?.statistics?.manga,
+            "manga",
+          ) as MangaStats | undefined,
         },
       },
     } as unknown as UserStatsData,
   };
 
-  if (!normalizedUser.stats.User.statistics.anime && !normalizedUser.stats.User.statistics.manga) {
-    return { error: "Missing statistics: no anime or manga stats present", status: 404 };
+  if (
+    !normalizedUser.stats.User.statistics.anime &&
+    !normalizedUser.stats.User.statistics.manga
+  ) {
+    return {
+      error: "Missing statistics: no anime or manga stats present",
+      status: 404,
+    };
   }
 
   return { normalized: normalizedUser };
@@ -587,14 +606,19 @@ export function buildCommonTemplateFields(
       staff: s.staff,
       count: s.count,
     })),
-    statuses: (stats.statuses as { status: string; count: number }[])?.map((s) => ({
-      status: s.status,
-      amount: s.count,
-    })) ?? undefined,
-    formats: (stats.formats as { format: string; count: number }[]) ?? undefined,
+    statuses:
+      (stats.statuses as { status: string; count: number }[])?.map((s) => ({
+        status: s.status,
+        amount: s.count,
+      })) ?? undefined,
+    formats:
+      (stats.formats as { format: string; count: number }[]) ?? undefined,
     scores: (stats.scores as { score: number; count: number }[]) ?? undefined,
-    releaseYears: (stats.releaseYears as { releaseYear: number; count: number }[]) ?? undefined,
-    countries: (stats.countries as { country: string; count: number }[]) ?? undefined,
+    releaseYears:
+      (stats.releaseYears as { releaseYear: number; count: number }[]) ??
+      undefined,
+    countries:
+      (stats.countries as { country: string; count: number }[]) ?? undefined,
     previousMilestone: milestoneData.previousMilestone,
     currentMilestone: milestoneData.currentMilestone,
     percentage: milestoneData.percentage,
@@ -707,15 +731,25 @@ export async function fetchUserData(
   let cardDoc: CardsRecord;
   let userDoc: UserRecord;
   try {
-    cardDoc = safeParse<CardsRecord>(cardsDataStr, `Card SVG: cards:${numericUserId}`);
+    cardDoc = safeParse<CardsRecord>(
+      cardsDataStr,
+      `Card SVG: cards:${numericUserId}`,
+    );
   } catch {
-    incrementAnalytics(buildAnalyticsMetricKey("card_svg", "corrupted_card_records")).catch(() => {});
+    incrementAnalytics(
+      buildAnalyticsMetricKey("card_svg", "corrupted_card_records"),
+    ).catch(() => {});
     throw new CardDataError("Server Error: Corrupted card configuration", 500);
   }
   try {
-    userDoc = safeParse<UserRecord>(userDataStr, `Card SVG: user:${numericUserId}`);
+    userDoc = safeParse<UserRecord>(
+      userDataStr,
+      `Card SVG: user:${numericUserId}`,
+    );
   } catch {
-    incrementAnalytics(buildAnalyticsMetricKey("card_svg", "corrupted_user_records")).catch(() => {});
+    incrementAnalytics(
+      buildAnalyticsMetricKey("card_svg", "corrupted_user_records"),
+    ).catch(() => {});
     throw new CardDataError("Server Error: Corrupted user record", 500);
   }
 
@@ -744,18 +778,28 @@ export function processCardConfig(
     piePercentagesParam: string | null;
   },
   userDoc: UserRecord,
-): { cardConfig: StoredCardConfig; effectiveVariation: string; favorites: string[] } {
+): {
+  cardConfig: StoredCardConfig;
+  effectiveVariation: string;
+  favorites: string[];
+} {
   const { cardType, baseCardType } = params;
 
   const cardConfig = cardDoc.cards.find(
     (c: StoredCardConfig) => c.cardName === cardType,
   );
   if (!cardConfig) {
-    throw new CardDataError("Not Found: Card config not found. Try to regenerate the card.", 404);
+    throw new CardDataError(
+      "Not Found: Card config not found. Try to regenerate the card.",
+      404,
+    );
   }
 
-  const effectiveCardConfig: StoredCardConfig = { ...cardConfig } as StoredCardConfig;
-  const effectiveVariation = params.variationParam || effectiveCardConfig.variation || "default";
+  const effectiveCardConfig: StoredCardConfig = {
+    ...cardConfig,
+  } as StoredCardConfig;
+  const effectiveVariation =
+    params.variationParam || effectiveCardConfig.variation || "default";
 
   let favorites: string[] = [];
   const useFavorites =
@@ -765,13 +809,20 @@ export function processCardConfig(
 
   if (
     useFavorites &&
-    ["animeVoiceActors", "animeStudios", "animeStaff", "mangaStaff"].includes(baseCardType)
+    ["animeVoiceActors", "animeStudios", "animeStaff", "mangaStaff"].includes(
+      baseCardType,
+    )
   ) {
     const favourites = userDoc?.stats?.User?.favourites ?? {};
     favorites = getFavoritesForCardType(favourites, baseCardType);
   }
 
-  if (params.statusColorsParam === "true" && ["animeStatusDistribution", "mangaStatusDistribution"].includes(baseCardType)) {
+  if (
+    params.statusColorsParam === "true" &&
+    ["animeStatusDistribution", "mangaStatusDistribution"].includes(
+      baseCardType,
+    )
+  ) {
     effectiveCardConfig.useStatusColors = true;
   }
 

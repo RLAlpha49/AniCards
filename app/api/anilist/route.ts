@@ -136,18 +136,34 @@ async function makeAniListRequest(
   requestData: GraphQLRequest,
   request: Request,
 ): Promise<unknown> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
+  const anilistToken = process.env.ANILIST_TOKEN?.trim();
+  if (anilistToken) {
+    headers.Authorization = `Bearer ${anilistToken}`;
+  }
+  if (process.env.NODE_ENV === "development") {
+    headers["X-Test-Status"] = request.headers.get("X-Test-Status") || "";
+  }
+
   const response = await fetch("https://graphql.anilist.co", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      Authorization: `Bearer ${process.env.ANILIST_TOKEN}`,
-      ...(process.env.NODE_ENV === "development" && {
-        "X-Test-Status": request.headers.get("X-Test-Status") || "",
-      }),
-    },
+    headers,
     body: JSON.stringify(requestData),
   });
+
+  const rateLimitLimit = response.headers.get("X-RateLimit-Limit");
+  const rateLimitRemaining = response.headers.get("X-RateLimit-Remaining");
+  const rateLimitReset = response.headers.get("X-RateLimit-Reset");
+  if (rateLimitLimit || rateLimitRemaining || rateLimitReset) {
+    console.log(
+      `🧭 [AniList API] Rate Limit: ${rateLimitLimit || "?"} Remaining: ${
+        rateLimitRemaining || "?"
+      } Reset: ${rateLimitReset || "?"}`,
+    );
+  }
 
   if (!response.ok) {
     const errorData = await response.json();

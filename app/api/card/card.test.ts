@@ -708,7 +708,9 @@ describe("Card SVG GET Endpoint", () => {
     // return a card configured as pie (but query param invalid)
     const cardsData = createMockCardData("animeStatusDistribution", "pie");
     const userData = createMockUserData(542244, "testUser", {
-      User: { statistics: { anime: { statuses: [{ status: "current", count: 1 }] } }, },
+      User: {
+        statistics: { anime: { statuses: [{ status: "current", count: 1 }] } },
+      },
     });
     setupSuccessfulMocks(cardsData, userData);
 
@@ -722,14 +724,15 @@ describe("Card SVG GET Endpoint", () => {
     const res = await GET(req);
     expect(res.status).toBe(200);
     expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
-    const callArgs = (extraAnimeMangaStatsTemplate as jest.Mock).mock.calls[0][0];
+    const callArgs = (extraAnimeMangaStatsTemplate as jest.Mock).mock
+      .calls[0][0];
     expect(callArgs.variant).toBe("default");
   });
 
   it("should fallback to 'default' variant when an invalid variation is provided for distribution templates", async () => {
     const cardsData = createMockCardData("animeScoreDistribution", "default");
     const userData = createMockUserData(542244, "testUser", {
-      User: { statistics: { anime: { scores: [{ score: 10, count: 1 }] } }, },
+      User: { statistics: { anime: { scores: [{ score: 10, count: 1 }] } } },
     });
     setupSuccessfulMocks(cardsData, userData);
 

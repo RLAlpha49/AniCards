@@ -1,5 +1,5 @@
 ---
-description: 'Add educational comments to the file specified, or prompt asking for file to comment if one is not provided.'
+description: "Add educational comments to the file specified, or prompt asking for file to comment if one is not provided."
 ---
 
 # Add Educational Comments

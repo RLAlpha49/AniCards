@@ -5,7 +5,11 @@ import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
 import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
 import { distributionTemplate } from "@/lib/svg-templates/distribution";
 import { TrustedSVG } from "@/lib/types/svg";
-import { StoredCardConfig, UserRecord, UserStatsData } from "@/lib/types/records";
+import {
+  StoredCardConfig,
+  UserRecord,
+  UserStatsData,
+} from "@/lib/types/records";
 import {
   toTemplateAnimeStats,
   toTemplateMangaStats,
@@ -19,14 +23,24 @@ import {
   StudioItem,
   StaffItem,
 } from "@/lib/card-data";
-import { AnimeStats as TemplateAnimeStats, MangaStats as TemplateMangaStats } from "@/lib/types/card";
+import {
+  AnimeStats as TemplateAnimeStats,
+  MangaStats as TemplateMangaStats,
+} from "@/lib/types/card";
 
 /**
  * Supported visual variants for generated cards.
  * These correspond to layout choices used by the SVG templates.
  * @source
  */
-type CardGenVariant = "default" | "vertical" | "pie" | "compact" | "minimal" | "bar" | "horizontal";
+type CardGenVariant =
+  | "default"
+  | "vertical"
+  | "pie"
+  | "compact"
+  | "minimal"
+  | "bar"
+  | "horizontal";
 
 /** @source */
 type StatsVariant = "default" | "vertical" | "compact" | "minimal";
@@ -56,7 +70,10 @@ interface CardGenerationParams {
  * @returns A valid CardGenVariant; falls back to "default" for invalid input.
  * @source
  */
-function normalizeVariant(variant: string | undefined | null, baseCardType?: string): CardGenVariant {
+function normalizeVariant(
+  variant: string | undefined | null,
+  baseCardType?: string,
+): CardGenVariant {
   const globalVariants = new Set<CardGenVariant>([
     "default",
     "vertical",
@@ -71,17 +88,33 @@ function normalizeVariant(variant: string | undefined | null, baseCardType?: str
   if (!globalVariants.has(variant as CardGenVariant)) return "default";
 
   // Allowed variant sets for groups of card types
-  const statsVariants = new Set<CardGenVariant>(["default", "vertical", "compact", "minimal"]);
-  const socialVariants = new Set<CardGenVariant>(["default", "compact", "minimal"]);
+  const statsVariants = new Set<CardGenVariant>([
+    "default",
+    "vertical",
+    "compact",
+    "minimal",
+  ]);
+  const socialVariants = new Set<CardGenVariant>([
+    "default",
+    "compact",
+    "minimal",
+  ]);
   const pieBarVariants = new Set<CardGenVariant>(["default", "pie", "bar"]);
-  const distributionVariants = new Set<CardGenVariant>(["default", "horizontal"]);
+  const distributionVariants = new Set<CardGenVariant>([
+    "default",
+    "horizontal",
+  ]);
 
   switch (baseCardType) {
     case "animeStats":
     case "mangaStats":
-      return statsVariants.has(variant as CardGenVariant) ? (variant as CardGenVariant) : "default";
+      return statsVariants.has(variant as CardGenVariant)
+        ? (variant as CardGenVariant)
+        : "default";
     case "socialStats":
-      return socialVariants.has(variant as CardGenVariant) ? (variant as CardGenVariant) : "default";
+      return socialVariants.has(variant as CardGenVariant)
+        ? (variant as CardGenVariant)
+        : "default";
     case "animeGenres":
     case "animeTags":
     case "animeVoiceActors":
@@ -96,14 +129,20 @@ function normalizeVariant(variant: string | undefined | null, baseCardType?: str
     case "mangaFormatDistribution":
     case "animeCountry":
     case "mangaCountry":
-      return pieBarVariants.has(variant as CardGenVariant) ? (variant as CardGenVariant) : "default";
+      return pieBarVariants.has(variant as CardGenVariant)
+        ? (variant as CardGenVariant)
+        : "default";
     case "animeScoreDistribution":
     case "mangaScoreDistribution":
     case "animeYearDistribution":
     case "mangaYearDistribution":
-      return distributionVariants.has(variant as CardGenVariant) ? (variant as CardGenVariant) : "default";
+      return distributionVariants.has(variant as CardGenVariant)
+        ? (variant as CardGenVariant)
+        : "default";
     default:
-      return globalVariants.has(variant as CardGenVariant) ? (variant as CardGenVariant) : "default";
+      return globalVariants.has(variant as CardGenVariant)
+        ? (variant as CardGenVariant)
+        : "default";
   }
 }
 
@@ -117,7 +156,10 @@ function normalizeVariant(variant: string | undefined | null, baseCardType?: str
  * @throws {CardDataError} If the user has no stats for the requested media type.
  * @source
  */
-function generateStatsCard(params: CardGenerationParams, mediaType: "anime" | "manga") {
+function generateStatsCard(
+  params: CardGenerationParams,
+  mediaType: "anime" | "manga",
+) {
   const { cardConfig, userRecord, variant } = params;
   const recordsStats = userRecord.stats?.User?.statistics?.[mediaType] as
     | UserStatsData["User"]["statistics"]["anime"]
@@ -137,8 +179,14 @@ function generateStatsCard(params: CardGenerationParams, mediaType: "anime" | "m
   const milestoneData = calculateMilestones(Number(milestoneCount));
   const templateStats =
     mediaType === "anime"
-      ? toTemplateAnimeStats(recordsStats as UserStatsData["User"]["statistics"]["anime"], milestoneData)
-      : toTemplateMangaStats(recordsStats as UserStatsData["User"]["statistics"]["manga"], milestoneData);
+      ? toTemplateAnimeStats(
+          recordsStats as UserStatsData["User"]["statistics"]["anime"],
+          milestoneData,
+        )
+      : toTemplateMangaStats(
+          recordsStats as UserStatsData["User"]["statistics"]["manga"],
+          milestoneData,
+        );
 
   return mediaStatsTemplate({
     mediaType,
@@ -185,16 +233,30 @@ export function generateCardSvg(
   favorites?: string[],
 ): TrustedSVG {
   if (!cardConfig || !userRecord?.stats) {
-    throw new CardDataError("Not Found: Missing card configuration or stats data", 404);
+    throw new CardDataError(
+      "Not Found: Missing card configuration or stats data",
+      404,
+    );
   }
 
-  if (!userRecord.stats?.User?.statistics?.anime && !userRecord.stats?.User?.statistics?.manga) {
-    throw new CardDataError("Not Found: Missing card configuration or stats data", 404);
+  if (
+    !userRecord.stats?.User?.statistics?.anime &&
+    !userRecord.stats?.User?.statistics?.manga
+  ) {
+    throw new CardDataError(
+      "Not Found: Missing card configuration or stats data",
+      404,
+    );
   }
 
   const [baseCardType] = cardConfig.cardName.split("-");
   const normalizedVariant = normalizeVariant(String(variant), baseCardType);
-  const params: CardGenerationParams = { cardConfig, userRecord, variant: normalizedVariant, favorites };
+  const params: CardGenerationParams = {
+    cardConfig,
+    userRecord,
+    variant: normalizedVariant,
+    favorites,
+  };
 
   switch (baseCardType) {
     case "animeStats":
@@ -241,7 +303,10 @@ export function generateCardSvg(
  * @throws {CardDataError} If no category data is available for the user.
  * @source
  */
-function generateCategoryCard(params: CardGenerationParams, baseCardType: string) {
+function generateCategoryCard(
+  params: CardGenerationParams,
+  baseCardType: string,
+) {
   const { cardConfig, userRecord, variant, favorites } = params;
   const isAnime = baseCardType.startsWith("anime");
   // Map normalized suffix to the stats property name used in the records
@@ -253,16 +318,36 @@ function generateCategoryCard(params: CardGenerationParams, baseCardType: string
     staff: "staff",
   };
   // Normalize baseCardType by removing 'anime'/'manga' prefix and lookup the correct key
-  const categoryKey = categoryMap[baseCardType.replace(isAnime ? "anime" : "manga", "").toLowerCase()];
-  const stats = isAnime ? userRecord.stats?.User?.statistics?.anime : userRecord.stats?.User?.statistics?.manga;
-  const categoryData = ((stats as unknown) as Record<string, unknown> | undefined)?.[categoryKey] as unknown[] | undefined;
+  const categoryKey =
+    categoryMap[
+      baseCardType.replace(isAnime ? "anime" : "manga", "").toLowerCase()
+    ];
+  const stats = isAnime
+    ? userRecord.stats?.User?.statistics?.anime
+    : userRecord.stats?.User?.statistics?.manga;
+  const categoryData = (
+    stats as unknown as Record<string, unknown> | undefined
+  )?.[categoryKey] as unknown[] | undefined;
   const items = Array.isArray(categoryData)
-    ? categoryData.slice(0, 5).map((item: unknown) =>
-        mapCategoryItem(item as GenreItem | TagItem | VoiceActorItem | StudioItem | StaffItem, categoryKey),
-      )
+    ? categoryData
+        .slice(0, 5)
+        .map((item: unknown) =>
+          mapCategoryItem(
+            item as
+              | GenreItem
+              | TagItem
+              | VoiceActorItem
+              | StudioItem
+              | StaffItem,
+            categoryKey,
+          ),
+        )
     : [];
   if (!items || items.length === 0) {
-    throw new CardDataError("Not Found: No category data available for this user", 404);
+    throw new CardDataError(
+      "Not Found: No category data available for this user",
+      404,
+    );
   }
 
   return extraAnimeMangaStatsTemplate({
@@ -285,7 +370,10 @@ function generateCategoryCard(params: CardGenerationParams, baseCardType: string
  * @returns A TrustedSVG with the rendered distribution card.
  * @source
  */
-function generateStatusDistributionCard(params: CardGenerationParams, baseCardType: string) {
+function generateStatusDistributionCard(
+  params: CardGenerationParams,
+  baseCardType: string,
+) {
   return generateSimpleListCard(
     params,
     baseCardType,
@@ -304,8 +392,17 @@ function generateStatusDistributionCard(params: CardGenerationParams, baseCardTy
  * @returns A TrustedSVG with the rendered distribution card.
  * @source
  */
-function generateFormatDistributionCard(params: CardGenerationParams, baseCardType: string) {
-  return generateSimpleListCard(params, baseCardType, "formats", "format", "No format distribution data for this user");
+function generateFormatDistributionCard(
+  params: CardGenerationParams,
+  baseCardType: string,
+) {
+  return generateSimpleListCard(
+    params,
+    baseCardType,
+    "formats",
+    "format",
+    "No format distribution data for this user",
+  );
 }
 
 /**
@@ -331,16 +428,25 @@ function generateSimpleListCard(
 ): TrustedSVG {
   const { cardConfig, userRecord, variant } = params;
   const isAnime = baseCardType.startsWith("anime");
-  const statsRoot = isAnime ? userRecord.stats?.User?.statistics?.anime : userRecord.stats?.User?.statistics?.manga;
-  const data = ((statsRoot as unknown) as Record<string, unknown> | undefined)?.[listKey] as unknown[] | undefined;
+  const statsRoot = isAnime
+    ? userRecord.stats?.User?.statistics?.anime
+    : userRecord.stats?.User?.statistics?.manga;
+  const data = (statsRoot as unknown as Record<string, unknown> | undefined)?.[
+    listKey
+  ] as unknown[] | undefined;
   const statsList = Array.isArray(data)
-    ? (data as { [k: string]: unknown }[]).map((entry) => ({ name: String(entry[nameKey] ?? ""), count: (entry.count as number) ?? 0 }))
+    ? (data as { [k: string]: unknown }[]).map((entry) => ({
+        name: String(entry[nameKey] ?? ""),
+        count: (entry.count as number) ?? 0,
+      }))
     : [];
   // Ensure the list has data; throw an informative error if not
   if (!statsList.length) {
     throw new CardDataError(`Not Found: ${notFoundMessage}`, 404);
   }
-  const mappedVariant = (["pie", "bar"].includes(variant) ? variant : "default") as PieBarVariant;
+  const mappedVariant = (
+    ["pie", "bar"].includes(variant) ? variant : "default"
+  ) as PieBarVariant;
   return extraAnimeMangaStatsTemplate({
     username: userRecord.username ?? userRecord.userId,
     variant: mappedVariant,
@@ -362,31 +468,50 @@ function generateSimpleListCard(
  * @throws {CardDataError} If distribution data is not present for the user.
  * @source
  */
-function generateDistributionCard(params: CardGenerationParams, baseCardType: string, kind: "score" | "year") {
+function generateDistributionCard(
+  params: CardGenerationParams,
+  baseCardType: string,
+  kind: "score" | "year",
+) {
   const { cardConfig, userRecord, variant } = params;
   const isAnime = baseCardType.startsWith("anime");
-  const stats = isAnime ? userRecord.stats?.User?.statistics?.anime : userRecord.stats?.User?.statistics?.manga;
+  const stats = isAnime
+    ? userRecord.stats?.User?.statistics?.anime
+    : userRecord.stats?.User?.statistics?.manga;
   // Choose the property on the stats object for score vs release year distributions
   const dataProperty = kind === "score" ? "scores" : "releaseYears";
   const valueProperty = kind === "score" ? "score" : "releaseYear";
-  const distributionData = ((stats as unknown) as Record<string, unknown> | undefined)?.[dataProperty] as unknown[] | undefined;
+  const distributionData = (
+    stats as unknown as Record<string, unknown> | undefined
+  )?.[dataProperty] as unknown[] | undefined;
   const statsList = Array.isArray(distributionData)
     ? distributionData.map((s: unknown) => {
         const item = s as { [k: string]: unknown };
-        return { name: String(item[valueProperty] ?? ""), count: (item.count as number) ?? 0 };
+        return {
+          name: String(item[valueProperty] ?? ""),
+          count: (item.count as number) ?? 0,
+        };
       })
     : [];
   if (!statsList.length) {
-    throw new CardDataError("Not Found: No distribution data for this user", 404);
+    throw new CardDataError(
+      "Not Found: No distribution data for this user",
+      404,
+    );
   }
-  const mappedVariant = (["default", "horizontal"].includes(variant) ? variant : "default") as DistributionVariant;
+  const mappedVariant = (
+    ["default", "horizontal"].includes(variant) ? variant : "default"
+  ) as DistributionVariant;
   return distributionTemplate({
     username: userRecord.username ?? userRecord.userId,
     mediaType: isAnime ? "anime" : "manga",
     variant: mappedVariant,
     kind,
     styles: extractStyles(cardConfig),
-    data: statsList.map((s: { name: string; count: number }) => ({ value: Number(s.name), count: s.count })),
+    data: statsList.map((s: { name: string; count: number }) => ({
+      value: Number(s.name),
+      count: s.count,
+    })),
   });
 }
 
@@ -398,16 +523,31 @@ function generateDistributionCard(params: CardGenerationParams, baseCardType: st
  * @throws {CardDataError} If no country data is present for the user.
  * @source
  */
-function generateCountryCard(params: CardGenerationParams, baseCardType: string) {
+function generateCountryCard(
+  params: CardGenerationParams,
+  baseCardType: string,
+) {
   const { cardConfig, userRecord, variant } = params;
   const isAnime = baseCardType.startsWith("anime");
-  const statsRoot = isAnime ? userRecord.stats?.User?.statistics?.anime : userRecord.stats?.User?.statistics?.manga;
-  const countriesData = (statsRoot?.countries ?? []) as { country: string; count: number }[];
-  const list = Array.isArray(countriesData) ? countriesData.map((c) => ({ name: c.country || "Unknown", count: c.count ?? 0 })) : [];
+  const statsRoot = isAnime
+    ? userRecord.stats?.User?.statistics?.anime
+    : userRecord.stats?.User?.statistics?.manga;
+  const countriesData = (statsRoot?.countries ?? []) as {
+    country: string;
+    count: number;
+  }[];
+  const list = Array.isArray(countriesData)
+    ? countriesData.map((c) => ({
+        name: c.country || "Unknown",
+        count: c.count ?? 0,
+      }))
+    : [];
   if (!list.length) {
     throw new CardDataError("Not Found: No country data for this user", 404);
   }
-  const mappedVariant = (["pie", "bar"].includes(variant) ? variant : "default") as PieBarVariant;
+  const mappedVariant = (
+    ["pie", "bar"].includes(variant) ? variant : "default"
+  ) as PieBarVariant;
   return extraAnimeMangaStatsTemplate({
     username: userRecord.username ?? userRecord.userId,
     variant: mappedVariant,

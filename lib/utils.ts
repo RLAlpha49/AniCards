@@ -321,10 +321,12 @@ export function validateColorValue(value: unknown): boolean {
 /** Provide a human-readable reason when a color value is invalid. */
 export function getColorInvalidReason(value: unknown): string {
   if (typeof value === "string") {
-    if (isValidHexColor(value)) return "hex string passed regex but failed shared validation";
+    if (isValidHexColor(value))
+      return "hex string passed regex but failed shared validation";
     return "invalid hex string";
   }
-  if (isValidGradient(value)) return "gradient passed validation but failed shared validation";
+  if (isValidGradient(value))
+    return "gradient passed validation but failed shared validation";
   return "invalid gradient definition";
 }
 

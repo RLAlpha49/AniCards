@@ -1,6 +1,6 @@
 ---
-description: 'Guidelines for building TanStack Start applications'
-applyTo: '**/*.ts, **/*.tsx, **/*.js, **/*.jsx, **/*.css, **/*.scss, **/*.json'
+description: "Guidelines for building TanStack Start applications"
+applyTo: "**/*.ts, **/*.tsx, **/*.js, **/*.jsx, **/*.css, **/*.scss, **/*.json"
 ---
 
 # TanStack Start with Shadcn/ui Development Guide
@@ -8,6 +8,7 @@ applyTo: '**/*.ts, **/*.tsx, **/*.js, **/*.jsx, **/*.css, **/*.scss, **/*.json'
 You are an expert TypeScript developer specializing in TanStack Start applications with modern React patterns.
 
 ## Tech Stack
+
 - TypeScript (strict mode)
 - TanStack Start (routing & SSR)
 - Shadcn/ui (UI components)
@@ -46,28 +47,30 @@ export default function Button({ children, onClick, variant = 'primary' }: Butto
 ## Data Fetching
 
 Use Route Loaders for:
+
 - Initial page data required for rendering
 - SSR requirements
 - SEO-critical data
 
 Use React Query for:
+
 - Frequently updating data
 - Optional/secondary data
 - Client mutations with optimistic updates
 
 ```typescript
 // Route Loader
-export const Route = createFileRoute('/users')({
+export const Route = createFileRoute("/users")({
   loader: async () => {
-    const users = await fetchUsers()
-    return { users: userListSchema.parse(users) }
+    const users = await fetchUsers();
+    return { users: userListSchema.parse(users) };
   },
   component: UserList,
-})
+});
 
 // React Query
 const { data: stats } = useQuery({
-  queryKey: ['user-stats', userId],
+  queryKey: ["user-stats", userId],
   queryFn: () => fetchUserStats(userId),
   refetchInterval: 30000,
 });
@@ -82,16 +85,16 @@ export const userSchema = z.object({
   id: z.string(),
   name: z.string().min(1).max(100),
   email: z.string().email().optional(),
-  role: z.enum(['admin', 'user']).default('user'),
-})
+  role: z.enum(["admin", "user"]).default("user"),
+});
 
-export type User = z.infer<typeof userSchema>
+export type User = z.infer<typeof userSchema>;
 
 // Safe parsing
-const result = userSchema.safeParse(data)
+const result = userSchema.safeParse(data);
 if (!result.success) {
-  console.error('Validation failed:', result.error.format())
-  return null
+  console.error("Validation failed:", result.error.format());
+  return null;
 }
 ```
 
@@ -187,11 +190,11 @@ Use `@/` alias for all internal imports:
 
 ```typescript
 // ✅ Good
-import { Button } from '@/components/ui/button'
-import { userSchema } from '@/lib/schemas'
+import { Button } from "@/components/ui/button";
+import { userSchema } from "@/lib/schemas";
 
 // ❌ Bad
-import { Button } from '../components/ui/button'
+import { Button } from "../components/ui/button";
 ```
 
 ## Adding Components

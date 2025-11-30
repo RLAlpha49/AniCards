@@ -5,10 +5,20 @@ import {
   checkRateLimit,
   buildAnalyticsMetricKey,
 } from "@/lib/api-utils";
-import { escapeForXml, getCardBorderRadius, DEFAULT_CARD_BORDER_RADIUS, markTrustedSvg } from "@/lib/utils";
+import {
+  escapeForXml,
+  getCardBorderRadius,
+  DEFAULT_CARD_BORDER_RADIUS,
+  markTrustedSvg,
+} from "@/lib/utils";
 import { UserRecord, CardsRecord, StoredCardConfig } from "@/lib/types/records";
 import generateCardSvg from "@/lib/card-generator";
-import { fetchUserData, validateAndNormalizeUserRecord, processCardConfig, CardDataError } from "@/lib/card-data";
+import {
+  fetchUserData,
+  validateAndNormalizeUserRecord,
+  processCardConfig,
+  CardDataError,
+} from "@/lib/card-data";
 import { toCleanSvgResponse, type TrustedSVG } from "@/lib/types/svg";
 
 /** Rate limiter for card SVG requests to prevent abuse. @source */
@@ -88,7 +98,9 @@ function formatCardDataErrorMessage(err: CardDataError): string {
     return raw.startsWith("Not Found:") ? raw : `Not Found: ${raw}`;
   }
   if (err.status >= 400 && err.status < 500) {
-    return raw.startsWith("Client Error:") || raw.startsWith("Not Found:") ? raw : `Client Error: ${raw}`;
+    return raw.startsWith("Client Error:") || raw.startsWith("Not Found:")
+      ? raw
+      : `Client Error: ${raw}`;
   }
   return raw.startsWith("Server Error:") ? raw : `Server Error: ${raw}`;
 }
@@ -368,7 +380,9 @@ export async function GET(request: Request) {
       void trackFailedRequest(params.baseCardType, status);
       if (status === 404) {
         return new Response(
-          toCleanSvgResponse(svgError("Not Found: Missing card configuration or stats data")),
+          toCleanSvgResponse(
+            svgError("Not Found: Missing card configuration or stats data"),
+          ),
           {
             headers: errorHeaders(request),
             status: 404,
