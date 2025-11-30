@@ -198,21 +198,24 @@ export function getAllowedCardSvgOrigin(request?: Request): string {
  * Enforces a rate limit for an IP address using the configured Upstash
  * rate limiter. Records analytics and returns a 429 response on limit.
  * @param ip - IP address to check.
- * @param endpoint - Logical endpoint name used for logging/analytics.
+ * @param endpointName - Friendly endpoint name used for logging.
+ * @param endpointKey - Stable canonical endpoint key used for analytics metric keys.
+ * @param limiter - Optional per-endpoint Ratelimit instance used for rate limiting.
  * @returns A NextResponse with an ApiError when limited, or null when allowed.
  * @source
  */
 export async function checkRateLimit(
   ip: string,
-  endpoint: string,
+  endpointName: string,
+  endpointKey: string,
   limiter?: Ratelimit,
 ): Promise<NextResponse<ApiError> | null> {
   const effectiveLimiter = limiter ?? ratelimit;
   const { success } = await effectiveLimiter.limit(ip);
   if (!success) {
-    console.warn(`🚨 [${endpoint}] Rate limited IP: ${ip}`);
+    console.warn(`🚨 [${endpointName}] Rate limited IP: ${ip}`);
     await incrementAnalytics(
-      `analytics:${endpoint.toLowerCase().replace(" ", "_")}:failed_requests`,
+      buildAnalyticsMetricKey(endpointKey, "failed_requests"),
     );
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
@@ -224,13 +227,15 @@ export async function checkRateLimit(
  * application (or an internal request with no origin header). In
  * production, cross-origin requests are rejected with a 401 response.
  * @param request - The incoming Request object to evaluate.
- * @param endpoint - Logical endpoint name for logging/analytics.
+ * @param endpointName - Friendly endpoint name used for logs.
+ * @param endpointKey - Stable canonical endpoint key used for analytics metric keys.
  * @returns A NextResponse with an ApiError when unauthorized, or null when allowed.
  * @source
  */
 export function validateSameOrigin(
   request: Request,
-  endpoint: string,
+  endpointName: string,
+  endpointKey: string,
 ): NextResponse<ApiError> | null {
   const origin = request.headers.get("origin");
   const requestOrigin = new URL(request.url).origin;
@@ -242,12 +247,10 @@ export function validateSameOrigin(
 
   if (!isSameOrigin) {
     console.warn(
-      `🔐 [${endpoint}] Rejected cross-origin request from: ${origin} (allowed: ${allowedOrigin})`,
+      `🔐 [${endpointName}] Rejected cross-origin request from: ${origin} (allowed: ${allowedOrigin})`,
     );
 
-    const metric = `analytics:${endpoint
-      .toLowerCase()
-      .replace(" ", "_")}:failed_requests`;
+    const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
 
     incrementAnalytics(metric).catch((err) => {
       if (process.env.NODE_ENV !== "production") {
@@ -276,6 +279,22 @@ export async function incrementAnalytics(metric: string): Promise<void> {
     // Silently fail analytics to avoid affecting main functionality
     console.warn(`Failed to increment analytics for ${metric}:`, error);
   }
+}
+
+/**
+ * Build a canonical analytics Redis key using a stable endpoint key.
+ * Example: buildAnalyticsMetricKey("store_cards", "failed_requests")
+ * returns "analytics:store_cards:failed_requests".
+ * An optional extraSuffix is appended if provided for more granular metrics.
+ */
+export function buildAnalyticsMetricKey(
+  endpointKey: string,
+  metric: string,
+  extraSuffix?: string,
+): string {
+  const normalized = String(endpointKey).toLowerCase().replaceAll(/\s+/g, "_");
+  const base = `analytics:${normalized}:${metric}`;
+  return extraSuffix ? `${base}:${extraSuffix}` : base;
 }
 
 /**
@@ -677,6 +696,7 @@ export interface ApiInitResult {
   startTime: number;
   ip: string;
   endpoint: string;
+  endpointKey: string;
   errorResponse?: NextResponse<ApiError>;
 }
 
@@ -684,13 +704,16 @@ export interface ApiInitResult {
  * Performs common API request initialization checks (rate limit, same-origin)
  * and returns contextual information needed by handlers.
  * @param request - The incoming Request object.
- * @param endpointName - Friendly endpoint name used for logs and analytics.
+ * @param endpointName - Friendly endpoint name used for logs.
+ * @param endpointKey - Stable canonical endpoint key used for analytics metric keys.
  * @returns ApiInitResult with startTime, ip, endpoint and any early errorResponse.
  * @source
  */
 export async function initializeApiRequest(
   request: Request,
   endpointName: string,
+  endpointKey: string,
+  limiter?: Ratelimit,
 ): Promise<ApiInitResult> {
   const startTime = Date.now();
   const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
@@ -699,16 +722,33 @@ export async function initializeApiRequest(
   logRequest(endpoint, ip);
 
   // Check rate limit
-  const rateLimitResponse = await checkRateLimit(ip, endpoint);
+  const rateLimitResponse = await checkRateLimit(
+    ip,
+    endpoint,
+    endpointKey,
+    limiter,
+  );
   if (rateLimitResponse) {
-    return { startTime, ip, endpoint, errorResponse: rateLimitResponse };
+    return {
+      startTime,
+      ip,
+      endpoint,
+      endpointKey,
+      errorResponse: rateLimitResponse,
+    };
   }
 
   // Validate same-origin request (for write operations)
-  const sameOriginResponse = validateSameOrigin(request, endpoint);
+  const sameOriginResponse = validateSameOrigin(request, endpoint, endpointKey);
   if (sameOriginResponse) {
-    return { startTime, ip, endpoint, errorResponse: sameOriginResponse };
+    return {
+      startTime,
+      ip,
+      endpoint,
+      endpointKey,
+      errorResponse: sameOriginResponse,
+    };
   }
 
-  return { startTime, ip, endpoint };
+  return { startTime, ip, endpoint, endpointKey };
 }

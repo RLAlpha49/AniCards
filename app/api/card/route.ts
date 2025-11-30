@@ -4,6 +4,7 @@ import {
   getAllowedCardSvgOrigin,
   createRateLimiter,
   checkRateLimit,
+  buildAnalyticsMetricKey,
 } from "@/lib/api-utils";
 import {
   SocialStats,
@@ -1386,19 +1387,24 @@ async function trackFailedRequest(
   baseCardType?: string,
   status?: number,
 ): Promise<void> {
-  incrementAnalytics("analytics:card_svg:failed_requests").catch(() => {});
+  incrementAnalytics(
+    buildAnalyticsMetricKey("card_svg", "failed_requests"),
+  ).catch(() => {});
   if (baseCardType) {
     incrementAnalytics(
-      `analytics:card_svg:failed_requests:${baseCardType}`,
+      buildAnalyticsMetricKey("card_svg", "failed_requests") +
+        `:${baseCardType}`,
     ).catch(() => {});
   }
   if (typeof status === "number") {
     incrementAnalytics(
-      `analytics:card_svg:failed_requests:status:${status}`,
+      buildAnalyticsMetricKey("card_svg", "failed_requests") +
+        `:status:${status}`,
     ).catch(() => {});
     if (baseCardType) {
       incrementAnalytics(
-        `analytics:card_svg:failed_requests:${baseCardType}:status:${status}`,
+        buildAnalyticsMetricKey("card_svg", "failed_requests") +
+          `:${baseCardType}:status:${status}`,
       ).catch(() => {});
     }
   }
@@ -1411,9 +1417,12 @@ async function trackFailedRequest(
  * @source
  */
 async function trackSuccessfulRequest(baseCardType: string): Promise<void> {
-  incrementAnalytics("analytics:card_svg:successful_requests").catch(() => {});
   incrementAnalytics(
-    `analytics:card_svg:successful_requests:${baseCardType}`,
+    buildAnalyticsMetricKey("card_svg", "successful_requests"),
+  ).catch(() => {});
+  incrementAnalytics(
+    buildAnalyticsMetricKey("card_svg", "successful_requests") +
+      `:${baseCardType}`,
   ).catch(() => {});
 }
 
@@ -1468,9 +1477,9 @@ async function fetchUserData(
       }`,
     );
     // Distinct metric for corrupt card records
-    incrementAnalytics("analytics:card_svg:corrupted_card_records").catch(
-      () => {},
-    );
+    incrementAnalytics(
+      buildAnalyticsMetricKey("card_svg", "corrupted_card_records"),
+    ).catch(() => {});
     await trackFailedRequest(baseCardType, 500);
     return new Response(
       toCleanSvgResponse(
@@ -1492,9 +1501,9 @@ async function fetchUserData(
       }`,
     );
     // Distinct metric for corrupt user records
-    incrementAnalytics("analytics:card_svg:corrupted_user_records").catch(
-      () => {},
-    );
+    incrementAnalytics(
+      buildAnalyticsMetricKey("card_svg", "corrupted_user_records"),
+    ).catch(() => {});
     await trackFailedRequest(baseCardType, 500);
     return new Response(
       toCleanSvgResponse(svgError("Server Error: Corrupted user record")),
@@ -1622,7 +1631,12 @@ export async function GET(request: Request) {
   const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
 
   // Rate limiter check
-  const rateLimitResponse = await checkRateLimit(ip, "Card SVG", ratelimit);
+  const rateLimitResponse = await checkRateLimit(
+    ip,
+    "Card SVG",
+    "card_svg",
+    ratelimit,
+  );
   if (rateLimitResponse) {
     return new Response(
       toCleanSvgResponse(

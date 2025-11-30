@@ -7,12 +7,14 @@ import {
   redisClient,
   initializeApiRequest,
   validateCardData,
+  buildAnalyticsMetricKey,
 } from "@/lib/api-utils";
 import { clampBorderRadius, safeParse } from "@/lib/utils";
 
 function parseStoredCardsRecord(
   rawValue: unknown,
   endpoint: string,
+  endpointKey: string,
   cardsKey: string,
 ): StoredCardConfig[] {
   if (rawValue === undefined || rawValue === null) return [];
@@ -35,9 +37,9 @@ function parseStoredCardsRecord(
         error instanceof Error ? error.message : String(error)
       }`,
     );
-    incrementAnalytics("analytics:store_cards:corrupted_records").catch(
-      () => {},
-    );
+    incrementAnalytics(
+      buildAnalyticsMetricKey(endpointKey, "corrupted_records"),
+    ).catch(() => {});
   }
 
   return [];
@@ -50,10 +52,14 @@ function parseStoredCardsRecord(
  * @source
  */
 export async function POST(request: Request): Promise<NextResponse> {
-  const init = await initializeApiRequest(request, "Store Cards");
+  const init = await initializeApiRequest(
+    request,
+    "Store Cards",
+    "store_cards",
+  );
   if (init.errorResponse) return init.errorResponse;
 
-  const { startTime, endpoint } = init;
+  const { startTime, endpoint, endpointKey } = init;
 
   try {
     const body = await request.json();
@@ -65,7 +71,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     // Validate incoming data
     const validationError = validateCardData(incomingCards, userId, endpoint);
     if (validationError) {
-      await incrementAnalytics("analytics:store_cards:failed_requests");
+      await incrementAnalytics(
+        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+      );
       return validationError;
     }
 
@@ -73,7 +81,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       console.warn(
         `⚠️ [${endpoint}] Invalid data for user ${userId}: ${statsData.error}`,
       );
-      await incrementAnalytics("analytics:store_cards:failed_requests");
+      await incrementAnalytics(
+        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+      );
       return NextResponse.json(
         { error: "Invalid data: " + statsData.error },
         { status: 400 },
@@ -91,6 +101,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const existingCards = parseStoredCardsRecord(
       existingData,
       endpoint,
+      endpointKey,
       cardsKey,
     );
 
@@ -140,7 +151,9 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const duration = Date.now() - startTime;
     logSuccess(endpoint, userId, duration, "Stored cards");
-    await incrementAnalytics("analytics:store_cards:successful_requests");
+    await incrementAnalytics(
+      buildAnalyticsMetricKey(endpointKey, "successful_requests"),
+    );
 
     return NextResponse.json({
       success: true,
@@ -151,7 +164,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       error as Error,
       endpoint,
       startTime,
-      "analytics:store_cards:failed_requests",
+      buildAnalyticsMetricKey(endpointKey, "failed_requests"),
       "Card storage failed",
     );
   }

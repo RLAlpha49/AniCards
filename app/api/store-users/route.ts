@@ -8,6 +8,7 @@ import {
   redisClient,
   initializeApiRequest,
   validateUserData,
+  buildAnalyticsMetricKey,
 } from "@/lib/api-utils";
 
 /**
@@ -17,10 +18,14 @@ import {
  * @source
  */
 export async function POST(request: Request): Promise<NextResponse> {
-  const init = await initializeApiRequest(request, "Store Users");
+  const init = await initializeApiRequest(
+    request,
+    "Store Users",
+    "store_users",
+  );
   if (init.errorResponse) return init.errorResponse;
 
-  const { startTime, ip, endpoint } = init;
+  const { startTime, ip, endpoint, endpointKey } = init;
 
   try {
     const data = await request.json();
@@ -34,7 +39,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       endpoint,
     );
     if (validationError) {
-      await incrementAnalytics("analytics:store_users:failed_requests");
+      await incrementAnalytics(
+        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+      );
       return validationError;
     }
 
@@ -93,7 +100,9 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const duration = Date.now() - startTime;
     logSuccess(endpoint, data.userId, duration);
-    await incrementAnalytics("analytics:store_users:successful_requests");
+    await incrementAnalytics(
+      buildAnalyticsMetricKey(endpointKey, "successful_requests"),
+    );
 
     return NextResponse.json({
       success: true,
@@ -104,7 +113,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       error as Error,
       endpoint,
       startTime,
-      "analytics:store_users:failed_requests",
+      buildAnalyticsMetricKey(endpointKey, "failed_requests"),
       "User storage failed",
     );
   }

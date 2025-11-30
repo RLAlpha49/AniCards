@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { initializeApiRequest, incrementAnalytics } from "@/lib/api-utils";
+import {
+  initializeApiRequest,
+  incrementAnalytics,
+  buildAnalyticsMetricKey,
+} from "@/lib/api-utils";
 
 /**
  * Payload sent to AniList, containing the GraphQL query and optional variables.
@@ -169,7 +173,11 @@ export async function POST(request: Request) {
   if (testResponse) {
     return testResponse;
   }
-  const init = await initializeApiRequest(request, "AniList API");
+  const init = await initializeApiRequest(
+    request,
+    "AniList API",
+    "anilist_api",
+  );
   if (init.errorResponse) return init.errorResponse;
 
   const { startTime } = init;
@@ -207,7 +215,9 @@ export async function POST(request: Request) {
       `✅ [AniList API] Anilist operation ${operationInfo.name} completed successfully.`,
     );
 
-    await trackAnalytics("analytics:anilist_api:successful_requests");
+    await trackAnalytics(
+      buildAnalyticsMetricKey("anilist_api", "successful_requests"),
+    );
     return NextResponse.json(data);
   } catch (error: unknown) {
     const duration = Date.now() - startTime;
@@ -226,7 +236,9 @@ export async function POST(request: Request) {
     const statusMatch = statusPattern.exec(errorMessage);
     const statusCode = statusMatch ? Number.parseInt(statusMatch[1], 10) : 500;
 
-    await trackAnalytics("analytics:anilist_api:failed_requests");
+    await trackAnalytics(
+      buildAnalyticsMetricKey("anilist_api", "failed_requests"),
+    );
 
     return NextResponse.json(
       { error: errorMessage || "Failed to fetch AniList data" },
