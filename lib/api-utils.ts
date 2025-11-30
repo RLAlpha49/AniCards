@@ -243,14 +243,24 @@ export function validateSameOrigin(
   // Allow internal requests (no origin) or same-origin requests
   const isSameOrigin = !origin || origin === allowedOrigin;
 
-  if (process.env.NODE_ENV === "production" && !isSameOrigin) {
+  if (!isSameOrigin) {
     console.warn(
       `🔐 [${endpoint}] Rejected cross-origin request from: ${origin} (allowed: ${allowedOrigin})`,
     );
-    incrementAnalytics(
-      `analytics:${endpoint.toLowerCase().replace(" ", "_")}:failed_requests`,
-    ).catch(() => {});
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const metric = `analytics:${endpoint
+      .toLowerCase()
+      .replace(" ", "_")}:failed_requests`;
+
+    incrementAnalytics(metric).catch((err) => {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn(`Analytics increment failed for ${metric}:`, err);
+      }
+    });
+
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
   }
 
   return null;

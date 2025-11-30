@@ -104,6 +104,10 @@ export async function POST(request: Request): Promise<NextResponse> {
         ? (previous!.borderRadius as number)
         : undefined;
       const effectiveRadius = incomingRadius ?? previousRadius;
+      const normalizedBorderRadius =
+        typeof effectiveRadius === "number"
+          ? clampBorderRadius(effectiveRadius)
+          : undefined;
 
       existingCardsMap.set(card.cardName, {
         cardName: card.cardName,
@@ -113,10 +117,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         textColor: card.textColor,
         circleColor: card.circleColor,
         borderColor: card.borderColor,
-        borderRadius:
-          typeof effectiveRadius === "number"
-            ? clampBorderRadius(effectiveRadius)
-            : (previous?.borderRadius ?? card.borderRadius),
+        borderRadius: normalizedBorderRadius,
         showFavorites: card.showFavorites,
         useStatusColors: card.useStatusColors,
         showPiePercentages: card.showPiePercentages,
