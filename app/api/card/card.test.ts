@@ -763,4 +763,31 @@ describe("Card SVG GET Endpoint", () => {
       500,
     );
   });
+
+  it("should normalize nested fields even when malformed in Redis and proceed", async () => {
+    const cardsData = createMockCardData("animeStats", "default");
+    const userData = createMockUserData(542244, "testUser", {
+      User: {
+        statistics: {
+          anime: { genres: "not-an-array" },
+        },
+        stats: { activityHistory: [{ date: 1, amount: 1 }] },
+      },
+    });
+    setupSuccessfulMocks(cardsData, userData);
+
+    const req = new Request(
+      createRequestUrl(baseUrl, {
+        userId: "542244",
+        cardType: "animeStats",
+      }),
+    );
+    const res = await GET(req);
+    const body = await getResponseText(res);
+
+    // Template should still be invoked and a safe SVG returned after normalization
+    expect(res.status).toBe(200);
+    expect(mediaStatsTemplate).toHaveBeenCalled();
+    expect(body).toContain("Anime Stats");
+  });
 });

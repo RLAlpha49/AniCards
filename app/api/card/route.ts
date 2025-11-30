@@ -26,6 +26,12 @@ import {
   CardsRecord,
   UserStatsData,
   StoredCardConfig,
+  AnimeStats,
+  MangaStats,
+  AnimeStatVoiceActor,
+  AnimeStatStudio,
+  AnimeStatStaff,
+  MangaStatStaff,
 } from "@/lib/types/records";
 
 import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
@@ -458,6 +464,410 @@ function mapCategoryItem(
 }
 
 /**
+ * Validates and normalizes complex `UserRecord` structures that are parsed from Redis.
+ * The normalization ensures nested arrays and fields used by templates are present
+ * in a consistent shape and typed values are coerced safely. This avoids runtime
+ * errors in templates when the stored data is partially missing or malformed.
+ *
+ * Returns a tuple of [normalizedUserRecord, undefined] on success, or [undefined, errorMessage]
+ * on validation failure. The caller is expected to convert the error message into an
+ * SVG error response using `svgError`.
+ */
+function validateAndNormalizeUserRecord(
+  raw: unknown,
+): { normalized: UserRecord } | { error: string; status?: number } {
+  if (!raw || typeof raw !== "object") {
+    return { error: "Invalid user record: not an object" };
+  }
+
+  const user = raw as Partial<UserRecord>;
+
+  if (!user.stats || typeof user.stats !== "object") {
+    return { error: "Invalid user record: missing statistics" };
+  }
+
+  const statsData = user.stats as Partial<UserStatsData>;
+
+  // Normalize Activity History
+  const rawActivityHistory = statsData?.User?.stats?.activityHistory;
+  const normalizedActivityHistory = Array.isArray(rawActivityHistory)
+    ? rawActivityHistory.map((a: unknown) => {
+        const item = a as { date?: unknown; amount?: unknown };
+        const date = Number(item?.date ?? Number.NaN);
+        const amount = Number(item?.amount ?? Number.NaN);
+        return {
+          date: Number.isFinite(date) ? date : 0,
+          amount: Number.isFinite(amount) ? amount : 0,
+        };
+      })
+    : [];
+
+  // Page normalizer helper
+  interface NormalizedPage {
+    pageInfo: { total: number };
+    [k: string]: unknown;
+  }
+  const normalizePage = (
+    value: unknown,
+    keyNames: { itemsKey: string },
+  ): NormalizedPage => {
+    if (!value || typeof value !== "object") {
+      return {
+        pageInfo: { total: 0 },
+        [keyNames.itemsKey]: [],
+      } as NormalizedPage;
+    }
+    const v = value as Record<string, unknown>;
+    const pageInfoCandidate = v.pageInfo as Record<string, unknown> | undefined;
+    const pageInfo =
+      pageInfoCandidate && typeof pageInfoCandidate.total === "number"
+        ? { total: pageInfoCandidate.total }
+        : { total: 0 };
+    const items = Array.isArray(v[keyNames.itemsKey])
+      ? (v[keyNames.itemsKey] as unknown[])
+      : [];
+    return { pageInfo, [keyNames.itemsKey]: items } as NormalizedPage;
+  };
+
+  // Helper to normalize a numeric field
+  const coerceNumber = (
+    value: unknown,
+    fallback?: number,
+  ): number | undefined => {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (
+      typeof value === "string" &&
+      value.trim() !== "" &&
+      !Number.isNaN(Number(value))
+    )
+      return Number(value);
+    return fallback;
+  };
+
+  const isObject = (v: unknown): v is Record<string, unknown> =>
+    !!v && typeof v === "object";
+
+  const getNestedString = (root: unknown, path: string[]): string => {
+    let node: unknown = root;
+    for (const seg of path) {
+      if (!isObject(node)) return "";
+      const recNode = node;
+      node = recNode[seg];
+    }
+    if (typeof node === "string") return node;
+    if (typeof node === "number") return String(node);
+    return "";
+  };
+
+  // Normalize a single stat block (anime or manga)
+  const normalizeStatBlock = (
+    rawStatBlock: unknown,
+    type: "anime" | "manga",
+  ) => {
+    if (!rawStatBlock || typeof rawStatBlock !== "object") return undefined;
+    const block = rawStatBlock as Record<string, unknown>;
+
+    const rawGenres = block["genres"];
+    const genres = Array.isArray(rawGenres)
+      ? (rawGenres as unknown[])
+          .map((g) => {
+            if (!g || typeof g !== "object") return null;
+            const rec = g as Record<string, unknown>;
+            return {
+              genre:
+                typeof rec.genre === "string"
+                  ? rec.genre
+                  : String(rec.genre ?? ""),
+              count: coerceNumber(rec.count, 0) ?? 0,
+            };
+          })
+          .filter(
+            (g): g is { genre: string; count: number } => !!g && g.genre !== "",
+          )
+      : [];
+    const rawTags = block["tags"];
+    const tags = Array.isArray(rawTags)
+      ? (rawTags as unknown[])
+          .map((t) => {
+            if (!t || typeof t !== "object") return null;
+            const rec = t as Record<string, unknown>;
+            const tagName = getNestedString(rec, ["tag", "name"]);
+            return {
+              tag: { name: tagName },
+              count: coerceNumber(rec.count, 0) ?? 0,
+            };
+          })
+          .filter(
+            (t): t is { tag: { name: string }; count: number } =>
+              !!t && !!t.tag && !!t.tag.name,
+          )
+      : [];
+    const rawVoiceActors = block["voiceActors"];
+    const voiceActors: AnimeStatVoiceActor[] = Array.isArray(rawVoiceActors)
+      ? (rawVoiceActors as unknown[])
+          .map((v) => {
+            if (!v || typeof v !== "object") return null;
+            const rec = v as Record<string, unknown>;
+            const fullName = getNestedString(rec, [
+              "voiceActor",
+              "name",
+              "full",
+            ]);
+            return {
+              voiceActor: { name: { full: fullName } },
+              count: coerceNumber(rec.count, 0) ?? 0,
+            };
+          })
+          .filter(
+            (v): v is AnimeStatVoiceActor =>
+              getNestedString(v, ["voiceActor", "name", "full"]) !== "",
+          )
+      : [];
+    const rawStudios = block["studios"];
+    const studios: AnimeStatStudio[] = Array.isArray(rawStudios)
+      ? (rawStudios as unknown[])
+          .map((s) => {
+            if (!s || typeof s !== "object") return null;
+            const rec = s as Record<string, unknown>;
+            const studioName = getNestedString(rec, ["studio", "name"]);
+            return {
+              studio: { name: studioName },
+              count: coerceNumber(rec.count, 0) ?? 0,
+            };
+          })
+          .filter(
+            (s): s is AnimeStatStudio =>
+              getNestedString(s, ["studio", "name"]) !== "",
+          )
+      : [];
+    const rawStaff = block["staff"];
+    const staff: AnimeStatStaff[] | MangaStatStaff[] = Array.isArray(rawStaff)
+      ? (rawStaff as unknown[])
+          .map((s) => {
+            if (!s || typeof s !== "object") return null;
+            const rec = s as Record<string, unknown>;
+            const staffName = getNestedString(rec, ["staff", "name", "full"]);
+            return {
+              staff: { name: { full: staffName } },
+              count: coerceNumber(rec.count, 0) ?? 0,
+            };
+          })
+          .filter(
+            (s): s is AnimeStatStaff | MangaStatStaff =>
+              getNestedString(s, ["staff", "name", "full"]) !== "",
+          )
+      : [];
+    const rawStatuses = block["statuses"];
+    const statuses = Array.isArray(rawStatuses)
+      ? (rawStatuses as unknown[])
+          .map((s) => {
+            if (!s || typeof s !== "object") return null;
+            const rec = s as Record<string, unknown>;
+            return {
+              status: String(rec.status ?? ""),
+              count: coerceNumber(rec.count, 0) ?? 0,
+            };
+          })
+          .filter(
+            (s): s is { status: string; count: number } => !!s && !!s.status,
+          )
+      : undefined;
+    const rawFormats = block["formats"];
+    const formats = Array.isArray(rawFormats)
+      ? (rawFormats as unknown[])
+          .map((f) => {
+            if (!f || typeof f !== "object") return null;
+            const rec = f as Record<string, unknown>;
+            return {
+              format: String(rec.format ?? ""),
+              count: coerceNumber(rec.count, 0) ?? 0,
+            };
+          })
+          .filter(
+            (f): f is { format: string; count: number } => !!f && !!f.format,
+          )
+      : undefined;
+    const rawScores = block["scores"];
+    const scores = Array.isArray(rawScores)
+      ? (rawScores as unknown[])
+          .map((s) => {
+            if (!s || typeof s !== "object") return null;
+            const rec = s as Record<string, unknown>;
+            return {
+              score: coerceNumber(rec.score, Number.NaN),
+              count: coerceNumber(rec.count, 0),
+            };
+          })
+          .filter(
+            (s): s is { score: number; count: number } =>
+              s !== null && Number.isFinite(s.score),
+          )
+      : undefined;
+    const rawReleaseYears = block["releaseYears"];
+    const releaseYears = Array.isArray(rawReleaseYears)
+      ? (rawReleaseYears as unknown[])
+          .map((r) => {
+            if (!r || typeof r !== "object") return null;
+            const rec = r as Record<string, unknown>;
+            return {
+              releaseYear: coerceNumber(rec.releaseYear, Number.NaN),
+              count: coerceNumber(rec.count, 0),
+            };
+          })
+          .filter(
+            (r): r is { releaseYear: number; count: number } =>
+              r !== null && Number.isFinite(r.releaseYear),
+          )
+      : undefined;
+    const rawCountries = block["countries"];
+    const countries = Array.isArray(rawCountries)
+      ? (rawCountries as unknown[])
+          .map((c) => {
+            if (!c || typeof c !== "object") return null;
+            const rec = c as Record<string, unknown>;
+            return {
+              country: String(rec.country ?? ""),
+              count: coerceNumber(rec.count, 0) ?? 0,
+            };
+          })
+          .filter(
+            (c): c is { country: string; count: number } => !!c && !!c.country,
+          )
+      : undefined;
+
+    // Numeric fields common to both anime and manga stats
+    const count = coerceNumber(block.count);
+    const meanScore = coerceNumber(block.meanScore);
+    const standardDeviation = coerceNumber(block.standardDeviation);
+
+    const normalizedBlock: Partial<AnimeStats & MangaStats> = {
+      count,
+      meanScore,
+      standardDeviation,
+      genres,
+      tags,
+      voiceActors,
+      studios,
+      staff,
+      statuses,
+      formats,
+      scores,
+      releaseYears,
+      countries,
+    };
+
+    if (type === "anime") {
+      normalizedBlock.episodesWatched = coerceNumber(block.episodesWatched);
+      normalizedBlock.minutesWatched = coerceNumber(block.minutesWatched);
+    }
+    if (type === "manga") {
+      normalizedBlock.chaptersRead = coerceNumber(block.chaptersRead);
+      normalizedBlock.volumesRead = coerceNumber(block.volumesRead);
+    }
+
+    return normalizedBlock;
+  };
+
+  // Normalize top-level pages and statistics blocks
+  // Prepare favorites node lists for mapping
+  let favoriteStaffNodes: unknown[] = [];
+  let favoriteStudiosNodes: unknown[] = [];
+  let favoriteCharactersNodes: unknown[] = [];
+  if (Array.isArray(statsData.User?.favourites?.staff?.nodes)) {
+    favoriteStaffNodes = statsData.User.favourites.staff.nodes;
+  }
+  if (Array.isArray(statsData.User?.favourites?.studios?.nodes)) {
+    favoriteStudiosNodes = statsData.User.favourites.studios.nodes;
+  }
+  if (Array.isArray(statsData.User?.favourites?.characters?.nodes)) {
+    favoriteCharactersNodes = statsData.User.favourites.characters.nodes;
+  }
+
+  const normalizedUser: UserRecord = {
+    userId: String(user.userId ?? ""),
+    username: user.username ?? undefined,
+    ip: String(user.ip ?? ""),
+    createdAt: String(user.createdAt ?? new Date().toISOString()),
+    updatedAt: String(user.updatedAt ?? new Date().toISOString()),
+    stats: {
+      followersPage: normalizePage(statsData.followersPage, {
+        itemsKey: "followers",
+      }),
+      followingPage: normalizePage(statsData.followingPage, {
+        itemsKey: "following",
+      }),
+      threadsPage: normalizePage(statsData.threadsPage, {
+        itemsKey: "threads",
+      }),
+      threadCommentsPage: normalizePage(statsData.threadCommentsPage, {
+        itemsKey: "threadComments",
+      }),
+      reviewsPage: normalizePage(statsData.reviewsPage, {
+        itemsKey: "reviews",
+      }),
+      User: {
+        stats: {
+          activityHistory: normalizedActivityHistory,
+        },
+        favourites: {
+          staff: {
+            nodes: favoriteStaffNodes.map((s: unknown) => {
+              const rec = s as Record<string, unknown>;
+              return {
+                id: coerceNumber(rec.id),
+                name: { full: getNestedString(rec, ["name", "full"]) },
+              };
+            }),
+          },
+          studios: {
+            nodes: favoriteStudiosNodes.map((s: unknown) => {
+              const rec = s as Record<string, unknown>;
+              return {
+                id: coerceNumber(rec.id),
+                name: getNestedString(rec, ["name"]),
+              };
+            }),
+          },
+          characters: {
+            nodes: favoriteCharactersNodes.map((s: unknown) => {
+              const rec = s as Record<string, unknown>;
+              return {
+                id: coerceNumber(rec.id),
+                name: { full: getNestedString(rec, ["name", "full"]) },
+              };
+            }),
+          },
+        },
+        statistics: {
+          anime: normalizeStatBlock(
+            statsData.User?.statistics?.anime,
+            "anime",
+          ) as AnimeStats | undefined,
+          manga: normalizeStatBlock(
+            statsData.User?.statistics?.manga,
+            "manga",
+          ) as MangaStats | undefined,
+        },
+      },
+    } as unknown as UserStatsData,
+  };
+
+  // Ensure the normalized statistics are objects if they were originally missing so the rest of the flow
+  // can access them and produce Not Found responses later if expected content is absent.
+  if (
+    !normalizedUser.stats.User.statistics.anime &&
+    !normalizedUser.stats.User.statistics.manga
+  ) {
+    return {
+      error: "Missing statistics: no anime or manga stats present",
+      status: 404,
+    };
+  }
+
+  return { normalized: normalizedUser };
+}
+
+/**
  * Renders category-based cards such as genres or staff using template data.
  * @param params - Shared card configuration and user data.
  * @param baseCardType - Specific card type determining the dataset.
@@ -823,6 +1233,20 @@ function generateCardSVG(
     variant,
     favorites,
   };
+
+  const validationResult = validateAndNormalizeUserRecord(userRecord);
+  if ("error" in validationResult) {
+    void trackFailedRequest(baseCardType, validationResult.status ?? 500);
+    return new Response(
+      toCleanSvgResponse(svgError(`Server Error: ${validationResult.error}`)),
+      {
+        headers: errorHeaders(request),
+        status: validationResult.status ?? 500,
+      },
+    );
+  }
+  userRecord = validationResult.normalized;
+  params.userRecord = userRecord;
 
   // Handle different card types using dedicated functions
   switch (baseCardType) {
