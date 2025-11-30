@@ -3,16 +3,8 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import type { Agent as HttpAgent } from "node:http";
 import type { Agent as HttpsAgent } from "node:https";
-import {
-  isValidHexColor,
-  validateBorderRadius,
-  validateColorValue,
-} from "@/lib/utils";
+import { validateBorderRadius, validateColorValue, getColorInvalidReason } from "@/lib/utils";
 
-// Shared Redis client and rate limiter configuration
-// Edge runtime compatibility: don't require Node-only modules on edge.
-// Prefer a single module-scoped client so it can be reused across requests.
-// Create a Node https agent with keepAlive only in Node server runtimes.
 /**
  * Optional keep-alive HTTP(S) agent used only in Node runtimes to improve
  * connection reuse for Redis/Upstash requests.
@@ -363,16 +355,6 @@ export function logSuccess(
     ? `✅ [${endpoint}] ${details} for user ${userId} in ${duration}ms`
     : `✅ [${endpoint}] Successfully processed user ${userId} [${duration}ms]`;
   console.log(message);
-}
-
-/** Provide a human-readable reason when a color value is invalid. */
-function getColorInvalidReason(value: unknown): string {
-  if (typeof value === "string") {
-    if (isValidHexColor(value))
-      return "hex string passed regex but failed shared validation";
-    return "invalid hex string";
-  }
-  return "invalid gradient definition";
 }
 
 /**
