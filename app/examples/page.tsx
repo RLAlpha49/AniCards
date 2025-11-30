@@ -235,10 +235,6 @@ export default function ExamplesPage() {
     setIsGeneratorOpen(true);
   }, []);
 
-  const handleCloseGenerator = useCallback(() => {
-    setIsGeneratorOpen(false);
-  }, []);
-
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value);
   }, []);
@@ -351,7 +347,7 @@ export default function ExamplesPage() {
 
         <StatCardGenerator
           isOpen={isGeneratorOpen}
-          onClose={handleCloseGenerator}
+          onOpenChange={(open) => setIsGeneratorOpen(open)}
         />
       </PageShell>
     </ErrorBoundary>

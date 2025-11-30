@@ -121,7 +121,7 @@ export default function HomePage() {
 
         <StatCardGenerator
           isOpen={isGeneratorOpen}
-          onClose={() => setIsGeneratorOpen(false)}
+          onOpenChange={(open) => setIsGeneratorOpen(open)}
           className={`transition-opacity duration-300 ${
             isGeneratorOpen ? "opacity-100" : "opacity-0"
           }`}

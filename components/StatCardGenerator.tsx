@@ -38,13 +38,13 @@ import { Button } from "@/components/ui/Button";
 /**
  * Props for the StatCardGenerator component.
  * @property isOpen - Whether the generator dialog is visible.
- * @property onClose - Called to request closing the dialog.
+ * @property onOpenChange - Called when the dialog open state changes.
  * @property className - Optional additional CSS class names for the dialog.
  * @source
  */
 interface StatCardGeneratorProps {
   isOpen: boolean;
-  onClose: () => void;
+  onOpenChange?: (open: boolean) => void;
   className?: string;
 }
 
@@ -80,20 +80,22 @@ const STEPS = [
  * Modal UI for generating and previewing stat cards.
  * Accepts a username, color settings and selected card types and submits them to the backend.
  * @param isOpen - Whether the dialog is open.
- * @param onClose - Function called to close the dialog.
+ * @param onOpenChange - Callback that is called when the dialog open state changes (receives the new open boolean).
  * @param className - Optional additional classes applied to the container.
  * @returns React element for the stat card generator modal.
  * @source
  */
 export function StatCardGenerator({
   isOpen,
-  onClose,
+  onOpenChange,
   className,
 }: Readonly<StatCardGeneratorProps>) {
+  const handleClose = () => onOpenChange?.(false);
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <GeneratorProvider>
-        <GeneratorContent onClose={onClose} className={className} />
+        <GeneratorContent onClose={handleClose} className={className} />
       </GeneratorProvider>
     </Dialog>
   );
