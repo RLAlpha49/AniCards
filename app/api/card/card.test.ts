@@ -21,12 +21,13 @@ let mockRedisGet = jest.fn();
  * @source
  */
 let mockRedisSet = jest.fn();
+let mockRedisIncr = jest.fn(async () => 1);
 
 function createRedisFromEnvMock() {
   return {
     get: mockRedisGet,
     set: mockRedisSet,
-    incr: jest.fn(async () => 1),
+    incr: mockRedisIncr,
   };
 }
 
@@ -305,6 +306,10 @@ describe("Card SVG GET Endpoint", () => {
       res,
       "Client Error: Too many requests - try again later",
       429,
+    );
+    expect(mockLimit).toHaveBeenCalledWith("127.0.0.1");
+    expect(mockRedisIncr).toHaveBeenCalledWith(
+      "analytics:card_svg:failed_requests",
     );
   });
 
