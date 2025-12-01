@@ -3,6 +3,8 @@ import {
   initializeApiRequest,
   incrementAnalytics,
   buildAnalyticsMetricKey,
+  apiJsonHeaders,
+  jsonWithCors,
 } from "@/lib/api-utils";
 
 /**
@@ -36,19 +38,22 @@ function handleTestSimulation(request: Request): NextResponse | null {
 
   const testHeader = request.headers.get("X-Test-Status");
   if (testHeader === "429") {
+    const headers = apiJsonHeaders(request);
+    headers["Retry-After"] = "60";
     return NextResponse.json(
       { error: "Rate limited (test simulation)" },
       {
         status: 429,
-        headers: { "Retry-After": "60" },
+        headers,
       },
     );
   }
 
   if (testHeader === "500") {
-    return NextResponse.json(
+    return jsonWithCors(
       { error: "Internal server error (test simulation)" },
-      { status: 500 },
+      request,
+      500,
     );
   }
 
@@ -234,7 +239,7 @@ export async function POST(request: Request) {
     await trackAnalytics(
       buildAnalyticsMetricKey("anilist_api", "successful_requests"),
     );
-    return NextResponse.json(data);
+    return jsonWithCors(data, request);
   } catch (error: unknown) {
     const duration = Date.now() - startTime;
     const errorMessage =
@@ -256,9 +261,21 @@ export async function POST(request: Request) {
       buildAnalyticsMetricKey("anilist_api", "failed_requests"),
     );
 
-    return NextResponse.json(
+    return jsonWithCors(
       { error: errorMessage || "Failed to fetch AniList data" },
-      { status: statusCode },
+      request,
+      statusCode,
     );
   }
+}
+
+export function OPTIONS(request: Request) {
+  const headers = apiJsonHeaders(request);
+  return new Response(null, {
+    headers: {
+      ...headers,
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+    },
+  });
 }

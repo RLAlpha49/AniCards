@@ -28,7 +28,7 @@ function createRedisFromEnvMock() {
 // Set the app URL for same-origin validation testing
 process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
 
-import { POST } from "./route";
+import { POST, OPTIONS } from "./route";
 
 /**
  * Local endpoint used to build requests against the AniList proxy during tests.
@@ -292,5 +292,21 @@ describe("AniList API Proxy Endpoint", () => {
     // Should combine the error message with the retry header details
     expect(data.error).toContain("AniList API was rate limited");
     expect(data.error).toContain("Retry-After: 60");
+  });
+
+  it("should respond to OPTIONS preflight with CORS headers and allowed POST method", async () => {
+    const req = new Request(BASE_URL, {
+      method: "OPTIONS",
+      headers: {
+        origin: "http://localhost",
+        "Content-Type": "application/json",
+      },
+    });
+    const res = OPTIONS(req);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
+      "http://localhost",
+    );
+    expect(res.headers.get("Access-Control-Allow-Methods")).toContain("POST");
   });
 });

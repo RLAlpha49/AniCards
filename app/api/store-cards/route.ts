@@ -1,13 +1,15 @@
 import { StoredCardConfig, CardsRecord } from "@/lib/types/records";
-import { NextResponse } from "next/server";
+import type { NextResponse } from "next/server";
 import {
   incrementAnalytics,
   handleError,
+  apiJsonHeaders,
   logSuccess,
   redisClient,
   initializeApiRequest,
   validateCardData,
   buildAnalyticsMetricKey,
+  jsonWithCors,
 } from "@/lib/api-utils";
 import { clampBorderRadius, safeParse } from "@/lib/utils";
 
@@ -69,7 +71,12 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
 
     // Validate incoming data
-    const validationError = validateCardData(incomingCards, userId, endpoint);
+    const validationError = validateCardData(
+      incomingCards,
+      userId,
+      endpoint,
+      request,
+    );
     if (validationError) {
       await incrementAnalytics(
         buildAnalyticsMetricKey(endpointKey, "failed_requests"),
@@ -84,9 +91,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       await incrementAnalytics(
         buildAnalyticsMetricKey(endpointKey, "failed_requests"),
       );
-      return NextResponse.json(
+      return jsonWithCors(
         { error: "Invalid data: " + statsData.error },
-        { status: 400 },
+        request,
+        400,
       );
     }
 
@@ -155,10 +163,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       buildAnalyticsMetricKey(endpointKey, "successful_requests"),
     );
 
-    return NextResponse.json({
-      success: true,
-      userId,
-    });
+    return jsonWithCors({ success: true, userId }, request);
   } catch (error) {
     return handleError(
       error as Error,
@@ -166,6 +171,18 @@ export async function POST(request: Request): Promise<NextResponse> {
       startTime,
       buildAnalyticsMetricKey(endpointKey, "failed_requests"),
       "Card storage failed",
+      request,
     );
   }
+}
+
+export function OPTIONS(request: Request) {
+  const headers = apiJsonHeaders(request);
+  return new Response(null, {
+    headers: {
+      ...headers,
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+    },
+  });
 }

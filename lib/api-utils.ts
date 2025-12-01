@@ -191,6 +191,73 @@ export function getAllowedCardSvgOrigin(request?: Request): string {
 }
 
 /**
+ * Determine the Access-Control-Allow-Origin value used by JSON API endpoints.
+ * Priority: NEXT_PUBLIC_APP_URL env -> production fallback -> request origin or '*'.
+ * This helper centralizes CORS policy for JSON APIs.
+ * @param request - Optional Request used to extract the request origin in development.
+ */
+export function getAllowedApiOrigin(request?: Request): string {
+  const rawConfigured = process.env.NEXT_PUBLIC_APP_URL;
+  const configured = normalizeOrigin(rawConfigured);
+
+  let origin: string | undefined;
+
+  if (configured) {
+    origin = configured;
+  } else if (process.env.NODE_ENV === "production") {
+    origin = normalizeOrigin(process.env.NEXT_PUBLIC_APP_URL) ?? "*";
+  } else {
+    const requestOrigin = request?.headers?.get("origin");
+    const requestNormalized = normalizeOrigin(requestOrigin);
+    origin = requestNormalized ?? "*";
+  }
+
+  if (process.env.NODE_ENV === "production" && origin === "*") {
+    console.warn(
+      "[API CORS] Computed Access-Control-Allow-Origin is '*' in production; this is not recommended",
+    );
+  }
+
+  return origin;
+}
+
+/**
+ * Standard headers for JSON API responses including CORS and Vary semantics.
+ * @param request - Optional request to calculate the allowed origin in development.
+ */
+export function apiJsonHeaders(request?: Request): Record<string, string> {
+  const allowedOrigin = getAllowedApiOrigin(request);
+  return {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS, POST",
+    Vary: "Origin",
+  };
+}
+
+/**
+ * JSON response factory that always applies API CORS headers so callers don't forget.
+ * Use this instead of calling `NextResponse.json(...)` directly when returning JSON.
+ * @param data - payload to serialize
+ * @param request - Request used to compute the allowed origin in dev
+ * @param status - optional HTTP status code
+ */
+export function jsonWithCors<T = unknown>(
+  data: T,
+  request?: Request,
+  status?: number,
+): NextResponse<T> {
+  const opts: Record<string, unknown> = {
+    headers: apiJsonHeaders(request),
+  };
+  if (typeof status === "number") opts.status = status;
+  return NextResponse.json(
+    data as unknown,
+    opts as ResponseInit,
+  ) as NextResponse<T>;
+}
+
+/**
  * Enforces a rate limit for an IP address using the configured Upstash
  * rate limiter. Records analytics and returns a 429 response on limit.
  * @param ip - IP address to check.
@@ -201,6 +268,7 @@ export function getAllowedCardSvgOrigin(request?: Request): string {
  * @source
  */
 export async function checkRateLimit(
+  request: Request | undefined,
   ip: string,
   endpointName: string,
   endpointKey: string,
@@ -213,7 +281,7 @@ export async function checkRateLimit(
     await incrementAnalytics(
       buildAnalyticsMetricKey(endpointKey, "failed_requests"),
     );
-    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    return jsonWithCors({ error: "Too many requests" }, request, 429);
   }
   return null;
 }
@@ -255,8 +323,10 @@ export function validateSameOrigin(
     });
 
     if (process.env.NODE_ENV === "production") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return jsonWithCors({ error: "Unauthorized" }, request, 401);
     }
+    // In dev mode, still return headers for consistent CORS behavior
+    return jsonWithCors({ error: "Unauthorized" }, request, 401);
   }
 
   return null;
@@ -328,6 +398,7 @@ export function handleError(
   startTime: number,
   analyticsMetric: string,
   errorMessage: string,
+  request?: Request,
 ): NextResponse<ApiError> {
   const duration = Date.now() - startTime;
   console.error(`🔥 [${endpoint}] Error after ${duration}ms: ${error.message}`);
@@ -338,7 +409,7 @@ export function handleError(
 
   incrementAnalytics(analyticsMetric).catch(() => {});
 
-  return NextResponse.json({ error: errorMessage }, { status: 500 });
+  return jsonWithCors({ error: errorMessage }, request, 500);
 }
 
 /**
@@ -371,12 +442,14 @@ export function logSuccess(
 export function validateRequestData(
   data: Record<string, unknown>,
   endpoint: string,
+  request?: Request,
 ): NextResponse<ApiError> | null {
   if (!data.userId) {
     console.warn(`⚠️ [${endpoint}] Missing userId in request`);
-    return NextResponse.json(
+    return jsonWithCors(
       { error: "Missing required field: userId" },
-      { status: 400 },
+      request,
+      400,
     );
   }
   return null;
@@ -393,32 +466,33 @@ export function validateRequestData(
 export function validateUserData(
   data: Record<string, unknown>,
   endpoint: string,
+  request?: Request,
 ): NextResponse<ApiError> | null {
   // Check required fields
   if (data.userId === undefined || data.userId === null) {
     console.warn(`⚠️ [${endpoint}] Missing userId`);
-    return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+    return jsonWithCors({ error: "Invalid data" }, request, 400);
   }
 
   // Validate userId is a number
   const userId = Number(data.userId);
   if (!Number.isInteger(userId) || userId <= 0) {
     console.warn(`⚠️ [${endpoint}] Invalid userId format: ${data.userId}`);
-    return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+    return jsonWithCors({ error: "Invalid data" }, request, 400);
   }
 
   // Validate username if provided
   if (data.username !== undefined && data.username !== null) {
     if (!isValidUsername(data.username)) {
       console.warn(`⚠️ [${endpoint}] Username invalid: ${data.username}`);
-      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+      return jsonWithCors({ error: "Invalid data" }, request, 400);
     }
   }
 
   // Validate stats exists and is an object
   if (!data.stats || typeof data.stats !== "object") {
     console.warn(`⚠️ [${endpoint}] Stats must be a valid object`);
-    return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+    return jsonWithCors({ error: "Invalid data" }, request, 400);
   }
 
   return null;
@@ -453,6 +527,7 @@ function validateCardRequiredFields(
   card: Record<string, unknown>,
   cardIndex: number,
   endpoint: string,
+  request?: Request,
 ): NextResponse<ApiError> | null {
   const requiredStringFields = ["cardName", "variation"];
   const requiredColorFields = [
@@ -472,14 +547,17 @@ function validateCardRequiredFields(
         console.warn(
           `⚠️ [${endpoint}] Card ${cardIndex} missing or invalid field: ${field}`,
         );
-        return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+        return jsonWithCors({ error: "Invalid data" }, request, 400);
       }
       const value = cardObj[field];
       if (value.length === 0 || value.length > 100) {
         console.warn(
           `⚠️ [${endpoint}] Card ${cardIndex} field ${field} exceeds length limits`,
         );
-        return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Invalid data" },
+          { status: 400, headers: apiJsonHeaders(request) },
+        );
       }
     }
     return null;
@@ -496,14 +574,20 @@ function validateCardRequiredFields(
         console.warn(
           `⚠️ [${endpoint}] Card ${cardIndex} missing required color field: ${field}`,
         );
-        return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Invalid data" },
+          { status: 400, headers: apiJsonHeaders(request) },
+        );
       }
       if (!validateColorValue(value)) {
         const reason = getColorInvalidReason(value);
         console.warn(
           `⚠️ [${endpoint}] Card ${cardIndex} invalid color or gradient format for ${field} (${reason})`,
         );
-        return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Invalid data" },
+          { status: 400, headers: apiJsonHeaders(request) },
+        );
       }
     }
     return null;
@@ -530,6 +614,7 @@ function validateCardOptionalFields(
   card: Record<string, unknown>,
   cardIndex: number,
   endpoint: string,
+  request?: Request,
 ): NextResponse<ApiError> | null {
   // Validate optional boolean fields
   const optionalBooleanFields = [
@@ -544,7 +629,10 @@ function validateCardOptionalFields(
       console.warn(
         `⚠️ [${endpoint}] Card ${cardIndex} field ${field} must be boolean`,
       );
-      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid data" },
+        { status: 400, headers: apiJsonHeaders(request) },
+      );
     }
   }
 
@@ -557,7 +645,10 @@ function validateCardOptionalFields(
       console.warn(
         `⚠️ [${endpoint}] Card ${cardIndex} invalid borderColor format (${reason})`,
       );
-      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid data" },
+        { status: 400, headers: apiJsonHeaders(request) },
+      );
     }
   }
 
@@ -567,6 +658,7 @@ function validateCardOptionalFields(
     cardIndex,
     endpoint,
     { requireValue: hasBorder },
+    request,
   );
   if (borderRadiusError) return borderRadiusError;
 
@@ -578,6 +670,7 @@ function validateBorderRadiusField(
   cardIndex: number,
   endpoint: string,
   options?: { requireValue?: boolean },
+  request?: Request,
 ): NextResponse<ApiError> | null {
   const { requireValue = false } = options ?? {};
   if (borderRadiusValue === undefined || borderRadiusValue === null) {
@@ -585,7 +678,10 @@ function validateBorderRadiusField(
       console.warn(
         `⚠️ [${endpoint}] Card ${cardIndex} borderRadius required when border is enabled`,
       );
-      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid data" },
+        { status: 400, headers: apiJsonHeaders(request) },
+      );
     }
     return null;
   }
@@ -593,13 +689,19 @@ function validateBorderRadiusField(
     console.warn(
       `⚠️ [${endpoint}] Card ${cardIndex} borderRadius must be a number`,
     );
-    return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid data" },
+      { status: 400, headers: apiJsonHeaders(request) },
+    );
   }
   if (!validateBorderRadius(borderRadiusValue)) {
     console.warn(
       `⚠️ [${endpoint}] Card ${cardIndex} borderRadius out of range: ${borderRadiusValue}`,
     );
-    return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid data" },
+      { status: 400, headers: apiJsonHeaders(request) },
+    );
   }
   return null;
 }
@@ -617,29 +719,42 @@ export function validateCardData(
   cards: unknown,
   userId: unknown,
   endpoint: string,
+  request?: Request,
 ): NextResponse<ApiError> | null {
   // Validate userId
   if (userId === undefined || userId === null) {
     console.warn(`⚠️ [${endpoint}] Missing userId`);
-    return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid data" },
+      { status: 400, headers: apiJsonHeaders(request) },
+    );
   }
 
   const userIdNum = Number(userId);
   if (!Number.isInteger(userIdNum) || userIdNum <= 0) {
     console.warn(`⚠️ [${endpoint}] Invalid userId format: ${userId}`);
-    return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid data" },
+      { status: 400, headers: apiJsonHeaders(request) },
+    );
   }
 
   // Validate cards is an array
   if (!Array.isArray(cards)) {
     console.warn(`⚠️ [${endpoint}] Cards must be an array`);
-    return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid data" },
+      { status: 400, headers: apiJsonHeaders(request) },
+    );
   }
 
   // Validate cards array is not too large (prevent DOS attacks)
   if (cards.length > 21) {
     console.warn(`⚠️ [${endpoint}] Too many cards provided: ${cards.length}`);
-    return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid data" },
+      { status: 400, headers: apiJsonHeaders(request) },
+    );
   }
 
   // Validate each card in the array
@@ -648,7 +763,10 @@ export function validateCardData(
 
     if (typeof card !== "object" || card === null) {
       console.warn(`⚠️ [${endpoint}] Card ${i} is not a valid object`);
-      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid data" },
+        { status: 400, headers: apiJsonHeaders(request) },
+      );
     }
 
     const cardRecord = card as Record<string, unknown>;
@@ -658,6 +776,7 @@ export function validateCardData(
       cardRecord,
       i,
       endpoint,
+      request,
     );
     if (requiredFieldsError) return requiredFieldsError;
 
@@ -666,6 +785,7 @@ export function validateCardData(
       cardRecord,
       i,
       endpoint,
+      request,
     );
     if (optionalFieldsError) return optionalFieldsError;
   }
@@ -709,6 +829,7 @@ export async function initializeApiRequest(
 
   // Check rate limit
   const rateLimitResponse = await checkRateLimit(
+    request,
     ip,
     endpoint,
     endpointKey,

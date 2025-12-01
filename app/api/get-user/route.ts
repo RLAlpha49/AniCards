@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server";
 import {
   redisClient,
   incrementAnalytics,
   isValidUsername,
+  jsonWithCors,
+  apiJsonHeaders,
 } from "@/lib/api-utils";
 import { UserRecord } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
@@ -25,9 +26,10 @@ export async function GET(request: Request) {
   if (!userIdParam && !usernameParam) {
     console.warn("⚠️ [User API] Missing userId or username parameter");
     incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
-    return NextResponse.json(
+    return jsonWithCors(
       { error: "Missing userId or username parameter" },
-      { status: 400 },
+      request,
+      400,
     );
   }
   let numericUserId: number | null = null;
@@ -40,10 +42,7 @@ export async function GET(request: Request) {
         `⚠️ [User API] Invalid userId parameter provided: ${userIdParam}`,
       );
       incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
-      return NextResponse.json(
-        { error: "Invalid userId parameter" },
-        { status: 400 },
-      );
+      return jsonWithCors({ error: "Invalid userId parameter" }, request, 400);
     }
     key = `user:${numericUserId}`;
     console.log(`🚀 [User API] Request received for userId: ${numericUserId}`);
@@ -53,9 +52,10 @@ export async function GET(request: Request) {
         `⚠️ [User API] Invalid username parameter provided: ${usernameParam}`,
       );
       incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
-      return NextResponse.json(
+      return jsonWithCors(
         { error: "Invalid username parameter" },
-        { status: 400 },
+        request,
+        400,
       );
     }
 
@@ -89,7 +89,7 @@ export async function GET(request: Request) {
         `⚠️ [User API] User not found for username: ${usernameParam}`,
       );
       incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return jsonWithCors({ error: "User not found" }, request, 404);
     }
 
     numericUserId = userId;
@@ -103,7 +103,7 @@ export async function GET(request: Request) {
       console.warn(
         `⚠️ [User API] User record not found for key ${key} [${duration}ms]`,
       );
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return jsonWithCors({ error: "User not found" }, request, 404);
     }
 
     const userData: UserRecord = safeParse<UserRecord>(userDataRaw);
@@ -113,7 +113,7 @@ export async function GET(request: Request) {
     incrementAnalytics("analytics:user_api:successful_requests").catch(
       () => {},
     );
-    return NextResponse.json(userData);
+    return jsonWithCors(userData, request);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     const duration = Date.now() - startTime;
@@ -124,9 +124,17 @@ export async function GET(request: Request) {
       console.error(`💥 [User API] Stack Trace: ${error.stack}`);
     }
     incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
-    return NextResponse.json(
-      { error: "Failed to fetch user data" },
-      { status: 500 },
-    );
+    return jsonWithCors({ error: "Failed to fetch user data" }, request, 500);
   }
+}
+
+export function OPTIONS(request: Request) {
+  const headers = apiJsonHeaders(request);
+  return new Response(null, {
+    headers: {
+      ...headers,
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+    },
+  });
 }

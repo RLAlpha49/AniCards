@@ -210,7 +210,7 @@ paths:
               examples:
                 internalError:
                   value: '<?xml version="1.0"?><svg><text>Server Error: An internal error occurred</text></svg>'
-  /api/cards:
+  /api/get-cards:
     get:
       summary: "Retrieve the stored card configuration for a user"
       tags:
@@ -509,7 +509,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
-  /api/user:
+  /api/get-user:
     get:
       summary: "Retrieve stored user data by numeric userId or username"
       tags:

@@ -21,6 +21,8 @@ const nextConfig: NextConfig = {
     API_SECRET_TOKEN: process.env.API_SECRET_TOKEN,
     NEXT_PUBLIC_GOOGLE_ANALYTICS_ID:
       process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID,
+    NEXT_PUBLIC_API_URL:
+      process.env.NEXT_PUBLIC_API_URL ?? "https://api.anicards.alpha49.com",
   },
   images: {
     remotePatterns: [
@@ -133,27 +135,27 @@ const nextConfig: NextConfig = {
     const devRules = isProd
       ? []
       : devHosts.flatMap((h) => [
-            {
-              source: "/:path*",
-              has: [
-                {
-                  type: "host" as const,
-                  value: h,
-                },
-              ],
-              destination: "/api/:path*",
-            },
-            {
-              source: "/:path*",
-              has: [
-                {
-                  type: "host" as const,
-                  value: `${h}:${devPort}`,
-                },
-              ],
-              destination: "/api/:path*",
-            },
-          ]);
+          {
+            source: "/:path*",
+            has: [
+              {
+                type: "host" as const,
+                value: h,
+              },
+            ],
+            destination: "/api/:path*",
+          },
+          {
+            source: "/:path*",
+            has: [
+              {
+                type: "host" as const,
+                value: `${h}:${devPort}`,
+              },
+            ],
+            destination: "/api/:path*",
+          },
+        ]);
 
     return [
       ...primaryRules,

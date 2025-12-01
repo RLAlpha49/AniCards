@@ -108,7 +108,7 @@ export function CardList({ cardTypes }: Readonly<CardListProps>) {
    * @source
    */
   const statsLink = userId
-    ? `[<h1>Stats</h1>](https://anicards.alpha49.com/user?userId=${userId})`
+    ? `[<h1>Stats</h1>](${getAbsoluteUrl("/user?userId=" + userId)})`
     : "";
 
   /**

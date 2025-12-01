@@ -51,7 +51,7 @@ jest.mock("@upstash/ratelimit", () => {
 // Set the app URL for same-origin validation testing
 process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
 
-import { POST } from "./route";
+import { POST, OPTIONS } from "./route";
 import { Ratelimit as RatelimitMock } from "@upstash/ratelimit";
 
 /**
@@ -344,5 +344,23 @@ describe("Store Cards API POST Endpoint", () => {
     expect(res.status).toBe(500);
     const data = await res.json();
     expect(data.error).toBe("Card storage failed");
+  });
+
+  it("should respond to OPTIONS preflight with CORS headers and allowed POST method", async () => {
+    const req = new Request("http://localhost/api/store-cards", {
+      method: "OPTIONS",
+      headers: {
+        "x-forwarded-for": "127.0.0.1",
+        origin: "http://localhost",
+        "Content-Type": "application/json",
+      },
+    });
+    // Using the module's exported handler directly
+    const res = OPTIONS(req);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
+      "http://localhost",
+    );
+    expect(res.headers.get("Access-Control-Allow-Methods")).toContain("POST");
   });
 });

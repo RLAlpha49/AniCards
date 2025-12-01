@@ -30,7 +30,7 @@ async function getResponseJson(response: Response): Promise<any> {
   return response.json();
 }
 
-const API_BASE = "http://localhost/api/user";
+const API_BASE = "http://localhost/api/get-user";
 const DEFAULT_HEADERS = { "x-forwarded-for": "127.0.0.1" };
 
 function createReq(query?: string): Request {
@@ -102,6 +102,49 @@ describe("User API GET Endpoint", () => {
     };
     mockRedisSequence(JSON.stringify(userData));
     await expectOkJson("userId=123", userData);
+  });
+
+  it("should set CORS Access-Control-Allow-Origin to the request origin when present in dev", async () => {
+    const userData = {
+      userId: 123,
+      username: "testUser",
+      stats: { score: 10 },
+    };
+    mockRedisSequence(JSON.stringify(userData));
+    const req = new Request(`${API_BASE}?userId=123`, {
+      headers: { ...DEFAULT_HEADERS, origin: "http://example.dev" },
+    });
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+    const json = await getResponseJson(res);
+    expect(json).toEqual(userData);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
+      "http://example.dev",
+    );
+  });
+
+  it("should use configured NEXT_PUBLIC_APP_URL when set (overrides request origin)", async () => {
+    const prev = process.env.NEXT_PUBLIC_APP_URL;
+    (process.env as Record<string, string | undefined>)["NEXT_PUBLIC_APP_URL"] =
+      "https://configured.example";
+    const userData = {
+      userId: 123,
+      username: "testUser",
+      stats: { score: 10 },
+    };
+    mockRedisSequence(JSON.stringify(userData));
+    const req = new Request(`${API_BASE}?userId=123`, {
+      headers: { ...DEFAULT_HEADERS, origin: "http://ignored-origin" },
+    });
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+    const json = await getResponseJson(res);
+    expect(json).toEqual(userData);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
+      "https://configured.example",
+    );
+    (process.env as Record<string, string | undefined>)["NEXT_PUBLIC_APP_URL"] =
+      prev;
   });
 
   it("should return 400 for invalid username parameter", async () => {

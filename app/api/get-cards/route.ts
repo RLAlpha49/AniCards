@@ -1,5 +1,9 @@
-import { NextResponse } from "next/server";
-import { redisClient, incrementAnalytics } from "@/lib/api-utils";
+import {
+  redisClient,
+  incrementAnalytics,
+  jsonWithCors,
+  apiJsonHeaders,
+} from "@/lib/api-utils";
 import { CardsRecord } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
 
@@ -18,20 +22,14 @@ export async function GET(request: Request) {
 
   if (!userId) {
     console.warn("⚠️ [Cards API] Missing user ID parameter");
-    return NextResponse.json(
-      { error: "Missing user ID parameter" },
-      { status: 400 },
-    );
+    return jsonWithCors({ error: "Missing user ID parameter" }, request, 400);
   }
 
   const numericUserId = Number.parseInt(userId);
   if (Number.isNaN(numericUserId)) {
     console.warn(`⚠️ [Cards API] Invalid user ID format: ${userId}`);
     incrementAnalytics("analytics:cards_api:failed_requests").catch(() => {});
-    return NextResponse.json(
-      { error: "Invalid user ID format" },
-      { status: 400 },
-    );
+    return jsonWithCors({ error: "Invalid user ID format" }, request, 400);
   }
 
   try {
@@ -46,7 +44,7 @@ export async function GET(request: Request) {
       console.warn(
         `⚠️ [Cards API] Cards for user ${numericUserId} not found [${duration}ms]`,
       );
-      return NextResponse.json({ error: "Cards not found" }, { status: 404 });
+      return jsonWithCors({ error: "Cards not found" }, request, 404);
     }
 
     const cardData: CardsRecord = safeParse<CardsRecord>(cardDataStr);
@@ -62,7 +60,7 @@ export async function GET(request: Request) {
     incrementAnalytics("analytics:cards_api:successful_requests").catch(
       () => {},
     );
-    return NextResponse.json(cardData);
+    return jsonWithCors(cardData, request);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     const duration = Date.now() - startTime;
@@ -73,9 +71,17 @@ export async function GET(request: Request) {
       console.error(`💥 [Cards API] Stack Trace: ${error.stack}`);
     }
     incrementAnalytics("analytics:cards_api:failed_requests").catch(() => {});
-    return NextResponse.json(
-      { error: "Failed to fetch cards" },
-      { status: 500 },
-    );
+    return jsonWithCors({ error: "Failed to fetch cards" }, request, 500);
   }
+}
+
+export function OPTIONS(request: Request) {
+  const headers = apiJsonHeaders(request);
+  return new Response(null, {
+    headers: {
+      ...headers,
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+    },
+  });
 }

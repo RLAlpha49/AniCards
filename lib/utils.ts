@@ -19,6 +19,43 @@ type GlobalWithCache = typeof globalThis & {
   __ANICARDS__borderRadiusCache?: Map<string, Promise<number | null>>;
 };
 
+const _envApiBase =
+  typeof process === "undefined" ? undefined : process.env?.NEXT_PUBLIC_API_URL;
+
+function resolveApiBase(url?: string): string {
+  if (!url) return "https://api.anicards.alpha49.com";
+  try {
+    const parsed = new URL(url);
+    if (!parsed.hostname.startsWith("api.")) {
+      parsed.hostname = `api.${parsed.hostname}`;
+    }
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return "https://api.anicards.alpha49.com";
+  }
+}
+
+export const API_BASE: string = resolveApiBase(_envApiBase);
+
+/**
+ * Build an absolute URL targeting the public API base.
+ *
+ * This helper resolves the configured `NEXT_PUBLIC_API_URL` (defaulting to
+ * the public API host) and appends the provided path to produce an absolute
+ * URL. Use this when you explicitly want to target the public API host
+ * (e.g. a separate API origin or CDN-backed endpoint).
+ *
+ * If you intend to call in-app Next.js API routes (handled by this application),
+ * prefer a relative path (for example "/api/get-user?userId=...") to avoid an extra
+ * network hop or cross-origin call during local development.
+ */
+export function buildApiUrl(path: string): string {
+  if (!path) path = "";
+  if (/^https?:\/\//i.test(path)) return path;
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE}${normalized}`;
+}
+
 /**
  * Extracts a card border radius from a remote SVG by reading a lightweight
  * header or, optionally, parsing the SVG contents for the <rect>'s rx
@@ -54,7 +91,20 @@ export function getSvgBorderRadius(
           : "http://localhost";
         const parsed = new URL(absoluteUrl, baseOrigin);
         const pathname = (parsed.pathname || "").toLowerCase();
-        if (pathname.startsWith("/api/card")) {
+        const parsedHost = (parsed.hostname || "").toLowerCase();
+        const apiHost = (() => {
+          try {
+            return new URL(API_BASE).hostname.toLowerCase();
+          } catch {
+            return "";
+          }
+        })();
+
+        if (
+          pathname.startsWith("/api/card") ||
+          parsedHost === apiHost ||
+          parsedHost.startsWith("api.")
+        ) {
           isFirstPartyCardEndpoint = true;
         }
       } catch {}
@@ -389,7 +439,10 @@ export async function svgToPng(
   format: ConversionFormat = "png",
 ): Promise<string> {
   try {
-    const response = await fetch("/api/convert", {
+    const isClient =
+      (globalThis as unknown as { window?: unknown }).window !== undefined;
+    const convertEndpoint = isClient ? "/api/convert" : buildApiUrl("/convert");
+    const response = await fetch(convertEndpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ svgUrl, format }),

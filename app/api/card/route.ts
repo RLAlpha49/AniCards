@@ -315,6 +315,7 @@ export async function GET(request: Request) {
   const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
 
   const rateLimitResponse = await checkRateLimit(
+    request,
     ip,
     "Card SVG",
     "card_svg",
@@ -479,4 +480,17 @@ export async function GET(request: Request) {
       },
     );
   }
+}
+
+export function OPTIONS(request: Request) {
+  const allowedOrigin = getAllowedCardSvgOrigin(request);
+  return new Response(null, {
+    headers: {
+      "Access-Control-Allow-Origin": allowedOrigin,
+      "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Expose-Headers": "X-Card-Border-Radius",
+      Vary: "Origin",
+    },
+  });
 }

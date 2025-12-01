@@ -24,6 +24,7 @@ import {
   getCardBorderRadius,
   getResponseErrorMessage,
   parseResponsePayload,
+  buildApiUrl,
 } from "@/lib/utils";
 
 /**
@@ -112,7 +113,7 @@ async function fetchUserById(
   setErrorCallback: (v: string | null) => void,
 ): Promise<ApiUser | null> {
   return fetchJsonWithValidation<ApiUser>(
-    `/api/user?userId=${userId}`,
+    `/api/get-user?userId=${userId}`,
     "user",
     setErrorCallback,
   );
@@ -126,7 +127,7 @@ async function fetchUserByUsername(
   setErrorCallback: (v: string | null) => void,
 ): Promise<ApiUser | null> {
   return fetchJsonWithValidation<ApiUser>(
-    `/api/user?username=${encodeURIComponent(username)}`,
+    `/api/get-user?username=${encodeURIComponent(username)}`,
     "user",
     setErrorCallback,
   );
@@ -140,7 +141,7 @@ async function fetchCardsForUserId(
   setErrorCallback: (v: string | null) => void,
 ): Promise<ApiCards | null> {
   return fetchJsonWithValidation<ApiCards>(
-    `/api/cards?userId=${userId}`,
+    `/api/get-cards?userId=${userId}`,
     "cards",
     setErrorCallback,
   );
@@ -482,7 +483,9 @@ export function UserPageClient() {
     ]
       .filter(Boolean)
       .join("&");
-    const svgUrlBase = `/api/card.svg?cardType=${card.cardName}&userId=${userData?.userId}&variation=${variation}`;
+    const svgUrlBase = buildApiUrl(
+      `/card.svg?cardType=${card.cardName}&userId=${userData?.userId}&variation=${variation}`,
+    );
     const svgUrl = extraParams ? `${svgUrlBase}&${extraParams}` : svgUrlBase;
     const urlWithTimestamp = `${svgUrl}${svgUrl.includes("?") ? "&" : "?"}_t=${cardTimestamp}`;
     const cardBorderRadiusValue = getCardBorderRadius(card.borderRadius);

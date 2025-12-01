@@ -1,6 +1,7 @@
+import { buildApiUrl } from "@/lib/utils";
+
 /** Default card generation endpoint used for example previews. @source */
-export const DEFAULT_BASE_CARD_URL =
-  "https://anicards.alpha49.com/api/card.svg";
+export const DEFAULT_BASE_CARD_URL = buildApiUrl("/card.svg");
 /** Default example user id used for generating demo card previews. @source */
 export const DEFAULT_EXAMPLE_USER_ID = "542244";
 

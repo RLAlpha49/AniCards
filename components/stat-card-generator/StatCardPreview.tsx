@@ -17,7 +17,7 @@ import {
   safeTrack,
 } from "@/lib/utils/google-analytics";
 import { Eye, Info } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, buildApiUrl } from "@/lib/utils";
 
 /**
  * Props to control the stat card preview dialog.
@@ -108,7 +108,7 @@ export function StatCardPreview({
   const effectiveVariation = variation ?? "default";
 
   // Build the preview URL with separate query parameters.
-  const baseUrl = "https://anicards.alpha49.com/api/card.svg";
+  const baseUrl = buildApiUrl("/card.svg");
   const urlParams = new URLSearchParams({
     cardType,
     // Sample user used to generate demo preview SVGs — not the viewer's user id.

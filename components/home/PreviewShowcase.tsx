@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
 import { Play, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
+import { cn, buildApiUrl } from "@/lib/utils";
 
 /**
  * Props for the preview showcase component.
@@ -135,7 +135,7 @@ const PREVIEW_CARDS: PreviewCard[] = [
 export function PreviewShowcase({
   onGetStarted,
 }: Readonly<PreviewShowcaseProps>) {
-  const BASE_URL = "https://anicards.alpha49.com/api/card.svg";
+  const BASE_URL = buildApiUrl("/card.svg");
   const USER_ID = "542244";
 
   const [activeCategory, setActiveCategory] = useState<CategoryId>("all");

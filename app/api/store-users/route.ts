@@ -1,14 +1,16 @@
-import { NextResponse } from "next/server";
+import type { NextResponse } from "next/server";
 import { UserRecord } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
 import {
   incrementAnalytics,
   handleError,
+  apiJsonHeaders,
   logSuccess,
   redisClient,
   initializeApiRequest,
   validateUserData,
   buildAnalyticsMetricKey,
+  jsonWithCors,
 } from "@/lib/api-utils";
 
 /**
@@ -37,6 +39,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const validationError = validateUserData(
       data as Record<string, unknown>,
       endpoint,
+      request,
     );
     if (validationError) {
       await incrementAnalytics(
@@ -104,10 +107,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       buildAnalyticsMetricKey(endpointKey, "successful_requests"),
     );
 
-    return NextResponse.json({
-      success: true,
-      userId: data.userId,
-    });
+    return jsonWithCors({ success: true, userId: data.userId }, request);
   } catch (error) {
     return handleError(
       error as Error,
@@ -115,6 +115,18 @@ export async function POST(request: Request): Promise<NextResponse> {
       startTime,
       buildAnalyticsMetricKey(endpointKey, "failed_requests"),
       "User storage failed",
+      request,
     );
   }
+}
+
+export function OPTIONS(request: Request) {
+  const headers = apiJsonHeaders(request);
+  return new Response(null, {
+    headers: {
+      ...headers,
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+    },
+  });
 }

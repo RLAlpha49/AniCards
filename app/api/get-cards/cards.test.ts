@@ -31,7 +31,7 @@ async function getResponseJson(response: Response): Promise<any> {
 }
 
 describe("Cards API GET Endpoint", () => {
-  const baseUrl = "http://localhost/api/cards";
+  const baseUrl = "http://localhost/api/get-cards";
 
   afterEach(() => {
     jest.clearAllMocks();
@@ -80,6 +80,48 @@ describe("Cards API GET Endpoint", () => {
     expect(res.status).toBe(200);
     const json = await getResponseJson(res);
     expect(json).toEqual(cardData);
+  });
+
+  it("should set CORS Access-Control-Allow-Origin to the request origin when present in dev", async () => {
+    const cardData = {
+      cards: [{ cardName: "animeStats", titleColor: "#000" }],
+    };
+    mockRedisGet.mockResolvedValueOnce(JSON.stringify(cardData));
+    const req = new Request(`${baseUrl}?userId=456`, {
+      headers: { "x-forwarded-for": "127.0.0.1", origin: "http://example.dev" },
+    });
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+    const json = await getResponseJson(res);
+    expect(json).toEqual(cardData);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
+      "http://example.dev",
+    );
+  });
+
+  it("should use configured NEXT_PUBLIC_APP_URL when set (overrides request origin)", async () => {
+    const prev = process.env.NEXT_PUBLIC_APP_URL;
+    (process.env as Record<string, string | undefined>)["NEXT_PUBLIC_APP_URL"] =
+      "https://configured.example";
+    const cardData = {
+      cards: [{ cardName: "animeStats", titleColor: "#000" }],
+    };
+    mockRedisGet.mockResolvedValueOnce(JSON.stringify(cardData));
+    const req = new Request(`${baseUrl}?userId=456`, {
+      headers: {
+        "x-forwarded-for": "127.0.0.1",
+        origin: "http://ignored-origin",
+      },
+    });
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+    const json = await getResponseJson(res);
+    expect(json).toEqual(cardData);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
+      "https://configured.example",
+    );
+    (process.env as Record<string, string | undefined>)["NEXT_PUBLIC_APP_URL"] =
+      prev;
   });
 
   it("should return 500 if an error occurs during card data retrieval", async () => {

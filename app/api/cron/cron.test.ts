@@ -61,6 +61,19 @@ describe("Cron API POST Endpoint", () => {
     expect(text).toBe("Unauthorized");
   });
 
+  it("should set CORS Access-Control-Allow-Origin to the request origin when present in dev", async () => {
+    mockKeys.mockResolvedValueOnce([]);
+    const req = new Request("http://localhost/api/cron", {
+      method: "POST",
+      headers: { "x-cron-secret": CRON_SECRET, origin: "http://example.dev" },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
+      "http://example.dev",
+    );
+  });
+
   it("should process with zero users if no keys are found", async () => {
     // Simulate no user keys found.
     mockKeys.mockResolvedValueOnce([]);
