@@ -106,7 +106,7 @@ export function CategorySection({
 
       {/* Card Types */}
       <div className="space-y-16">
-        {cardTypes.map((cardType, cardIndex) => (
+        {cardTypes.map((cardType) => (
           <motion.div
             key={cardType.title}
             initial={{ opacity: 0, y: 20 }}

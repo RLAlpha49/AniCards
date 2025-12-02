@@ -7,8 +7,10 @@ import { cn } from "@/lib/utils";
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
 import {
   VARIATION_LABEL_MAP,
-  buildCardUrl,
+  buildCardUrlWithParams,
   generateExampleCardVariants,
+  DEFAULT_EXAMPLE_USER_ID,
+  mapStoredConfigToCardUrlParams,
 } from "@/lib/card-groups";
 
 /**
@@ -36,7 +38,18 @@ const VARIANT_LIBRARY: VariantCard[] = EXAMPLE_CARD_VARIANTS.map((variant) => ({
   id: `${variant.cardType}-${variant.variation}-${variant.label.replaceAll(/\s+/g, "-").toLowerCase()}`,
   title: variant.cardTitle,
   variationLabel: variant.label,
-  src: buildCardUrl(variant.cardType, variant.variation, variant.extras),
+  src: buildCardUrlWithParams(
+    mapStoredConfigToCardUrlParams(
+      {
+        cardName: variant.cardType,
+        variation: variant.variation,
+        useStatusColors:
+          variant.extras?.statusColors === "true" ? true : undefined,
+        colorPreset: "anilistDarkGradient",
+      },
+      { userId: DEFAULT_EXAMPLE_USER_ID, includeColors: false },
+    ),
+  ),
 }));
 
 /**

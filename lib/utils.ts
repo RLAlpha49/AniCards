@@ -13,6 +13,11 @@ export const DEFAULT_CARD_BORDER_RADIUS = 8;
 const BORDER_RADIUS_MIN = 0;
 const BORDER_RADIUS_MAX = 100;
 
+const DEFAULT_TITLE_COLOR = "#fe428e";
+const DEFAULT_BACKGROUND_COLOR = "#141321";
+const DEFAULT_TEXT_COLOR = "#a9fef7";
+const DEFAULT_CIRCLE_COLOR = "#fe428e";
+
 const _borderRadiusPromiseCache = new Map<string, Promise<number | null>>();
 
 type GlobalWithCache = typeof globalThis & {
@@ -114,7 +119,8 @@ export function getSvgBorderRadius(
           const headerVal = headRes.headers.get("x-card-border-radius");
           if (headerVal) {
             const parsedFromHeader = Number.parseFloat(headerVal);
-            if (Number.isFinite(parsedFromHeader)) return parsedFromHeader;
+            if (Number.isFinite(parsedFromHeader))
+              return clampBorderRadius(parsedFromHeader);
           }
         }
       } catch {}
@@ -130,7 +136,7 @@ export function getSvgBorderRadius(
         if (!match) return null;
         const parsed = Number.parseFloat(match[1]);
         if (!Number.isFinite(parsed)) return null;
-        return parsed;
+        return clampBorderRadius(parsed);
       } catch (err) {
         // Remove the cached promise on error so subsequent attempts can retry.
         cache.delete(absoluteUrl);
@@ -381,6 +387,33 @@ export function getColorInvalidReason(value: unknown): string {
 }
 
 /**
+ * Parses a color value, converting JSON strings back to gradient objects if needed.
+ * @param value - The color value (may be a string or JSON-encoded gradient).
+ * @returns The parsed color value as ColorValue.
+ * @source
+ */
+function parseColorValue(value: ColorValue | string): ColorValue | undefined {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  // Try to parse JSON-encoded gradients
+  if (value.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(value);
+      if (isGradient(parsed)) {
+        return parsed;
+      }
+    } catch {
+      // Not JSON or not a valid gradient, treat as regular string
+    }
+  }
+
+  // Return as regular color string
+  return value;
+}
+
+/**
  * Processes color values for SVG templates, generating gradient IDs and defs.
  * @param styles - Object containing color values.
  * @param colorKeys - Array of keys to process (e.g., ['titleColor', 'backgroundColor']).
@@ -400,18 +433,21 @@ export function processColorsForSVG(
   const resolvedColors: Record<string, string> = {};
 
   for (const key of colorKeys) {
-    const value = styles[key];
+    let value = styles[key];
     if (value === undefined) {
       resolvedColors[key] = "";
       continue;
     }
 
-    if (isGradient(value)) {
+    // Parse JSON-encoded gradients back to objects
+    value = parseColorValue(value);
+
+    if (value !== undefined && isGradient(value)) {
       const id = generateGradientId(key);
       gradientIds[key] = id;
       gradientDefs.push(generateGradientSVG(value, id));
       resolvedColors[key] = `url(#${id})`;
-    } else {
+    } else if (value !== undefined) {
       resolvedColors[key] = value;
     }
   }
@@ -674,10 +710,10 @@ export function toTemplateCardConfig(
       (card as TemplateCardConfig).variation !== undefined
         ? (card as TemplateCardConfig).variation
         : defaultVariation,
-    titleColor: card.titleColor,
-    backgroundColor: card.backgroundColor,
-    textColor: card.textColor,
-    circleColor: card.circleColor,
+    titleColor: card.titleColor ?? DEFAULT_TITLE_COLOR,
+    backgroundColor: card.backgroundColor ?? DEFAULT_BACKGROUND_COLOR,
+    textColor: card.textColor ?? DEFAULT_TEXT_COLOR,
+    circleColor: card.circleColor ?? DEFAULT_CIRCLE_COLOR,
     borderColor: "borderColor" in card ? card.borderColor : undefined,
     useStatusColors:
       "useStatusColors" in card ? card.useStatusColors : undefined,
@@ -686,17 +722,17 @@ export function toTemplateCardConfig(
 
 /**
  * Extracts the style subset from a stored or template card config so templates
- * receive only the style values they need.
+ * receive only the style values they need. Provides default colors when undefined.
  * @source
  */
 export function extractStyles(
   cardConfig: StoredCardConfig | TemplateCardConfig,
 ) {
   return {
-    titleColor: cardConfig.titleColor,
-    backgroundColor: cardConfig.backgroundColor,
-    textColor: cardConfig.textColor,
-    circleColor: cardConfig.circleColor,
+    titleColor: cardConfig.titleColor ?? DEFAULT_TITLE_COLOR,
+    backgroundColor: cardConfig.backgroundColor ?? DEFAULT_BACKGROUND_COLOR,
+    textColor: cardConfig.textColor ?? DEFAULT_TEXT_COLOR,
+    circleColor: cardConfig.circleColor ?? DEFAULT_CIRCLE_COLOR,
     borderColor: cardConfig.borderColor,
     borderRadius: cardConfig.borderRadius,
   };

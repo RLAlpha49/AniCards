@@ -24,8 +24,11 @@ import {
   getCardBorderRadius,
   getResponseErrorMessage,
   parseResponsePayload,
-  buildApiUrl,
 } from "@/lib/utils";
+import {
+  buildCardUrlWithParams,
+  mapStoredConfigToCardUrlParams,
+} from "@/lib/card-groups";
 
 /**
  * Basic user identity returned from the API.
@@ -44,6 +47,13 @@ interface UserData {
  * @property variation - Optional card variation identifier.
  * @property useStatusColors - Optional flag to render status distribution with color hints.
  * @property showPiePercentages - Optional flag to toggle pie chart percentage labels.
+ * @property showFavorites - Optional flag to show favorites indicator.
+ * @property titleColor - Title color (hex or gradient).
+ * @property backgroundColor - Background color (hex or gradient).
+ * @property textColor - Text color (hex or gradient).
+ * @property circleColor - Circle/accent color (hex or gradient).
+ * @property borderColor - Optional border color.
+ * @property borderRadius - Optional border radius.
  * @source
  */
 interface CardData {
@@ -51,7 +61,16 @@ interface CardData {
   variation?: string;
   useStatusColors?: boolean;
   showPiePercentages?: boolean;
+  showFavorites?: boolean;
   borderRadius?: number;
+  // Color configuration
+  titleColor?: string;
+  backgroundColor?: string;
+  textColor?: string;
+  circleColor?: string;
+  borderColor?: string;
+  // Color preset name (if not "custom", use preset instead of individual colors)
+  colorPreset?: string;
 }
 
 type ApiUser = { userId?: string | number; username?: string };
@@ -294,10 +313,23 @@ export function UserPageClient() {
         typeof r.showPiePercentages === "boolean"
           ? r.showPiePercentages
           : undefined,
+      showFavorites:
+        typeof r.showFavorites === "boolean" ? r.showFavorites : undefined,
       borderRadius:
         typeof r.borderRadius === "number" && Number.isFinite(r.borderRadius)
           ? r.borderRadius
           : undefined,
+      // Color configuration
+      titleColor: typeof r.titleColor === "string" ? r.titleColor : undefined,
+      backgroundColor:
+        typeof r.backgroundColor === "string" ? r.backgroundColor : undefined,
+      textColor: typeof r.textColor === "string" ? r.textColor : undefined,
+      circleColor:
+        typeof r.circleColor === "string" ? r.circleColor : undefined,
+      borderColor:
+        typeof r.borderColor === "string" ? r.borderColor : undefined,
+      colorPreset:
+        typeof r.colorPreset === "string" ? r.colorPreset : undefined,
     };
   }
 
@@ -461,33 +493,57 @@ export function UserPageClient() {
       "animeStatusDistribution",
       "mangaStatusDistribution",
     ].includes(card.cardName);
-    const isPieCapable = [
-      "animeGenres",
-      "animeTags",
+    const isFavoriteCapable = [
       "animeVoiceActors",
       "animeStudios",
       "animeStaff",
-      "mangaGenres",
-      "mangaTags",
       "mangaStaff",
-      "animeFormatDistribution",
-      "mangaFormatDistribution",
-      "animeStatusDistribution",
-      "mangaStatusDistribution",
-      "animeCountry",
-      "mangaCountry",
     ].includes(card.cardName);
-    const extraParams = [
-      isStatusDist && card.useStatusColors ? "statusColors=true" : null,
-      isPieCapable && card.showPiePercentages ? "piePercentages=true" : null,
-    ]
-      .filter(Boolean)
-      .join("&");
-    const svgUrlBase = buildApiUrl(
-      `/card.svg?cardType=${card.cardName}&userId=${userData?.userId}&variation=${variation}`,
+
+    // Determine the effective color preset:
+    // 1. If card has a stored colorPreset, use it
+    // 2. If no colorPreset stored (legacy data) or has gradient colors, use "custom"
+    // Always include colorPreset in URL to tell the API how to resolve colors
+    const resolveEffectivePreset = (): string => {
+      // If card has a stored preset, use it
+      if (card.colorPreset) return card.colorPreset;
+      // Legacy data or gradient colors need "custom" to force DB lookup
+      return "custom";
+    };
+    const effectivePreset = resolveEffectivePreset();
+
+    // Never include individual colors in URL - let API resolve from preset or DB
+    const includeColors = false;
+
+    // Only include piePercentages for pie variation
+    const isPieVariation = variation === "pie";
+
+    const urlParams = mapStoredConfigToCardUrlParams(
+      {
+        cardName: card.cardName,
+        variation,
+        colorPreset: effectivePreset,
+        titleColor: includeColors ? card.titleColor : undefined,
+        backgroundColor: includeColors ? card.backgroundColor : undefined,
+        textColor: includeColors ? card.textColor : undefined,
+        circleColor: includeColors ? card.circleColor : undefined,
+        borderColor: card.borderColor,
+        borderRadius: card.borderRadius,
+        showFavorites: isFavoriteCapable ? card.showFavorites : undefined,
+        useStatusColors: isStatusDist ? card.useStatusColors : undefined,
+        showPiePercentages: isPieVariation
+          ? card.showPiePercentages
+          : undefined,
+      },
+      {
+        userId: userData?.userId,
+        includeColors: includeColors,
+        defaultToCustomPreset: true,
+      },
     );
-    const svgUrl = extraParams ? `${svgUrlBase}&${extraParams}` : svgUrlBase;
-    const urlWithTimestamp = `${svgUrl}${svgUrl.includes("?") ? "&" : "?"}_t=${cardTimestamp}`;
+
+    const svgUrl = buildCardUrlWithParams(urlParams);
+    const urlWithTimestamp = `${svgUrl}&_t=${cardTimestamp}`;
     const cardBorderRadiusValue = getCardBorderRadius(card.borderRadius);
     return {
       type: displayName,

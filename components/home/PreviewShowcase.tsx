@@ -8,6 +8,10 @@ import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
 import { Play, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { cn, buildApiUrl } from "@/lib/utils";
+import {
+  buildCardUrlWithParams,
+  mapStoredConfigToCardUrlParams,
+} from "@/lib/card-groups";
 
 /**
  * Props for the preview showcase component.
@@ -261,7 +265,17 @@ export function PreviewShowcase({
                         />
 
                         <ImageWithSkeleton
-                          src={`${BASE_URL}?cardType=${card.cardType}&userId=${USER_ID}&variation=${card.variation}`}
+                          src={buildCardUrlWithParams(
+                            mapStoredConfigToCardUrlParams(
+                              {
+                                cardName: card.cardType,
+                                variation: card.variation,
+                                colorPreset: "anilistDarkGradient",
+                              },
+                              { userId: USER_ID, includeColors: false },
+                            ),
+                            BASE_URL,
+                          )}
                           alt={card.title}
                           className="relative h-auto w-full rounded-lg shadow-sm transition-transform duration-300 group-hover:scale-[1.02]"
                         />

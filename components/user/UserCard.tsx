@@ -14,6 +14,7 @@ import {
   getAbsoluteUrl,
   DEFAULT_CARD_BORDER_RADIUS,
   getSvgBorderRadius,
+  clampBorderRadius,
   type ConversionFormat,
 } from "@/lib/utils";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
@@ -57,8 +58,8 @@ interface CardProps {
 export function Card({ type, svgUrl, borderRadius }: Readonly<CardProps>) {
   const [copied, setCopied] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [cardBorderRadius, setCardBorderRadius] = useState(
-    borderRadius ?? DEFAULT_CARD_BORDER_RADIUS,
+  const [cardBorderRadius, setCardBorderRadius] = useState(() =>
+    clampBorderRadius(borderRadius ?? DEFAULT_CARD_BORDER_RADIUS),
   );
 
   // Add cache-busting timestamp to force SVG reload. Prefer a timestamp provided
@@ -82,7 +83,8 @@ export function Card({ type, svgUrl, borderRadius }: Readonly<CardProps>) {
     const fetchBorderRadius = async () => {
       try {
         const parsed = await getSvgBorderRadius(cacheBustedSvgUrl);
-        if (parsed !== null && !isCancelled) setCardBorderRadius(parsed);
+        if (parsed !== null && !isCancelled)
+          setCardBorderRadius(clampBorderRadius(parsed));
       } catch (error) {
         console.error("Unable to determine card border radius", error);
       }
@@ -124,15 +126,32 @@ export function Card({ type, svgUrl, borderRadius }: Readonly<CardProps>) {
   };
 
   /**
-   * Absolute URL for the displayed SVG (suitable for sharing/copying).
+   * Strip the _t timestamp parameter from a URL for clean copy links.
    * @source
    */
-  const svgLink = getAbsoluteUrl(cacheBustedSvgUrl);
+  const stripTimestampParam = (url: string): string => {
+    try {
+      const urlObj = new URL(url);
+      urlObj.searchParams.delete("_t");
+      return urlObj.toString();
+    } catch {
+      // If URL parsing fails, try regex fallback
+      return url.replaceAll(/[&?]_t=\d+/g, "");
+    }
+  };
+
+  /**
+   * Absolute URL for the displayed SVG (suitable for sharing/copying).
+   * Strips _t timestamp param for clean URLs.
+   * @source
+   */
+  const svgLink = stripTimestampParam(getAbsoluteUrl(cacheBustedSvgUrl));
   /**
    * AniList bio format (img150) using the absolute SVG URL.
+   * Strips _t timestamp param for clean URLs.
    * @source
    */
-  const anilistBioLink = `img150(${getAbsoluteUrl(cacheBustedSvgUrl)})`;
+  const anilistBioLink = `img150(${stripTimestampParam(getAbsoluteUrl(cacheBustedSvgUrl))})`;
 
   return (
     <motion.div
@@ -153,7 +172,10 @@ export function Card({ type, svgUrl, borderRadius }: Readonly<CardProps>) {
         <div className="flex-1 p-5">
           <div
             className="relative overflow-hidden rounded-xl bg-slate-100/50 dark:bg-slate-900/50"
-            style={{ aspectRatio: "auto", borderRadius: cardBorderRadius - 2 }}
+            style={{
+              aspectRatio: "auto",
+              borderRadius: Math.max(0, cardBorderRadius - 2),
+            }}
           >
             <img
               src={cacheBustedSvgUrl || "/placeholder.svg"}
@@ -164,7 +186,7 @@ export function Card({ type, svgUrl, borderRadius }: Readonly<CardProps>) {
                 width: "100%",
                 height: "auto",
                 maxWidth: "400px",
-                borderRadius: cardBorderRadius - 2,
+                borderRadius: Math.max(0, cardBorderRadius - 2),
               }}
               onLoad={() => setIsLoading(false)}
               onError={() => setIsLoading(false)}
@@ -178,7 +200,7 @@ export function Card({ type, svgUrl, borderRadius }: Readonly<CardProps>) {
             {isLoading && (
               <div
                 className="absolute inset-0 flex min-h-[200px] items-center justify-center"
-                style={{ borderRadius: cardBorderRadius }}
+                style={{ borderRadius: Math.max(0, cardBorderRadius - 2) }}
               >
                 <LoadingSpinner
                   size="md"
@@ -192,12 +214,12 @@ export function Card({ type, svgUrl, borderRadius }: Readonly<CardProps>) {
 
         {/* Action buttons */}
         <div className="border-t border-slate-200/50 p-5 dark:border-slate-700/50">
-          <div className="flex items-center gap-3">
+          <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
             {/* Download Button */}
             <Popover>
               <PopoverTrigger asChild>
                 <Button
-                  className="flex-1 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 font-medium text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg"
+                  className="w-full min-w-0 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 font-medium text-white shadow-md transition-all hover:scale-[1.02] hover:shadow-lg sm:w-auto sm:flex-1"
                   aria-label={`Choose a download format for ${displayNames[type] || type} card`}
                 >
                   <Download className="mr-2 h-4 w-4" />
@@ -242,7 +264,7 @@ export function Card({ type, svgUrl, borderRadius }: Readonly<CardProps>) {
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
-                  className="flex-1 rounded-xl border-slate-200 font-medium transition-all hover:scale-[1.02] hover:border-blue-300 hover:bg-blue-50 dark:border-slate-700 dark:hover:border-blue-600 dark:hover:bg-blue-900/20"
+                  className="w-full min-w-0 rounded-xl border-slate-200 font-medium transition-all hover:scale-[1.02] hover:border-blue-300 hover:bg-blue-50 dark:border-slate-700 dark:hover:border-blue-600 dark:hover:bg-blue-900/20 sm:w-auto sm:flex-1"
                   aria-label={`Copy ${displayNames[type]} card links in various formats`}
                 >
                   <Link className="mr-2 h-4 w-4" />

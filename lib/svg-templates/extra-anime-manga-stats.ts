@@ -13,15 +13,58 @@ import type { ColorValue } from "@/lib/types/card";
 
 const DEFAULT_STAT_BASE_COLOR = "#2563eb";
 
+const tryParseJsonGradient = (jsonStr: string): { color: string } | null => {
+  try {
+    const parsed = JSON.parse(jsonStr);
+    // Check if parsed object looks like a gradient
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      parsed.type &&
+      Array.isArray(parsed.stops) &&
+      parsed.stops.length > 0
+    ) {
+      // Try to find first valid hex color in stops
+      for (const stop of parsed.stops) {
+        if (
+          typeof stop === "object" &&
+          stop !== null &&
+          "color" in stop &&
+          typeof stop.color === "string" &&
+          isValidHexColor(stop.color)
+        ) {
+          return { color: stop.color };
+        }
+      }
+    }
+  } catch {
+    // JSON parsing failed, not a JSON string
+  }
+  return null;
+};
+
 const resolveCircleBaseColor = (value: ColorValue | undefined): string => {
-  if (typeof value === "string" && isValidHexColor(value)) {
-    return value;
+  // Handle gradient objects (in-memory form)
+  if (value && typeof value === "object" && isGradient(value)) {
+    for (const stop of value.stops) {
+      if (stop.color && isValidHexColor(stop.color)) {
+        return stop.color;
+      }
+    }
+    return DEFAULT_STAT_BASE_COLOR;
   }
 
-  if (value && isGradient(value)) {
-    const firstStopColor = value.stops[0]?.color;
-    if (firstStopColor && isValidHexColor(firstStopColor)) {
-      return firstStopColor;
+  // Handle string values
+  if (typeof value === "string") {
+    // Try hex first
+    if (isValidHexColor(value)) {
+      return value;
+    }
+
+    // Try parsing as JSON (for JSON-stringified gradients from config)
+    const gradResult = tryParseJsonGradient(value);
+    if (gradResult) {
+      return gradResult.color;
     }
   }
 
@@ -342,11 +385,25 @@ export const extraAnimeMangaStatsTemplate = (data: {
  */
 const getColorByIndex = (index: number, baseColor: string) => {
   // Convert base color to HSL for easy manipulation
-  const hexToHSL = (hex: string) => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    if (!result) {
-      return hexToHSL(DEFAULT_STAT_BASE_COLOR);
+  const hexToHSL = (hex: string, depth = 0): [number, number, number] => {
+    // Prevent infinite recursion
+    if (depth > 1) {
+      return [219, 82, 51]; // Default HSL for #2563eb
     }
+
+    // Normalize the hex string: ensure it's lowercase and has the # prefix
+    const normalizedHex = (hex || "").toLowerCase().trim();
+    if (!normalizedHex) {
+      return hexToHSL(DEFAULT_STAT_BASE_COLOR, depth + 1);
+    }
+
+    const result = /^#?([a-f0-9]{2})([a-f0-9]{2})([a-f0-9]{2})$/.exec(
+      normalizedHex,
+    );
+    if (!result) {
+      return hexToHSL(DEFAULT_STAT_BASE_COLOR, depth + 1);
+    }
+
     const r = Number.parseInt(result[1], 16) / 255;
     const g = Number.parseInt(result[2], 16) / 255;
     const b = Number.parseInt(result[3], 16) / 255;

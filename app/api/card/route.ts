@@ -11,13 +11,17 @@ import {
   DEFAULT_CARD_BORDER_RADIUS,
   markTrustedSvg,
 } from "@/lib/utils";
-import { UserRecord, CardsRecord, StoredCardConfig } from "@/lib/types/records";
 import generateCardSvg from "@/lib/card-generator";
 import {
   fetchUserData,
+  fetchUserDataOnly,
   validateAndNormalizeUserRecord,
   processCardConfig,
   CardDataError,
+  resolveUserIdFromUsername,
+  needsCardConfigFromDb,
+  buildCardConfigFromParams,
+  processFavorites,
 } from "@/lib/card-data";
 import { toCleanSvgResponse, type TrustedSVG } from "@/lib/types/svg";
 
@@ -161,6 +165,7 @@ function errorHeaders(request?: Request) {
  */
 interface ValidatedParams {
   userId: string;
+  userName: string | null;
   cardType: string;
   numericUserId: number;
   baseCardType: string;
@@ -168,6 +173,14 @@ interface ValidatedParams {
   showFavoritesParam: string | null;
   statusColorsParam: string | null;
   piePercentagesParam: string | null;
+  // Color and styling params
+  colorPresetParam: string | null;
+  titleColorParam: string | null;
+  backgroundColorParam: string | null;
+  textColorParam: string | null;
+  circleColorParam: string | null;
+  borderColorParam: string | null;
+  borderRadiusParam: string | null;
 }
 
 /**
@@ -175,6 +188,9 @@ interface ValidatedParams {
  *
  * If validation fails, a Response with an appropriate SVG error is returned.
  * Otherwise, a Normalized ValidatedParams object is returned.
+ *
+ * Supports both userId and userName parameters. At least one must be provided.
+ * If only userName is provided, the API will need to look up the userId from the database.
  *
  * @param request - The incoming HTTP request containing the query string.
  * @returns ValidatedParams on success, or an HTTP Response (SVG error) on failure.
@@ -185,14 +201,27 @@ function extractAndValidateParams(
 ): ValidatedParams | Response {
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get("userId");
+  const userName = searchParams.get("userName");
   const cardType = searchParams.get("cardType");
 
-  if (!userId || !cardType) {
-    const missingParam = userId ? "cardType" : "userId";
-    console.warn(`⚠️ [Card SVG] Missing parameter: ${missingParam}`);
+  // Must have cardType
+  if (!cardType) {
+    console.warn(`⚠️ [Card SVG] Missing parameter: cardType`);
+    return new Response(
+      toCleanSvgResponse(svgError(`Client Error: Missing parameter: cardType`)),
+      {
+        headers: errorHeaders(request),
+        status: 400,
+      },
+    );
+  }
+
+  // Must have either userId or userName
+  if (!userId && !userName) {
+    console.warn(`⚠️ [Card SVG] Missing parameter: userId or userName`);
     return new Response(
       toCleanSvgResponse(
-        svgError(`Client Error: Missing parameter: ${missingParam}`),
+        svgError(`Client Error: Missing parameter: userId or userName`),
       ),
       {
         headers: errorHeaders(request),
@@ -201,16 +230,20 @@ function extractAndValidateParams(
     );
   }
 
-  const numericUserId = Number.parseInt(userId);
-  if (Number.isNaN(numericUserId)) {
-    console.warn(`⚠️ [Card SVG] Invalid user ID format: ${userId}`);
-    return new Response(
-      toCleanSvgResponse(svgError("Client Error: Invalid user ID")),
-      {
-        headers: errorHeaders(request),
-        status: 400,
-      },
-    );
+  // If userId is provided, validate it's numeric
+  let numericUserId = 0;
+  if (userId) {
+    numericUserId = Number.parseInt(userId);
+    if (Number.isNaN(numericUserId)) {
+      console.warn(`⚠️ [Card SVG] Invalid user ID format: ${userId}`);
+      return new Response(
+        toCleanSvgResponse(svgError("Client Error: Invalid user ID")),
+        {
+          headers: errorHeaders(request),
+          status: 400,
+        },
+      );
+    }
   }
 
   const [baseCardType] = cardType.split("-");
@@ -226,7 +259,8 @@ function extractAndValidateParams(
   }
 
   return {
-    userId,
+    userId: userId || "",
+    userName,
     cardType,
     numericUserId,
     baseCardType,
@@ -234,6 +268,13 @@ function extractAndValidateParams(
     showFavoritesParam: searchParams.get("showFavorites"),
     statusColorsParam: searchParams.get("statusColors"),
     piePercentagesParam: searchParams.get("piePercentages"),
+    colorPresetParam: searchParams.get("colorPreset"),
+    titleColorParam: searchParams.get("titleColor"),
+    backgroundColorParam: searchParams.get("backgroundColor"),
+    textColorParam: searchParams.get("textColor"),
+    circleColorParam: searchParams.get("circleColor"),
+    borderColorParam: searchParams.get("borderColor"),
+    borderRadiusParam: searchParams.get("borderRadius"),
   };
 }
 
@@ -295,6 +336,122 @@ async function trackSuccessfulRequest(baseCardType: string): Promise<void> {
 }
 
 /**
+ * Resolves the effective user ID from either the numeric userId or userName.
+ * Returns the userId if provided, otherwise looks up the userId from userName.
+ *
+ * @param params - Validated parameters containing userId and userName.
+ * @returns Object with resolved userId or an error response.
+ * @source
+ */
+async function resolveEffectiveUserId(
+  params: ValidatedParams,
+  request: Request,
+): Promise<{ userId: number } | { error: Response }> {
+  if (params.numericUserId) {
+    return { userId: params.numericUserId };
+  }
+
+  if (params.userName) {
+    const resolvedUserId = await resolveUserIdFromUsername(params.userName);
+    if (resolvedUserId) {
+      return { userId: resolvedUserId };
+    }
+
+    console.warn(
+      `⚠️ [Card SVG] User not found for userName: ${params.userName}`,
+    );
+    await trackFailedRequest(params.baseCardType, 404);
+    return {
+      error: new Response(
+        toCleanSvgResponse(svgError("Not Found: User not found")),
+        { headers: errorHeaders(request), status: 404 },
+      ),
+    };
+  }
+
+  // This shouldn't happen due to validation, but handle it anyway
+  await trackFailedRequest(params.baseCardType, 400);
+  return {
+    error: new Response(
+      toCleanSvgResponse(svgError("Client Error: Missing user identifier")),
+      { headers: errorHeaders(request), status: 400 },
+    ),
+  };
+}
+
+/**
+ * Handles user record validation errors and returns appropriate error responses.
+ * @source
+ */
+function handleValidationError(
+  validationResult: { error: string; status?: number },
+  request: Request,
+  baseCardType: string,
+): Response {
+  const status = validationResult.status ?? 500;
+  void trackFailedRequest(baseCardType, status);
+
+  if (status === 404) {
+    return new Response(
+      toCleanSvgResponse(
+        svgError("Not Found: Missing card configuration or stats data"),
+      ),
+      { headers: errorHeaders(request), status: 404 },
+    );
+  }
+
+  return new Response(
+    toCleanSvgResponse(svgError(`Server Error: ${validationResult.error}`)),
+    { headers: errorHeaders(request), status },
+  );
+}
+
+/**
+ * Creates a CardDataError response.
+ * @source
+ */
+async function handleCardDataError(
+  err: CardDataError,
+  request: Request,
+  baseCardType: string,
+): Promise<Response> {
+  await trackFailedRequest(baseCardType, err.status);
+  return new Response(
+    toCleanSvgResponse(svgError(formatCardDataErrorMessage(err))),
+    { headers: errorHeaders(request), status: err.status },
+  );
+}
+
+/**
+ * Creates the success response with SVG content and headers.
+ * @source
+ */
+function createSuccessResponse(
+  svgContent: TrustedSVG,
+  request: Request,
+  borderRadius: number | undefined,
+): Response {
+  const cleaned = toCleanSvgResponse(svgContent);
+  const headerRadius = getCardBorderRadius(borderRadius);
+  const responseHeaders = {
+    ...svgHeaders(request),
+    "X-Card-Border-Radius": String(headerRadius),
+  } as Record<string, string>;
+  return new Response(cleaned, { headers: responseHeaders });
+}
+
+/**
+ * Creates a 500 internal server error response.
+ * @source
+ */
+function createInternalErrorResponse(request: Request): Response {
+  return new Response(
+    toCleanSvgResponse(svgError("Server Error: An internal error occurred")),
+    { headers: errorHeaders(request), status: 500 },
+  );
+}
+
+/**
  * GET handler for generating card SVGs.
  *
  * Workflow:
@@ -326,10 +483,7 @@ export async function GET(request: Request) {
       toCleanSvgResponse(
         svgError("Client Error: Too many requests - try again later"),
       ),
-      {
-        headers: errorHeaders(request),
-        status: 429,
-      },
+      { headers: errorHeaders(request), status: 429 },
     );
   }
 
@@ -340,145 +494,127 @@ export async function GET(request: Request) {
     await trackFailedRequest(undefined, paramsResult.status);
     return paramsResult;
   }
-
   const params = paramsResult;
+
+  const userIdResult = await resolveEffectiveUserId(params, request);
+  if ("error" in userIdResult) {
+    return userIdResult.error;
+  }
+  const effectiveUserId = userIdResult.userId;
+
   console.log(
-    `🖼️ [Card SVG] Request for ${params.cardType} card - User ID: ${params.userId}`,
+    `🖼️ [Card SVG] Request for ${params.cardType} card - User ID: ${effectiveUserId}`,
   );
 
+  return generateCardResponse(request, params, effectiveUserId, startTime);
+}
+
+async function generateCardResponse(
+  request: Request,
+  params: ValidatedParams,
+  effectiveUserId: number,
+  startTime: number,
+): Promise<Response> {
   try {
-    /**
-     * Local handler that converts CardDataError instances into a proper SVG
-     * response and sends analytics for the failure. It is defined inline to
-     * capture the request and params scope.
-     *
-     * @param err - The CardDataError to convert.
-     * @returns A Response containing an error SVG with proper status code.
-     * @source
-     */
-    async function handleCardDataError(err: CardDataError): Promise<Response> {
-      await trackFailedRequest(params.baseCardType, err.status);
-      return new Response(
-        toCleanSvgResponse(svgError(formatCardDataErrorMessage(err))),
-        { headers: errorHeaders(request), status: err.status },
-      );
-    }
+    const needsDbCardConfig = needsCardConfigFromDb(params);
 
-    let cardDoc: CardsRecord;
-    let userDoc: UserRecord;
-    try {
-      const data = await fetchUserData(params.numericUserId);
-      cardDoc = data.cardDoc;
+    let userDoc: import("@/lib/types/records").UserRecord;
+    let cardConfig: import("@/lib/types/records").StoredCardConfig;
+    let effectiveVariation: string;
+    let favorites: string[];
+
+    if (needsDbCardConfig) {
+      // Need to fetch both user and card data from DB
+      const data = await fetchUserData(effectiveUserId);
+      const { cardDoc } = data;
       userDoc = data.userDoc;
-    } catch (err: unknown) {
-      if (err instanceof CardDataError) return handleCardDataError(err);
-      throw err;
-    }
 
-    const validationResult = validateAndNormalizeUserRecord(userDoc);
-    if ("error" in validationResult) {
-      const status = validationResult.status ?? 500;
-      void trackFailedRequest(params.baseCardType, status);
-      if (status === 404) {
-        return new Response(
-          toCleanSvgResponse(
-            svgError("Not Found: Missing card configuration or stats data"),
-          ),
-          {
-            headers: errorHeaders(request),
-            status: 404,
-          },
+      const validationResult = validateAndNormalizeUserRecord(userDoc);
+      if ("error" in validationResult) {
+        return handleValidationError(
+          validationResult,
+          request,
+          params.baseCardType,
         );
       }
-      return new Response(
-        toCleanSvgResponse(svgError(`Server Error: ${validationResult.error}`)),
-        { headers: errorHeaders(request), status },
-      );
-    }
-    userDoc = validationResult.normalized;
+      userDoc = validationResult.normalized;
 
-    let cardConfig: StoredCardConfig;
-    let effectiveVariation: string;
-    let favorites: string[] = [];
-    try {
       const processed = processCardConfig(cardDoc, params, userDoc);
       cardConfig = processed.cardConfig;
       effectiveVariation = processed.effectiveVariation;
       favorites = processed.favorites;
-    } catch (err: unknown) {
-      if (err instanceof CardDataError) return handleCardDataError(err);
-      throw err;
+    } else {
+      // Only fetch user data from DB, build card config from URL params
+      userDoc = await fetchUserDataOnly(effectiveUserId);
+
+      const validationResult = validateAndNormalizeUserRecord(userDoc);
+      if ("error" in validationResult) {
+        return handleValidationError(
+          validationResult,
+          request,
+          params.baseCardType,
+        );
+      }
+      userDoc = validationResult.normalized;
+
+      // Build card config directly from URL params
+      cardConfig = buildCardConfigFromParams(params);
+      effectiveVariation =
+        params.variationParam || cardConfig.variation || "default";
+      favorites = processFavorites(
+        params.baseCardType,
+        params.showFavoritesParam,
+        cardConfig.showFavorites,
+        userDoc,
+      );
     }
 
     console.log(
-      `🎨 [Card SVG] Generating ${params.cardType} (${effectiveVariation}) SVG for user ${params.numericUserId}`,
+      `🎨 [Card SVG] Generating ${params.cardType} (${effectiveVariation}) SVG for user ${effectiveUserId}${needsDbCardConfig ? " (with DB card lookup)" : " (from URL params)"}`,
     );
 
-    let svgContent: TrustedSVG;
-    try {
-      svgContent = generateCardSvg(
-        cardConfig,
-        userDoc,
-        effectiveVariation as
-          | "default"
-          | "vertical"
-          | "pie"
-          | "compact"
-          | "minimal"
-          | "bar"
-          | "horizontal",
-        favorites,
-      );
-    } catch (err: unknown) {
-      if (err instanceof CardDataError) return handleCardDataError(err);
-      throw err;
-    }
+    const svgContent = generateCardSvg(
+      cardConfig,
+      userDoc,
+      effectiveVariation as
+        | "default"
+        | "vertical"
+        | "pie"
+        | "compact"
+        | "minimal"
+        | "bar"
+        | "horizontal",
+      favorites,
+    );
 
     const duration = Date.now() - startTime;
     if (duration > 1500) {
       console.warn(
-        `⏳ [Card SVG] Slow rendering detected: ${duration}ms for user ${params.numericUserId}`,
+        `⏳ [Card SVG] Slow rendering detected: ${duration}ms for user ${effectiveUserId}`,
       );
     }
-
     console.log(
-      `✅ [Card SVG] Rendered ${params.cardType} card for ${params.numericUserId} in ${duration}ms`,
+      `✅ [Card SVG] Rendered ${params.cardType} card for ${effectiveUserId} in ${duration}ms`,
     );
 
     await trackSuccessfulRequest(params.baseCardType);
+    return createSuccessResponse(svgContent, request, cardConfig.borderRadius);
+  } catch (err: unknown) {
+    if (err instanceof CardDataError) {
+      return handleCardDataError(err, request, params.baseCardType);
+    }
 
-    const cleaned = toCleanSvgResponse(svgContent);
-
-    const headerRadius = getCardBorderRadius(cardConfig.borderRadius);
-    const responseHeaders = {
-      ...svgHeaders(request),
-      "X-Card-Border-Radius": String(headerRadius),
-    } as Record<string, string>;
-
-    return new Response(cleaned, {
-      headers: responseHeaders,
-    });
-  } catch (error: unknown) {
     const duration = Date.now() - startTime;
-
     console.error(
-      `🔥 [Card SVG] Error generating card for user ${params.numericUserId} after ${duration}ms:`,
-      error,
+      `🔥 [Card SVG] Error generating card for user ${effectiveUserId} after ${duration}ms:`,
+      err,
     );
-
-    if (error instanceof Error && error.stack) {
-      console.error(`💥 [Card SVG] Stack Trace: ${error.stack}`);
+    if (err instanceof Error && err.stack) {
+      console.error(`💥 [Card SVG] Stack Trace: ${err.stack}`);
     }
 
     await trackFailedRequest(params.baseCardType, 500);
-
-    return new Response(
-      toCleanSvgResponse(svgError("Server Error: An internal error occurred")),
-      {
-        headers: errorHeaders(request),
-        status: 500,
-      },
-    );
+    return createInternalErrorResponse(request);
   }
 }
 

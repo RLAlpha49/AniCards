@@ -18,6 +18,10 @@ import {
 } from "@/lib/utils/google-analytics";
 import { Eye, Info } from "lucide-react";
 import { cn, buildApiUrl } from "@/lib/utils";
+import {
+  buildCardUrlWithParams,
+  mapStoredConfigToCardUrlParams,
+} from "@/lib/card-groups";
 
 /**
  * Props to control the stat card preview dialog.
@@ -107,16 +111,18 @@ export function StatCardPreview({
   // Use the provided variation or default to "default"
   const effectiveVariation = variation ?? "default";
 
-  // Build the preview URL with separate query parameters.
   const baseUrl = buildApiUrl("/card.svg");
-  const urlParams = new URLSearchParams({
-    cardType,
-    // Sample user used to generate demo preview SVGs — not the viewer's user id.
-    userId: "542244",
-    variation: effectiveVariation,
-  });
-  if (showFavorites) urlParams.append("showFavorites", "true");
-  const previewUrl = `${baseUrl}?${urlParams.toString()}`;
+  const previewUrl = buildCardUrlWithParams(
+    mapStoredConfigToCardUrlParams(
+      {
+        cardName: cardType,
+        variation: effectiveVariation,
+        showFavorites: showFavorites ? true : undefined,
+      },
+      { userId: "542244", includeColors: false },
+    ),
+    baseUrl,
+  );
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>

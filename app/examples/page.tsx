@@ -14,11 +14,13 @@ import {
 } from "lucide-react";
 import {
   CARD_GROUPS,
-  buildCardUrl,
+  buildCardUrlWithParams,
   VARIATION_LABEL_MAP,
   DEFAULT_BASE_CARD_URL,
   DEFAULT_EXAMPLE_USER_ID,
+  mapStoredConfigToCardUrlParams,
 } from "@/lib/card-groups";
+import type { CardUrlParams } from "@/lib/card-groups";
 import { usePageSEO } from "@/hooks/usePageSEO";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import {
@@ -27,6 +29,7 @@ import {
   CTASection,
 } from "@/components/examples";
 import type { CardType, CardVariant } from "@/components/examples";
+import type { StoredCardConfig } from "@/lib/types/records";
 
 /**
  * Card type gradients matching the category styling.
@@ -253,14 +256,73 @@ export default function ExamplesPage() {
         const variation = typeof v === "string" ? v : v.variation;
         const extras = typeof v === "string" ? undefined : v.extras;
         const label = VARIATION_LABEL_MAP[variation] ?? variation;
+        const extrasParams: Partial<CardUrlParams> = {
+          colorPreset: "anilistDarkGradient",
+        };
+        if (extras) {
+          for (const [key, value] of Object.entries(extras)) {
+            switch (key) {
+              case "statusColors":
+                extrasParams.statusColors = value === "true";
+                break;
+              case "colorPreset":
+                extrasParams.colorPreset = value;
+                break;
+              case "titleColor":
+                extrasParams.titleColor = value;
+                break;
+              case "backgroundColor":
+                extrasParams.backgroundColor = value;
+                break;
+              case "textColor":
+                extrasParams.textColor = value;
+                break;
+              case "circleColor":
+                extrasParams.circleColor = value;
+                break;
+              case "borderColor":
+                extrasParams.borderColor = value;
+                break;
+              case "borderRadius":
+                {
+                  const parsed = Number.parseFloat(value);
+                  if (!Number.isNaN(parsed)) extrasParams.borderRadius = parsed;
+                }
+                break;
+              case "showFavorites":
+                extrasParams.showFavorites = value === "true";
+                break;
+              case "piePercentages":
+                extrasParams.piePercentages = value === "true";
+                break;
+              default:
+                break;
+            }
+          }
+        }
+
+        const candidate: Partial<StoredCardConfig> = {
+          cardName: group.cardType,
+          variation,
+          colorPreset: extrasParams.colorPreset,
+          titleColor: extrasParams.titleColor,
+          backgroundColor: extrasParams.backgroundColor,
+          textColor: extrasParams.textColor,
+          circleColor: extrasParams.circleColor,
+          borderColor: extrasParams.borderColor,
+          borderRadius: extrasParams.borderRadius,
+          showFavorites: extrasParams.showFavorites,
+          useStatusColors: extrasParams.statusColors,
+          showPiePercentages: extrasParams.piePercentages,
+        };
         return {
           name: label,
-          url: buildCardUrl(
-            group.cardType,
-            variation,
-            extras,
+          url: buildCardUrlWithParams(
+            mapStoredConfigToCardUrlParams(candidate, {
+              userId: USER_ID,
+              includeColors: false,
+            }),
             BASE_URL,
-            USER_ID,
           ),
         } as CardVariant;
       });

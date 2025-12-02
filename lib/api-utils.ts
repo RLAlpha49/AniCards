@@ -595,8 +595,17 @@ function validateCardRequiredFields(
 
   const reqStrErr = validateRequiredStringFields(card, requiredStringFields);
   if (reqStrErr) return reqStrErr;
-  const reqColorErr = validateRequiredColorFields(card, requiredColorFields);
-  if (reqColorErr) return reqColorErr;
+
+  const rawPreset = card["colorPreset"];
+  const preset =
+    typeof rawPreset === "string" && rawPreset.trim().length > 0
+      ? rawPreset
+      : undefined;
+  const requireColorFields = preset === undefined || preset === "custom";
+  if (requireColorFields) {
+    const reqColorErr = validateRequiredColorFields(card, requiredColorFields);
+    if (reqColorErr) return reqColorErr;
+  }
 
   return null;
 }

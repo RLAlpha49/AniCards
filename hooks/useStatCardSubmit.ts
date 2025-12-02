@@ -14,12 +14,14 @@ import type { ColorValue } from "@/lib/types/card";
  * @property useMangaStatusColors - Apply manga status color scheme for relevant charts.
  * @property borderEnabled - Whether cards should show a border.
  * @property borderColor - Hex or CSS color string to use for a border.
+ * @property colorPreset - Name of the color preset used (\"custom\" if colors were manually chosen).
  * @source
  */
 interface SubmitParams {
   username: string;
   selectedCards: string[];
   colors: ColorValue[];
+  colorPreset?: string;
   showFavoritesByCard: Record<string, boolean>;
   showPiePercentages?: boolean;
   useAnimeStatusColors?: boolean;
@@ -51,6 +53,7 @@ const FAVORITE_CARD_IDS = new Set([
 function buildCardsPayload(params: {
   selectedCards: string[];
   colors: ColorValue[];
+  colorPreset?: string;
   showPiePercentages?: boolean;
   useAnimeStatusColors?: boolean;
   useMangaStatusColors?: boolean;
@@ -62,6 +65,7 @@ function buildCardsPayload(params: {
   const {
     selectedCards,
     colors,
+    colorPreset,
     showPiePercentages,
     useAnimeStatusColors,
     useMangaStatusColors,
@@ -83,6 +87,7 @@ function buildCardsPayload(params: {
       textColor: colors[2],
       circleColor: colors[3],
       showPiePercentages,
+      ...(colorPreset ? { colorPreset } : {}),
       ...(cardName === "animeStatusDistribution" && useAnimeStatusColors
         ? { useStatusColors: true }
         : {}),
@@ -525,6 +530,7 @@ export function useStatCardSubmit() {
     username,
     selectedCards,
     colors,
+    colorPreset,
     showFavoritesByCard,
     showPiePercentages,
     useAnimeStatusColors,
@@ -583,6 +589,7 @@ export function useStatCardSubmit() {
       const cardsPayload = buildCardsPayload({
         selectedCards,
         colors,
+        colorPreset,
         showPiePercentages,
         useAnimeStatusColors,
         useMangaStatusColors,

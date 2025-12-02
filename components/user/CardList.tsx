@@ -73,16 +73,35 @@ export function CardList({ cardTypes }: Readonly<CardListProps>) {
     : 0;
 
   /**
-   * Absolute SVG links for each card, used in the direct SVG copy option.
+   * Strip the _t timestamp parameter from a URL for clean copy links.
    * @source
    */
-  const svgLinks = cardTypes.map((card) => getAbsoluteUrl(card.svgUrl));
+  const stripTimestampParam = (url: string): string => {
+    try {
+      const urlObj = new URL(url);
+      urlObj.searchParams.delete("_t");
+      return urlObj.toString();
+    } catch {
+      // If URL parsing fails, try regex fallback
+      return url.replaceAll(/[&?]_t=\d+/g, "");
+    }
+  };
+
+  /**
+   * Absolute SVG links for each card, used in the direct SVG copy option.
+   * Strips _t timestamp param for clean URLs.
+   * @source
+   */
+  const svgLinks = cardTypes.map((card) =>
+    stripTimestampParam(getAbsoluteUrl(card.svgUrl)),
+  );
   /**
    * AniList bio-format links (img150) derived from absolute SVG URLs.
+   * Strips _t timestamp param for clean URLs.
    * @source
    */
   const anilistBioLinks = cardTypes.map(
-    (card) => `img150(${getAbsoluteUrl(card.svgUrl)})`,
+    (card) => `img150(${stripTimestampParam(getAbsoluteUrl(card.svgUrl))})`,
   );
 
   /**
@@ -169,7 +188,7 @@ export function CardList({ cardTypes }: Readonly<CardListProps>) {
   };
 
   return (
-    <div className="relative mx-auto w-full max-w-7xl">
+    <div className="relative mx-auto w-full max-w-[90vw]">
       {isBatchExporting && (
         <LoadingOverlay
           text={`Converting ${exportProgress.current}/${exportProgress.total} cards...`}
@@ -402,7 +421,7 @@ export function CardList({ cardTypes }: Readonly<CardListProps>) {
       </motion.div>
 
       {/* Cards Grid */}
-      <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
         {cardTypes.map((card, index) => (
           <motion.div
             key={card.rawType}
