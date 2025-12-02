@@ -1,6 +1,7 @@
 ---
-applyTo: "*"
-description: "The most comprehensive, practical, and engineer-authored performance optimization instructions for all languages, frameworks, and stacks. Covers frontend, backend, and database best practices with actionable guidance, scenario-based checklists, troubleshooting, and pro tips."
+name: "Performance Optimization Guide"
+applyTo: "**/*.{ts,tsx,js,jsx,css,scss,html}"
+description: "Practical performance optimization guidance focused on Next.js, React, Tailwind, and Node.js (TypeScript/JavaScript). Use this guide when editing performance-critical code paths, optimizing frontend assets, or changing backend resource handling in AniCards projects."
 ---
 
 # Performance Optimization Best Practices
@@ -14,7 +15,7 @@ Performance isn't just a buzzword—it's the difference between a product people
 ## General Principles
 
 - **Measure First, Optimize Second:** Always profile and measure before optimizing. Use benchmarks, profilers, and monitoring tools to identify real bottlenecks. Guessing is the enemy of performance.
-  - _Pro Tip:_ Use tools like Chrome DevTools, Lighthouse, New Relic, Datadog, Py-Spy, or your language's built-in profilers.
+  - _Pro Tip:_ Use tools like Chrome DevTools, Lighthouse, WebPageTest, Vercel Insights, and Node.js profilers such as `node --inspect`, `clinic.js`, or upstream APMs (New Relic, Datadog).
 - **Optimize for the Common Case:** Focus on optimizing code paths that are most frequently executed. Don't waste time on rare edge cases unless they're critical.
 - **Avoid Premature Optimization:** Write clear, maintainable code first; optimize only when necessary. Premature optimization can make code harder to read and maintain.
 - **Minimize Resource Usage:** Use memory, CPU, network, and disk resources efficiently. Always ask: "Can this be done with less?"
@@ -71,30 +72,23 @@ Performance isn't just a buzzword—it's the difference between a product people
 - **Accessible Components:** Ensure ARIA updates are not excessive. Use semantic HTML for both accessibility and performance.
 - **Screen Reader Performance:** Avoid rapid DOM updates that can overwhelm assistive tech.
 
-### Framework-Specific Tips
+### Framework-Specific Tips (React / Next.js)
 
 #### React
 
 - Use `React.memo`, `useMemo`, and `useCallback` to avoid unnecessary renders.
-- Split large components and use code-splitting (`React.lazy`, `Suspense`).
+- Split large components and use code-splitting (`React.lazy`, `Suspense`), and prefer `dynamic()` in Next.js for client-only chunks.
 - Avoid anonymous functions in render; they create new references on every render.
 - Use `ErrorBoundary` to catch and handle errors gracefully.
-- Profile with React DevTools Profiler.
+- Profile with React DevTools Profiler and Lighthouse for user-centric metrics.
 
-#### Angular
+#### Next.js
 
-- Use OnPush change detection for components that don't need frequent updates.
-- Avoid complex expressions in templates; move logic to the component class.
-- Use `trackBy` in `ngFor` for efficient list rendering.
-- Lazy load modules and components with the Angular Router.
-- Profile with Angular DevTools.
-
-#### Vue
-
-- Use computed properties over methods in templates for caching.
-- Use `v-show` vs `v-if` appropriately (`v-show` is better for toggling visibility frequently).
-- Lazy load components and routes with Vue Router.
-- Profile with Vue Devtools.
+- Prefer Server Components for rendering static or data-driven UI where possible; move interactive code into Client Components.
+- Use `next/image`, `next/font`, and built-in optimizations to improve LCP and CLS.
+- Use Incremental Static Regeneration (ISR) and static generation for pages that can be cached to reduce server load and TTFB.
+- Use `dynamic()` for client-only components and code splitting, and `React.lazy` where appropriate for big bundles.
+- For server-side or edge functions, optimize payload sizes, use streaming when possible, and profile server latency.
 
 ### Common Frontend Pitfalls
 
@@ -163,30 +157,6 @@ Performance isn't just a buzzword—it's the difference between a product people
 - Limit concurrent open connections to avoid resource exhaustion.
 - Use streams for large file or network data processing.
 - Profile with `clinic.js`, `node --inspect`, or Chrome DevTools.
-
-#### Python
-
-- Use built-in data structures (`dict`, `set`, `deque`) for speed.
-- Profile with `cProfile`, `line_profiler`, or `Py-Spy`.
-- Use `multiprocessing` or `asyncio` for parallelism.
-- Avoid GIL bottlenecks in CPU-bound code; use C extensions or subprocesses.
-- Use `lru_cache` for memoization.
-
-#### Java
-
-- Use efficient collections (`ArrayList`, `HashMap`, etc.).
-- Profile with VisualVM, JProfiler, or YourKit.
-- Use thread pools (`Executors`) for concurrency.
-- Tune JVM options for heap and garbage collection (`-Xmx`, `-Xms`, `-XX:+UseG1GC`).
-- Use `CompletableFuture` for async programming.
-
-#### .NET
-
-- Use `async/await` for I/O-bound operations.
-- Use `Span<T>` and `Memory<T>` for efficient memory access.
-- Profile with dotTrace, Visual Studio Profiler, or PerfView.
-- Pool objects and connections where appropriate.
-- Use `IAsyncEnumerable<T>` for streaming data.
 
 ### Common Backend Pitfalls
 
@@ -286,8 +256,8 @@ Performance isn't just a buzzword—it's the difference between a product people
 
 ### Profiling and Benchmarking
 
-- **Profilers:** Use language-specific profilers (Chrome DevTools, Py-Spy, VisualVM, dotTrace, etc.) to identify bottlenecks.
-- **Microbenchmarks:** Write microbenchmarks for critical code paths. Use `benchmark.js`, `pytest-benchmark`, or JMH for Java.
+- **Profilers:** Use browser and Node.js profiling tools (Chrome DevTools, React DevTools Profiler, `clinic.js`, `node --inspect`) to identify bottlenecks.
+- **Microbenchmarks:** Write microbenchmarks for critical code paths. Use `benchmark.js` and Node-compatible tools for JavaScript/TypeScript workloads.
 - **A/B Testing:** Measure real-world impact of optimizations with A/B or canary releases.
 - **Continuous Performance Testing:** Integrate performance tests into CI/CD. Use tools like k6, Gatling, or Locust.
 
@@ -357,19 +327,22 @@ SELECT * FROM users WHERE email = 'user@example.com';
 SELECT id, name FROM users WHERE email = 'user@example.com';
 ```
 
-### Example 3: Caching Expensive Computation in Python
+### Example 3: Caching Expensive Computation in Node.js
 
-```python
-# BAD: Recomputes result every time
-result = expensive_function(x)
+```javascript
+// BAD: Recomputes result every time
+const result = await expensiveFunction(x);
 
-# GOOD: Cache result
-from functools import lru_cache
+// GOOD: Cache result (in-memory Map example)
+const cache = new Map();
+async function getCachedResult(key, fn) {
+  if (cache.has(key)) return cache.get(key);
+  const value = await fn(key);
+  cache.set(key, value);
+  return value;
+}
 
-@lru_cache(maxsize=128)
-def expensive_function(x):
-    ...
-result = expensive_function(x)
+const result = await getCachedResult(x, expensiveFunction);
 ```
 
 ### Example 4: Lazy Loading Images in HTML
@@ -395,18 +368,13 @@ fs.readFile("file.txt", (err, data) => {
 });
 ```
 
-### Example 6: Profiling a Python Function
+### Example 6: Profiling a Node.js Function
 
-```python
-import cProfile
-import pstats
-
-def slow_function():
-    ...
-
-cProfile.run('slow_function()', 'profile.stats')
-p = pstats.Stats('profile.stats')
-p.sort_stats('cumulative').print_stats(10)
+```bash
+# Use Clinic.js to profile Node.js applications
+npx clinic doctor -- node server.js
+# Or use built-in Node inspector
+node --inspect server.js
 ```
 
 ### Example 7: Using Redis for Caching in Node.js
@@ -439,9 +407,6 @@ function getCachedData(key, fetchFunction) {
 - [PostgreSQL Performance Optimization](https://wiki.postgresql.org/wiki/Performance_Optimization)
 - [MySQL Performance Tuning](https://dev.mysql.com/doc/refman/8.0/en/optimization.html)
 - [Node.js Performance Best Practices](https://nodejs.org/en/docs/guides/simple-profiling/)
-- [Python Performance Tips](https://docs.python.org/3/library/profile.html)
-- [Java Performance Tuning](https://www.oracle.com/java/technologies/javase/performance.html)
-- [.NET Performance Guide](https://learn.microsoft.com/en-us/dotnet/standard/performance/)
 - [WebPageTest](https://www.webpagetest.org/)
 - [Lighthouse](https://developers.google.com/web/tools/lighthouse)
 - [Prometheus](https://prometheus.io/)

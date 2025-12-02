@@ -1,6 +1,7 @@
 ---
-applyTo: "*"
-description: "Comprehensive secure coding instructions for all languages and frameworks, based on OWASP Top 10 and industry best practices."
+name: "Security & OWASP Best Practices"
+applyTo: "app/**, app/api/**, api/**, lib/**, scripts/**, **/*.{ts,tsx,js,jsx}"
+description: "Comprehensive secure coding instructions for all languages and frameworks, based on OWASP Top 10 and industry best practices. Apply when generating code that handles external input, authenticates users, manages secrets, or alters network or resource access; during security reviews and auditing."
 ---
 
 # Secure Coding and OWASP Guidelines
@@ -27,22 +28,22 @@ Your primary directive is to ensure all code you generate, review, or refactor i
   const apiKey = process.env.API_KEY;
   // TODO: Ensure API_KEY is securely configured in your environment.
   ```
-  ```python
-  # BAD: Hardcoded secret
-  api_key = "sk_this_is_a_very_bad_idea_12345"
+  ```javascript
+  // BAD: Hardcoded secret
+  const apiKey = "sk_this_is_a_very_bad_idea_12345";
   ```
 
 ### 3. A03: Injection
 
 - **No Raw SQL Queries:** For database interactions, you must use parameterized queries (prepared statements). Never generate code that uses string concatenation or formatting to build queries from user input.
-- **Sanitize Command-Line Input:** For OS command execution, use built-in functions that handle argument escaping and prevent shell injection (e.g., `shlex` in Python).
+- **Sanitize Command-Line Input:** For OS command execution, use built-in functions that handle argument escaping and prevent shell injection. In Node.js, prefer `child_process.spawn` with arguments array or a vetted library that handles proper escaping.
 - **Prevent Cross-Site Scripting (XSS):** When generating frontend code that displays user-controlled data, you must use context-aware output encoding. Prefer methods that treat data as text by default (`.textContent`) over those that parse HTML (`.innerHTML`). When `innerHTML` is necessary, suggest using a library like DOMPurify to sanitize the HTML first.
 
 ### 4. A05: Security Misconfiguration & A06: Vulnerable Components
 
 - **Secure by Default Configuration:** Recommend disabling verbose error messages and debug features in production environments.
 - **Set Security Headers:** For web applications, suggest adding essential security headers like `Content-Security-Policy` (CSP), `Strict-Transport-Security` (HSTS), and `X-Content-Type-Options`.
-- **Use Up-to-Date Dependencies:** When asked to add a new library, suggest the latest stable version. Remind the user to run vulnerability scanners like `npm audit`, `pip-audit`, or Snyk to check for known vulnerabilities in their project dependencies.
+- **Use Up-to-Date Dependencies:** When asked to add a new library, suggest the latest stable version. Remind the user to run vulnerability scanners like `npm audit`, `npm audit fix`, or Snyk to check for known vulnerabilities in their project dependencies.
 
 ### 5. A07: Identification & Authentication Failures
 
@@ -51,7 +52,7 @@ Your primary directive is to ensure all code you generate, review, or refactor i
 
 ### 6. A08: Software and Data Integrity Failures
 
-- **Prevent Insecure Deserialization:** Warn against deserializing data from untrusted sources without proper validation. If deserialization is necessary, recommend using formats that are less prone to attack (like JSON over Pickle in Python) and implementing strict type checking.
+- **Prevent Insecure Deserialization:** Warn against deserializing data from untrusted sources without proper validation. If deserialization is necessary, recommend using safe formats like JSON and implement strict type checking and validation (e.g., Zod) to ensure types match expected structures.
 
 ## General Guidelines
 

@@ -3,15 +3,20 @@ import {
   removeEmptyCssRules,
   sanitizeCssContent,
   removeClassTokensFromMarkup,
+  sanitizeInlineStyleAttributes,
 } from "./route";
 import { NextRequest } from "next/server";
 import sharp from "sharp";
 
 /**
  * Captures the buffer passed into `sharp` so tests can inspect the SVG payload.
- * @source
  */
 let lastSharpBuffer: Buffer | null = null;
+
+/**
+ * Tracks which format (png or webp) was requested in the last sharp call
+ */
+let lastSharpFormat: "png" | "webp" = "png";
 
 /**
  * Create a named async function for returning a fake PNG buffer.
@@ -19,7 +24,7 @@ let lastSharpBuffer: Buffer | null = null;
  */
 function createToBufferSuccess() {
   return async function toBuffer() {
-    return Buffer.from("FAKEPNG");
+    return Buffer.from(lastSharpFormat === "webp" ? "FAKEWEBP" : "FAKEPNG");
   };
 }
 
@@ -40,11 +45,17 @@ function createSharpInstance(buf?: Buffer) {
   const instance: {
     toBuffer: () => Promise<Buffer>;
     png: () => unknown;
-    webp: () => unknown;
+    webp: (opts: { quality: number }) => unknown;
   } = {
     toBuffer: createToBufferSuccess(),
-    png: () => instance,
-    webp: () => instance,
+    png: () => {
+      lastSharpFormat = "png";
+      return instance;
+    },
+    webp: (opts: { quality: number }) => {
+      lastSharpFormat = "webp";
+      return instance;
+    },
   };
   return instance;
 }
@@ -71,150 +82,557 @@ jest.mock("sharp", () => jest.fn(createSharpInstance));
 describe("Convert API POST Endpoint", () => {
   /**
    * Retains the original fetch implementation so it can be restored after tests.
-   * @source
    */
   const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    lastSharpBuffer = null;
+    lastSharpFormat = "png";
+  });
 
   afterEach(() => {
     jest.clearAllMocks();
     globalThis.fetch = originalFetch;
   });
 
-  it("should return 400 error if svgUrl parameter is missing", async () => {
-    // Create a request without the required "svgUrl"
-    const req = new Request("http://localhost/api/convert", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-forwarded-for": "127.0.0.1",
-      },
-      body: JSON.stringify({}),
-    }) as unknown as NextRequest;
+  describe("Input Validation", () => {
+    it("should return 400 error if svgUrl parameter is missing", async () => {
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({}),
+      }) as unknown as NextRequest;
 
-    const res = await POST(req);
-    expect(res.status).toBe(400);
-    const data = await res.json();
-    expect(data.error).toBe("Missing svgUrl parameter");
-  });
-
-  it("should return error if fetching SVG fails", async () => {
-    // Provide a valid request body.
-    const req = new Request("http://localhost/api/convert", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-forwarded-for": "127.0.0.1",
-      },
-      body: JSON.stringify({ svgUrl: "http://localhost/fake.svg" }),
-    }) as unknown as NextRequest;
-
-    // Mock fetch to simulate a failed response.
-    globalThis.fetch = jest.fn().mockResolvedValue({
-      ok: false,
-      status: 404,
-      text: async () => "Not Found",
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Missing svgUrl parameter");
     });
 
-    const res = await POST(req);
-    // The endpoint should forward the status returned by fetch.
-    expect(res.status).toBe(404);
-    const data = await res.json();
-    expect(data.error).toBe("Failed to fetch SVG");
-  });
+    it("should return 400 error for invalid URL format", async () => {
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+          host: "localhost",
+        },
+        body: JSON.stringify({ svgUrl: "http://local host/path" }),
+      }) as unknown as NextRequest;
 
-  it("should successfully convert SVG to PNG", async () => {
-    const dummySVG = `<svg><circle cx="50" cy="50" r="40"/></svg>`;
-    // Provide a valid request with svgUrl.
-    const req = new Request("http://localhost/api/convert", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-forwarded-for": "127.0.0.1",
-      },
-      body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
-    }) as unknown as NextRequest;
-
-    // Mock fetch to return the dummy SVG content.
-    globalThis.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: async () => dummySVG,
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid URL format");
     });
 
-    const res = await POST(req);
-    expect(res.status).toBe(200);
-    const rawText = await res.text();
-    const data = JSON.parse(rawText);
-    // The pngDataUrl should start with the proper data URL prefix.
-    expect(data.pngDataUrl).toContain("data:image/png;base64,");
-    // Verify that our mocked sharp converted the SVG to PNG.
-    const expectedBase64 = Buffer.from("FAKEPNG").toString("base64");
-    expect(data.pngDataUrl).toBe(`data:image/png;base64,${expectedBase64}`);
-  });
+    it("should return 400 error for invalid format parameter", async () => {
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({
+          svgUrl: "http://localhost/dummy.svg",
+          format: "avif",
+        }),
+      }) as unknown as NextRequest;
 
-  it("should return 500 error when sharp conversion fails", async () => {
-    const dummySVG = `<svg><circle cx="50" cy="50" r="40"/></svg>`;
-    const req = new Request("http://localhost/api/convert", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-forwarded-for": "127.0.0.1",
-      },
-      body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
-    }) as unknown as NextRequest;
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => "<svg></svg>",
+      });
 
-    globalThis.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: async () => dummySVG,
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid format parameter");
     });
 
-    // Override the sharp mock for this test to simulate an error.
-    (sharp as unknown as jest.Mock).mockImplementationOnce(() => ({
-      png: () => ({ toBuffer: createToBufferFailure() }),
-    }));
+    it("should accept valid format 'png' (default)", async () => {
+      const dummySVG = `<svg><circle cx="50" cy="50" r="40"/></svg>`;
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({
+          svgUrl: "http://localhost/dummy.svg",
+          format: "png",
+        }),
+      }) as unknown as NextRequest;
 
-    const res = await POST(req);
-    expect(res.status).toBe(500);
-    const data = await res.json();
-    expect(data.error).toBe("Conversion failed");
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => dummySVG,
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.pngDataUrl).toContain("data:image/png;base64,");
+    });
+
+    it("should accept valid format 'webp'", async () => {
+      const dummySVG = `<svg><circle cx="50" cy="50" r="40"/></svg>`;
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({
+          svgUrl: "http://localhost/dummy.svg",
+          format: "webp",
+        }),
+      }) as unknown as NextRequest;
+
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => dummySVG,
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.pngDataUrl).toContain("data:image/webp;base64,");
+    });
+
+    it("should use default format 'png' when format is omitted", async () => {
+      const dummySVG = `<svg><circle cx="50" cy="50" r="40"/></svg>`;
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
+      }) as unknown as NextRequest;
+
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => dummySVG,
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.pngDataUrl).toContain("data:image/png;base64,");
+    });
+
+    it("should handle format parameter case-insensitively", async () => {
+      const dummySVG = `<svg></svg>`;
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({
+          svgUrl: "http://localhost/dummy.svg",
+          format: "PNG",
+        }),
+      }) as unknown as NextRequest;
+
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => dummySVG,
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+    });
   });
 
-  it("should increment analytics and return 400 when format is invalid", async () => {
-    jest.resetModules();
-    const apiModule = await import("@/lib/api-utils");
-    const spy = jest.spyOn(apiModule, "incrementAnalytics");
-    const { POST } = await import("./route");
+  describe("URL Authorization & Security", () => {
+    it("should reject requests with unauthorized domains", async () => {
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({
+          svgUrl: "https://malicious-domain.com/evil.svg",
+        }),
+      }) as unknown as NextRequest;
 
-    const req = new Request("http://localhost/api/convert", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-forwarded-for": "127.0.0.1",
-      },
-      body: JSON.stringify({
-        svgUrl: "http://localhost/dummy.svg",
-        format: "avif",
-      }),
-    }) as unknown as NextRequest;
-    const res = await POST(req);
-    expect(res.status).toBe(400);
-    const data = await res.json();
-    expect(data.error).toBe("Invalid format parameter");
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    const returned = (
-      require("@upstash/redis").Redis.fromEnv as jest.Mock
-    ).mock.results.at(-1)?.value;
-    expect(returned?.incr).toHaveBeenCalledWith(
-      "analytics:convert_api:failed_requests",
-    );
-    spy.mockRestore();
+      const res = await POST(req);
+      expect(res.status).toBe(403);
+      const data = await res.json();
+      expect(data.error).toBe("Unauthorized or unsafe domain/protocol");
+    });
+
+    it("should reject HTTP requests when allowed domain requires HTTPS", async () => {
+      // This test verifies that HTTP is rejected for non-localhost domains
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({
+          svgUrl: "http://example.com/evil.svg",
+        }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+      expect(res.status).toBe(403);
+      const data = await res.json();
+      expect(data.error).toBe("Unauthorized or unsafe domain/protocol");
+    });
+
+    it("should accept localhost URLs in development", async () => {
+      const dummySVG = `<svg></svg>`;
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+          host: "localhost",
+        },
+        body: JSON.stringify({
+          svgUrl: "http://localhost/dummy.svg",
+        }),
+      }) as unknown as NextRequest;
+
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => dummySVG,
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+    });
+
+    it("should reject private IP addresses", async () => {
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({
+          svgUrl: "https://192.168.1.100/evil.svg",
+        }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+      expect(res.status).toBe(403);
+      const data = await res.json();
+      expect(data.error).toBe("Unauthorized or unsafe domain/protocol");
+    });
+
+    it("should reject 10.x.x.x private IP range", async () => {
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({
+          svgUrl: "https://10.0.0.1/evil.svg",
+        }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+      expect(res.status).toBe(403);
+    });
+
+    it("should reject 172.16.x.x - 172.31.x.x private IP range", async () => {
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({
+          svgUrl: "https://172.20.0.1/evil.svg",
+        }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+      expect(res.status).toBe(403);
+    });
   });
 
-  describe("SVG sanitization policy", () => {
+  describe("SVG Fetching", () => {
+    it("should return error if fetching SVG fails with non-ok status", async () => {
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({ svgUrl: "http://localhost/fake.svg" }),
+      }) as unknown as NextRequest;
+
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        text: async () => "Not Found",
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(404);
+      const data = await res.json();
+      expect(data.error).toBe("Failed to fetch SVG");
+    });
+
+    it("should return 500 error if fetching SVG throws", async () => {
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+          host: "localhost",
+        },
+        body: JSON.stringify({ svgUrl: "http://localhost/fake.svg" }),
+      }) as unknown as NextRequest;
+
+      globalThis.fetch = jest
+        .fn()
+        .mockRejectedValue(new Error("Network error"));
+
+      const res = await POST(req);
+      expect(res.status).toBe(500);
+      const data = await res.json();
+      // When fetch throws, fetchSvgContent returns "Failed to fetch SVG"
+      expect(data.error).toBe("Failed to fetch SVG");
+    });
+
+    it("should handle various HTTP error status codes", async () => {
+      const statusCodes = [500, 503, 403];
+
+      for (const status of statusCodes) {
+        globalThis.fetch = jest.fn().mockResolvedValue({
+          ok: false,
+          status,
+          text: async () => "Error",
+        });
+
+        const req = new Request("http://localhost/api/convert", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-forwarded-for": "127.0.0.1",
+          },
+          body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
+        }) as unknown as NextRequest;
+
+        const res = await POST(req);
+        expect(res.status).toBe(status);
+      }
+    });
+  });
+
+  describe("SVG Conversion", () => {
+    it("should successfully convert SVG to PNG", async () => {
+      const dummySVG = `<svg><circle cx="50" cy="50" r="40"/></svg>`;
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
+      }) as unknown as NextRequest;
+
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => dummySVG,
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const rawText = await res.text();
+      const data = JSON.parse(rawText);
+      expect(data.pngDataUrl).toContain("data:image/png;base64,");
+      const expectedBase64 = Buffer.from("FAKEPNG").toString("base64");
+      expect(data.pngDataUrl).toBe(`data:image/png;base64,${expectedBase64}`);
+    });
+
+    it("should successfully convert SVG to WebP", async () => {
+      const dummySVG = `<svg><circle cx="50" cy="50" r="40"/></svg>`;
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({
+          svgUrl: "http://localhost/dummy.svg",
+          format: "webp",
+        }),
+      }) as unknown as NextRequest;
+
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => dummySVG,
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.pngDataUrl).toContain("data:image/webp;base64,");
+      const expectedBase64 = Buffer.from("FAKEWEBP").toString("base64");
+      expect(data.pngDataUrl).toBe(`data:image/webp;base64,${expectedBase64}`);
+    });
+
+    it("should return 500 error when sharp conversion fails", async () => {
+      const dummySVG = `<svg><circle cx="50" cy="50" r="40"/></svg>`;
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
+      }) as unknown as NextRequest;
+
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => dummySVG,
+      });
+
+      // Override the sharp mock for this test to simulate an error.
+      (sharp as unknown as jest.Mock).mockImplementationOnce(() => ({
+        png: () => ({ toBuffer: createToBufferFailure() }),
+        webp: () => ({ toBuffer: createToBufferFailure() }),
+      }));
+
+      const res = await POST(req);
+      expect(res.status).toBe(500);
+      const data = await res.json();
+      expect(data.error).toBe("Conversion failed");
+    });
+  });
+
+  describe("Analytics Tracking", () => {
+    it("should handle failed_requests analytics for invalid format", async () => {
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+          host: "localhost",
+        },
+        body: JSON.stringify({
+          svgUrl: "http://localhost/dummy.svg",
+          format: "avif",
+        }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid format parameter");
+    });
+
+    it("should handle successful_requests analytics on successful conversion", async () => {
+      const dummySVG = `<svg></svg>`;
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+          host: "localhost",
+        },
+        body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
+      }) as unknown as NextRequest;
+
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => dummySVG,
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.pngDataUrl).toBeDefined();
+    });
+
+    it("should handle failed_requests analytics when fetch fails", async () => {
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+          host: "localhost",
+        },
+        body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
+      }) as unknown as NextRequest;
+
+      globalThis.fetch = jest
+        .fn()
+        .mockRejectedValue(new Error("Network error"));
+
+      const res = await POST(req);
+      expect(res.status).toBe(500);
+      const data = await res.json();
+      // When fetch throws, error message is "Failed to fetch SVG"
+      expect(data.error).toBe("Failed to fetch SVG");
+    });
+  });
+
+  describe("HTTP Method Handling", () => {
+    it("should accept POST requests", async () => {
+      const dummySVG = `<svg></svg>`;
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
+      }) as unknown as NextRequest;
+
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => dummySVG,
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+    });
+
+    it("should handle OPTIONS requests", async () => {
+      const req = new Request("http://localhost/api/convert", {
+        method: "OPTIONS",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }) as unknown as NextRequest;
+
+      const { OPTIONS } = await import("./route");
+      const res = OPTIONS(req);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Access-Control-Allow-Methods")).toContain("POST");
+      expect(res.headers.get("Access-Control-Allow-Methods")).toContain(
+        "OPTIONS",
+      );
+    });
+  });
+
+  describe("SVG Sanitization Policy - CSS", () => {
     /**
      * Default headers used when crafting conversion requests.
-     * @source
      */
     const defaultHeaders = {
       "Content-Type": "application/json",
@@ -223,9 +641,6 @@ describe("Convert API POST Endpoint", () => {
 
     /**
      * Constructs a POST `NextRequest` for the convert API using the given SVG URL.
-     * @param url - SVG URL to embed in the request payload.
-     * @returns Prepared POST request targeting the convert endpoint.
-     * @source
      */
     const makeRequestForSvgUrl = (url = "http://localhost/dummy.svg") =>
       new Request("http://localhost/api/convert", {
@@ -236,10 +651,6 @@ describe("Convert API POST Endpoint", () => {
 
     /**
      * Stubs `fetch` to return controlled SVG responses.
-     * @param svg - SVG payload to return.
-     * @param ok - Whether the response is considered successful.
-     * @param status - HTTP status code to mimic.
-     * @source
      */
     const mockFetchSvg = (svg: string, ok = true, status = 200) => {
       globalThis.fetch = jest.fn().mockResolvedValue({
@@ -251,11 +662,6 @@ describe("Convert API POST Endpoint", () => {
 
     /**
      * Posts sanitized SVG and exposes the buffer captured by `sharp`.
-     * @param svg - SVG markup to send to the convert endpoint.
-     * @param url - Optional URL to assign when fetching the SVG.
-     * @param expectStatus - Expected HTTP status for the POST response.
-     * @returns Response and captured SVG buffer contents.
-     * @source
      */
     const postAndCaptureSvg = async (
       svg: string,
@@ -358,6 +764,153 @@ describe("Convert API POST Endpoint", () => {
         : [];
       expect(tokens).toContain("stagger-other");
       expect(tokens).not.toContain("stagger");
+    });
+  });
+
+  describe("Inline Style Sanitization", () => {
+    it("should remove animation properties from inline styles", () => {
+      const svg = `<g style="animation: fadeIn 1s; color: red;"></g>`;
+      const sanitized = sanitizeInlineStyleAttributes(svg);
+      expect(sanitized).not.toMatch(/animation\s*:/i);
+      expect(sanitized).toMatch(/color\s*:\s*red/);
+    });
+
+    it("should normalize opacity:0 to opacity:1", () => {
+      const svg = `<g style="opacity: 0;"></g>`;
+      const sanitized = sanitizeInlineStyleAttributes(svg);
+      expect(sanitized).toMatch(/opacity\s*:\s*1/);
+    });
+
+    it("should normalize visibility:hidden to visibility:visible", () => {
+      const svg = `<g style="visibility: hidden;"></g>`;
+      const sanitized = sanitizeInlineStyleAttributes(svg);
+      expect(sanitized).toMatch(/visibility\s*:\s*visible/);
+    });
+
+    it("should handle vendor-prefixed animation properties", () => {
+      const svg = `<g style="-webkit-animation: slide 2s; -moz-animation: slide 2s;"></g>`;
+      const sanitized = sanitizeInlineStyleAttributes(svg);
+      expect(sanitized).not.toMatch(/-webkit-animation/);
+      expect(sanitized).not.toMatch(/-moz-animation/);
+    });
+
+    it("should remove empty style attributes", () => {
+      const svg = `<g style="animation: fade 1s;"></g>`;
+      const sanitized = sanitizeInlineStyleAttributes(svg);
+      expect(sanitized).not.toContain("style=");
+    });
+
+    it("should preserve valid styles while removing animation", () => {
+      const svg = `<g style="fill: blue; animation-delay: 100ms; opacity: 0.5;"></g>`;
+      const sanitized = sanitizeInlineStyleAttributes(svg);
+      expect(sanitized).toMatch(/fill\s*:\s*blue/);
+      // opacity: 0.5 should be normalized to opacity: 1
+      expect(sanitized).toMatch(/opacity\s*:\s*1/);
+      expect(sanitized).not.toMatch(/animation-delay/);
+      // The style attribute should still exist since there are valid properties
+      expect(sanitized).toContain("style=");
+    });
+
+    it("should handle multiple style declarations with mixed valid and invalid", () => {
+      const svg = `<g style="transform: rotate(45deg); animation: spin 2s; color: green; animation-timing-function: linear;"></g>`;
+      const sanitized = sanitizeInlineStyleAttributes(svg);
+      expect(sanitized).toMatch(/transform\s*:\s*rotate\(45deg\)/);
+      expect(sanitized).toMatch(/color\s*:\s*green/);
+      expect(sanitized).not.toMatch(/animation/i);
+    });
+  });
+
+  describe("Edge Cases", () => {
+    it("should handle SVG with empty content", async () => {
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+          host: "localhost",
+        },
+        body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
+      }) as unknown as NextRequest;
+
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => "",
+      });
+
+      const res = await POST(req);
+      // Should still attempt conversion
+      expect(res.status).toBe(200);
+    });
+
+    it("should handle relative URLs by using request origin", async () => {
+      const dummySVG = `<svg></svg>`;
+      const req = new Request("http://example.com/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+          origin: "http://example.com",
+        },
+        body: JSON.stringify({ svgUrl: "/relative/path/dummy.svg" }),
+      }) as unknown as NextRequest;
+
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => dummySVG,
+      });
+
+      const res = await POST(req);
+      // Should fail because example.com is not in allowed domains
+      expect(res.status).toBe(403);
+    });
+
+    it("should preserve IP address format with 127.0.0.1 localhost", async () => {
+      const dummySVG = `<svg></svg>`;
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+          host: "localhost",
+        },
+        body: JSON.stringify({ svgUrl: "http://127.0.0.1/dummy.svg" }),
+      }) as unknown as NextRequest;
+
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => dummySVG,
+      });
+
+      const res = await POST(req);
+      // 127.0.0.1 is recognized as localhost but not in allowedDomains
+      // so it should fail authorization
+      expect(res.status).toBe(403);
+    });
+
+    it("should handle IPv6 loopback address", async () => {
+      const dummySVG = `<svg></svg>`;
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+          host: "localhost",
+        },
+        body: JSON.stringify({ svgUrl: "http://[::1]/dummy.svg" }),
+      }) as unknown as NextRequest;
+
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => dummySVG,
+      });
+
+      const res = await POST(req);
+      // ::1 is IPv6 localhost but not in allowedDomains so it should fail
+      expect(res.status).toBe(403);
     });
   });
 

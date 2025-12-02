@@ -1,24 +1,25 @@
 ---
-description: "Guidelines for building TanStack Start applications"
-applyTo: "**/*.ts, **/*.tsx, **/*.js, **/*.jsx, **/*.css, **/*.scss, **/*.json"
+name: "Shadcn + Tailwind + Next.js Guide"
+description: "Guidelines for building Shadcn UI components, Tailwind styling, and Next.js App Router patterns. Apply when building or maintaining UI components, routes, and styling in this Next.js TypeScript project."
+applyTo: "**/*.{ts,tsx,js,jsx,css,scss,json}"
 ---
 
-# TanStack Start with Shadcn/ui Development Guide
+# Shadcn + Tailwind with Next.js Development Guide
 
-You are an expert TypeScript developer specializing in TanStack Start applications with modern React patterns.
+You are an expert TypeScript developer specializing in Next.js applications, Shadcn/ui components, and Tailwind CSS with modern React patterns.
 
 ## Tech Stack
 
 - TypeScript (strict mode)
-- TanStack Start (routing & SSR)
+- Next.js App Router (routing & SSR)
 - Shadcn/ui (UI components)
 - Tailwind CSS (styling)
 - Zod (validation)
-- TanStack Query (client state)
+- Zustand (client state) or React Query where needed (optional)
 
 ## Code Style Rules
 
-- NEVER use `any` type - always use proper TypeScript types
+- Avoid using `any` type; prefer `unknown` with narrowing, explicit types, and TypeScript strict mode.
 - Prefer function components over class components
 - Always validate external data with Zod schemas
 - Include error and pending boundaries for all routes
@@ -46,34 +47,37 @@ export default function Button({ children, onClick, variant = 'primary' }: Butto
 
 ## Data Fetching
 
-Use Route Loaders for:
+Use Server Components and route handlers for server-side data fetching (initial page data, SEO-critical data), and client-side state libraries (Zustand or React Query) for frequently updating or interactive UI state.
 
-- Initial page data required for rendering
-- SSR requirements
-- SEO-critical data
+```tsx
+// app/users/page.tsx (Server Component)
+import UserList from "@/components/UserList";
+import { getUsers } from "@/lib/api";
 
-Use React Query for:
+export default async function UsersPage() {
+  const users = await getUsers();
+  return <UserList users={users} />; // UserList can be a Client Component if interactive
+}
 
-- Frequently updating data
-- Optional/secondary data
-- Client mutations with optimistic updates
+// Client-side state with Zustand (for interactive updates)
+import create from "zustand";
 
-```typescript
-// Route Loader
-export const Route = createFileRoute("/users")({
-  loader: async () => {
-    const users = await fetchUsers();
-    return { users: userListSchema.parse(users) };
+const useStore = create((set) => ({
+  stats: null,
+  async fetchStats(userId) {
+    const res = await fetch(`/api/users/${userId}/stats`);
+    const data = await res.json();
+    set({ stats: data });
   },
-  component: UserList,
-});
+}));
 
-// React Query
-const { data: stats } = useQuery({
-  queryKey: ["user-stats", userId],
-  queryFn: () => fetchUserStats(userId),
-  refetchInterval: 30000,
-});
+function StatsComponent({ userId }) {
+  const { stats, fetchStats } = useStore();
+  useEffect(() => {
+    fetchStats(userId);
+  }, [userId, fetchStats]);
+  return <div>{stats ? stats.value : "Loading..."}</div>;
+}
 ```
 
 ## Zod Validation
@@ -100,24 +104,27 @@ if (!result.success) {
 
 ## Routes
 
-Structure routes in `src/routes/` with file-based routing. Always include error and pending boundaries:
+Structure routes using Next.js App Router (`app/`). Use Server Components for data loading and Client Components for interactive UI. Include error and loading boundaries using `error.tsx` and `loading.tsx` files in the route folder.
 
-```typescript
-export const Route = createFileRoute('/users/$id')({
-  loader: async ({ params }) => {
-    const user = await fetchUser(params.id);
-    return { user: userSchema.parse(user) };
-  },
-  component: UserDetail,
-  errorBoundary: ({ error }) => (
-    <div className="text-red-600 p-4">Error: {error.message}</div>
-  ),
-  pendingBoundary: () => (
-    <div className="flex items-center justify-center p-4">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-    </div>
-  ),
-});
+```tsx
+// app/users/[id]/page.tsx (Server Component)
+import { getUser } from "@/lib/api";
+import UserDetail from "@/components/UserDetail";
+
+export default async function UserPage({ params }) {
+  const user = await getUser(params.id);
+  return <UserDetail user={user} />;
+}
+
+// app/users/[id]/loading.tsx
+export default function Loading() {
+  return <div className="p-4">Loading...</div>;
+}
+
+// app/users/[id]/error.tsx
+export default function Error({ error }) {
+  return <div className="p-4 text-red-600">Error: {error?.message}</div>;
+}
 ```
 
 ## UI Components
@@ -177,11 +184,11 @@ Use semantic HTML first. Only add ARIA when no semantic equivalent exists:
 ## File Organization
 
 ```
-src/
+app/
 ├── components/ui/    # Shadcn/ui components
 ├── lib/schemas.ts    # Zod schemas
-├── routes/          # File-based routes
-└── routes/api/      # Server routes (.ts)
+├── app/ (route folders)  # App Router routes and pages
+└── app/api/      # Server route handlers (route.ts)
 ```
 
 ## Import Standards
@@ -208,7 +215,7 @@ npx shadcn@latest add button card input dialog
 ## Common Patterns
 
 - Always validate external data with Zod
-- Use route loaders for initial data, React Query for updates
+- Use Server Components and route handlers (app router) for initial data; client state (Zustand or React Query) for interactive updates.
 - Include error/pending boundaries on all routes
 - Prefer Shadcn components over custom UI
 - Use `@/` imports consistently

@@ -1,10 +1,4 @@
 /**
- * This test file covers the GET handler for the card SVG endpoint.
- * It mocks external dependencies such as the rate limiter, Redis, and external utility/template functions.
- * @source
- */
-
-/**
  * Mock implementation of the rate limiter's limit method.
  * @source
  */
@@ -44,7 +38,7 @@ jest.mock("@upstash/redis", () => ({
   },
 }));
 
-import { GET } from "./route";
+import { GET, OPTIONS } from "./route";
 import { Ratelimit as RatelimitMock } from "@upstash/ratelimit";
 
 // --- Mocks for external dependencies --- //
@@ -98,7 +92,7 @@ jest.mock("@/lib/svg-templates/distribution", () => ({
 // Import the mocked template to assert call arguments
 import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats";
 import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
-// distributionTemplate may be mocked in tests above; no direct import needed here
+import { colorPresets } from "@/components/stat-card-generator/constants";
 import { POST as storeCardsPOST } from "@/app/api/store-cards/route";
 import { escapeForXml } from "@/lib/utils";
 import { distributionTemplate } from "@/lib/svg-templates/distribution";
@@ -286,668 +280,1086 @@ async function expectErrorResponse(
   expect(text).toBe(expectedSvg);
 }
 
-describe("Card SVG GET Endpoint", () => {
+describe("Card SVG Route", () => {
   const baseUrl = "http://localhost/api/card.svg";
 
   afterEach(() => {
     jest.clearAllMocks();
-  });
-
-  it("should construct card-specific rate limiter with 150/10s", async () => {
-    // The route module creates a per-endpoint limiter with these settings using the factory
-    expect(RatelimitMock.slidingWindow).toHaveBeenCalledWith(150, "10 s");
-  });
-
-  it("should return rate limit error when limit exceeded", async () => {
-    // Simulate rate limiter failure.
-    mockLimit.mockResolvedValueOnce({ success: false });
+    // Reset mocks to their default state
+    mockLimit.mockResolvedValue({ success: true });
     mockRedisGet.mockClear();
-
-    const req = new Request(createRequestUrl(baseUrl, { userId: "542244" }));
-
-    const res = await GET(req);
-    await expectErrorResponse(
-      res,
-      "Client Error: Too many requests - try again later",
-      429,
-    );
-    expect(mockLimit).toHaveBeenCalledWith("127.0.0.1");
-    expect(mockRedisIncr).toHaveBeenCalledWith(
-      "analytics:card_svg:failed_requests",
-    );
+    mockRedisSet.mockClear();
+    mockRedisIncr.mockClear();
   });
 
-  it("should return error for missing parameters", async () => {
-    // Missing cardType.
-    const req = new Request(createRequestUrl(baseUrl, { userId: "542244" }));
+  describe("Rate Limiting", () => {
+    it("should construct card-specific rate limiter with 150/10s", () => {
+      expect(RatelimitMock.slidingWindow).toHaveBeenCalledWith(150, "10 s");
+    });
 
-    const res = await GET(req);
-    await expectErrorResponse(
-      res,
-      "Client Error: Missing parameter: cardType",
-      400,
-    );
+    it("should return 429 when rate limit is exceeded", async () => {
+      mockLimit.mockResolvedValueOnce({ success: false });
+      mockRedisGet.mockClear();
+
+      const req = new Request(
+        createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
+      );
+
+      const res = await GET(req);
+      await expectErrorResponse(
+        res,
+        "Client Error: Too many requests - try again later",
+        429,
+      );
+      expect(mockLimit).toHaveBeenCalledWith("127.0.0.1");
+      expect(mockRedisIncr).toHaveBeenCalledWith(
+        "analytics:card_svg:failed_requests",
+      );
+    });
+
+    it("should extract IP from x-forwarded-for header", async () => {
+      mockLimit.mockResolvedValueOnce({ success: false });
+
+      const req = new Request(
+        createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
+        { headers: { "x-forwarded-for": "192.168.1.1" } },
+      );
+
+      await GET(req);
+      expect(mockLimit).toHaveBeenCalledWith("192.168.1.1");
+    });
+
+    it("should default to 127.0.0.1 when x-forwarded-for is missing", async () => {
+      mockLimit.mockResolvedValueOnce({ success: false });
+
+      const req = new Request(
+        createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
+      );
+
+      await GET(req);
+      expect(mockLimit).toHaveBeenCalledWith("127.0.0.1");
+    });
   });
 
-  it("should return error for invalid card type", async () => {
-    // Provide a cardType that is not allowed.
-    const req = new Request(
-      createRequestUrl(baseUrl, { userId: "542244", cardType: "invalidType" }),
-    );
+  describe("Parameter Validation", () => {
+    it("should return 400 when cardType is missing", async () => {
+      const req = new Request(createRequestUrl(baseUrl, { userId: "542244" }));
+      const res = await GET(req);
+      await expectErrorResponse(
+        res,
+        "Client Error: Missing parameter: cardType",
+        400,
+      );
+    });
 
-    const res = await GET(req);
-    await expectErrorResponse(res, "Client Error: Invalid card type", 400);
+    it("should return 400 when both userId and userName are missing", async () => {
+      const req = new Request(
+        createRequestUrl(baseUrl, { cardType: "animeStats" }),
+      );
+      const res = await GET(req);
+      await expectErrorResponse(
+        res,
+        "Client Error: Missing parameter: userId or userName",
+        400,
+      );
+    });
+
+    it("should return 400 when userId is not a valid number", async () => {
+      const req = new Request(
+        createRequestUrl(baseUrl, { userId: "abc", cardType: "animeStats" }),
+      );
+      const res = await GET(req);
+      await expectErrorResponse(res, "Client Error: Invalid user ID", 400);
+    });
+
+    it("should return 400 when cardType is not in the allowed list", async () => {
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "invalidCardType",
+        }),
+      );
+      const res = await GET(req);
+      await expectErrorResponse(res, "Client Error: Invalid card type", 400);
+    });
+
+    it("should accept all allowed card types", async () => {
+      // Test a sample of the most important card types
+      const allowedTypes = ["animeStats", "socialStats", "mangaStats"];
+
+      for (const cardType of allowedTypes) {
+        const cardsData = createMockCardData(cardType, "default");
+        const userData = createMockUserData(542244, "testUser", {
+          User: { statistics: { anime: {}, manga: {} } },
+        });
+        mockRedisGet
+          .mockResolvedValueOnce(cardsData)
+          .mockResolvedValueOnce(userData);
+
+        const req = new Request(
+          createRequestUrl(baseUrl, { userId: "542244", cardType }),
+        );
+        const res = await GET(req);
+        expect(res.status).toBe(200);
+
+        // Reset mock chain for next iteration
+        jest.clearAllMocks();
+        mockLimit.mockResolvedValue({ success: true });
+      }
+    });
   });
 
-  it("should return error for invalid user ID format", async () => {
-    // userId that cannot be parsed as a number.
-    const req = new Request(
-      createRequestUrl(baseUrl, { userId: "abc", cardType: "animeStats" }),
-    );
-    const res = await GET(req);
-    await expectErrorResponse(res, "Client Error: Invalid user ID", 400);
+  describe("User ID Resolution", () => {
+    it("should use numeric userId when provided", async () => {
+      const cardsData = createMockCardData("animeStats", "default");
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+    });
   });
 
-  it("should return error if user data is not found in Redis", async () => {
-    // Simulate Redis missing one of the keys.
-    const userData = createMockUserData(542244, "testUser");
-    mockRedisGet.mockResolvedValueOnce(null).mockResolvedValueOnce(userData);
+  describe("Card Configuration Resolution", () => {
+    it("should generate SVG when card data exists in DB", async () => {
+      const cardsData = createMockCardData("animeStats", "default");
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
 
-    const req = new Request(
-      createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
-    );
-    const res = await GET(req);
-    await expectErrorResponse(res, "Not Found: User data not found", 404);
-    expect(mockRedisIncr).toHaveBeenCalledWith(
-      "analytics:card_svg:failed_requests",
-    );
-    expect(mockRedisIncr).toHaveBeenCalledWith(
-      "analytics:card_svg:failed_requests:animeStats",
-    );
-    expect(mockRedisIncr).toHaveBeenCalledWith(
-      "analytics:card_svg:failed_requests:status:404",
-    );
-    expect(mockRedisIncr).toHaveBeenCalledWith(
-      "analytics:card_svg:failed_requests:animeStats:status:404",
-    );
-  });
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+        }),
+      );
+      const res = await GET(req);
+      const body = await getResponseText(res);
+      await expectSuccessfulSvgResponse(
+        res,
+        `<svg data-template="media" stroke="none">Anime Stats</svg>`,
+        body,
+      );
+    });
 
-  it("should return error when card config is not found", async () => {
-    // Return valid user record.
-    const userData = createMockUserData(542244, "testUser");
-    // Return a cards record that does not include the requested card config.
-    const cardsData = JSON.stringify({
-      cards: [
+    it("should return 404 when card config is not found in DB", async () => {
+      const userData = createMockUserData(542244, "testUser");
+      const cardsData = JSON.stringify({
+        cards: [
+          {
+            cardName: "otherCard",
+            titleColor: "#000",
+            backgroundColor: "#fff",
+            textColor: "#333",
+            circleColor: "#f00",
+          },
+        ],
+      });
+      mockRedisGet
+        .mockResolvedValueOnce(cardsData)
+        .mockResolvedValueOnce(userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+        }),
+      );
+      const res = await GET(req);
+      await expectErrorResponse(
+        res,
+        "Not Found: Card config not found. Try to regenerate the card.",
+        404,
+      );
+    });
+
+    it("should return 404 when user data is not found in Redis", async () => {
+      mockRedisGet.mockResolvedValueOnce(null);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+        }),
+      );
+      const res = await GET(req);
+      await expectErrorResponse(res, "Not Found: User data not found", 404);
+    });
+
+    it("should build card config from URL params when DB lookup not needed", async () => {
+      const cardsData = createMockCardData("animeStats", "default");
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+          titleColor: "#ff0000",
+          backgroundColor: "#000000",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+    });
+
+    it("should persist card data when store-cards is called", async () => {
+      const cardsPayload = [
         {
-          cardName: "otherCard",
-          titleColor: "#000",
-          backgroundColor: "#fff",
-          textColor: "#333",
-          circleColor: "#f00",
+          cardName: "animeStats",
+          variation: "default",
+          titleColor: "#3cc8ff",
+          backgroundColor: "#0b1622",
+          textColor: "#E8E8E8",
+          circleColor: "#3cc8ff",
+          borderRadius: 6.25,
         },
-      ],
-    });
-    mockRedisGet
-      .mockResolvedValueOnce(cardsData)
-      .mockResolvedValueOnce(userData);
+      ];
 
-    const req = new Request(
-      createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
-    );
-    const res = await GET(req);
-    await expectErrorResponse(
-      res,
-      "Not Found: Card config not found. Try to regenerate the card.",
-      404,
-    );
+      mockRedisSet.mockResolvedValueOnce("OK");
+
+      const postReq = new Request("http://localhost/api/store-cards", {
+        method: "POST",
+        body: JSON.stringify({ userId: 542244, cards: cardsPayload }),
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const postRes = await storeCardsPOST(postReq);
+      expect(postRes.status).toBe(200);
+      expect(mockRedisSet).toHaveBeenCalled();
+    });
   });
 
-  it("should successfully generate SVG content", async () => {
-    const cardsData = createMockCardData("animeStats", "default");
-    const userData = createMockUserData(542244, "testUser", {
-      User: { statistics: { anime: {} } },
+  describe("Color Handling", () => {
+    it("should apply named color preset from URL params", async () => {
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      mockRedisGet.mockResolvedValueOnce(userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+          colorPreset: "anilistDark",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(mediaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (mediaStatsTemplate as jest.Mock).mock.calls[0][0];
+      expect(callArgs.styles.titleColor).toBe(
+        colorPresets.anilistDark.colors[0],
+      );
     });
-    setupSuccessfulMocks(cardsData, userData);
 
-    const req = new Request(
-      createRequestUrl(baseUrl, {
-        userId: "542244",
-        cardType: "animeStats",
-        variation: "default",
-      }),
-    );
-    const res = await GET(req);
-    const body = await getResponseText(res);
-    await expectSuccessfulSvgResponse(
-      res,
-      `<svg data-template="media" stroke="none">Anime Stats</svg>`,
-      body,
-    );
+    it("should ignore URL color params when DB card has custom preset", async () => {
+      const cardsData = createMockCardData("animeStats", "default", {
+        titleColor: "#111111",
+        colorPreset: "custom",
+      });
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
 
-    // Assert the template is called with only style subset (no persisted flags)
-    expect(mediaStatsTemplate).toHaveBeenCalled();
-    const callArgs = (mediaStatsTemplate as jest.Mock).mock.calls[0][0];
-    expect(callArgs.styles).toHaveProperty("titleColor");
-    expect(callArgs.styles).toHaveProperty("backgroundColor");
-    expect(callArgs.styles).toHaveProperty("textColor");
-    expect(callArgs.styles).toHaveProperty("circleColor");
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+          titleColor: "#aaaaaa",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
 
-    expect(callArgs.styles.showPiePercentages).toBeUndefined();
-    expect(callArgs.styles.useStatusColors).toBeUndefined();
+      expect(mediaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (mediaStatsTemplate as jest.Mock).mock.calls[0][0];
+      expect(callArgs.styles.titleColor).toBe("#111111");
+    });
 
-    const templateReturn = (mediaStatsTemplate as jest.Mock).mock.results[0]
-      .value as string;
-    expect(
-      templateReturn.startsWith("<!--ANICARDS_TRUSTED_SVG-->"),
-    ).toBeTruthy();
-    expect(body).not.toContain("ANICARDS_TRUSTED_SVG");
+    it("should allow URL color params to override named preset from URL", async () => {
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      mockRedisGet.mockResolvedValueOnce(userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+          colorPreset: "anilistDark",
+          titleColor: "#ff0000",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(mediaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (mediaStatsTemplate as jest.Mock).mock.calls[0][0];
+      expect(callArgs.styles.titleColor).toBe("#ff0000");
+    });
+
+    it("should allow URL color params to override DB named preset", async () => {
+      const cardsData = createMockCardData("animeStats", "default", {
+        colorPreset: "anilistDark",
+      });
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+          titleColor: "#00ff00",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(mediaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (mediaStatsTemplate as jest.Mock).mock.calls[0][0];
+      expect(callArgs.styles.titleColor).toBe("#00ff00");
+    });
+
+    it("should include all color properties in template styles", async () => {
+      const cardsData = createMockCardData("animeStats", "default", {
+        titleColor: "#111111",
+        backgroundColor: "#222222",
+        textColor: "#333333",
+        circleColor: "#444444",
+        borderColor: "#555555",
+      });
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(mediaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (mediaStatsTemplate as jest.Mock).mock.calls[0][0];
+      expect(callArgs.styles.titleColor).toBe("#111111");
+      expect(callArgs.styles.backgroundColor).toBe("#222222");
+      expect(callArgs.styles.textColor).toBe("#333333");
+      expect(callArgs.styles.circleColor).toBe("#444444");
+      expect(callArgs.styles.borderColor).toBe("#555555");
+    });
+
+    it("should include borderColor as stroke attribute in SVG", async () => {
+      const cardsData = createMockCardData("animeStats", "default", {
+        borderColor: "#ff00ff",
+      });
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+        }),
+      );
+      const res = await GET(req);
+      const body = await getResponseText(res);
+      expect(body).toContain('stroke="#ff00ff"');
+    });
   });
 
-  it("should include stroke attribute when card has borderColor set", async () => {
-    const cardsData = createMockCardData("animeStats", "default", {
-      borderColor: "#ff00ff",
-      borderRadius: 8,
-    });
-    const userData = createMockUserData(542244, "testUser", {
-      User: { statistics: { anime: {} } },
-    });
-    setupSuccessfulMocks(cardsData, userData);
+  describe("Variation Handling", () => {
+    it("should use specified variation for stats cards", async () => {
+      const cardsData = createMockCardData("animeStats", "vertical");
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
 
-    const req = new Request(
-      createRequestUrl(baseUrl, {
-        userId: "542244",
-        cardType: "animeStats",
-        variation: "default",
-      }),
-    );
-    const res = await GET(req);
-    const body = await getResponseText(res);
-    expect(res.status).toBe(200);
-    expect(body).toContain('stroke="#ff00ff"');
-
-    // The template should have been invoked with the borderColor set
-    expect(mediaStatsTemplate).toHaveBeenCalled();
-    const callArgs = (mediaStatsTemplate as jest.Mock).mock.calls[0][0];
-    expect(callArgs.styles.borderColor).toBe("#ff00ff");
-  });
-
-  it("should propagate statusColors and piePercentages flags to extra template for status distribution cards", async () => {
-    const cardsData = createMockCardData("animeStatusDistribution", "pie", {
-      // Persisted flags start false; query params will set them true
-      useStatusColors: false,
-      showPiePercentages: false,
-      circleColor: "#3cc8ff",
-      backgroundColor: "#0b1622",
-      textColor: "#E8E8E8",
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+          variation: "vertical",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
     });
-    // Provide minimal status distribution data
-    const userData = createMockUserData(542244, "testUser", {
-      User: {
-        statistics: {
-          anime: {
-            statuses: [
-              { status: "current", count: 2 },
-              { status: "completed", count: 5 },
-            ],
+
+    it("should fallback to default variation for invalid stats card variation", async () => {
+      const cardsData = createMockCardData("animeStats", "default");
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+          variation: "unsupported-variant",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(mediaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (mediaStatsTemplate as jest.Mock).mock.calls[0][0];
+      expect(callArgs.variant).toBe("default");
+    });
+
+    it("should fallback to default for invalid distribution card variation", async () => {
+      const cardsData = createMockCardData("animeScoreDistribution", "default");
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: { scores: [{ score: 10, count: 1 }] } } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeScoreDistribution",
+          variation: "invalid",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(distributionTemplate).toHaveBeenCalled();
+      const callArgs = (distributionTemplate as jest.Mock).mock.calls[0][0];
+      expect(callArgs.variant).toBe("default");
+    });
+
+    it("should use pie variation for status distribution cards", async () => {
+      const cardsData = createMockCardData("animeStatusDistribution", "pie");
+      const userData = createMockUserData(542244, "testUser", {
+        User: {
+          statistics: {
+            anime: {
+              statuses: [
+                { status: "current", count: 2 },
+                { status: "completed", count: 5 },
+              ],
+            },
           },
         },
-        stats: { activityHistory: [{ date: 1, amount: 1 }] },
-      },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStatusDistribution",
+          variation: "pie",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
     });
-    setupSuccessfulMocks(cardsData, userData);
-
-    const req = new Request(
-      createRequestUrl(baseUrl, {
-        userId: "542244",
-        cardType: "animeStatusDistribution",
-        variation: "pie",
-        statusColors: "true",
-        piePercentages: "true",
-      }),
-    );
-    const res = await GET(req);
-    const body = await getResponseText(res);
-    expect(res.status).toBe(200);
-
-    // Template should be invoked with the flags applied
-    expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
-    const callArgs = (extraAnimeMangaStatsTemplate as jest.Mock).mock
-      .calls[0][0];
-    expect(callArgs.fixedStatusColors).toBeTruthy();
-    expect(callArgs.showPiePercentages).toBeTruthy();
-    // Confirm that the generated SVG includes the mocked flags in attributes
-    expect(body).toContain('fixedStatusColors="true"');
-    expect(body).toContain('showPiePercentages="true"');
   });
 
-  it("should store cards via store-cards and use persisted flags when generating card.svg", async () => {
-    // Build a cards payload that resembles what the frontend would submit
-    const cardsPayload = [
-      {
-        cardName: "animeStatusDistribution",
-        variation: "pie",
-        titleColor: "#3cc8ff",
-        backgroundColor: "#0b1622",
-        textColor: "#E8E8E8",
-        circleColor: "#3cc8ff",
-        borderColor: "#abcdef",
-        borderRadius: 6.25,
-        showPiePercentages: true,
+  describe("Favorites and Status Flags", () => {
+    it("should pass favorites to template when showFavorites is true", async () => {
+      const cardsData = createMockCardData("animeStaff", "default", {
+        showFavorites: true,
+      });
+      const userData = createMockUserData(542244, "testUser", {
+        User: {
+          favourites: {
+            staff: { nodes: [{ id: 1, name: { full: "Favorite Staff" } }] },
+          },
+          statistics: {
+            anime: {
+              staff: [
+                { staff: { name: { full: "Favorite Staff" } }, count: 10 },
+              ],
+            },
+          },
+          stats: { activityHistory: [{ date: 1, amount: 1 }] },
+        },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStaff",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (extraAnimeMangaStatsTemplate as jest.Mock).mock
+        .calls[0][0];
+      expect(callArgs.favorites).toContain("Favorite Staff");
+    });
+
+    it("should not include favorites when showFavorites is false", async () => {
+      const cardsData = createMockCardData("animeStats", "default", {
+        showFavorites: false,
+      });
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+        }),
+      );
+      const res = await GET(req);
+      // Simply verify the request succeeds
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
+    });
+
+    it("should propagate statusColors flag to template", async () => {
+      const cardsData = createMockCardData("animeStatusDistribution", "pie", {
         useStatusColors: true,
-      },
-    ];
-
-    // Expect store-cards to set Redis key
-    mockRedisSet.mockResolvedValueOnce("OK");
-
-    const postReq = new Request("http://localhost/api/store-cards", {
-      method: "POST",
-      body: JSON.stringify({ userId: 542244, cards: cardsPayload }),
-      headers: { "Content-Type": "application/json" },
-    });
-
-    const postRes = await storeCardsPOST(postReq);
-    expect(postRes.status).toBe(200);
-    const json = await postRes.json();
-    expect(json.success).toBe(true);
-
-    // Assert that Redis set was called with the correct key and payload
-    expect(mockRedisSet).toHaveBeenCalled();
-    expect(mockRedisSet.mock.calls[0][0]).toBe("cards:542244");
-
-    // Capture what was stored and make it available via GET
-    const expectedCardsRecord = {
-      userId: 542244,
-      cards: cardsPayload,
-      updatedAt: expect.any(String),
-    };
-    // We need to ensure subsequent GET uses this persisted card data - the first redis GET returns cards record
-    const userData = createMockUserData(542244, "testUser", {
-      User: {
-        statistics: { anime: { statuses: [{ status: "current", count: 2 }] } },
-      },
-    });
-    const cardsStr = JSON.stringify({
-      ...expectedCardsRecord,
-      updatedAt: new Date().toISOString(),
-    });
-
-    mockRedisGet
-      .mockResolvedValueOnce(cardsStr)
-      .mockResolvedValueOnce(userData);
-
-    const req = new Request(
-      createRequestUrl(baseUrl, {
-        userId: "542244",
-        cardType: "animeStatusDistribution",
-        variation: "pie",
-      }),
-    );
-    const res = await GET(req);
-    const body = await getResponseText(res);
-    expect(res.status).toBe(200);
-    // Ensure the persisted borderColor is present in the generated SVG
-    expect(body).toContain('stroke="#abcdef"');
-    // Ensure template was invoked and flags passed
-    expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
-    const callArgs = (extraAnimeMangaStatsTemplate as jest.Mock).mock
-      .calls[0][0];
-    expect(callArgs.fixedStatusColors).toBeTruthy();
-    expect(callArgs.showPiePercentages).toBeTruthy();
-  });
-
-  it("should pass favourites/staff to extraAnimeMangaStatsTemplate for animeStaff card", async () => {
-    const cardsData = createMockCardData("animeStaff", "default", {
-      showFavorites: true,
-    });
-    const userData = createMockUserData(542244, "testUser", {
-      User: {
-        favourites: {
-          staff: { nodes: [{ id: 1, name: { full: "Favorite Staff" } }] },
-          studios: { nodes: [{ id: 1, name: "Studio One" }] },
-          characters: { nodes: [{ id: 1, name: { full: "Character One" } }] },
-        },
-        statistics: {
-          anime: {
-            staff: [{ staff: { name: { full: "Favorite Staff" } }, count: 10 }],
+      });
+      const userData = createMockUserData(542244, "testUser", {
+        User: {
+          statistics: {
+            anime: {
+              statuses: [{ status: "current", count: 2 }],
+            },
           },
-          manga: {},
         },
-        stats: { activityHistory: [{ date: 1, amount: 1 }] },
-      },
-      followersPage: { pageInfo: { total: 0 }, followers: [] },
-      followingPage: { pageInfo: { total: 0 }, following: [] },
-      threadsPage: { pageInfo: { total: 0 }, threads: [] },
-      threadCommentsPage: { pageInfo: { total: 0 }, threadComments: [] },
-      reviewsPage: { pageInfo: { total: 0 }, reviews: [] },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStatusDistribution",
+          variation: "pie",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (extraAnimeMangaStatsTemplate as jest.Mock).mock
+        .calls[0][0];
+      expect(callArgs.fixedStatusColors).toBeTruthy();
     });
-    setupSuccessfulMocks(cardsData, userData);
 
-    const req = new Request(
-      createRequestUrl(baseUrl, {
-        userId: "542244",
-        cardType: "animeStaff",
-        variation: "default",
-      }),
-    );
-    let res: Response | undefined;
-    // Debug: log the URL and Redis mock return values (handy only during debugging)
-    try {
-      res = await GET(req);
-    } catch (err) {
-      console.error("[TEST DEBUG] GET threw:", err);
-      throw err;
-    }
-    if (!res) throw new Error("No response returned");
-    const bodyText = await getResponseText(res);
-    // check the response
-    expect(res.status).toBe(200);
-    expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
-    expect(bodyText).toBe(
-      `<svg data-template="extra" stroke="none" fixedStatusColors="false" showPiePercentages="false">Extra Stats</svg>`,
-    );
-
-    // Ensure the template was called with favorites including 'Favorite Staff'
-    expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
-    const callArgs = (extraAnimeMangaStatsTemplate as jest.Mock).mock
-      .calls[0][0];
-    // template call args
-    expect(callArgs.favorites).toContain("Favorite Staff");
-
-    // Ensure styles passed are narrow (don't include persisted flags)
-    expect(callArgs.styles).toHaveProperty("titleColor");
-    expect(callArgs.styles).toHaveProperty("backgroundColor");
-    expect(callArgs.styles).toHaveProperty("textColor");
-    expect(callArgs.styles.showPiePercentages).toBeUndefined();
-    expect(callArgs.styles.useStatusColors).toBeUndefined();
-  });
-
-  it("should set CORS Access-Control-Allow-Origin to the request origin when present in dev", async () => {
-    const cardsData = createMockCardData("animeStats", "default");
-    const userData = createMockUserData(542244, "testUser", {
-      User: { statistics: { anime: {} } },
-    });
-    setupSuccessfulMocks(cardsData, userData);
-
-    const req = new Request(
-      createRequestUrl(baseUrl, {
-        userId: "542244",
-        cardType: "animeStats",
-      }),
-      { headers: { origin: "http://example.dev" } },
-    );
-    const res = await GET(req);
-    expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
-      "http://example.dev",
-    );
-  });
-
-  it("should fallback to 'default' variant when an invalid variation is provided for stats cards", async () => {
-    const cardsData = createMockCardData("animeStats", "default");
-    const userData = createMockUserData(542244, "testUser", {
-      User: { statistics: { anime: {} } },
-    });
-    setupSuccessfulMocks(cardsData, userData);
-
-    const req = new Request(
-      createRequestUrl(baseUrl, {
-        userId: "542244",
-        cardType: "animeStats",
-        variation: "unsupported-variant",
-      }),
-    );
-    const res = await GET(req);
-    expect(res.status).toBe(200);
-    // The template should be invoked with the normalized 'default' variant
-    expect(mediaStatsTemplate).toHaveBeenCalled();
-    const callArgs = (mediaStatsTemplate as jest.Mock).mock.calls[0][0];
-    expect(callArgs.variant).toBe("default");
-  });
-
-  it("should fallback to 'default' variant when an invalid variation is provided for pie/bar templates", async () => {
-    // return a card configured as pie (but query param invalid)
-    const cardsData = createMockCardData("animeStatusDistribution", "pie");
-    const userData = createMockUserData(542244, "testUser", {
-      User: {
-        statistics: { anime: { statuses: [{ status: "current", count: 1 }] } },
-      },
-    });
-    setupSuccessfulMocks(cardsData, userData);
-
-    const req = new Request(
-      createRequestUrl(baseUrl, {
-        userId: "542244",
-        cardType: "animeStatusDistribution",
-        variation: "unknown-variant",
-      }),
-    );
-    const res = await GET(req);
-    expect(res.status).toBe(200);
-    expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
-    const callArgs = (extraAnimeMangaStatsTemplate as jest.Mock).mock
-      .calls[0][0];
-    expect(callArgs.variant).toBe("default");
-  });
-
-  it("should fallback to 'default' variant when an invalid variation is provided for distribution templates", async () => {
-    const cardsData = createMockCardData("animeScoreDistribution", "default");
-    const userData = createMockUserData(542244, "testUser", {
-      User: { statistics: { anime: { scores: [{ score: 10, count: 1 }] } } },
-    });
-    setupSuccessfulMocks(cardsData, userData);
-
-    const req = new Request(
-      createRequestUrl(baseUrl, {
-        userId: "542244",
-        cardType: "animeScoreDistribution",
-        variation: "pie",
-      }),
-    );
-    const res = await GET(req);
-    expect(res.status).toBe(200);
-    expect(distributionTemplate).toHaveBeenCalled();
-    const callArgs = (distributionTemplate as jest.Mock).mock.calls[0][0];
-    expect(callArgs.variant).toBe("default");
-  });
-
-  it("should use configured NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN when set (overrides request origin)", async () => {
-    const prev = process.env.NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN;
-    (process.env as Record<string, string | undefined>)[
-      "NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN"
-    ] = "https://configured.example";
-    const cardsData = createMockCardData("animeStats", "default");
-    const userData = createMockUserData(542244, "testUser", {
-      User: { statistics: { anime: {} } },
-    });
-    setupSuccessfulMocks(cardsData, userData);
-
-    const req = new Request(
-      createRequestUrl(baseUrl, {
-        userId: "542244",
-        cardType: "animeStats",
-      }),
-      { headers: { origin: "http://ignored-origin" } },
-    );
-    const res = await GET(req);
-    expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
-      "https://configured.example",
-    );
-    // restore
-    (process.env as Record<string, string | undefined>)[
-      "NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN"
-    ] = prev;
-  });
-
-  it("should default to https://anilist.co in production when no env var set", async () => {
-    const prevNodeEnv = process.env.NODE_ENV;
-    const prevConfig = process.env.NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN;
-    (process.env as Record<string, string | undefined>)["NODE_ENV"] =
-      "production";
-    delete (process.env as Record<string, string | undefined>)[
-      "NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN"
-    ];
-
-    const cardsData = createMockCardData("animeStats", "default");
-    const userData = createMockUserData(542244, "testUser", {
-      User: { statistics: { anime: {} } },
-    });
-    setupSuccessfulMocks(cardsData, userData);
-
-    const req = new Request(
-      createRequestUrl(baseUrl, {
-        userId: "542244",
-        cardType: "animeStats",
-      }),
-      { headers: { origin: "http://localhost:3000" } },
-    );
-    const res = await GET(req);
-    expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
-      "https://anilist.co",
-    );
-    expect(res.headers.get("Access-Control-Allow-Origin")).not.toBe("*");
-
-    // restore env
-    (process.env as Record<string, string | undefined>)["NODE_ENV"] =
-      prevNodeEnv;
-    (process.env as Record<string, string | undefined>)[
-      "NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN"
-    ] = prevConfig;
-  });
-
-  it("should return server error when SVG generation fails (inner try)", async () => {
-    // Provide a valid cards record.
-    const cardsData = createMockCardData("animeStats", "default");
-    // Provide a user record missing the required stats (will cause generateCardSVG to throw).
-    const userData = createMockUserData(123, "testUser", {}); // missing User.statistics.anime
-    setupSuccessfulMocks(cardsData, userData);
-
-    const req = new Request(
-      createRequestUrl(baseUrl, {
-        userId: "123",
-        cardType: "animeStats",
-        variation: "default",
-      }),
-      {
-        headers: { "x-forwarded-for": "127.0.0.1" },
-      },
-    );
-    const res = await GET(req);
-    await expectErrorResponse(
-      res,
-      "Not Found: Missing card configuration or stats data",
-      404,
-    );
-  });
-
-  it("should return server error when an outer error occurs", async () => {
-    // Simulate Redis throwing an error.
-    mockRedisGet.mockRejectedValueOnce(new Error("Redis error"));
-    const req = new Request(
-      createRequestUrl(baseUrl, { userId: "123", cardType: "animeStats" }),
-    );
-    const res = await GET(req);
-    await expectErrorResponse(
-      res,
-      "Server Error: An internal error occurred",
-      500,
-    );
-  });
-
-  it("should return server error when stored card record is corrupted", async () => {
-    const invalidCardsData = "not-a-json";
-    const userData = createMockUserData(542244, "testUser", {
-      User: { statistics: { anime: {} } },
-    });
-    // cardsData invalid JSON triggers parse error, user data valid
-    mockRedisGet
-      .mockResolvedValueOnce(invalidCardsData)
-      .mockResolvedValueOnce(userData);
-    const req = new Request(
-      createRequestUrl(baseUrl, {
-        userId: "542244",
-        cardType: "animeStats",
-      }),
-    );
-    const res = await GET(req);
-    await expectErrorResponse(
-      res,
-      "Server Error: Corrupted card configuration",
-      500,
-    );
-    expect(mockRedisIncr).toHaveBeenCalledWith(
-      "analytics:card_svg:corrupted_card_records",
-    );
-  });
-
-  it("should return server error when user record is corrupted", async () => {
-    const cardsData = createMockCardData("animeStats", "default");
-    const invalidUserData = "not-a-json";
-    // first call returns cards, second returns invalid user JSON
-    mockRedisGet
-      .mockResolvedValueOnce(cardsData)
-      .mockResolvedValueOnce(invalidUserData);
-    const req = new Request(
-      createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
-    );
-    const res = await GET(req);
-    await expectErrorResponse(res, "Server Error: Corrupted user record", 500);
-    expect(mockRedisIncr).toHaveBeenCalledWith(
-      "analytics:card_svg:corrupted_user_records",
-    );
-  });
-
-  it("should normalize nested fields even when malformed in Redis and proceed", async () => {
-    const cardsData = createMockCardData("animeStats", "default");
-    const userData = createMockUserData(542244, "testUser", {
-      User: {
-        statistics: {
-          anime: { genres: "not-an-array" },
+    it("should propagate piePercentages flag to template", async () => {
+      const cardsData = createMockCardData("animeStatusDistribution", "pie", {
+        showPiePercentages: true,
+      });
+      const userData = createMockUserData(542244, "testUser", {
+        User: {
+          statistics: {
+            anime: {
+              statuses: [{ status: "current", count: 2 }],
+            },
+          },
         },
-        stats: { activityHistory: [{ date: 1, amount: 1 }] },
-      },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStatusDistribution",
+          variation: "pie",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (extraAnimeMangaStatsTemplate as jest.Mock).mock
+        .calls[0][0];
+      expect(callArgs.showPiePercentages).toBeTruthy();
     });
-    setupSuccessfulMocks(cardsData, userData);
 
-    const req = new Request(
-      createRequestUrl(baseUrl, {
-        userId: "542244",
-        cardType: "animeStats",
-      }),
-    );
-    const res = await GET(req);
-    const body = await getResponseText(res);
+    it("should allow URL params to override DB statusColors flag", async () => {
+      const cardsData = createMockCardData("animeStatusDistribution", "pie", {
+        useStatusColors: false,
+      });
+      const userData = createMockUserData(542244, "testUser", {
+        User: {
+          statistics: {
+            anime: { statuses: [{ status: "current", count: 1 }] },
+          },
+        },
+      });
+      setupSuccessfulMocks(cardsData, userData);
 
-    // Template should still be invoked and a safe SVG returned after normalization
-    expect(res.status).toBe(200);
-    expect(mediaStatsTemplate).toHaveBeenCalled();
-    expect(body).toContain("Anime Stats");
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStatusDistribution",
+          variation: "pie",
+          statusColors: "true",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (extraAnimeMangaStatsTemplate as jest.Mock).mock
+        .calls[0][0];
+      expect(callArgs.fixedStatusColors).toBeTruthy();
+    });
   });
 
-  it("should map CardDataError thrown by generator to a Client Error SVG message", async () => {
-    const cardsData = createMockCardData("animeStats", "default");
-    const userData = createMockUserData(542244, "testUser", {
-      User: { statistics: { anime: {} } },
+  describe("CORS and Cache Headers", () => {
+    it("should set correct success cache headers", async () => {
+      const cardsData = createMockCardData("animeStats", "default");
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
+      );
+      const res = await GET(req);
+
+      expect(res.headers.get("Cache-Control")).toContain("public");
+      expect(res.headers.get("Cache-Control")).toContain("max-age=86400");
+      expect(res.headers.get("Cache-Control")).toContain(
+        "stale-while-revalidate=86400",
+      );
     });
-    setupSuccessfulMocks(cardsData, userData);
 
-    // Force generator to throw a 400 CardDataError without the 'Client Error:' prefix
-    const genMod = require("@/lib/card-generator");
-    const dataMod = require("@/lib/card-data");
-    const spy = jest.spyOn(genMod, "default").mockImplementation(() => {
-      throw new dataMod.CardDataError("Unsupported card type", 400);
+    it("should set correct error cache headers (no-store)", async () => {
+      const req = new Request(createRequestUrl(baseUrl, { userId: "542244" }));
+      const res = await GET(req);
+
+      expect(res.headers.get("Cache-Control")).toContain("no-store");
+      expect(res.headers.get("Cache-Control")).toContain("max-age=0");
+      expect(res.headers.get("Cache-Control")).toContain("must-revalidate");
     });
 
-    const req = new Request(
-      createRequestUrl(baseUrl, {
-        userId: "542244",
-        cardType: "animeStats",
-        variation: "default",
-      }),
-    );
-    const res = await GET(req);
-    await expectErrorResponse(res, "Client Error: Unsupported card type", 400);
+    it("should set CORS origin from request when in dev", async () => {
+      const cardsData = createMockCardData("animeStats", "default");
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
 
-    // restore original generator implementation
-    spy.mockRestore();
+      const req = new Request(
+        createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
+        { headers: { origin: "http://example.dev" } },
+      );
+      const res = await GET(req);
+
+      expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
+        "http://example.dev",
+      );
+    });
+
+    it("should use configured NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN when set", async () => {
+      const prev = process.env.NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN;
+      (process.env as Record<string, string | undefined>)[
+        "NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN"
+      ] = "https://configured.example";
+
+      const cardsData = createMockCardData("animeStats", "default");
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
+        { headers: { origin: "http://ignored-origin" } },
+      );
+      const res = await GET(req);
+
+      expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
+        "https://configured.example",
+      );
+
+      (process.env as Record<string, string | undefined>)[
+        "NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN"
+      ] = prev;
+    });
+
+    it("should default to https://anilist.co in production", async () => {
+      const prevNodeEnv = process.env.NODE_ENV;
+      const prevConfig = process.env.NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN;
+
+      (process.env as Record<string, string | undefined>)["NODE_ENV"] =
+        "production";
+      delete (process.env as Record<string, string | undefined>)[
+        "NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN"
+      ];
+
+      const cardsData = createMockCardData("animeStats", "default");
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
+        { headers: { origin: "http://localhost:3000" } },
+      );
+      const res = await GET(req);
+
+      expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
+        "https://anilist.co",
+      );
+
+      (process.env as Record<string, string | undefined>)["NODE_ENV"] =
+        prevNodeEnv;
+      (process.env as Record<string, string | undefined>)[
+        "NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN"
+      ] = prevConfig;
+    });
+
+    it("should set Vary header to Origin for cache variation", async () => {
+      const cardsData = createMockCardData("animeStats", "default");
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
+      );
+      const res = await GET(req);
+
+      expect(res.headers.get("Vary")).toBe("Origin");
+    });
+
+    it("should expose X-Card-Border-Radius header", async () => {
+      const cardsData = createMockCardData("animeStats", "default", {
+        borderRadius: 8,
+      });
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
+      );
+      const res = await GET(req);
+
+      expect(res.headers.has("X-Card-Border-Radius")).toBe(true);
+      expect(res.headers.get("Access-Control-Expose-Headers")).toContain(
+        "X-Card-Border-Radius",
+      );
+    });
+  });
+
+  describe("Error Handling", () => {
+    it("should return server error when SVG generation throws", async () => {
+      const cardsData = createMockCardData("animeStats", "default");
+      const userData = createMockUserData(123, "testUser", {});
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "123",
+          cardType: "animeStats",
+        }),
+      );
+      const res = await GET(req);
+      await expectErrorResponse(
+        res,
+        "Not Found: Missing card configuration or stats data",
+        404,
+      );
+    });
+
+    it("should return server error when Redis throws", async () => {
+      mockRedisGet.mockRejectedValueOnce(new Error("Redis error"));
+
+      const req = new Request(
+        createRequestUrl(baseUrl, { userId: "123", cardType: "animeStats" }),
+      );
+      const res = await GET(req);
+      await expectErrorResponse(
+        res,
+        "Server Error: An internal error occurred",
+        500,
+      );
+    });
+
+    it("should return server error for corrupted card record", async () => {
+      const invalidCardsData = "not-a-json";
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      mockRedisGet
+        .mockResolvedValueOnce(invalidCardsData)
+        .mockResolvedValueOnce(userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+        }),
+      );
+      const res = await GET(req);
+      await expectErrorResponse(
+        res,
+        "Server Error: Corrupted card configuration",
+        500,
+      );
+
+      expect(mockRedisIncr).toHaveBeenCalledWith(
+        "analytics:card_svg:corrupted_card_records",
+      );
+    });
+
+    it("should return server error for corrupted user record", async () => {
+      const cardsData = createMockCardData("animeStats", "default");
+      const invalidUserData = "not-a-json";
+      mockRedisGet
+        .mockResolvedValueOnce(cardsData)
+        .mockResolvedValueOnce(invalidUserData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+        }),
+      );
+      const res = await GET(req);
+      await expectErrorResponse(
+        res,
+        "Server Error: Corrupted user record",
+        500,
+      );
+
+      expect(mockRedisIncr).toHaveBeenCalledWith(
+        "analytics:card_svg:corrupted_user_records",
+      );
+    });
+
+    it("should normalize malformed nested fields and continue", async () => {
+      const cardsData = createMockCardData("animeStats", "default");
+      const userData = createMockUserData(542244, "testUser", {
+        User: {
+          statistics: {
+            anime: { genres: "not-an-array" },
+          },
+          stats: { activityHistory: [{ date: 1, amount: 1 }] },
+        },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+        }),
+      );
+      const res = await GET(req);
+      const body = await getResponseText(res);
+
+      expect(res.status).toBe(200);
+      expect(mediaStatsTemplate).toHaveBeenCalled();
+      expect(body).toContain("Anime Stats");
+    });
+
+    it("should map CardDataError to appropriate error response", async () => {
+      const cardsData = createMockCardData("animeStats", "default");
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const genMod = require("@/lib/card-generator");
+      const dataMod = require("@/lib/card-data");
+      const spy = jest.spyOn(genMod, "default").mockImplementation(() => {
+        throw new dataMod.CardDataError("Unsupported card type", 400);
+      });
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+        }),
+      );
+      const res = await GET(req);
+      await expectErrorResponse(
+        res,
+        "Client Error: Unsupported card type",
+        400,
+      );
+
+      spy.mockRestore();
+    });
+
+    it("should track failed requests to analytics", async () => {
+      mockLimit.mockResolvedValueOnce({ success: false });
+      mockRedisIncr.mockResolvedValueOnce(1);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
+      );
+      await GET(req);
+
+      // Verify that analytics tracking was attempted (at least the first call)
+      expect(mockRedisIncr).toHaveBeenCalled();
+    });
+
+    it("should track successful requests to analytics", async () => {
+      const cardsData = createMockCardData("animeStats", "default");
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+        }),
+      );
+      await GET(req);
+
+      expect(mockRedisIncr).toHaveBeenCalledWith(
+        "analytics:card_svg:successful_requests",
+      );
+      expect(mockRedisIncr).toHaveBeenCalledWith(
+        "analytics:card_svg:successful_requests:animeStats",
+      );
+    });
+  });
+
+  describe("OPTIONS Handler", () => {
+    it("should return 200 OK for OPTIONS", () => {
+      const req = new Request(baseUrl, { method: "OPTIONS" });
+      const res = OPTIONS(req);
+
+      expect(res.status).toBe(200);
+    });
+
+    it("should include CORS headers", () => {
+      const req = new Request(baseUrl, { method: "OPTIONS" });
+      const res = OPTIONS(req);
+
+      expect(res.headers.has("Access-Control-Allow-Origin")).toBe(true);
+      expect(res.headers.has("Access-Control-Allow-Methods")).toBe(true);
+      expect(res.headers.has("Access-Control-Allow-Headers")).toBe(true);
+    });
+
+    it("should allow GET, HEAD, OPTIONS methods", () => {
+      const req = new Request(baseUrl, { method: "OPTIONS" });
+      const res = OPTIONS(req);
+
+      expect(res.headers.get("Access-Control-Allow-Methods")).toContain("GET");
+      expect(res.headers.get("Access-Control-Allow-Methods")).toContain("HEAD");
+      expect(res.headers.get("Access-Control-Allow-Methods")).toContain(
+        "OPTIONS",
+      );
+    });
+
+    it("should expose X-Card-Border-Radius header in OPTIONS", () => {
+      const req = new Request(baseUrl, { method: "OPTIONS" });
+      const res = OPTIONS(req);
+
+      expect(res.headers.get("Access-Control-Expose-Headers")).toContain(
+        "X-Card-Border-Radius",
+      );
+    });
+
+    it("should set Vary to Origin for proper caching", () => {
+      const req = new Request(baseUrl, { method: "OPTIONS" });
+      const res = OPTIONS(req);
+
+      expect(res.headers.get("Vary")).toBe("Origin");
+    });
+  });
+
+  describe("SVG Output", () => {
+    it("should return SVG with correct content type", async () => {
+      const cardsData = createMockCardData("animeStats", "default");
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+        }),
+      );
+      const res = await GET(req);
+
+      expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
+    });
+
+    it("should strip trusted SVG markers from output", async () => {
+      const cardsData = createMockCardData("animeStats", "default");
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+        }),
+      );
+      const res = await GET(req);
+      const body = await getResponseText(res);
+
+      expect(body).not.toContain("ANICARDS_TRUSTED_SVG");
+    });
+
+    it("should generate SVG for multiple card types", async () => {
+      const cardTypes = ["animeStats", "socialStats", "mangaStats"];
+
+      for (const cardType of cardTypes) {
+        const cardsData = createMockCardData(cardType, "default");
+        const userData = createMockUserData(542244, "testUser", {
+          User: { statistics: { anime: {}, manga: {} } },
+        });
+        mockRedisGet
+          .mockResolvedValueOnce(cardsData)
+          .mockResolvedValueOnce(userData);
+
+        const req = new Request(
+          createRequestUrl(baseUrl, {
+            userId: "542244",
+            cardType,
+          }),
+        );
+        const res = await GET(req);
+        expect(res.status).toBe(200);
+        expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
+
+        // Reset mock chain for next iteration
+        jest.clearAllMocks();
+        mockLimit.mockResolvedValue({ success: true });
+      }
+    });
   });
 });

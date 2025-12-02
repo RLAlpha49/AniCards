@@ -1,11 +1,10 @@
 ---
-description: "Guidelines for TypeScript Development targeting TypeScript 5.x and ES2022 output"
-applyTo: "**/*.ts"
+name: "TypeScript 5 & ES2022 Guide"
+description: "Guidelines for TypeScript development targeting TypeScript 5.x and ES2022 output. Apply when editing TypeScript source files, types, interfaces, or configuration that affects build output, type-safety, and module boundaries."
+applyTo: "**/*.{ts,tsx}"
 ---
 
 # TypeScript Development
-
-> These instructions assume projects are built with TypeScript 5.x (or newer) compiling to an ES2022 JavaScript baseline. Adjust guidance if your runtime requires older language targets or down-level transpilation.
 
 ## Core Intent
 

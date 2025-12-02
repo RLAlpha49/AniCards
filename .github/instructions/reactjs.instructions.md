@@ -1,6 +1,7 @@
 ---
-description: "ReactJS development standards and best practices"
-applyTo: "**/*.jsx, **/*.tsx, **/*.js, **/*.ts, **/*.css, **/*.scss"
+name: "ReactJS Development Standards"
+description: "ReactJS development standards and best practices. Apply when authoring or refactoring React components, hooks, pages, or styles; when implementing UI behavior, performance, and accessibility features."
+applyTo: "components/**, app/**, hooks/**, **/*.{jsx,tsx,js,ts,css,scss}"
 ---
 
 # ReactJS Development Instructions
@@ -108,14 +109,15 @@ Instructions for building high-quality ReactJS applications with modern patterns
 - Use debounced validation for better user experience
 - Handle file uploads and complex form scenarios
 
-### Routing
+### Routing (Next.js App Router)
 
-- Use React Router for client-side routing
-- Implement nested routes and route protection
-- Handle route parameters and query strings properly
-- Implement lazy loading for route-based code splitting
-- Use proper navigation patterns and back button handling
-- Implement breadcrumbs and navigation state management
+- Use Next.js App Router (file-based routing) for both client and server routes. Prefer Server Components for data fetching and use Client Components where interactivity is required.
+- Implement nested layouts and route groups in the App Router for composable UI and shared layouts.
+- Use Next.js route protection patterns (e.g., middleware, server-side session checks) for sensitive pages and API routes.
+- Handle route parameters and query strings with the `params` and `searchParams` provided by Next.js in route handlers or page components.
+- Implement lazy loading for route-based code-splitting with `dynamic()` and `React.lazy` when necessary.
+- Use the Next.js navigation and Link components for client navigation and respect accessibility and back-button behavior.
+- Implement breadcrumbs and navigation state management using route metadata and layout-level components.
 
 ### Testing
 

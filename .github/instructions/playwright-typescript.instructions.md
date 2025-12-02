@@ -1,6 +1,7 @@
 ---
-description: "Playwright test generation instructions"
-applyTo: "**"
+name: "Playwright TypeScript Test Standards"
+description: "Playwright test generation instructions. Applicable when authoring, editing, or reviewing Playwright tests, test harness configuration, or running E2E tests that exercise the application UI."
+applyTo: "tests/**, tests/**/*.spec.ts, playwright.config.*"
 ---
 
 ## Test Writing Guidelines
@@ -37,17 +38,17 @@ applyTo: "**"
 ```typescript
 import { test, expect } from "@playwright/test";
 
-test.describe("Movie Search Feature", () => {
+test.describe("Search Feature", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to the application before each test
-    await page.goto("https://debs-obrien.github.io/playwright-movies-app");
+    await page.goto("http://localhost:3000");
   });
 
-  test("Search for a movie by title", async ({ page }) => {
+  test("Search for a user by username", async ({ page }) => {
     await test.step("Activate and perform search", async () => {
       await page.getByRole("search").click();
       const searchInput = page.getByRole("textbox", { name: "Search Input" });
-      await searchInput.fill("Garfield");
+      await searchInput.fill("naruto");
       await searchInput.press("Enter");
     });
 

@@ -1,6 +1,7 @@
 ---
-description: "Next.js + Tailwind development standards and instructions"
-applyTo: "**/*.tsx, **/*.ts, **/*.jsx, **/*.js, **/*.css"
+name: "Next.js + Tailwind Development Standards"
+description: "Next.js + Tailwind development standards and instructions. Apply when editing components, pages, styles, or utilities that use Tailwind in Next.js following the app router patterns."
+applyTo: "**/*.{tsx,ts,jsx,js,css,scss}"
 ---
 
 # Next.js + Tailwind Development Instructions

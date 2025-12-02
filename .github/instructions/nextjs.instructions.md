@@ -1,5 +1,7 @@
 ---
-applyTo: "**"
+name: "Next.js Best Practices"
+description: "Next.js Best Practices for LLMs (2025). When editing and reviewing Next.js application files, routes, API handlers, components, or configuration that affect server/client behavior and routing."
+applyTo: "app/**, components/**, pages/**, lib/**, public/**, next.config.{ts,js}"
 ---
 
 # Next.js Best Practices for LLMs (2025)

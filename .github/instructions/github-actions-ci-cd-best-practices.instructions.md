@@ -1,6 +1,7 @@
 ---
-applyTo: ".github/workflows/*.yml"
-description: "Comprehensive guide for building robust, secure, and efficient CI/CD pipelines using GitHub Actions. Covers workflow structure, jobs, steps, environment variables, secret management, caching, matrix strategies, testing, and deployment strategies."
+name: "GitHub Actions CI/CD Best Practices"
+applyTo: ".github/workflows/*.yml, .github/workflows/*.yaml"
+description: "Comprehensive guide for building robust, secure, and efficient CI/CD pipelines using GitHub Actions. Covers workflow structure, jobs, steps, environment variables, secret management, caching, matrix strategies, testing, and deployment strategies. Apply when creating, updating, or debugging GitHub Actions workflows in .github/workflows, or when reviewing PRs that affect CI/CD pipelines."
 ---
 
 # GitHub Actions CI/CD Best Practices
@@ -192,7 +193,7 @@ jobs:
 - **Principle:** Identify security vulnerabilities in source code before runtime.
 - **Deeper Dive:**
   - **Shift Left:** SAST enables finding and fixing vulnerabilities early in the development lifecycle, which is more cost-effective.
-  - **Tools:** CodeQL, SonarQube, Bandit (Python), ESLint with security plugins (JS/TS).
+  - **Tools:** CodeQL, SonarQube, and ESLint (JS/TS) with security plugins.
   - **Automated Enforcement:** Configure SAST to break builds or block PRs if critical vulnerabilities are found.
 - **Guidance for Copilot:**
   - Integrate SAST tools (e.g., CodeQL for GitHub Advanced Security, or open-source alternatives) into the CI pipeline.
@@ -229,11 +230,11 @@ jobs:
 - **Principle:** Cache dependencies and build outputs to significantly speed up subsequent workflow runs.
 - **Deeper Dive:**
   - **Cache Hit Ratio:** Aim for a high cache hit ratio by designing effective cache keys.
-  - **Cache Keys:** Use a unique key based on file hashes (e.g., `hashFiles('**/package-lock.json')`, `hashFiles('**/requirements.txt')`) to invalidate the cache only when dependencies change.
+  - **Cache Keys:** Use a unique key based on lockfile hashes (e.g., `hashFiles('**/package-lock.json', '**/yarn.lock', '**/pnpm-lock.yaml')`) to invalidate the cache only when dependencies change.
   - **Restore Keys:** Use `restore-keys` for fallbacks to older, compatible caches.
   - **Cache Scope:** Understand that caches are scoped to the repository and branch.
 - **Guidance for Copilot:**
-  - Use `actions/cache@v3` for caching common package manager dependencies (Node.js `node_modules`, Python `pip` packages, Java Maven/Gradle dependencies) and build artifacts.
+  - Use `actions/cache@v3` for caching common package manager dependencies (Node.js `node_modules`) and build artifacts.
   - Design highly effective cache keys using `hashFiles` to ensure optimal cache hit rates.
   - Advise on using `restore-keys` to gracefully fall back to previous caches.
 - **Example (Advanced Caching for Monorepo):**
@@ -253,7 +254,8 @@ jobs:
 
 ### **2. Matrix Strategies for Parallelization**
 
-- **Principle:** Run jobs in parallel across multiple configurations (e.g., different Node.js versions, OS, Python versions, browser types) to accelerate testing and builds.
+-- **Principle:** Run jobs in parallel across multiple configurations (e.g., different Node.js versions, OS, browser types) to accelerate testing and builds.
+
 - **Deeper Dive:**
   - **`strategy.matrix`:** Define a matrix of variables.
   - **`include`/`exclude`:** Fine-tune combinations.
@@ -335,12 +337,12 @@ jobs:
 - **Principle:** Run unit tests on every code push to ensure individual code components (functions, classes, modules) function correctly in isolation. They are the fastest and most numerous tests.
 - **Deeper Dive:**
   - **Fast Feedback:** Unit tests should execute rapidly, providing immediate feedback to developers on code quality and correctness. Parallelization of unit tests is highly recommended.
-  - **Code Coverage:** Integrate code coverage tools (e.g., Istanbul for JS, Coverage.py for Python, JaCoCo for Java) and enforce minimum coverage thresholds. Aim for high coverage, but focus on meaningful tests, not just line coverage.
+  - **Code Coverage:** Integrate code coverage tools (e.g., Istanbul/nyc or Jest coverage for JavaScript/TypeScript) and enforce minimum coverage thresholds. Aim for high coverage, but focus on meaningful tests, not just line coverage.
   - **Test Reporting:** Publish test results using `actions/upload-artifact` (e.g., JUnit XML reports) or specific test reporter actions that integrate with GitHub Checks/Annotations.
   - **Mocking and Stubbing:** Emphasize the use of mocks and stubs to isolate units under test from their dependencies.
 - **Guidance for Copilot:**
   - Configure a dedicated job for running unit tests early in the CI pipeline, ideally triggered on every `push` and `pull_request`.
-  - Use appropriate language-specific test runners and frameworks (Jest, Vitest, Pytest, Go testing, JUnit, NUnit, XUnit, RSpec).
+  - Use appropriate test runners for the project: `Jest` or `Vitest` for unit tests in JS/TS, `Playwright` or `Cypress` for end-to-end tests.
   - Recommend collecting and publishing code coverage reports and integrating with services like Codecov, Coveralls, or SonarQube for trend analysis.
   - Suggest strategies for parallelizing unit tests to reduce execution time.
 
@@ -497,7 +499,7 @@ This checklist provides a granular set of criteria for reviewing GitHub Actions 
   - For self-hosted runners, are security hardening guidelines followed and network access restricted?
 
 - [ ] **Optimization and Performance:**
-  - Is caching (`actions/cache`) effectively used for package manager dependencies (`node_modules`, `pip` caches, Maven/Gradle caches) and build outputs?
+  - Is caching (`actions/cache`) effectively used for package manager dependencies (`node_modules`) and build outputs?
   - Are cache `key` and `restore-keys` designed for optimal cache hit rates (e.g., using `hashFiles`)?
   - Is `strategy.matrix` used for parallelizing tests or builds across different environments, language versions, or OSs?
   - Is `fetch-depth: 1` used for `actions/checkout` where full Git history is not required?
