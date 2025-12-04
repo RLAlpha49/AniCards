@@ -1,16 +1,34 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useUserPreferences, useCardSettings, useCache } from "@/lib/stores";
-import { ThemePreferences } from "@/components/settings/theme-preferences";
-import { CacheManagement } from "@/components/settings/cache-management";
-import { DefaultCardSettings } from "@/components/settings/default-card-settings";
-import { ResetSettings } from "@/components/settings/reset-settings";
-import { DefaultUsernameSettings } from "@/components/settings/default-username";
-import { usePageSEO } from "@/hooks/use-page-seo";
-import { GridPattern } from "../../components/ui/grid-pattern";
+import { ThemePreferences } from "@/components/settings/ThemePreferences";
+import { DefaultCardSettings } from "@/components/settings/DefaultCardSettings";
+import { ResetSettings } from "@/components/settings/ResetSettings";
+import { DefaultUsernameSettings } from "@/components/settings/DefaultUsername";
+import { usePageSEO } from "@/hooks/usePageSEO";
+import PageShell from "@/components/PageShell";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { Settings } from "lucide-react";
+
+/**
+ * Animation variants for staggered content reveal.
+ * @source
+ */
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1, delayChildren: 0.1 },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
+};
 
 /**
  * Renders the global settings shell and wires persistent preferences to the UI.
@@ -30,30 +48,14 @@ export default function SettingsPage() {
     defaultCardTypes,
     defaultVariants,
     defaultShowFavoritesByCard,
-    defaultBorderEnabled,
-    defaultBorderColor,
     setDefaultCardTypes,
     toggleCardType,
     setDefaultVariant,
     toggleShowFavorites,
-    setDefaultBorderEnabled,
-    setDefaultBorderColor,
     resetCardSettings,
   } = useCardSettings();
 
-  const {
-    getCacheItems,
-    clearAllCache,
-    deleteCacheItem,
-    cacheVersion,
-    incrementCacheVersion,
-  } = useCache();
-
-  // Compute cached items from store
-  const cachedItems = useMemo(
-    () => getCacheItems(),
-    [cacheVersion, getCacheItems],
-  );
+  const { clearAllCache, incrementCacheVersion } = useCache();
 
   // Listen for local storage changes from other tabs
   useEffect(() => {
@@ -85,14 +87,6 @@ export default function SettingsPage() {
   };
 
   /**
-   * Clear cached site data.
-   * @source
-   */
-  const handleClearCache = () => {
-    clearAllCache();
-  };
-
-  /**
    * Toggle inclusion of a stat card type in the default selection.
    * @param cardType - Identifier that represents the stat card.
    * @source
@@ -102,22 +96,13 @@ export default function SettingsPage() {
   };
 
   /**
-   * Remove a cached entry for a specific key.
-   * @param key - Cache suffix used in localStorage under the "anicards-" namespace.
-   * @source
-   */
-  const handleDeleteCacheItem = (key: string) => {
-    deleteCacheItem(key);
-  };
-
-  /**
    * Select or deselect every stat card type and reset variants if clearing.
    * @source
    */
   const handleToggleAllCardTypes = () => {
     // Check if all card types are selected
     const statCardTypesModule =
-      require("@/components/stat-card-generator").statCardTypes;
+      require("@/components/StatCardGenerator").statCardTypes;
     const allTypes: string[] = statCardTypesModule.map(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (type: any) => type.id,
@@ -170,93 +155,111 @@ export default function SettingsPage() {
     toggleShowFavorites(cardId);
   };
 
-  /**
-   * Persist the default border enabled flag.
-   * @param value - Whether borders should be enabled by default.
-   * @source
-   */
-  const handleBorderEnabledChange = (value: boolean) => {
-    setDefaultBorderEnabled(value);
-  };
-
-  /**
-   * Persist the default border color selection.
-   * @param value - Hex or CSS color string chosen by the user.
-   * @source
-   */
-  const handleBorderColorChange = (value: string) => {
-    setDefaultBorderColor(value);
-  };
-
   return (
-    <div className="relative h-full w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
-      <GridPattern className="z-0" includeGradients={true} />
+    <ErrorBoundary>
+      <PageShell
+        backgroundClassName="fixed inset-0 -z-10"
+        heroContent={
+          <section className="relative w-full overflow-hidden">
+            <div className="container relative z-10 mx-auto px-4">
+              <motion.div
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+                className="mx-auto flex max-w-4xl flex-col items-center text-center"
+              >
+                {/* Badge */}
+                <motion.div variants={itemVariants}>
+                  <span className="inline-flex items-center gap-2 rounded-full border border-blue-200/50 bg-blue-50/80 px-4 py-2 text-sm font-medium text-blue-700 shadow-sm backdrop-blur-sm dark:border-blue-700/50 dark:bg-blue-950/50 dark:text-blue-300">
+                    <Settings className="h-4 w-4" />
+                    Personalization Center
+                  </span>
+                </motion.div>
 
-      <div className="container relative z-10 mx-auto px-4 py-12">
-        {/* Hero Section */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="mb-12 text-center"
-        >
-          <h1 className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text pb-4 text-4xl font-extrabold text-transparent md:text-5xl">
-            Application Settings
-          </h1>
-          <p className="mx-auto max-w-2xl text-lg text-slate-600 dark:text-slate-300">
-            Customize your AniCards experience with these personalization
-            options and preferences.
-          </p>
-        </motion.div>
+                {/* Main heading */}
+                <motion.h1
+                  variants={itemVariants}
+                  className="mt-8 text-4xl font-extrabold leading-[1.1] tracking-tight text-slate-900 dark:text-white sm:text-5xl md:text-6xl"
+                >
+                  Application{" "}
+                  <span className="relative">
+                    <span className="relative z-10 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                      Settings
+                    </span>
+                    <motion.span
+                      className="absolute -inset-1 -z-10 block rounded-lg bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 blur-xl"
+                      animate={{ opacity: [0.5, 0.8, 0.5] }}
+                      transition={{ duration: 3, repeat: Infinity }}
+                    />
+                  </span>
+                </motion.h1>
 
+                {/* Subheading */}
+                <motion.p
+                  variants={itemVariants}
+                  className="mt-6 max-w-2xl text-lg text-slate-600 dark:text-slate-300 sm:text-xl"
+                >
+                  Customize your AniCards experience with personalization
+                  options, theme preferences, and default configurations.
+                </motion.p>
+              </motion.div>
+            </div>
+          </section>
+        }
+        mainClassName="pt-20 lg:pt-28"
+      >
         {/* Settings Container */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="mx-auto grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-2"
-        >
-          <div className="space-y-6">
-            <ThemePreferences
-              theme={theme || "system"}
-              themes={themes}
-              onThemeChange={handleThemeChange}
-            />
+        <section className="relative w-full overflow-hidden py-20 lg:py-28">
+          <div className="container relative mx-auto px-4">
+            <div className="mx-auto max-w-6xl">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5 }}
+                className="grid grid-cols-1 gap-8 lg:grid-cols-2"
+              >
+                {/* Left Column */}
+                <div className="space-y-8">
+                  <ThemePreferences
+                    theme={theme || "system"}
+                    themes={themes}
+                    onThemeChange={handleThemeChange}
+                  />
+                </div>
 
-            <DefaultUsernameSettings
-              defaultUsername={defaultUsername}
-              onUsernameChange={handleDefaultUsernameChange}
-            />
-          </div>
+                {/* Right Column */}
+                <div className="space-y-8">
+                  <DefaultUsernameSettings
+                    defaultUsername={defaultUsername}
+                    onUsernameChange={handleDefaultUsernameChange}
+                  />
+                </div>
 
-          <div className="space-y-6">
-            <CacheManagement
-              cachedItems={cachedItems}
-              onClearCache={handleClearCache}
-              onDeleteCacheItem={handleDeleteCacheItem}
-            />
-          </div>
+                {/* Full Width Card Settings */}
+                <div className="col-span-1 lg:col-span-2">
+                  <DefaultCardSettings
+                    defaultCardTypes={defaultCardTypes}
+                    defaultVariants={defaultVariants}
+                    onToggleCardType={handleCardTypeToggle}
+                    onToggleAllCardTypes={handleToggleAllCardTypes}
+                    onVariantChange={handleVariantChange}
+                    defaultShowFavoritesByCard={defaultShowFavoritesByCard}
+                    onToggleShowFavoritesDefault={
+                      handleToggleShowFavoritesDefault
+                    }
+                  />
+                </div>
 
-          <div className="col-span-1 lg:col-span-2">
-            <DefaultCardSettings
-              defaultCardTypes={defaultCardTypes}
-              defaultVariants={defaultVariants}
-              onToggleCardType={handleCardTypeToggle}
-              onToggleAllCardTypes={handleToggleAllCardTypes}
-              onVariantChange={handleVariantChange}
-              defaultShowFavoritesByCard={defaultShowFavoritesByCard}
-              onToggleShowFavoritesDefault={handleToggleShowFavoritesDefault}
-              defaultBorderEnabled={defaultBorderEnabled}
-              defaultBorderColor={defaultBorderColor}
-              onBorderEnabledChange={handleBorderEnabledChange}
-              onBorderColorChange={handleBorderColorChange}
-            />
+                {/* Reset Settings */}
+                <div className="col-span-1 lg:col-span-2">
+                  <ResetSettings onReset={handleResetSettings} />
+                </div>
+              </motion.div>
+            </div>
           </div>
-          <div className="col-span-2 flex items-center justify-center">
-            <ResetSettings onReset={handleResetSettings} />
-          </div>
-        </motion.div>
-      </div>
-    </div>
+        </section>
+      </PageShell>
+    </ErrorBoundary>
   );
 }

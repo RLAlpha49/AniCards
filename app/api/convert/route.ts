@@ -1,6 +1,10 @@
 import sharp from "sharp";
-import { NextRequest, NextResponse } from "next/server";
-import { incrementAnalytics } from "@/lib/api-utils";
+import type { NextRequest, NextResponse } from "next/server";
+import {
+  incrementAnalytics,
+  apiJsonHeaders,
+  jsonWithCors,
+} from "@/lib/api-utils";
 import type { ConversionFormat } from "@/lib/utils";
 
 /**
@@ -694,6 +698,7 @@ function isUrlAuthorized(
 async function fetchSvgContent(
   parsedUrl: URL,
   ip: string,
+  request: NextRequest,
 ): Promise<{ errorResponse?: NextResponse; svg?: string }> {
   try {
     const response = await fetch(parsedUrl.href);
@@ -702,9 +707,10 @@ async function fetchSvgContent(
         () => {},
       );
       return {
-        errorResponse: NextResponse.json(
+        errorResponse: jsonWithCors(
           { error: "Failed to fetch SVG" },
-          { status: response.status },
+          request,
+          response.status,
         ),
       };
     }
@@ -714,9 +720,10 @@ async function fetchSvgContent(
     console.error("🔴 [Convert API] fetchSvgContent error:", err);
     incrementAnalytics("analytics:convert_api:failed_requests").catch(() => {});
     return {
-      errorResponse: NextResponse.json(
+      errorResponse: jsonWithCors(
         { error: "Failed to fetch SVG" },
-        { status: 500 },
+        request,
+        500,
       ),
     };
   }
@@ -756,10 +763,7 @@ export async function POST(request: NextRequest) {
       incrementAnalytics("analytics:convert_api:failed_requests").catch(
         () => {},
       );
-      return NextResponse.json(
-        { error: "Missing svgUrl parameter" },
-        { status: 400 },
-      );
+      return jsonWithCors({ error: "Missing svgUrl parameter" }, request, 400);
     }
 
     const allowedFormats: ConversionFormat[] = ["png", "webp"];
@@ -773,10 +777,7 @@ export async function POST(request: NextRequest) {
       incrementAnalytics("analytics:convert_api:failed_requests").catch(
         () => {},
       );
-      return NextResponse.json(
-        { error: "Invalid format parameter" },
-        { status: 400 },
-      );
+      return jsonWithCors({ error: "Invalid format parameter" }, request, 400);
     }
     let requestedFormat = normalizedFormat;
 
@@ -793,10 +794,7 @@ export async function POST(request: NextRequest) {
       console.warn(
         `⚠️ [Convert API] Invalid URL format for 'svgUrl' from ${ip}`,
       );
-      return NextResponse.json(
-        { error: "Invalid URL format" },
-        { status: 400 },
-      );
+      return jsonWithCors({ error: "Invalid URL format" }, request, 400);
     }
 
     const allowedDomains: string[] = [
@@ -819,14 +817,15 @@ export async function POST(request: NextRequest) {
       console.warn(
         `⚠️ [Convert API] Unauthorized or unsafe domain/protocol in 'svgUrl': ${parsedUrl.href} from ${ip}`,
       );
-      return NextResponse.json(
+      return jsonWithCors(
         { error: "Unauthorized or unsafe domain/protocol" },
-        { status: 403 },
+        request,
+        403,
       );
     }
 
     console.log(`🔍 [Convert API] Fetching SVG from: ${parsedUrl.href}`);
-    const fetched = await fetchSvgContent(parsedUrl, ip);
+    const fetched = await fetchSvgContent(parsedUrl, ip, request);
     if (fetched.errorResponse) return fetched.errorResponse;
     let svgContent = fetched.svg || "";
     console.log(
@@ -855,7 +854,7 @@ export async function POST(request: NextRequest) {
     incrementAnalytics("analytics:convert_api:successful_requests").catch(
       () => {},
     );
-    return NextResponse.json({ pngDataUrl });
+    return jsonWithCors({ pngDataUrl }, request);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     const errorDuration = Date.now() - startTime;
@@ -866,6 +865,17 @@ export async function POST(request: NextRequest) {
       console.error(`💥 [Convert API] Stack Trace: ${error.stack}`);
     }
     incrementAnalytics("analytics:convert_api:failed_requests").catch(() => {});
-    return NextResponse.json({ error: "Conversion failed" }, { status: 500 });
+    return jsonWithCors({ error: "Conversion failed" }, request, 500);
   }
+}
+
+export function OPTIONS(request: NextRequest) {
+  const headers = apiJsonHeaders(request);
+  return new Response(null, {
+    headers: {
+      ...headers,
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+    },
+  });
 }

@@ -1,7 +1,12 @@
+import type { TrustedSVG } from "@/lib/types/svg";
+
 import {
   calculateDynamicFontSize,
   getCardBorderRadius,
   processColorsForSVG,
+  escapeForXml,
+  markTrustedSvg,
+  toFiniteNumber,
 } from "../utils";
 import type { ColorValue } from "@/lib/types/card";
 
@@ -73,7 +78,16 @@ function normalizeDistributionData(
   inputData: DistributionDatum[],
   kind: "score" | "year",
 ): DistributionDatum[] {
-  const provided = [...inputData];
+  const provided = inputData
+    .map((d) => {
+      const v = toFiniteNumber(d.value, { label: "distribution.value" });
+      const c = toFiniteNumber(d.count, { label: "distribution.count" });
+      return v === null || c === null
+        ? null
+        : { value: v, count: Math.max(0, c) };
+    })
+    .filter((d): d is DistributionDatum => d !== null);
+
   const existing = new Set(provided.map((d) => d.value));
 
   if (kind === "score") {
@@ -174,7 +188,9 @@ Variants:
  * @returns A string containing the generated SVG markup.
  * @source
  */
-export function distributionTemplate(input: DistributionTemplateInput) {
+export function distributionTemplate(
+  input: DistributionTemplateInput,
+): TrustedSVG {
   const { username, mediaType, styles, variant = "default", kind } = input;
 
   // Process colors for gradient support
@@ -204,6 +220,7 @@ export function distributionTemplate(input: DistributionTemplateInput) {
   const baseTitle =
     kind === "score" ? "Score Distribution" : "Year Distribution";
   const title = `${username}'s ${capitalize(mediaType)} ${baseTitle}`;
+  const safeTitle = escapeForXml(title);
   const dims = getDimensions(variant);
 
   // Layout constants
@@ -220,7 +237,8 @@ export function distributionTemplate(input: DistributionTemplateInput) {
 
   const headerFontSize = calculateDynamicFontSize(title, 18, 300);
 
-  return `<svg
+  return markTrustedSvg(`
+<svg
     xmlns="http://www.w3.org/2000/svg"
     width="${dims.w}"
     height="${dims.h}"
@@ -230,8 +248,8 @@ export function distributionTemplate(input: DistributionTemplateInput) {
     aria-labelledby="desc-id"
   >
     ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
-    <title id="title-id">${title}</title>
-    <desc id="desc-id">${data.map((d) => `${d.value}:${d.count}`).join(", ")}</desc>
+    <title id="title-id">${safeTitle}</title>
+    <desc id="desc-id">${escapeForXml(data.map((d) => `${d.value}:${d.count}`).join(", "))}</desc>
     <style>
       /* stylelint-disable selector-class-pattern, keyframes-name-pattern */
       .header { 
@@ -255,9 +273,9 @@ export function distributionTemplate(input: DistributionTemplateInput) {
       ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""}
       stroke-width="2"
     />
-    <g transform="translate(20,35)"><text class="header">${title}</text></g>
+    <g transform="translate(20,35)"><text class="header">${safeTitle}</text></g>
     ${mainContent}
-  </svg>`;
+  </svg>`);
 }
 
 /** Capitalize the first letter of a string. @source */

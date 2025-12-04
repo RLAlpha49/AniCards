@@ -1,4 +1,4 @@
-import { redisClient } from "@/lib/api-utils";
+import { redisClient, apiJsonHeaders } from "@/lib/api-utils";
 import type { Redis as UpstashRedis } from "@upstash/redis";
 import { safeParse } from "@/lib/utils";
 
@@ -17,7 +17,10 @@ function checkCronAuthorization(request: Request): Response | null {
       console.error(
         "🔒 [Data Validation Check] Unauthorized: Invalid Cron secret",
       );
-      return new Response("Unauthorized", { status: 401 });
+      return new Response("Unauthorized", {
+        status: 401,
+        headers: apiJsonHeaders(request),
+      });
     }
   } else {
     console.warn(
@@ -66,19 +69,6 @@ function validateUserRecord(
 const CARD_STRING_PROPERTIES: Array<[string, (idx: number) => string]> = [
   ["cardName", (idx) => `cards[${idx}].cardName is missing or not a string`],
   ["variation", (idx) => `cards[${idx}].variation is missing or not a string`],
-  [
-    "titleColor",
-    (idx) => `cards[${idx}].titleColor is missing or not a string`,
-  ],
-  [
-    "backgroundColor",
-    (idx) => `cards[${idx}].backgroundColor is missing or not a string`,
-  ],
-  ["textColor", (idx) => `cards[${idx}].textColor is missing or not a string`],
-  [
-    "circleColor",
-    (idx) => `cards[${idx}].circleColor is missing or not a string`,
-  ],
 ];
 
 /**
@@ -95,6 +85,31 @@ function validateCardStringProps(card: Record<string, unknown>, index: number) {
       issues.push(messageFn(index));
     }
   }
+  return issues;
+}
+
+/**
+ * Validates color properties for a card record. Color fields are required
+ * only when no named colorPreset is present or when colorPreset=="custom".
+ */
+function validateCardColorProps(card: Record<string, unknown>, index: number) {
+  const issues: string[] = [];
+  const rawPreset = card["colorPreset"];
+  const preset =
+    typeof rawPreset === "string" && rawPreset.trim().length > 0
+      ? rawPreset
+      : undefined;
+  const requireColors = preset === undefined || preset === "custom";
+  if (!requireColors) return issues;
+
+  if (typeof card.titleColor !== "string")
+    issues.push(`cards[${index}].titleColor is missing or not a string`);
+  if (typeof card.backgroundColor !== "string")
+    issues.push(`cards[${index}].backgroundColor is missing or not a string`);
+  if (typeof card.textColor !== "string")
+    issues.push(`cards[${index}].textColor is missing or not a string`);
+  if (typeof card.circleColor !== "string")
+    issues.push(`cards[${index}].circleColor is missing or not a string`);
   return issues;
 }
 
@@ -140,6 +155,7 @@ function validateCardsRecord(
 
       const cardSpecificIssues = [
         ...validateCardStringProps(card, index),
+        ...validateCardColorProps(card, index),
         ...validateCardBorderColor(card, index),
       ];
       if (cardSpecificIssues.length > 0) {
@@ -437,7 +453,7 @@ export async function POST(request: Request) {
 
     return new Response(JSON.stringify(report), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: apiJsonHeaders(request),
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
@@ -445,6 +461,9 @@ export async function POST(request: Request) {
     if (error.stack) {
       console.error(`💥 [Data Validation Check] Stack Trace: ${error.stack}`);
     }
-    return new Response("Data validation check failed", { status: 500 });
+    return new Response("Data validation check failed", {
+      status: 500,
+      headers: apiJsonHeaders(request),
+    });
   }
 }

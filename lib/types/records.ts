@@ -192,17 +192,20 @@ export interface UserRecord {
 
 /** Stored card configuration shape persisted in user-card records. @source */
 export interface StoredCardConfig {
-  variation: string;
   // A unique name identifier for the card (used for picking the right template)
   cardName: string;
-  // Color for the title in the card template.
-  titleColor: string;
-  // Background color for the card.
-  backgroundColor: string;
-  // Color for the text.
-  textColor: string;
-  // Circle color, for any circular elements in the card.
-  circleColor: string;
+  // The variation of the card (e.g., "default", "compact", "detailed")
+  variation: string;
+  // Color preset name used for this card ("custom" if colors were manually chosen)
+  colorPreset?: string;
+  // Color for the title in the card template (optional when using a named preset).
+  titleColor?: string;
+  // Background color for the card (optional when using a named preset).
+  backgroundColor?: string;
+  // Color for the text (optional when using a named preset).
+  textColor?: string;
+  // Circle color, for any circular elements in the card (optional when using a named preset).
+  circleColor?: string;
   // Optional border color for the card background.
   borderColor?: string;
   // Optional border radius for the card background (applies when border is enabled).

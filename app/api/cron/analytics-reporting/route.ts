@@ -1,4 +1,4 @@
-import { redisClient } from "@/lib/api-utils";
+import { redisClient, apiJsonHeaders } from "@/lib/api-utils";
 import type { Redis as UpstashRedis } from "@upstash/redis";
 import { safeParse } from "@/lib/utils";
 
@@ -17,7 +17,10 @@ function checkCronAuthorization(request: Request): Response | null {
       console.error(
         "🔒 [Analytics & Reporting] Unauthorized: Invalid Cron secret",
       );
-      return new Response("Unauthorized", { status: 401 });
+      return new Response("Unauthorized", {
+        status: 401,
+        headers: apiJsonHeaders(request),
+      });
     }
   } else {
     console.warn(
@@ -156,7 +159,7 @@ export async function POST(request: Request) {
 
     return new Response(JSON.stringify(report), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: apiJsonHeaders(request),
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
@@ -164,6 +167,9 @@ export async function POST(request: Request) {
     if (error.stack) {
       console.error(`💥 [Analytics & Reporting] Stack Trace: ${error.stack}`);
     }
-    return new Response("Analytics and reporting job failed", { status: 500 });
+    return new Response("Analytics and reporting job failed", {
+      status: 500,
+      headers: apiJsonHeaders(request),
+    });
   }
 }

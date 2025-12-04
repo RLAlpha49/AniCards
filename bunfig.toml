@@ -1,0 +1,3 @@
+[test]
+root = "."
+preload = ["./app/api/__setup__.test.ts"]

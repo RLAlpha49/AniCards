@@ -4,6 +4,8 @@
  * @returns Response summarizing which endpoints succeeded or failed.
  * @source
  */
+import { apiJsonHeaders } from "@/lib/api-utils";
+
 export async function POST(request: Request) {
   // Check for the required cron secret
   const CRON_SECRET = process.env.CRON_SECRET;
@@ -12,7 +14,10 @@ export async function POST(request: Request) {
   if (CRON_SECRET) {
     if (cronSecretHeader !== CRON_SECRET) {
       console.error("🔒 [Uptime Monitor] Unauthorized: Invalid Cron secret");
-      return new Response("Unauthorized", { status: 401 });
+      return new Response("Unauthorized", {
+        status: 401,
+        headers: apiJsonHeaders(request),
+      });
     }
   } else {
     console.warn(
@@ -97,6 +102,6 @@ export async function POST(request: Request) {
   console.log(`🛠️ [Uptime Monitor] ${summary}`);
   return new Response(JSON.stringify({ summary, details: results }), {
     status: 200,
-    headers: { "Content-Type": "application/json" },
+    headers: apiJsonHeaders(request),
   });
 }

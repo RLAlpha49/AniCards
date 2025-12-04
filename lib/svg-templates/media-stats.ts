@@ -1,8 +1,13 @@
 import { AnimeStats, MangaStats, ColorValue } from "@/lib/types/card";
+import type { TrustedSVG } from "@/lib/types/svg";
+
 import {
   calculateDynamicFontSize,
   processColorsForSVG,
   getCardBorderRadius,
+  escapeForXml,
+  markTrustedSvg,
+  toFiniteNumber,
 } from "../utils";
 
 /** Media type used by the media stats templates — either anime or manga. @source */
@@ -25,14 +30,18 @@ function renderCircle(
   cy: number,
   radius: number,
   strokeColor: string,
-  scaledDasharray: string,
-  scaledDashoffset: string,
+  scaledDasharray?: string | null,
+  scaledDashoffset?: string | null,
   strokeWidth: number = 6,
 ): string {
   return `
     <circle class="rank-circle-rim" cx="${cx}" cy="${cy}" r="${radius}" fill="none" stroke="${strokeColor}" stroke-opacity="0.2" stroke-width="${strokeWidth}"></circle>
     <g transform="rotate(-90 ${cx} ${cy})">
-      <circle class="rank-circle" cx="${cx}" cy="${cy}" r="${radius}" stroke-width="${strokeWidth}" stroke-dasharray="${scaledDasharray}" stroke-dashoffset="${scaledDashoffset}"></circle>
+      <circle class="rank-circle" cx="${cx}" cy="${cy}" r="${radius}" stroke-width="${strokeWidth}" ${
+        scaledDasharray ? `stroke-dasharray="${scaledDasharray}"` : ""
+      } ${
+        scaledDashoffset ? `stroke-dashoffset="${scaledDashoffset}"` : ""
+      }></circle>
     </g>
   `;
 }
@@ -118,8 +127,8 @@ function getVariantContent(
     };
   },
   dims: { w: number; h: number },
-  scaledDasharray: string,
-  scaledDashoffset: string,
+  scaledDasharray: string | null,
+  scaledDashoffset: string | null,
   resolvedColors: Record<string, string>,
 ): string {
   if (data.variant === "vertical") {
@@ -231,7 +240,7 @@ export const mediaStatsTemplate = (data: {
     dasharray: string;
     dashoffset: string;
   };
-}) => {
+}): TrustedSVG => {
   // Process colors for gradient support
   const { gradientDefs, resolvedColors } = processColorsForSVG(
     {
@@ -275,6 +284,13 @@ export const mediaStatsTemplate = (data: {
     },
   }[data.mediaType];
 
+  const titleText = String(config.title);
+  const safeTitle = escapeForXml(titleText);
+  const safeMainStatLabel = escapeForXml(String(config.mainStat.label));
+  const safeSecondaryStatLabel = escapeForXml(
+    String(config.mainStat.secondary.label),
+  );
+
   // Dimensions per variant
   const dims = (() => {
     switch (data.variant) {
@@ -305,19 +321,50 @@ export const mediaStatsTemplate = (data: {
   // Scale dasharray & dashoffset relative to base radius 40 to avoid overfill on smaller circles
   const baseRadius = 40;
   const scale = circleRadius / baseRadius;
-  const originalDasharray =
-    Number.parseFloat(String(data.stats.dasharray)) ?? 0;
-  const originalDashoffset =
-    Number.parseFloat(String(data.stats.dashoffset)) ?? 0;
-  const scaledDasharray = Number.isFinite(originalDasharray)
+  const originalDasharray = toFiniteNumber(data.stats.dasharray, {
+    label: "dasharray",
+  });
+  const originalDashoffset = toFiniteNumber(data.stats.dashoffset, {
+    label: "dashoffset",
+  });
+  const hasValidDash =
+    originalDasharray !== null && originalDashoffset !== null;
+  const scaledDasharray = hasValidDash
     ? (originalDasharray * scale).toFixed(2)
-    : (0 * scale).toFixed(2);
-  const scaledDashoffset = Number.isFinite(originalDashoffset)
+    : null;
+  const scaledDashoffset = hasValidDash
     ? (originalDashoffset * scale).toFixed(2)
-    : (0 * scale).toFixed(2);
+    : null;
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);
+  const rankCircleStyle = hasValidDash
+    ? `
+    .rank-circle {
+      stroke-dasharray: ${scaledDasharray};
+      stroke: ${resolvedColors.circleColor};
+      fill: none;
+      stroke-width: 6;
+      stroke-linecap: round;
+      opacity: 0.8;
+      animation: rankAnimation 1s forwards ease-in-out;
+    }
 
-  return `
+    @keyframes rankAnimation {
+      from { stroke-dashoffset: ${scaledDasharray}; }
+      to { stroke-dashoffset: ${scaledDashoffset}; }
+    }
+  `
+    : `
+    .rank-circle {
+      stroke: ${resolvedColors.circleColor};
+      fill: none;
+      stroke-width: 6;
+      stroke-linecap: round;
+      opacity: 0.5;
+      animation: none;
+    }
+  `;
+
+  return markTrustedSvg(`
 <svg
   xmlns="http://www.w3.org/2000/svg"
   width="${dims.w}"
@@ -329,19 +376,19 @@ export const mediaStatsTemplate = (data: {
   style="overflow: visible"
 >
   ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
-  <title id="title-id">${config.title}</title>
+  <title id="title-id">${safeTitle}</title>
   <desc id="desc-id">
-    Count: ${data.stats.count}, 
-    ${config.mainStat.label}: ${config.mainStat.value},
-    ${config.mainStat.secondary.label}: ${config.mainStat.secondary.value}, 
-    Mean Score: ${data.stats.meanScore},
-    Standard Deviation: ${data.stats.standardDeviation}
+    Count: ${escapeForXml(data.stats.count)}, 
+    ${safeMainStatLabel}: ${escapeForXml(config.mainStat.value)},
+    ${safeSecondaryStatLabel}: ${escapeForXml(config.mainStat.secondary.value)}, 
+    Mean Score: ${escapeForXml(data.stats.meanScore)},
+    Standard Deviation: ${escapeForXml(data.stats.standardDeviation)}
   </desc>
   <style>
     /* stylelint-disable selector-class-pattern, keyframes-name-pattern */
     .header { 
       fill: ${resolvedColors.titleColor};
-      font: 600 ${calculateDynamicFontSize(config.title)}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${calculateDynamicFontSize(titleText)}px 'Segoe UI', Ubuntu, Sans-Serif;
       animation: fadeInAnimation 0.8s ease-in-out forwards;
     }
     
@@ -365,20 +412,7 @@ export const mediaStatsTemplate = (data: {
       stroke-width: 6;
     }
 
-    .rank-circle {
-      stroke-dasharray: ${scaledDasharray};
-      stroke: ${resolvedColors.circleColor};
-      fill: none;
-      stroke-width: 6;
-      stroke-linecap: round;
-      opacity: 0.8;
-      animation: rankAnimation 1s forwards ease-in-out;
-    }
-
-    @keyframes rankAnimation {
-      from { stroke-dashoffset: ${scaledDasharray}; }
-      to { stroke-dashoffset: ${scaledDashoffset}; }
-    }
+    ${rankCircleStyle}
 
     @keyframes scaleInAnimation {
       from { transform: translate(0, 0) scale(0); }
@@ -403,11 +437,11 @@ export const mediaStatsTemplate = (data: {
   />
   <g data-testid="card-title" transform="translate(25, 35)">
     <g transform="translate(0, 0)">
-      <text x="0" y="0" class="header" data-testid="header">${config.title}</text>
+      <text x="0" y="0" class="header" data-testid="header">${safeTitle}</text>
     </g>
   </g>
   <g data-testid="main-card-body" transform="translate(0, 55)">
-    ${getVariantContent(data, config, dims, scaledDasharray, scaledDashoffset, resolvedColors)}
+      ${getVariantContent(data, config, dims, scaledDasharray, scaledDashoffset, resolvedColors)}
   </g>
-</svg>`;
+</svg>`);
 };

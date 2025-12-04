@@ -6,15 +6,147 @@ import type {
   ColorValue,
   GradientDefinition,
 } from "@/lib/types/card";
+import type { TrustedSVG } from "@/lib/types/svg";
 import JSZip from "jszip";
-
-// Utility functions for common application needs.
-// These helpers assist in merging class names, performing clipboard operations,
-// converting SVG to various image formats, calculating dynamic font sizes, formatting bytes, and safely parsing JSON data.
 
 export const DEFAULT_CARD_BORDER_RADIUS = 8;
 const BORDER_RADIUS_MIN = 0;
-const BORDER_RADIUS_MAX = 50;
+const BORDER_RADIUS_MAX = 100;
+
+const DEFAULT_TITLE_COLOR = "#fe428e";
+const DEFAULT_BACKGROUND_COLOR = "#141321";
+const DEFAULT_TEXT_COLOR = "#a9fef7";
+const DEFAULT_CIRCLE_COLOR = "#fe428e";
+
+const _borderRadiusPromiseCache = new Map<string, Promise<number | null>>();
+
+type GlobalWithCache = typeof globalThis & {
+  __ANICARDS__borderRadiusCache?: Map<string, Promise<number | null>>;
+};
+
+const _envApiBase =
+  typeof process === "undefined" ? undefined : process.env?.NEXT_PUBLIC_API_URL;
+
+function resolveApiBase(url?: string): string {
+  if (!url) return "https://api.anicards.alpha49.com";
+  try {
+    const parsed = new URL(url);
+    if (!parsed.hostname.startsWith("api.")) {
+      parsed.hostname = `api.${parsed.hostname}`;
+    }
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return "https://api.anicards.alpha49.com";
+  }
+}
+
+export const API_BASE: string = resolveApiBase(_envApiBase);
+
+/**
+ * Build an absolute URL targeting the public API base.
+ *
+ * This helper resolves the configured `NEXT_PUBLIC_API_URL` (defaulting to
+ * the public API host) and appends the provided path to produce an absolute
+ * URL. Use this when you explicitly want to target the public API host
+ * (e.g. a separate API origin or CDN-backed endpoint).
+ *
+ * If you intend to call in-app Next.js API routes (handled by this application),
+ * prefer a relative path (for example "/api/get-user?userId=...") to avoid an extra
+ * network hop or cross-origin call during local development.
+ */
+export function buildApiUrl(path: string): string {
+  if (!path) path = "";
+  if (/^https?:\/\//i.test(path)) return path;
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE}${normalized}`;
+}
+
+/**
+ * Extracts a card border radius from a remote SVG by reading a lightweight
+ * header or, optionally, parsing the SVG contents for the <rect>'s rx
+ * attribute. Results are memoized by absolute URL to avoid duplicate
+ * requests across instances.
+ *
+ * @param svgUrl - The SVG URL to inspect (absolute or relative).
+ * @param opts - Options controlling fallback behavior. `allowFallback`
+ *               enables the full GET + parsing fallback when `true`.
+ *               Default: false (no fallback).
+ */
+export function getSvgBorderRadius(
+  svgUrl: string,
+  opts?: { allowFallback?: boolean },
+): Promise<number | null> {
+  const absoluteUrl = getAbsoluteUrl(svgUrl);
+  // Prefer a global cache (persisted across HMR) but fall back to the
+  // module-level cache otherwise.
+  const g = globalThis as GlobalWithCache;
+  const cache =
+    g.__ANICARDS__borderRadiusCache ??
+    (g.__ANICARDS__borderRadiusCache = _borderRadiusPromiseCache);
+
+  let promise = cache.get(absoluteUrl);
+  if (!promise) {
+    promise = (async () => {
+      const allowFallback = opts?.allowFallback ?? false;
+      let isFirstPartyCardEndpoint = false;
+      try {
+        const hasWindow = globalThis.window !== undefined;
+        const baseOrigin = hasWindow
+          ? globalThis.window.location.origin
+          : "http://localhost";
+        const parsed = new URL(absoluteUrl, baseOrigin);
+        const pathname = (parsed.pathname || "").toLowerCase();
+        const parsedHost = (parsed.hostname || "").toLowerCase();
+        const apiHost = (() => {
+          try {
+            return new URL(API_BASE).hostname.toLowerCase();
+          } catch {
+            return "";
+          }
+        })();
+
+        if (
+          pathname.startsWith("/api/card") ||
+          parsedHost === apiHost ||
+          parsedHost.startsWith("api.")
+        ) {
+          isFirstPartyCardEndpoint = true;
+        }
+      } catch {}
+      try {
+        const headRes = await fetch(absoluteUrl, { method: "HEAD" });
+        if (headRes.ok) {
+          const headerVal = headRes.headers.get("x-card-border-radius");
+          if (headerVal) {
+            const parsedFromHeader = Number.parseFloat(headerVal);
+            if (Number.isFinite(parsedFromHeader))
+              return clampBorderRadius(parsedFromHeader);
+          }
+        }
+      } catch {}
+
+      if (!allowFallback || isFirstPartyCardEndpoint) return null;
+      try {
+        const res = await fetch(absoluteUrl);
+        if (!res.ok) return null;
+        const text = await res.text();
+        const match = new RegExp(
+          /<rect[^>]*data-testid=["']card-bg["'][^>]*rx=["'](\d+(?:\.\d+)?)['"]/i,
+        ).exec(text);
+        if (!match) return null;
+        const parsed = Number.parseFloat(match[1]);
+        if (!Number.isFinite(parsed)) return null;
+        return clampBorderRadius(parsed);
+      } catch (err) {
+        // Remove the cached promise on error so subsequent attempts can retry.
+        cache.delete(absoluteUrl);
+        throw err;
+      }
+    })();
+    cache.set(absoluteUrl, promise);
+  }
+  return promise;
+}
 
 /** Export formats supported for image conversion. @source */
 export type ConversionFormat = "png" | "webp";
@@ -46,8 +178,6 @@ export interface BatchConversionProgress {
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
-
-// ==================== Gradient Utilities ====================
 
 /**
  * Type guard to check if a color value is a gradient definition.
@@ -172,6 +302,11 @@ function isValidGradientStop(stop: unknown): boolean {
       return false;
   }
 
+  // Validate optional id
+  if (s.id !== undefined) {
+    if (typeof s.id !== "string") return false;
+  }
+
   return true;
 }
 
@@ -239,6 +374,45 @@ export function validateColorValue(value: unknown): boolean {
   return isValidGradient(value);
 }
 
+/** Provide a human-readable reason when a color value is invalid. */
+export function getColorInvalidReason(value: unknown): string {
+  if (typeof value === "string") {
+    if (isValidHexColor(value))
+      return "hex string passed regex but failed shared validation";
+    return "invalid hex string";
+  }
+  if (isValidGradient(value))
+    return "gradient passed validation but failed shared validation";
+  return "invalid gradient definition";
+}
+
+/**
+ * Parses a color value, converting JSON strings back to gradient objects if needed.
+ * @param value - The color value (may be a string or JSON-encoded gradient).
+ * @returns The parsed color value as ColorValue.
+ * @source
+ */
+function parseColorValue(value: ColorValue | string): ColorValue | undefined {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  // Try to parse JSON-encoded gradients
+  if (value.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(value);
+      if (isGradient(parsed)) {
+        return parsed;
+      }
+    } catch {
+      // Not JSON or not a valid gradient, treat as regular string
+    }
+  }
+
+  // Return as regular color string
+  return value;
+}
+
 /**
  * Processes color values for SVG templates, generating gradient IDs and defs.
  * @param styles - Object containing color values.
@@ -259,18 +433,21 @@ export function processColorsForSVG(
   const resolvedColors: Record<string, string> = {};
 
   for (const key of colorKeys) {
-    const value = styles[key];
+    let value = styles[key];
     if (value === undefined) {
       resolvedColors[key] = "";
       continue;
     }
 
-    if (isGradient(value)) {
+    // Parse JSON-encoded gradients back to objects
+    value = parseColorValue(value);
+
+    if (value !== undefined && isGradient(value)) {
       const id = generateGradientId(key);
       gradientIds[key] = id;
       gradientDefs.push(generateGradientSVG(value, id));
       resolvedColors[key] = `url(#${id})`;
-    } else {
+    } else if (value !== undefined) {
       resolvedColors[key] = value;
     }
   }
@@ -298,7 +475,10 @@ export async function svgToPng(
   format: ConversionFormat = "png",
 ): Promise<string> {
   try {
-    const response = await fetch("/api/convert", {
+    const isClient =
+      (globalThis as unknown as { window?: unknown }).window !== undefined;
+    const convertEndpoint = isClient ? "/api/convert" : buildApiUrl("/convert");
+    const response = await fetch(convertEndpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ svgUrl, format }),
@@ -324,7 +504,9 @@ export async function svgToPng(
  * If both attempts fail, return null.
  * @source
  */
-async function parseResponsePayload(response: Response): Promise<unknown> {
+export async function parseResponsePayload(
+  response: Response,
+): Promise<unknown> {
   try {
     return await response.json();
   } catch {
@@ -342,7 +524,10 @@ async function parseResponsePayload(response: Response): Promise<unknown> {
  * If the payload contains an `error` or `message` field those are prioritized.
  * @source
  */
-function getResponseErrorMessage(response: Response, payload: unknown): string {
+export function getResponseErrorMessage(
+  response: Response,
+  payload: unknown,
+): string {
   let message = `HTTP ${response.status} ${response.statusText}`;
   if (!payload) return message;
   if (typeof payload === "object" && payload !== null) {
@@ -452,43 +637,44 @@ export function formatBytes(bytes: number, decimals = 2) {
  * If the input is not a string, it is assumed to already be parsed and is returned as-is.
  *
  * @param data - The data to parse, which may be a JSON string or an already-parsed object.
+ * @param context - Optional human-friendly label used in logs to indicate parse context.
  * @returns The parsed object of type T.
  * @throws Error if JSON.parse fails.
  * @source
  */
-export function safeParse<T>(data: unknown): T {
-  if (typeof data === "string") {
-    try {
-      // Attempt to parse the data string as JSON.
-      return JSON.parse(data);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const isProduction =
-        typeof process !== "undefined" &&
-        process.env?.NODE_ENV === "production";
+export function safeParse<T>(data: unknown, context?: string): T {
+  if (typeof data !== "string") return data as T;
+  const logParseError = (error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    const isProduction =
+      typeof process !== "undefined" && process.env?.NODE_ENV === "production";
 
-      const maxSnippet = 200;
-      const length = data.length;
-
-      if (isProduction) {
-        console.error(
-          `Failed to parse JSON: ${message}. Payload length: ${length}`,
-        );
-      } else {
-        const snippet = data.slice(0, maxSnippet);
-        const truncated = length > maxSnippet ? "..." : "";
-        console.error(
-          `Failed to parse JSON: ${message}. Payload snippet (first ${Math.min(
-            maxSnippet,
-            length,
-          )} chars, length ${length}): ${snippet}${truncated}`,
-        );
-      }
-      throw error;
+    const maxSnippet = 200;
+    const length = data.length;
+    const ctxLabel = context ? ` [${context}]` : "";
+    if (isProduction) {
+      console.error(
+        `Failed to parse JSON${ctxLabel}: ${message}. Payload length: ${length}`,
+      );
+      return;
     }
+
+    const snippet = data.slice(0, maxSnippet);
+    const truncated = length > maxSnippet ? "..." : "";
+    console.error(
+      `Failed to parse JSON${ctxLabel}: ${message}. Payload snippet (first ${Math.min(
+        maxSnippet,
+        length,
+      )} chars, length ${length}): ${snippet}${truncated}`,
+    );
+  };
+
+  try {
+    return JSON.parse(data);
+  } catch (error) {
+    logParseError(error);
+    throw error;
   }
-  // If data is not a string, return it as is.
-  return data as T;
 }
 
 /**
@@ -524,10 +710,10 @@ export function toTemplateCardConfig(
       (card as TemplateCardConfig).variation !== undefined
         ? (card as TemplateCardConfig).variation
         : defaultVariation,
-    titleColor: card.titleColor,
-    backgroundColor: card.backgroundColor,
-    textColor: card.textColor,
-    circleColor: card.circleColor,
+    titleColor: card.titleColor ?? DEFAULT_TITLE_COLOR,
+    backgroundColor: card.backgroundColor ?? DEFAULT_BACKGROUND_COLOR,
+    textColor: card.textColor ?? DEFAULT_TEXT_COLOR,
+    circleColor: card.circleColor ?? DEFAULT_CIRCLE_COLOR,
     borderColor: "borderColor" in card ? card.borderColor : undefined,
     useStatusColors:
       "useStatusColors" in card ? card.useStatusColors : undefined,
@@ -536,17 +722,17 @@ export function toTemplateCardConfig(
 
 /**
  * Extracts the style subset from a stored or template card config so templates
- * receive only the style values they need.
+ * receive only the style values they need. Provides default colors when undefined.
  * @source
  */
 export function extractStyles(
   cardConfig: StoredCardConfig | TemplateCardConfig,
 ) {
   return {
-    titleColor: cardConfig.titleColor,
-    backgroundColor: cardConfig.backgroundColor,
-    textColor: cardConfig.textColor,
-    circleColor: cardConfig.circleColor,
+    titleColor: cardConfig.titleColor ?? DEFAULT_TITLE_COLOR,
+    backgroundColor: cardConfig.backgroundColor ?? DEFAULT_BACKGROUND_COLOR,
+    textColor: cardConfig.textColor ?? DEFAULT_TEXT_COLOR,
+    circleColor: cardConfig.circleColor ?? DEFAULT_CIRCLE_COLOR,
     borderColor: cardConfig.borderColor,
     borderRadius: cardConfig.borderRadius,
   };
@@ -597,6 +783,115 @@ export function getCardBorderRadius(
     return clampBorderRadius(borderRadius);
   }
   return defaultRadius;
+}
+
+/**
+ * Escape a string for safe embedding inside XML/SVG text nodes or attributes.
+ * This function escapes the five XML special characters and normalizes inputs
+ * to a string. It is intentionally small and deterministic — templates should
+ * use the original unescaped values for measurement (e.g. dynamic font sizing)
+ * and only embed escaped values in the final markup.
+ * @param value - The potentially unsafe string value.
+ * @returns An escaped string safe to include inside an XML document.
+ * @source
+ */
+export function escapeForXml(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const s = String(value);
+  return s
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+/**
+ * Safely coerce an unknown value into a finite number.
+ * Returns a finite number when the input is a number or a numeric string,
+ * otherwise returns the provided fallback (default: null). In non-production
+ * environments, an informative warning will be logged to make it easier to
+ * detect malformed server data during development and tests.
+ *
+ * Notes:
+ * - Unlike Number.parseFloat(String(...)), this helper is stricter and will
+ *   only accept strings that are fully numeric (no trailing characters).
+ * - This function helps avoid silently treating malformed values as 0.
+ *
+ * @param value - Unknown value to coerce to a finite number
+ * @param opts - Optional configuration: label for logs, explicit fallback
+ */
+export function toFiniteNumber(
+  value: unknown,
+  opts?: { label?: string; fallback?: number | null; log?: boolean },
+): number | null {
+  const label = opts?.label ? `${opts.label} ` : "";
+  const fallback = opts?.fallback ?? null;
+  const isProduction =
+    typeof process !== "undefined" && process.env?.NODE_ENV === "production";
+  const shouldLog = opts?.log ?? !isProduction;
+
+  const warn = (message: string) => {
+    if (!shouldLog) return;
+    // Keep the message small and deterministic for tests and dev debugging.
+    console.warn(`[toFiniteNumber] ${label}${message}`);
+  };
+
+  if (typeof value === "number") {
+    if (Number.isFinite(value)) return value;
+    warn(`non-finite number: ${String(value)}`);
+    return fallback;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      warn(`empty string`);
+      return fallback;
+    }
+    // Strict numeric test: only accept a full numeric string with optional exponent
+    // Examples accepted: 10, -8.5, 1e3, 3.14E-2
+    const numericRegex = /^[-+]?(?:\d+|\d*\.\d+)(?:[eE][-+]?\d+)?$/;
+    if (!numericRegex.test(trimmed)) {
+      warn(`non-numeric string: ${trimmed}`);
+      return fallback;
+    }
+    const parsed = Number.parseFloat(trimmed);
+    if (Number.isFinite(parsed)) return parsed;
+    warn(`parseFloat produced non-finite number: ${trimmed}`);
+    return fallback;
+  }
+
+  warn(`unsupported type: ${typeof value}`);
+  return fallback;
+}
+
+/**
+ * Simple runtime branding for trusted SVG strings. The return value prepends a
+ * compact marker comment to the serialized SVG. This allows client-side checks
+ * to assert that a string was produced by one of the project's templates or
+ * explicitly sanitized pipelines.
+ * NOTE: The comment itself is harmless and will not affect the rendering of
+ * the resulting SVG, but it gives us a deterministic signal at runtime.
+ * @param svg - The sanitized SVG string.
+ * @returns A marked string typed as TrustedSVG.
+ */
+export function markTrustedSvg(svg: string): TrustedSVG {
+  const prefix = "<!--ANICARDS_TRUSTED_SVG-->";
+  return `${prefix}${svg}` as TrustedSVG;
+}
+
+/**
+ * Check whether the provided string is a marked Trusted SVG.
+ * This is a lightweight runtime guard used by client components that render
+ * pre-sanitized SVG markup to ensure the string passed to
+ * `dangerouslySetInnerHTML` came from one of our trusted template helpers.
+ * @param svg - The string to check.
+ * @returns True if the string is marked as trusted.
+ */
+export function isTrustedSvgString(svg: unknown): boolean {
+  if (typeof svg !== "string") return false;
+  return svg.startsWith("<!--ANICARDS_TRUSTED_SVG-->");
 }
 
 /** Successful result for a single conversion in a batch. @source */
