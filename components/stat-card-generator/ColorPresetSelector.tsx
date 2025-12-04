@@ -1,3 +1,4 @@
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { Label } from "@/components/ui/Label";
@@ -22,7 +23,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/Tooltip";
-import { useEffect, useMemo, useRef, useState } from "react";
 import type { ColorValue } from "@/lib/types/card";
 
 /**
@@ -79,11 +79,13 @@ function colorToCssBackground(color: ColorValue): string {
  * @returns A React element showing available color presets.
  * @source
  */
-export function ColorPresetSelector({
-  selectedPreset,
-  presets,
-  onPresetChange,
-}: Readonly<ColorPresetSelectorProps>) {
+function ColorPresetSelectorComponent(
+  {
+    selectedPreset,
+    presets,
+    onPresetChange,
+  }: Readonly<ColorPresetSelectorProps>
+) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [colorTypeFilter, setColorTypeFilter] = useState<
     "all" | "solid" | "gradient"
@@ -484,3 +486,9 @@ export function ColorPresetSelector({
     </div>
   );
 }
+
+/**
+ * Memoized version of ColorPresetSelector that prevents unnecessary re-renders
+ * when the selectedPreset, presets, and onPresetChange props haven't changed.
+ */
+export const ColorPresetSelector = React.memo(ColorPresetSelectorComponent);

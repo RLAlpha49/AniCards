@@ -39,6 +39,7 @@ export const LivePreview = React.memo(function LivePreview({
       "LivePreview: `previewSVG` must be a TrustedSVG. Use a template or markTrustedSvg() to produce a trusted value.",
     );
   }
+
   return (
     <div className={cn("flex flex-col items-center", className)}>
       {/* Preview Container */}

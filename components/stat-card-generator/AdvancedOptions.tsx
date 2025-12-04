@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { motion } from "framer-motion";
 import { Label } from "@/components/ui/Label";
 import { Switch } from "@/components/ui/Switch";
@@ -160,7 +161,7 @@ function OptionListGroup({
   );
 }
 
-export function AdvancedOptions() {
+function AdvancedOptionsComponent() {
   const {
     useAnimeStatusColors,
     useMangaStatusColors,
@@ -282,3 +283,9 @@ export function AdvancedOptions() {
     </div>
   );
 }
+
+/**
+ * Memoized version of AdvancedOptions that prevents unnecessary re-renders
+ * when the context values for status colors and pie percentages haven't changed.
+ */
+export const AdvancedOptions = React.memo(AdvancedOptionsComponent);
