@@ -1,43 +1,40 @@
-/** Mocked rate limiter response resolver defaulting to success. @source */
-let mockLimit = jest.fn().mockResolvedValue({ success: true });
-/** Mocked Redis set function used to capture saved values in tests. @source */
-let mockRedisSet = jest.fn();
-/** Mocked Redis get function that simulates existing records. @source */
-let mockRedisGet = jest.fn();
-/** Mocked Redis incr function for analytics. @source */
-let mockRedisIncr = jest.fn(async () => 1);
-
-/** Create a named redis mock for store-users tests */
-function createRedisFromEnvMock() {
-  return {
-    set: mockRedisSet,
-    get: mockRedisGet,
-    incr: mockRedisIncr,
-  };
-}
-
-jest.mock("@upstash/redis", () => ({
-  Redis: {
-    fromEnv: jest.fn(createRedisFromEnvMock),
-  },
-}));
-
-jest.mock("@upstash/ratelimit", () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const RatelimitMock: any = jest.fn().mockImplementation(() => ({
-    limit: mockLimit,
-  }));
-  RatelimitMock.slidingWindow = jest.fn().mockReturnValue("fake-limiter");
-  return {
-    Ratelimit: RatelimitMock,
-  };
-});
+import {
+  afterEach,
+  afterAll,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  mock,
+} from "bun:test";
+import {
+  sharedRedisMockSet,
+  sharedRedisMockGet,
+  sharedRedisMockIncr,
+  sharedRatelimitMockLimit,
+} from "../__setup__.test";
 
 // Set the app URL for same-origin validation testing
+const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
 process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
 
-// Import the module under test after the mocks above are defined.
-import { POST, OPTIONS } from "./route";
+let POST: typeof import("./route").POST;
+let OPTIONS: typeof import("./route").OPTIONS;
+
+beforeAll(async () => {
+  const module = await import("./route");
+  POST = module.POST;
+  OPTIONS = module.OPTIONS;
+});
+
+afterAll(() => {
+  // Restore the original app URL
+  if (originalAppUrl === undefined) {
+    delete process.env.NEXT_PUBLIC_APP_URL;
+  } else {
+    process.env.NEXT_PUBLIC_APP_URL = originalAppUrl;
+  }
+});
 
 /**
  * Creates a POST request for the store-users API with the given payload and optional origin header.
@@ -67,12 +64,12 @@ async function getJsonResponse(res: Response) {
 
 describe("Store Users API", () => {
   afterEach(() => {
-    jest.clearAllMocks();
+    mock.clearAllMocks();
   });
 
   describe("POST - Request Validation & Security", () => {
     it("should return 429 error if rate limit is exceeded", async () => {
-      mockLimit.mockResolvedValueOnce({ success: false });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: false });
 
       const reqBody = { userId: 1, username: "user1", stats: { score: 10 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -81,7 +78,7 @@ describe("Store Users API", () => {
       expect(res.status).toBe(429);
       const data = await getJsonResponse(res);
       expect(data.error).toBe("Too many requests");
-      expect(mockRedisIncr).toHaveBeenCalledWith(
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_users:failed_requests",
       );
     });
@@ -90,7 +87,7 @@ describe("Store Users API", () => {
       const originalEnv = process.env.NODE_ENV;
       (process.env as unknown as { NODE_ENV?: string }).NODE_ENV = "production";
 
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
 
       const reqBody = { userId: 1, username: "user1", stats: { score: 10 } };
       const req = createTestRequest(reqBody, "http://different-origin.com");
@@ -99,7 +96,7 @@ describe("Store Users API", () => {
       expect(res.status).toBe(401);
       const data = await getJsonResponse(res);
       expect(data.error).toBe("Unauthorized");
-      expect(mockRedisIncr).toHaveBeenCalledWith(
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_users:failed_requests",
       );
 
@@ -107,7 +104,7 @@ describe("Store Users API", () => {
     });
 
     it("should reject request with missing userId", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
 
       const reqBody = { username: "user1", stats: { score: 10 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -116,13 +113,13 @@ describe("Store Users API", () => {
       expect(res.status).toBe(400);
       const data = await getJsonResponse(res);
       expect(data.error).toBe("Invalid data");
-      expect(mockRedisIncr).toHaveBeenCalledWith(
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_users:failed_requests",
       );
     });
 
     it("should reject request with null userId", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
 
       const reqBody = { userId: null, username: "user1", stats: { score: 10 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -134,7 +131,7 @@ describe("Store Users API", () => {
     });
 
     it("should reject request with non-integer userId", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
 
       const reqBody = {
         userId: "abc",
@@ -150,7 +147,7 @@ describe("Store Users API", () => {
     });
 
     it("should reject request with zero or negative userId", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
 
       const reqBody = { userId: 0, username: "user1", stats: { score: 10 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -162,7 +159,7 @@ describe("Store Users API", () => {
     });
 
     it("should reject request with missing stats object", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
 
       const reqBody = { userId: 1, username: "user1" };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -174,7 +171,7 @@ describe("Store Users API", () => {
     });
 
     it("should reject request with null stats", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
 
       const reqBody = { userId: 1, username: "user1", stats: null };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -186,7 +183,7 @@ describe("Store Users API", () => {
     });
 
     it("should reject request with non-object stats", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
 
       const reqBody = { userId: 1, username: "user1", stats: "invalid" };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -198,7 +195,7 @@ describe("Store Users API", () => {
     });
 
     it("should reject request with invalid username format (empty after trim)", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
 
       const reqBody = { userId: 1, username: "   ", stats: { score: 10 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -210,7 +207,7 @@ describe("Store Users API", () => {
     });
 
     it("should reject request with username exceeding max length (100 chars)", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
 
       const longUsername = "a".repeat(101);
       const reqBody = {
@@ -227,7 +224,7 @@ describe("Store Users API", () => {
     });
 
     it("should reject request with invalid username characters", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
 
       const reqBody = {
         userId: 1,
@@ -243,7 +240,7 @@ describe("Store Users API", () => {
     });
 
     it("should reject malformed JSON body", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
 
       const req = new Request("http://localhost/api/store-users", {
         method: "POST",
@@ -264,10 +261,10 @@ describe("Store Users API", () => {
 
   describe("POST - Successful User Creation & Updates", () => {
     it("should successfully store new user with username", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
-      mockRedisGet.mockResolvedValueOnce(null);
-      mockRedisSet.mockResolvedValueOnce(true);
-      mockRedisSet.mockResolvedValueOnce(true);
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockSet.mockResolvedValueOnce(true);
+      sharedRedisMockSet.mockResolvedValueOnce(true);
 
       const reqBody = { userId: 1, username: "UserOne", stats: { score: 10 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -278,10 +275,10 @@ describe("Store Users API", () => {
       expect(data.success).toBe(true);
       expect(data.userId).toBe(1);
 
-      expect(mockRedisGet).toHaveBeenCalledWith("user:1");
-      expect(mockRedisSet).toHaveBeenCalledTimes(2);
+      expect(sharedRedisMockGet).toHaveBeenCalledWith("user:1");
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(2);
 
-      const storedValue = JSON.parse(mockRedisSet.mock.calls[0][1]);
+      const storedValue = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(storedValue.userId).toBe(1);
       expect(storedValue.username).toBe("UserOne");
       expect(storedValue.stats).toEqual({ score: 10 });
@@ -289,18 +286,18 @@ describe("Store Users API", () => {
       expect(storedValue).toHaveProperty("createdAt");
       expect(storedValue).toHaveProperty("updatedAt");
 
-      expect(mockRedisSet.mock.calls[1][0]).toBe("username:userone");
-      expect(mockRedisSet.mock.calls[1][1]).toBe("1");
+      expect(sharedRedisMockSet.mock.calls[1][0]).toBe("username:userone");
+      expect(sharedRedisMockSet.mock.calls[1][1]).toBe("1");
 
-      expect(mockRedisIncr).toHaveBeenCalledWith(
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_users:successful_requests",
       );
     });
 
     it("should successfully store new user without username", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
-      mockRedisGet.mockResolvedValueOnce(null);
-      mockRedisSet.mockResolvedValueOnce(true);
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockSet.mockResolvedValueOnce(true);
 
       const reqBody = { userId: 2, stats: { score: 20 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -311,17 +308,17 @@ describe("Store Users API", () => {
       expect(data.success).toBe(true);
       expect(data.userId).toBe(2);
 
-      expect(mockRedisSet).toHaveBeenCalledTimes(1);
-      expect(mockRedisSet.mock.calls[0][0]).toBe("user:2");
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(1);
+      expect(sharedRedisMockSet.mock.calls[0][0]).toBe("user:2");
 
-      const storedValue = JSON.parse(mockRedisSet.mock.calls[0][1]);
+      const storedValue = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(storedValue.username).toBeUndefined();
     });
 
     it("should accept null username explicitly", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
-      mockRedisGet.mockResolvedValueOnce(null);
-      mockRedisSet.mockResolvedValueOnce(true);
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockSet.mockResolvedValueOnce(true);
 
       const reqBody = { userId: 3, username: null, stats: { score: 30 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -330,14 +327,14 @@ describe("Store Users API", () => {
       expect(res.status).toBe(200);
       const data = await getJsonResponse(res);
       expect(data.success).toBe(true);
-      expect(mockRedisSet).toHaveBeenCalledTimes(1);
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(1);
     });
 
     it("should normalize username (trim and lowercase)", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
-      mockRedisGet.mockResolvedValueOnce(null);
-      mockRedisSet.mockResolvedValueOnce(true);
-      mockRedisSet.mockResolvedValueOnce(true);
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockSet.mockResolvedValueOnce(true);
+      sharedRedisMockSet.mockResolvedValueOnce(true);
 
       const reqBody = {
         userId: 4,
@@ -349,12 +346,12 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      expect(mockRedisSet.mock.calls[1][0]).toBe("username:username");
-      expect(mockRedisSet.mock.calls[1][1]).toBe("4");
+      expect(sharedRedisMockSet.mock.calls[1][0]).toBe("username:username");
+      expect(sharedRedisMockSet.mock.calls[1][1]).toBe("4");
     });
 
     it("should update existing user and preserve createdAt", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const existingRecord = {
         userId: 5,
         username: "OldName",
@@ -363,9 +360,9 @@ describe("Store Users API", () => {
         createdAt: "2022-01-01T00:00:00.000Z",
         updatedAt: "2022-01-01T00:00:00.000Z",
       };
-      mockRedisGet.mockResolvedValueOnce(JSON.stringify(existingRecord));
-      mockRedisSet.mockResolvedValueOnce(true);
-      mockRedisSet.mockResolvedValueOnce(true);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(existingRecord));
+      sharedRedisMockSet.mockResolvedValueOnce(true);
+      sharedRedisMockSet.mockResolvedValueOnce(true);
 
       const reqBody = { userId: 5, username: "NewName", stats: { score: 100 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -373,7 +370,7 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      const storedValue = JSON.parse(mockRedisSet.mock.calls[0][1]);
+      const storedValue = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(storedValue.createdAt).toBe("2022-01-01T00:00:00.000Z");
       expect(storedValue.updatedAt).not.toBe("2022-01-01T00:00:00.000Z");
       expect(storedValue.username).toBe("NewName");
@@ -381,9 +378,9 @@ describe("Store Users API", () => {
     });
 
     it("should handle complex stats objects", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
-      mockRedisGet.mockResolvedValueOnce(null);
-      mockRedisSet.mockResolvedValueOnce(true);
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockSet.mockResolvedValueOnce(true);
 
       const complexStats = {
         animeCount: 150,
@@ -398,12 +395,12 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      const storedValue = JSON.parse(mockRedisSet.mock.calls[0][1]);
+      const storedValue = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(storedValue.stats).toEqual(complexStats);
     });
 
     it("should update existing user without username when not provided", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const existingRecord = {
         userId: 7,
         username: "ExistingName",
@@ -412,8 +409,8 @@ describe("Store Users API", () => {
         createdAt: "2022-01-01T00:00:00.000Z",
         updatedAt: "2022-01-01T00:00:00.000Z",
       };
-      mockRedisGet.mockResolvedValueOnce(JSON.stringify(existingRecord));
-      mockRedisSet.mockResolvedValueOnce(true);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(existingRecord));
+      sharedRedisMockSet.mockResolvedValueOnce(true);
 
       const reqBody = { userId: 7, stats: { score: 50 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -421,13 +418,13 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      expect(mockRedisSet).toHaveBeenCalledTimes(1);
-      const storedValue = JSON.parse(mockRedisSet.mock.calls[0][1]);
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(1);
+      const storedValue = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(storedValue.username).toBeUndefined();
     });
 
     it("should replace username when changing from existing name to new name", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const existingRecord = {
         userId: 8,
         username: "OldName",
@@ -436,9 +433,9 @@ describe("Store Users API", () => {
         createdAt: "2022-01-01T00:00:00.000Z",
         updatedAt: "2022-01-01T00:00:00.000Z",
       };
-      mockRedisGet.mockResolvedValueOnce(JSON.stringify(existingRecord));
-      mockRedisSet.mockResolvedValueOnce(true);
-      mockRedisSet.mockResolvedValueOnce(true);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(existingRecord));
+      sharedRedisMockSet.mockResolvedValueOnce(true);
+      sharedRedisMockSet.mockResolvedValueOnce(true);
 
       const reqBody = { userId: 8, username: "NewName", stats: { score: 50 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -446,17 +443,17 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      expect(mockRedisSet).toHaveBeenCalledTimes(2);
-      expect(mockRedisSet.mock.calls[1][0]).toBe("username:newname");
-      expect(mockRedisSet.mock.calls[1][1]).toBe("8");
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(2);
+      expect(sharedRedisMockSet.mock.calls[1][0]).toBe("username:newname");
+      expect(sharedRedisMockSet.mock.calls[1][1]).toBe("8");
     });
   });
 
   describe("POST - Timestamp Handling", () => {
     it("should include updatedAt timestamp in stored record", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
-      mockRedisGet.mockResolvedValueOnce(null);
-      mockRedisSet.mockResolvedValueOnce(true);
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockSet.mockResolvedValueOnce(true);
 
       const beforeTime = new Date();
       const reqBody = { userId: 9, username: "user9", stats: { score: 10 } };
@@ -466,7 +463,7 @@ describe("Store Users API", () => {
       const afterTime = new Date();
 
       expect(res.status).toBe(200);
-      const stored = JSON.parse(mockRedisSet.mock.calls[0][1]);
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       const timestamp = new Date(stored.updatedAt);
 
       expect(timestamp.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());
@@ -474,9 +471,9 @@ describe("Store Users API", () => {
     });
 
     it("should generate new createdAt for new user records", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
-      mockRedisGet.mockResolvedValueOnce(null);
-      mockRedisSet.mockResolvedValueOnce(true);
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockSet.mockResolvedValueOnce(true);
 
       const beforeTime = new Date();
       const reqBody = { userId: 10, username: "user10", stats: { score: 10 } };
@@ -486,7 +483,7 @@ describe("Store Users API", () => {
       const afterTime = new Date();
 
       expect(res.status).toBe(200);
-      const stored = JSON.parse(mockRedisSet.mock.calls[0][1]);
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       const createdAt = new Date(stored.createdAt);
 
       expect(createdAt.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());
@@ -496,9 +493,9 @@ describe("Store Users API", () => {
 
   describe("POST - Error Handling", () => {
     it("should return 500 error if redis storage fails", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
-      mockRedisGet.mockResolvedValueOnce(null);
-      mockRedisSet.mockRejectedValueOnce(new Error("Redis failure"));
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockSet.mockRejectedValueOnce(new Error("Redis failure"));
 
       const reqBody = { userId: 11, username: "user11", stats: { score: 30 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -507,14 +504,14 @@ describe("Store Users API", () => {
       expect(res.status).toBe(500);
       const data = await getJsonResponse(res);
       expect(data.error).toBe("User storage failed");
-      expect(mockRedisIncr).toHaveBeenCalledWith(
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_users:failed_requests",
       );
     });
 
     it("should return 500 error if redis get fails", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
-      mockRedisGet.mockRejectedValueOnce(new Error("Redis get failure"));
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockRejectedValueOnce(new Error("Redis get failure"));
 
       const reqBody = { userId: 12, username: "user12", stats: { score: 30 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -526,9 +523,9 @@ describe("Store Users API", () => {
     });
 
     it("should recover gracefully from corrupted Redis record (invalid JSON)", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
-      mockRedisGet.mockResolvedValueOnce("[object Object]");
-      mockRedisSet.mockResolvedValueOnce(true);
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce("[object Object]");
+      sharedRedisMockSet.mockResolvedValueOnce(true);
 
       const reqBody = { userId: 13, username: "user13", stats: { score: 30 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -538,14 +535,14 @@ describe("Store Users API", () => {
       const data = await getJsonResponse(res);
       expect(data.success).toBe(true);
 
-      const storedValue = JSON.parse(mockRedisSet.mock.calls[0][1]);
+      const storedValue = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(storedValue.createdAt).toBeDefined();
     });
 
     it("should generate new createdAt when recovering from corrupted record", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
-      mockRedisGet.mockResolvedValueOnce("corrupted data");
-      mockRedisSet.mockResolvedValueOnce(true);
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce("corrupted data");
+      sharedRedisMockSet.mockResolvedValueOnce(true);
 
       const beforeTime = new Date();
       const reqBody = { userId: 14, username: "user14", stats: { score: 30 } };
@@ -555,7 +552,7 @@ describe("Store Users API", () => {
       const afterTime = new Date();
 
       expect(res.status).toBe(200);
-      const stored = JSON.parse(mockRedisSet.mock.calls[0][1]);
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       const createdAt = new Date(stored.createdAt);
 
       expect(createdAt.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());
@@ -565,9 +562,9 @@ describe("Store Users API", () => {
 
   describe("POST - CORS & Response Headers", () => {
     it("should include CORS headers in success response", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
-      mockRedisGet.mockResolvedValueOnce(null);
-      mockRedisSet.mockResolvedValueOnce(true);
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockSet.mockResolvedValueOnce(true);
 
       const reqBody = { userId: 15, username: "user15", stats: { score: 10 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -580,7 +577,7 @@ describe("Store Users API", () => {
     });
 
     it("should include CORS headers in error response", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
 
       const reqBody = { userId: null, stats: { score: 10 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -595,53 +592,53 @@ describe("Store Users API", () => {
 
   describe("POST - Analytics Tracking", () => {
     it("should increment successful_requests metric on success", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
-      mockRedisGet.mockResolvedValueOnce(null);
-      mockRedisSet.mockResolvedValueOnce(true);
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockSet.mockResolvedValueOnce(true);
 
       const reqBody = { userId: 16, username: "user16", stats: { score: 10 } };
       const req = createTestRequest(reqBody, "http://localhost");
 
       await POST(req);
-      expect(mockRedisIncr).toHaveBeenCalledWith(
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_users:successful_requests",
       );
     });
 
     it("should increment failed_requests metric on validation error", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
 
       const reqBody = { userId: null, stats: { score: 10 } };
       const req = createTestRequest(reqBody, "http://localhost");
 
       await POST(req);
-      expect(mockRedisIncr).toHaveBeenCalledWith(
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_users:failed_requests",
       );
     });
 
     it("should increment failed_requests metric on rate limit", async () => {
-      mockLimit.mockResolvedValueOnce({ success: false });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: false });
 
       const reqBody = { userId: 17, stats: { score: 10 } };
       const req = createTestRequest(reqBody, "http://localhost");
 
       await POST(req);
-      expect(mockRedisIncr).toHaveBeenCalledWith(
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_users:failed_requests",
       );
     });
 
     it("should increment failed_requests metric on Redis error", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
-      mockRedisGet.mockResolvedValueOnce(null);
-      mockRedisSet.mockRejectedValueOnce(new Error("Redis failure"));
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockSet.mockRejectedValueOnce(new Error("Redis failure"));
 
       const reqBody = { userId: 18, username: "user18", stats: { score: 10 } };
       const req = createTestRequest(reqBody, "http://localhost");
 
       await POST(req);
-      expect(mockRedisIncr).toHaveBeenCalledWith(
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_users:failed_requests",
       );
     });

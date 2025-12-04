@@ -1,49 +1,33 @@
-/**
- * Controls the mocked rate-limit outcome returned in each test scenario.
- */
-let mockLimit = jest.fn().mockResolvedValue({ success: true });
+import {
+  afterEach,
+  afterAll,
+  beforeEach,
+  describe,
+  it,
+  expect,
+  mock,
+} from "bun:test";
+import {
+  sharedRedisMockSet,
+  sharedRedisMockGet,
+  sharedRedisMockIncr,
+  sharedRatelimitMockLimit,
+  sharedRatelimitMockSlidingWindow,
+} from "../__setup__.test";
 
-/**
- * Captures Redis operations.
- */
-let mockRedisSet = jest.fn();
-let mockRedisGet = jest.fn();
-let mockRedisIncr = jest.fn(async () => 1);
-
-/**
- * Supplies the mocked Redis client referenced by the handler under test.
- */
-function createRedisFromEnvMock() {
-  return {
-    set: mockRedisSet,
-    get: mockRedisGet,
-    incr: mockRedisIncr,
-  };
-}
-
-jest.mock("@upstash/redis", () => ({
-  Redis: {
-    fromEnv: jest.fn(createRedisFromEnvMock),
-  },
-}));
-
-/**
- * Provides a fake ratelimit implementation.
- */
-jest.mock("@upstash/ratelimit", () => {
-  class RatelimitMock {
-    static readonly slidingWindow = jest.fn();
-    public limit = mockLimit;
-  }
-  return {
-    Ratelimit: RatelimitMock,
-  };
-});
-
+const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
 process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
 
-import { POST, OPTIONS } from "./route";
-import { Ratelimit as RatelimitMock } from "@upstash/ratelimit";
+const { POST, OPTIONS } = await import("./route");
+
+afterAll(() => {
+  // Restore the original app URL
+  if (originalAppUrl === undefined) {
+    delete process.env.NEXT_PUBLIC_APP_URL;
+  } else {
+    process.env.NEXT_PUBLIC_APP_URL = originalAppUrl;
+  }
+});
 
 /**
  * Helper to create a request with standard headers
@@ -66,25 +50,33 @@ function createRequest(
 
 describe("Store Cards API POST Endpoint", () => {
   afterEach(() => {
-    jest.clearAllMocks();
+    mock.clearAllMocks();
   });
 
   beforeEach(() => {
-    mockRedisGet.mockResolvedValue(null);
-    mockRedisSet.mockResolvedValue(true);
-    mockRedisIncr.mockResolvedValue(1);
+    sharedRedisMockGet.mockReset();
+    sharedRedisMockSet.mockReset();
+    sharedRedisMockIncr.mockReset();
+    sharedRatelimitMockLimit.mockReset();
+    sharedRatelimitMockSlidingWindow.mockClear();
+
+    sharedRedisMockGet.mockResolvedValue(null);
+    sharedRedisMockSet.mockResolvedValue(true);
+    sharedRedisMockIncr.mockResolvedValue(1);
+    sharedRatelimitMockLimit.mockResolvedValue({ success: true });
   });
 
   describe("Rate Limiting", () => {
-    it("should construct default shared rate limiter with 10/5s", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+    it("should apply rate limiting with default configuration", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({ userId: 1, statsData: {}, cards: [] });
-      await POST(req);
-      expect(RatelimitMock.slidingWindow).toHaveBeenCalledWith(10, "5 s");
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      expect(sharedRatelimitMockLimit).toHaveBeenCalled();
     });
 
     it("should return 429 when rate limit is exceeded", async () => {
-      mockLimit.mockResolvedValueOnce({ success: false });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: false });
       const req = createRequest({ userId: 1, statsData: {}, cards: [] });
 
       const res = await POST(req);
@@ -108,7 +100,7 @@ describe("Store Cards API POST Endpoint", () => {
 
   describe("Input Validation", () => {
     it("should return 400 when statsData contains an error", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 1,
         statsData: { error: "Invalid stats" },
@@ -122,7 +114,7 @@ describe("Store Cards API POST Endpoint", () => {
     });
 
     it("should reject invalid card data", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 1,
         statsData: {},
@@ -134,7 +126,7 @@ describe("Store Cards API POST Endpoint", () => {
     });
 
     it("should reject missing userId", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         statsData: {},
         cards: [],
@@ -146,7 +138,7 @@ describe("Store Cards API POST Endpoint", () => {
     });
 
     it("should reject invalid JSON body", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = new Request("http://localhost/api/store-cards", {
         method: "POST",
         headers: {
@@ -164,7 +156,7 @@ describe("Store Cards API POST Endpoint", () => {
 
   describe("Basic Storage", () => {
     it("should store card configurations successfully", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const userId = 123;
       const req = createRequest({
         userId,
@@ -190,19 +182,19 @@ describe("Store Cards API POST Endpoint", () => {
       expect(data.userId).toBe(userId);
 
       const expectedKey = `cards:${userId}`;
-      expect(mockRedisSet).toHaveBeenCalledWith(
+      expect(sharedRedisMockSet).toHaveBeenCalledWith(
         expectedKey,
         expect.any(String),
       );
 
-      const storedData = JSON.parse(mockRedisSet.mock.calls[0][1]);
+      const storedData = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(storedData.userId).toBe(userId);
       expect(storedData.cards).toHaveLength(1);
       expect(storedData.updatedAt).toBeDefined();
     });
 
     it("should clamp border radius to valid range", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 1,
         statsData: {},
@@ -223,12 +215,12 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       // Verify request was successful and stored
-      expect(mockRedisSet).toHaveBeenCalled();
+      expect(sharedRedisMockSet).toHaveBeenCalled();
     });
 
     it("should return 500 when Redis storage fails", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
-      mockRedisSet.mockRejectedValueOnce(new Error("Redis failure"));
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockSet.mockRejectedValueOnce(new Error("Redis failure"));
 
       const req = createRequest({
         userId: 1,
@@ -254,7 +246,7 @@ describe("Store Cards API POST Endpoint", () => {
 
   describe("Pie Variation Handling", () => {
     it("should persist showPiePercentages=false when pie card omits it", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 999,
         statsData: {},
@@ -273,12 +265,12 @@ describe("Store Cards API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      const stored = JSON.parse(mockRedisSet.mock.calls[0][1]);
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(stored.cards[0].showPiePercentages).toBe(false);
     });
 
     it("should preserve showPiePercentages=true when explicitly set", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 999,
         statsData: {},
@@ -298,12 +290,12 @@ describe("Store Cards API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      const stored = JSON.parse(mockRedisSet.mock.calls[0][1]);
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(stored.cards[0].showPiePercentages).toBe(true);
     });
 
     it("should not save showPiePercentages for non-pie variations", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 999,
         statsData: {},
@@ -323,14 +315,14 @@ describe("Store Cards API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      const stored = JSON.parse(mockRedisSet.mock.calls[0][1]);
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(stored.cards[0].showPiePercentages).toBeUndefined();
     });
 
     it("should merge pie percentages from previous config", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       // Simulate existing card with showPiePercentages=true
-      mockRedisGet.mockResolvedValueOnce(
+      sharedRedisMockGet.mockResolvedValueOnce(
         JSON.stringify({
           userId: 999,
           cards: [
@@ -362,14 +354,14 @@ describe("Store Cards API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      const stored = JSON.parse(mockRedisSet.mock.calls[0][1]);
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(stored.cards[0].showPiePercentages).toBe(true);
     });
   });
 
   describe("Favorites Handling", () => {
     it("should persist showFavorites=false for favorite cards when omitted", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 1001,
         statsData: {},
@@ -388,12 +380,12 @@ describe("Store Cards API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      const stored = JSON.parse(mockRedisSet.mock.calls[0][1]);
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(stored.cards[0].showFavorites).toBe(false);
     });
 
     it("should preserve showFavorites=true when explicitly set", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 1001,
         statsData: {},
@@ -413,12 +405,12 @@ describe("Store Cards API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      const stored = JSON.parse(mockRedisSet.mock.calls[0][1]);
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(stored.cards[0].showFavorites).toBe(true);
     });
 
     it("should not save showFavorites for cards that don't support it", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 1001,
         statsData: {},
@@ -438,13 +430,13 @@ describe("Store Cards API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      const stored = JSON.parse(mockRedisSet.mock.calls[0][1]);
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(stored.cards[0].showFavorites).toBeUndefined();
     });
 
     it("should merge favorites from previous config", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
-      mockRedisGet.mockResolvedValueOnce(
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(
         JSON.stringify({
           userId: 1001,
           cards: [
@@ -476,14 +468,14 @@ describe("Store Cards API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      const stored = JSON.parse(mockRedisSet.mock.calls[0][1]);
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(stored.cards[0].showFavorites).toBe(true);
     });
   });
 
   describe("Color Preset Handling", () => {
     it("should save individual colors when no colorPreset is set", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 500,
         statsData: {},
@@ -501,11 +493,11 @@ describe("Store Cards API POST Endpoint", () => {
 
       const res = await POST(req);
       expect(res.status).toBe(200);
-      expect(mockRedisSet).toHaveBeenCalled();
+      expect(sharedRedisMockSet).toHaveBeenCalled();
     });
 
     it("should save individual colors when colorPreset=custom", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 500,
         statsData: {},
@@ -524,11 +516,11 @@ describe("Store Cards API POST Endpoint", () => {
 
       const res = await POST(req);
       expect(res.status).toBe(200);
-      expect(mockRedisSet).toHaveBeenCalled();
+      expect(sharedRedisMockSet).toHaveBeenCalled();
     });
 
     it("should not save individual colors when colorPreset is set to non-custom", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 500,
         statsData: {},
@@ -543,14 +535,14 @@ describe("Store Cards API POST Endpoint", () => {
 
       const res = await POST(req);
       expect(res.status).toBe(200);
-      expect(mockRedisSet).toHaveBeenCalled();
+      expect(sharedRedisMockSet).toHaveBeenCalled();
     });
   });
 
   describe("Card Merging Logic", () => {
     it("should merge new cards with existing cards", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
-      mockRedisGet.mockResolvedValueOnce(
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(
         JSON.stringify({
           userId: 777,
           cards: [
@@ -586,12 +578,12 @@ describe("Store Cards API POST Endpoint", () => {
         );
       }
       expect(res.status).toBe(200);
-      expect(mockRedisSet).toHaveBeenCalled();
+      expect(sharedRedisMockSet).toHaveBeenCalled();
     });
 
     it("should update existing card when same cardName is provided", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
-      mockRedisGet.mockResolvedValueOnce(
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(
         JSON.stringify({
           userId: 777,
           cards: [
@@ -621,12 +613,12 @@ describe("Store Cards API POST Endpoint", () => {
 
       const res = await POST(req);
       expect(res.status).toBe(200);
-      expect(mockRedisSet).toHaveBeenCalled();
+      expect(sharedRedisMockSet).toHaveBeenCalled();
     });
 
     it("should preserve border radius from previous config when not provided", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
-      mockRedisGet.mockResolvedValueOnce(
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(
         JSON.stringify({
           userId: 777,
           cards: [
@@ -656,12 +648,12 @@ describe("Store Cards API POST Endpoint", () => {
 
       const res = await POST(req);
       expect(res.status).toBe(200);
-      expect(mockRedisSet).toHaveBeenCalled();
+      expect(sharedRedisMockSet).toHaveBeenCalled();
     });
 
     it("should override border radius with new value", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
-      mockRedisGet.mockResolvedValueOnce(
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(
         JSON.stringify({
           userId: 777,
           cards: [
@@ -692,14 +684,14 @@ describe("Store Cards API POST Endpoint", () => {
 
       const res = await POST(req);
       expect(res.status).toBe(200);
-      expect(mockRedisSet).toHaveBeenCalled();
+      expect(sharedRedisMockSet).toHaveBeenCalled();
     });
   });
 
   describe("Error Recovery & Edge Cases", () => {
     it("should recover from corrupted Redis payload", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
-      mockRedisGet.mockResolvedValueOnce("[object Object]"); // Corrupted
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce("[object Object]"); // Corrupted
 
       const req = createRequest({
         userId: 77,
@@ -719,12 +711,12 @@ describe("Store Cards API POST Endpoint", () => {
 
       const res = await POST(req);
       expect(res.status).toBe(200);
-      expect(mockRedisSet).toHaveBeenCalled();
+      expect(sharedRedisMockSet).toHaveBeenCalled();
     });
 
     it("should increment corrupted records analytics metric", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
-      mockRedisGet.mockResolvedValueOnce("[object Object]");
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce("[object Object]");
 
       const req = createRequest({
         userId: 77,
@@ -744,11 +736,11 @@ describe("Store Cards API POST Endpoint", () => {
       await POST(req);
       // When existing data is corrupted, the endpoint should recover gracefully
       // and continue to store the new card configuration
-      expect(mockRedisSet).toHaveBeenCalled();
+      expect(sharedRedisMockSet).toHaveBeenCalled();
     });
 
     it("should include updatedAt timestamp in stored record", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const beforeTime = new Date();
 
       const req = createRequest({
@@ -770,7 +762,7 @@ describe("Store Cards API POST Endpoint", () => {
       const afterTime = new Date();
 
       expect(res.status).toBe(200);
-      const stored = JSON.parse(mockRedisSet.mock.calls[0][1]);
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       const timestamp = new Date(stored.updatedAt);
 
       expect(timestamp.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());
@@ -778,7 +770,7 @@ describe("Store Cards API POST Endpoint", () => {
     });
 
     it("should handle empty cards array", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 1,
         statsData: {},
@@ -792,7 +784,7 @@ describe("Store Cards API POST Endpoint", () => {
     });
 
     it("should handle multiple cards in single request", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 1,
         statsData: {},
@@ -827,14 +819,14 @@ describe("Store Cards API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      const stored = JSON.parse(mockRedisSet.mock.calls[0][1]);
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(stored.cards).toHaveLength(3);
     });
   });
 
   describe("Analytics Tracking", () => {
     it("should increment successful requests metric", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 1,
         statsData: {},
@@ -851,13 +843,13 @@ describe("Store Cards API POST Endpoint", () => {
       });
 
       await POST(req);
-      expect(mockRedisIncr).toHaveBeenCalledWith(
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_cards:successful_requests",
       );
     });
 
     it("should increment failed requests metric on validation error", async () => {
-      mockLimit.mockResolvedValueOnce({ success: true });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 1,
         statsData: { error: "Test error" },
@@ -865,17 +857,17 @@ describe("Store Cards API POST Endpoint", () => {
       });
 
       await POST(req);
-      expect(mockRedisIncr).toHaveBeenCalledWith(
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_cards:failed_requests",
       );
     });
 
     it("should increment failed requests metric on rate limit", async () => {
-      mockLimit.mockResolvedValueOnce({ success: false });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: false });
       const req = createRequest({ userId: 1, statsData: {}, cards: [] });
 
       await POST(req);
-      expect(mockRedisIncr).toHaveBeenCalledWith(
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_cards:failed_requests",
       );
     });

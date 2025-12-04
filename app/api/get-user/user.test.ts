@@ -1,24 +1,7 @@
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { sharedRedisMockGet, sharedRedisMockIncr } from "../__setup__.test";
+
 import { GET, OPTIONS } from "./route";
-
-/** Mocked Redis get and incr functions used by tests to simulate varied responses. @source */
-let mockRedisGet = jest.fn();
-let mockRedisIncr = jest.fn();
-
-/**
- * Creates a named redis client mock using the local get mock to avoid nesting.
- */
-function createRedisFromEnvMock() {
-  return {
-    get: mockRedisGet,
-    incr: mockRedisIncr,
-  };
-}
-
-jest.mock("@upstash/redis", () => ({
-  Redis: {
-    fromEnv: jest.fn(createRedisFromEnvMock),
-  },
-}));
 
 /**
  * Extracts the response JSON payload for assertions.
@@ -67,24 +50,24 @@ async function expectOkJson(query: string | undefined, expected: unknown) {
 }
 
 function mockRedisSequence(...values: Array<unknown>) {
-  mockRedisGet.mockReset();
+  sharedRedisMockGet.mockReset();
   for (const v of values) {
     if (v instanceof Error) {
-      mockRedisGet.mockRejectedValueOnce(v);
+      sharedRedisMockGet.mockRejectedValueOnce(v);
     } else {
-      mockRedisGet.mockResolvedValueOnce(v);
+      sharedRedisMockGet.mockResolvedValueOnce(v);
     }
   }
 }
 
 describe("User API GET Endpoint", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    mockRedisIncr.mockResolvedValue(1);
+    mock.clearAllMocks();
+    sharedRedisMockIncr.mockResolvedValue(1);
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    mock.clearAllMocks();
     delete (process.env as Record<string, string | undefined>)[
       "NEXT_PUBLIC_APP_URL"
     ];
@@ -151,7 +134,7 @@ describe("User API GET Endpoint", () => {
       };
       mockRedisSequence(JSON.stringify(userData));
       await expectOkJson("userId=123", userData);
-      expect(mockRedisGet).toHaveBeenCalledWith("user:123");
+      expect(sharedRedisMockGet).toHaveBeenCalledWith("user:123");
     });
 
     it("should return 404 when user data is not found in Redis", async () => {
@@ -176,8 +159,8 @@ describe("User API GET Endpoint", () => {
       const userData = { userId: 456, username: "alice" };
       mockRedisSequence("456", JSON.stringify(userData));
       await expectOkJson("username=alice", userData);
-      expect(mockRedisGet).toHaveBeenCalledWith("username:alice");
-      expect(mockRedisGet).toHaveBeenCalledWith("user:456");
+      expect(sharedRedisMockGet).toHaveBeenCalledWith("username:alice");
+      expect(sharedRedisMockGet).toHaveBeenCalledWith("user:456");
     });
 
     it("should return 404 when username index does not exist", async () => {
@@ -194,7 +177,7 @@ describe("User API GET Endpoint", () => {
       const userData = { userId: 111, username: "TestUser" };
       mockRedisSequence("111", JSON.stringify(userData));
       await expectOkJson("username=TESTUSER", userData);
-      expect(mockRedisGet).toHaveBeenCalledWith("username:testuser");
+      expect(sharedRedisMockGet).toHaveBeenCalledWith("username:testuser");
     });
 
     it("should handle username with spaces (normalized)", async () => {
@@ -324,14 +307,14 @@ describe("User API GET Endpoint", () => {
       const userData = { userId: 123, username: "test" };
       mockRedisSequence(JSON.stringify(userData));
       await callGet("userId=123");
-      expect(mockRedisIncr).toHaveBeenCalledWith(
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:user_api:successful_requests",
       );
     });
 
     it("should increment failed_requests analytics when missing parameters", async () => {
       await callGet();
-      expect(mockRedisIncr).toHaveBeenCalledWith(
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:user_api:failed_requests",
       );
     });
@@ -339,13 +322,13 @@ describe("User API GET Endpoint", () => {
     it("should increment failed_requests analytics when Redis error occurs", async () => {
       mockRedisSequence(new Error("Redis error"));
       await callGet("userId=123");
-      expect(mockRedisIncr).toHaveBeenCalledWith(
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:user_api:failed_requests",
       );
     });
 
     it("should handle analytics increment failure gracefully", async () => {
-      mockRedisIncr.mockRejectedValue(new Error("Analytics failed"));
+      sharedRedisMockIncr.mockRejectedValue(new Error("Analytics failed"));
       const userData = { userId: 123, username: "test" };
       mockRedisSequence(JSON.stringify(userData));
       const res = await callGet("userId=123");
@@ -368,8 +351,8 @@ describe("User API GET Endpoint", () => {
       const userData = { userId: 123, username: "testUser" };
       mockRedisSequence(JSON.stringify(userData));
       await expectOkJson("userId=123&username=ignored", userData);
-      expect(mockRedisGet).toHaveBeenCalledWith("user:123");
-      expect(mockRedisGet).not.toHaveBeenCalledWith("username:ignored");
+      expect(sharedRedisMockGet).toHaveBeenCalledWith("user:123");
+      expect(sharedRedisMockGet).not.toHaveBeenCalledWith("username:ignored");
     });
 
     it("should handle IP header extraction for logging", async () => {
@@ -430,11 +413,11 @@ describe("User API GET Endpoint", () => {
 
 describe("User API OPTIONS Endpoint", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    mock.clearAllMocks();
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    mock.clearAllMocks();
     delete (process.env as Record<string, string | undefined>)[
       "NEXT_PUBLIC_APP_URL"
     ];

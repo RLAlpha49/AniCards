@@ -1,3 +1,4 @@
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { POST } from "./route";
 
 /**
@@ -18,13 +19,17 @@ const originalFetch = globalThis.fetch;
  */
 const originalEnv = { ...process.env };
 
+const applyFetchMock = (mock: unknown) => {
+  globalThis.fetch = mock as typeof fetch;
+};
+
 beforeEach(() => {
   process.env.CRON_SECRET = CRON_SECRET;
   delete process.env.NEXT_PUBLIC_SITE_URL;
 });
 
 afterEach(() => {
-  jest.clearAllMocks();
+  mock.clearAllMocks();
   globalThis.fetch = originalFetch;
   process.env = { ...originalEnv };
 });
@@ -63,9 +68,9 @@ describe("Uptime Monitor Cron API POST Endpoint", () => {
 
     it("should skip authorization when CRON_SECRET env var is not set", async () => {
       delete process.env.CRON_SECRET;
-      globalThis.fetch = jest
-        .fn()
-        .mockResolvedValue(new Response(null, { status: 200 }));
+      applyFetchMock(
+        mock().mockResolvedValue(new Response(null, { status: 200 })),
+      );
 
       const req = new Request("http://localhost/api/cron/uptime-monitor", {
         headers: {},
@@ -82,9 +87,9 @@ describe("Uptime Monitor Cron API POST Endpoint", () => {
     it("should use custom NEXT_PUBLIC_SITE_URL when provided", async () => {
       const customUrl = "https://custom-domain.com";
       process.env.NEXT_PUBLIC_SITE_URL = customUrl;
-      globalThis.fetch = jest
-        .fn()
-        .mockResolvedValue(new Response(null, { status: 200 }));
+      applyFetchMock(
+        mock().mockResolvedValue(new Response(null, { status: 200 })),
+      );
 
       const req = new Request("http://localhost/api/cron/uptime-monitor", {
         headers: { "x-cron-secret": CRON_SECRET },
@@ -100,9 +105,9 @@ describe("Uptime Monitor Cron API POST Endpoint", () => {
     });
 
     it("should use default fallback URL when NEXT_PUBLIC_SITE_URL is not set", async () => {
-      globalThis.fetch = jest
-        .fn()
-        .mockResolvedValue(new Response(null, { status: 200 }));
+      applyFetchMock(
+        mock().mockResolvedValue(new Response(null, { status: 200 })),
+      );
 
       const req = new Request("http://localhost/api/cron/uptime-monitor", {
         headers: { "x-cron-secret": CRON_SECRET },
@@ -120,9 +125,9 @@ describe("Uptime Monitor Cron API POST Endpoint", () => {
 
   describe("Successful Route Checks", () => {
     it("should report all endpoints as up when fetch succeeds for every route", async () => {
-      globalThis.fetch = jest
-        .fn()
-        .mockResolvedValue(new Response(null, { status: 200 }));
+      applyFetchMock(
+        mock().mockResolvedValue(new Response(null, { status: 200 })),
+      );
 
       const req = new Request("http://localhost/api/cron/uptime-monitor", {
         headers: { "x-cron-secret": CRON_SECRET },
@@ -145,9 +150,11 @@ describe("Uptime Monitor Cron API POST Endpoint", () => {
     });
 
     it("should check all 6 expected routes", async () => {
-      globalThis.fetch = jest
-        .fn()
-        .mockResolvedValue(new Response(null, { status: 200 }));
+      applyFetchMock(
+        mock().mockImplementation((url: string) => {
+          return Promise.resolve(new Response(null, { status: 200 }));
+        }),
+      );
 
       const req = new Request("http://localhost/api/cron/uptime-monitor", {
         headers: { "x-cron-secret": CRON_SECRET },
@@ -176,12 +183,14 @@ describe("Uptime Monitor Cron API POST Endpoint", () => {
     });
 
     it("should handle responses with status codes other than 200 as ok", async () => {
-      globalThis.fetch = jest.fn().mockImplementation((url: string) => {
-        if (url.includes("/search")) {
-          return Promise.resolve(new Response(null, { status: 204 }));
-        }
-        return Promise.resolve(new Response(null, { status: 200 }));
-      });
+      applyFetchMock(
+        mock().mockImplementation((url: string) => {
+          if (url.includes("/search")) {
+            return Promise.resolve(new Response(null, { status: 204 }));
+          }
+          return Promise.resolve(new Response(null, { status: 200 }));
+        }),
+      );
 
       const req = new Request("http://localhost/api/cron/uptime-monitor", {
         headers: { "x-cron-secret": CRON_SECRET },
@@ -205,12 +214,14 @@ describe("Uptime Monitor Cron API POST Endpoint", () => {
 
   describe("Failed Route Checks", () => {
     it("should report failures when some endpoints fail", async () => {
-      globalThis.fetch = jest.fn().mockImplementation((url: string) => {
-        if (url.includes("/contact")) {
-          return Promise.resolve(new Response(null, { status: 500 }));
-        }
-        return Promise.resolve(new Response(null, { status: 200 }));
-      });
+      applyFetchMock(
+        mock().mockImplementation((url: string) => {
+          if (url.includes("/contact")) {
+            return Promise.resolve(new Response(null, { status: 500 }));
+          }
+          return Promise.resolve(new Response(null, { status: 200 }));
+        }),
+      );
 
       const req = new Request("http://localhost/api/cron/uptime-monitor", {
         headers: { "x-cron-secret": CRON_SECRET },
@@ -239,9 +250,9 @@ describe("Uptime Monitor Cron API POST Endpoint", () => {
     });
 
     it("should report all endpoints as down when all fail", async () => {
-      globalThis.fetch = jest
-        .fn()
-        .mockResolvedValue(new Response(null, { status: 503 }));
+      applyFetchMock(
+        mock().mockResolvedValue(new Response(null, { status: 503 })),
+      );
 
       const req = new Request("http://localhost/api/cron/uptime-monitor", {
         headers: { "x-cron-secret": CRON_SECRET },
@@ -254,12 +265,14 @@ describe("Uptime Monitor Cron API POST Endpoint", () => {
     });
 
     it("should handle network errors gracefully", async () => {
-      globalThis.fetch = jest.fn().mockImplementation((url: string) => {
-        if (url.includes("/settings")) {
-          return Promise.reject(new Error("Network error"));
-        }
-        return Promise.resolve(new Response(null, { status: 200 }));
-      });
+      applyFetchMock(
+        mock().mockImplementation((url: string) => {
+          if (url.includes("/settings")) {
+            return Promise.reject(new Error("Network error"));
+          }
+          return Promise.resolve(new Response(null, { status: 200 }));
+        }),
+      );
 
       const req = new Request("http://localhost/api/cron/uptime-monitor", {
         headers: { "x-cron-secret": CRON_SECRET },
@@ -280,7 +293,7 @@ describe("Uptime Monitor Cron API POST Endpoint", () => {
 
     it("should capture error message when fetch fails", async () => {
       const errorMessage = "Connection timeout";
-      globalThis.fetch = jest.fn().mockRejectedValue(new Error(errorMessage));
+      applyFetchMock(mock().mockRejectedValue(new Error(errorMessage)));
 
       const req = new Request("http://localhost/api/cron/uptime-monitor", {
         headers: { "x-cron-secret": CRON_SECRET },
@@ -298,7 +311,7 @@ describe("Uptime Monitor Cron API POST Endpoint", () => {
     it("should handle timeout (AbortError) gracefully", async () => {
       const abortError = new Error("Aborted");
       abortError.name = "AbortError";
-      globalThis.fetch = jest.fn().mockRejectedValue(abortError);
+      applyFetchMock(mock().mockRejectedValue(abortError));
 
       const req = new Request("http://localhost/api/cron/uptime-monitor", {
         headers: { "x-cron-secret": CRON_SECRET },
@@ -316,9 +329,9 @@ describe("Uptime Monitor Cron API POST Endpoint", () => {
 
   describe("Response Format", () => {
     it("should return correct response headers with Content-Type application/json", async () => {
-      globalThis.fetch = jest
-        .fn()
-        .mockResolvedValue(new Response(null, { status: 200 }));
+      applyFetchMock(
+        mock().mockResolvedValue(new Response(null, { status: 200 })),
+      );
 
       const req = new Request("http://localhost/api/cron/uptime-monitor", {
         headers: { "x-cron-secret": CRON_SECRET },
@@ -329,9 +342,9 @@ describe("Uptime Monitor Cron API POST Endpoint", () => {
     });
 
     it("should include CORS headers in successful response", async () => {
-      globalThis.fetch = jest
-        .fn()
-        .mockResolvedValue(new Response(null, { status: 200 }));
+      applyFetchMock(
+        mock().mockResolvedValue(new Response(null, { status: 200 })),
+      );
 
       const req = new Request("http://localhost/api/cron/uptime-monitor", {
         headers: { "x-cron-secret": CRON_SECRET },
@@ -353,9 +366,9 @@ describe("Uptime Monitor Cron API POST Endpoint", () => {
     });
 
     it("should return properly formatted result objects", async () => {
-      globalThis.fetch = jest
-        .fn()
-        .mockResolvedValue(new Response(null, { status: 200 }));
+      applyFetchMock(
+        mock().mockResolvedValue(new Response(null, { status: 200 })),
+      );
 
       const req = new Request("http://localhost/api/cron/uptime-monitor", {
         headers: { "x-cron-secret": CRON_SECRET },
@@ -377,9 +390,9 @@ describe("Uptime Monitor Cron API POST Endpoint", () => {
     });
 
     it("should include duration timing in summary", async () => {
-      globalThis.fetch = jest
-        .fn()
-        .mockResolvedValue(new Response(null, { status: 200 }));
+      applyFetchMock(
+        mock().mockResolvedValue(new Response(null, { status: 200 })),
+      );
 
       const req = new Request("http://localhost/api/cron/uptime-monitor", {
         headers: { "x-cron-secret": CRON_SECRET },
@@ -393,10 +406,10 @@ describe("Uptime Monitor Cron API POST Endpoint", () => {
 
   describe("Concurrency", () => {
     it("should check all routes concurrently", async () => {
-      const mockFetch = jest
-        .fn()
-        .mockResolvedValue(new Response(null, { status: 200 }));
-      globalThis.fetch = mockFetch;
+      const mockFetch = mock().mockResolvedValue(
+        new Response(null, { status: 200 }),
+      );
+      applyFetchMock(mockFetch);
 
       const req = new Request("http://localhost/api/cron/uptime-monitor", {
         headers: { "x-cron-secret": CRON_SECRET },
@@ -417,8 +430,8 @@ describe("Uptime Monitor Cron API POST Endpoint", () => {
         return new Response(null, { status: 200 });
       };
 
-      const mockFetch = jest.fn().mockImplementation(createSlowResponse);
-      globalThis.fetch = mockFetch;
+      const mockFetch = mock().mockImplementation(createSlowResponse);
+      applyFetchMock(mockFetch);
 
       const req = new Request("http://localhost/api/cron/uptime-monitor", {
         headers: { "x-cron-secret": CRON_SECRET },

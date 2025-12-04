@@ -1,35 +1,11 @@
-import { POST } from "./route";
+import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
+import {
+  sharedRedisMockKeys,
+  sharedRedisMockGet,
+  sharedRedisMockRpush,
+} from "../../__setup__.test";
 
-/**
- * Mock for fetching analytics keys from Redis.
- * @source
- */
-const mockKeys = jest.fn();
-/**
- * Mock for retrieving analytics values from Redis.
- * @source
- */
-const mockGet = jest.fn();
-/**
- * Mock for pushing analytics reports to Redis lists.
- * @source
- */
-const mockRpush = jest.fn();
-/**
- * Fake Redis client exposing the mocked commands for analytics tests.
- * @source
- */
-const fakeRedisClient = {
-  keys: mockKeys,
-  get: mockGet,
-  rpush: mockRpush,
-};
-
-jest.mock("@upstash/redis", () => ({
-  Redis: {
-    fromEnv: jest.fn(() => fakeRedisClient),
-  },
-}));
+const { POST } = await import("./route");
 
 /**
  * Dummy cron secret to satisfy authorization for analytics cron tests.
@@ -101,13 +77,13 @@ async function expectSuccessfulReport(response: Response) {
  */
 function setupSuccessfulAnalyticsMocks() {
   // Simulate Redis returning analytics keys
-  mockKeys.mockResolvedValueOnce([
+  sharedRedisMockKeys.mockResolvedValueOnce([
     "analytics:visits",
     "analytics:anilist_api:successful_requests",
   ]);
 
   // Simulate Redis get responses for each key
-  mockGet.mockImplementation((key: string) => {
+  sharedRedisMockGet.mockImplementation((key: string) => {
     if (key === "analytics:visits") {
       return Promise.resolve("100");
     } else if (key === "analytics:anilist_api:successful_requests") {
@@ -117,7 +93,7 @@ function setupSuccessfulAnalyticsMocks() {
   });
 
   // Simulate rpush success
-  mockRpush.mockResolvedValueOnce(1);
+  sharedRedisMockRpush.mockResolvedValueOnce(1);
 }
 
 describe("Analytics & Reporting Cron API", () => {
@@ -126,7 +102,7 @@ describe("Analytics & Reporting Cron API", () => {
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    mock.clearAllMocks();
     delete process.env.CRON_SECRET;
   });
 
@@ -152,7 +128,7 @@ describe("Analytics & Reporting Cron API", () => {
       const report = await expectSuccessfulReport(res);
 
       expect(report).toBeDefined();
-      expect(mockRpush).toHaveBeenCalled();
+      expect(sharedRedisMockRpush).toHaveBeenCalled();
     });
 
     it("should allow request with correct cron secret", async () => {
@@ -188,8 +164,8 @@ describe("Analytics & Reporting Cron API", () => {
     });
 
     it("should handle empty analytics data (no keys found)", async () => {
-      mockKeys.mockResolvedValueOnce([]);
-      mockRpush.mockResolvedValueOnce(1);
+      sharedRedisMockKeys.mockResolvedValueOnce([]);
+      sharedRedisMockRpush.mockResolvedValueOnce(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -197,23 +173,26 @@ describe("Analytics & Reporting Cron API", () => {
 
       expect(report.summary).toEqual({});
       expect(report.raw_data).toEqual({});
-      expect(mockRpush).toHaveBeenCalledWith(
+      expect(sharedRedisMockRpush).toHaveBeenCalledWith(
         "analytics:reports",
         expect.any(String),
       );
     });
 
     it("should filter out analytics:reports key from data collection", async () => {
-      mockKeys.mockResolvedValueOnce(["analytics:visits", "analytics:reports"]);
+      sharedRedisMockKeys.mockResolvedValueOnce([
+        "analytics:visits",
+        "analytics:reports",
+      ]);
 
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         if (key === "analytics:visits") {
           return Promise.resolve("50");
         }
         return Promise.resolve(null);
       });
 
-      mockRpush.mockResolvedValueOnce(1);
+      sharedRedisMockRpush.mockResolvedValueOnce(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -225,9 +204,9 @@ describe("Analytics & Reporting Cron API", () => {
     });
 
     it("should map null/missing redis values to zero", async () => {
-      mockKeys.mockResolvedValueOnce(["analytics:missing_metric"]);
-      mockGet.mockResolvedValueOnce(null);
-      mockRpush.mockResolvedValueOnce(1);
+      sharedRedisMockKeys.mockResolvedValueOnce(["analytics:missing_metric"]);
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockRpush.mockResolvedValueOnce(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -238,7 +217,7 @@ describe("Analytics & Reporting Cron API", () => {
     });
 
     it("should handle multiple services with multiple metrics", async () => {
-      mockKeys.mockResolvedValueOnce([
+      sharedRedisMockKeys.mockResolvedValueOnce([
         "analytics:visits",
         "analytics:api:requests",
         "analytics:api:errors",
@@ -246,7 +225,7 @@ describe("Analytics & Reporting Cron API", () => {
         "analytics:cache:misses",
       ]);
 
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         const responses: Record<string, string> = {
           "analytics:visits": "1000",
           "analytics:api:requests": "5000",
@@ -257,7 +236,7 @@ describe("Analytics & Reporting Cron API", () => {
         return Promise.resolve(responses[key] ?? null);
       });
 
-      mockRpush.mockResolvedValueOnce(1);
+      sharedRedisMockRpush.mockResolvedValueOnce(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -277,11 +256,11 @@ describe("Analytics & Reporting Cron API", () => {
     });
 
     it("should handle metrics with multiple colons in the name", async () => {
-      mockKeys.mockResolvedValueOnce([
+      sharedRedisMockKeys.mockResolvedValueOnce([
         "analytics:service:metric1:metric2:metric3",
       ]);
-      mockGet.mockResolvedValueOnce("42");
-      mockRpush.mockResolvedValueOnce(1);
+      sharedRedisMockGet.mockResolvedValueOnce("42");
+      sharedRedisMockRpush.mockResolvedValueOnce(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -293,9 +272,12 @@ describe("Analytics & Reporting Cron API", () => {
     });
 
     it("should parse non-numeric string values using safeParse", async () => {
-      mockKeys.mockResolvedValueOnce(["analytics:visits", "analytics:custom"]);
+      sharedRedisMockKeys.mockResolvedValueOnce([
+        "analytics:visits",
+        "analytics:custom",
+      ]);
 
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         if (key === "analytics:visits") {
           return Promise.resolve("100");
         } else if (key === "analytics:custom") {
@@ -305,7 +287,7 @@ describe("Analytics & Reporting Cron API", () => {
         return Promise.resolve(null);
       });
 
-      mockRpush.mockResolvedValueOnce(1);
+      sharedRedisMockRpush.mockResolvedValueOnce(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -323,18 +305,20 @@ describe("Analytics & Reporting Cron API", () => {
       const req = createCronRequest();
       await POST(req);
 
-      expect(mockRpush).toHaveBeenCalledWith(
+      expect(sharedRedisMockRpush).toHaveBeenCalledWith(
         "analytics:reports",
         expect.any(String),
       );
 
       // Verify that the saved report is valid JSON
-      const callArgs = mockRpush.mock.calls[0];
+      const callArgs = sharedRedisMockRpush.mock.calls[0];
       expect(() => JSON.parse(callArgs[1])).not.toThrow();
     });
 
     it("should return 500 when redis keys retrieval fails", async () => {
-      mockKeys.mockRejectedValueOnce(new Error("Redis connection failed"));
+      sharedRedisMockKeys.mockRejectedValueOnce(
+        new Error("Redis connection failed"),
+      );
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -342,8 +326,8 @@ describe("Analytics & Reporting Cron API", () => {
     });
 
     it("should return 500 when redis get fails during data fetch", async () => {
-      mockKeys.mockResolvedValueOnce(["analytics:visits"]);
-      mockGet.mockRejectedValueOnce(new Error("Redis get error"));
+      sharedRedisMockKeys.mockResolvedValueOnce(["analytics:visits"]);
+      sharedRedisMockGet.mockRejectedValueOnce(new Error("Redis get error"));
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -351,9 +335,11 @@ describe("Analytics & Reporting Cron API", () => {
     });
 
     it("should return 500 when redis rpush fails during report save", async () => {
-      mockKeys.mockResolvedValueOnce(["analytics:visits"]);
-      mockGet.mockResolvedValueOnce("100");
-      mockRpush.mockRejectedValueOnce(new Error("Redis rpush error"));
+      sharedRedisMockKeys.mockResolvedValueOnce(["analytics:visits"]);
+      sharedRedisMockGet.mockResolvedValueOnce("100");
+      sharedRedisMockRpush.mockRejectedValueOnce(
+        new Error("Redis rpush error"),
+      );
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -388,12 +374,12 @@ describe("Analytics & Reporting Cron API", () => {
     });
 
     it("should have raw_data matching the collected analytics", async () => {
-      mockKeys.mockResolvedValueOnce([
+      sharedRedisMockKeys.mockResolvedValueOnce([
         "analytics:metric1",
         "analytics:metric2",
       ]);
 
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         const responses: Record<string, string> = {
           "analytics:metric1": "10",
           "analytics:metric2": "20",
@@ -401,7 +387,7 @@ describe("Analytics & Reporting Cron API", () => {
         return Promise.resolve(responses[key] ?? null);
       });
 
-      mockRpush.mockResolvedValueOnce(1);
+      sharedRedisMockRpush.mockResolvedValueOnce(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -414,13 +400,13 @@ describe("Analytics & Reporting Cron API", () => {
 
   describe("Error Handling & Edge Cases", () => {
     it("should handle concurrent metric fetch gracefully", async () => {
-      mockKeys.mockResolvedValueOnce([
+      sharedRedisMockKeys.mockResolvedValueOnce([
         "analytics:a",
         "analytics:b",
         "analytics:c",
       ]);
 
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         const responses: Record<string, string> = {
           "analytics:a": "1",
           "analytics:b": "2",
@@ -429,20 +415,20 @@ describe("Analytics & Reporting Cron API", () => {
         return Promise.resolve(responses[key] ?? null);
       });
 
-      mockRpush.mockResolvedValueOnce(1);
+      sharedRedisMockRpush.mockResolvedValueOnce(1);
 
       const req = createCronRequest();
       const res = await POST(req);
       const report = await expectSuccessfulReport(res);
 
       expect(Object.keys(report.raw_data).length).toBe(3);
-      expect(mockGet).toHaveBeenCalledTimes(3);
+      expect(sharedRedisMockGet).toHaveBeenCalledTimes(3);
     });
 
     it("should handle zero values correctly", async () => {
-      mockKeys.mockResolvedValueOnce(["analytics:zero_metric"]);
-      mockGet.mockResolvedValueOnce("0");
-      mockRpush.mockResolvedValueOnce(1);
+      sharedRedisMockKeys.mockResolvedValueOnce(["analytics:zero_metric"]);
+      sharedRedisMockGet.mockResolvedValueOnce("0");
+      sharedRedisMockRpush.mockResolvedValueOnce(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -453,9 +439,9 @@ describe("Analytics & Reporting Cron API", () => {
     });
 
     it("should handle large numeric values correctly", async () => {
-      mockKeys.mockResolvedValueOnce(["analytics:large_number"]);
-      mockGet.mockResolvedValueOnce("999999999999");
-      mockRpush.mockResolvedValueOnce(1);
+      sharedRedisMockKeys.mockResolvedValueOnce(["analytics:large_number"]);
+      sharedRedisMockGet.mockResolvedValueOnce("999999999999");
+      sharedRedisMockRpush.mockResolvedValueOnce(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -465,7 +451,7 @@ describe("Analytics & Reporting Cron API", () => {
     });
 
     it("should return 500 with error message on unexpected error", async () => {
-      mockKeys.mockImplementationOnce(() => {
+      sharedRedisMockKeys.mockImplementationOnce(() => {
         throw new Error("Unexpected error");
       });
 

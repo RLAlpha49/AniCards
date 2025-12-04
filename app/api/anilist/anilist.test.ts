@@ -1,28 +1,14 @@
-/**
- * Rate limiter mock setup
- */
-let mockLimit = jest.fn();
-jest.mock("@upstash/ratelimit", () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const RatelimitMock: any = jest.fn().mockImplementation(() => ({
-    limit: mockLimit,
-  }));
-  RatelimitMock.slidingWindow = jest.fn().mockReturnValue("fake-limiter");
-  return {
-    Ratelimit: RatelimitMock,
-  };
-});
-
-/**
- * Redis mock for analytics
- */
-jest.mock("@upstash/redis", () => ({
-  Redis: {
-    fromEnv: jest.fn(() => ({
-      incr: jest.fn().mockResolvedValue(1),
-    })),
-  },
-}));
+import {
+  describe,
+  it,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  afterEach,
+  expect,
+  mock,
+} from "bun:test";
+import { sharedRatelimitMockLimit } from "../__setup__.test";
 
 // Set the app URL for same-origin validation testing
 process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
@@ -117,11 +103,13 @@ function mockFetchResponse(
   const fetchResponse = {
     ok,
     status,
-    json: jest.fn().mockResolvedValue(responseData),
+    json: mock(() => Promise.resolve(responseData)),
     headers: new Headers(headers),
   };
 
-  globalThis.fetch = jest.fn().mockResolvedValue(fetchResponse as unknown);
+  globalThis.fetch = mock(() =>
+    Promise.resolve(fetchResponse as unknown),
+  ) as unknown as typeof fetch;
   return fetchResponse;
 }
 
@@ -170,31 +158,24 @@ async function expectResponse(
 describe("AniList API Proxy Endpoint", () => {
   const originalEnv = process.env;
 
-  let consoleSpy: jest.SpyInstance;
-  let consoleErrorSpy: jest.SpyInstance;
-  let consoleWarnSpy: jest.SpyInstance;
-
   beforeAll(() => {
-    consoleSpy = jest.spyOn(console, "log").mockImplementation();
-    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation();
-    consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation();
+    mock(console.log);
+    mock(console.error);
+    mock(console.warn);
   });
 
   afterAll(() => {
-    consoleSpy.mockRestore();
-    consoleErrorSpy.mockRestore();
-    consoleWarnSpy.mockRestore();
+    // Bun mocks clean up automatically
   });
 
   beforeEach(() => {
-    jest.clearAllMocks();
     process.env = { ...originalEnv };
-    mockLimit = jest.fn().mockResolvedValue({ success: true });
+    sharedRatelimitMockLimit.mockReset();
+    sharedRatelimitMockLimit.mockResolvedValue({ success: true });
   });
 
   afterEach(() => {
     process.env = originalEnv;
-    jest.restoreAllMocks();
   });
 
   describe("Test Simulation (Development Only)", () => {
@@ -273,7 +254,8 @@ describe("AniList API Proxy Endpoint", () => {
 
       await POST(request);
 
-      const fetchCall = (globalThis.fetch as jest.Mock).mock.calls[0];
+      const fetchCall = (globalThis.fetch as unknown as ReturnType<typeof mock>)
+        .mock.calls[0];
       const fetchOptions = fetchCall[1] as Record<string, unknown>;
       expect(fetchOptions.headers).toHaveProperty(
         "Authorization",
@@ -291,7 +273,8 @@ describe("AniList API Proxy Endpoint", () => {
 
       await POST(request);
 
-      const fetchCall = (globalThis.fetch as jest.Mock).mock.calls[0];
+      const fetchCall = (globalThis.fetch as unknown as ReturnType<typeof mock>)
+        .mock.calls[0];
       const fetchOptions = fetchCall[1] as Record<string, unknown>;
       expect(fetchOptions.headers).not.toHaveProperty("Authorization");
     });
@@ -344,11 +327,12 @@ describe("AniList API Proxy Endpoint", () => {
       // Mock Date.now to simulate slow request
       const originalDateNow = Date.now;
       let callCount = 0;
-      jest.spyOn(Date, "now").mockImplementation(() => {
+      const dateNowMock = mock(() => {
         callCount++;
         if (callCount === 1) return 1000; // startTime
         return 2500; // after request: 1500ms elapsed
       });
+      Date.now = dateNowMock as unknown as typeof Date.now;
 
       const response = await POST(request);
 
@@ -513,9 +497,9 @@ describe("AniList API Proxy Endpoint", () => {
       const requestBody = createGraphQLBody();
       const request = createAniListRequest({}, requestBody);
 
-      globalThis.fetch = jest
-        .fn()
-        .mockRejectedValue(new Error("Network error"));
+      globalThis.fetch = mock(() =>
+        Promise.reject(new Error("Network error")),
+      ) as unknown as typeof fetch;
 
       const response = await POST(request);
 
@@ -613,9 +597,9 @@ describe("AniList API Proxy Endpoint", () => {
       const requestBody = createGraphQLBody();
       const request = createAniListRequest({}, requestBody);
 
-      globalThis.fetch = jest
-        .fn()
-        .mockRejectedValue(new Error("Network error"));
+      globalThis.fetch = mock(() =>
+        Promise.reject(new Error("Network error")),
+      ) as unknown as typeof fetch;
 
       const response = await POST(request);
 
@@ -757,7 +741,8 @@ describe("AniList API Proxy Endpoint", () => {
 
       await POST(request);
 
-      const fetchCall = (globalThis.fetch as jest.Mock).mock.calls[0];
+      const fetchCall = (globalThis.fetch as unknown as ReturnType<typeof mock>)
+        .mock.calls[0];
       const fetchOptions = fetchCall[1] as Record<string, unknown>;
       expect(fetchOptions.headers).toHaveProperty("X-Test-Status", "custom");
     });

@@ -1,42 +1,12 @@
-import { POST } from "./route";
+import { afterEach, describe, expect, it, mock } from "bun:test";
+import {
+  sharedRedisMockKeys,
+  sharedRedisMockGet,
+  sharedRedisMockSet,
+  sharedRedisMockDel,
+} from "../__setup__.test";
 
-/**
- * Mocks the Redis keys command used by the cron job.
- * @source
- */
-const mockKeys = jest.fn();
-/**
- * Mocks the Redis get command used to fetch user payloads.
- * @source
- */
-const mockGet = jest.fn();
-/**
- * Mocks the Redis set command for writing updated user data.
- * @source
- */
-const mockSet = jest.fn();
-/**
- * Mocks the Redis del command for cleanup and removal operations.
- * @source
- */
-const mockDel = jest.fn();
-/**
- * Aggregated fake Redis client that exposes stubbed methods for the cron tests.
- * @source
- */
-const fakeRedisClient = {
-  keys: mockKeys,
-  get: mockGet,
-  set: mockSet,
-  del: mockDel,
-  incr: jest.fn(async () => 1),
-};
-
-jest.mock("@upstash/redis", () => ({
-  Redis: {
-    fromEnv: jest.fn(() => fakeRedisClient),
-  },
-}));
+const { POST } = await import("./route");
 
 /**
  * Helper to create a mock user record
@@ -110,21 +80,21 @@ function create500Response() {
  * Helper to setup mock fetch for successful response
  */
 function setupSuccessfulFetch() {
-  return jest.fn().mockResolvedValue(createSuccessResponse());
+  return toFetchMock(mock().mockResolvedValue(createSuccessResponse()));
 }
 
 /**
  * Helper to setup mock fetch for 404 response
  */
 function setup404Fetch() {
-  return jest.fn().mockResolvedValue(create404Response());
+  return toFetchMock(mock().mockResolvedValue(create404Response()));
 }
 
 /**
  * Helper to setup mock fetch for 500 response
  */
 function setup500Fetch() {
-  return jest.fn().mockResolvedValue(create500Response());
+  return toFetchMock(mock().mockResolvedValue(create500Response()));
 }
 
 /**
@@ -145,16 +115,18 @@ function createRetryFetchImplementation(successAfterAttempt: number) {
  * Helper to setup mock fetch with retry logic
  */
 function setupRetryFetch(successAfterAttempt: number) {
-  return jest
-    .fn()
-    .mockImplementation(createRetryFetchImplementation(successAfterAttempt));
+  return toFetchMock(
+    mock().mockImplementation(
+      createRetryFetchImplementation(successAfterAttempt),
+    ),
+  );
 }
 
 /**
  * Helper to setup persistent network error
  */
 function setupNetworkErrorFetch() {
-  return jest.fn().mockRejectedValue(new Error("Network error"));
+  return toFetchMock(mock().mockRejectedValue(new Error("Network error")));
 }
 
 /**
@@ -171,6 +143,12 @@ function createMixedOutcomesFetchImplementation(failureUserIds: string[]) {
   };
 }
 
+function toFetchMock(mockFn: ReturnType<typeof mock>) {
+  const fetchMock = mockFn as unknown as typeof fetch;
+  fetchMock.preconnect = mock() as (typeof fetch)["preconnect"];
+  return fetchMock;
+}
+
 /**
  * Dummy cron secret used to satisfy authorization checks in tests.
  * @source
@@ -180,8 +158,7 @@ process.env.CRON_SECRET = CRON_SECRET;
 
 describe("Cron API POST Endpoint", () => {
   afterEach(() => {
-    jest.clearAllMocks();
-    jest.useRealTimers();
+    mock.clearAllMocks();
     delete process.env.CRON_SECRET;
     process.env.CRON_SECRET = CRON_SECRET;
   });
@@ -209,7 +186,7 @@ describe("Cron API POST Endpoint", () => {
 
     it("should skip authorization check when CRON_SECRET env is not set", async () => {
       delete process.env.CRON_SECRET;
-      mockKeys.mockResolvedValueOnce([]);
+      sharedRedisMockKeys.mockResolvedValueOnce([]);
 
       const req = new Request("http://localhost/api/cron", {
         headers: {},
@@ -221,20 +198,31 @@ describe("Cron API POST Endpoint", () => {
 
   describe("CORS and Response Headers", () => {
     it("should set CORS Access-Control-Allow-Origin to the request origin", async () => {
-      mockKeys.mockResolvedValueOnce([]);
-      const req = new Request("http://localhost/api/cron", {
-        method: "POST",
-        headers: { "x-cron-secret": CRON_SECRET, origin: "http://example.dev" },
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
-        "http://example.dev",
-      );
+      const prev = process.env.NEXT_PUBLIC_APP_URL;
+      delete process.env.NEXT_PUBLIC_APP_URL;
+      try {
+        sharedRedisMockKeys.mockResolvedValueOnce([]);
+        const headers = new Headers();
+        headers.set("x-cron-secret", CRON_SECRET);
+        headers.set("origin", "http://example.dev");
+        const req = new Request("http://localhost/api/cron", {
+          method: "POST",
+          headers,
+        });
+        const res = await POST(req);
+        expect(res.status).toBe(200);
+        expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
+          "http://example.dev",
+        );
+      } finally {
+        if (prev !== undefined) {
+          process.env.NEXT_PUBLIC_APP_URL = prev;
+        }
+      }
     });
 
     it("should set Content-Type to text/plain in response", async () => {
-      mockKeys.mockResolvedValueOnce([]);
+      sharedRedisMockKeys.mockResolvedValueOnce([]);
       const req = new Request("http://localhost/api/cron", {
         headers: { "x-cron-secret": CRON_SECRET },
       });
@@ -245,7 +233,7 @@ describe("Cron API POST Endpoint", () => {
 
   describe("User Processing", () => {
     it("should process with zero users if no keys are found", async () => {
-      mockKeys.mockResolvedValueOnce([]);
+      sharedRedisMockKeys.mockResolvedValueOnce([]);
       const req = new Request("http://localhost/api/cron", {
         headers: { "x-cron-secret": CRON_SECRET },
       });
@@ -255,22 +243,22 @@ describe("Cron API POST Endpoint", () => {
       expect(text).toBe(
         "Updated 0/0 users successfully. Failed: 0, Removed: 0",
       );
-      expect(mockKeys).toHaveBeenCalledWith("user:*");
+      expect(sharedRedisMockKeys).toHaveBeenCalledWith("user:*");
     });
 
     it("should successfully update all users when all are valid and AniList responds with 200", async () => {
       const userKeys = ["user:1", "user:2", "user:3", "user:4", "user:5"];
-      mockKeys.mockResolvedValueOnce(userKeys);
+      sharedRedisMockKeys.mockResolvedValueOnce(userKeys);
 
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
           return Promise.resolve(null);
         }
         const id = key.split(":")[1];
         return Promise.resolve(JSON.stringify(createMockUserRecord(id, 0)));
       });
-      mockSet.mockResolvedValue(true);
-      mockDel.mockResolvedValue(1);
+      sharedRedisMockSet.mockResolvedValue(true);
+      sharedRedisMockDel.mockResolvedValue(1);
 
       globalThis.fetch = setupSuccessfulFetch();
 
@@ -287,9 +275,9 @@ describe("Cron API POST Endpoint", () => {
 
     it("should process only the 10 oldest users when more than ANILIST_RATE_LIMIT users exist", async () => {
       const userKeys = Array.from({ length: 15 }, (_, i) => `user:${i + 1}`);
-      mockKeys.mockResolvedValueOnce(userKeys);
+      sharedRedisMockKeys.mockResolvedValueOnce(userKeys);
 
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
           return Promise.resolve(null);
         }
@@ -299,8 +287,8 @@ describe("Cron API POST Endpoint", () => {
           JSON.stringify(createMockUserRecord(id, daysOld)),
         );
       });
-      mockSet.mockResolvedValue(true);
-      mockDel.mockResolvedValue(1);
+      sharedRedisMockSet.mockResolvedValue(true);
+      sharedRedisMockDel.mockResolvedValue(1);
 
       globalThis.fetch = setupSuccessfulFetch();
 
@@ -315,12 +303,12 @@ describe("Cron API POST Endpoint", () => {
     });
 
     it("should sort users by updatedAt (oldest first) before selecting batch", async () => {
-      mockKeys.mockResolvedValueOnce(["user:1", "user:2", "user:3"]);
+      sharedRedisMockKeys.mockResolvedValueOnce(["user:1", "user:2", "user:3"]);
 
       const oldDate = new Date("2024-01-01").toISOString();
       const newDate = new Date("2024-12-01").toISOString();
 
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
           return Promise.resolve(null);
         }
@@ -351,8 +339,8 @@ describe("Cron API POST Endpoint", () => {
         return Promise.resolve(null);
       });
 
-      mockSet.mockResolvedValue(true);
-      mockDel.mockResolvedValue(1);
+      sharedRedisMockSet.mockResolvedValue(true);
+      sharedRedisMockDel.mockResolvedValue(1);
 
       globalThis.fetch = setupSuccessfulFetch();
 
@@ -369,16 +357,16 @@ describe("Cron API POST Endpoint", () => {
 
   describe("404 Failure Handling and User Removal", () => {
     it("should increment failure counter on 404 error (first attempt)", async () => {
-      mockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
 
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
           return Promise.resolve(null); // No previous failures
         }
         return Promise.resolve(JSON.stringify(createMockUserRecord("123")));
       });
-      mockSet.mockResolvedValue(true);
-      mockDel.mockResolvedValue(1);
+      sharedRedisMockSet.mockResolvedValue(true);
+      sharedRedisMockDel.mockResolvedValue(1);
 
       globalThis.fetch = setup404Fetch();
 
@@ -390,20 +378,20 @@ describe("Cron API POST Endpoint", () => {
       const text = await res.text();
       expect(text).toContain("Failed: 1");
 
-      expect(mockSet).toHaveBeenCalledWith("failed_updates:123", 1);
+      expect(sharedRedisMockSet).toHaveBeenCalledWith("failed_updates:123", 1);
     });
 
     it("should increment failure counter on 404 error (second attempt)", async () => {
-      mockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
 
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         if (key === "failed_updates:123") {
           return Promise.resolve("1"); // Already has 1 failure
         }
         return Promise.resolve(JSON.stringify(createMockUserRecord("123")));
       });
-      mockSet.mockResolvedValue(true);
-      mockDel.mockResolvedValue(1);
+      sharedRedisMockSet.mockResolvedValue(true);
+      sharedRedisMockDel.mockResolvedValue(1);
 
       globalThis.fetch = setup404Fetch();
 
@@ -413,20 +401,20 @@ describe("Cron API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      expect(mockSet).toHaveBeenCalledWith("failed_updates:123", 2);
+      expect(sharedRedisMockSet).toHaveBeenCalledWith("failed_updates:123", 2);
     });
 
     it("should remove user after 3 consecutive 404 failures", async () => {
-      mockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
 
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         if (key === "failed_updates:123") {
           return Promise.resolve("2"); // Already has 2 failures
         }
         return Promise.resolve(JSON.stringify(createMockUserRecord("123")));
       });
-      mockSet.mockResolvedValue(true);
-      mockDel.mockResolvedValue(1);
+      sharedRedisMockSet.mockResolvedValue(true);
+      sharedRedisMockDel.mockResolvedValue(1);
 
       globalThis.fetch = setup404Fetch();
 
@@ -438,24 +426,24 @@ describe("Cron API POST Endpoint", () => {
       const text = await res.text();
       expect(text).toContain("Failed: 1, Removed: 1");
 
-      expect(mockDel).toHaveBeenCalledWith("user:123");
-      expect(mockDel).toHaveBeenCalledWith("failed_updates:123");
-      expect(mockDel).toHaveBeenCalledWith("cards:123");
+      expect(sharedRedisMockDel).toHaveBeenCalledWith("user:123");
+      expect(sharedRedisMockDel).toHaveBeenCalledWith("failed_updates:123");
+      expect(sharedRedisMockDel).toHaveBeenCalledWith("cards:123");
     });
   });
 
   describe("Retry Logic and Network Errors", () => {
     it("should retry on network errors and eventually succeed", async () => {
-      mockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
 
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
           return Promise.resolve(null);
         }
         return Promise.resolve(JSON.stringify(createMockUserRecord("123")));
       });
-      mockSet.mockResolvedValue(true);
-      mockDel.mockResolvedValue(1);
+      sharedRedisMockSet.mockResolvedValue(true);
+      sharedRedisMockDel.mockResolvedValue(1);
 
       globalThis.fetch = setupRetryFetch(3);
 
@@ -470,20 +458,18 @@ describe("Cron API POST Endpoint", () => {
     });
 
     it("should fail after 3 retry attempts on persistent network error", async () => {
-      mockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
 
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
           return Promise.resolve(null);
         }
         return Promise.resolve(JSON.stringify(createMockUserRecord("123")));
       });
-      mockSet.mockResolvedValue(true);
-      mockDel.mockResolvedValue(1);
+      sharedRedisMockSet.mockResolvedValue(true);
+      sharedRedisMockDel.mockResolvedValue(1);
 
-      globalThis.fetch = jest
-        .fn()
-        .mockRejectedValue(new Error("Network error"));
+      globalThis.fetch = setupNetworkErrorFetch();
 
       const req = new Request("http://localhost/api/cron", {
         headers: { "x-cron-secret": CRON_SECRET },
@@ -497,16 +483,16 @@ describe("Cron API POST Endpoint", () => {
     });
 
     it("should handle non-404 HTTP errors without tracking as failure", async () => {
-      mockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
 
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
           return Promise.resolve(null);
         }
         return Promise.resolve(JSON.stringify(createMockUserRecord("123")));
       });
-      mockSet.mockResolvedValue(true);
-      mockDel.mockResolvedValue(1);
+      sharedRedisMockSet.mockResolvedValue(true);
+      sharedRedisMockDel.mockResolvedValue(1);
 
       globalThis.fetch = setup500Fetch();
 
@@ -517,7 +503,7 @@ describe("Cron API POST Endpoint", () => {
       expect(res.status).toBe(200);
       const text = await res.text();
       expect(text).toContain("Failed: 0, Removed: 0");
-      expect(mockSet).not.toHaveBeenCalledWith(
+      expect(sharedRedisMockSet).not.toHaveBeenCalledWith(
         expect.stringContaining("failed_updates"),
         expect.anything(),
       );
@@ -526,23 +512,25 @@ describe("Cron API POST Endpoint", () => {
 
   describe("Data Persistence", () => {
     it("should update user stats in Redis with fetched data", async () => {
-      mockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
 
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
           return Promise.resolve(null);
         }
         return Promise.resolve(JSON.stringify(createMockUserRecord("123")));
       });
-      mockSet.mockResolvedValue(true);
-      mockDel.mockResolvedValue(1);
+      sharedRedisMockSet.mockResolvedValue(true);
+      sharedRedisMockDel.mockResolvedValue(1);
 
       const mockStatsData = { data: { stats: { updated: "data" } } };
-      globalThis.fetch = jest.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => mockStatsData,
-      });
+      globalThis.fetch = toFetchMock(
+        mock().mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: async () => mockStatsData,
+        }),
+      );
 
       const req = new Request("http://localhost/api/cron", {
         headers: { "x-cron-secret": CRON_SECRET },
@@ -550,30 +538,32 @@ describe("Cron API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      // Verify that mockSet was called to update user data
-      expect(mockSet).toHaveBeenCalledWith(
+      // Verify that sharedRedisMockSet was called to update user data
+      expect(sharedRedisMockSet).toHaveBeenCalledWith(
         "user:123",
         expect.stringContaining(JSON.stringify(mockStatsData.data)),
       );
     });
 
     it("should update user's updatedAt timestamp after successful fetch", async () => {
-      mockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
 
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
           return Promise.resolve(null);
         }
         return Promise.resolve(JSON.stringify(createMockUserRecord("123")));
       });
-      mockSet.mockResolvedValue(true);
-      mockDel.mockResolvedValue(1);
+      sharedRedisMockSet.mockResolvedValue(true);
+      sharedRedisMockDel.mockResolvedValue(1);
 
-      globalThis.fetch = jest.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({ data: { stats: "mocked" } }),
-      });
+      globalThis.fetch = toFetchMock(
+        mock().mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: async () => ({ data: { stats: "mocked" } }),
+        }),
+      );
 
       const beforeTime = new Date();
       const req = new Request("http://localhost/api/cron", {
@@ -584,8 +574,10 @@ describe("Cron API POST Endpoint", () => {
 
       expect(res.status).toBe(200);
 
-      // Extract the call to mockSet for user:123
-      const setCall = mockSet.mock.calls.find((call) => call[0] === "user:123");
+      // Extract the call to sharedRedisMockSet for user:123
+      const setCall = (
+        sharedRedisMockSet.mock.calls as [string, unknown][]
+      ).find(([key]) => key === "user:123");
       expect(setCall).toBeDefined();
 
       if (setCall) {
@@ -601,22 +593,24 @@ describe("Cron API POST Endpoint", () => {
     });
 
     it("should clear failure tracking after successful update", async () => {
-      mockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
 
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
           return Promise.resolve("1"); // Had previous failures
         }
         return Promise.resolve(JSON.stringify(createMockUserRecord("123")));
       });
-      mockSet.mockResolvedValue(true);
-      mockDel.mockResolvedValue(1);
+      sharedRedisMockSet.mockResolvedValue(true);
+      sharedRedisMockDel.mockResolvedValue(1);
 
-      globalThis.fetch = jest.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({ data: { stats: "mocked" } }),
-      });
+      globalThis.fetch = toFetchMock(
+        mock().mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: async () => ({ data: { stats: "mocked" } }),
+        }),
+      );
 
       const req = new Request("http://localhost/api/cron", {
         headers: { "x-cron-secret": CRON_SECRET },
@@ -625,15 +619,15 @@ describe("Cron API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       // Verify failure tracking key was deleted
-      expect(mockDel).toHaveBeenCalledWith("failed_updates:123");
+      expect(sharedRedisMockDel).toHaveBeenCalledWith("failed_updates:123");
     });
   });
 
   describe("Invalid Data Handling", () => {
     it("should skip users with invalid/unparseable data", async () => {
-      mockKeys.mockResolvedValueOnce(["user:123", "user:456"]);
+      sharedRedisMockKeys.mockResolvedValueOnce(["user:123", "user:456"]);
 
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
           return Promise.resolve(null);
         }
@@ -642,8 +636,8 @@ describe("Cron API POST Endpoint", () => {
         }
         return Promise.resolve(JSON.stringify(createMockUserRecord("456")));
       });
-      mockSet.mockResolvedValue(true);
-      mockDel.mockResolvedValue(1);
+      sharedRedisMockSet.mockResolvedValue(true);
+      sharedRedisMockDel.mockResolvedValue(1);
 
       globalThis.fetch = setupSuccessfulFetch();
 
@@ -656,9 +650,9 @@ describe("Cron API POST Endpoint", () => {
       expect(text).toContain("Updated 1/1");
     });
     it("should handle users with missing optional fields (empty username)", async () => {
-      mockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
 
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
           return Promise.resolve(null);
         }
@@ -670,8 +664,8 @@ describe("Cron API POST Endpoint", () => {
           }),
         );
       });
-      mockSet.mockResolvedValue(true);
-      mockDel.mockResolvedValue(1);
+      sharedRedisMockSet.mockResolvedValue(true);
+      sharedRedisMockDel.mockResolvedValue(1);
 
       globalThis.fetch = setupSuccessfulFetch();
 
@@ -685,16 +679,16 @@ describe("Cron API POST Endpoint", () => {
     });
 
     it("should handle null user data from Redis gracefully", async () => {
-      mockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
 
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
           return Promise.resolve(null);
         }
         return Promise.resolve(null);
       });
-      mockSet.mockResolvedValue(true);
-      mockDel.mockResolvedValue(1);
+      sharedRedisMockSet.mockResolvedValue(true);
+      sharedRedisMockDel.mockResolvedValue(1);
 
       globalThis.fetch = setupSuccessfulFetch();
 
@@ -710,7 +704,9 @@ describe("Cron API POST Endpoint", () => {
 
   describe("Error Handling", () => {
     it("should return 500 and error message if Redis keys retrieval fails", async () => {
-      mockKeys.mockRejectedValueOnce(new Error("Redis connection error"));
+      sharedRedisMockKeys.mockRejectedValueOnce(
+        new Error("Redis connection error"),
+      );
       const req = new Request("http://localhost/api/cron", {
         headers: { "x-cron-secret": CRON_SECRET },
       });
@@ -721,9 +717,9 @@ describe("Cron API POST Endpoint", () => {
     });
 
     it("should handle individual user processing errors gracefully", async () => {
-      mockKeys.mockResolvedValueOnce(["user:123", "user:456"]);
+      sharedRedisMockKeys.mockResolvedValueOnce(["user:123", "user:456"]);
 
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
           return Promise.resolve(null);
         }
@@ -732,8 +728,8 @@ describe("Cron API POST Endpoint", () => {
         }
         return Promise.resolve(JSON.stringify(createMockUserRecord("456")));
       });
-      mockSet.mockResolvedValue(true);
-      mockDel.mockResolvedValue(1);
+      sharedRedisMockSet.mockResolvedValue(true);
+      sharedRedisMockDel.mockResolvedValue(1);
 
       globalThis.fetch = setupSuccessfulFetch();
 
@@ -747,8 +743,8 @@ describe("Cron API POST Endpoint", () => {
     });
 
     it("should return 500 status when critical error occurs during batch processing", async () => {
-      mockKeys.mockResolvedValueOnce(["user:123"]);
-      mockGet.mockRejectedValueOnce(new Error("Redis error"));
+      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockGet.mockRejectedValueOnce(new Error("Redis error"));
 
       const req = new Request("http://localhost/api/cron", {
         headers: { "x-cron-secret": CRON_SECRET },
@@ -762,9 +758,9 @@ describe("Cron API POST Endpoint", () => {
 
   describe("Mixed Scenarios", () => {
     it("should handle mix of successful and failed updates in same batch", async () => {
-      mockKeys.mockResolvedValueOnce(["user:1", "user:2", "user:3"]);
+      sharedRedisMockKeys.mockResolvedValueOnce(["user:1", "user:2", "user:3"]);
 
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
           return Promise.resolve(null);
         }
@@ -779,12 +775,14 @@ describe("Cron API POST Endpoint", () => {
         }
         return Promise.resolve(null);
       });
-      mockSet.mockResolvedValue(true);
-      mockDel.mockResolvedValue(1);
+      sharedRedisMockSet.mockResolvedValue(true);
+      sharedRedisMockDel.mockResolvedValue(1);
 
-      globalThis.fetch = jest
-        .fn()
-        .mockImplementation(createMixedOutcomesFetchImplementation(["2"]));
+      globalThis.fetch = toFetchMock(
+        mock().mockImplementation(
+          createMixedOutcomesFetchImplementation(["2"]),
+        ),
+      );
 
       const req = new Request("http://localhost/api/cron", {
         headers: { "x-cron-secret": CRON_SECRET },
@@ -798,21 +796,23 @@ describe("Cron API POST Endpoint", () => {
 
     it("should handle processing 10 users (at rate limit) with mixed outcomes", async () => {
       const userKeys = Array.from({ length: 10 }, (_, i) => `user:${i + 1}`);
-      mockKeys.mockResolvedValueOnce(userKeys);
+      sharedRedisMockKeys.mockResolvedValueOnce(userKeys);
 
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
           return Promise.resolve(null);
         }
         const id = key.split(":")[1];
         return Promise.resolve(JSON.stringify(createMockUserRecord(id)));
       });
-      mockSet.mockResolvedValue(true);
-      mockDel.mockResolvedValue(1);
+      sharedRedisMockSet.mockResolvedValue(true);
+      sharedRedisMockDel.mockResolvedValue(1);
 
-      globalThis.fetch = jest
-        .fn()
-        .mockImplementation(createMixedOutcomesFetchImplementation(["3", "7"]));
+      globalThis.fetch = toFetchMock(
+        mock().mockImplementation(
+          createMixedOutcomesFetchImplementation(["3", "7"]),
+        ),
+      );
 
       const req = new Request("http://localhost/api/cron", {
         headers: { "x-cron-secret": CRON_SECRET },

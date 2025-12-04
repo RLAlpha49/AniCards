@@ -1,6 +1,11 @@
-import { POST } from "./route";
+import { afterEach, describe, expect, it, mock } from "bun:test";
+import {
+  sharedRedisMockKeys,
+  sharedRedisMockGet,
+  sharedRedisMockLrange,
+  sharedRedisMockRpush,
+} from "../../__setup__.test";
 
-// Type definitions for test data
 interface ValidationIssue {
   key: string;
   issues: string[];
@@ -13,43 +18,7 @@ interface ValidationReport {
   generatedAt: string;
 }
 
-/**
- * Mocked keys command used across the validation cron tests.
- * @source
- */
-const mockKeys = jest.fn();
-/**
- * Mocked get command used to simulate Redis values.
- * @source
- */
-const mockGet = jest.fn();
-/**
- * Mocked lrange command for fetching analytics report lists.
- * @source
- */
-const mockLrange = jest.fn();
-/**
- * Mocked rpush command for storing validation reports.
- * @source
- */
-const mockRpush = jest.fn();
-
-/**
- * Fake Redis client exposing the mocked methods.
- * @source
- */
-const fakeRedisClient = {
-  keys: mockKeys,
-  get: mockGet,
-  lrange: mockLrange,
-  rpush: mockRpush,
-};
-
-jest.mock("@upstash/redis", () => ({
-  Redis: {
-    fromEnv: jest.fn(() => fakeRedisClient),
-  },
-}));
+const { POST } = await import("./route");
 
 /**
  * Dummy cron secret for bypassing authorization in validation tests.
@@ -81,7 +50,7 @@ function createCronRequest(secret: string = CRON_SECRET): Request {
  * @source
  */
 function setupSuccessfulRedisMocks() {
-  mockKeys.mockImplementation((pattern: string) => {
+  sharedRedisMockKeys.mockImplementation((pattern: string) => {
     switch (pattern) {
       case "user:*":
         return Promise.resolve(["user:1"]);
@@ -96,7 +65,7 @@ function setupSuccessfulRedisMocks() {
     }
   });
 
-  mockGet.mockImplementation((key: string) => {
+  sharedRedisMockGet.mockImplementation((key: string) => {
     if (key === "user:1") {
       return Promise.resolve(JSON.stringify(validUserRecord));
     } else if (key === "cards:1") {
@@ -109,14 +78,14 @@ function setupSuccessfulRedisMocks() {
     return Promise.resolve(null);
   });
 
-  mockLrange.mockImplementation((key: string) => {
+  sharedRedisMockLrange.mockImplementation((key: string) => {
     if (key === "analytics:reports") {
       return Promise.resolve([JSON.stringify(validReport)]);
     }
     return Promise.resolve([]);
   });
 
-  mockRpush.mockResolvedValue(1);
+  sharedRedisMockRpush.mockResolvedValue(1);
 }
 
 /**
@@ -200,7 +169,7 @@ const validReport = {
 
 describe("Data Validation Cron API POST Endpoint", () => {
   afterEach(() => {
-    jest.clearAllMocks();
+    mock.clearAllMocks();
   });
 
   describe("Authorization", () => {
@@ -261,19 +230,19 @@ describe("Data Validation Cron API POST Endpoint", () => {
       });
 
       // Verify that the report was saved to the Redis list
-      expect(mockRpush).toHaveBeenCalledWith(
+      expect(sharedRedisMockRpush).toHaveBeenCalledWith(
         "data_validation:reports",
         expect.any(String),
       );
     });
 
     it("should handle empty pattern results", async () => {
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([]) // user:*
         .mockResolvedValueOnce([]) // cards:*
         .mockResolvedValueOnce([]) // username:*
         .mockResolvedValueOnce([]); // analytics:*
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -287,12 +256,12 @@ describe("Data Validation Cron API POST Endpoint", () => {
     });
 
     it("should handle multiple valid records across all patterns", async () => {
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce(["user:1", "user:2", "user:3"])
         .mockResolvedValueOnce(["cards:1", "cards:2"])
         .mockResolvedValueOnce(["username:1", "username:2"])
         .mockResolvedValueOnce(["analytics:data", "analytics:reports"]);
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("user:"))
           return Promise.resolve(JSON.stringify(validUserRecord));
         if (key.startsWith("cards:"))
@@ -301,8 +270,10 @@ describe("Data Validation Cron API POST Endpoint", () => {
         if (key === "analytics:data") return Promise.resolve("456");
         return Promise.resolve(null);
       });
-      mockLrange.mockResolvedValueOnce([JSON.stringify(validReport)]);
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockLrange.mockResolvedValueOnce([
+        JSON.stringify(validReport),
+      ]);
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -318,13 +289,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
   describe("User Record Validation", () => {
     it("should report missing userId", async () => {
       const invalidUser = { ...validUserRecord, userId: undefined };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce(["user:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(invalidUser));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(invalidUser));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -340,13 +311,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
 
     it("should report non-number userId", async () => {
       const invalidUser = { ...validUserRecord, userId: "1" };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce(["user:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(invalidUser));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(invalidUser));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -361,13 +332,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
 
     it("should report missing username", async () => {
       const invalidUser = { ...validUserRecord, username: undefined };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce(["user:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(invalidUser));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(invalidUser));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -382,13 +353,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
 
     it("should report missing ip", async () => {
       const invalidUser = { ...validUserRecord, ip: undefined };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce(["user:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(invalidUser));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(invalidUser));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -403,13 +374,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
 
     it("should report missing createdAt", async () => {
       const invalidUser = { ...validUserRecord, createdAt: undefined };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce(["user:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(invalidUser));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(invalidUser));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -424,13 +395,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
 
     it("should report missing updatedAt", async () => {
       const invalidUser = { ...validUserRecord, updatedAt: undefined };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce(["user:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(invalidUser));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(invalidUser));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -445,13 +416,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
 
     it("should report missing stats object", async () => {
       const invalidUser = { ...validUserRecord, stats: undefined };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce(["user:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(invalidUser));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(invalidUser));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -466,13 +437,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
 
     it("should report null stats object", async () => {
       const invalidUser = { ...validUserRecord, stats: null };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce(["user:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(invalidUser));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(invalidUser));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -489,13 +460,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
   describe("Cards Record Validation", () => {
     it("should report missing userId in cards", async () => {
       const invalidCards = { ...validCardsRecord, userId: undefined };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["cards:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -512,13 +483,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
 
     it("should report non-number userId in cards", async () => {
       const invalidCards = { ...validCardsRecord, userId: "1" };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["cards:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -529,13 +500,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
 
     it("should report missing cards array", async () => {
       const invalidCards = { ...validCardsRecord, cards: undefined };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["cards:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -552,13 +523,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
 
     it("should report non-array cards field", async () => {
       const invalidCards = { ...validCardsRecord, cards: "not-an-array" };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["cards:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -575,13 +546,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
 
     it("should report missing card object in array", async () => {
       const invalidCards = { ...validCardsRecord, cards: [null] };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["cards:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -601,13 +572,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
         ...validCardsRecord,
         cards: [{ ...validCardsRecord.cards[0], cardName: undefined }],
       };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["cards:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -627,13 +598,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
         ...validCardsRecord,
         cards: [{ ...validCardsRecord.cards[0], variation: undefined }],
       };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["cards:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -661,13 +632,15 @@ describe("Data Validation Cron API POST Endpoint", () => {
         updatedAt: "2021-01-02T00:00:00Z",
       };
 
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["cards:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(cardsRecordWithPreset));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify(cardsRecordWithPreset),
+      );
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -682,13 +655,15 @@ describe("Data Validation Cron API POST Endpoint", () => {
         updatedAt: "2021-01-02T00:00:00Z",
       };
 
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["cards:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(cardsMissingColors));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify(cardsMissingColors),
+      );
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -714,13 +689,15 @@ describe("Data Validation Cron API POST Endpoint", () => {
         updatedAt: "2021-01-02T00:00:00Z",
       };
 
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["cards:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(cardsMissingColors));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify(cardsMissingColors),
+      );
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -733,13 +710,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
         ...validCardsRecord,
         cards: [{ ...validCardsRecord.cards[0], titleColor: undefined }],
       };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["cards:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -759,13 +736,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
         ...validCardsRecord,
         cards: [{ ...validCardsRecord.cards[0], backgroundColor: undefined }],
       };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["cards:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -785,13 +762,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
         ...validCardsRecord,
         cards: [{ ...validCardsRecord.cards[0], textColor: undefined }],
       };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["cards:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -811,13 +788,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
         ...validCardsRecord,
         cards: [{ ...validCardsRecord.cards[0], circleColor: undefined }],
       };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["cards:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -837,13 +814,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
         ...validCardsRecord,
         cards: [{ ...validCardsRecord.cards[0], borderColor: "#ccc" }],
       };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["cards:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(cardsWithBorder));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(cardsWithBorder));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -856,13 +833,15 @@ describe("Data Validation Cron API POST Endpoint", () => {
         ...validCardsRecord,
         cards: [{ ...validCardsRecord.cards[0], borderColor: 123 }],
       };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["cards:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(cardsInvalidBorder));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify(cardsInvalidBorder),
+      );
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -879,13 +858,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
 
     it("should report missing updatedAt in cards", async () => {
       const invalidCards = { ...validCardsRecord, updatedAt: undefined };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["cards:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(invalidCards));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -909,13 +888,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
         ],
         updatedAt: "2021-01-02T00:00:00Z",
       };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["cards:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify(multipleCards));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(multipleCards));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -934,13 +913,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
 
   describe("Username Record Validation", () => {
     it("should accept numeric username records", async () => {
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["username:1"])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce("123");
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce("123");
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -950,13 +929,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
     });
 
     it("should report non-numeric username records", async () => {
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["username:1"])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify("not-a-number"));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify("not-a-number"));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -972,13 +951,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
     });
 
     it("should report object username records", async () => {
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["username:1"])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(JSON.stringify({ id: 1 }));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify({ id: 1 }));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -990,14 +969,16 @@ describe("Data Validation Cron API POST Endpoint", () => {
 
   describe("Analytics Validation", () => {
     it("should accept numeric analytics metrics", async () => {
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["analytics:visits", "analytics:reports"]);
-      mockGet.mockResolvedValueOnce("100");
-      mockLrange.mockResolvedValueOnce([JSON.stringify(validReport)]);
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce("100");
+      sharedRedisMockLrange.mockResolvedValueOnce([
+        JSON.stringify(validReport),
+      ]);
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -1007,14 +988,16 @@ describe("Data Validation Cron API POST Endpoint", () => {
     });
 
     it("should report non-numeric analytics metrics", async () => {
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["analytics:invalid", "analytics:reports"]);
-      mockGet.mockResolvedValueOnce(JSON.stringify("not-a-number"));
-      mockLrange.mockResolvedValueOnce([JSON.stringify(validReport)]);
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify("not-a-number"));
+      sharedRedisMockLrange.mockResolvedValueOnce([
+        JSON.stringify(validReport),
+      ]);
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -1026,13 +1009,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
     });
 
     it("should handle empty analytics reports list", async () => {
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["analytics:reports"]);
-      mockLrange.mockResolvedValueOnce([]);
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockLrange.mockResolvedValueOnce([]);
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -1049,13 +1032,15 @@ describe("Data Validation Cron API POST Endpoint", () => {
 
     it("should validate analytics reports structure", async () => {
       const invalidReport = { generatedAt: "2021-01-01T00:00:00Z" }; // missing raw_data and summary
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["analytics:reports"]);
-      mockLrange.mockResolvedValueOnce([JSON.stringify(invalidReport)]);
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockLrange.mockResolvedValueOnce([
+        JSON.stringify(invalidReport),
+      ]);
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -1068,13 +1053,15 @@ describe("Data Validation Cron API POST Endpoint", () => {
 
     it("should report missing generatedAt in analytics report", async () => {
       const invalidReport = { raw_data: {}, summary: {} };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["analytics:reports"]);
-      mockLrange.mockResolvedValueOnce([JSON.stringify(invalidReport)]);
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockLrange.mockResolvedValueOnce([
+        JSON.stringify(invalidReport),
+      ]);
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -1094,13 +1081,15 @@ describe("Data Validation Cron API POST Endpoint", () => {
         generatedAt: "2021-01-01T00:00:00Z",
         summary: {},
       };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["analytics:reports"]);
-      mockLrange.mockResolvedValueOnce([JSON.stringify(invalidReport)]);
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockLrange.mockResolvedValueOnce([
+        JSON.stringify(invalidReport),
+      ]);
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -1120,13 +1109,15 @@ describe("Data Validation Cron API POST Endpoint", () => {
         generatedAt: "2021-01-01T00:00:00Z",
         raw_data: {},
       };
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["analytics:reports"]);
-      mockLrange.mockResolvedValueOnce([JSON.stringify(invalidReport)]);
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockLrange.mockResolvedValueOnce([
+        JSON.stringify(invalidReport),
+      ]);
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -1142,16 +1133,16 @@ describe("Data Validation Cron API POST Endpoint", () => {
     });
 
     it("should handle multiple analytics reports with one invalid", async () => {
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["analytics:reports"]);
-      mockLrange.mockResolvedValueOnce([
+      sharedRedisMockLrange.mockResolvedValueOnce([
         JSON.stringify(validReport),
         JSON.stringify({ generatedAt: "invalid" }),
       ]);
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -1165,7 +1156,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
 
   describe("Redis Error Handling", () => {
     it("should return 500 and an error message if redis keys retrieval fails", async () => {
-      mockKeys.mockRejectedValueOnce(new Error("Redis keys error"));
+      sharedRedisMockKeys.mockRejectedValueOnce(new Error("Redis keys error"));
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -1174,13 +1165,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
     });
 
     it("should handle individual key validation errors gracefully", async () => {
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce(["user:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockRejectedValueOnce(new Error("Redis get error"));
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockRejectedValueOnce(new Error("Redis get error"));
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -1190,13 +1181,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
     });
 
     it("should handle null or missing Redis values", async () => {
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce(["user:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce(null);
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -1212,13 +1203,13 @@ describe("Data Validation Cron API POST Endpoint", () => {
     });
 
     it("should handle invalid JSON parsing in Redis values", async () => {
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce(["user:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
-      mockGet.mockResolvedValueOnce("invalid json {]");
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockGet.mockResolvedValueOnce("invalid json {]");
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);
@@ -1229,7 +1220,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
           (i) =>
             i.key === "user:1" &&
             i.issues.some((issue: string) =>
-              issue.includes("Unexpected token"),
+              /Unexpected (token|identifier)/.test(issue),
             ),
         ),
       ).toBeTruthy();
@@ -1260,12 +1251,14 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const req = createCronRequest();
       await POST(req);
 
-      expect(mockRpush).toHaveBeenCalledWith(
+      expect(sharedRedisMockRpush).toHaveBeenCalledWith(
         "data_validation:reports",
         expect.any(String),
       );
 
-      const savedReport = JSON.parse(mockRpush.mock.calls[0][1] as string);
+      const savedReport = JSON.parse(
+        sharedRedisMockRpush.mock.calls[0][1] as string,
+      );
       expect(savedReport).toHaveProperty("summary");
       expect(savedReport).toHaveProperty("details");
       expect(savedReport).toHaveProperty("issues");
@@ -1273,20 +1266,22 @@ describe("Data Validation Cron API POST Endpoint", () => {
     });
 
     it("should include correct summary message with counts", async () => {
-      mockKeys
+      sharedRedisMockKeys
         .mockResolvedValueOnce(["user:1", "user:2"])
         .mockResolvedValueOnce(["cards:1"])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce(["analytics:reports"]);
-      mockGet.mockImplementation((key: string) => {
+      sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("user:"))
           return Promise.resolve(JSON.stringify(validUserRecord));
         if (key.startsWith("cards:"))
           return Promise.resolve(JSON.stringify(validCardsRecord));
         return Promise.resolve(null);
       });
-      mockLrange.mockResolvedValueOnce([JSON.stringify(validReport)]);
-      mockRpush.mockResolvedValue(1);
+      sharedRedisMockLrange.mockResolvedValueOnce([
+        JSON.stringify(validReport),
+      ]);
+      sharedRedisMockRpush.mockResolvedValue(1);
 
       const req = createCronRequest();
       const res = await POST(req);

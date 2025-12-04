@@ -1,78 +1,33 @@
-/**
- * Mock implementation of the rate limiter's limit method.
- * @source
- */
-let mockLimit = jest.fn().mockResolvedValue({ success: true });
+import { afterEach, describe, expect, it, mock } from "bun:test";
+import {
+  sharedRedisMockSet,
+  sharedRedisMockGet,
+  sharedRedisMockIncr,
+  sharedRatelimitMockLimit,
+  sharedRatelimitMockSlidingWindow,
+} from "../__setup__.test";
 
-/**
- * Mock for Redis GET operations.
- * @source
- */
-let mockRedisGet = jest.fn();
-
-/**
- * Mock for Redis SET operations.
- * @source
- */
-let mockRedisSet = jest.fn();
-let mockRedisIncr = jest.fn(async () => 1);
-
-/**
- * Creates a simple mocked Redis client used by the Redis mock factory.
- *
- * The returned object only implements the subset of Redis methods required by
- * the route tests: `get`, `set`, and `incr`.
- * @source
- */
-function createRedisFromEnvMock() {
-  return {
-    get: mockRedisGet,
-    set: mockRedisSet,
-    incr: mockRedisIncr,
-  };
-}
-
-jest.mock("@upstash/redis", () => ({
-  Redis: {
-    fromEnv: jest.fn(createRedisFromEnvMock),
-  },
+mock.module("@/lib/utils/milestones", () => ({
+  calculateMilestones: mock(() => ({ milestone: 100 })),
 }));
 
-import { GET, OPTIONS } from "./route";
-import { Ratelimit as RatelimitMock } from "@upstash/ratelimit";
-
-// --- Mocks for external dependencies --- //
-jest.mock("@upstash/ratelimit", () => {
-  class RatelimitMock {
-    static readonly slidingWindow = jest.fn();
-    public limit = mockLimit;
-  }
-  return {
-    Ratelimit: RatelimitMock,
-  };
-});
-
-jest.mock("@/lib/utils/milestones", () => ({
-  calculateMilestones: jest.fn(() => ({ milestone: 100 })),
-}));
-
-jest.mock("@/lib/svg-templates/media-stats", () => ({
-  mediaStatsTemplate: jest.fn(
+mock.module("@/lib/svg-templates/media-stats", () => ({
+  mediaStatsTemplate: mock(
     (data: { styles?: { borderColor?: string } }) =>
       `<!--ANICARDS_TRUSTED_SVG-->` +
       `<svg data-template="media" stroke="${data.styles?.borderColor ?? "none"}">Anime Stats</svg>`,
   ),
 }));
 
-jest.mock("@/lib/svg-templates/social-stats", () => ({
-  socialStatsTemplate: jest.fn(
+mock.module("@/lib/svg-templates/social-stats", () => ({
+  socialStatsTemplate: mock(
     (data: { styles?: { borderColor?: string } }) =>
       `<svg data-template="social" stroke="${data.styles?.borderColor ?? "none"}">Social Stats</svg>`,
   ),
 }));
 
-jest.mock("@/lib/svg-templates/extra-anime-manga-stats", () => ({
-  extraAnimeMangaStatsTemplate: jest.fn(
+mock.module("@/lib/svg-templates/extra-anime-manga-stats", () => ({
+  extraAnimeMangaStatsTemplate: mock(
     (data: {
       styles?: { borderColor?: string };
       fixedStatusColors?: boolean;
@@ -82,36 +37,25 @@ jest.mock("@/lib/svg-templates/extra-anime-manga-stats", () => ({
   ),
 }));
 
-jest.mock("@/lib/svg-templates/distribution", () => ({
-  distributionTemplate: jest.fn(
+mock.module("@/lib/svg-templates/distribution", () => ({
+  distributionTemplate: mock(
     (data: { styles?: { borderColor?: string } }) =>
       `<svg data-template="distribution" stroke="${data.styles?.borderColor ?? "none"}">Distribution</svg>`,
   ),
 }));
 
-// Import the mocked template to assert call arguments
-import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats";
-import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
-import { colorPresets } from "@/components/stat-card-generator/constants";
-import { POST as storeCardsPOST } from "@/app/api/store-cards/route";
-import { escapeForXml } from "@/lib/utils";
-import { distributionTemplate } from "@/lib/svg-templates/distribution";
-
-jest.mock("@/lib/utils", () => {
-  const actual = jest.requireActual("@/lib/utils");
-  return {
-    ...actual,
-    safeParse: (str: string) => JSON.parse(str),
-    extractStyles: jest.fn((cardConfig: Partial<Record<string, unknown>>) => ({
-      titleColor: cardConfig.titleColor,
-      backgroundColor: cardConfig.backgroundColor,
-      textColor: cardConfig.textColor,
-      circleColor: cardConfig.circleColor,
-      borderColor: cardConfig.borderColor,
-      borderRadius: cardConfig.borderRadius,
-    })),
-  };
-});
+const routeModule = await import("./route");
+const { GET, OPTIONS } = routeModule;
+const { extraAnimeMangaStatsTemplate } =
+  await import("@/lib/svg-templates/extra-anime-manga-stats");
+const { mediaStatsTemplate } = await import("@/lib/svg-templates/media-stats");
+const { colorPresets } =
+  await import("@/components/stat-card-generator/constants");
+const { POST: storeCardsPOST } = await import("@/app/api/store-cards/route");
+const utils = await import("@/lib/utils");
+const { distributionTemplate } =
+  await import("@/lib/svg-templates/distribution");
+const { escapeForXml } = utils;
 
 /**
  * Reads the text body from a Response for later assertion.
@@ -219,7 +163,9 @@ function createRequestUrl(baseUrl: string, params: Record<string, string>) {
  * @source
  */
 function setupSuccessfulMocks(cardsData: string, userData: string) {
-  mockRedisGet.mockResolvedValueOnce(cardsData).mockResolvedValueOnce(userData);
+  sharedRedisMockGet
+    .mockResolvedValueOnce(cardsData)
+    .mockResolvedValueOnce(userData);
 }
 
 /**
@@ -280,26 +226,35 @@ async function expectErrorResponse(
   expect(text).toBe(expectedSvg);
 }
 
+type MockFunction<T> = T & {
+  mock: {
+    calls: T extends (...args: infer Args) => unknown ? Args[] : never;
+  };
+};
+
 describe("Card SVG Route", () => {
   const baseUrl = "http://localhost/api/card.svg";
 
   afterEach(() => {
-    jest.clearAllMocks();
+    mock.clearAllMocks();
     // Reset mocks to their default state
-    mockLimit.mockResolvedValue({ success: true });
-    mockRedisGet.mockClear();
-    mockRedisSet.mockClear();
-    mockRedisIncr.mockClear();
+    sharedRatelimitMockLimit.mockResolvedValue({ success: true });
+    sharedRedisMockGet.mockClear();
+    sharedRedisMockSet.mockClear();
+    sharedRedisMockIncr.mockClear();
   });
 
   describe("Rate Limiting", () => {
     it("should construct card-specific rate limiter with 150/10s", () => {
-      expect(RatelimitMock.slidingWindow).toHaveBeenCalledWith(150, "10 s");
+      expect(sharedRatelimitMockSlidingWindow).toHaveBeenCalledWith(
+        150,
+        "10 s",
+      );
     });
 
     it("should return 429 when rate limit is exceeded", async () => {
-      mockLimit.mockResolvedValueOnce({ success: false });
-      mockRedisGet.mockClear();
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: false });
+      sharedRedisMockGet.mockClear();
 
       const req = new Request(
         createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
@@ -311,14 +266,14 @@ describe("Card SVG Route", () => {
         "Client Error: Too many requests - try again later",
         429,
       );
-      expect(mockLimit).toHaveBeenCalledWith("127.0.0.1");
-      expect(mockRedisIncr).toHaveBeenCalledWith(
+      expect(sharedRatelimitMockLimit).toHaveBeenCalledWith("127.0.0.1");
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:card_svg:failed_requests",
       );
     });
 
     it("should extract IP from x-forwarded-for header", async () => {
-      mockLimit.mockResolvedValueOnce({ success: false });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: false });
 
       const req = new Request(
         createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
@@ -326,18 +281,18 @@ describe("Card SVG Route", () => {
       );
 
       await GET(req);
-      expect(mockLimit).toHaveBeenCalledWith("192.168.1.1");
+      expect(sharedRatelimitMockLimit).toHaveBeenCalledWith("192.168.1.1");
     });
 
     it("should default to 127.0.0.1 when x-forwarded-for is missing", async () => {
-      mockLimit.mockResolvedValueOnce({ success: false });
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: false });
 
       const req = new Request(
         createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
       );
 
       await GET(req);
-      expect(mockLimit).toHaveBeenCalledWith("127.0.0.1");
+      expect(sharedRatelimitMockLimit).toHaveBeenCalledWith("127.0.0.1");
     });
   });
 
@@ -392,7 +347,7 @@ describe("Card SVG Route", () => {
         const userData = createMockUserData(542244, "testUser", {
           User: { statistics: { anime: {}, manga: {} } },
         });
-        mockRedisGet
+        sharedRedisMockGet
           .mockResolvedValueOnce(cardsData)
           .mockResolvedValueOnce(userData);
 
@@ -403,8 +358,8 @@ describe("Card SVG Route", () => {
         expect(res.status).toBe(200);
 
         // Reset mock chain for next iteration
-        jest.clearAllMocks();
-        mockLimit.mockResolvedValue({ success: true });
+        mock.clearAllMocks();
+        sharedRatelimitMockLimit.mockResolvedValue({ success: true });
       }
     });
   });
@@ -464,7 +419,7 @@ describe("Card SVG Route", () => {
           },
         ],
       });
-      mockRedisGet
+      sharedRedisMockGet
         .mockResolvedValueOnce(cardsData)
         .mockResolvedValueOnce(userData);
 
@@ -483,7 +438,7 @@ describe("Card SVG Route", () => {
     });
 
     it("should return 404 when user data is not found in Redis", async () => {
-      mockRedisGet.mockResolvedValueOnce(null);
+      sharedRedisMockGet.mockResolvedValueOnce(null);
 
       const req = new Request(
         createRequestUrl(baseUrl, {
@@ -527,7 +482,7 @@ describe("Card SVG Route", () => {
         },
       ];
 
-      mockRedisSet.mockResolvedValueOnce("OK");
+      sharedRedisMockSet.mockResolvedValueOnce("OK");
 
       const postReq = new Request("http://localhost/api/store-cards", {
         method: "POST",
@@ -537,7 +492,7 @@ describe("Card SVG Route", () => {
 
       const postRes = await storeCardsPOST(postReq);
       expect(postRes.status).toBe(200);
-      expect(mockRedisSet).toHaveBeenCalled();
+      expect(sharedRedisMockSet).toHaveBeenCalled();
     });
   });
 
@@ -546,7 +501,7 @@ describe("Card SVG Route", () => {
       const userData = createMockUserData(542244, "testUser", {
         User: { statistics: { anime: {} } },
       });
-      mockRedisGet.mockResolvedValueOnce(userData);
+      sharedRedisMockGet.mockResolvedValueOnce(userData);
 
       const req = new Request(
         createRequestUrl(baseUrl, {
@@ -559,7 +514,9 @@ describe("Card SVG Route", () => {
       expect(res.status).toBe(200);
 
       expect(mediaStatsTemplate).toHaveBeenCalled();
-      const callArgs = (mediaStatsTemplate as jest.Mock).mock.calls[0][0];
+      const callArgs = (
+        mediaStatsTemplate as MockFunction<typeof mediaStatsTemplate>
+      ).mock.calls[0][0];
       expect(callArgs.styles.titleColor).toBe(
         colorPresets.anilistDark.colors[0],
       );
@@ -586,7 +543,9 @@ describe("Card SVG Route", () => {
       expect(res.status).toBe(200);
 
       expect(mediaStatsTemplate).toHaveBeenCalled();
-      const callArgs = (mediaStatsTemplate as jest.Mock).mock.calls[0][0];
+      const callArgs = (
+        mediaStatsTemplate as MockFunction<typeof mediaStatsTemplate>
+      ).mock.calls[0][0];
       expect(callArgs.styles.titleColor).toBe("#111111");
     });
 
@@ -594,7 +553,7 @@ describe("Card SVG Route", () => {
       const userData = createMockUserData(542244, "testUser", {
         User: { statistics: { anime: {} } },
       });
-      mockRedisGet.mockResolvedValueOnce(userData);
+      sharedRedisMockGet.mockResolvedValueOnce(userData);
 
       const req = new Request(
         createRequestUrl(baseUrl, {
@@ -608,7 +567,9 @@ describe("Card SVG Route", () => {
       expect(res.status).toBe(200);
 
       expect(mediaStatsTemplate).toHaveBeenCalled();
-      const callArgs = (mediaStatsTemplate as jest.Mock).mock.calls[0][0];
+      const callArgs = (
+        mediaStatsTemplate as MockFunction<typeof mediaStatsTemplate>
+      ).mock.calls[0][0];
       expect(callArgs.styles.titleColor).toBe("#ff0000");
     });
 
@@ -632,7 +593,9 @@ describe("Card SVG Route", () => {
       expect(res.status).toBe(200);
 
       expect(mediaStatsTemplate).toHaveBeenCalled();
-      const callArgs = (mediaStatsTemplate as jest.Mock).mock.calls[0][0];
+      const callArgs = (
+        mediaStatsTemplate as MockFunction<typeof mediaStatsTemplate>
+      ).mock.calls[0][0];
       expect(callArgs.styles.titleColor).toBe("#00ff00");
     });
 
@@ -659,7 +622,9 @@ describe("Card SVG Route", () => {
       expect(res.status).toBe(200);
 
       expect(mediaStatsTemplate).toHaveBeenCalled();
-      const callArgs = (mediaStatsTemplate as jest.Mock).mock.calls[0][0];
+      const callArgs = (
+        mediaStatsTemplate as MockFunction<typeof mediaStatsTemplate>
+      ).mock.calls[0][0];
       expect(callArgs.styles.titleColor).toBe("#111111");
       expect(callArgs.styles.backgroundColor).toBe("#222222");
       expect(callArgs.styles.textColor).toBe("#333333");
@@ -725,7 +690,9 @@ describe("Card SVG Route", () => {
       expect(res.status).toBe(200);
 
       expect(mediaStatsTemplate).toHaveBeenCalled();
-      const callArgs = (mediaStatsTemplate as jest.Mock).mock.calls[0][0];
+      const callArgs = (
+        mediaStatsTemplate as MockFunction<typeof mediaStatsTemplate>
+      ).mock.calls[0][0];
       expect(callArgs.variant).toBe("default");
     });
 
@@ -747,7 +714,9 @@ describe("Card SVG Route", () => {
       expect(res.status).toBe(200);
 
       expect(distributionTemplate).toHaveBeenCalled();
-      const callArgs = (distributionTemplate as jest.Mock).mock.calls[0][0];
+      const callArgs = (
+        distributionTemplate as MockFunction<typeof distributionTemplate>
+      ).mock.calls[0][0];
       expect(callArgs.variant).toBe("default");
     });
 
@@ -811,8 +780,11 @@ describe("Card SVG Route", () => {
       expect(res.status).toBe(200);
 
       expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
-      const callArgs = (extraAnimeMangaStatsTemplate as jest.Mock).mock
-        .calls[0][0];
+      const callArgs = (
+        extraAnimeMangaStatsTemplate as MockFunction<
+          typeof extraAnimeMangaStatsTemplate
+        >
+      ).mock.calls[0][0];
       expect(callArgs.favorites).toContain("Favorite Staff");
     });
 
@@ -863,8 +835,11 @@ describe("Card SVG Route", () => {
       expect(res.status).toBe(200);
 
       expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
-      const callArgs = (extraAnimeMangaStatsTemplate as jest.Mock).mock
-        .calls[0][0];
+      const callArgs = (
+        extraAnimeMangaStatsTemplate as MockFunction<
+          typeof extraAnimeMangaStatsTemplate
+        >
+      ).mock.calls[0][0];
       expect(callArgs.fixedStatusColors).toBeTruthy();
     });
 
@@ -894,8 +869,11 @@ describe("Card SVG Route", () => {
       expect(res.status).toBe(200);
 
       expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
-      const callArgs = (extraAnimeMangaStatsTemplate as jest.Mock).mock
-        .calls[0][0];
+      const callArgs = (
+        extraAnimeMangaStatsTemplate as MockFunction<
+          typeof extraAnimeMangaStatsTemplate
+        >
+      ).mock.calls[0][0];
       expect(callArgs.showPiePercentages).toBeTruthy();
     });
 
@@ -924,8 +902,11 @@ describe("Card SVG Route", () => {
       expect(res.status).toBe(200);
 
       expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
-      const callArgs = (extraAnimeMangaStatsTemplate as jest.Mock).mock
-        .calls[0][0];
+      const callArgs = (
+        extraAnimeMangaStatsTemplate as MockFunction<
+          typeof extraAnimeMangaStatsTemplate
+        >
+      ).mock.calls[0][0];
       expect(callArgs.fixedStatusColors).toBeTruthy();
     });
   });
@@ -1094,7 +1075,7 @@ describe("Card SVG Route", () => {
     });
 
     it("should return server error when Redis throws", async () => {
-      mockRedisGet.mockRejectedValueOnce(new Error("Redis error"));
+      sharedRedisMockGet.mockRejectedValueOnce(new Error("Redis error"));
 
       const req = new Request(
         createRequestUrl(baseUrl, { userId: "123", cardType: "animeStats" }),
@@ -1112,7 +1093,7 @@ describe("Card SVG Route", () => {
       const userData = createMockUserData(542244, "testUser", {
         User: { statistics: { anime: {} } },
       });
-      mockRedisGet
+      sharedRedisMockGet
         .mockResolvedValueOnce(invalidCardsData)
         .mockResolvedValueOnce(userData);
 
@@ -1129,7 +1110,7 @@ describe("Card SVG Route", () => {
         500,
       );
 
-      expect(mockRedisIncr).toHaveBeenCalledWith(
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:card_svg:corrupted_card_records",
       );
     });
@@ -1137,7 +1118,7 @@ describe("Card SVG Route", () => {
     it("should return server error for corrupted user record", async () => {
       const cardsData = createMockCardData("animeStats", "default");
       const invalidUserData = "not-a-json";
-      mockRedisGet
+      sharedRedisMockGet
         .mockResolvedValueOnce(cardsData)
         .mockResolvedValueOnce(invalidUserData);
 
@@ -1154,7 +1135,7 @@ describe("Card SVG Route", () => {
         500,
       );
 
-      expect(mockRedisIncr).toHaveBeenCalledWith(
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:card_svg:corrupted_user_records",
       );
     });
@@ -1187,16 +1168,19 @@ describe("Card SVG Route", () => {
 
     it("should map CardDataError to appropriate error response", async () => {
       const cardsData = createMockCardData("animeStats", "default");
-      const userData = createMockUserData(542244, "testUser", {
-        User: { statistics: { anime: {} } },
-      });
+      const parsedUserData = JSON.parse(
+        createMockUserData(542244, "testUser"),
+      ) as Record<string, unknown>;
+      // Remove statistics to force generator-level CardDataError
+      const stats = (parsedUserData.stats as Record<string, unknown>) ?? {};
+      const userSection = (stats.User as Record<string, unknown>) ?? {};
+      stats.User = {
+        ...userSection,
+        statistics: undefined,
+      };
+      parsedUserData.stats = stats;
+      const userData = JSON.stringify(parsedUserData);
       setupSuccessfulMocks(cardsData, userData);
-
-      const genMod = require("@/lib/card-generator");
-      const dataMod = require("@/lib/card-data");
-      const spy = jest.spyOn(genMod, "default").mockImplementation(() => {
-        throw new dataMod.CardDataError("Unsupported card type", 400);
-      });
 
       const req = new Request(
         createRequestUrl(baseUrl, {
@@ -1207,16 +1191,14 @@ describe("Card SVG Route", () => {
       const res = await GET(req);
       await expectErrorResponse(
         res,
-        "Client Error: Unsupported card type",
-        400,
+        "Not Found: Missing card configuration or stats data",
+        404,
       );
-
-      spy.mockRestore();
     });
 
     it("should track failed requests to analytics", async () => {
-      mockLimit.mockResolvedValueOnce({ success: false });
-      mockRedisIncr.mockResolvedValueOnce(1);
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: false });
+      sharedRedisMockIncr.mockResolvedValueOnce(1);
 
       const req = new Request(
         createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
@@ -1224,7 +1206,7 @@ describe("Card SVG Route", () => {
       await GET(req);
 
       // Verify that analytics tracking was attempted (at least the first call)
-      expect(mockRedisIncr).toHaveBeenCalled();
+      expect(sharedRedisMockIncr).toHaveBeenCalled();
     });
 
     it("should track successful requests to analytics", async () => {
@@ -1242,10 +1224,10 @@ describe("Card SVG Route", () => {
       );
       await GET(req);
 
-      expect(mockRedisIncr).toHaveBeenCalledWith(
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:card_svg:successful_requests",
       );
-      expect(mockRedisIncr).toHaveBeenCalledWith(
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:card_svg:successful_requests:animeStats",
       );
     });
@@ -1342,7 +1324,7 @@ describe("Card SVG Route", () => {
         const userData = createMockUserData(542244, "testUser", {
           User: { statistics: { anime: {}, manga: {} } },
         });
-        mockRedisGet
+        sharedRedisMockGet
           .mockResolvedValueOnce(cardsData)
           .mockResolvedValueOnce(userData);
 
@@ -1357,8 +1339,8 @@ describe("Card SVG Route", () => {
         expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
 
         // Reset mock chain for next iteration
-        jest.clearAllMocks();
-        mockLimit.mockResolvedValue({ success: true });
+        mock.clearAllMocks();
+        sharedRatelimitMockLimit.mockResolvedValue({ success: true });
       }
     });
   });
