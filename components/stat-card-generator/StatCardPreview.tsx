@@ -112,10 +112,7 @@ export function StatCardPreview({
   }, [isOpen, cardType]);
 
   // Use the provided variation or default to "default"
-  const effectiveVariation = useMemo(
-    () => variation ?? "default",
-    [variation],
-  );
+  const effectiveVariation = useMemo(() => variation ?? "default", [variation]);
 
   // Memoize the preview URL to prevent unnecessary re-computation
   const previewUrl = useMemo(() => {
@@ -155,9 +152,9 @@ export function StatCardPreview({
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                  <span className="text-lg font-bold text-slate-900 dark:text-white">
-                    {displayNamesMap[cardType] || cardType}
-                  </span>
+                    <span className="text-lg font-bold text-slate-900 dark:text-white">
+                      {displayNamesMap[cardType] || cardType}
+                    </span>
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
                       {effectiveVariation}
                     </span>

@@ -6,6 +6,7 @@ import {
   sharedRatelimitMockLimit,
   sharedRatelimitMockSlidingWindow,
 } from "../__setup__.test";
+import { clearSvgCache, clearUserRequestStats } from "@/lib/stores/svg-cache";
 
 mock.module("@/lib/utils/milestones", () => ({
   calculateMilestones: mock(() => ({ milestone: 100 })),
@@ -237,6 +238,8 @@ describe("Card SVG Route", () => {
 
   afterEach(() => {
     mock.clearAllMocks();
+    clearSvgCache();
+    clearUserRequestStats();
     // Reset mocks to their default state
     sharedRatelimitMockLimit.mockResolvedValue({ success: true });
     sharedRedisMockGet.mockClear();
@@ -927,7 +930,10 @@ describe("Card SVG Route", () => {
       expect(res.headers.get("Cache-Control")).toContain("public");
       expect(res.headers.get("Cache-Control")).toContain("max-age=86400");
       expect(res.headers.get("Cache-Control")).toContain(
-        "stale-while-revalidate=86400",
+        "stale-while-revalidate=604800",
+      );
+      expect(res.headers.get("Cache-Control")).toContain(
+        "stale-if-error=1209600",
       );
     });
 
@@ -1222,14 +1228,42 @@ describe("Card SVG Route", () => {
           cardType: "animeStats",
         }),
       );
+      // First request - cache miss, populates cache and tracks successful_requests
       await GET(req);
 
-      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
-        "analytics:card_svg:successful_requests",
-      );
-      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+      // Verify first request tracking (cache miss + successful generation)
+      let mockCalls = (
+        sharedRedisMockIncr as unknown as {
+          mock: { calls: Array<[string]> };
+        }
+      ).mock.calls;
+      let incrCalls = mockCalls.map((call) => call[0]);
+
+      expect(incrCalls).toContain("analytics:card_svg:cache_misses");
+      expect(incrCalls).toContain("analytics:card_svg:successful_requests");
+      expect(incrCalls).toContain(
         "analytics:card_svg:successful_requests:animeStats",
       );
+
+      // Reset mock to track second request only
+      sharedRedisMockIncr.mockClear();
+
+      // Set up mocks for second request (cached hit scenario - though they won't be called)
+      setupSuccessfulMocks(cardsData, userData);
+
+      // Second request - cache hit, serves from in-memory cache
+      await GET(req);
+
+      // Verify second request only tracks cache hit (no Redis calls for cache hit)
+      mockCalls = (
+        sharedRedisMockIncr as unknown as {
+          mock: { calls: Array<[string]> };
+        }
+      ).mock.calls;
+      incrCalls = mockCalls.map((call) => call[0]);
+
+      // Should include cache hit metrics from our new cache layer
+      expect(incrCalls).toContain("analytics:card_svg:cache_hits");
     });
   });
 
@@ -1319,14 +1353,24 @@ describe("Card SVG Route", () => {
     it("should generate SVG for multiple card types", async () => {
       const cardTypes = ["animeStats", "socialStats", "mangaStats"];
 
+      // Ensure clean state for this test - reset entire mock state
+      sharedRedisMockGet.mockReset();
+      sharedRedisMockSet.mockReset();
+      sharedRedisMockIncr.mockReset();
+      sharedRatelimitMockLimit.mockReset();
+      clearSvgCache();
+      clearUserRequestStats();
+
       for (const cardType of cardTypes) {
         const cardsData = createMockCardData(cardType, "default");
         const userData = createMockUserData(542244, "testUser", {
           User: { statistics: { anime: {}, manga: {} } },
         });
+        // Queue mock responses for this iteration
         sharedRedisMockGet
           .mockResolvedValueOnce(cardsData)
           .mockResolvedValueOnce(userData);
+        sharedRatelimitMockLimit.mockResolvedValue({ success: true });
 
         const req = new Request(
           createRequestUrl(baseUrl, {
@@ -1338,9 +1382,9 @@ describe("Card SVG Route", () => {
         expect(res.status).toBe(200);
         expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
 
-        // Reset mock chain for next iteration
-        mock.clearAllMocks();
-        sharedRatelimitMockLimit.mockResolvedValue({ success: true });
+        // Reset state for next iteration
+        clearSvgCache();
+        clearUserRequestStats();
       }
     });
   });

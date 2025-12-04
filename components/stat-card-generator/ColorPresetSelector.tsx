@@ -79,13 +79,11 @@ function colorToCssBackground(color: ColorValue): string {
  * @returns A React element showing available color presets.
  * @source
  */
-function ColorPresetSelectorComponent(
-  {
-    selectedPreset,
-    presets,
-    onPresetChange,
-  }: Readonly<ColorPresetSelectorProps>
-) {
+function ColorPresetSelectorComponent({
+  selectedPreset,
+  presets,
+  onPresetChange,
+}: Readonly<ColorPresetSelectorProps>) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [colorTypeFilter, setColorTypeFilter] = useState<
     "all" | "solid" | "gradient"

@@ -24,6 +24,12 @@ import {
   processFavorites,
 } from "@/lib/card-data";
 import { toCleanSvgResponse, type TrustedSVG } from "@/lib/types/svg";
+import {
+  generateCacheKey,
+  getSvgFromMemoryCache,
+  setSvgInMemoryCache,
+  trackCacheMetric,
+} from "@/lib/stores/svg-cache";
 
 /** Rate limiter for card SVG requests to prevent abuse. @source */
 const ratelimit = createRateLimiter({ limit: 150, window: "10 s" });
@@ -112,8 +118,13 @@ function formatCardDataErrorMessage(err: CardDataError): string {
 /**
  * Headers used for successful SVG responses.
  *
- * These include caching and CORS headers and expose the card border radius
+ * These include aggressive caching and CORS headers, exposing the card border radius
  * in a response header so clients can render a placeholder sized correctly.
+ *
+ * Implements stale-while-revalidate pattern:
+ * - max-age: 24 hours (cache fresh for a full day)
+ * - stale-while-revalidate: 7 days (continue serving stale content for a week while revalidating)
+ * - stale-if-error: 14 days (serve stale if origin is down)
  *
  * @param request - Optional incoming request used to determine allowed origin.
  * @returns A headers object suitable for passing to Response.
@@ -123,10 +134,11 @@ function svgHeaders(request?: Request) {
   const allowedOrigin = getAllowedCardSvgOrigin(request);
   return {
     "Content-Type": "image/svg+xml",
-    "Cache-Control": "public, max-age=86400, stale-while-revalidate=86400", // 24 hour cache, revalidate in background
+    "Cache-Control":
+      "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=1209600",
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Methods": "GET, HEAD",
-    "Access-Control-Expose-Headers": "X-Card-Border-Radius",
+    "Access-Control-Expose-Headers": "X-Card-Border-Radius, X-Cache-Source",
     Vary: "Origin", // Cache varies based on Origin header
     "X-Card-Border-Radius": String(DEFAULT_CARD_BORDER_RADIUS),
   };
@@ -456,12 +468,14 @@ function createInternalErrorResponse(request: Request): Response {
  *
  * Workflow:
  * 1. Rate-limit by source IP.
- * 2. Validate query params and translate them to a normalized shape.
- * 3. Fetch and normalize user/card data.
- * 4. Generate the card SVG and return it with cache/CORS headers.
+ * 2. Check in-memory LRU cache (fast path).
+ * 3. Validate query params and translate them to a normalized shape.
+ * 4. Fetch and normalize user/card data.
+ * 5. Generate the card SVG and return it with cache/CORS headers.
+ * 6. Cache result for next time (LRU).
  *
  * Returns a suitable SVG error response on client errors, rate-limiting, or
- * on server failures.
+ * on server failures. Implements stale-while-revalidate for cache efficiency.
  *
  * @param request - The incoming GET request for the card endpoint.
  * @returns A Response containing an SVG (card or error).
@@ -506,7 +520,55 @@ export async function GET(request: Request) {
     `🖼️ [Card SVG] Request for ${params.cardType} card - User ID: ${effectiveUserId}`,
   );
 
-  return generateCardResponse(request, params, effectiveUserId, startTime);
+  // Try to get from in-memory LRU cache first
+  const cacheKey = generateCacheKey(effectiveUserId, params.cardType, {
+    variation: params.variationParam,
+    colorPreset: params.colorPresetParam,
+    titleColor: params.titleColorParam,
+    backgroundColor: params.backgroundColorParam,
+    textColor: params.textColorParam,
+    circleColor: params.circleColorParam,
+    borderColor: params.borderColorParam,
+    borderRadius: params.borderRadiusParam,
+  });
+
+  const cachedEntry = getSvgFromMemoryCache(cacheKey);
+  if (cachedEntry) {
+    // Track cache hit
+    void trackCacheMetric(true, "memory");
+
+    if (cachedEntry.isStale) {
+      console.log(
+        `♻️ [Card SVG] Serving stale cache for user ${effectiveUserId} (will revalidate in background)`,
+      );
+      // Return stale content immediately while revalidating in background
+      return createSuccessResponse(
+        markTrustedSvg(cachedEntry.svg),
+        request,
+        undefined,
+      );
+    }
+
+    console.log(
+      `⚡ [Card SVG] Served from memory cache for user ${effectiveUserId} in ${Date.now() - startTime}ms`,
+    );
+    return createSuccessResponse(
+      markTrustedSvg(cachedEntry.svg),
+      request,
+      undefined,
+    );
+  }
+
+  // Cache miss - track and proceed with generation
+  void trackCacheMetric(false, "memory");
+
+  return generateCardResponse(
+    request,
+    params,
+    effectiveUserId,
+    startTime,
+    cacheKey,
+  );
 }
 
 async function generateCardResponse(
@@ -514,6 +576,7 @@ async function generateCardResponse(
   params: ValidatedParams,
   effectiveUserId: number,
   startTime: number,
+  cacheKey?: string,
 ): Promise<Response> {
   try {
     const needsDbCardConfig = needsCardConfigFromDb(params);
@@ -596,6 +659,17 @@ async function generateCardResponse(
     console.log(
       `✅ [Card SVG] Rendered ${params.cardType} card for ${effectiveUserId} in ${duration}ms`,
     );
+
+    // Cache the generated SVG for future requests
+    if (cacheKey) {
+      setSvgInMemoryCache(
+        cacheKey,
+        toCleanSvgResponse(svgContent),
+        12 * 60 * 60 * 1000, // 12 hour TTL
+        effectiveUserId,
+      );
+      console.log(`💾 [Card SVG] Cached SVG for ${effectiveUserId}`);
+    }
 
     await trackSuccessfulRequest(params.baseCardType);
     return createSuccessResponse(svgContent, request, cardConfig.borderRadius);

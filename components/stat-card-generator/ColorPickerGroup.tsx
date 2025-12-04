@@ -844,7 +844,9 @@ function SingleColorPicker({ picker }: Readonly<{ picker: ColorPickerItem }>) {
  * @returns The color picker group element.
  * @source
  */
-function ColorPickerGroupComponent({ pickers }: Readonly<ColorPickerGroupProps>) {
+function ColorPickerGroupComponent({
+  pickers,
+}: Readonly<ColorPickerGroupProps>) {
   return (
     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
       {pickers.map((picker) => (
