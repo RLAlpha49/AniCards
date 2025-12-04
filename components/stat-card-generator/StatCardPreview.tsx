@@ -122,9 +122,14 @@ export function StatCardPreview({
         {
           cardName: cardType,
           variation: effectiveVariation,
+          colorPreset: "anilistDarkGradient",
           showFavorites: showFavorites ? true : undefined,
         },
-        { userId: "542244", includeColors: false },
+        {
+          userId: "542244",
+          includeColors: false,
+          defaultToCustomPreset: false,
+        },
       ),
       baseUrl,
     );

@@ -193,6 +193,8 @@ interface ValidatedParams {
   circleColorParam: string | null;
   borderColorParam: string | null;
   borderRadiusParam: string | null;
+  // Cache busting param
+  _t: string | null;
 }
 
 /**
@@ -287,6 +289,7 @@ function extractAndValidateParams(
     circleColorParam: searchParams.get("circleColor"),
     borderColorParam: searchParams.get("borderColor"),
     borderRadiusParam: searchParams.get("borderRadius"),
+    _t: searchParams.get("_t"),
   };
 }
 
@@ -530,6 +533,10 @@ export async function GET(request: Request) {
     circleColor: params.circleColorParam,
     borderColor: params.borderColorParam,
     borderRadius: params.borderRadiusParam,
+    showFavorites: params.showFavoritesParam,
+    statusColors: params.statusColorsParam,
+    piePercentages: params.piePercentagesParam,
+    _t: params._t,
   });
 
   const cachedEntry = getSvgFromMemoryCache(cacheKey);

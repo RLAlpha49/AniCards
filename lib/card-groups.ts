@@ -189,24 +189,75 @@ export interface CardUrlParams {
 }
 
 /**
- * Map a stored card configuration (StoredCardConfig) or a partial candidate
- * into CardUrlParams for URL building. This keeps client-side URL generation
- * consistent with the server-side processing in lib/card-data.ts which expects
- * specific query parameter names and semantics.
- *
- * Options:
- * - userId/userName: identity used for the URL
- * - includeColors: include individual color params (title/background/text/circle)
- * - defaultToCustomPreset: when no colorPreset is present, include "custom" to
- *   instruct the server to use DB stored colors. Default: true.
- *
- * IMPORTANT: This helper centralizes the mapping rules used by the client-side
- * URL generator. When adding new features (flags, colors, or layout options),
- * add the flag here and also update server-side functions in
- * lib/card-data.ts: needsCardConfigFromDb() and buildCardConfigFromParams()
- * so that round-tripping between stored configuration and URL-driven
- * configuration preserves rendering behavior.
+ * Resolves the effective color preset for URL parameters.
+ * Returns "custom" if no preset is provided and defaultToCustom is true,
+ * otherwise returns the provided preset.
  */
+function resolveColorPreset(
+  candidatePreset: string | undefined,
+  defaultToCustom: boolean,
+): string | undefined {
+  if (candidatePreset) return candidatePreset;
+  if (defaultToCustom) return "custom";
+  return undefined;
+}
+
+/**
+ * Adds conditional parameters for favorite-capable card types.
+ */
+function addFavoritesParamIfRelevant(
+  params: CardUrlParams,
+  baseCardType: string,
+  showFavorites: boolean | undefined,
+): void {
+  const favoritesRelevant = [
+    "animeVoiceActors",
+    "animeStudios",
+    "animeStaff",
+    "mangaStaff",
+  ].includes(baseCardType);
+  // Always include showFavorites for relevant card types
+  // Default to false if not explicitly set, to avoid DB lookup
+  if (favoritesRelevant) {
+    params.showFavorites =
+      typeof showFavorites === "boolean" ? showFavorites : false;
+  }
+}
+
+/**
+ * Adds conditional parameters for status distribution card types.
+ */
+function addStatusColorsParamIfRelevant(
+  params: CardUrlParams,
+  baseCardType: string,
+  useStatusColors: boolean | undefined,
+): void {
+  const statusRelevant = [
+    "animeStatusDistribution",
+    "mangaStatusDistribution",
+  ].includes(baseCardType);
+  // Always include statusColors for status distribution cards
+  // Default to false if not explicitly set, to avoid DB lookup
+  if (statusRelevant) {
+    params.statusColors =
+      typeof useStatusColors === "boolean" ? useStatusColors : false;
+  }
+}
+
+/**
+ * Adds piePercentages parameter for pie variation cards.
+ */
+function addPiePercentagesParamIfRelevant(
+  params: CardUrlParams,
+  variation: string,
+  showPiePercentages: boolean | undefined,
+): void {
+  if (variation === "pie") {
+    params.piePercentages =
+      typeof showPiePercentages === "boolean" ? showPiePercentages : false;
+  }
+}
+
 export function mapStoredConfigToCardUrlParams(
   candidate: Partial<
     import("@/lib/types/records").StoredCardConfig & {
@@ -227,16 +278,10 @@ export function mapStoredConfigToCardUrlParams(
   const includeColors = !!opts?.includeColors;
   const defaultToCustom = opts?.defaultToCustomPreset !== false;
 
-  // Resolve effective preset - if none present and defaultToCustom is true,
-  // use "custom" so the server will read DB colors.
-  let colorPreset: string | undefined;
-  if (candidate.colorPreset) {
-    colorPreset = candidate.colorPreset;
-  } else if (defaultToCustom) {
-    colorPreset = "custom";
-  } else {
-    colorPreset = undefined;
-  }
+  const colorPreset = resolveColorPreset(
+    candidate.colorPreset,
+    defaultToCustom,
+  );
 
   const params: CardUrlParams = {
     cardType,
@@ -259,30 +304,17 @@ export function mapStoredConfigToCardUrlParams(
     if (candidate.circleColor) params.circleColor = candidate.circleColor;
   }
 
-  const favoritesRelevant = [
-    "animeVoiceActors",
-    "animeStudios",
-    "animeStaff",
-    "mangaStaff",
-  ].includes(baseCardType);
-  if (favoritesRelevant && typeof candidate.showFavorites === "boolean") {
-    params.showFavorites = candidate.showFavorites;
-  }
-
-  const statusRelevant = [
-    "animeStatusDistribution",
-    "mangaStatusDistribution",
-  ].includes(baseCardType);
-  if (statusRelevant && typeof candidate.useStatusColors === "boolean") {
-    params.statusColors = candidate.useStatusColors;
-  }
-
-  if (
-    variation === "pie" &&
-    typeof candidate.showPiePercentages === "boolean"
-  ) {
-    params.piePercentages = candidate.showPiePercentages;
-  }
+  addFavoritesParamIfRelevant(params, baseCardType, candidate.showFavorites);
+  addStatusColorsParamIfRelevant(
+    params,
+    baseCardType,
+    candidate.useStatusColors,
+  );
+  addPiePercentagesParamIfRelevant(
+    params,
+    variation,
+    candidate.showPiePercentages,
+  );
 
   return params;
 }
