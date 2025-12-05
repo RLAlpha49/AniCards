@@ -22,6 +22,7 @@ import {
 import { clampBorderRadius, isTrustedSvgString } from "@/lib/utils";
 import { colorPresets, statCardTypes } from "./constants";
 import type { ColorValue } from "@/lib/types/card";
+import { getErrorDetails, type ErrorDetails } from "@/lib/error-messages";
 
 type ColorPresetKey = keyof typeof colorPresets;
 type MediaStatsPreviewData = Parameters<typeof mediaStatsTemplate>[0];
@@ -61,6 +62,7 @@ interface GeneratorContextValue {
   hasBorder: boolean;
   loading: boolean;
   error: Error | null;
+  errorDetails: ErrorDetails | null;
   clearError: () => void;
   retryAttempt: number;
   retryLimit: number;
@@ -275,6 +277,11 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
     () => buildFriendlyErrorMessage(error),
     [error],
   );
+
+  const errorDetails = useMemo<ErrorDetails | null>(() => {
+    if (!error) return null;
+    return getErrorDetails(error.message);
+  }, [error]);
 
   const username = defaultUsername;
   const selectedCards = defaultCardTypes;
@@ -632,6 +639,7 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
     hasBorder,
     loading,
     error,
+    errorDetails,
     clearError,
     retryAttempt,
     retryLimit,
@@ -693,6 +701,7 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
       hasBorder,
       loading,
       error,
+      errorDetails,
       clearError,
       retryAttempt,
       retryLimit,

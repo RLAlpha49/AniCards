@@ -113,6 +113,7 @@ function GeneratorContent({ onClose, className }: GeneratorContentProps) {
     overlayText,
     friendlyErrorMessage,
     error,
+    errorDetails,
     clearError,
     previewOpen,
     previewType,
@@ -355,10 +356,13 @@ function GeneratorContent({ onClose, className }: GeneratorContentProps) {
       <ErrorPopup
         isOpen={!!error}
         onClose={clearError}
-        title="Generation Error"
+        title={errorDetails?.userMessage || "Generation Error"}
         description={
           friendlyErrorMessage || error?.message || "An error occurred."
         }
+        suggestions={errorDetails?.suggestions}
+        isRetryable={errorDetails?.retryable}
+        onRetry={errorDetails?.retryable ? handleSubmit : undefined}
       />
       <StatCardPreview
         isOpen={previewOpen}

@@ -30,6 +30,7 @@ import {
   setSvgInMemoryCache,
   trackCacheMetric,
 } from "@/lib/stores/svg-cache";
+import { trackUserActionError } from "@/lib/error-tracking";
 
 /** Rate limiter for card SVG requests to prevent abuse. @source */
 const ratelimit = createRateLimiter({ limit: 150, window: "10 s" });
@@ -431,6 +432,17 @@ async function handleCardDataError(
   baseCardType: string,
 ): Promise<Response> {
   await trackFailedRequest(baseCardType, err.status);
+
+  // Track error with context
+  trackUserActionError(
+    `card_svg_generation_${baseCardType}`,
+    err,
+    err.category,
+    {
+      statusCode: err.status,
+    },
+  );
+
   return new Response(
     toCleanSvgResponse(svgError(formatCardDataErrorMessage(err))),
     { headers: errorHeaders(request), status: err.status },
@@ -693,6 +705,17 @@ async function generateCardResponse(
     if (err instanceof Error && err.stack) {
       console.error(`💥 [Card SVG] Stack Trace: ${err.stack}`);
     }
+
+    // Track generic errors
+    trackUserActionError(
+      `card_svg_generation_${params.baseCardType}`,
+      err instanceof Error ? err : new Error(String(err)),
+      "server_error",
+      {
+        userId: String(effectiveUserId),
+        statusCode: 500,
+      },
+    );
 
     await trackFailedRequest(params.baseCardType, 500);
     return createInternalErrorResponse(request);

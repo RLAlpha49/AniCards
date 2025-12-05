@@ -8,17 +8,38 @@ import {
   AnimeStatStaff,
   MangaStatStaff,
 } from "@/lib/types/records";
+import type { ErrorCategory, RecoverySuggestion } from "@/lib/error-messages";
+import { getErrorDetails } from "@/lib/error-messages";
 
 /**
- * Error wrapper including an HTTP status code for API responses.
- * Useful for returning standardized errors from card-related handlers.
+ * Error wrapper including an HTTP status code, error category, and recovery suggestions.
+ * Useful for returning standardized errors from card-related handlers with user guidance.
+ *
+ * The `category`, `suggestions`, and `retryable` properties are automatically derived from
+ * the error message and status code, enabling consistent error handling across the application.
+ *
+ * These properties are primarily used for:
+ * - Error tracking and telemetry (logged via trackUserActionError in API routes)
+ * - Client-side error display logic (determining retry behavior)
+ * - Future expansion to include structured suggestion data in API responses
+ *
  * @source
  */
 export class CardDataError extends Error {
   status: number;
+  category: ErrorCategory;
+  suggestions: RecoverySuggestion[];
+  retryable: boolean;
+
   constructor(message: string, status = 500) {
     super(message);
     this.status = status;
+
+    // Categorize and get details from error message system
+    const errorDetails = getErrorDetails(message, status);
+    this.category = errorDetails.category;
+    this.suggestions = errorDetails.suggestions;
+    this.retryable = errorDetails.retryable;
   }
 }
 

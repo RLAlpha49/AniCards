@@ -6,6 +6,8 @@ import {
   apiJsonHeaders,
   jsonWithCors,
 } from "@/lib/api-utils";
+import { trackUserActionError } from "@/lib/error-tracking";
+import { categorizeByStatusCode, categorizeError } from "@/lib/error-messages";
 
 /**
  * Payload sent to AniList, containing the GraphQL query and optional variables.
@@ -256,6 +258,23 @@ export async function POST(request: Request) {
     const statusPattern = /status:\s?(\d+)/;
     const statusMatch = statusPattern.exec(errorMessage);
     const statusCode = statusMatch ? Number.parseInt(statusMatch[1], 10) : 500;
+
+    // Determine error category using centralized categorization
+    const errorCategory =
+      statusCode === 500
+        ? categorizeError(errorMessage)
+        : categorizeByStatusCode(statusCode);
+
+    // Track error with context
+    trackUserActionError(
+      `anilist_api_${operationInfo.name}`,
+      error instanceof Error ? error : new Error(errorMessage),
+      errorCategory,
+      {
+        userId: operationInfo.userIdentifier,
+        statusCode,
+      },
+    );
 
     await trackAnalytics(
       buildAnalyticsMetricKey("anilist_api", "failed_requests"),

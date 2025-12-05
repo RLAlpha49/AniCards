@@ -2,6 +2,8 @@ import { useState } from "react";
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
 import { clampBorderRadius, validateBorderRadius } from "@/lib/utils";
 import type { ColorValue } from "@/lib/types/card";
+import { getErrorDetails, type ErrorDetails } from "@/lib/error-messages";
+import { trackUserActionError } from "@/lib/error-tracking";
 
 /**
  * Parameters for creating and storing user stat cards.
@@ -29,6 +31,18 @@ interface SubmitParams {
   borderEnabled?: boolean;
   borderColor?: string;
   borderRadius?: number;
+}
+
+/**
+ * Enhanced error information with recovery suggestions.
+ * @source
+ */
+interface ErrorInfo {
+  error: Error;
+  details?: ErrorDetails;
+  statusCode?: number;
+  username?: string;
+  retryable?: boolean;
 }
 
 /**
@@ -568,7 +582,7 @@ export function useStatCardSubmit() {
       );
       if (!userIdData?.User?.id) {
         throw new Error(
-          `AniList user fetch failed: No user found for ${username}`,
+          `AniList user fetch failed: User not found for ${username}`,
         );
       }
 
@@ -651,9 +665,44 @@ export function useStatCardSubmit() {
       return { success: true, userId: userIdData.User.id };
     } catch (err) {
       console.error("useStatCardSubmit error:", err);
+
+      let errorToSet:
+        | (Error & {
+            details?: ErrorDetails;
+            statusCode?: number;
+            username?: string;
+            retryable?: boolean;
+          })
+        | null = null;
+
       if (err instanceof Error) {
-        setError(err);
+        // Extract error details and categorize
+        const statusCodeMatch = /status:\s?(\d+)/.exec(err.message);
+        const statusCode = statusCodeMatch
+          ? Number.parseInt(statusCodeMatch[1], 10)
+          : undefined;
+        const errorDetails = getErrorDetails(err.message, statusCode);
+
+        // Attach details to error for display
+        errorToSet = err as Error & {
+          details?: ErrorDetails;
+          statusCode?: number;
+          username?: string;
+          retryable?: boolean;
+        };
+        errorToSet.details = errorDetails;
+        errorToSet.statusCode = statusCode || errorDetails.statusCode;
+        errorToSet.username = username;
+        errorToSet.retryable = errorDetails.retryable;
+
+        // Track error with context
+        trackUserActionError("card_submission", err, errorDetails.category, {
+          username,
+          statusCode: statusCode || errorDetails.statusCode,
+        });
       }
+
+      setError(errorToSet);
       return { success: false };
     } finally {
       setLoading(false);
