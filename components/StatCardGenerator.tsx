@@ -6,13 +6,14 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/Dialog";
-import { LoadingOverlay } from "@/components/LoadingSpinner";
+import { LoadingOverlay, LoadingSpinner } from "@/components/LoadingSpinner";
 import { ErrorPopup } from "@/components/ErrorPopup";
 import { cn } from "@/lib/utils";
 import { StatCardPreview } from "@/components/stat-card-generator/StatCardPreview";
 import { StatCardTypeSelection } from "@/components/stat-card-generator/StatCardTypeSelection";
 import { UpdateNotice } from "@/components/stat-card-generator/UpdateNotice";
 import { UserDetailsForm } from "@/components/stat-card-generator/UserDetailsForm";
+import { UserFormSkeleton } from "@/components/stat-card-generator/UserFormSkeleton";
 import { ColorPresetManager } from "@/components/stat-card-generator/ColorPresetManager";
 import { AdvancedOptions } from "@/components/stat-card-generator/AdvancedOptions";
 import { WizardNavigation } from "@/components/stat-card-generator/WizardNavigation";
@@ -163,7 +164,18 @@ function GeneratorContent({ onClose, className }: GeneratorContentProps) {
           className,
         )}
       >
-        {loading && <LoadingOverlay text={overlayText} />}
+        {loading && (
+          <LoadingOverlay text={overlayText}>
+            {retryAttempt > 0 && (
+              <LoadingSpinner
+                size="md"
+                progress={Math.round((retryAttempt / retryLimit) * 100)}
+                showProgressLabel
+                className="text-blue-500"
+              />
+            )}
+          </LoadingOverlay>
+        )}
 
         {/* Header Section */}
         <div className="relative z-10 shrink-0 border-b border-slate-200/50 bg-gradient-to-r from-white/80 via-white/60 to-slate-50/80 px-6 py-5 backdrop-blur-sm dark:border-slate-700/50 dark:from-slate-800/80 dark:via-slate-800/60 dark:to-slate-900/80">
@@ -217,11 +229,19 @@ function GeneratorContent({ onClose, className }: GeneratorContentProps) {
               >
                 {currentStep === 0 && (
                   <div className="space-y-6">
-                    <UserDetailsForm
-                      username={username}
-                      onUsernameChange={updateUsername}
-                    />
-                    <UpdateNotice />
+                    <AnimatePresence mode="wait">
+                      {loading && currentStep === 0 ? (
+                        <UserFormSkeleton key="skeleton" show={loading} />
+                      ) : (
+                        <div key="form" className="space-y-6">
+                          <UserDetailsForm
+                            username={username}
+                            onUsernameChange={updateUsername}
+                          />
+                          <UpdateNotice />
+                        </div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 )}
 

@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/Dialog";
 import { useState, useEffect, useMemo } from "react";
-import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { CardPreviewSkeleton } from "@/components/stat-card-generator/CardPreviewSkeleton";
 import {
   trackCardPreview,
   trackDialogOpen,
@@ -180,21 +180,17 @@ export function StatCardPreview({
               <div className="absolute -inset-4 rounded-3xl bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 opacity-0 blur-2xl transition-opacity duration-500 group-hover:opacity-100" />
 
               <div className="relative overflow-hidden rounded-2xl border border-slate-200/50 bg-white shadow-xl shadow-slate-200/50 dark:border-slate-700/50 dark:bg-slate-800 dark:shadow-slate-900/50">
-                {/* Loading Overlay */}
+                {/* Loading Skeleton */}
                 <AnimatePresence>
                   {isLoading && (
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-white/90 backdrop-blur-sm dark:bg-slate-900/90"
+                      transition={{ duration: 0.3 }}
+                      className="absolute inset-0 z-50"
                     >
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
-                        <LoadingSpinner className="h-6 w-6 text-blue-500" />
-                      </div>
-                      <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                        Loading preview...
-                      </span>
+                      <CardPreviewSkeleton show={isLoading} />
                     </motion.div>
                   )}
                 </AnimatePresence>
