@@ -144,13 +144,17 @@ export function StatCardTypeSelection({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 shadow-md shadow-blue-500/25">
-            <LayoutGrid className="h-5 w-5 text-white" />
+            <LayoutGrid className="h-5 w-5 text-white" aria-hidden="true" />
           </div>
           <div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">
               Select Your Cards
             </h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+            <p
+              className="text-sm text-slate-500 dark:text-slate-400"
+              aria-live="polite"
+              aria-atomic="true"
+            >
               {selectedCards.length} of {cardTypes.length} cards selected
             </p>
           </div>
@@ -159,20 +163,24 @@ export function StatCardTypeSelection({
           variant={allSelected ? "default" : "outline"}
           size="sm"
           onClick={onSelectAll}
+          aria-label={allSelected ? "Unselect all cards" : "Select all cards"}
           className={cn(
-            "gap-2 rounded-full px-4 font-medium transition-all",
+            "gap-2 rounded-full px-4 font-medium transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500",
             allSelected
               ? "bg-slate-900 text-white shadow-md hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
               : "border-slate-200/50 bg-white text-slate-600 hover:bg-slate-50 hover:shadow-md dark:border-slate-700/50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700",
           )}
         >
-          <CheckCircle2 className="h-4 w-4" />
+          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
           {allSelected ? "Unselect All" : "Select All"}
         </Button>
       </div>
 
       {/* Group Navigation */}
-      <div className="flex flex-wrap gap-2 border-b border-slate-200/50 pb-4 dark:border-slate-700/50">
+      <nav
+        className="flex flex-wrap gap-2 border-b border-slate-200/50 pb-4 dark:border-slate-700/50"
+        aria-label="Card category tabs"
+      >
         {grouped.order.map((group) => {
           const { selected, total } = groupCounts[group];
           const isActive = activeGroup === group;
@@ -181,8 +189,11 @@ export function StatCardTypeSelection({
             <button
               key={group}
               onClick={() => setActiveGroup(group)}
+              role="tab"
+              aria-selected={isActive}
+              aria-label={`${group} category, ${selected} of ${total} cards selected`}
               className={cn(
-                "group flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all",
+                "group flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500",
                 isActive
                   ? "bg-slate-900 text-white shadow-lg dark:bg-white dark:text-slate-900"
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:shadow-md dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700",
@@ -199,13 +210,14 @@ export function StatCardTypeSelection({
                     !isActive &&
                     "bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400",
                 )}
+                aria-hidden="true"
               >
                 {selected}/{total}
               </span>
             </button>
           );
         })}
-      </div>
+      </nav>
 
       {/* Cards Grid */}
       <div className="min-h-[400px]">

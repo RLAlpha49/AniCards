@@ -755,7 +755,7 @@ export function UserPageClient() {
         </div>
 
         {/* Cards Section */}
-        <section className="relative w-full overflow-hidden py-8 lg:py-16 mx-auto max-w-[80vw]">
+        <section className="relative mx-auto w-full max-w-[80vw] overflow-hidden py-8 lg:py-16">
           <div className="container relative px-4">
             {cardTypes.length > 0 ? (
               <motion.div

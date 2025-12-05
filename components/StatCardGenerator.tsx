@@ -35,6 +35,7 @@ import {
   Wand2,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { useEffect, useRef } from "react";
 
 /**
  * Props for the StatCardGenerator component.
@@ -108,6 +109,10 @@ interface GeneratorContentProps {
 }
 
 function GeneratorContent({ onClose, className }: GeneratorContentProps) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const mainContentRef = useRef<HTMLDivElement>(null);
+  const liveRegionRef = useRef<HTMLDivElement>(null);
+
   const {
     loading,
     overlayText,
@@ -154,9 +159,83 @@ function GeneratorContent({ onClose, className }: GeneratorContentProps) {
     }
   }
 
+  // Keyboard shortcuts and focus management
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Escape to close
+      if (e.key === "Escape" && !loading) {
+        onClose();
+        return;
+      }
+
+      // Ctrl+Enter or Cmd+Enter to generate
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && isFinalStep) {
+        if (canGenerate && !loading) {
+          handleSubmit();
+        }
+        e.preventDefault();
+      }
+    };
+
+    globalThis.addEventListener("keydown", handleKeyDown);
+    return () => globalThis.removeEventListener("keydown", handleKeyDown);
+  }, [isFinalStep, canGenerate, loading, handleSubmit, onClose]);
+
+  // Announce step changes to screen readers
+  useEffect(() => {
+    const currentStepInfo = STEPS[currentStep];
+    if (liveRegionRef.current) {
+      liveRegionRef.current.textContent = `Step ${currentStep + 1} of ${STEPS.length}: ${currentStepInfo.label}. ${currentStepInfo.description || ""}`;
+    }
+  }, [currentStep]);
+
+  // Focus management on step change
+  useEffect(() => {
+    if (mainContentRef.current) {
+      mainContentRef.current.focus();
+    }
+  }, [currentStep]);
+
   return (
     <>
+      {/* Skip link */}
+      <a
+        href="#card-generator-main"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-slate-900 focus:px-3 focus:py-2 focus:text-white focus:outline-2 focus:outline-offset-2 focus:outline-blue-500 dark:focus:bg-white dark:focus:text-slate-900"
+      >
+        Skip to card generator steps
+      </a>
+
+      {/* Live region for status announcements */}
+      <div
+        ref={liveRegionRef}
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      />
+
+      {/* Loading status announcement */}
+      {loading && (
+        <div aria-live="assertive" aria-atomic="true" className="sr-only">
+          {generateButtonLabel || "Loading"}
+          {overlayText && `. ${overlayText}`}
+        </div>
+      )}
+
+      {/* Error announcement */}
+      {error && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          aria-atomic="true"
+          className="sr-only"
+        >
+          Error: {errorDetails?.userMessage || error.message}
+        </div>
+      )}
+
       <DialogContent
+        ref={contentRef}
         className={cn(
           "z-50 flex h-[90vh] w-[95vw] max-w-[1100px] flex-col overflow-hidden p-0",
           "rounded-3xl border border-slate-200/50 shadow-2xl shadow-slate-900/20",
@@ -164,6 +243,8 @@ function GeneratorContent({ onClose, className }: GeneratorContentProps) {
           "dark:border-slate-700/50 dark:from-slate-900/95 dark:via-slate-900/90 dark:to-slate-800/95 dark:shadow-slate-950/50",
           className,
         )}
+        aria-labelledby="card-generator-title"
+        aria-describedby="card-generator-description"
       >
         {loading && (
           <LoadingOverlay text={overlayText}>
@@ -187,14 +268,23 @@ function GeneratorContent({ onClose, className }: GeneratorContentProps) {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg shadow-purple-500/25">
-                  <Wand2 className="h-6 w-6 text-white" />
+                  <Wand2 className="h-6 w-6 text-white" aria-hidden="true" />
                 </div>
                 <div>
-                  <DialogTitle className="flex items-center gap-2 text-2xl font-bold text-slate-900 dark:text-white">
+                  <DialogTitle
+                    id="card-generator-title"
+                    className="flex items-center gap-2 text-2xl font-bold text-slate-900 dark:text-white"
+                  >
                     Card Generator
-                    <Sparkles className="h-5 w-5 text-purple-500" />
+                    <Sparkles
+                      className="h-5 w-5 text-purple-500"
+                      aria-hidden="true"
+                    />
                   </DialogTitle>
-                  <DialogDescription className="text-sm text-slate-500 dark:text-slate-400">
+                  <DialogDescription
+                    id="card-generator-description"
+                    className="text-sm text-slate-500 dark:text-slate-400"
+                  >
                     Create stunning visualizations of your AniList stats
                   </DialogDescription>
                 </div>
@@ -203,10 +293,10 @@ function GeneratorContent({ onClose, className }: GeneratorContentProps) {
               <button
                 type="button"
                 onClick={onClose}
-                aria-label="Close dialog"
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200/50 bg-white/80 text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:bg-white hover:text-slate-700 hover:shadow-md dark:border-slate-700/50 dark:bg-slate-800/80 dark:text-slate-400 dark:hover:border-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                aria-label="Close card generator dialog"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200/50 bg-white/80 text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:bg-white hover:text-slate-700 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-slate-700/50 dark:bg-slate-800/80 dark:text-slate-400 dark:hover:border-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
               >
-                <X className="h-5 w-5" />
+                <X className="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
           </DialogHeader>
@@ -215,7 +305,13 @@ function GeneratorContent({ onClose, className }: GeneratorContentProps) {
         </div>
 
         {/* Content Section */}
-        <div className="flex-1 overflow-y-auto">
+        <div
+          ref={mainContentRef}
+          id="card-generator-main"
+          className="flex-1 overflow-y-auto focus:outline-none"
+          tabIndex={-1}
+          aria-label="Card generator form content"
+        >
           {/* Background pattern */}
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:24px_24px]" />
 
@@ -282,15 +378,27 @@ function GeneratorContent({ onClose, className }: GeneratorContentProps) {
                 }
               }}
               disabled={loading}
-              className="gap-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+              aria-label={
+                currentStep === 0
+                  ? "Cancel and close generator"
+                  : "Go to previous step"
+              }
+              title={currentStep === 0 ? "Press Esc to close" : ""}
+              className="gap-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
               {currentStep === 0 ? "Cancel" : "Back"}
             </Button>
 
             <div className="flex items-center gap-4">
               {/* Progress indicator */}
-              <div className="hidden items-center gap-1.5 sm:flex">
+              <div
+                className="hidden items-center gap-1.5 sm:flex"
+                aria-label={`Progress: step ${currentStep + 1} of ${STEPS.length}`}
+                aria-valuenow={currentStep + 1}
+                aria-valuemin={1}
+                aria-valuemax={STEPS.length}
+              >
                 {STEPS.map((step, index) => (
                   <div
                     key={step.id}
@@ -308,7 +416,8 @@ function GeneratorContent({ onClose, className }: GeneratorContentProps) {
                 <Button
                   onClick={handleSubmit}
                   disabled={!canGenerate || loading}
-                  className="group relative h-12 min-w-[160px] overflow-hidden rounded-xl bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 px-6 font-semibold text-white shadow-lg shadow-purple-500/25 transition-all hover:scale-[1.02] hover:shadow-xl hover:shadow-purple-500/30 disabled:opacity-50 disabled:hover:scale-100 disabled:hover:shadow-lg"
+                  aria-label={`Generate cards with ${selectedCards.length} selected card${selectedCards.length === 1 ? "" : "s"} (Ctrl+Enter)`}
+                  className="group relative h-12 min-w-[160px] overflow-hidden rounded-xl bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 px-6 font-semibold text-white shadow-lg shadow-purple-500/25 transition-all hover:scale-[1.02] hover:shadow-xl hover:shadow-purple-500/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-50 disabled:hover:scale-100 disabled:hover:shadow-lg"
                 >
                   <span className="relative z-10 flex items-center gap-2">
                     {loading ? (
@@ -317,11 +426,14 @@ function GeneratorContent({ onClose, className }: GeneratorContentProps) {
                       <>
                         Generate
                         {selectedCards.length > 0 && (
-                          <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs">
+                          <span
+                            className="rounded-full bg-white/20 px-2 py-0.5 text-xs"
+                            aria-hidden="true"
+                          >
                             {selectedCards.length}
                           </span>
                         )}
-                        <Sparkles className="h-4 w-4" />
+                        <Sparkles className="h-4 w-4" aria-hidden="true" />
                       </>
                     )}
                   </span>
@@ -330,11 +442,12 @@ function GeneratorContent({ onClose, className }: GeneratorContentProps) {
                 <Button
                   onClick={nextStep}
                   disabled={!canAdvance || loading}
-                  className="h-12 min-w-[140px] rounded-xl bg-slate-900 px-6 font-semibold text-white shadow-lg transition-all hover:bg-slate-800 hover:shadow-xl disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                  aria-label={`Go to next step (${STEPS[currentStep + 1]?.label})`}
+                  className="h-12 min-w-[140px] rounded-xl bg-slate-900 px-6 font-semibold text-white shadow-lg transition-all hover:bg-slate-800 hover:shadow-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
                 >
                   <span className="flex items-center gap-2">
                     Continue
-                    <ChevronRight className="h-4 w-4" />
+                    <ChevronRight className="h-4 w-4" aria-hidden="true" />
                   </span>
                 </Button>
               )}
@@ -346,6 +459,7 @@ function GeneratorContent({ onClose, className }: GeneratorContentProps) {
               initial={{ opacity: 0, y: 5 }}
               animate={{ opacity: 1, y: 0 }}
               className="mt-3 text-center text-xs font-medium text-amber-600 dark:text-amber-400"
+              aria-live="polite"
             >
               {retryStatusText}
             </motion.p>

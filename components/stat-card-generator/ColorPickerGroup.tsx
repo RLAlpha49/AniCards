@@ -289,9 +289,10 @@ function GradientStopEditor({
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  className="rounded-full p-0.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+                  aria-label="More information about color stops"
+                  className="rounded-full p-0.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:hover:bg-slate-800 dark:hover:text-slate-300"
                 >
-                  <HelpCircle className="h-3.5 w-3.5" />
+                  <HelpCircle className="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
               </TooltipTrigger>
               <TooltipContent
@@ -314,9 +315,12 @@ function GradientStopEditor({
             size="sm"
             onClick={addStop}
             disabled={stops.length >= 5}
-            className="h-7 gap-1.5 rounded-lg border-slate-200/50 bg-white px-2.5 text-xs font-medium text-slate-600 shadow-sm transition-all hover:bg-slate-50 hover:shadow-md disabled:opacity-50 dark:border-slate-700/50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+            aria-label={`Add gradient color stop ${stops.length + 1} of 5`}
+            title="Add up to 5 color stops"
+            className="h-7 gap-1.5 rounded-lg border-slate-200/50 bg-white px-2.5 text-xs font-medium text-slate-600 shadow-sm transition-all hover:bg-slate-50 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-50 dark:border-slate-700/50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
           >
-            <Plus className="h-3 w-3" /> Add Stop
+            <Plus className="h-3 w-3" aria-hidden="true" />
+            Add Stop
           </Button>
         </div>
 
@@ -406,9 +410,11 @@ function GradientStopEditor({
                 size="sm"
                 onClick={() => removeStop(index)}
                 disabled={stops.length <= 2}
-                className="h-7 w-7 rounded-lg p-0 text-slate-400 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 disabled:opacity-0 group-hover:opacity-100 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                aria-label={`Remove gradient stop ${index + 1}`}
+                title="Remove this color stop"
+                className="h-7 w-7 rounded-lg p-0 text-slate-400 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-0 group-hover:opacity-100 dark:hover:bg-red-900/20 dark:hover:text-red-400"
               >
-                <Minus className="h-3.5 w-3.5" />
+                <Minus className="h-3.5 w-3.5" aria-hidden="true" />
               </Button>
             </motion.div>
           ))}
@@ -462,14 +468,15 @@ function GradientControls({
           variant={gradient.type === "linear" ? "default" : "outline"}
           size="sm"
           onClick={() => handleTypeChange("linear")}
+          aria-label="Linear gradient type"
           className={cn(
-            "flex-1 gap-2 rounded-lg text-sm font-medium transition-all",
+            "flex-1 gap-2 rounded-lg text-sm font-medium transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500",
             gradient.type === "linear"
               ? "bg-slate-900 text-white shadow-md dark:bg-white dark:text-slate-900"
               : "border-slate-200/50 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700/50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700",
           )}
         >
-          <RotateCcw className="h-3.5 w-3.5" />
+          <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
           Linear
         </Button>
         <Button
@@ -477,14 +484,15 @@ function GradientControls({
           variant={gradient.type === "radial" ? "default" : "outline"}
           size="sm"
           onClick={() => handleTypeChange("radial")}
+          aria-label="Radial gradient type"
           className={cn(
-            "flex-1 gap-2 rounded-lg text-sm font-medium transition-all",
+            "flex-1 gap-2 rounded-lg text-sm font-medium transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500",
             gradient.type === "radial"
               ? "bg-slate-900 text-white shadow-md dark:bg-white dark:text-slate-900"
               : "border-slate-200/50 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700/50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700",
           )}
         >
-          <CircleDot className="h-3.5 w-3.5" />
+          <CircleDot className="h-3.5 w-3.5" aria-hidden="true" />
           Radial
         </Button>
       </div>
@@ -525,8 +533,10 @@ function GradientControls({
                 variant="outline"
                 size="sm"
                 onClick={() => handleAngleChange(angle)}
+                aria-label={`Set gradient angle to ${angle} degrees`}
+                aria-pressed={(gradient.angle ?? 90) === angle}
                 className={cn(
-                  "h-7 min-w-[3rem] rounded-lg px-2 text-xs font-medium transition-all",
+                  "h-7 min-w-[3rem] rounded-lg px-2 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500",
                   (gradient.angle ?? 90) === angle
                     ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
                     : "border-slate-200/50 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-700/50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700",
@@ -716,21 +726,29 @@ function SingleColorPicker({ picker }: Readonly<{ picker: ColorPickerItem }>) {
             variant="outline"
             size="sm"
             onClick={handleModeToggle}
+            aria-label={
+              mode === "solid"
+                ? `Switch ${picker.label} to gradient mode`
+                : `Switch ${picker.label} to solid mode`
+            }
+            aria-pressed={mode === "gradient"}
+            title={mode === "solid" ? "Switch to gradient" : "Switch to solid"}
             className={cn(
-              "h-7 gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-all",
+              "h-7 gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500",
               mode === "gradient"
                 ? "border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-900/30 dark:text-purple-400 dark:hover:bg-purple-900/50"
                 : "border-slate-200/50 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700/50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700",
             )}
-            title={mode === "solid" ? "Switch to gradient" : "Switch to solid"}
           >
             {mode === "solid" ? (
               <>
-                <Layers className="h-3 w-3" /> Gradient
+                <Layers className="h-3 w-3" aria-hidden="true" />
+                Gradient
               </>
             ) : (
               <>
-                <Palette className="h-3 w-3" /> Solid
+                <Palette className="h-3 w-3" aria-hidden="true" />
+                Solid
               </>
             )}
           </Button>
@@ -848,11 +866,12 @@ function ColorPickerGroupComponent({
   pickers,
 }: Readonly<ColorPickerGroupProps>) {
   return (
-    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+    <fieldset className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+      <legend className="sr-only">Color picker group</legend>
       {pickers.map((picker) => (
         <SingleColorPicker key={picker.id} picker={picker} />
       ))}
-    </div>
+    </fieldset>
   );
 }
 
