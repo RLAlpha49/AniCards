@@ -12,6 +12,12 @@
 
 # testing
 /coverage
+/tests/e2e/test-results/
+/tests/e2e/playwright-report/
+/tests/**/*.spec.ts-snapshots/
+/playwright-report/
+/blob-report/
+/test-results/
 
 # next.js
 /.next/

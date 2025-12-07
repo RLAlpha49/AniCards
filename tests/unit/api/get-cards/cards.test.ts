@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
-import { sharedRedisMockGet, sharedRedisMockIncr } from "../__setup__.test";
+import {
+  sharedRedisMockGet,
+  sharedRedisMockIncr,
+} from "@/tests/unit/__setup__.test";
 
-const { GET, OPTIONS } = await import("./route");
+const { GET, OPTIONS } = await import("@/app/api/get-cards/route");
 
 /**
  * Extracts the parsed JSON payload from a response for assertions.

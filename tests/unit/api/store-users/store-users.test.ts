@@ -12,7 +12,7 @@ import {
   sharedRedisMockGet,
   sharedRedisMockIncr,
   sharedRatelimitMockLimit,
-} from "../__setup__.test";
+} from "@/tests/unit/__setup__.test";
 
 // Set the app URL for same-origin validation testing
 const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -22,7 +22,7 @@ let POST: typeof import("./route").POST;
 let OPTIONS: typeof import("./route").OPTIONS;
 
 beforeAll(async () => {
-  const module = await import("./route");
+  const module = await import("@/app/api/store-users/route");
   POST = module.POST;
   OPTIONS = module.OPTIONS;
 });

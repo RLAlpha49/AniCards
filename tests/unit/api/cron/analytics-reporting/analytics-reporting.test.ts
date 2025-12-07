@@ -3,9 +3,9 @@ import {
   sharedRedisMockKeys,
   sharedRedisMockGet,
   sharedRedisMockRpush,
-} from "../../__setup__.test";
+} from "@/tests/unit/__setup__.test";
 
-const { POST } = await import("./route");
+const { POST } = await import("@/app/api/cron/analytics-reporting/route");
 
 /**
  * Dummy cron secret to satisfy authorization for analytics cron tests.

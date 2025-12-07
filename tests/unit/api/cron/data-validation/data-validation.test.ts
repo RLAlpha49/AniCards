@@ -4,7 +4,7 @@ import {
   sharedRedisMockGet,
   sharedRedisMockLrange,
   sharedRedisMockRpush,
-} from "../../__setup__.test";
+} from "@/tests/unit/__setup__.test";
 
 interface ValidationIssue {
   key: string;
@@ -18,7 +18,7 @@ interface ValidationReport {
   generatedAt: string;
 }
 
-const { POST } = await import("./route");
+const { POST } = await import("@/app/api/cron/data-validation/route");
 
 /**
  * Dummy cron secret for bypassing authorization in validation tests.

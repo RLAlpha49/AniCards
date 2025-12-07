@@ -5,7 +5,7 @@ import {
   sharedRedisMockIncr,
   sharedRatelimitMockLimit,
   sharedRatelimitMockSlidingWindow,
-} from "../__setup__.test";
+} from "@/tests/unit/__setup__.test";
 import { clearSvgCache, clearUserRequestStats } from "@/lib/stores/svg-cache";
 
 mock.module("@/lib/utils/milestones", () => ({
@@ -45,7 +45,7 @@ mock.module("@/lib/svg-templates/distribution", () => ({
   ),
 }));
 
-const routeModule = await import("./route");
+const routeModule = await import("@/app/api/card/route");
 const { GET, OPTIONS } = routeModule;
 const { extraAnimeMangaStatsTemplate } =
   await import("@/lib/svg-templates/extra-anime-manga-stats");

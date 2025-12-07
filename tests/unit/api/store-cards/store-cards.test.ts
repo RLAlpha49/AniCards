@@ -13,12 +13,12 @@ import {
   sharedRedisMockIncr,
   sharedRatelimitMockLimit,
   sharedRatelimitMockSlidingWindow,
-} from "../__setup__.test";
+} from "@/tests/unit/__setup__.test";
 
 const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
 process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
 
-const { POST, OPTIONS } = await import("./route");
+const { POST, OPTIONS } = await import("@/app/api/store-cards/route");
 
 afterAll(() => {
   // Restore the original app URL

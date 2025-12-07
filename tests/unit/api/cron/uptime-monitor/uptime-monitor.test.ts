@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
-import { POST } from "./route";
+import { POST } from "@/app/api/cron/uptime-monitor/route";
 
 /**
  * Dummy cron secret for uptime monitor test authorization.

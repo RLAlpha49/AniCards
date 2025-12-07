@@ -280,6 +280,12 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
 
   const errorDetails = useMemo<ErrorDetails | null>(() => {
     if (!error) return null;
+    // Check if error has details already attached
+    const errorWithDetails = error as Error & { details?: ErrorDetails };
+    if (errorWithDetails.details) {
+      return errorWithDetails.details;
+    }
+    // Fallback to parsing from message
     return getErrorDetails(error.message);
   }, [error]);
 

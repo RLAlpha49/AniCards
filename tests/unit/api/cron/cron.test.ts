@@ -4,9 +4,9 @@ import {
   sharedRedisMockGet,
   sharedRedisMockSet,
   sharedRedisMockDel,
-} from "../__setup__.test";
+} from "@/tests/unit/__setup__.test";
 
-const { POST } = await import("./route");
+const { POST } = await import("@/app/api/cron/route");
 
 /**
  * Helper to create a mock user record

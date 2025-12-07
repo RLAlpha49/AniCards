@@ -5,7 +5,7 @@ import {
   sanitizeCssContent,
   removeClassTokensFromMarkup,
   sanitizeInlineStyleAttributes,
-} from "./route";
+} from "@/app/api/convert/route";
 import { NextRequest } from "next/server";
 
 /**
@@ -623,7 +623,7 @@ describe("Convert API POST Endpoint", () => {
         },
       }) as unknown as NextRequest;
 
-      const { OPTIONS } = await import("./route");
+      const { OPTIONS } = await import("@/app/api/convert/route");
       const res = OPTIONS(req);
       expect(res.status).toBe(200);
       expect(res.headers.get("Access-Control-Allow-Methods")).toContain("POST");

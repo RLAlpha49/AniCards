@@ -677,7 +677,10 @@ export function useStatCardSubmit() {
 
       if (err instanceof Error) {
         // Extract error details and categorize
-        const statusCodeMatch = /status:\s?(\d+)/.exec(err.message);
+        // Try to match patterns like "HTTP status 429", "status: 429", or "status 429"
+        const statusCodeMatch = /(?:HTTP\s+)?status:?\s*(\d+)/.exec(
+          err.message,
+        );
         const statusCode = statusCodeMatch
           ? Number.parseInt(statusCodeMatch[1], 10)
           : undefined;

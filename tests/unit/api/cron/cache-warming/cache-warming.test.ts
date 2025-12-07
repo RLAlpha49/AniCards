@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
 
-const { POST, OPTIONS } = await import("./route");
+const { POST, OPTIONS } = await import("@/app/api/cron/cache-warming/route");
 const { clearUserRequestStats } = await import("@/lib/stores/svg-cache");
 
 /**

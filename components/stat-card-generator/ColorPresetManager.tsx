@@ -129,6 +129,7 @@ export function ColorPresetManager() {
                     type="button"
                     variant="ghost"
                     onClick={() => setActiveTab(tab.id)}
+                    aria-label={tab.label}
                     className={cn(
                       "group relative flex-1 gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-all",
                       isActive
