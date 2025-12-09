@@ -131,31 +131,28 @@ const nextConfig: NextConfig = {
       "api.anicards.lvh.me",
     ];
 
-    const isProd = process.env.NODE_ENV === "production";
-    const devRules = isProd
-      ? []
-      : devHosts.flatMap((h) => [
+    const devRules = devHosts.flatMap((h) => [
+      {
+        source: "/:path*",
+        has: [
           {
-            source: "/:path*",
-            has: [
-              {
-                type: "host" as const,
-                value: h,
-              },
-            ],
-            destination: "/api/:path*",
+            type: "host" as const,
+            value: h,
           },
+        ],
+        destination: "/api/:path*",
+      },
+      {
+        source: "/:path*",
+        has: [
           {
-            source: "/:path*",
-            has: [
-              {
-                type: "host" as const,
-                value: `${h}:${devPort}`,
-              },
-            ],
-            destination: "/api/:path*",
+            type: "host" as const,
+            value: `${h}:${devPort}`,
           },
-        ]);
+        ],
+        destination: "/api/:path*",
+      },
+    ]);
 
     return [
       ...primaryRules,

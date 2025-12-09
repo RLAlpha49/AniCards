@@ -212,12 +212,6 @@ export function getAllowedApiOrigin(request?: Request): string {
     origin = requestNormalized ?? "*";
   }
 
-  if (process.env.NODE_ENV === "production" && origin === "*") {
-    console.warn(
-      "[API CORS] Computed Access-Control-Allow-Origin is '*' in production; this is not recommended",
-    );
-  }
-
   return origin;
 }
 
