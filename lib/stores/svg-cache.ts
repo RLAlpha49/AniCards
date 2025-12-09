@@ -311,7 +311,9 @@ export async function warmSvgCache(
         stats.successCount++;
       } catch (error) {
         console.warn(
-          `Failed to warm cache for user ${userId}, cardType ${cardType}:`,
+          "Failed to warm cache for user %d, cardType %s:",
+          userId,
+          cardType,
           error,
         );
         stats.failureCount++;
