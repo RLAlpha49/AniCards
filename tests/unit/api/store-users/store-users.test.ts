@@ -18,8 +18,8 @@ import {
 const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
 process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
 
-let POST: typeof import("./route").POST;
-let OPTIONS: typeof import("./route").OPTIONS;
+let POST: typeof import("@/app/api/store-users/route").POST;
+let OPTIONS: typeof import("@/app/api/store-users/route").OPTIONS;
 
 beforeAll(async () => {
   const module = await import("@/app/api/store-users/route");

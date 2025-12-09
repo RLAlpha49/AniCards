@@ -145,7 +145,7 @@ function createMixedOutcomesFetchImplementation(failureUserIds: string[]) {
 
 function toFetchMock(mockFn: ReturnType<typeof mock>) {
   const fetchMock = mockFn as unknown as typeof fetch;
-  fetchMock.preconnect = mock() as (typeof fetch)["preconnect"];
+  fetchMock.preconnect = mock();
   return fetchMock;
 }
 

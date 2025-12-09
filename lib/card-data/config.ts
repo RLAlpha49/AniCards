@@ -240,6 +240,45 @@ function applyBorderOverrides(
 }
 
 /**
+ * Applies boolean-style overrides (true/false flags) present in URL params
+ * to the StoredCardConfig instance during build-from-params flow.
+ */
+function applyBooleanOverridesForBuild(
+  config: StoredCardConfig,
+  params: {
+    baseCardType: string;
+    variationParam: string | null;
+    showFavoritesParam: string | null;
+    statusColorsParam: string | null;
+    piePercentagesParam: string | null;
+  },
+): void {
+  if (params.showFavoritesParam === "true") config.showFavorites = true;
+  if (params.showFavoritesParam === "false") config.showFavorites = false;
+
+  const statusRelevant = [
+    "animeStatusDistribution",
+    "mangaStatusDistribution",
+  ].includes(params.baseCardType);
+  if (statusRelevant) {
+    if (params.statusColorsParam === "true") {
+      config.useStatusColors = true;
+    } else if (params.statusColorsParam === "false") {
+      config.useStatusColors = false;
+    } else {
+      config.useStatusColors ??= false;
+    }
+  }
+
+  if (params.piePercentagesParam === "true" && config.variation === "pie") {
+    config.showPiePercentages = true;
+  }
+  if (params.piePercentagesParam === "false" && config.variation === "pie") {
+    config.showPiePercentages = false;
+  }
+}
+
+/**
  * Builds a card config directly from URL params without needing DB lookup.
  * Used when all required params are in the URL.
  * @source
@@ -279,48 +318,8 @@ export function buildCardConfigFromParams(params: {
   // Apply border params
   applyBorderOverrides(config, params);
 
-  if (
-    params.borderRadiusParam !== null &&
-    params.borderRadiusParam !== undefined
-  ) {
-    const parsedRadius = Number.parseInt(params.borderRadiusParam, 10);
-    if (!Number.isNaN(parsedRadius)) {
-      config.borderRadius = clampBorderRadius(parsedRadius);
-    }
-  }
-
-  // Apply boolean flags
-  if (params.showFavoritesParam === "true") {
-    config.showFavorites = true;
-  }
-  if (
-    params.statusColorsParam === "true" &&
-    ["animeStatusDistribution", "mangaStatusDistribution"].includes(
-      params.baseCardType,
-    )
-  ) {
-    config.useStatusColors = true;
-  }
-  if (params.piePercentagesParam === "true" && config.variation === "pie") {
-    config.showPiePercentages = true;
-  }
-
-  // Explicitly set false when URL contains explicit 'false' to make
-  // overrides unambiguous for downstream logic that inspects StoredCardConfig
-  if (params.showFavoritesParam === "false") {
-    config.showFavorites = false;
-  }
-  if (
-    params.statusColorsParam === "false" &&
-    ["animeStatusDistribution", "mangaStatusDistribution"].includes(
-      params.baseCardType,
-    )
-  ) {
-    config.useStatusColors = false;
-  }
-  if (params.piePercentagesParam === "false" && config.variation === "pie") {
-    config.showPiePercentages = false;
-  }
+  // Apply boolean flags using a utility function to reduce cognitive
+  applyBooleanOverridesForBuild(config, params);
 
   return config;
 }
@@ -386,6 +385,34 @@ export function processCardConfig(
   applyColorOverrides(effectiveCardConfig, params);
   applyBorderOverrides(effectiveCardConfig, params);
 
+  const favorites = applyBooleanOverridesForProcess(
+    effectiveCardConfig,
+    params,
+    baseCardType,
+    effectiveVariation,
+    userDoc,
+  );
+
+  return { cardConfig: effectiveCardConfig, effectiveVariation, favorites };
+}
+
+/**
+ * Applies boolean-style overrides and computes the favorites list for
+ * the processing of an existing card config fetched from DB.
+ *
+ * Returns the computed favorites array.
+ */
+function applyBooleanOverridesForProcess(
+  effectiveCardConfig: StoredCardConfig,
+  params: {
+    showFavoritesParam: string | null;
+    statusColorsParam: string | null;
+    piePercentagesParam: string | null;
+  },
+  baseCardType: string,
+  effectiveVariation: string,
+  userDoc: UserRecord,
+): string[] {
   if (params.showFavoritesParam === "false") {
     effectiveCardConfig.showFavorites = false;
   }
@@ -396,64 +423,59 @@ export function processCardConfig(
       ? !!effectiveCardConfig.showFavorites
       : params.showFavoritesParam === "true";
 
-  if (
-    useFavorites &&
-    ["animeVoiceActors", "animeStudios", "animeStaff", "mangaStaff"].includes(
-      baseCardType,
-    )
-  ) {
-    const favourites = userDoc?.stats?.User?.favourites ?? {};
-    favorites = getFavoritesForCardType(favourites, baseCardType);
+  const favoritesRelevant = [
+    "animeVoiceActors",
+    "animeStudios",
+    "animeStaff",
+    "mangaStaff",
+  ].includes(baseCardType);
+  if (useFavorites && favoritesRelevant) {
+    favorites = computeFavoritesList(userDoc, baseCardType);
   }
 
-  if (
-    params.statusColorsParam === "true" &&
-    ["animeStatusDistribution", "mangaStatusDistribution"].includes(
-      baseCardType,
-    )
-  ) {
-    effectiveCardConfig.useStatusColors = true;
-  }
-  if (
-    params.statusColorsParam === "false" &&
-    ["animeStatusDistribution", "mangaStatusDistribution"].includes(
-      baseCardType,
-    )
-  ) {
-    effectiveCardConfig.useStatusColors = false;
+  const statusRelevant = [
+    "animeStatusDistribution",
+    "mangaStatusDistribution",
+  ].includes(baseCardType);
+  if (statusRelevant) {
+    if (params.statusColorsParam === "true") {
+      effectiveCardConfig.useStatusColors = true;
+    } else if (params.statusColorsParam === "false") {
+      effectiveCardConfig.useStatusColors = false;
+    }
+    effectiveCardConfig.useStatusColors ??= false;
   }
 
-  if (
-    ["animeStatusDistribution", "mangaStatusDistribution"].includes(
-      baseCardType,
-    ) &&
-    effectiveCardConfig.useStatusColors == null
-  ) {
-    effectiveCardConfig.useStatusColors = false;
-  }
+  applyPiePercentFlag(effectiveCardConfig, params, effectiveVariation);
 
-  if (params.piePercentagesParam === "true" && effectiveVariation === "pie") {
+  applyDefaultShowFavoritesFlag(effectiveCardConfig, favoritesRelevant);
+
+  return favorites;
+}
+
+function computeFavoritesList(userDoc: UserRecord, baseCardType: string) {
+  const favourites = userDoc?.stats?.User?.favourites ?? {};
+  return getFavoritesForCardType(favourites, baseCardType);
+}
+
+function applyPiePercentFlag(
+  effectiveCardConfig: StoredCardConfig,
+  params: { piePercentagesParam: string | null },
+  effectiveVariation: string,
+): void {
+  if (effectiveVariation !== "pie") return;
+  if (params.piePercentagesParam === "true") {
     effectiveCardConfig.showPiePercentages = true;
-  }
-  if (params.piePercentagesParam === "false" && effectiveVariation === "pie") {
+  } else if (params.piePercentagesParam === "false") {
     effectiveCardConfig.showPiePercentages = false;
   }
+  effectiveCardConfig.showPiePercentages ??= false;
+}
 
-  if (
-    effectiveVariation === "pie" &&
-    effectiveCardConfig.showPiePercentages == null
-  ) {
-    effectiveCardConfig.showPiePercentages = false;
-  }
-
-  if (
-    ["animeVoiceActors", "animeStudios", "animeStaff", "mangaStaff"].includes(
-      baseCardType,
-    ) &&
-    effectiveCardConfig.showFavorites == null
-  ) {
-    effectiveCardConfig.showFavorites = false;
-  }
-
-  return { cardConfig: effectiveCardConfig, effectiveVariation, favorites };
+function applyDefaultShowFavoritesFlag(
+  effectiveCardConfig: StoredCardConfig,
+  favoritesRelevant: boolean,
+): void {
+  if (!favoritesRelevant) return;
+  effectiveCardConfig.showFavorites ??= false;
 }

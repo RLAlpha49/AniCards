@@ -590,6 +590,89 @@ export async function GET(request: Request) {
   );
 }
 
+/**
+ * Loads user and card configuration data for card generation.
+ *
+ * This function centralizes the conditional flow that previously lived
+ * in generateCardResponse: fetching user and card documents from the DB
+ * when needed, normalizing and validating the user record, and building
+ * a card configuration from URL params when DB card config is not required.
+ *
+ * It returns an object with the resolved data on success, or an object
+ * with an `error` response to be returned from the route on failure.
+ */
+async function loadUserAndCardConfig(
+  needsDbCardConfig: boolean,
+  params: ValidatedParams,
+  effectiveUserId: number,
+  request: Request,
+): Promise<
+  | {
+      userDoc: import("@/lib/types/records").UserRecord;
+      cardConfig: import("@/lib/types/records").StoredCardConfig;
+      effectiveVariation: string;
+      favorites: string[];
+    }
+  | { error: Response }
+> {
+  if (needsDbCardConfig) {
+    const data = await fetchUserData(effectiveUserId);
+    const { cardDoc } = data;
+    let userDoc = data.userDoc;
+
+    const validationResult = validateAndNormalizeUserRecord(userDoc);
+    if ("error" in validationResult) {
+      return {
+        error: handleValidationError(
+          validationResult,
+          request,
+          params.baseCardType,
+        ),
+      };
+    }
+    userDoc = validationResult.normalized;
+
+    const processed = processCardConfig(cardDoc, params, userDoc);
+    return {
+      userDoc,
+      cardConfig: processed.cardConfig,
+      effectiveVariation: processed.effectiveVariation,
+      favorites: processed.favorites,
+    };
+  }
+
+  // Not using DB card config; fetch user only and build config from params
+  const userDoc = await fetchUserDataOnly(effectiveUserId);
+  const validationResult = validateAndNormalizeUserRecord(userDoc);
+  if ("error" in validationResult) {
+    return {
+      error: handleValidationError(
+        validationResult,
+        request,
+        params.baseCardType,
+      ),
+    };
+  }
+
+  const normalized = validationResult.normalized;
+  const cardConfig = buildCardConfigFromParams(params);
+  const effectiveVariation =
+    params.variationParam || cardConfig.variation || "default";
+  const favorites = processFavorites(
+    params.baseCardType,
+    params.showFavoritesParam,
+    cardConfig.showFavorites,
+    normalized,
+  );
+
+  return {
+    userDoc: normalized,
+    cardConfig,
+    effectiveVariation,
+    favorites,
+  };
+}
+
 async function generateCardResponse(
   request: Request,
   params: ValidatedParams,
@@ -599,57 +682,17 @@ async function generateCardResponse(
 ): Promise<Response> {
   try {
     const needsDbCardConfig = needsCardConfigFromDb(params);
-
-    let userDoc: import("@/lib/types/records").UserRecord;
-    let cardConfig: import("@/lib/types/records").StoredCardConfig;
-    let effectiveVariation: string;
-    let favorites: string[];
-
-    if (needsDbCardConfig) {
-      // Need to fetch both user and card data from DB
-      const data = await fetchUserData(effectiveUserId);
-      const { cardDoc } = data;
-      userDoc = data.userDoc;
-
-      const validationResult = validateAndNormalizeUserRecord(userDoc);
-      if ("error" in validationResult) {
-        return handleValidationError(
-          validationResult,
-          request,
-          params.baseCardType,
-        );
-      }
-      userDoc = validationResult.normalized;
-
-      const processed = processCardConfig(cardDoc, params, userDoc);
-      cardConfig = processed.cardConfig;
-      effectiveVariation = processed.effectiveVariation;
-      favorites = processed.favorites;
-    } else {
-      // Only fetch user data from DB, build card config from URL params
-      userDoc = await fetchUserDataOnly(effectiveUserId);
-
-      const validationResult = validateAndNormalizeUserRecord(userDoc);
-      if ("error" in validationResult) {
-        return handleValidationError(
-          validationResult,
-          request,
-          params.baseCardType,
-        );
-      }
-      userDoc = validationResult.normalized;
-
-      // Build card config directly from URL params
-      cardConfig = buildCardConfigFromParams(params);
-      effectiveVariation =
-        params.variationParam || cardConfig.variation || "default";
-      favorites = processFavorites(
-        params.baseCardType,
-        params.showFavoritesParam,
-        cardConfig.showFavorites,
-        userDoc,
-      );
+    const loadResult = await loadUserAndCardConfig(
+      needsDbCardConfig,
+      params,
+      effectiveUserId,
+      request,
+    );
+    if ("error" in loadResult) {
+      return loadResult.error;
     }
+
+    const { userDoc, cardConfig, effectiveVariation, favorites } = loadResult;
 
     console.log(
       `🎨 [Card SVG] Generating ${params.cardType} (${effectiveVariation}) SVG for user ${effectiveUserId}${needsDbCardConfig ? " (with DB card lookup)" : " (from URL params)"}`,

@@ -126,6 +126,49 @@ async function expectErrorResponse(
 }
 
 /**
+ * Returns whether a validation report contains any issue that includes the provided substring.
+ */
+function reportHasIssueSubstring(
+  report: ValidationReport,
+  substr: string,
+): boolean {
+  for (const v of report.issues) {
+    for (const issue of v.issues) {
+      if (issue.includes(substr)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Returns whether a validation report contains a specific key with an issue
+ * that includes the provided substring.
+ */
+function reportHasIssueForKeyWithSubstring(
+  report: ValidationReport,
+  key: string,
+  substr: string,
+): boolean {
+  const k = report.issues.find((i) => i.key === key);
+  if (!k) return false;
+  return k.issues.some((issue) => issue.includes(substr));
+}
+
+/**
+ * Returns whether a validation report contains a specific key with an issue
+ * that matches the provided regular expression.
+ */
+function reportHasIssueForKeyWithRegex(
+  report: ValidationReport,
+  key: string,
+  regex: RegExp,
+): boolean {
+  const k = report.issues.find((i) => i.key === key);
+  if (!k) return false;
+  return k.issues.some((issue) => regex.test(issue));
+}
+
+/**
  * Representative user record used in successful validation scenarios.
  * @source
  */
@@ -323,11 +366,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const res = await POST(req);
       const report = await expectValidationReport(res);
 
-      expect(
-        report.issues.some((i) =>
-          i.issues.some((issue: string) => issue.includes("userId")),
-        ),
-      ).toBeTruthy();
+      expect(reportHasIssueSubstring(report, "userId")).toBeTruthy();
     });
 
     it("should report missing username", async () => {
@@ -344,11 +383,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const res = await POST(req);
       const report = await expectValidationReport(res);
 
-      expect(
-        report.issues.some((i) =>
-          i.issues.some((issue: string) => issue.includes("username")),
-        ),
-      ).toBeTruthy();
+      expect(reportHasIssueSubstring(report, "username")).toBeTruthy();
     });
 
     it("should report missing ip", async () => {
@@ -365,11 +400,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const res = await POST(req);
       const report = await expectValidationReport(res);
 
-      expect(
-        report.issues.some((i) =>
-          i.issues.some((issue: string) => issue.includes("ip")),
-        ),
-      ).toBeTruthy();
+      expect(reportHasIssueSubstring(report, "ip")).toBeTruthy();
     });
 
     it("should report missing createdAt", async () => {
@@ -386,11 +417,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const res = await POST(req);
       const report = await expectValidationReport(res);
 
-      expect(
-        report.issues.some((i) =>
-          i.issues.some((issue: string) => issue.includes("createdAt")),
-        ),
-      ).toBeTruthy();
+      expect(reportHasIssueSubstring(report, "createdAt")).toBeTruthy();
     });
 
     it("should report missing updatedAt", async () => {
@@ -407,11 +434,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const res = await POST(req);
       const report = await expectValidationReport(res);
 
-      expect(
-        report.issues.some((i) =>
-          i.issues.some((issue: string) => issue.includes("updatedAt")),
-        ),
-      ).toBeTruthy();
+      expect(reportHasIssueSubstring(report, "updatedAt")).toBeTruthy();
     });
 
     it("should report missing stats object", async () => {
@@ -428,11 +451,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const res = await POST(req);
       const report = await expectValidationReport(res);
 
-      expect(
-        report.issues.some((i) =>
-          i.issues.some((issue: string) => issue.includes("stats")),
-        ),
-      ).toBeTruthy();
+      expect(reportHasIssueSubstring(report, "stats")).toBeTruthy();
     });
 
     it("should report null stats object", async () => {
@@ -449,11 +468,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const res = await POST(req);
       const report = await expectValidationReport(res);
 
-      expect(
-        report.issues.some((i) =>
-          i.issues.some((issue: string) => issue.includes("stats")),
-        ),
-      ).toBeTruthy();
+      expect(reportHasIssueSubstring(report, "stats")).toBeTruthy();
     });
   });
 
@@ -472,13 +487,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const res = await POST(req);
       const report = await expectValidationReport(res);
 
-      expect(
-        report.issues.some(
-          (i) =>
-            i.key === "cards:1" &&
-            i.issues.some((issue: string) => issue.includes("userId")),
-        ),
-      ).toBeTruthy();
+      expect(reportHasIssueSubstring(report, "userId")).toBeTruthy();
     });
 
     it("should report non-number userId in cards", async () => {
@@ -495,7 +504,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const res = await POST(req);
       const report = await expectValidationReport(res);
 
-      expect(report.issues.some((i) => i.key === "cards:1")).toBeTruthy();
+      expect(reportHasIssueSubstring(report, "userId")).toBeTruthy();
     });
 
     it("should report missing cards array", async () => {
@@ -512,13 +521,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const res = await POST(req);
       const report = await expectValidationReport(res);
 
-      expect(
-        report.issues.some(
-          (i) =>
-            i.key === "cards:1" &&
-            i.issues.some((issue: string) => issue.includes("cards")),
-        ),
-      ).toBeTruthy();
+      expect(reportHasIssueSubstring(report, "cards")).toBeTruthy();
     });
 
     it("should report non-array cards field", async () => {
@@ -535,13 +538,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const res = await POST(req);
       const report = await expectValidationReport(res);
 
-      expect(
-        report.issues.some(
-          (i) =>
-            i.key === "cards:1" &&
-            i.issues.some((issue: string) => issue.includes("cards")),
-        ),
-      ).toBeTruthy();
+      expect(reportHasIssueSubstring(report, "cards")).toBeTruthy();
     });
 
     it("should report missing card object in array", async () => {
@@ -558,13 +555,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const res = await POST(req);
       const report = await expectValidationReport(res);
 
-      expect(
-        report.issues.some(
-          (i) =>
-            i.key === "cards:1" &&
-            i.issues.some((issue: string) => issue.includes("cards[0]")),
-        ),
-      ).toBeTruthy();
+      expect(reportHasIssueSubstring(report, "cards[0]")).toBeTruthy();
     });
 
     it("should report missing cardName in card", async () => {
@@ -584,13 +575,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const res = await POST(req);
       const report = await expectValidationReport(res);
 
-      expect(
-        report.issues.some(
-          (i) =>
-            i.key === "cards:1" &&
-            i.issues.some((issue: string) => issue.includes("cardName")),
-        ),
-      ).toBeTruthy();
+      expect(reportHasIssueSubstring(report, "cardName")).toBeTruthy();
     });
 
     it("should report missing variation in card", async () => {
@@ -610,13 +595,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const res = await POST(req);
       const report = await expectValidationReport(res);
 
-      expect(
-        report.issues.some(
-          (i) =>
-            i.key === "cards:1" &&
-            i.issues.some((issue: string) => issue.includes("variation")),
-        ),
-      ).toBeTruthy();
+      expect(reportHasIssueSubstring(report, "variation")).toBeTruthy();
     });
 
     it("should accept cards that use a named color preset and lack individual color fields", async () => {
@@ -723,11 +702,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const report = await expectValidationReport(res);
 
       expect(
-        report.issues.some(
-          (i) =>
-            i.key === "cards:1" &&
-            i.issues.some((issue: string) => issue.includes("titleColor")),
-        ),
+        reportHasIssueForKeyWithSubstring(report, "cards:1", "titleColor"),
       ).toBeTruthy();
     });
 
@@ -749,11 +724,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const report = await expectValidationReport(res);
 
       expect(
-        report.issues.some(
-          (i) =>
-            i.key === "cards:1" &&
-            i.issues.some((issue: string) => issue.includes("backgroundColor")),
-        ),
+        reportHasIssueForKeyWithSubstring(report, "cards:1", "backgroundColor"),
       ).toBeTruthy();
     });
 
@@ -775,11 +746,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const report = await expectValidationReport(res);
 
       expect(
-        report.issues.some(
-          (i) =>
-            i.key === "cards:1" &&
-            i.issues.some((issue: string) => issue.includes("textColor")),
-        ),
+        reportHasIssueForKeyWithSubstring(report, "cards:1", "textColor"),
       ).toBeTruthy();
     });
 
@@ -801,11 +768,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const report = await expectValidationReport(res);
 
       expect(
-        report.issues.some(
-          (i) =>
-            i.key === "cards:1" &&
-            i.issues.some((issue: string) => issue.includes("circleColor")),
-        ),
+        reportHasIssueForKeyWithSubstring(report, "cards:1", "circleColor"),
       ).toBeTruthy();
     });
 
@@ -848,11 +811,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const report = await expectValidationReport(res);
 
       expect(
-        report.issues.some(
-          (i) =>
-            i.key === "cards:1" &&
-            i.issues.some((issue: string) => issue.includes("borderColor")),
-        ),
+        reportHasIssueForKeyWithSubstring(report, "cards:1", "borderColor"),
       ).toBeTruthy();
     });
 
@@ -871,11 +830,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const report = await expectValidationReport(res);
 
       expect(
-        report.issues.some(
-          (i) =>
-            i.key === "cards:1" &&
-            i.issues.some((issue: string) => issue.includes("updatedAt")),
-        ),
+        reportHasIssueForKeyWithSubstring(report, "cards:1", "updatedAt"),
       ).toBeTruthy();
     });
 
@@ -902,11 +857,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
 
       expect(report.issues.length).toBeGreaterThan(0);
       expect(
-        report.issues.some(
-          (i) =>
-            i.key === "cards:1" &&
-            i.issues.some((issue: string) => issue.includes("cards[1]")),
-        ),
+        reportHasIssueForKeyWithSubstring(report, "cards:1", "cards[1]"),
       ).toBeTruthy();
     });
   });
@@ -942,11 +893,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const report = await expectValidationReport(res);
 
       expect(
-        report.issues.some(
-          (i) =>
-            i.key === "username:1" &&
-            i.issues.some((issue: string) => issue.includes("not a number")),
-        ),
+        reportHasIssueForKeyWithSubstring(report, "username:1", "not a number"),
       ).toBeTruthy();
     });
 
@@ -1022,11 +969,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const report = await expectValidationReport(res);
 
       expect(
-        report.issues.some(
-          (i) =>
-            i.key === "analytics:reports" &&
-            i.issues.some((issue: string) => issue.includes("empty")),
-        ),
+        reportHasIssueForKeyWithSubstring(report, "analytics:reports", "empty"),
       ).toBeTruthy();
     });
 
@@ -1068,10 +1011,10 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const report = await expectValidationReport(res);
 
       expect(
-        report.issues.some(
-          (i) =>
-            i.key === "analytics:reports[0]" &&
-            i.issues.some((issue: string) => issue.includes("generatedAt")),
+        reportHasIssueForKeyWithSubstring(
+          report,
+          "analytics:reports[0]",
+          "generatedAt",
         ),
       ).toBeTruthy();
     });
@@ -1096,10 +1039,10 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const report = await expectValidationReport(res);
 
       expect(
-        report.issues.some(
-          (i) =>
-            i.key === "analytics:reports[0]" &&
-            i.issues.some((issue: string) => issue.includes("raw_data")),
+        reportHasIssueForKeyWithSubstring(
+          report,
+          "analytics:reports[0]",
+          "raw_data",
         ),
       ).toBeTruthy();
     });
@@ -1124,10 +1067,10 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const report = await expectValidationReport(res);
 
       expect(
-        report.issues.some(
-          (i) =>
-            i.key === "analytics:reports[0]" &&
-            i.issues.some((issue: string) => issue.includes("summary")),
+        reportHasIssueForKeyWithSubstring(
+          report,
+          "analytics:reports[0]",
+          "summary",
         ),
       ).toBeTruthy();
     });
@@ -1194,11 +1137,7 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const report = await expectValidationReport(res);
 
       expect(
-        report.issues.some(
-          (i) =>
-            i.key === "user:1" &&
-            i.issues.some((issue: string) => issue.includes("null or missing")),
-        ),
+        reportHasIssueForKeyWithSubstring(report, "user:1", "null or missing"),
       ).toBeTruthy();
     });
 
@@ -1216,12 +1155,10 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const report = await expectValidationReport(res);
 
       expect(
-        report.issues.some(
-          (i) =>
-            i.key === "user:1" &&
-            i.issues.some((issue: string) =>
-              /Unexpected (token|identifier)/.test(issue),
-            ),
+        reportHasIssueForKeyWithRegex(
+          report,
+          "user:1",
+          /Unexpected (token|identifier)/,
         ),
       ).toBeTruthy();
     });
