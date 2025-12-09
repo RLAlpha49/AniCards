@@ -51,7 +51,7 @@ jobs:
       artifact_path: ${{ steps.package_app.outputs.path }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
@@ -66,7 +66,7 @@ jobs:
           zip -r dist.zip dist
           echo "path=dist.zip" >> "$GITHUB_OUTPUT"
       - name: Upload build artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v5
         with:
           name: my-app-build
           path: dist.zip
@@ -92,7 +92,7 @@ jobs:
 
 - **Principle:** Steps should be atomic, well-defined, and actions should be versioned for stability and security.
 - **Deeper Dive:**
-  - **`uses`:** Referencing marketplace actions (e.g., `actions/checkout@v4`, `actions/setup-node@v3`) or custom actions. Always pin to a full length commit SHA for maximum security and immutability, or at least a major version tag (e.g., `@v4`). Avoid pinning to `main` or `latest`.
+  - **`uses`:** Referencing marketplace actions (e.g., `actions/checkout@v6`, `actions/setup-node@v3`) or custom actions. Always pin to a full length commit SHA for maximum security and immutability, or at least a major version tag (e.g., `@v4`). Avoid pinning to `main` or `latest`.
   - **`name`:** Essential for clear logging and debugging. Make step names descriptive.
   - **`run`:** For executing shell commands. Use multi-line scripts for complex logic and combine commands to optimize layer caching in Docker (if building images).
   - **`env`:** Define environment variables at the step or job level. Do not hardcode sensitive data here.
@@ -172,7 +172,7 @@ jobs:
     permissions:
       contents: read # This job only needs to read code, override workflow default
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: npm run lint
 ```
 
@@ -234,14 +234,14 @@ jobs:
   - **Restore Keys:** Use `restore-keys` for fallbacks to older, compatible caches.
   - **Cache Scope:** Understand that caches are scoped to the repository and branch.
 - **Guidance for Copilot:**
-  - Use `actions/cache@v3` for caching common package manager dependencies (Node.js `node_modules`) and build artifacts.
+  - Use `actions/cache@v4` for caching common package manager dependencies (Node.js `node_modules`) and build artifacts.
   - Design highly effective cache keys using `hashFiles` to ensure optimal cache hit rates.
   - Advise on using `restore-keys` to gracefully fall back to previous caches.
 - **Example (Advanced Caching for Monorepo):**
 
 ```yaml
 - name: Cache Node.js modules
-  uses: actions/cache@v3
+  uses: actions/cache@v4
   with:
     path: |
       ~/.npm
@@ -278,7 +278,7 @@ jobs:
         node-version: [16.x, 18.x, 20.x]
         browser: [chromium, firefox]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node-version }}
@@ -310,7 +310,7 @@ jobs:
   - **`lfs`:** Manage Git LFS (Large File Storage) files efficiently. If not needed, set `lfs: false`.
   - **Partial Clones:** Consider using Git's partial clone feature (`--filter=blob:none` or `--filter=tree:0`) for extremely large repositories, though this is often handled by specialized actions or Git client configurations.
 - **Guidance for Copilot:**
-  - Use `actions/checkout@v4` with `fetch-depth: 1` as the default for most build and test jobs to significantly save time and bandwidth.
+  - Use `actions/checkout@v6` with `fetch-depth: 1` as the default for most build and test jobs to significantly save time and bandwidth.
   - Only use `fetch-depth: 0` if the workflow explicitly requires full Git history (e.g., for release tagging, deep commit analysis, or `git blame` operations).
   - Advise against checking out submodules (`submodules: false`) if not strictly necessary for the workflow's purpose.
   - Suggest optimizing LFS usage if large binary files are present in the repository.
@@ -325,7 +325,7 @@ jobs:
   - **Use Cases:** Build outputs (executables, compiled code, Docker images), test reports (JUnit XML, HTML reports), code coverage reports, security scan results, generated documentation, static website builds.
   - **Limitations:** Artifacts are immutable once uploaded. Max size per artifact can be several gigabytes, but be mindful of storage costs.
 - **Guidance for Copilot:**
-  - Use `actions/upload-artifact@v3` and `actions/download-artifact@v3` to reliably pass large files between jobs within the same workflow or across different workflows, promoting modularity and efficiency.
+  - Use `actions/upload-artifact@v5` and `actions/download-artifact@v3` to reliably pass large files between jobs within the same workflow or across different workflows, promoting modularity and efficiency.
   - Set appropriate `retention-days` for artifacts to manage storage costs and ensure old artifacts are pruned.
   - Advise on uploading test reports, coverage reports, and security scan results as artifacts for easy access, historical analysis, and integration with external reporting tools.
   - Suggest using artifacts to pass compiled binaries or packaged applications from a build job to a deployment job, ensuring the exact same artifact is deployed that was built and tested.

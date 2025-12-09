@@ -8,11 +8,104 @@ on:
 
 jobs:
   build:
+    name: Build
     runs-on: ubuntu-latest
 
     steps:
+      - name: Cache Bun deps & node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            ~/.bun
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
+
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run lint
+        run: bun lint
+
+      - name: Run type check
+        run: bun run typecheck
+
+      - name: Build project
+        run: bun run build
+
+      - name: Upload Next build
+        uses: actions/upload-artifact@v5
+        with:
+          name: next-build
+          path: .next
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Cache Bun deps & node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            ~/.bun
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
+
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run unit tests
+        run: bun test
+
+  e2e-chromium:
+    name: E2E Chromium
+    runs-on: ubuntu-latest
+    needs: [build, unit-tests]
+
+    steps:
+      - name: Cache Bun deps & node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            ~/.bun
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/bun.lock') }}
+          restore-keys: ${{ runner.os }}-playwright-
+
+      - name: Cache Next build cache
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-next-${{ hashFiles('**/bun.lock') }}
+          restore-keys: ${{ runner.os }}-next-
+
+      - name: Checkout code
+        uses: actions/checkout@v6
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -25,24 +118,71 @@ jobs:
       - name: Install Playwright browsers and system dependencies
         run: bunx playwright install --with-deps
 
-      - name: Run lint
-        run: bun lint
+      - name: Run Playwright E2E tests (Chromium)
+        id: playwright_chromium
+        run: bun run test:e2e -- --project=chromium
 
-      - name: Run unit tests
-        run: bun test
-
-      - name: Run Playwright E2E tests
-        id: playwright_tests
-        run: bun run test:e2e
-
-      - name: Build project
-        run: bun run build
-
-      - name: Upload Playwright artifacts
-        if: ${{ always() && steps.playwright_tests.outcome == 'failure' }}
+      - name: Upload Playwright artifacts (Chromium)
+        if: ${{ always() && steps.playwright_chromium.outcome == 'failure' }}
         uses: actions/upload-artifact@v5
         with:
-          name: playwright-report
+          name: playwright-report-chromium
+          path: |
+            tests/e2e/playwright-report
+            tests/e2e/test-results
+
+  e2e-mobile:
+    name: E2E Mobile Chrome
+    runs-on: ubuntu-latest
+    needs: [build, unit-tests]
+
+    steps:
+      - name: Cache Bun deps & node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            ~/.bun
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/bun.lock') }}
+          restore-keys: ${{ runner.os }}-playwright-
+
+      - name: Cache Next build cache
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-next-${{ hashFiles('**/bun.lock') }}
+          restore-keys: ${{ runner.os }}-next-
+
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Install Playwright browsers and system dependencies
+        run: bunx playwright install --with-deps
+
+      - name: Run Playwright E2E tests (Mobile Chrome)
+        id: playwright_mobile
+        run: bun run test:e2e -- --project=mobile-chrome
+
+      - name: Upload Playwright artifacts (Mobile Chrome)
+        if: ${{ always() && steps.playwright_mobile.outcome == 'failure' }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: playwright-report-mobile-chrome
           path: |
             tests/e2e/playwright-report
             tests/e2e/test-results
