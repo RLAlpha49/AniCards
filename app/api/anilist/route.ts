@@ -1,5 +1,13 @@
 import { NextResponse } from "next/server";
-import { initializeApiRequest, incrementAnalytics } from "@/lib/api-utils";
+import {
+  initializeApiRequest,
+  incrementAnalytics,
+  buildAnalyticsMetricKey,
+  apiJsonHeaders,
+  jsonWithCors,
+} from "@/lib/api-utils";
+import { trackUserActionError } from "@/lib/error-tracking";
+import { categorizeByStatusCode, categorizeError } from "@/lib/error-messages";
 
 /**
  * Payload sent to AniList, containing the GraphQL query and optional variables.
@@ -32,19 +40,22 @@ function handleTestSimulation(request: Request): NextResponse | null {
 
   const testHeader = request.headers.get("X-Test-Status");
   if (testHeader === "429") {
+    const headers = apiJsonHeaders(request);
+    headers["Retry-After"] = "60";
     return NextResponse.json(
       { error: "Rate limited (test simulation)" },
       {
         status: 429,
-        headers: { "Retry-After": "60" },
+        headers,
       },
     );
   }
 
   if (testHeader === "500") {
-    return NextResponse.json(
+    return jsonWithCors(
       { error: "Internal server error (test simulation)" },
-      { status: 500 },
+      request,
+      500,
     );
   }
 
@@ -132,18 +143,34 @@ async function makeAniListRequest(
   requestData: GraphQLRequest,
   request: Request,
 ): Promise<unknown> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
+  const anilistToken = process.env.ANILIST_TOKEN?.trim();
+  if (anilistToken) {
+    headers.Authorization = `Bearer ${anilistToken}`;
+  }
+  if (process.env.NODE_ENV === "development") {
+    headers["X-Test-Status"] = request.headers.get("X-Test-Status") || "";
+  }
+
   const response = await fetch("https://graphql.anilist.co", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      Authorization: `Bearer ${process.env.ANILIST_TOKEN}`,
-      ...(process.env.NODE_ENV === "development" && {
-        "X-Test-Status": request.headers.get("X-Test-Status") || "",
-      }),
-    },
+    headers,
     body: JSON.stringify(requestData),
   });
+
+  const rateLimitLimit = response.headers.get("X-RateLimit-Limit");
+  const rateLimitRemaining = response.headers.get("X-RateLimit-Remaining");
+  const rateLimitReset = response.headers.get("X-RateLimit-Reset");
+  if (rateLimitLimit || rateLimitRemaining || rateLimitReset) {
+    console.log(
+      `🧭 [AniList API] Rate Limit: ${rateLimitLimit || "?"} Remaining: ${
+        rateLimitRemaining || "?"
+      } Reset: ${rateLimitReset || "?"}`,
+    );
+  }
 
   if (!response.ok) {
     const errorData = await response.json();
@@ -169,7 +196,11 @@ export async function POST(request: Request) {
   if (testResponse) {
     return testResponse;
   }
-  const init = await initializeApiRequest(request, "AniList API");
+  const init = await initializeApiRequest(
+    request,
+    "AniList API",
+    "anilist_api",
+  );
   if (init.errorResponse) return init.errorResponse;
 
   const { startTime } = init;
@@ -207,8 +238,10 @@ export async function POST(request: Request) {
       `✅ [AniList API] Anilist operation ${operationInfo.name} completed successfully.`,
     );
 
-    await trackAnalytics("analytics:anilist_api:successful_requests");
-    return NextResponse.json(data);
+    await trackAnalytics(
+      buildAnalyticsMetricKey("anilist_api", "successful_requests"),
+    );
+    return jsonWithCors(data, request);
   } catch (error: unknown) {
     const duration = Date.now() - startTime;
     const errorMessage =
@@ -226,11 +259,42 @@ export async function POST(request: Request) {
     const statusMatch = statusPattern.exec(errorMessage);
     const statusCode = statusMatch ? Number.parseInt(statusMatch[1], 10) : 500;
 
-    await trackAnalytics("analytics:anilist_api:failed_requests");
+    // Determine error category using centralized categorization
+    const errorCategory =
+      statusCode === 500
+        ? categorizeError(errorMessage)
+        : categorizeByStatusCode(statusCode);
 
-    return NextResponse.json(
+    // Track error with context
+    trackUserActionError(
+      `anilist_api_${operationInfo.name}`,
+      error instanceof Error ? error : new Error(errorMessage),
+      errorCategory,
+      {
+        userId: operationInfo.userIdentifier,
+        statusCode,
+      },
+    );
+
+    await trackAnalytics(
+      buildAnalyticsMetricKey("anilist_api", "failed_requests"),
+    );
+
+    return jsonWithCors(
       { error: errorMessage || "Failed to fetch AniList data" },
-      { status: statusCode },
+      request,
+      statusCode,
     );
   }
+}
+
+export function OPTIONS(request: Request) {
+  const headers = apiJsonHeaders(request);
+  return new Response(null, {
+    headers: {
+      ...headers,
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+    },
+  });
 }

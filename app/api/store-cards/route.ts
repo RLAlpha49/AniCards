@@ -1,24 +1,70 @@
 import { StoredCardConfig, CardsRecord } from "@/lib/types/records";
-import { NextResponse } from "next/server";
+import type { NextResponse } from "next/server";
 import {
   incrementAnalytics,
   handleError,
+  apiJsonHeaders,
   logSuccess,
   redisClient,
   initializeApiRequest,
   validateCardData,
+  buildAnalyticsMetricKey,
+  jsonWithCors,
 } from "@/lib/api-utils";
+import { clampBorderRadius, safeParse } from "@/lib/utils";
+
+/**
+ * Card types that support pie variation and thus can use showPiePercentages.
+ * @source
+ */
+const CARD_TYPES_WITH_PIE_VARIATION = new Set([
+  "animeGenres",
+  "animeTags",
+  "animeVoiceActors",
+  "animeStudios",
+  "animeStaff",
+  "animeStatusDistribution",
+  "animeFormatDistribution",
+  "animeCountry",
+  "mangaGenres",
+  "mangaTags",
+  "mangaStaff",
+  "mangaStatusDistribution",
+  "mangaFormatDistribution",
+  "mangaCountry",
+]);
+
+/**
+ * Card types that may render favorites and therefore store `showFavorites`.
+ */
+const CARD_TYPES_WITH_FAVORITES = new Set([
+  "animeVoiceActors",
+  "animeStudios",
+  "animeStaff",
+  "mangaStaff",
+]);
+
+/**
+ * Checks if a card type supports pie variation.
+ * @source
+ */
+function supportsPieVariation(cardName: string): boolean {
+  return CARD_TYPES_WITH_PIE_VARIATION.has(cardName);
+}
 
 function parseStoredCardsRecord(
   rawValue: unknown,
   endpoint: string,
+  endpointKey: string,
   cardsKey: string,
 ): StoredCardConfig[] {
   if (rawValue === undefined || rawValue === null) return [];
 
   try {
     const parsedValue =
-      typeof rawValue === "string" ? JSON.parse(rawValue) : rawValue;
+      typeof rawValue === "string"
+        ? safeParse(rawValue, `${endpoint}:stored-cards:${cardsKey}`)
+        : rawValue;
 
     if (parsedValue && typeof parsedValue === "object") {
       const cards = (parsedValue as CardsRecord).cards;
@@ -28,13 +74,97 @@ function parseStoredCardsRecord(
     }
   } catch (error) {
     console.warn(
-      `⚠️ [${endpoint}] Unable to parse stored cards for ${cardsKey}: ${
+      `⚠️ [${endpoint}] Stored card record corrupted for ${cardsKey}: ${
         error instanceof Error ? error.message : String(error)
       }`,
     );
+    incrementAnalytics(
+      buildAnalyticsMetricKey(endpointKey, "corrupted_records"),
+    ).catch(() => {});
   }
 
   return [];
+}
+
+/**
+ * Computes the effective border radius from incoming and previous values.
+ * @source
+ */
+function computeBorderRadius(
+  incoming: StoredCardConfig,
+  previous: StoredCardConfig | undefined,
+): number | undefined {
+  const incomingRadius = Number.isFinite(incoming.borderRadius)
+    ? incoming.borderRadius
+    : undefined;
+  const previousRadius = Number.isFinite(previous?.borderRadius)
+    ? previous!.borderRadius
+    : undefined;
+  const effectiveRadius = incomingRadius ?? previousRadius;
+  return typeof effectiveRadius === "number"
+    ? clampBorderRadius(effectiveRadius)
+    : undefined;
+}
+
+/**
+ * Builds a StoredCardConfig from incoming card data, merging with previous if needed.
+ * Only saves individual colors when colorPreset is "custom" or not set.
+ * @source
+ */
+function buildCardConfig(
+  incoming: StoredCardConfig,
+  previous: StoredCardConfig | undefined,
+): StoredCardConfig {
+  const normalizedBorderRadius = computeBorderRadius(incoming, previous);
+  const shouldSaveColors =
+    !incoming.colorPreset || incoming.colorPreset === "custom";
+
+  // Only save showPiePercentages for card types that support pie variation
+  const shouldSavePiePercentages =
+    supportsPieVariation(incoming.cardName) && incoming.variation === "pie";
+
+  const incomingPieDefined = typeof incoming.showPiePercentages === "boolean";
+  const previousPie = previous?.showPiePercentages;
+  // Merge incoming value -> previous -> explicit default false for pie variations
+  let effectiveShowPiePercentages: boolean | undefined = undefined;
+  if (shouldSavePiePercentages) {
+    if (incomingPieDefined) {
+      effectiveShowPiePercentages = incoming.showPiePercentages;
+    } else if (typeof previousPie === "boolean") {
+      effectiveShowPiePercentages = previousPie;
+    } else {
+      effectiveShowPiePercentages = false;
+    }
+  }
+
+  const favoritesRelevant = CARD_TYPES_WITH_FAVORITES.has(incoming.cardName);
+  const incomingFavDefined = typeof incoming.showFavorites === "boolean";
+  const previousFav = previous?.showFavorites;
+  let effectiveShowFavorites: boolean | undefined = undefined;
+  if (favoritesRelevant) {
+    if (incomingFavDefined) {
+      effectiveShowFavorites = incoming.showFavorites;
+    } else if (typeof previousFav === "boolean") {
+      effectiveShowFavorites = previousFav;
+    } else {
+      effectiveShowFavorites = false;
+    }
+  }
+
+  return {
+    cardName: incoming.cardName,
+    variation: incoming.variation,
+    colorPreset: incoming.colorPreset,
+    titleColor: shouldSaveColors ? incoming.titleColor : undefined,
+    backgroundColor: shouldSaveColors ? incoming.backgroundColor : undefined,
+    textColor: shouldSaveColors ? incoming.textColor : undefined,
+    circleColor: shouldSaveColors ? incoming.circleColor : undefined,
+    borderColor: incoming.borderColor,
+    borderRadius: normalizedBorderRadius,
+    showFavorites: effectiveShowFavorites,
+    useStatusColors: incoming.useStatusColors,
+    showPiePercentages: effectiveShowPiePercentages,
+  };
 }
 
 /**
@@ -44,10 +174,14 @@ function parseStoredCardsRecord(
  * @source
  */
 export async function POST(request: Request): Promise<NextResponse> {
-  const init = await initializeApiRequest(request, "Store Cards");
+  const init = await initializeApiRequest(
+    request,
+    "Store Cards",
+    "store_cards",
+  );
   if (init.errorResponse) return init.errorResponse;
 
-  const { startTime, endpoint } = init;
+  const { startTime, endpoint, endpointKey } = init;
 
   try {
     const body = await request.json();
@@ -57,9 +191,16 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
 
     // Validate incoming data
-    const validationError = validateCardData(incomingCards, userId, endpoint);
+    const validationError = validateCardData(
+      incomingCards,
+      userId,
+      endpoint,
+      request,
+    );
     if (validationError) {
-      await incrementAnalytics("analytics:store_cards:failed_requests");
+      await incrementAnalytics(
+        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+      );
       return validationError;
     }
 
@@ -67,10 +208,13 @@ export async function POST(request: Request): Promise<NextResponse> {
       console.warn(
         `⚠️ [${endpoint}] Invalid data for user ${userId}: ${statsData.error}`,
       );
-      await incrementAnalytics("analytics:store_cards:failed_requests");
-      return NextResponse.json(
+      await incrementAnalytics(
+        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+      );
+      return jsonWithCors(
         { error: "Invalid data: " + statsData.error },
-        { status: 400 },
+        request,
+        400,
       );
     }
 
@@ -85,6 +229,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const existingCards = parseStoredCardsRecord(
       existingData,
       endpoint,
+      endpointKey,
       cardsKey,
     );
 
@@ -95,19 +240,8 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     // Process incoming cards: update existing or add new ones
     for (const card of incomingCards as StoredCardConfig[]) {
-      existingCardsMap.set(card.cardName, {
-        cardName: card.cardName,
-        variation: card.variation,
-        titleColor: card.titleColor,
-        backgroundColor: card.backgroundColor,
-        textColor: card.textColor,
-        circleColor: card.circleColor,
-        borderColor: card.borderColor,
-        borderRadius: card.borderRadius,
-        showFavorites: card.showFavorites,
-        useStatusColors: card.useStatusColors,
-        showPiePercentages: card.showPiePercentages,
-      });
+      const previous = existingCardsMap.get(card.cardName);
+      existingCardsMap.set(card.cardName, buildCardConfig(card, previous));
     }
 
     const cardData: CardsRecord = {
@@ -121,19 +255,30 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const duration = Date.now() - startTime;
     logSuccess(endpoint, userId, duration, "Stored cards");
-    await incrementAnalytics("analytics:store_cards:successful_requests");
+    await incrementAnalytics(
+      buildAnalyticsMetricKey(endpointKey, "successful_requests"),
+    );
 
-    return NextResponse.json({
-      success: true,
-      userId,
-    });
+    return jsonWithCors({ success: true, userId }, request);
   } catch (error) {
     return handleError(
       error as Error,
       endpoint,
       startTime,
-      "analytics:store_cards:failed_requests",
+      buildAnalyticsMetricKey(endpointKey, "failed_requests"),
       "Card storage failed",
+      request,
     );
   }
+}
+
+export function OPTIONS(request: Request) {
+  const headers = apiJsonHeaders(request);
+  return new Response(null, {
+    headers: {
+      ...headers,
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+    },
+  });
 }

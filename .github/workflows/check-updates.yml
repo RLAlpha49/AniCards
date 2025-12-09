@@ -14,20 +14,59 @@ jobs:
   check-updates:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Cache Bun deps & node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            ~/.bun
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
+
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           token: ${{ secrets.PULL_REQUEST_TOKEN || secrets.GITHUB_TOKEN }}
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: 22
+          bun-version: latest
       - name: Install dependencies
-        run: npm ci
-      - name: Install npm-check-updates and tools
+        run: bun install
+      - name: Install tools
         run: |
-          npm install -g npm-check-updates
+          bun install -g npm-check-updates
           sudo apt-get update
           sudo apt-get install -y jq
+
+      - name: Check for package updates
+        id: check-updates
+        run: |
+          # Capture ncu output for updates
+          NCU_OUTPUT=$(ncu)
+
+          # Add to step summary
+          echo "## 📦 Package Updates Available" >> $GITHUB_STEP_SUMMARY
+          echo "The following packages can be updated:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$NCU_OUTPUT" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "To update all packages, run: bun run update" >> $GITHUB_STEP_SUMMARY
+
+          # Capture update info in structured format
+          UPDATE_INFO=$(ncu --jsonUpgraded)
+          echo "update_info<<EOF" >> $GITHUB_OUTPUT
+          echo "$UPDATE_INFO" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          # Check if there are updates
+          UPDATE_COUNT=$(echo "$UPDATE_INFO" | jq 'length')
+          if [ "$UPDATE_COUNT" -gt 0 ]; then
+            echo "[INFO] Found $UPDATE_COUNT package updates available"
+            echo "has_updates=true" >> $GITHUB_OUTPUT
+          else
+            echo "[INFO] No package updates found"
+            echo "has_updates=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Check for existing PR
         id: check-pr
@@ -35,7 +74,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.PULL_REQUEST_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
-          PR_EXISTS=$(gh pr list --json number,title,headRefName --jq '.[] | select(.title == "chore: update npm dependencies" and (.headRefName | startswith("deps/update-packages"))) | .number')
+          PR_EXISTS=$(gh pr list --json number,title,headRefName --jq '.[] | select(.title == "chore: update dependencies" and (.headRefName | startswith("deps/update-packages"))) | .number')
           if [ -n "$PR_EXISTS" ]; then
             echo "[INFO] Existing dependency update PR found: #$PR_EXISTS"
             echo "pr_exists=true" >> $GITHUB_OUTPUT
@@ -121,36 +160,6 @@ jobs:
 
           # Output the branch name for use in later steps
           echo "pr_branch=$PR_BRANCH" >> $GITHUB_OUTPUT
-
-      - name: Check for package updates
-        id: check-updates
-        run: |
-          # Capture ncu output for updates
-          NCU_OUTPUT=$(ncu)
-
-          # Add to step summary
-          echo "## 📦 Package Updates Available" >> $GITHUB_STEP_SUMMARY
-          echo "The following packages can be updated:" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "$NCU_OUTPUT" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "To update all packages, run: npm run update" >> $GITHUB_STEP_SUMMARY
-
-          # Capture update info in structured format
-          UPDATE_INFO=$(ncu --jsonUpgraded)
-          echo "update_info<<EOF" >> $GITHUB_OUTPUT
-          echo "$UPDATE_INFO" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-          # Check if there are updates
-          UPDATE_COUNT=$(echo "$UPDATE_INFO" | jq 'length')
-          if [ "$UPDATE_COUNT" -gt 0 ]; then
-            echo "[INFO] Found $UPDATE_COUNT package updates available"
-            echo "has_updates=true" >> $GITHUB_OUTPUT
-          else
-            echo "[INFO] No package updates found"
-            echo "has_updates=false" >> $GITHUB_OUTPUT
-          fi
 
       - name: Update packages with npm-check-updates
         id: update-packages
@@ -249,13 +258,13 @@ jobs:
             
             # Install updated packages
             echo "[INFO] Installing updated packages"
-            npm install
+            bun install
 
             # Check for changes and commit them
-            git add package.json package-lock.json
+            git add package.json bun.lock
             if ! git diff --staged --quiet; then
               echo "[INFO] Committing package updates"
-              git commit -m "chore: update npm dependencies"
+              git commit -m "chore: update dependencies"
               CHANGES_TO_COMMIT=true
               NEEDS_PUSH=true
             fi
@@ -359,7 +368,7 @@ jobs:
           cat > "$COMMENT_FILE" << EOF
           ## 📦 New dependency updates added
 
-          This PR has been updated with npm package updates
+          This PR has been updated with package updates
 
           <details>
           <summary>Latest Package Updates</summary>
@@ -449,7 +458,7 @@ jobs:
           cat > "$PR_BODY_FILE" << EOF
           ## 📦 Dependency Updates
 
-          This PR updates npm packages to their latest versions.
+          This PR updates packages to their latest versions.
 
           <details>
           <summary>Latest Package Updates</summary>
@@ -532,7 +541,7 @@ jobs:
 
           # Create the PR using the GitHub CLI
           PR_URL=$(gh pr create \
-            --title "chore: update npm dependencies" \
+            --title "chore: update dependencies" \
             --body-file "$PR_BODY_FILE" \
             --base main \
             --head "$PR_BRANCH")

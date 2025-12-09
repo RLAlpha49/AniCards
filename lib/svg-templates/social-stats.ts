@@ -1,8 +1,12 @@
 import { SocialStats, ColorValue } from "@/lib/types/card";
+import type { TrustedSVG } from "@/lib/types/svg";
+
 import {
   calculateDynamicFontSize,
   processColorsForSVG,
   getCardBorderRadius,
+  escapeForXml,
+  markTrustedSvg,
 } from "../utils";
 
 /**
@@ -26,7 +30,7 @@ export const socialStatsTemplate = (data: {
   };
   stats: SocialStats;
   activityHistory?: { date: number; amount: number }[];
-}) => {
+}): TrustedSVG => {
   // Process colors for gradient support
   const { gradientDefs, resolvedColors } = processColorsForSVG(
     {
@@ -81,7 +85,10 @@ export const socialStatsTemplate = (data: {
   })();
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);
 
-  return `
+  const title = `${data.username}'s Social Stats`;
+  const safeTitle = escapeForXml(title);
+
+  return markTrustedSvg(`
 <svg
   xmlns="http://www.w3.org/2000/svg"
   width="${dims.w}"
@@ -92,19 +99,20 @@ export const socialStatsTemplate = (data: {
   aria-labelledby="desc-id"
 >
   ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
-  <title id="title-id">${data.username}'s Social Stats</title>
+  <title id="title-id">${safeTitle}</title>
   ${(() => {
     const activityTimespanStr = hasActivity
       ? `${totalActivity} over ${daysDifference} ${dayLabel}`
       : "Unknown";
+    const safeActivityTimespanStr = escapeForXml(activityTimespanStr);
 
     return `
     <desc id="desc-id">
-      Total Followers: ${data.stats.followersPage.pageInfo.total},
-      Total Following: ${data.stats.followingPage.pageInfo.total},
-      Total Activity: ${activityTimespanStr},
-      Thread Posts/Comments Count: ${data.stats.threadCommentsPage.pageInfo.total},
-      Total Reviews: ${data.stats.reviewsPage.pageInfo.total}
+      Total Followers: ${escapeForXml(data.stats.followersPage.pageInfo.total)},
+      Total Following: ${escapeForXml(data.stats.followingPage.pageInfo.total)},
+      Total Activity: ${safeActivityTimespanStr},
+      Thread Posts/Comments Count: ${escapeForXml(data.stats.threadCommentsPage.pageInfo.total)},
+      Total Reviews: ${escapeForXml(data.stats.reviewsPage.pageInfo.total)}
     </desc>`;
   })()}
 
@@ -112,9 +120,7 @@ export const socialStatsTemplate = (data: {
     /* stylelint-disable selector-class-pattern, keyframes-name-pattern */
     .header { 
       fill: ${resolvedColors.titleColor};
-      font: 600 ${calculateDynamicFontSize(
-        `${data.username}'s Social Stats`,
-      )}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${calculateDynamicFontSize(title)}px 'Segoe UI', Ubuntu, Sans-Serif;
       animation: fadeInAnimation 0.8s ease-in-out forwards;
     }
 
@@ -164,7 +170,7 @@ export const socialStatsTemplate = (data: {
   <g data-testid="card-title" transform="translate(25, 35)">
     <g transform="translate(0, 0)">
       <text x="0" y="0" class="header" data-testid="header">
-        ${data.username}'s Social Stats
+        ${safeTitle}
       </text>
     </g>
   </g>
@@ -230,5 +236,5 @@ export const socialStatsTemplate = (data: {
     })()}
   </g>
 </svg>
-`;
+`);
 };

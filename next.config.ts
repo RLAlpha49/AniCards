@@ -21,6 +21,8 @@ const nextConfig: NextConfig = {
     API_SECRET_TOKEN: process.env.API_SECRET_TOKEN,
     NEXT_PUBLIC_GOOGLE_ANALYTICS_ID:
       process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID,
+    NEXT_PUBLIC_API_URL:
+      process.env.NEXT_PUBLIC_API_URL ?? "https://api.anicards.alpha49.com",
   },
   images: {
     remotePatterns: [
@@ -30,8 +32,22 @@ const nextConfig: NextConfig = {
         port: "3000",
       },
       {
+        hostname: "api.anicards.alpha49.com",
+        protocol: "https",
+      },
+      {
         hostname: "anicards.alpha49.com",
         protocol: "https",
+      },
+      {
+        hostname: "lvh.me",
+        protocol: "http",
+        port: "3000",
+      },
+      {
+        hostname: "api.localhost",
+        protocol: "http",
+        port: "3000",
       },
     ],
     qualities: [100, 75],
@@ -89,6 +105,61 @@ const nextConfig: NextConfig = {
             value: "camera=(), microphone=(), geolocation=()",
           },
         ],
+      },
+    ];
+  },
+
+  async rewrites() {
+    const primaryRules = [
+      {
+        source: "/:path*",
+        has: [
+          {
+            type: "host" as const,
+            value: "api.anicards.alpha49.com",
+          },
+        ],
+        destination: "/api/:path*",
+      },
+    ];
+
+    const devPort = process.env.PORT ?? "3000";
+    const devHosts = [
+      "api.localhost",
+      "api.lvh.me",
+      "api.anicards.localhost",
+      "api.anicards.lvh.me",
+    ];
+
+    const devRules = devHosts.flatMap((h) => [
+      {
+        source: "/:path*",
+        has: [
+          {
+            type: "host" as const,
+            value: h,
+          },
+        ],
+        destination: "/api/:path*",
+      },
+      {
+        source: "/:path*",
+        has: [
+          {
+            type: "host" as const,
+            value: `${h}:${devPort}`,
+          },
+        ],
+        destination: "/api/:path*",
+      },
+    ]);
+
+    return [
+      ...primaryRules,
+      ...devRules,
+      {
+        source: "/api/card.svg",
+        destination: "/api/card",
       },
     ];
   },

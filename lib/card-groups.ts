@@ -1,6 +1,7 @@
+import { buildApiUrl } from "@/lib/utils";
+
 /** Default card generation endpoint used for example previews. @source */
-export const DEFAULT_BASE_CARD_URL =
-  "https://anicards.alpha49.com/api/card.svg";
+export const DEFAULT_BASE_CARD_URL = buildApiUrl("/card.svg");
 /** Default example user id used for generating demo card previews. @source */
 export const DEFAULT_EXAMPLE_USER_ID = "542244";
 
@@ -153,31 +154,252 @@ export const CARD_GROUPS: CardGroup[] = [
 ];
 
 /**
- * Constructs a URL to the card SVG endpoint with the required query
- * parameters and optional extras for a given variation and user.
- * @param cardType - The logical card type to generate.
- * @param variation - Variation name used by the card renderer.
- * @param extras - Optional additional query parameters.
- * @param baseUrl - The base API endpoint to use (defaults to DEFAULT_BASE_CARD_URL).
- * @param userId - User id used to produce the card data (defaults to DEFAULT_EXAMPLE_USER_ID).
- * @returns The constructed card URL.
+ * Parameters for building a card URL with all configuration options.
  * @source
  */
-export function buildCardUrl(
-  cardType: string,
-  variation: string,
-  extras?: Record<string, string>,
-  baseUrl = DEFAULT_BASE_CARD_URL,
-  userId = DEFAULT_EXAMPLE_USER_ID,
-) {
-  const params = new URLSearchParams({
-    cardType,
-    userId,
-    variation,
-    ...extras,
-  });
+export interface CardUrlParams {
+  /** Card type identifier */
+  cardType: string;
+  /** User ID (numeric) */
+  userId?: string;
+  /** Username (alternative to userId) */
+  userName?: string;
+  /** Variation name (default, vertical, pie, etc.) */
+  variation?: string;
+  /** Color preset name or "custom" for database-stored custom colors */
+  colorPreset?: string;
+  /** Title color (hex string) */
+  titleColor?: string;
+  /** Background color (hex string) */
+  backgroundColor?: string;
+  /** Text color (hex string) */
+  textColor?: string;
+  /** Circle/accent color (hex string) */
+  circleColor?: string;
+  /** Border color (hex string, optional) */
+  borderColor?: string;
+  /** Border radius (0-100) */
+  borderRadius?: number;
+  /** Show favorites indicator */
+  showFavorites?: boolean;
+  /** Use status colors for status distribution cards */
+  statusColors?: boolean;
+  /** Show percentages on pie charts */
+  piePercentages?: boolean;
+}
 
-  return `${baseUrl}?${params.toString()}`;
+/**
+ * Resolves the effective color preset for URL parameters.
+ * Returns "custom" if no preset is provided and defaultToCustom is true,
+ * otherwise returns the provided preset.
+ */
+function resolveColorPreset(
+  candidatePreset: string | undefined,
+  defaultToCustom: boolean,
+): string | undefined {
+  if (candidatePreset) return candidatePreset;
+  if (defaultToCustom) return "custom";
+  return undefined;
+}
+
+/**
+ * Adds conditional parameters for favorite-capable card types.
+ */
+function addFavoritesParamIfRelevant(
+  params: CardUrlParams,
+  baseCardType: string,
+  showFavorites: boolean | undefined,
+): void {
+  const favoritesRelevant = [
+    "animeVoiceActors",
+    "animeStudios",
+    "animeStaff",
+    "mangaStaff",
+  ].includes(baseCardType);
+  // Always include showFavorites for relevant card types
+  // Default to false if not explicitly set, to avoid DB lookup
+  if (favoritesRelevant) {
+    params.showFavorites =
+      typeof showFavorites === "boolean" ? showFavorites : false;
+  }
+}
+
+/**
+ * Adds conditional parameters for status distribution card types.
+ */
+function addStatusColorsParamIfRelevant(
+  params: CardUrlParams,
+  baseCardType: string,
+  useStatusColors: boolean | undefined,
+): void {
+  const statusRelevant = [
+    "animeStatusDistribution",
+    "mangaStatusDistribution",
+  ].includes(baseCardType);
+  // Always include statusColors for status distribution cards
+  // Default to false if not explicitly set, to avoid DB lookup
+  if (statusRelevant) {
+    params.statusColors =
+      typeof useStatusColors === "boolean" ? useStatusColors : false;
+  }
+}
+
+/**
+ * Adds piePercentages parameter for pie variation cards.
+ */
+function addPiePercentagesParamIfRelevant(
+  params: CardUrlParams,
+  variation: string,
+  showPiePercentages: boolean | undefined,
+): void {
+  if (variation === "pie") {
+    params.piePercentages =
+      typeof showPiePercentages === "boolean" ? showPiePercentages : false;
+  }
+}
+
+export function mapStoredConfigToCardUrlParams(
+  candidate: Partial<
+    import("@/lib/types/records").StoredCardConfig & {
+      cardName?: string;
+      cardType?: string;
+    }
+  >,
+  opts?: {
+    userId?: string;
+    userName?: string;
+    includeColors?: boolean;
+    defaultToCustomPreset?: boolean;
+  },
+): CardUrlParams {
+  const cardType = candidate.cardName || candidate.cardType || "";
+  const variation = candidate.variation || "default";
+  const baseCardType = (cardType || "").split("-")[0] || "";
+  const includeColors = !!opts?.includeColors;
+  const defaultToCustom = opts?.defaultToCustomPreset !== false;
+
+  const colorPreset = resolveColorPreset(
+    candidate.colorPreset,
+    defaultToCustom,
+  );
+
+  const params: CardUrlParams = {
+    cardType,
+    userId: opts?.userId,
+    userName: opts?.userName,
+    variation,
+    colorPreset,
+    borderColor: candidate.borderColor,
+    borderRadius:
+      typeof candidate.borderRadius === "number"
+        ? candidate.borderRadius
+        : undefined,
+  };
+
+  if (includeColors) {
+    if (candidate.titleColor) params.titleColor = candidate.titleColor;
+    if (candidate.backgroundColor)
+      params.backgroundColor = candidate.backgroundColor;
+    if (candidate.textColor) params.textColor = candidate.textColor;
+    if (candidate.circleColor) params.circleColor = candidate.circleColor;
+  }
+
+  addFavoritesParamIfRelevant(params, baseCardType, candidate.showFavorites);
+  addStatusColorsParamIfRelevant(
+    params,
+    baseCardType,
+    candidate.useStatusColors,
+  );
+  addPiePercentagesParamIfRelevant(
+    params,
+    variation,
+    candidate.showPiePercentages,
+  );
+
+  return params;
+}
+
+/**
+ * Helper to set a search param if the value is defined.
+ * @source
+ */
+function setParamIfDefined(
+  searchParams: URLSearchParams,
+  key: string,
+  value: string | undefined,
+): void {
+  if (value !== undefined && value !== "") {
+    searchParams.set(key, value);
+  }
+}
+
+/**
+ * Helper to set a boolean search param if true.
+ * @source
+ */
+function setBooleanParam(
+  searchParams: URLSearchParams,
+  key: string,
+  value: boolean | undefined,
+): void {
+  if (typeof value === "boolean") {
+    searchParams.set(key, value ? "true" : "false");
+  }
+}
+
+/**
+ * Constructs a URL to the card SVG endpoint with all configuration parameters.
+ * Includes all provided params in the URL to avoid database lookups when possible.
+ *
+ * @param params - Configuration parameters for the card URL.
+ * @param baseUrl - The base API endpoint to use (defaults to DEFAULT_BASE_CARD_URL).
+ * @returns The constructed card URL with all parameters.
+ * @source
+ */
+export function buildCardUrlWithParams(
+  params: CardUrlParams,
+  baseUrl = DEFAULT_BASE_CARD_URL,
+): string {
+  const searchParams = new URLSearchParams();
+
+  // User identification (at least one required) - userId first for consistency
+  setParamIfDefined(searchParams, "userId", params.userId);
+  setParamIfDefined(searchParams, "userName", params.userName);
+
+  // Required params
+  searchParams.set("cardType", params.cardType);
+
+  // Variation
+  setParamIfDefined(searchParams, "variation", params.variation);
+
+  // Color preset (if set, instructs the server to use the named preset; if
+  // "custom", the server will load saved DB colors and ignore any URL color
+  // params). Individual color params are always included when present; the
+  // server enforces their precedence (URL colors override presets unless the
+  // effective preset is 'custom').
+  setParamIfDefined(searchParams, "colorPreset", params.colorPreset);
+
+  // Individual colors - always include any color params provided by the
+  // caller. Server-side color resolution implements the precedence: if
+  // the effective preset is "custom", the server ignores URL color
+  // params, otherwise URL individual colors override preset colors.
+  setParamIfDefined(searchParams, "titleColor", params.titleColor);
+  setParamIfDefined(searchParams, "backgroundColor", params.backgroundColor);
+  setParamIfDefined(searchParams, "textColor", params.textColor);
+  setParamIfDefined(searchParams, "circleColor", params.circleColor);
+
+  // Border settings
+  setParamIfDefined(searchParams, "borderColor", params.borderColor);
+  if (typeof params.borderRadius === "number") {
+    searchParams.set("borderRadius", String(params.borderRadius));
+  }
+
+  // Boolean flags
+  setBooleanParam(searchParams, "showFavorites", params.showFavorites);
+  setBooleanParam(searchParams, "statusColors", params.statusColors);
+  setBooleanParam(searchParams, "piePercentages", params.piePercentages);
+
+  return `${baseUrl}?${searchParams.toString()}`;
 }
 
 /** Example variant shape used by UI examples for each card variation. @source */

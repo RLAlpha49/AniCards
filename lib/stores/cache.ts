@@ -127,31 +127,12 @@ export const useCache = create<CacheStore>()(
     (set, get) => ({
       cacheVersion: 0,
 
-      getCacheItems: () => {
-        // Access cacheVersion to create dependency for reactivity
-        const _ = get().cacheVersion;
-        return getSiteSpecificCacheItems();
-      },
-
       clearAllCache: () => {
         clearSiteCacheItems();
         set(
           (state) => ({ cacheVersion: state.cacheVersion + 1 }),
           false,
           "clearAllCache",
-        );
-      },
-
-      deleteCacheItem: (key: string) => {
-        if (globalThis.window === undefined) return;
-        const fullKey = key.startsWith(APP_PREFIX)
-          ? key
-          : `${APP_PREFIX}${key}`;
-        localStorage.removeItem(fullKey);
-        set(
-          (state) => ({ cacheVersion: state.cacheVersion + 1 }),
-          false,
-          "deleteCacheItem",
         );
       },
 

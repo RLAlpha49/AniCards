@@ -1,7 +1,7 @@
 import { USER_STATS_QUERY } from "@/lib/anilist/queries";
 import { UserRecord } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
-import { redisClient } from "@/lib/api-utils";
+import { redisClient, apiJsonHeaders } from "@/lib/api-utils";
 import type { Redis as UpstashRedis } from "@upstash/redis";
 
 /**
@@ -136,7 +136,10 @@ export async function POST(request: Request) {
   if (CRON_SECRET) {
     if (cronSecretHeader !== CRON_SECRET) {
       console.error("🔒 [Cron Job] Unauthorized: Invalid Cron secret");
-      return new Response("Unauthorized", { status: 401 });
+      return new Response("Unauthorized", {
+        status: 401,
+        headers: apiJsonHeaders(request),
+      });
     }
   } else {
     console.warn(
@@ -238,10 +241,13 @@ export async function POST(request: Request) {
       `🎉 [Cron Job] Cron job completed successfully. Processed ${batch.length} users out of total ${totalUsers} users.`,
       `📊 Results: ${successfulUpdates} successful, ${failedUpdates} failed (404), ${removedUsers} removed.`,
     );
+    const headers = apiJsonHeaders(request);
+    headers["Content-Type"] = "text/plain";
     return new Response(
       `Updated ${successfulUpdates}/${batch.length} users successfully. Failed: ${failedUpdates}, Removed: ${removedUsers}`,
       {
         status: 200,
+        headers,
       },
     );
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -250,6 +256,8 @@ export async function POST(request: Request) {
     if (error.stack) {
       console.error(`💥 [Cron Job] Stack Trace: ${error.stack}`);
     }
-    return new Response("Cron job failed", { status: 500 });
+    const headers = apiJsonHeaders(request);
+    headers["Content-Type"] = "text/plain";
+    return new Response("Cron job failed", { status: 500, headers });
   }
 }

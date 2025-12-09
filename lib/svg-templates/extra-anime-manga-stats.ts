@@ -1,23 +1,70 @@
+import type { TrustedSVG } from "@/lib/types/svg";
+
 import {
   calculateDynamicFontSize,
   getCardBorderRadius,
   isGradient,
   isValidHexColor,
   processColorsForSVG,
+  escapeForXml,
+  markTrustedSvg,
 } from "../utils";
 import type { ColorValue } from "@/lib/types/card";
 
 const DEFAULT_STAT_BASE_COLOR = "#2563eb";
 
+const tryParseJsonGradient = (jsonStr: string): { color: string } | null => {
+  try {
+    const parsed = JSON.parse(jsonStr);
+    // Check if parsed object looks like a gradient
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      parsed.type &&
+      Array.isArray(parsed.stops) &&
+      parsed.stops.length > 0
+    ) {
+      // Try to find first valid hex color in stops
+      for (const stop of parsed.stops) {
+        if (
+          typeof stop === "object" &&
+          stop !== null &&
+          "color" in stop &&
+          typeof stop.color === "string" &&
+          isValidHexColor(stop.color)
+        ) {
+          return { color: stop.color };
+        }
+      }
+    }
+  } catch {
+    // JSON parsing failed, not a JSON string
+  }
+  return null;
+};
+
 const resolveCircleBaseColor = (value: ColorValue | undefined): string => {
-  if (typeof value === "string" && isValidHexColor(value)) {
-    return value;
+  // Handle gradient objects (in-memory form)
+  if (value && typeof value === "object" && isGradient(value)) {
+    for (const stop of value.stops) {
+      if (stop.color && isValidHexColor(stop.color)) {
+        return stop.color;
+      }
+    }
+    return DEFAULT_STAT_BASE_COLOR;
   }
 
-  if (value && isGradient(value)) {
-    const firstStopColor = value.stops[0]?.color;
-    if (firstStopColor && isValidHexColor(firstStopColor)) {
-      return firstStopColor;
+  // Handle string values
+  if (typeof value === "string") {
+    // Try hex first
+    if (isValidHexColor(value)) {
+      return value;
+    }
+
+    // Try parsing as JSON (for JSON-stringified gradients from config)
+    const gradResult = tryParseJsonGradient(value);
+    if (gradResult) {
+      return gradResult.color;
     }
   }
 
@@ -49,7 +96,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
   favorites?: string[];
   fixedStatusColors?: boolean;
   showPiePercentages?: boolean;
-}) => {
+}): TrustedSVG => {
   // Process colors for gradient support
   const { gradientDefs, resolvedColors } = processColorsForSVG(
     {
@@ -69,6 +116,8 @@ export const extraAnimeMangaStatsTemplate = (data: {
   );
 
   const statBaseCircleColor = resolveCircleBaseColor(data.styles.circleColor);
+  const titleText = `${data.username}'s ${data.format}`;
+  const safeTitle = escapeForXml(titleText);
 
   // Determine variant flags
   const isPie = data.showPieChart || data.variant === "pie";
@@ -107,14 +156,18 @@ export const extraAnimeMangaStatsTemplate = (data: {
         index * 25
       })">
         ${isFavorite ? heartSVG : ""}
-        <text class="stat bold" y="12.5">${stat.name}:</text>
+        <text class="stat bold" y="12.5">${escapeForXml(stat.name)}:</text>
         <text class="stat bold" x="199.01" y="12.5">${stat.count}</text>
       </g>
     `;
     })
     .join("");
 
-  const totalForPie = data.stats.reduce((acc, s) => acc + s.count, 0) || 1;
+  const normalizedStats = data.stats.map((s) => ({
+    ...s,
+    count: Math.max(0, s.count),
+  }));
+  const totalForPie = normalizedStats.reduce((acc, s) => acc + s.count, 0) || 1;
   const statsContentWithPie = data.stats
     .map((stat, index) => {
       const isFavorite = showFavorites && data.favorites?.includes(stat.name);
@@ -125,24 +178,53 @@ export const extraAnimeMangaStatsTemplate = (data: {
         statBaseCircleColor,
         data.fixedStatusColors && data.format.endsWith("Statuses"),
       );
-      const pct = ((stat.count / totalForPie) * 100).toFixed(0);
+      const pct = ((Math.max(0, stat.count) / totalForPie) * 100).toFixed(0);
       return `
         <g class="stagger" style="animation-delay: ${450 + index * 150}ms" transform="translate(0, ${
           index * 25
         })">
           ${isFavorite ? heartLegendSVG : ""}
           <rect x="-20" y="2" width="12" height="12" fill="${fillColor}" />
-          <text class="stat" y="12.5">${stat.name}:</text>
+          <text class="stat" y="12.5">${escapeForXml(stat.name)}:</text>
           <text class="stat" x="125" y="12.5">${stat.count}${data.showPiePercentages ? ` (${pct}%)` : ""}</text>
         </g>`;
     })
     .join("");
 
   const pieChartContent = (() => {
-    const total = data.stats.reduce((acc, stat) => acc + stat.count, 0);
+    const statsForPie = data.stats.map((stat, index) => ({
+      ...stat,
+      index,
+      count: Math.max(0, stat.count),
+    }));
+    const total = statsForPie.reduce((acc, stat) => acc + stat.count, 0);
     let currentAngle = 0;
-    return data.stats
-      .map((stat, index) => {
+    if (total <= 0) {
+      const cx = 40,
+        cy = 40,
+        r = 40;
+      const fillColor = getStatColor(
+        0,
+        "no-data",
+        statBaseCircleColor,
+        data.fixedStatusColors && data.format.endsWith("Statuses"),
+      );
+      return `
+        <circle
+          cx="${cx}"
+          cy="${cy}"
+          r="${r}"
+          fill="${fillColor}"
+          stroke="${resolvedColors.backgroundColor}"
+          stroke-width="1.5"
+          class="stagger"
+          style="animation-delay: 450ms"
+        />
+      `;
+    }
+    return statsForPie
+      .filter((s) => s.count > 0)
+      .map((stat) => {
         const angle = (stat.count / total) * 360;
         const startAngle = currentAngle;
         currentAngle += angle;
@@ -162,7 +244,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
                   ${cx + r * Math.cos(endRadians)} ${cy + r * Math.sin(endRadians)}
                   Z"
                 fill="${getStatColor(
-                  index,
+                  stat.index,
                   stat.name,
                   statBaseCircleColor,
                   data.fixedStatusColors && data.format.endsWith("Statuses"),
@@ -171,7 +253,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
                 stroke-width="1.5"
                 stroke-linejoin="round"
                 class="stagger"
-                style="animation-delay: ${450 + index * 150}ms"
+                style="animation-delay: ${450 + stat.index * 150}ms"
               />
             `;
       })
@@ -217,7 +299,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
     mainStatsContent = statsContentWithoutPie;
   }
 
-  return `
+  return markTrustedSvg(`
     <svg
       xmlns="http://www.w3.org/2000/svg"
       width="${svgWidth}"
@@ -228,17 +310,15 @@ export const extraAnimeMangaStatsTemplate = (data: {
       aria-labelledby="desc-id"
     >
       ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
-      <title id="title-id">${data.username}'s ${data.format}</title>
+      <title id="title-id">${safeTitle}</title>
       <desc id="desc-id">
-        ${data.stats.map((stat) => `${stat.name}: ${stat.count}`).join(", ")}
+        ${data.stats.map((stat) => `${escapeForXml(stat.name)}: ${escapeForXml(stat.count)}`).join(", ")}
       </desc>
       <style>
         /* stylelint-disable selector-class-pattern, keyframes-name-pattern */
         .header { 
           fill: ${resolvedColors.titleColor};
-          font: 600 ${calculateDynamicFontSize(
-            `${data.username}'s ${data.format}`,
-          )}px 'Segoe UI', Ubuntu, Sans-Serif;
+          font: 600 ${calculateDynamicFontSize(titleText)}px 'Segoe UI', Ubuntu, Sans-Serif;
           animation: fadeInAnimation 0.8s ease-in-out forwards;
         }
         
@@ -284,7 +364,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
       <g data-testid="card-title" transform="translate(25, 35)">
         <g transform="translate(0, 0)">
           <text x="0" y="0" class="header" data-testid="header">
-            ${data.username}'s ${data.format}
+            ${safeTitle}
           </text>
         </g>
       </g>
@@ -292,7 +372,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
         ${mainStatsContent}
       </g>
     </svg>
-  `;
+  `);
 };
 
 /**
@@ -305,11 +385,25 @@ export const extraAnimeMangaStatsTemplate = (data: {
  */
 const getColorByIndex = (index: number, baseColor: string) => {
   // Convert base color to HSL for easy manipulation
-  const hexToHSL = (hex: string) => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    if (!result) {
-      return hexToHSL(DEFAULT_STAT_BASE_COLOR);
+  const hexToHSL = (hex: string, depth = 0): [number, number, number] => {
+    // Prevent infinite recursion
+    if (depth > 1) {
+      return [219, 82, 51]; // Default HSL for #2563eb
     }
+
+    // Normalize the hex string: ensure it's lowercase and has the # prefix
+    const normalizedHex = (hex || "").toLowerCase().trim();
+    if (!normalizedHex) {
+      return hexToHSL(DEFAULT_STAT_BASE_COLOR, depth + 1);
+    }
+
+    const result = /^#?([a-f0-9]{2})([a-f0-9]{2})([a-f0-9]{2})$/.exec(
+      normalizedHex,
+    );
+    if (!result) {
+      return hexToHSL(DEFAULT_STAT_BASE_COLOR, depth + 1);
+    }
+
     const r = Number.parseInt(result[1], 16) / 255;
     const g = Number.parseInt(result[2], 16) / 255;
     const b = Number.parseInt(result[3], 16) / 255;

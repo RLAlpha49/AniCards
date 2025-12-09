@@ -1,9 +1,10 @@
 import { Suspense } from "react";
 import { Metadata } from "next";
 import { generateMetadata as createMetadata, seoConfigs } from "@/lib/seo";
-import { UserPageClient } from "@/components/user/user-page-client";
-import { LoadingSpinner } from "@/components/loading-spinner";
-import { ErrorBoundary } from "@/components/error-boundary";
+import { UserPageClient } from "@/components/user/UserPageClient";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import PageShell from "@/components/PageShell";
 
 /**
  * Forces Next.js to render this route on each request so user data stays fresh.
@@ -59,15 +60,17 @@ export default function UserPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-blue-950 dark:to-indigo-950">
-          <div className="container mx-auto flex min-h-screen items-center justify-center px-4">
+        <PageShell>
+          <div className="container relative z-10 mx-auto flex min-h-screen items-center justify-center px-4">
             <LoadingSpinner size="lg" text="Loading user data..." />
           </div>
-        </div>
+        </PageShell>
       }
     >
       <ErrorBoundary>
-        <UserPageClient />
+        <PageShell>
+          <UserPageClient />
+        </PageShell>
       </ErrorBoundary>
     </Suspense>
   );

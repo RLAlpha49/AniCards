@@ -45,9 +45,13 @@ export const pageview = (url: string): void => {
   const gaId = process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
   const gtag = getGtag();
   if (gtag && gaId) {
-    gtag("config", gaId, {
-      page_path: url,
-    });
+    try {
+      gtag("config", gaId, {
+        page_path: url,
+      });
+    } catch {
+      console.error("Google Analytics pageview failed");
+    }
   }
 };
 
@@ -72,11 +76,27 @@ export const event = ({
 }) => {
   const gtag = getGtag();
   if (gtag) {
-    gtag("event", action, {
-      event_category: category,
-      event_label: label,
-      value: value,
-    });
+    try {
+      gtag("event", action, {
+        event_category: category,
+        event_label: label,
+        value: value,
+      });
+    } catch {
+      console.error("Google Analytics event failed");
+    }
+  }
+};
+
+/**
+ * Thin helper used across the app to safely invoke analytics code without
+ * allowing exceptions thrown by analytics shims to crash the UI.
+ */
+export const safeTrack = (fn: () => void) => {
+  try {
+    fn();
+  } catch {
+    console.error("Safe analytics tracking call failed");
   }
 };
 
