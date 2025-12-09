@@ -66,18 +66,46 @@ Submit your design concepts (sketches, Figma files, or detailed descriptions) an
 
 You can easily generate your cards using the [Live Generator](https://anicards.alpha49.com).
 
-Alternatively, you can construct the URL manually:
+Alternatively, construct the URL manually:
 
 ```text
-https://anicards.alpha49.com/api/card.svg?cardType={CARD_TYPE}&userId={USER_ID}&variation={VARIATION}
+https://api.anicards.alpha49.com/card.svg?cardType={CARD_TYPE}&userId={USER_ID}&variation={VARIATION}&colorPreset={PRESET_NAME}
 ```
 
 ### Parameters
 
-- `cardType`: The ID of the card (e.g., `animeStats`, `mangaGenres`).
-- `userId`: Your AniList user ID or username.
-- `variation`: The style variation (e.g., `vertical`, `pie`, `bar`).
-- `theme`: (Optional) A preset theme name.
+- `cardType` (required): The ID of the card (e.g., `animeStats`, `mangaGenres`). See the "Available Card Types" above for all supported values.
+- `userId` or `userName` (required): Pass either the numeric AniList user ID via `userId`, or a username via `userName`. If both are provided the numeric `userId` is used.
+- `variation` (optional): Visual variation to use for the card. Valid values depend on the `cardType`, but commonly supported values include: `default`, `vertical`, `compact`, `minimal`, `pie`, `bar`, `horizontal`. The generator will fall back to the appropriate `default` value for unsupported/invalid variants.
+- `colorPreset` (optional): Named color preset to use (e.g., `anilistDark`, `sunset`, `default`). Use `colorPreset=custom` to tell the server to use colors stored in stored on the server (this will ignore per-color URL overrides).
+- `titleColor`, `backgroundColor`, `textColor`, `circleColor` (optional): Individual color overrides to apply to the card (hex values like `#ff0000` or valid CSS color strings). Note: `#` must be URL encoded (e.g., `titleColor=%23ff0000`).
+- `borderColor` (optional): Stroke color for the card border (like `#ff00ff`).
+- `borderRadius` (optional): Numeric value (pixels) to override the card corner radius.
+- `showFavorites` (optional): `true` or `false` — applicable only to certain category cards (voice actors, studios, staff) to visualize favorites.
+- `statusColors` (optional): `true` or `false` — tells status distribution cards to use fixed status colors.
+- `piePercentages` (optional): `true` or `false` — show percentage labels on pie charts (only meaningful for `pie` variants).
+- `_t` (optional): Any value used to bust caches (commonly a timestamp).
+
+### Notes
+
+- When `colorPreset=custom`, the server will load color data from the card stored in the database and ignore any `titleColor` / `backgroundColor` / `textColor` / `circleColor` URL overrides.
+- Certain flags (like `showFavorites`, `statusColors`, and `piePercentages`) are only relevant to specific card types. If omitted, the API will use the stored card configuration if present, otherwise fall back to sensible defaults.
+
+Example (URL-encoded colors):
+
+```text
+https://api.anicards.alpha49.com/card.svg?cardType=animeGenres&userId=542244&variation=pie&colorPreset=anilistDark&titleColor=%23ff0000&backgroundColor=%230b1622&piePercentages=true
+```
+
+> Here it uses the color preset `anilistDark` as a base, but overrides the title and background colors.
+
+Example using username:
+
+```text
+https://api.anicards.alpha49.com/card.svg?cardType=animeStats&userName=Alpha49&variation=compact&colorPreset=sunset&titleColor=%23ff77aa
+```
+
+**For a full list of supported card types, color presets, and variations, visit the [Live Generator](https://anicards.alpha49.com).**
 
 ## 🏗️ Getting Started
 
@@ -93,15 +121,13 @@ To run the project locally:
 2. **Install dependencies**
 
    ```bash
-   npm install
-   # or
-   pnpm install
+   bun install
    ```
 
 3. **Run the development server**
 
    ```bash
-   npm run dev
+   bun run dev
    ```
 
 4. **Open your browser**
