@@ -12,6 +12,7 @@ import {
   jsonWithCors,
 } from "@/lib/api-utils";
 import { clampBorderRadius, safeParse } from "@/lib/utils";
+import { isValidCardType } from "@/lib/card-data/validation";
 
 /**
  * Card types that support pie variation and thus can use showPiePercentages.
@@ -69,7 +70,20 @@ function parseStoredCardsRecord(
     if (parsedValue && typeof parsedValue === "object") {
       const cards = (parsedValue as CardsRecord).cards;
       if (Array.isArray(cards)) {
-        return cards;
+        // Filter out any stored entries that are not valid/supported card types
+        const filtered = cards.filter(
+          (c): c is StoredCardConfig =>
+            !!c &&
+            typeof c === "object" &&
+            typeof c.cardName === "string" &&
+            isValidCardType(c.cardName),
+        );
+        if (filtered.length !== cards.length) {
+          console.warn(
+            `⚠️ [${endpoint}] Removed unsupported card types from stored record for ${cardsKey}`,
+          );
+        }
+        return filtered;
       }
     }
   } catch (error) {

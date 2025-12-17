@@ -13,6 +13,9 @@ import {
   BookOpen,
   Heart,
   LayoutGrid,
+  Calendar,
+  Clock,
+  Activity,
 } from "lucide-react";
 import {
   CARD_GROUPS,
@@ -242,11 +245,57 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
     icon: TrendingUp,
     color: "lime",
   },
+
+  // Activity & Time
+  {
+    title: "Activity Heatmap",
+    description:
+      "GitHub-style activity calendar showing daily activity intensity",
+    category: "Activity & Time",
+    icon: Calendar,
+    color: "amber",
+  },
+  {
+    title: "Recent Activity Summary",
+    description: "Sparkline and stats summarizing recent activity",
+    category: "Activity & Time",
+    icon: Activity,
+    color: "amber",
+  },
+  {
+    title: "Recent Activity Feed",
+    description: "List of recent activity events and counts",
+    category: "Activity & Time",
+    icon: Clock,
+    color: "amber",
+  },
+  {
+    title: "Activity Streaks",
+    description: "Current and longest streaks based on activity history",
+    category: "Activity & Time",
+    icon: Clock,
+    color: "amber",
+  },
+  {
+    title: "Activity Patterns",
+    description: "Patterns by day-of-week and month to show peak times",
+    category: "Activity & Time",
+    icon: Calendar,
+    color: "amber",
+  },
+  {
+    title: "Top Activity Days",
+    description: "Highlight the days with highest activity",
+    category: "Activity & Time",
+    icon: Activity,
+    color: "amber",
+  },
 ];
 
 const CATEGORIES = [
   "Main Stats",
   "Profile & Favourites",
+  "Activity & Time",
   "Anime Breakdowns",
   "Manga Breakdowns",
 ] as const;

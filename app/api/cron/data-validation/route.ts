@@ -1,6 +1,7 @@
 import { redisClient, apiJsonHeaders } from "@/lib/api-utils";
 import type { Redis as UpstashRedis } from "@upstash/redis";
 import { safeParse } from "@/lib/utils";
+import { isValidCardType } from "@/lib/card-data/validation";
 
 /**
  * Validates the cron secret header and returns an error response on failure.
@@ -283,6 +284,48 @@ async function validateAnalyticsReportsList(
 }
 
 /**
+ * Remove unsupported card types in a stored record and persist the cleaned
+ * representation back to Redis if necessary. Appends an issue to the
+ * provided issues array when cleanup or persistence occurs/fails.
+ */
+async function cleanAndPersistCards(
+  redisClient: UpstashRedis,
+  key: string,
+  parsed: unknown,
+  issues: string[],
+): Promise<void> {
+  if (!Array.isArray((parsed as Record<string, unknown>).cards)) return;
+
+  const invalidTypes: string[] = [];
+  const cleanedCards = (
+    (parsed as Record<string, unknown>).cards as Array<Record<string, unknown>>
+  ).filter((card, idx) => {
+    const name =
+      card && typeof card.cardName === "string" ? card.cardName : undefined;
+    if (!name || !isValidCardType(name)) {
+      invalidTypes.push(String(name ?? `cards[${idx}].cardName`));
+      return false;
+    }
+    return true;
+  });
+
+  if (invalidTypes.length === 0) return;
+
+  try {
+    const cleanedRecord = {
+      ...(parsed as Record<string, unknown>),
+      cards: cleanedCards,
+      updatedAt: new Date().toISOString(),
+    };
+    await redisClient.set(key, JSON.stringify(cleanedRecord));
+    issues.push(`Removed unsupported card types: ${invalidTypes.join(", ")}`);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    issues.push(`Failed to persist cleaned cards: ${message}`);
+  }
+}
+
+/**
  * Validates a single Redis key according to its prefix pattern.
  * @param redisClient - Redis client used to read the key.
  * @param key - Redis key being validated.
@@ -314,6 +357,9 @@ async function validateIndividualKey(
     issues.push(...validateUserRecord(parsed));
   } else if (key.startsWith("cards:")) {
     issues.push(...validateCardsRecord(parsed));
+
+    // Remove unsupported card types from stored records and persist cleaned data
+    await cleanAndPersistCards(redisClient, key, parsed, issues);
   } else if (key.startsWith("username:")) {
     issues.push(...validateUsernameRecord(parsed));
   } else if (key.startsWith("analytics:")) {

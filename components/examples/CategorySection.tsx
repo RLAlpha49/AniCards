@@ -1,7 +1,14 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { BarChart2, BookOpen, PieChart, LucideIcon, Users } from "lucide-react";
+import {
+  BarChart2,
+  BookOpen,
+  PieChart,
+  LucideIcon,
+  Users,
+  Calendar,
+} from "lucide-react";
 import { ExampleCard } from "./ExampleCard";
 
 interface CardVariant {
@@ -16,9 +23,10 @@ interface CardType {
   variants: CardVariant[];
   category:
     | "Main Stats"
+    | "Profile & Favourites"
+    | "Activity & Time"
     | "Anime Breakdowns"
-    | "Manga Breakdowns"
-    | "Profile & Favourites";
+    | "Manga Breakdowns";
   icon: LucideIcon;
   color: string;
   gradient: string;
@@ -37,6 +45,8 @@ const getCategoryIcon = (category: string): LucideIcon => {
       return BarChart2;
     case "Profile & Favourites":
       return Users;
+    case "Activity & Time":
+      return Calendar;
     case "Anime Breakdowns":
       return PieChart;
     case "Manga Breakdowns":
@@ -68,6 +78,13 @@ const getCategoryStyles = (category: string) => {
         text: "text-teal-600 dark:text-teal-400",
         border: "border-teal-200/50 dark:border-teal-800/50",
         gradient: "from-teal-500 to-emerald-500",
+      };
+    case "Activity & Time":
+      return {
+        bg: "bg-amber-100 dark:bg-amber-900/30",
+        text: "text-amber-600 dark:text-amber-400",
+        border: "border-amber-200/50 dark:border-amber-800/50",
+        gradient: "from-amber-500 to-orange-500",
       };
     case "Main Stats":
     default:

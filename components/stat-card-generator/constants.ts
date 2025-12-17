@@ -36,17 +36,22 @@ const profileMainVariations = [
   { id: "minimal", label: "Minimal" },
 ];
 
-const profileCompactVariations = [
-  { id: "default", label: "Default" },
-  { id: "compact", label: "Compact" },
-];
-
 const favoritesGridVariations = [
   { id: "anime", label: "Anime Grid" },
   { id: "manga", label: "Manga Grid" },
   { id: "characters", label: "Character Grid" },
   { id: "mixed", label: "Mixed Favourites" },
 ];
+
+const activityHeatmapVariations = [
+  { id: "default", label: "Default (Theme)" },
+  { id: "github", label: "GitHub Green" },
+  { id: "fire", label: "Fire Red" },
+];
+
+const activityCompactVariations = [{ id: "default", label: "Default" }];
+
+const activityFullVariations = [{ id: "default", label: "Default" }];
 
 const createCardType = (
   id: string,
@@ -127,6 +132,39 @@ const profileFavouritesCards = [
   },
 ];
 
+const activityCards = [
+  {
+    id: "activityHeatmap",
+    label: "Activity Heatmap (GitHub-style Calendar)",
+    variations: activityHeatmapVariations,
+  },
+  {
+    id: "recentActivitySummary",
+    label: "Recent Activity Summary (Totals + Sparkline)",
+    variations: activityFullVariations,
+  },
+  {
+    id: "recentActivityFeed",
+    label: "Recent Activity Feed (Daily Entries)",
+    variations: activityCompactVariations,
+  },
+  {
+    id: "activityStreaks",
+    label: "Activity Streaks & Peaks",
+    variations: activityFullVariations,
+  },
+  {
+    id: "activityPatterns",
+    label: "Activity Patterns (Day of Week)",
+    variations: activityCompactVariations,
+  },
+  {
+    id: "topActivityDays",
+    label: "Top Activity Days (Highest activity days)",
+    variations: activityCompactVariations,
+  },
+];
+
 export const statCardTypes = [
   createCardType(
     "animeStats",
@@ -164,6 +202,14 @@ export const statCardTypes = [
     createCardType(
       card.id,
       "Profile & Favourites",
+      card.label,
+      card.variations,
+    ),
+  ),
+  ...activityCards.map((card) =>
+    createCardType(
+      card.id,
+      "Activity & Time-Based",
       card.label,
       card.variations,
     ),

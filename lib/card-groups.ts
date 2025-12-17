@@ -18,6 +18,8 @@ export const VARIATION_LABEL_MAP: Record<string, string> = {
   manga: "Manga",
   characters: "Characters",
   mixed: "Mixed",
+  github: "GitHub",
+  fire: "Fire",
 };
 
 /**
@@ -169,6 +171,36 @@ export const CARD_GROUPS: CardGroup[] = [
     cardType: "favoritesGrid",
     cardTitle: "Favourites Grid",
     variations: ["anime", "manga", "characters", "mixed"],
+  },
+  {
+    cardType: "activityHeatmap",
+    cardTitle: "Activity Heatmap",
+    variations: ["default", "github", "fire"],
+  },
+  {
+    cardType: "recentActivitySummary",
+    cardTitle: "Recent Activity Summary",
+    variations: ["default"],
+  },
+  {
+    cardType: "recentActivityFeed",
+    cardTitle: "Recent Activity Feed",
+    variations: ["default"],
+  },
+  {
+    cardType: "activityStreaks",
+    cardTitle: "Activity Streaks",
+    variations: ["default"],
+  },
+  {
+    cardType: "activityPatterns",
+    cardTitle: "Activity Patterns",
+    variations: ["default"],
+  },
+  {
+    cardType: "topActivityDays",
+    cardTitle: "Top Activity Days",
+    variations: ["default"],
   },
 ];
 

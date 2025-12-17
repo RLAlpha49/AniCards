@@ -20,7 +20,7 @@ import {
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { motion } from "framer-motion";
 
-import { displayNames } from "../stat-card-generator/StatCardPreview";
+import { displayNames } from "@/lib/card-data/validation";
 import {
   trackCardDownload,
   trackCopyAction,
