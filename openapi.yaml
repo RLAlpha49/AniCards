@@ -131,16 +131,7 @@ paths:
           required: false
           schema:
             type: string
-            enum:
-              [
-                "default",
-                "vertical",
-                "pie",
-                "compact",
-                "minimal",
-                "bar",
-                "horizontal",
-              ]
+            enum: ["default", "vertical", "pie", "minimal", "bar", "horizontal"]
           description: "Optional rendering variation; also settable inside stored card configuration."
         - in: query
           name: showFavorites
@@ -702,6 +693,7 @@ components:
           additionalProperties: true
         cards:
           type: array
+          maxItems: 24
           items:
             $ref: "#/components/schemas/StoredCardConfig"
       required: ["userId", "cards"]
@@ -719,7 +711,7 @@ components:
       required: ["userId", "stats"]
     UserRecord:
       type: object
-      description: "User data stored in Redis including statistics and favourites"
+      description: "User data stored in Redis including statistics and favorites"
       properties:
         userId:
           type: string

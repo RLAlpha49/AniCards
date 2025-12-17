@@ -6,14 +6,6 @@ AniCards is a dynamic and customizable tool designed to generate beautiful stati
 
 Experience AniCards live at [anicards.alpha49.com](https://anicards.alpha49.com)
 
-## ✨ Features
-
-- **10+ Card Types**: Visualize detailed statistics including anime consumption, manga progress, social interactions, genres, staff details, and more.
-- **Custom Designs**: Choose from preset themes or create your own color combinations to match your unique style.
-- **Dynamic SVGs**: Enjoy animated, vector-based cards that are optimized and easily shareable.
-- **Fast & Lightweight**: Built with Next.js and optimized with modern web practices for quick loading times.
-- **Easy Integration**: Use a simple URL to display your stats anywhere.
-
 ## 🎨 Card Style Requests
 
 **I especially encourage design submissions!** If you have an idea for:

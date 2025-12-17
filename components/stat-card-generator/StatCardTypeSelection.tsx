@@ -61,6 +61,16 @@ interface StatCardTypeSelectionProps {
   onPreview: (cardType: string, variant: string) => void;
   showFavoritesByCard: Record<string, boolean>;
   onToggleShowFavorites: (cardId: string) => void;
+
+  /**
+   * Favorites Grid layout controls (1..5 each).
+   * These are owned by the generator context, but the UI should live in the
+   * Cards step near the favorites grid card selection.
+   */
+  favoritesGridColumns?: number;
+  favoritesGridRows?: number;
+  onFavoritesGridColumnsChange?: (next: number) => void;
+  onFavoritesGridRowsChange?: (next: number) => void;
 }
 
 /**
@@ -73,6 +83,9 @@ const FAVORITE_CARD_IDS = new Set([
   "animeStaff",
   "mangaStaff",
 ]);
+
+/** Card id for the Favorites Grid card. @source */
+const FAVORITES_GRID_CARD_ID = "favoritesGrid";
 
 /**
  * Renders a grouped selection UI with controls for selecting cards, choosing
@@ -102,6 +115,10 @@ export function StatCardTypeSelection({
   onPreview,
   showFavoritesByCard,
   onToggleShowFavorites,
+  favoritesGridColumns,
+  favoritesGridRows,
+  onFavoritesGridColumnsChange,
+  onFavoritesGridRowsChange,
 }: Readonly<StatCardTypeSelectionProps>) {
   // Group card types by their `group` property while keeping a stable order.
   const grouped = useMemo(() => {
@@ -137,6 +154,11 @@ export function StatCardTypeSelection({
     }
     return counts;
   }, [grouped, selectedCards]);
+
+  const clampGridDim = (n: number, fallback = 3) => {
+    const parsed = Number.isFinite(n) ? Math.trunc(n) : fallback;
+    return Math.max(1, Math.min(5, parsed));
+  };
 
   return (
     <div className="space-y-5">
@@ -237,6 +259,8 @@ export function StatCardTypeSelection({
                 (type.variations ? "default" : "");
               const supportsFavorites = FAVORITE_CARD_IDS.has(type.id);
               const isFavorite = showFavoritesByCard[type.id];
+              const isFavoritesGrid = type.id === FAVORITES_GRID_CARD_ID;
+
               // Extract optional parenthetical part from the label for an explanatory subtitle.
               const openParenIndex = type.label.indexOf("(");
               const closeParenIndex =
@@ -251,6 +275,26 @@ export function StatCardTypeSelection({
               let VariationIcon = List;
               if (currentVariation === "pie") VariationIcon = PieChart;
               else if (currentVariation === "bar") VariationIcon = BarChart;
+
+              const gridColsValue = clampGridDim(favoritesGridColumns ?? 3, 3);
+              const gridRowsValue = clampGridDim(favoritesGridRows ?? 3, 3);
+              const gridControlsEnabled =
+                isFavoritesGrid &&
+                isSelected &&
+                typeof onFavoritesGridColumnsChange === "function" &&
+                typeof onFavoritesGridRowsChange === "function";
+
+              const adjustGridCols = (delta: number) => {
+                if (!gridControlsEnabled) return;
+                const next = clampGridDim(gridColsValue + delta, 3);
+                onFavoritesGridColumnsChange?.(next);
+              };
+
+              const adjustGridRows = (delta: number) => {
+                if (!gridControlsEnabled) return;
+                const next = clampGridDim(gridRowsValue + delta, 3);
+                onFavoritesGridRowsChange?.(next);
+              };
 
               return (
                 <motion.div
@@ -315,7 +359,9 @@ export function StatCardTypeSelection({
                   </div>
 
                   {/* Controls Area */}
-                  {(type.variations || supportsFavorites) && (
+                  {(type.variations ||
+                    supportsFavorites ||
+                    isFavoritesGrid) && (
                     <div className="mt-auto flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3 dark:border-slate-700/50">
                       {type.variations && (
                         <div className="min-w-[130px] flex-1">
@@ -371,8 +417,110 @@ export function StatCardTypeSelection({
                                   : "text-amber-400/50",
                               )}
                             />
-                            Favorites Only
+                            Show Favorites
                           </Label>
+                        </div>
+                      )}
+
+                      {isFavoritesGrid && (
+                        <div
+                          className={cn(
+                            "flex flex-wrap items-center gap-3 rounded-xl border border-indigo-200/70 bg-indigo-50 px-4 py-2 shadow-sm dark:border-indigo-500/30 dark:bg-indigo-950/50",
+                            !gridControlsEnabled && "opacity-70",
+                          )}
+                          aria-label="Favorites Grid layout"
+                        >
+                          <Label className="text-sm font-semibold text-indigo-800 dark:text-indigo-200">
+                            Grid (cols×rows)
+                          </Label>
+
+                          {/* Columns stepper */}
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              disabled={
+                                !gridControlsEnabled || gridColsValue <= 1
+                              }
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                adjustGridCols(-1);
+                              }}
+                              className="h-8 w-8 rounded-lg border-indigo-200 bg-white text-slate-900 shadow-sm ring-offset-0 transition hover:bg-indigo-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-indigo-500/50 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-indigo-900/40"
+                              aria-label="Decrease grid columns"
+                            >
+                              -
+                            </Button>
+                            <span
+                              className="min-w-[1.75rem] rounded-md bg-white/60 px-2 py-1 text-center text-xs font-bold text-slate-900 shadow-sm dark:bg-slate-900/60 dark:text-slate-50"
+                              aria-label="Grid columns value"
+                            >
+                              {gridColsValue}
+                            </span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              disabled={
+                                !gridControlsEnabled || gridColsValue >= 5
+                              }
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                adjustGridCols(1);
+                              }}
+                              className="h-8 w-8 rounded-lg border-indigo-200 bg-white text-slate-900 shadow-sm ring-offset-0 transition hover:bg-indigo-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-indigo-500/50 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-indigo-900/40"
+                              aria-label="Increase grid columns"
+                            >
+                              +
+                            </Button>
+                          </div>
+
+                          <span className="mx-1 text-sm font-bold text-indigo-500 dark:text-indigo-300">
+                            ×
+                          </span>
+
+                          {/* Rows stepper */}
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              disabled={
+                                !gridControlsEnabled || gridRowsValue <= 1
+                              }
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                adjustGridRows(-1);
+                              }}
+                              className="h-8 w-8 rounded-lg border-indigo-200 bg-white text-slate-900 shadow-sm ring-offset-0 transition hover:bg-indigo-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-indigo-500/50 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-indigo-900/40"
+                              aria-label="Decrease grid rows"
+                            >
+                              -
+                            </Button>
+                            <span
+                              className="min-w-[1.75rem] rounded-md bg-white/60 px-2 py-1 text-center text-xs font-bold text-slate-900 shadow-sm dark:bg-slate-900/60 dark:text-slate-50"
+                              aria-label="Grid rows value"
+                            >
+                              {gridRowsValue}
+                            </span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              disabled={
+                                !gridControlsEnabled || gridRowsValue >= 5
+                              }
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                adjustGridRows(1);
+                              }}
+                              className="h-8 w-8 rounded-lg border-indigo-200 bg-white text-slate-900 shadow-sm ring-offset-0 transition hover:bg-indigo-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-indigo-500/50 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-indigo-900/40"
+                              aria-label="Increase grid rows"
+                            >
+                              +
+                            </Button>
+                          </div>
                         </div>
                       )}
                     </div>

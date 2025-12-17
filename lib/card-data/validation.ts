@@ -7,6 +7,7 @@ import {
   AnimeStatStudio,
   AnimeStatStaff,
   MangaStatStaff,
+  UserAvatar,
 } from "@/lib/types/records";
 import type { ErrorCategory, RecoverySuggestion } from "@/lib/error-messages";
 import { getErrorDetails } from "@/lib/error-messages";
@@ -84,6 +85,9 @@ export const displayNames: { [key: string]: string } = {
   mangaYearDistribution: "Manga Years",
   animeCountry: "Anime Countries",
   mangaCountry: "Manga Countries",
+  profileOverview: "Profile Overview",
+  favoritesSummary: "Favourites Summary",
+  favoritesGrid: "Favourites Grid",
 };
 
 /**
@@ -459,9 +463,17 @@ export function validateAndNormalizeUserRecord(
     return normalizedBlock;
   };
 
+  let favoriteAnimeNodes: unknown[] = [];
+  let favoriteMangaNodes: unknown[] = [];
   let favoriteStaffNodes: unknown[] = [];
   let favoriteStudiosNodes: unknown[] = [];
   let favoriteCharactersNodes: unknown[] = [];
+  if (Array.isArray(statsData.User?.favourites?.anime?.nodes)) {
+    favoriteAnimeNodes = statsData.User.favourites.anime.nodes;
+  }
+  if (Array.isArray(statsData.User?.favourites?.manga?.nodes)) {
+    favoriteMangaNodes = statsData.User.favourites.manga.nodes;
+  }
   if (Array.isArray(statsData.User?.favourites?.staff?.nodes)) {
     favoriteStaffNodes = statsData.User.favourites.staff.nodes;
   }
@@ -499,6 +511,46 @@ export function validateAndNormalizeUserRecord(
           activityHistory: normalizedActivityHistory,
         },
         favourites: {
+          anime: {
+            nodes: favoriteAnimeNodes.map((a: unknown) => {
+              const rec = a as Record<string, unknown>;
+              return {
+                id: coerceNumber(rec.id),
+                title: {
+                  english: getNestedString(rec, ["title", "english"]),
+                  romaji: getNestedString(rec, ["title", "romaji"]),
+                  native: getNestedString(rec, ["title", "native"]),
+                },
+                coverImage: {
+                  large: getNestedString(rec, ["coverImage", "large"]),
+                  medium: getNestedString(rec, ["coverImage", "medium"]),
+                  color: getNestedString(rec, ["coverImage", "color"]),
+                },
+                format: getNestedString(rec, ["format"]),
+                genres: Array.isArray(rec.genres) ? rec.genres.map(String) : [],
+              };
+            }),
+          },
+          manga: {
+            nodes: favoriteMangaNodes.map((m: unknown) => {
+              const rec = m as Record<string, unknown>;
+              return {
+                id: coerceNumber(rec.id),
+                title: {
+                  english: getNestedString(rec, ["title", "english"]),
+                  romaji: getNestedString(rec, ["title", "romaji"]),
+                  native: getNestedString(rec, ["title", "native"]),
+                },
+                coverImage: {
+                  large: getNestedString(rec, ["coverImage", "large"]),
+                  medium: getNestedString(rec, ["coverImage", "medium"]),
+                  color: getNestedString(rec, ["coverImage", "color"]),
+                },
+                format: getNestedString(rec, ["format"]),
+                genres: Array.isArray(rec.genres) ? rec.genres.map(String) : [],
+              };
+            }),
+          },
           staff: {
             nodes: favoriteStaffNodes.map((s: unknown) => {
               const rec = s as Record<string, unknown>;
@@ -522,7 +574,14 @@ export function validateAndNormalizeUserRecord(
               const rec = s as Record<string, unknown>;
               return {
                 id: coerceNumber(rec.id),
-                name: { full: getNestedString(rec, ["name", "full"]) },
+                name: {
+                  full: getNestedString(rec, ["name", "full"]),
+                  native: getNestedString(rec, ["name", "native"]),
+                },
+                image: {
+                  large: getNestedString(rec, ["image", "large"]),
+                  medium: getNestedString(rec, ["image", "medium"]),
+                },
               };
             }),
           },
@@ -537,6 +596,31 @@ export function validateAndNormalizeUserRecord(
             "manga",
           ) as MangaStats | undefined,
         },
+        avatar: (() => {
+          const rawAvatar = statsData.User?.avatar;
+          if (
+            rawAvatar &&
+            typeof rawAvatar === "object" &&
+            (typeof (rawAvatar as Record<string, unknown>).large === "string" ||
+              typeof (rawAvatar as Record<string, unknown>).medium === "string")
+          ) {
+            const av = rawAvatar as Record<string, unknown>;
+            return {
+              large: typeof av.large === "string" ? av.large : undefined,
+              medium: typeof av.medium === "string" ? av.medium : undefined,
+            } as UserAvatar;
+          }
+          return undefined;
+        })(),
+        createdAt: (() => {
+          const rawCreatedAt = statsData.User?.createdAt;
+          if (typeof rawCreatedAt === "number") return rawCreatedAt;
+          if (typeof rawCreatedAt === "string") {
+            const parsed = Number.parseInt(rawCreatedAt, 10);
+            return Number.isFinite(parsed) ? parsed : undefined;
+          }
+          return undefined;
+        })(),
       },
     } as unknown as UserStatsData,
   };

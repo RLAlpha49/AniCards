@@ -164,7 +164,7 @@ test.describe("Generator customization and options", () => {
       await variantCombo.click();
       await page.getByRole("option", { name: /Pie Chart/i }).click();
 
-      const favoritesToggle = voiceActorsCard.getByLabel(/Favorites Only/i);
+      const favoritesToggle = voiceActorsCard.getByLabel(/Show Favorites/i);
       await favoritesToggle.click();
       await expect(favoritesToggle).toBeChecked();
     });

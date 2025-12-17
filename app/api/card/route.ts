@@ -58,6 +58,9 @@ const ALLOWED_CARD_TYPES = new Set([
   "mangaYearDistribution",
   "animeCountry",
   "mangaCountry",
+  "profileOverview",
+  "favoritesSummary",
+  "favoritesGrid",
 ]);
 
 /**
@@ -186,7 +189,8 @@ interface ValidatedParams {
   showFavoritesParam: string | null;
   statusColorsParam: string | null;
   piePercentagesParam: string | null;
-  // Color and styling params
+  gridColsParam: string | null;
+  gridRowsParam: string | null;
   colorPresetParam: string | null;
   titleColorParam: string | null;
   backgroundColorParam: string | null;
@@ -283,6 +287,8 @@ function extractAndValidateParams(
     showFavoritesParam: searchParams.get("showFavorites"),
     statusColorsParam: searchParams.get("statusColors"),
     piePercentagesParam: searchParams.get("piePercentages"),
+    gridColsParam: searchParams.get("gridCols"),
+    gridRowsParam: searchParams.get("gridRows"),
     colorPresetParam: searchParams.get("colorPreset"),
     titleColorParam: searchParams.get("titleColor"),
     backgroundColorParam: searchParams.get("backgroundColor"),
@@ -548,6 +554,8 @@ export async function GET(request: Request) {
     showFavorites: params.showFavoritesParam,
     statusColors: params.statusColorsParam,
     piePercentages: params.piePercentagesParam,
+    gridCols: params.gridColsParam,
+    gridRows: params.gridRowsParam,
     _t: params._t,
   });
 
@@ -698,7 +706,7 @@ async function generateCardResponse(
       `🎨 [Card SVG] Generating ${params.cardType} (${effectiveVariation}) SVG for user ${effectiveUserId}${needsDbCardConfig ? " (with DB card lookup)" : " (from URL params)"}`,
     );
 
-    const svgContent = generateCardSvg(
+    const svgContent = await generateCardSvg(
       cardConfig,
       userDoc,
       effectiveVariation as

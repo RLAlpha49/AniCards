@@ -14,6 +14,10 @@ export const VARIATION_LABEL_MAP: Record<string, string> = {
   pie: "Pie Chart",
   bar: "Bar Chart",
   horizontal: "Horizontal",
+  anime: "Anime",
+  manga: "Manga",
+  characters: "Characters",
+  mixed: "Mixed",
 };
 
 /**
@@ -151,6 +155,21 @@ export const CARD_GROUPS: CardGroup[] = [
     cardTitle: "Manga Year Distribution",
     variations: ["default", "horizontal"],
   },
+  {
+    cardType: "profileOverview",
+    cardTitle: "Profile Overview",
+    variations: ["default"],
+  },
+  {
+    cardType: "favoritesSummary",
+    cardTitle: "Favourites Summary",
+    variations: ["default"],
+  },
+  {
+    cardType: "favoritesGrid",
+    cardTitle: "Favourites Grid",
+    variations: ["anime", "manga", "characters", "mixed"],
+  },
 ];
 
 /**
@@ -186,6 +205,10 @@ export interface CardUrlParams {
   statusColors?: boolean;
   /** Show percentages on pie charts */
   piePercentages?: boolean;
+  /** Favorites grid columns (1-5) */
+  gridCols?: number;
+  /** Favorites grid rows (1-5) */
+  gridRows?: number;
 }
 
 /**
@@ -316,6 +339,15 @@ export function mapStoredConfigToCardUrlParams(
     candidate.showPiePercentages,
   );
 
+  if (typeof candidate.gridCols === "number") {
+    const n = Math.trunc(candidate.gridCols);
+    params.gridCols = Math.max(1, Math.min(5, n));
+  }
+  if (typeof candidate.gridRows === "number") {
+    const n = Math.trunc(candidate.gridRows);
+    params.gridRows = Math.max(1, Math.min(5, n));
+  }
+
   return params;
 }
 
@@ -344,6 +376,20 @@ function setBooleanParam(
 ): void {
   if (typeof value === "boolean") {
     searchParams.set(key, value ? "true" : "false");
+  }
+}
+
+/**
+ * Helper to set a numeric search param if the value is a finite number.
+ * @source
+ */
+function setNumberParam(
+  searchParams: URLSearchParams,
+  key: string,
+  value: number | undefined,
+): void {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    searchParams.set(key, String(value));
   }
 }
 
@@ -398,6 +444,10 @@ export function buildCardUrlWithParams(
   setBooleanParam(searchParams, "showFavorites", params.showFavorites);
   setBooleanParam(searchParams, "statusColors", params.statusColors);
   setBooleanParam(searchParams, "piePercentages", params.piePercentages);
+
+  // Favorites grid layout (optional)
+  setNumberParam(searchParams, "gridCols", params.gridCols);
+  setNumberParam(searchParams, "gridRows", params.gridRows);
 
   return `${baseUrl}?${searchParams.toString()}`;
 }

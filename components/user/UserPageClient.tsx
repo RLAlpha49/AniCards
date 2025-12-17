@@ -71,6 +71,8 @@ interface CardData {
   borderColor?: string;
   // Color preset name (if not "custom", use preset instead of individual colors)
   colorPreset?: string;
+  gridCols?: number;
+  gridRows?: number;
 }
 
 type ApiUser = { userId?: string | number; username?: string };
@@ -330,6 +332,14 @@ export function UserPageClient() {
         typeof r.borderColor === "string" ? r.borderColor : undefined,
       colorPreset:
         typeof r.colorPreset === "string" ? r.colorPreset : undefined,
+      gridCols:
+        typeof r.gridCols === "number" && Number.isFinite(r.gridCols)
+          ? Math.max(1, Math.min(5, Math.trunc(r.gridCols)))
+          : undefined,
+      gridRows:
+        typeof r.gridRows === "number" && Number.isFinite(r.gridRows)
+          ? Math.max(1, Math.min(5, Math.trunc(r.gridRows)))
+          : undefined,
     };
   }
 
@@ -534,6 +544,9 @@ export function UserPageClient() {
         showPiePercentages: isPieVariation
           ? card.showPiePercentages
           : undefined,
+        ...(card.cardName === "favoritesGrid"
+          ? { gridCols: card.gridCols, gridRows: card.gridRows }
+          : {}),
       },
       {
         userId: userData?.userId,

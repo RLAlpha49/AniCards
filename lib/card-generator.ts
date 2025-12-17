@@ -4,6 +4,11 @@ import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-ma
 import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
 import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
 import { distributionTemplate } from "@/lib/svg-templates/distribution";
+import {
+  profileOverviewTemplate,
+  favoritesSummaryTemplate,
+  favoritesGridTemplate,
+} from "@/lib/svg-templates/profile-favorite-stats";
 import { TrustedSVG } from "@/lib/types/svg";
 import {
   StoredCardConfig,
@@ -27,6 +32,10 @@ import {
   AnimeStats as TemplateAnimeStats,
   MangaStats as TemplateMangaStats,
 } from "@/lib/types/card";
+import {
+  fetchImageAsDataUrl,
+  embedFavoritesGridImages,
+} from "@/lib/image-utils";
 
 /**
  * Supported visual variants for generated cards.
@@ -40,16 +49,24 @@ type CardGenVariant =
   | "compact"
   | "minimal"
   | "bar"
-  | "horizontal";
+  | "horizontal"
+  | "anime"
+  | "manga"
+  | "characters"
+  | "mixed";
 
 /** @source */
-type StatsVariant = "default" | "vertical" | "compact" | "minimal";
+type StatsVariant = "default" | "vertical" | "minimal";
 /** @source */
-type SocialVariant = "default" | "compact" | "minimal";
+type SocialVariant = "default" | "minimal";
 /** @source */
 type PieBarVariant = "default" | "pie" | "bar";
 /** @source */
 type DistributionVariant = "default" | "horizontal";
+/** @source */
+type ProfileVariant = "default";
+/** @source */
+type FavoritesGridVariant = "anime" | "manga" | "characters" | "mixed";
 
 /**
  * Parameters provided to the card generation functions.
@@ -60,6 +77,8 @@ interface CardGenerationParams {
   userRecord: UserRecord;
   variant: string;
   favorites?: string[];
+  favoritesGridCols?: number;
+  favoritesGridRows?: number;
 }
 
 /**
@@ -85,7 +104,19 @@ function normalizeVariant(
   ]);
   // Default early for invalid variant types
   if (!variant || typeof variant !== "string") return "default";
-  if (!globalVariants.has(variant as CardGenVariant)) return "default";
+
+  // Handle favoritesGrid specially
+  if (baseCardType === "favoritesGrid") {
+    if (["anime", "manga", "characters", "mixed"].includes(variant)) {
+      return variant as CardGenVariant;
+    }
+    return "mixed" as CardGenVariant;
+  }
+
+  // Check if variant is in global variants
+  if (!globalVariants.has(variant as CardGenVariant)) {
+    return "default";
+  }
 
   // Allowed variant sets for groups of card types
   const statsVariants = new Set<CardGenVariant>([
@@ -94,56 +125,49 @@ function normalizeVariant(
     "compact",
     "minimal",
   ]);
-  const socialVariants = new Set<CardGenVariant>([
-    "default",
-    "compact",
-    "minimal",
-  ]);
+  const socialVariants = new Set<CardGenVariant>(["default", "minimal"]);
   const pieBarVariants = new Set<CardGenVariant>(["default", "pie", "bar"]);
   const distributionVariants = new Set<CardGenVariant>([
     "default",
     "horizontal",
   ]);
 
-  switch (baseCardType) {
-    case "animeStats":
-    case "mangaStats":
-      return statsVariants.has(variant as CardGenVariant)
-        ? (variant as CardGenVariant)
-        : "default";
-    case "socialStats":
-      return socialVariants.has(variant as CardGenVariant)
-        ? (variant as CardGenVariant)
-        : "default";
-    case "animeGenres":
-    case "animeTags":
-    case "animeVoiceActors":
-    case "animeStudios":
-    case "animeStaff":
-    case "mangaGenres":
-    case "mangaTags":
-    case "mangaStaff":
-    case "animeStatusDistribution":
-    case "mangaStatusDistribution":
-    case "animeFormatDistribution":
-    case "mangaFormatDistribution":
-    case "animeCountry":
-    case "mangaCountry":
-      return pieBarVariants.has(variant as CardGenVariant)
-        ? (variant as CardGenVariant)
-        : "default";
-    case "animeScoreDistribution":
-    case "mangaScoreDistribution":
-    case "animeYearDistribution":
-    case "mangaYearDistribution":
-      return distributionVariants.has(variant as CardGenVariant)
-        ? (variant as CardGenVariant)
-        : "default";
-    default:
-      return globalVariants.has(variant as CardGenVariant)
-        ? (variant as CardGenVariant)
-        : "default";
+  const variantMap: Record<string, Set<CardGenVariant>> = {
+    animeStats: statsVariants,
+    mangaStats: statsVariants,
+    socialStats: socialVariants,
+    animeGenres: pieBarVariants,
+    animeTags: pieBarVariants,
+    animeVoiceActors: pieBarVariants,
+    animeStudios: pieBarVariants,
+    animeStaff: pieBarVariants,
+    mangaGenres: pieBarVariants,
+    mangaTags: pieBarVariants,
+    mangaStaff: pieBarVariants,
+    animeStatusDistribution: pieBarVariants,
+    mangaStatusDistribution: pieBarVariants,
+    animeFormatDistribution: pieBarVariants,
+    mangaFormatDistribution: pieBarVariants,
+    animeCountry: pieBarVariants,
+    mangaCountry: pieBarVariants,
+    animeScoreDistribution: distributionVariants,
+    mangaScoreDistribution: distributionVariants,
+    animeYearDistribution: distributionVariants,
+    mangaYearDistribution: distributionVariants,
+    profileOverview: socialVariants,
+    favoritesSummary: socialVariants,
+  };
+
+  const allowedVariants = variantMap[baseCardType!];
+  if (allowedVariants) {
+    return allowedVariants.has(variant as CardGenVariant)
+      ? (variant as CardGenVariant)
+      : "default";
   }
+
+  return globalVariants.has(variant as CardGenVariant)
+    ? (variant as CardGenVariant)
+    : "default";
 }
 
 /**
@@ -226,12 +250,12 @@ function generateSocialStatsCard(params: CardGenerationParams) {
  * @throws {CardDataError} When required configuration or stats data are missing or the card type is unsupported.
  * @source
  */
-export function generateCardSvg(
+export async function generateCardSvg(
   cardConfig: StoredCardConfig,
   userRecord: UserRecord,
   variant: string,
   favorites?: string[],
-): TrustedSVG {
+): Promise<TrustedSVG> {
   if (!cardConfig || !userRecord?.stats) {
     throw new CardDataError(
       "Not Found: Missing card configuration or stats data",
@@ -256,6 +280,10 @@ export function generateCardSvg(
     userRecord,
     variant: normalizedVariant,
     favorites,
+    favoritesGridCols:
+      typeof cardConfig.gridCols === "number" ? cardConfig.gridCols : undefined,
+    favoritesGridRows:
+      typeof cardConfig.gridRows === "number" ? cardConfig.gridRows : undefined,
   };
 
   switch (baseCardType) {
@@ -289,6 +317,12 @@ export function generateCardSvg(
     case "animeCountry":
     case "mangaCountry":
       return generateCountryCard(params, baseCardType);
+    case "profileOverview":
+      return await generateProfileOverviewCard(params);
+    case "favoritesSummary":
+      return generateFavoritesSummaryCard(params);
+    case "favoritesGrid":
+      return generateFavoritesGridCard(params);
     default:
       throw new CardDataError("Unsupported card type", 400);
   }
@@ -556,6 +590,93 @@ function generateCountryCard(
     stats: list,
     showPieChart: mappedVariant === "pie",
     showPiePercentages: !!cardConfig.showPiePercentages,
+  });
+}
+
+/**
+ * Generate a Profile Overview card showing user avatar, name, and key stats.
+ * @param params - Card generation parameters and options.
+ * @returns A TrustedSVG with the rendered profile overview card.
+ * @source
+ */
+async function generateProfileOverviewCard(
+  params: CardGenerationParams,
+): Promise<TrustedSVG> {
+  const { cardConfig, userRecord, variant } = params;
+  const user = userRecord.stats?.User;
+
+  if (!user?.statistics) {
+    throw new CardDataError("Not Found: Missing user statistics", 404);
+  }
+
+  const avatarUrl = user.avatar?.large || user.avatar?.medium;
+  const avatarDataUrl = avatarUrl ? await fetchImageAsDataUrl(avatarUrl) : null;
+
+  return profileOverviewTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ProfileVariant,
+    styles: extractStyles(cardConfig),
+    statistics: user.statistics,
+    avatar: user.avatar,
+    avatarDataUrl: avatarDataUrl ?? undefined,
+    createdAt: user.createdAt,
+  });
+}
+
+/**
+ * Generate a Favourites Summary card showing counts of favorites in each category.
+ * @param params - Card generation parameters and options.
+ * @returns A TrustedSVG with the rendered favourites summary card.
+ * @source
+ */
+function generateFavoritesSummaryCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  const user = userRecord.stats?.User;
+
+  if (!user?.favourites) {
+    throw new CardDataError("Not Found: Missing user favourites data", 404);
+  }
+
+  return favoritesSummaryTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ProfileVariant,
+    styles: extractStyles(cardConfig),
+    favourites: user.favourites,
+  });
+}
+
+/**
+ * Generate a Favourites Grid card showing favourite anime/manga/characters as a grid.
+ * @param params - Card generation parameters and options.
+ * @returns A TrustedSVG with the rendered favourites grid card.
+ * @source
+ */
+async function generateFavoritesGridCard(
+  params: CardGenerationParams,
+): Promise<TrustedSVG> {
+  const { cardConfig, userRecord, variant } = params;
+  const user = userRecord.stats?.User;
+
+  if (!user?.favourites) {
+    throw new CardDataError("Not Found: Missing user favourites data", 404);
+  }
+
+  const embeddedFavourites = await embedFavoritesGridImages(
+    user.favourites,
+    variant as FavoritesGridVariant,
+    params.favoritesGridRows,
+    params.favoritesGridCols,
+  );
+
+  return favoritesGridTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as FavoritesGridVariant,
+    styles: extractStyles(cardConfig),
+    favourites: embeddedFavourites,
+    gridCols: params.favoritesGridCols,
+    gridRows: params.favoritesGridRows,
   });
 }
 

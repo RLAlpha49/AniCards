@@ -56,6 +56,11 @@ interface GeneratorContextValue {
   previewType: string;
   previewVariation: string;
   showFavoritesByCard: Record<string, boolean>;
+  /** Favorites grid layout controls (favoritesGrid card only). Values clamped to [1..5]. */
+  favoritesGridColumns: number;
+  favoritesGridRows: number;
+  setFavoritesGridColumns: (next: number) => void;
+  setFavoritesGridRows: (next: number) => void;
   useAnimeStatusColors: boolean;
   useMangaStatusColors: boolean;
   showPiePercentages: boolean;
@@ -185,6 +190,8 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
     defaultCardTypes,
     defaultVariants,
     defaultShowFavoritesByCard,
+    favoritesGridColumns,
+    favoritesGridRows,
     defaultBorderEnabled,
     defaultBorderColor,
     defaultBorderRadius,
@@ -194,6 +201,8 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
     setSavedColorConfig,
     setDefaultCardTypes,
     setDefaultVariant,
+    setFavoritesGridColumns: setFavoritesGridColumnsSetting,
+    setFavoritesGridRows: setFavoritesGridRowsSetting,
     toggleShowFavorites,
     setDefaultBorderEnabled,
     setDefaultBorderColor,
@@ -248,6 +257,24 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
   const [previewType, setPreviewType] = useState("");
   const [previewVariation, setPreviewVariation] = useState("");
   const [currentStep, setCurrentStep] = useState(0);
+
+  const clampGridSize = useCallback((n: number) => {
+    const parsed = Number.isFinite(n) ? Math.round(n) : 3;
+    return Math.max(1, Math.min(5, parsed));
+  }, []);
+
+  const setFavoritesGridColumns = useCallback(
+    (next: number) => setFavoritesGridColumnsSetting(clampGridSize(next)),
+    [clampGridSize, setFavoritesGridColumnsSetting],
+  );
+
+  const setFavoritesGridRows = useCallback(
+    (next: number) => setFavoritesGridRowsSetting(clampGridSize(next)),
+    [clampGridSize, setFavoritesGridRowsSetting],
+  );
+
+  const clampedFavoritesGridColumns = clampGridSize(favoritesGridColumns);
+  const clampedFavoritesGridRows = clampGridSize(favoritesGridRows);
 
   const {
     loading,
@@ -529,6 +556,10 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
       borderEnabled: hasBorder,
       borderColor,
       borderRadius,
+      favoritesGrid: {
+        columns: clampedFavoritesGridColumns,
+        rows: clampedFavoritesGridRows,
+      },
     });
 
     if (result.success && result.userId) {
@@ -554,6 +585,8 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
     hasBorder,
     borderColor,
     borderRadius,
+    clampedFavoritesGridColumns,
+    clampedFavoritesGridRows,
     submit,
   ]);
 
@@ -640,6 +673,10 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
       previewType,
       previewVariation,
       showFavoritesByCard,
+      favoritesGridColumns: clampedFavoritesGridColumns,
+      favoritesGridRows: clampedFavoritesGridRows,
+      setFavoritesGridColumns,
+      setFavoritesGridRows,
       useAnimeStatusColors,
       useMangaStatusColors,
       showPiePercentages,
@@ -740,6 +777,8 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
       handleSubmit,
       openPreview,
       closePreview,
+      clampedFavoritesGridColumns,
+      clampedFavoritesGridRows,
     ],
   );
 
