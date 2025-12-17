@@ -615,7 +615,10 @@ export const favoritesGridTemplate = (data: {
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);
 
   const variantLabel = getVariantLabel(variant);
-  const title = variant === "mixed" ? `${data.username}'s ${variantLabel}` : `${data.username}'s Favorite ${variantLabel}`;
+  const title =
+    variant === "mixed"
+      ? `${data.username}'s ${variantLabel}`
+      : `${data.username}'s Favorite ${variantLabel}`;
   const safeTitle = escapeForXml(title);
 
   return markTrustedSvg(`

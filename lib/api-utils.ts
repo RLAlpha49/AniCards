@@ -8,7 +8,7 @@ import {
   validateColorValue,
   getColorInvalidReason,
 } from "@/lib/utils";
-import { displayNames } from "@/lib/card-data/validation";
+import { displayNames, isValidCardType } from "@/lib/card-data/validation";
 
 /**
  * Optional keep-alive HTTP(S) agent used only in Node runtimes to improve
@@ -591,6 +591,20 @@ function validateCardRequiredFields(
   const reqStrErr = validateRequiredStringFields(card, requiredStringFields);
   if (reqStrErr) return reqStrErr;
 
+  // Ensure the cardName points to a supported card type (base type validation)
+  const cardNameRaw = card["cardName"];
+  if (typeof cardNameRaw !== "string" || !isValidCardType(cardNameRaw)) {
+    console.warn(
+      `⚠️ [${endpoint}] Card ${cardIndex} has an invalid cardName: ${String(
+        cardNameRaw,
+      )}`,
+    );
+    return NextResponse.json(
+      { error: "Invalid data: Invalid card type" },
+      { status: 400, headers: apiJsonHeaders(request) },
+    );
+  }
+
   const rawPreset = card["colorPreset"];
   const preset =
     typeof rawPreset === "string" && rawPreset.trim().length > 0
@@ -739,21 +753,16 @@ function validateBorderRadiusField(
 }
 
 /**
- * Validates an array of cards provided in the store-cards endpoint, ensuring
- * userId is valid and that each card's required and optional fields are valid.
- * @param cards - Payload expected to be an array of card objects.
- * @param userId - User identifier associated with the cards.
- * @param endpoint - Logical endpoint name for logging/analytics.
- * @returns A NextResponse with an ApiError when invalid, or null otherwise.
- * @source
+ * Validates the provided userId and returns an API error response when
+ * invalid. Keeps logging consistent with existing behavior.
+ * @param userId - The incoming userId value
+ * @param endpoint - Endpoint name used for logging
  */
-export function validateCardData(
-  cards: unknown,
+function validateUserIdField(
   userId: unknown,
   endpoint: string,
   request?: Request,
 ): NextResponse<ApiError> | null {
-  // Validate userId
   if (userId === undefined || userId === null) {
     console.warn(`⚠️ [${endpoint}] Missing userId`);
     return NextResponse.json(
@@ -771,7 +780,17 @@ export function validateCardData(
     );
   }
 
-  // Validate cards is an array
+  return null;
+}
+
+/**
+ * Ensures the payload is an array. Returns an API error response when not.
+ */
+function validateCardsArrayField(
+  cards: unknown,
+  endpoint: string,
+  request?: Request,
+): NextResponse<ApiError> | null {
   if (!Array.isArray(cards)) {
     console.warn(`⚠️ [${endpoint}] Cards must be an array`);
     return NextResponse.json(
@@ -779,24 +798,53 @@ export function validateCardData(
       { status: 400, headers: apiJsonHeaders(request) },
     );
   }
+  return null;
+}
 
-  // Validate cards array is not too large (prevent DOS attacks)
-  // Use server-known card types count as baseline for allowed card types.
-  const maxSupportedTypes = Object.keys(displayNames).length || 21;
-  const MAX_ALLOWED_CARDS = Math.max(21, maxSupportedTypes);
-  if (cards.length > MAX_ALLOWED_CARDS) {
+/**
+ * Enforces a maximum on unique card types and returns an API error if exceeded.
+ */
+function validateUniqueCardTypes(
+  cards: unknown[],
+  endpoint: string,
+  request?: Request,
+): NextResponse<ApiError> | null {
+  const maxSupportedTypes = Object.keys(displayNames).length || 33;
+  const MAX_ALLOWED_CARDS = Math.max(33, maxSupportedTypes);
+  const uniqueCardNames = new Set<string>();
+
+  for (const c of cards) {
+    if (typeof c === "object" && c !== null) {
+      const name = (c as Record<string, unknown>).cardName;
+      if (typeof name === "string" && name.length > 0) {
+        uniqueCardNames.add(name);
+      }
+    }
+  }
+
+  if (uniqueCardNames.size > MAX_ALLOWED_CARDS) {
     console.warn(
-      `⚠️ [${endpoint}] Too many cards provided: ${cards.length} (max ${MAX_ALLOWED_CARDS})`,
+      `⚠️ [${endpoint}] Too many unique card types provided: ${uniqueCardNames.size} (max ${MAX_ALLOWED_CARDS})`,
     );
     return NextResponse.json(
       {
-        error: `Too many cards provided: ${cards.length} (max ${MAX_ALLOWED_CARDS})`,
+        error: `Too many cards provided: ${uniqueCardNames.size} (max ${MAX_ALLOWED_CARDS})`,
       },
       { status: 400, headers: apiJsonHeaders(request) },
     );
   }
 
-  // Validate each card in the array
+  return null;
+}
+
+/**
+ * Validates each card object in the array using existing helper validators.
+ */
+function validateCardsItems(
+  cards: unknown[],
+  endpoint: string,
+  request?: Request,
+): NextResponse<ApiError> | null {
   for (let i = 0; i < cards.length; i++) {
     const card = cards[i];
 
@@ -828,6 +876,42 @@ export function validateCardData(
     );
     if (optionalFieldsError) return optionalFieldsError;
   }
+
+  return null;
+}
+
+/**
+ * Validates an array of cards provided in the store-cards endpoint, ensuring
+ * userId is valid and that each card's required and optional fields are valid.
+ * @param cards - Payload expected to be an array of card objects.
+ * @param userId - User identifier associated with the cards.
+ * @param endpoint - Logical endpoint name for logging/analytics.
+ * @returns A NextResponse with an ApiError when invalid, or null otherwise.
+ * @source
+ */
+export function validateCardData(
+  cards: unknown,
+  userId: unknown,
+  endpoint: string,
+  request?: Request,
+): NextResponse<ApiError> | null {
+  // Validate userId
+  const userIdError = validateUserIdField(userId, endpoint, request);
+  if (userIdError) return userIdError;
+
+  // Validate that cards is an array
+  const cardsArrayError = validateCardsArrayField(cards, endpoint, request);
+  if (cardsArrayError) return cardsArrayError;
+
+  const cardsArr = cards as unknown[];
+
+  // Validate unique card types limit
+  const uniqueErr = validateUniqueCardTypes(cardsArr, endpoint, request);
+  if (uniqueErr) return uniqueErr;
+
+  // Validate each card's structure and fields
+  const itemsErr = validateCardsItems(cardsArr, endpoint, request);
+  if (itemsErr) return itemsErr;
 
   return null;
 }

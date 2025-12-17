@@ -61,6 +61,12 @@ const ALLOWED_CARD_TYPES = new Set([
   "profileOverview",
   "favoritesSummary",
   "favoritesGrid",
+  "activityHeatmap",
+  "recentActivitySummary",
+  "recentActivityFeed",
+  "activityStreaks",
+  "activityPatterns",
+  "topActivityDays",
 ]);
 
 /**
@@ -568,6 +574,29 @@ export async function GET(request: Request) {
       console.log(
         `♻️ [Card SVG] Serving stale cache for user ${effectiveUserId} (will revalidate in background)`,
       );
+
+      // Fire-and-forget revalidation: start background generation to refresh the cache.
+      // Ensure any errors are caught and logged so the response is not blocked.
+      void (async () => {
+        try {
+          await generateCardResponse(
+            request,
+            params,
+            effectiveUserId,
+            startTime,
+            cacheKey,
+          );
+          console.log(
+            `♻️ [Card SVG] Background revalidation completed for user ${effectiveUserId}`,
+          );
+        } catch (err: unknown) {
+          console.error(
+            `⚠️ [Card SVG] Background revalidation failed for user ${effectiveUserId} (cacheKey: ${cacheKey}):`,
+            err,
+          );
+        }
+      })();
+
       // Return stale content immediately while revalidating in background
       return createSuccessResponse(
         markTrustedSvg(cachedEntry.svg),

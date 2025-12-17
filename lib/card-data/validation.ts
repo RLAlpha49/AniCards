@@ -88,7 +88,29 @@ export const displayNames: { [key: string]: string } = {
   profileOverview: "Profile Overview",
   favoritesSummary: "Favourites Summary",
   favoritesGrid: "Favourites Grid",
+  activityHeatmap: "Activity Heatmap",
+  recentActivitySummary: "Recent Activity Summary",
+  recentActivityFeed: "Recent Activity Feed",
+  activityStreaks: "Activity Streaks",
+  activityPatterns: "Activity Patterns",
+  topActivityDays: "Top Activity Days",
 };
+
+/**
+ * Returns whether the provided card type string corresponds to a supported
+ * base card type. Accepts values with optional suffix variants (e.g.
+ * "animeStats-vertical") and validates against the server-known
+ * `displayNames` mapping.
+ * @param candidate - Card type string to validate.
+ * @returns true when the base card type is supported, false otherwise.
+ */
+export function isValidCardType(candidate: unknown): boolean {
+  if (typeof candidate !== "string" || candidate.trim().length === 0) {
+    return false;
+  }
+  const [base] = candidate.split("-");
+  return Object.prototype.hasOwnProperty.call(displayNames, base);
+}
 
 /**
  * Extracts favourite names from a user's favourites block for a card base type.

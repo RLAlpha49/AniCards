@@ -9,6 +9,14 @@ import {
   favoritesSummaryTemplate,
   favoritesGridTemplate,
 } from "@/lib/svg-templates/profile-favorite-stats";
+import {
+  activityHeatmapTemplate,
+  recentActivitySummaryTemplate,
+  recentActivityFeedTemplate,
+  activityStreaksTemplate,
+  activityPatternsTemplate,
+  topActivityDaysTemplate,
+} from "@/lib/svg-templates/activity-stats";
 import { TrustedSVG } from "@/lib/types/svg";
 import {
   StoredCardConfig,
@@ -53,7 +61,9 @@ type CardGenVariant =
   | "anime"
   | "manga"
   | "characters"
-  | "mixed";
+  | "mixed"
+  | "github"
+  | "fire";
 
 /** @source */
 type StatsVariant = "default" | "vertical" | "minimal";
@@ -113,11 +123,6 @@ function normalizeVariant(
     return "mixed" as CardGenVariant;
   }
 
-  // Check if variant is in global variants
-  if (!globalVariants.has(variant as CardGenVariant)) {
-    return "default";
-  }
-
   // Allowed variant sets for groups of card types
   const statsVariants = new Set<CardGenVariant>([
     "default",
@@ -156,6 +161,12 @@ function normalizeVariant(
     mangaYearDistribution: distributionVariants,
     profileOverview: socialVariants,
     favoritesSummary: socialVariants,
+    activityHeatmap: new Set<CardGenVariant>(["default", "github", "fire"]),
+    recentActivitySummary: new Set<CardGenVariant>(["default"]),
+    recentActivityFeed: new Set<CardGenVariant>(["default"]),
+    activityStreaks: new Set<CardGenVariant>(["default"]),
+    activityPatterns: new Set<CardGenVariant>(["default"]),
+    topActivityDays: new Set<CardGenVariant>(["default"]),
   };
 
   const allowedVariants = variantMap[baseCardType!];
@@ -163,6 +174,10 @@ function normalizeVariant(
     return allowedVariants.has(variant as CardGenVariant)
       ? (variant as CardGenVariant)
       : "default";
+  }
+
+  if (!globalVariants.has(variant as CardGenVariant)) {
+    return "default";
   }
 
   return globalVariants.has(variant as CardGenVariant)
@@ -323,6 +338,19 @@ export async function generateCardSvg(
       return generateFavoritesSummaryCard(params);
     case "favoritesGrid":
       return generateFavoritesGridCard(params);
+    case "activityHeatmap":
+      return generateActivityHeatmapCard(params);
+    case "recentActivitySummary":
+      return generateRecentActivitySummaryCard(params);
+    case "recentActivityFeed":
+      return generateRecentActivityFeedCard(params);
+    case "activityStreaks":
+      return generateActivityStreaksCard(params);
+    case "activityPatterns":
+      return generateActivityPatternsCard(params);
+    case "topActivityDays":
+      return generateTopActivityDaysCard(params);
+
     default:
       throw new CardDataError("Unsupported card type", 400);
   }
@@ -677,6 +705,129 @@ async function generateFavoritesGridCard(
     favourites: embeddedFavourites,
     gridCols: params.favoritesGridCols,
     gridRows: params.favoritesGridRows,
+  });
+}
+
+/** Variant type for activity heatmap cards. @source */
+type ActivityHeatmapVariant = "default" | "github" | "fire";
+
+/** Variant type for activity summary/streaks cards. @source */
+type ActivityVariant = "default";
+
+/** Variant type for activity feed/patterns cards. @source */
+type ActivityCompactVariant = "default";
+
+/**
+ * Generate an Activity Heatmap card showing a GitHub-style calendar.
+ * @param params - Card generation parameters and options.
+ * @returns A TrustedSVG with the rendered activity heatmap card.
+ * @source
+ */
+function generateActivityHeatmapCard(params: CardGenerationParams): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  const activityHistory = userRecord.stats?.User?.stats?.activityHistory ?? [];
+
+  return activityHeatmapTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ActivityHeatmapVariant,
+    styles: extractStyles(cardConfig),
+    activityHistory,
+  });
+}
+
+/**
+ * Generate a Recent Activity Summary card with sparkline.
+ * @param params - Card generation parameters and options.
+ * @returns A TrustedSVG with the rendered activity summary card.
+ * @source
+ */
+function generateRecentActivitySummaryCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  const activityHistory = userRecord.stats?.User?.stats?.activityHistory ?? [];
+
+  return recentActivitySummaryTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ActivityVariant,
+    styles: extractStyles(cardConfig),
+    activityHistory,
+  });
+}
+
+/**
+ * Generate a Recent Activity Feed card showing recent activity entries.
+ * @param params - Card generation parameters and options.
+ * @returns A TrustedSVG with the rendered activity feed card.
+ * @source
+ */
+function generateRecentActivityFeedCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  const activityHistory = userRecord.stats?.User?.stats?.activityHistory ?? [];
+
+  return recentActivityFeedTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ActivityCompactVariant,
+    styles: extractStyles(cardConfig),
+    activityHistory,
+  });
+}
+
+/**
+ * Generate an Activity Streaks card showing current and longest streaks.
+ * @param params - Card generation parameters and options.
+ * @returns A TrustedSVG with the rendered activity streaks card.
+ * @source
+ */
+function generateActivityStreaksCard(params: CardGenerationParams): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  const activityHistory = userRecord.stats?.User?.stats?.activityHistory ?? [];
+
+  return activityStreaksTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ActivityVariant,
+    styles: extractStyles(cardConfig),
+    activityHistory,
+  });
+}
+
+/**
+ * Generate an Activity Patterns card showing day-of-week distribution.
+ * @param params - Card generation parameters and options.
+ * @returns A TrustedSVG with the rendered activity patterns card.
+ * @source
+ */
+function generateActivityPatternsCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  const activityHistory = userRecord.stats?.User?.stats?.activityHistory ?? [];
+
+  return activityPatternsTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ActivityCompactVariant,
+    styles: extractStyles(cardConfig),
+    activityHistory,
+  });
+}
+
+/**
+ * Generate a Top Activity Days card showing days with the highest activity.
+ * @param params - Card generation parameters and options.
+ * @returns A TrustedSVG with the rendered top activity days card.
+ * @source
+ */
+function generateTopActivityDaysCard(params: CardGenerationParams): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  const activityHistory = userRecord.stats?.User?.stats?.activityHistory ?? [];
+
+  return topActivityDaysTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ActivityCompactVariant,
+    styles: extractStyles(cardConfig),
+    activityHistory,
   });
 }
 

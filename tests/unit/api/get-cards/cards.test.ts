@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import {
   sharedRedisMockGet,
   sharedRedisMockIncr,
+  sharedRedisMockSet,
 } from "@/tests/unit/__setup__.test";
 
 const { GET, OPTIONS } = await import("@/app/api/get-cards/route");
@@ -129,7 +130,7 @@ describe("Cards API GET Endpoint", () => {
       expect(json).toEqual(cardData);
     });
 
-    it("should handle multiple cards in response", async () => {
+    it("should return stored card data unchanged (including unsupported types)", async () => {
       const cardData = {
         cards: [
           { cardName: "animeStats", titleColor: "#000" },
@@ -145,7 +146,34 @@ describe("Cards API GET Endpoint", () => {
       expect(res.status).toBe(200);
       const json = await getResponseJson(res);
       expect(json.cards).toHaveLength(3);
-      expect(json).toEqual(cardData);
+      expect(json.cards.map((c: { cardName: string }) => c.cardName)).toEqual([
+        "animeStats",
+        "mangaStats",
+        "activityFeed",
+      ]);
+    });
+
+    it("should return stored data including unsupported card types and not persist changes in GET", async () => {
+      const cardData = {
+        cards: [
+          { cardName: "animeStats", titleColor: "#000" },
+          { cardName: "invalidCardType", titleColor: "#fff" },
+        ],
+      };
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(cardData));
+
+      const req = new Request(`${baseUrl}?userId=101`, {
+        headers: { "x-forwarded-for": "127.0.0.1" },
+      });
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+      const json = await getResponseJson(res);
+      expect(json.cards.map((c: { cardName: string }) => c.cardName)).toEqual([
+        "animeStats",
+        "invalidCardType",
+      ]);
+
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
     });
 
     it("should handle empty cards array", async () => {

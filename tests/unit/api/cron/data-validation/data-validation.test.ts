@@ -4,6 +4,7 @@ import {
   sharedRedisMockGet,
   sharedRedisMockLrange,
   sharedRedisMockRpush,
+  sharedRedisMockSet,
 } from "@/tests/unit/__setup__.test";
 
 interface ValidationIssue {
@@ -576,6 +577,62 @@ describe("Data Validation Cron API POST Endpoint", () => {
       const report = await expectValidationReport(res);
 
       expect(reportHasIssueSubstring(report, "cardName")).toBeTruthy();
+    });
+
+    it("should remove unsupported card types and persist cleaned record", async () => {
+      const cardsWithInvalid = {
+        userId: 1,
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            titleColor: "#000",
+            backgroundColor: "#fff",
+            textColor: "#333",
+            circleColor: "#111",
+          },
+          {
+            cardName: "notARealCard",
+            variation: "default",
+            titleColor: "#000",
+            backgroundColor: "#fff",
+            textColor: "#333",
+            circleColor: "#111",
+          },
+        ],
+        updatedAt: "2021-01-02T00:00:00Z",
+      };
+
+      sharedRedisMockKeys
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce(["cards:1"])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify(cardsWithInvalid),
+      );
+      sharedRedisMockRpush.mockResolvedValue(1);
+
+      const req = createCronRequest();
+      const res = await POST(req);
+      const report = await expectValidationReport(res);
+
+      // Report should include the removal entry
+      expect(
+        reportHasIssueSubstring(report, "Removed unsupported card types"),
+      ).toBeTruthy();
+
+      // Ensure the cleaned record was persisted via Redis set
+      expect(sharedRedisMockSet).toHaveBeenCalledWith(
+        "cards:1",
+        expect.any(String),
+      );
+
+      const cleaned = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(
+        cleaned.cards.map((c: { cardName: string }) => c.cardName),
+      ).toEqual(["animeStats"]);
     });
 
     it("should report missing variation in card", async () => {

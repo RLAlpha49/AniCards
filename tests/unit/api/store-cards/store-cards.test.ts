@@ -153,6 +153,27 @@ describe("Store Cards API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(500);
     });
+
+    it("should reject invalid card types", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 1,
+        statsData: {},
+        cards: [
+          {
+            cardName: "invalidCardType",
+            variation: "default",
+            titleColor: "#000",
+            backgroundColor: "#fff",
+            textColor: "#333",
+            circleColor: "#f00",
+          },
+        ],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+    });
   });
 
   describe("Basic Storage", () => {
@@ -213,11 +234,45 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
     });
 
-    it("should reject when more than the allowed number of card types are provided", async () => {
+    it("should remove unsupported stored card types when saving", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 1;
+      const existing = {
+        userId,
+        cards: [
+          {
+            cardName: "invalidCardType",
+            variation: "default",
+            titleColor: "#000",
+            backgroundColor: "#fff",
+            textColor: "#111",
+            circleColor: "#222",
+          },
+        ],
+        updatedAt: new Date().toISOString(),
+      };
+
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(existing));
+
+      const req = createRequest({ userId, statsData: {}, cards: [] });
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const expectedKey = `cards:${userId}`;
+      expect(sharedRedisMockSet).toHaveBeenCalledWith(
+        expectedKey,
+        expect.any(String),
+      );
+
+      const storedData = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(storedData.cards).toHaveLength(0);
+    });
+
+    it("should accept duplicate entries that don't increase unique types", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const userId = 1;
       const available = Object.keys(displayNames);
-      // Build a payload with available + 1 cards (duplicate last card)
+      // Build a payload with available + 1 entry but duplicate of the first card
       const cardsPayload = available
         .map((cardName) => ({
           cardName,
@@ -230,6 +285,36 @@ describe("Store Cards API POST Endpoint", () => {
         .concat([
           {
             cardName: available[0],
+            variation: "default",
+            titleColor: "#111",
+            backgroundColor: "#fff",
+            textColor: "#000",
+            circleColor: "#f00",
+          },
+        ]);
+
+      const req = createRequest({ userId, statsData: {}, cards: cardsPayload });
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+    });
+
+    it("should reject when more than the allowed number of unique card types are provided", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 1;
+      const available = Object.keys(displayNames);
+      // Build a payload with available + 1 unique card types
+      const cardsPayload = available
+        .map((cardName) => ({
+          cardName,
+          variation: "default",
+          titleColor: "#111",
+          backgroundColor: "#fff",
+          textColor: "#000",
+          circleColor: "#f00",
+        }))
+        .concat([
+          {
+            cardName: "extra_card_type_1",
             variation: "default",
             titleColor: "#111",
             backgroundColor: "#fff",
@@ -747,7 +832,7 @@ describe("Store Cards API POST Endpoint", () => {
         statsData: { score: 42 },
         cards: [
           {
-            cardName: "badData",
+            cardName: "animeStats",
             variation: "default",
             titleColor: "#000",
             backgroundColor: "#fff",
@@ -772,7 +857,7 @@ describe("Store Cards API POST Endpoint", () => {
         statsData: {},
         cards: [
           {
-            cardName: "card",
+            cardName: "animeStats",
             variation: "default",
             titleColor: "#000",
             backgroundColor: "#fff",

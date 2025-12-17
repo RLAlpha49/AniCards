@@ -47,7 +47,8 @@ export async function GET(request: Request) {
       return jsonWithCors({ error: "Cards not found" }, request, 404);
     }
 
-    const cardData: CardsRecord = safeParse<CardsRecord>(cardDataStr);
+    let cardData: CardsRecord = safeParse<CardsRecord>(cardDataStr);
+
     console.log(
       `✅ [Cards API] Successfully returned card data for user ${numericUserId} [${duration}ms]`,
     );
