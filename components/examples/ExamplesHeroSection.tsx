@@ -19,6 +19,7 @@ interface HeroSectionProps {
   onSearchChange: (value: string) => void;
   stats: {
     mainStats: number;
+    profileFavourites: number;
     animeBreakdowns: number;
     mangaBreakdowns: number;
     totalVariants: number;
@@ -45,6 +46,13 @@ const STAT_CATEGORIES = [
     icon: BarChart2,
     bg: "bg-blue-100 dark:bg-blue-900/30",
     text: "text-blue-600 dark:text-blue-400",
+  },
+  {
+    key: "profileFavourites",
+    label: "Profile & Favourites",
+    icon: Sparkles,
+    bg: "bg-teal-100 dark:bg-teal-900/30",
+    text: "text-teal-600 dark:text-teal-400",
   },
   {
     key: "animeBreakdowns",
@@ -152,7 +160,7 @@ export function ExamplesHeroSection({
 
           <motion.div
             variants={itemVariants}
-            className="grid grid-cols-2 gap-4 sm:grid-cols-4"
+            className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5"
           >
             {STAT_CATEGORIES.map((stat) => {
               const Icon = stat.icon;

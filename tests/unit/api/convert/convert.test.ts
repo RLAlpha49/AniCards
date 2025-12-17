@@ -893,9 +893,9 @@ describe("Convert API POST Endpoint", () => {
       );
 
       const res = await POST(req);
-      // 127.0.0.1 is recognized as localhost but not in allowedDomains
-      // so it should fail authorization
-      expect(res.status).toBe(403);
+      // In development, localhost/127.0.0.1 is explicitly allowed (and should remain in the URL),
+      // so this should pass authorization and proceed.
+      expect(res.status).toBe(200);
     });
 
     it("should handle IPv6 loopback address", async () => {

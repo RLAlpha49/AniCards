@@ -127,16 +127,75 @@ export const USER_STATS_QUERY = `
           amount
         }
       }
+      name
+      avatar {
+        large
+        medium
+      }
+      createdAt
       favourites {
-        staff {
+        anime (page: 1, perPage: 25) {
+          nodes {
+            id
+            title {
+              english
+              romaji
+              native
+            }
+            coverImage {
+              large
+              medium
+              color
+            }
+            format
+            genres
+          }
+        }
+        manga (page: 1, perPage: 25) {
+          nodes {
+            id
+            title {
+              english
+              romaji
+              native
+            }
+            coverImage {
+              large
+              medium
+              color
+            }
+            format
+            genres
+          }
+        }
+        characters (page: 1, perPage: 25) {
           nodes {
             id
             name {
               full
+              native
+            }
+            image {
+              large
+              medium
             }
           }
         }
-        studios {
+        staff (page: 1, perPage: 25) {
+          nodes {
+            id
+            name {
+              full
+              native
+            }
+            image {
+              large
+              medium
+            }
+            primaryOccupations
+          }
+        }
+        studios (page: 1, perPage: 25) {
           nodes {
             id
             name
@@ -182,42 +241,6 @@ export const USER_STATS_QUERY = `
       }
       reviews(userId: $userId) {
         id
-      }
-    }
-  }
-`;
-
-/**
- * GraphQL query that retrieves a user's favorite staff, studios and characters
- * used by the generator to render favorite-related cards.
- * @source
- */
-export const USER_FAVORITES_QUERY = `
-  query GetUserFavorites($userId: Int!) {
-    User(id: $userId) {
-      favourites {
-        staff {
-          nodes {
-            id
-            name {
-              full
-            }
-          }
-        }
-        studios {
-          nodes {
-            id
-            name
-          }
-        }
-        characters {
-          nodes {
-            id
-            name {
-              full
-            }
-          }
-        }
       }
     }
   }

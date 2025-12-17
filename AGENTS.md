@@ -56,9 +56,30 @@ _Use these thinking tools whenever applicable, not just for the largest changes.
 
 ## Subagent (runSubagent)
 
-- This workspace supports a `runSubagent` tool to launch a single-run, stateless autonomous agent for bounded, repeatable tasks (e.g., repo-scoped refactors, triage, or research).
-- Use the subagent where tasks can be completed autonomously and include explicit validation steps (e.g., lints/tests). Use the subagent when possible/useful to automate repeatable, bounded tasks that don't require continuous human interaction.
-- For templates, examples, and detailed guidance, see the Serena memory `subagent-usage` (use `read_memory` to access the reference).
+Subagents are powerful autonomous agents designed to handle complex, multi-step tasks efficiently. They operate statelessly, meaning each invocation is independent, and they can complete tasks without ongoing interaction. Use subagents frequently to accelerate development, especially for research, refactoring, or repetitive tasks.
+
+### When to Use Subagents
+
+- **Research and Planning**: For gathering information, analyzing codebases, or outlining multi-step plans (e.g., "Research best practices for [topic] and provide a plan").
+- **Code Refactoring**: Repo-scoped changes like renaming symbols, updating patterns, or cleaning up code across multiple files.
+- **Triage and Debugging**: Investigating issues, running tests, or analyzing errors in large codebases.
+- **Automation**: Repeatable tasks such as generating tests, updating dependencies, or applying code standards.
+- **Complex Edits**: When a task involves multiple files, requires deep analysis, or benefits from specialized expertise (e.g., accessibility, performance).
+
+### Best Practices for Effective Subagent Use
+
+- **Be Specific**: Provide detailed prompts with clear goals, constraints, and expected outputs. Include validation steps (e.g., "Run tests after changes").
+- **Choose the Right Agent**: Select from available subagents based on expertise (e.g., "Expert Next.js Developer" for routing issues).
+- **Bound Tasks**: Ensure tasks are self-contained and completable in one run. Avoid open-ended or interactive tasks.
+- **Validation**: Always include steps for verification, such as running lints, tests, or builds.
+- **Leverage Memories**: Reference relevant project memories for context to improve subagent accuracy.
+
+### Examples
+
+- **Refactor API Routes**: "Refactor all API routes in `/api` to use the new error handling pattern from memory `error-handling-implementation`. Run tests and lint after changes."
+- **Accessibility Audit**: "Use Accessibility Expert to audit components in `/components` for WCAG compliance. Provide a report with fixes."
+- **Performance Optimization**: "Analyze and optimize bundle size in Next.js app. Suggest changes and implement them."
+- **Code Cleanup**: "Use Janitor to remove unused imports and simplify code across the project."
 
 ## Memory Strategy
 

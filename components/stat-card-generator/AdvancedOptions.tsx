@@ -169,7 +169,14 @@ function AdvancedOptionsComponent() {
     handleToggleAnimeStatusColors,
     handleToggleMangaStatusColors,
     handleToggleShowPiePercentages,
-  } = useGeneratorContext();
+  } = useGeneratorContext() as unknown as {
+    useAnimeStatusColors: boolean;
+    useMangaStatusColors: boolean;
+    showPiePercentages: boolean;
+    handleToggleAnimeStatusColors: () => void;
+    handleToggleMangaStatusColors: () => void;
+    handleToggleShowPiePercentages: () => void;
+  };
 
   // Define option items for cleaner rendering
   const statusColorOptions = [

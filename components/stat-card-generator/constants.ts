@@ -30,6 +30,24 @@ const socialStatsVariations = [
   { id: "minimal", label: "Minimal" },
 ];
 
+const profileMainVariations = [
+  { id: "default", label: "Default" },
+  { id: "compact", label: "Compact" },
+  { id: "minimal", label: "Minimal" },
+];
+
+const profileCompactVariations = [
+  { id: "default", label: "Default" },
+  { id: "compact", label: "Compact" },
+];
+
+const favoritesGridVariations = [
+  { id: "anime", label: "Anime Grid" },
+  { id: "manga", label: "Manga Grid" },
+  { id: "characters", label: "Character Grid" },
+  { id: "mixed", label: "Mixed Favourites" },
+];
+
 const createCardType = (
   id: string,
   group: string,
@@ -91,6 +109,24 @@ const distributionCards = [
   },
 ];
 
+const profileFavouritesCards = [
+  {
+    id: "profileOverview",
+    label: "Profile Overview (Avatar + Totals)",
+    variations: profileMainVariations,
+  },
+  {
+    id: "favoritesSummary",
+    label: "Favourites Summary",
+    variations: profileMainVariations,
+  },
+  {
+    id: "favoritesGrid",
+    label: "Favourites Grid",
+    variations: favoritesGridVariations,
+  },
+];
+
 export const statCardTypes = [
   createCardType(
     "animeStats",
@@ -122,6 +158,14 @@ export const statCardTypes = [
       card.group,
       card.label,
       verticalHorizontalVariations,
+    ),
+  ),
+  ...profileFavouritesCards.map((card) =>
+    createCardType(
+      card.id,
+      "Profile & Favourites",
+      card.label,
+      card.variations,
     ),
   ),
 ];

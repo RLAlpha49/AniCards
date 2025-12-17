@@ -151,6 +151,19 @@ function buildCardConfig(
     }
   }
 
+  const clampGridDim = (value: unknown): number | undefined => {
+    if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+    const n = Math.trunc(value);
+    if (n < 1) return 1;
+    if (n > 5) return 5;
+    return n;
+  };
+
+  const resolvedGridCols =
+    clampGridDim(incoming.gridCols) ?? clampGridDim(previous?.gridCols);
+  const resolvedGridRows =
+    clampGridDim(incoming.gridRows) ?? clampGridDim(previous?.gridRows);
+
   return {
     cardName: incoming.cardName,
     variation: incoming.variation,
@@ -164,6 +177,8 @@ function buildCardConfig(
     showFavorites: effectiveShowFavorites,
     useStatusColors: incoming.useStatusColors,
     showPiePercentages: effectiveShowPiePercentages,
+    gridCols: resolvedGridCols,
+    gridRows: resolvedGridRows,
   };
 }
 

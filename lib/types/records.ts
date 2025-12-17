@@ -88,34 +88,115 @@ export interface UserStatistics {
   manga: MangaStats;
 }
 
+/** Title structure for anime/manga with multiple language options. @source */
+export interface MediaTitle {
+  english?: string;
+  romaji?: string;
+  native?: string;
+}
+
+/** Cover image structure for anime/manga with size variants and color. @source */
+export interface MediaCoverImage {
+  large?: string;
+  medium?: string;
+  color?: string;
+}
+
+/** A favorite anime node with title, cover, format, and genres. @source */
+export interface FavoriteAnimeNode {
+  id: number;
+  title: MediaTitle;
+  coverImage: MediaCoverImage;
+  format?: string;
+  genres?: string[];
+}
+
+/** A favorite manga node with title, cover, format, and genres. @source */
+export interface FavoriteMangaNode {
+  id: number;
+  title: MediaTitle;
+  coverImage: MediaCoverImage;
+  format?: string;
+  genres?: string[];
+}
+
+/** Character image structure with size variants. @source */
+export interface CharacterImage {
+  large?: string;
+  medium?: string;
+}
+
+/** A favorite character node with name and image. @source */
+export interface FavoriteCharacterNode {
+  id: number;
+  name: {
+    full: string;
+    native?: string;
+  };
+  image: CharacterImage;
+}
+
+/** Staff image structure with size variants. @source */
+export interface StaffImage {
+  large?: string;
+  medium?: string;
+}
+
+/** A favorite staff node with name, image, and occupations. @source */
+export interface FavoriteStaffNode {
+  id: number;
+  name: {
+    full: string;
+    native?: string;
+  };
+  image: StaffImage;
+  primaryOccupations?: string[];
+}
+
+/** A favorite studio node with name. @source */
+export interface FavoriteStudioNode {
+  id: number;
+  name: string;
+}
+
+/** Favourites container with anime, manga, characters, staff, and studios. @source */
+export interface UserFavourites {
+  anime?: {
+    nodes: FavoriteAnimeNode[];
+    pageInfo?: PageInfo;
+  };
+  manga?: {
+    nodes: FavoriteMangaNode[];
+    pageInfo?: PageInfo;
+  };
+  characters?: {
+    nodes: FavoriteCharacterNode[];
+    pageInfo?: PageInfo;
+  };
+  staff: {
+    nodes: FavoriteStaffNode[];
+    pageInfo?: PageInfo;
+  };
+  studios: {
+    nodes: FavoriteStudioNode[];
+    pageInfo?: PageInfo;
+  };
+}
+
+/** User avatar structure with size variants. @source */
+export interface UserAvatar {
+  large?: string;
+  medium?: string;
+}
+
 /** User section returned by AniList GraphQL for a User entry. @source */
 export interface UserSection {
   stats: ActivityStats;
-  favourites: {
-    staff: {
-      nodes: {
-        id: number;
-        name: {
-          full: string;
-        };
-      }[];
-    };
-    studios: {
-      nodes: {
-        id: number;
-        name: string;
-      }[];
-    };
-    characters?: {
-      nodes: {
-        id: number;
-        name: {
-          full: string;
-        };
-      }[];
-    };
-  };
+  favourites: UserFavourites;
   statistics: UserStatistics;
+  name?: string;
+  avatar?: UserAvatar;
+  createdAt?: number;
 }
 
 /** A single activity history item with a date (epoch seconds) and numeric amount. @source */
@@ -216,6 +297,9 @@ export interface StoredCardConfig {
   useStatusColors?: boolean;
   // Whether to show percentages in pie chart legends (only meaningful for pie variants)
   showPiePercentages?: boolean;
+  // Favorites grid layout (only meaningful for the favoritesGrid card)
+  gridCols?: number;
+  gridRows?: number;
 }
 
 /** Cards record in storage containing a userId, a list of stored card configs and update timestamp. @source */

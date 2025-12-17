@@ -31,18 +31,10 @@ interface SubmitParams {
   borderEnabled?: boolean;
   borderColor?: string;
   borderRadius?: number;
-}
-
-/**
- * Enhanced error information with recovery suggestions.
- * @source
- */
-interface ErrorInfo {
-  error: Error;
-  details?: ErrorDetails;
-  statusCode?: number;
-  username?: string;
-  retryable?: boolean;
+  favoritesGrid?: {
+    columns: number;
+    rows: number;
+  };
 }
 
 /**
@@ -75,6 +67,7 @@ function buildCardsPayload(params: {
   borderColor?: string;
   borderRadius?: number;
   showFavoritesByCard: Record<string, boolean>;
+  favoritesGrid?: { columns: number; rows: number };
 }) {
   const {
     selectedCards,
@@ -87,7 +80,16 @@ function buildCardsPayload(params: {
     borderColor,
     borderRadius,
     showFavoritesByCard,
+    favoritesGrid,
   } = params;
+
+  const clampGridDim = (n: number | undefined, fallback: number): number => {
+    if (typeof n !== "number" || !Number.isFinite(n)) return fallback;
+    return Math.max(1, Math.min(5, Math.trunc(n)));
+  };
+
+  const resolvedGridCols = clampGridDim(favoritesGrid?.columns, 3);
+  const resolvedGridRows = clampGridDim(favoritesGrid?.rows, 3);
 
   return selectedCards.map((cardId) => {
     // Card identifiers may include a variation suffix, e.g. `cardName-variation`.
@@ -107,6 +109,12 @@ function buildCardsPayload(params: {
         : {}),
       ...(cardName === "mangaStatusDistribution" && useMangaStatusColors
         ? { useStatusColors: true }
+        : {}),
+      ...(cardName === "favoritesGrid"
+        ? {
+            gridCols: resolvedGridCols,
+            gridRows: resolvedGridRows,
+          }
         : {}),
       ...(borderEnabled && borderColor ? { borderColor } : {}),
       ...(borderEnabled && typeof borderRadius === "number"
@@ -552,6 +560,7 @@ export function useStatCardSubmit() {
     borderEnabled,
     borderColor,
     borderRadius,
+    favoritesGrid,
   }: SubmitParams): Promise<{ success: boolean; userId?: string }> => {
     setLoading(true);
     setError(null);
@@ -611,6 +620,7 @@ export function useStatCardSubmit() {
         borderColor,
         borderRadius,
         showFavoritesByCard,
+        favoritesGrid,
       });
 
       // The store endpoints deduplicate by userId/username (with upsert semantics), so retrying the same payload is safe.

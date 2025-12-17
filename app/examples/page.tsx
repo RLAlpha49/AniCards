@@ -11,6 +11,8 @@ import {
   Mic,
   Building2,
   BookOpen,
+  Heart,
+  LayoutGrid,
 } from "lucide-react";
 import {
   CARD_GROUPS,
@@ -81,6 +83,32 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
     category: "Main Stats",
     icon: Users,
     color: "green",
+  },
+
+  // Profile & Favourites
+  {
+    title: "Profile Overview",
+    description:
+      "Avatar, banner, and key profile totals in a clean overview card",
+    category: "Profile & Favourites",
+    icon: Users,
+    color: "teal",
+  },
+  {
+    title: "Favourites Summary",
+    description:
+      "Quick summary of favourite anime, manga, and characters in one card",
+    category: "Profile & Favourites",
+    icon: Heart,
+    color: "rose",
+  },
+  {
+    title: "Favourites Grid",
+    description:
+      "Customisable grid showing favourite anime, manga, characters, or mixed",
+    category: "Profile & Favourites",
+    icon: LayoutGrid,
+    color: "orange",
   },
 
   // Anime Breakdowns
@@ -218,6 +246,7 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
 
 const CATEGORIES = [
   "Main Stats",
+  "Profile & Favourites",
   "Anime Breakdowns",
   "Manga Breakdowns",
 ] as const;
@@ -346,6 +375,9 @@ export default function ExamplesPage() {
     () => ({
       mainStats: cardTypesWithVariants.filter(
         (c) => c.category === "Main Stats",
+      ).length,
+      profileFavourites: cardTypesWithVariants.filter(
+        (c) => c.category === "Profile & Favourites",
       ).length,
       animeBreakdowns: cardTypesWithVariants.filter(
         (c) => c.category === "Anime Breakdowns",

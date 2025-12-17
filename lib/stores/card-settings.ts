@@ -28,6 +28,10 @@ export interface CardSettingsState {
   defaultVariants: Record<string, string>;
   /** Show favorites flag per card ID */
   defaultShowFavoritesByCard: Record<string, boolean>;
+  /** Default favorites grid column count */
+  favoritesGridColumns: number;
+  /** Default favorites grid row count */
+  favoritesGridRows: number;
   /** Whether borders are enabled by default */
   defaultBorderEnabled: boolean;
   /** Default border color (hex string) */
@@ -55,6 +59,10 @@ export interface CardSettingsActions {
   toggleCardType: (cardId: string) => void;
   /** Set variant for a card type */
   setDefaultVariant: (cardId: string, variant: string) => void;
+  /** Set favorites grid columns */
+  setFavoritesGridColumns: (columns: number) => void;
+  /** Set favorites grid rows */
+  setFavoritesGridRows: (rows: number) => void;
   /** Toggle show favorites for a card */
   toggleShowFavorites: (cardId: string) => void;
   /** Update border enabled state */
@@ -86,6 +94,8 @@ const defaultState: CardSettingsState = {
   defaultCardTypes: [],
   defaultVariants: {},
   defaultShowFavoritesByCard: {},
+  favoritesGridColumns: 3,
+  favoritesGridRows: 3,
   defaultBorderEnabled: false,
   defaultBorderColor: "#e4e2e2",
   defaultBorderRadius: DEFAULT_CARD_BORDER_RADIUS,
@@ -93,6 +103,11 @@ const defaultState: CardSettingsState = {
   useMangaStatusColors: false,
   showPiePercentages: false,
 };
+
+function clampGridSetting(value: number): number {
+  const n = Number.isFinite(value) ? Math.round(value) : 3;
+  return Math.max(1, Math.min(5, n));
+}
 
 const customStorage = createJSONStorage<CardSettingsStore>(() =>
   createBackwardCompatibleStorage(),
@@ -210,6 +225,22 @@ export const useCardSettings = create<CardSettingsStore>()(
             { defaultVariants: { ...defaultVariants, [cardId]: variant } },
             false,
             "setDefaultVariant",
+          );
+        },
+
+        setFavoritesGridColumns: (columns: number) => {
+          set(
+            { favoritesGridColumns: clampGridSetting(columns) },
+            false,
+            "setFavoritesGridColumns",
+          );
+        },
+
+        setFavoritesGridRows: (rows: number) => {
+          set(
+            { favoritesGridRows: clampGridSetting(rows) },
+            false,
+            "setFavoritesGridRows",
           );
         },
 

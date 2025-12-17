@@ -66,6 +66,9 @@ const displayNamesMap: { [key: string]: string } = {
   mangaYearDistribution: "Manga Years",
   animeCountry: "Anime Countries",
   mangaCountry: "Manga Countries",
+  profileOverview: "Profile Overview",
+  favoritesSummary: "Favourites Summary",
+  favoritesGrid: "Favourites Grid",
 };
 
 // Export for backward compatibility

@@ -22,6 +22,8 @@ export function needsCardConfigFromDb(params: {
   piePercentagesParam?: string | null;
   baseCardType?: string;
   variationParam?: string | null;
+  gridColsParam?: string | null;
+  gridRowsParam?: string | null;
 }): boolean {
   if (params.colorPresetParam === "custom") {
     return true;
@@ -68,6 +70,15 @@ export function needsCardConfigFromDb(params: {
   // Pie chart percentages only matter in pie variations
   const pieRelevant = variation === "pie";
   if (pieRelevant && params.piePercentagesParam == null) return true;
+
+  // Favorites grid layout is only meaningful for the favoritesGrid card.
+  const favoritesGridRelevant = baseType === "favoritesGrid";
+  if (
+    favoritesGridRelevant &&
+    (params.gridColsParam == null || params.gridRowsParam == null)
+  ) {
+    return true;
+  }
 
   // If we reached here, the URL includes enough params to build a complete
   // card configuration without needing the database.
@@ -290,6 +301,8 @@ export function buildCardConfigFromParams(params: {
   showFavoritesParam: string | null;
   statusColorsParam: string | null;
   piePercentagesParam: string | null;
+  gridColsParam?: string | null;
+  gridRowsParam?: string | null;
   colorPresetParam?: string | null;
   titleColorParam?: string | null;
   backgroundColorParam?: string | null;
@@ -317,6 +330,18 @@ export function buildCardConfigFromParams(params: {
 
   // Apply border params
   applyBorderOverrides(config, params);
+
+  // Favorites grid layout params (only meaningful for favoritesGrid)
+  if (params.baseCardType === "favoritesGrid") {
+    const clampGridDim = (raw: string | null | undefined, fallback: number) => {
+      if (raw === null || raw === undefined) return fallback;
+      const parsed = Number.parseInt(raw, 10);
+      if (Number.isNaN(parsed)) return fallback;
+      return Math.max(1, Math.min(5, parsed));
+    };
+    config.gridCols = clampGridDim(params.gridColsParam, 3);
+    config.gridRows = clampGridDim(params.gridRowsParam, 3);
+  }
 
   // Apply boolean flags using a utility function to reduce cognitive
   applyBooleanOverridesForBuild(config, params);
@@ -350,6 +375,8 @@ export function processCardConfig(
     showFavoritesParam: string | null;
     statusColorsParam: string | null;
     piePercentagesParam: string | null;
+    gridColsParam?: string | null;
+    gridRowsParam?: string | null;
     colorPresetParam?: string | null;
     titleColorParam?: string | null;
     backgroundColorParam?: string | null;
@@ -385,6 +412,19 @@ export function processCardConfig(
   applyColorOverrides(effectiveCardConfig, params);
   applyBorderOverrides(effectiveCardConfig, params);
 
+  // Favorites grid layout params (only meaningful for favoritesGrid)
+  if (params.baseCardType === "favoritesGrid") {
+    const clampGridDim = (raw: string | null | undefined, fallback: number) => {
+      if (raw === null || raw === undefined) return fallback;
+      const parsed = Number.parseInt(raw, 10);
+      if (Number.isNaN(parsed)) return fallback;
+      return Math.max(1, Math.min(5, parsed));
+    };
+    effectiveCardConfig.gridCols = clampGridDim(params.gridColsParam, 3);
+    effectiveCardConfig.gridRows = clampGridDim(params.gridRowsParam, 3);
+  }
+
+  // Apply boolean-like overrides and compute favorites list
   const favorites = applyBooleanOverridesForProcess(
     effectiveCardConfig,
     params,

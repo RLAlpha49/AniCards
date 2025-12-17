@@ -8,6 +8,7 @@ import {
   validateColorValue,
   getColorInvalidReason,
 } from "@/lib/utils";
+import { displayNames } from "@/lib/card-data/validation";
 
 /**
  * Optional keep-alive HTTP(S) agent used only in Node runtimes to improve
@@ -665,6 +666,34 @@ function validateCardOptionalFields(
   );
   if (borderRadiusError) return borderRadiusError;
 
+  const gridColsValue = card.gridCols;
+  if (gridColsValue !== undefined) {
+    const n = Number(gridColsValue);
+    if (!Number.isInteger(n) || n < 1 || n > 5) {
+      console.warn(
+        `⚠️ [${endpoint}] Card ${cardIndex} gridCols must be an integer between 1 and 5`,
+      );
+      return NextResponse.json(
+        { error: "Invalid data" },
+        { status: 400, headers: apiJsonHeaders(request) },
+      );
+    }
+  }
+
+  const gridRowsValue = card.gridRows;
+  if (gridRowsValue !== undefined) {
+    const n = Number(gridRowsValue);
+    if (!Number.isInteger(n) || n < 1 || n > 5) {
+      console.warn(
+        `⚠️ [${endpoint}] Card ${cardIndex} gridRows must be an integer between 1 and 5`,
+      );
+      return NextResponse.json(
+        { error: "Invalid data" },
+        { status: 400, headers: apiJsonHeaders(request) },
+      );
+    }
+  }
+
   return null;
 }
 
@@ -752,10 +781,17 @@ export function validateCardData(
   }
 
   // Validate cards array is not too large (prevent DOS attacks)
-  if (cards.length > 21) {
-    console.warn(`⚠️ [${endpoint}] Too many cards provided: ${cards.length}`);
+  // Use server-known card types count as baseline for allowed card types.
+  const maxSupportedTypes = Object.keys(displayNames).length || 21;
+  const MAX_ALLOWED_CARDS = Math.max(21, maxSupportedTypes);
+  if (cards.length > MAX_ALLOWED_CARDS) {
+    console.warn(
+      `⚠️ [${endpoint}] Too many cards provided: ${cards.length} (max ${MAX_ALLOWED_CARDS})`,
+    );
     return NextResponse.json(
-      { error: "Invalid data" },
+      {
+        error: `Too many cards provided: ${cards.length} (max ${MAX_ALLOWED_CARDS})`,
+      },
       { status: 400, headers: apiJsonHeaders(request) },
     );
   }

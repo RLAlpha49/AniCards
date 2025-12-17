@@ -14,6 +14,7 @@ import {
   sharedRatelimitMockLimit,
   sharedRatelimitMockSlidingWindow,
 } from "@/tests/unit/__setup__.test";
+import { displayNames } from "@/lib/card-data/validation";
 
 const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
 process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
@@ -193,6 +194,54 @@ describe("Store Cards API POST Endpoint", () => {
       expect(storedData.updatedAt).toBeDefined();
     });
 
+    it("should accept up to the allowed number of card types", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 1;
+      const available = Object.keys(displayNames);
+      // Build a payload with exactly the number of available card types
+      const cardsPayload = available.map((cardName) => ({
+        cardName,
+        variation: "default",
+        titleColor: "#111",
+        backgroundColor: "#fff",
+        textColor: "#000",
+        circleColor: "#f00",
+      }));
+
+      const req = createRequest({ userId, statsData: {}, cards: cardsPayload });
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+    });
+
+    it("should reject when more than the allowed number of card types are provided", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 1;
+      const available = Object.keys(displayNames);
+      // Build a payload with available + 1 cards (duplicate last card)
+      const cardsPayload = available
+        .map((cardName) => ({
+          cardName,
+          variation: "default",
+          titleColor: "#111",
+          backgroundColor: "#fff",
+          textColor: "#000",
+          circleColor: "#f00",
+        }))
+        .concat([
+          {
+            cardName: available[0],
+            variation: "default",
+            titleColor: "#111",
+            backgroundColor: "#fff",
+            textColor: "#000",
+            circleColor: "#f00",
+          },
+        ]);
+
+      const req = createRequest({ userId, statsData: {}, cards: cardsPayload });
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+    });
     it("should clamp border radius to valid range", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({

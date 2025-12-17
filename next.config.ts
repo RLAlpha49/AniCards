@@ -112,7 +112,7 @@ const nextConfig: NextConfig = {
   async rewrites() {
     const primaryRules = [
       {
-        source: "/:path*",
+        source: "/:path((?!api/).*)",
         has: [
           {
             type: "host" as const,
@@ -133,7 +133,7 @@ const nextConfig: NextConfig = {
 
     const devRules = devHosts.flatMap((h) => [
       {
-        source: "/:path*",
+        source: "/:path((?!api/).*)",
         has: [
           {
             type: "host" as const,
@@ -143,7 +143,7 @@ const nextConfig: NextConfig = {
         destination: "/api/:path*",
       },
       {
-        source: "/:path*",
+        source: "/:path((?!api/).*)",
         has: [
           {
             type: "host" as const,
@@ -157,6 +157,10 @@ const nextConfig: NextConfig = {
     return [
       ...primaryRules,
       ...devRules,
+      {
+        source: "/card.svg",
+        destination: "/api/card",
+      },
       {
         source: "/api/card.svg",
         destination: "/api/card",
