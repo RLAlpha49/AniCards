@@ -8,6 +8,8 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
+import { ANIMATION, TYPOGRAPHY } from "@/lib/svg-templates/common/constants";
+import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
 import { computeActivityPatterns } from "./shared";
 
 /**
@@ -54,7 +56,7 @@ export function activityPatternsTemplate(data: {
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const maxDayValue = Math.max(...patterns.byDayOfWeek, 1);
 
-  const dims = { w: 320, h: 180 };
+  const dims = getCardDimensions("activityPatterns", "default");
   const barWidth = 32;
   const barMaxHeight = 70;
 
@@ -66,7 +68,7 @@ export function activityPatternsTemplate(data: {
       const y = dims.h - 30 - height;
 
       return `
-      <g class="stagger" style="animation-delay: ${400 + i * 100}ms">
+      <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY + i * ANIMATION.MEDIUM_INCREMENT}ms">
         <rect x="${x}" y="${y}" width="${barWidth}" height="${height}" rx="3" fill="${resolvedColors.circleColor}" opacity="0.85" />
         <text class="day-label" x="${x + barWidth / 2}" y="${dims.h - 15}" text-anchor="middle">${dayNames[i]}</text>
         <text class="count-label" x="${x + barWidth / 2}" y="${y - 5}" text-anchor="middle">${count}</text>
@@ -91,16 +93,16 @@ export function activityPatternsTemplate(data: {
   <style>
     .header {
       fill: ${resolvedColors.titleColor};
-      font: 600 ${calculateDynamicFontSize(title, 16, dims.w - 40)}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${calculateDynamicFontSize(title, TYPOGRAPHY.LARGE_TEXT_SIZE, dims.w - 40)}px 'Segoe UI', Ubuntu, Sans-Serif;
       animation: fadeInAnimation 0.8s ease-in-out forwards;
     }
     .day-label {
       fill: ${resolvedColors.textColor};
-      font: 400 10px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 400 ${TYPOGRAPHY.SMALL_TEXT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
     }
     .count-label {
       fill: ${resolvedColors.textColor};
-      font: 400 9px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 400 ${TYPOGRAPHY.SMALL_TEXT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
       opacity: 0.8;
     }
     .stagger {

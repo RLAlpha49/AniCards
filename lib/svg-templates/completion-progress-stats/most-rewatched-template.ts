@@ -8,6 +8,11 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
+import {
+  ANIMATION,
+  SPACING,
+  TYPOGRAPHY,
+} from "@/lib/svg-templates/common/constants";
 import { getDimensions, getMediaTitle } from "./shared";
 
 /** Most rewatched card input structure. @source */
@@ -136,7 +141,7 @@ export function mostRewatchedTemplate(input: MostRewatchedInput): TrustedSVG {
       const repeatCount = entry.repeat ?? 0;
       const icon = type === "anime" ? "📺" : "📚";
       return `
-        <g transform="translate(25, ${85 + i * 28})" class="stagger" style="animation-delay:${400 + i * 80}ms">
+        <g transform="translate(${SPACING.CARD_PADDING}, ${85 + i * 28})" class="stagger" style="animation-delay:${ANIMATION.BASE_DELAY + i * ANIMATION.FAST_INCREMENT}ms">
           <text class="entry-icon" fill="${resolvedColors.textColor}">${escapeForXml(icon)}</text>
           <text class="entry-title" x="22" fill="${resolvedColors.textColor}">${escapeForXml(mediaTitle.slice(0, 32))}${mediaTitle.length > 32 ? "..." : ""}</text>
           <text class="entry-count" x="${dims.w - 45}" fill="${resolvedColors.circleColor}" text-anchor="end">${escapeForXml(repeatCount)}x</text>
@@ -156,10 +161,10 @@ export function mostRewatchedTemplate(input: MostRewatchedInput): TrustedSVG {
       <title id="title-id">${safeTitle}</title>
       <style>
         .header { fill: ${resolvedColors.titleColor}; font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif; }
-        .stats-line { font: 400 12px 'Segoe UI', Ubuntu, Sans-Serif; }
-        .entry-icon { font-size: 14px; }
-        .entry-title { font: 500 12px 'Segoe UI', Ubuntu, Sans-Serif; }
-        .entry-count { font: 600 12px 'Segoe UI', Ubuntu, Sans-Serif; }
+        .stats-line { font: 400 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
+        .entry-icon { font-size: ${TYPOGRAPHY.STAT_VALUE_SIZE}px; }
+        .entry-title { font: 500 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
+        .entry-count { font: 600 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
         .stagger { opacity: 0; animation: fadeIn 0.5s ease forwards; }
         @keyframes fadeIn { to { opacity: 1; } }
       </style>

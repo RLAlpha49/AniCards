@@ -7,12 +7,10 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "../../utils";
-import {
-  generateCardBackground,
-  generateCommonStyles,
-  getVariantLabel,
-  type TemplateStyles,
-} from "./shared";
+import { getVariantLabel, type TemplateStyles } from "./shared";
+import { generateCommonStyles } from "../common/style-generators";
+import { generateCardBackground } from "../common/base-template-utils";
+import { ANIMATION, TYPOGRAPHY } from "../common/constants";
 
 /**
  * Renders the Favourites Grid card - displays the user's favourite anime, manga,
@@ -199,7 +197,7 @@ export const favoritesGridTemplate = (data: {
 
     .item-name {
       fill: ${resolvedColors.textColor};
-      font: 400 11px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 400 ${TYPOGRAPHY.SECTION_TITLE_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
     }
 
     .item-placeholder {
@@ -225,7 +223,7 @@ export const favoritesGridTemplate = (data: {
 
           if (cell.kind === "placeholder" || !cell.item) {
             return `
-            <g class="stagger" style="animation-delay: ${300 + i * 100}ms" transform="translate(${x}, ${y})">
+            <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY - ANIMATION.STAGGER_INCREMENT + i * ANIMATION.MEDIUM_INCREMENT}ms" transform="translate(${x}, ${y})">
               <clipPath id="clip-${cell.placeholderId}">
                 <rect x="0" y="0" width="${cellWidth}" height="${cellHeight - 25}" rx="4"/>
               </clipPath>
@@ -247,7 +245,7 @@ export const favoritesGridTemplate = (data: {
           const clipId = `clip-${item.type}-${item.id}-${i}`;
 
           return `
-          <g class="stagger" style="animation-delay: ${300 + i * 100}ms" transform="translate(${x}, ${y})">
+          <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY - ANIMATION.STAGGER_INCREMENT + i * ANIMATION.MEDIUM_INCREMENT}ms" transform="translate(${x}, ${y})">
             <clipPath id="${clipId}">
               <rect x="0" y="0" width="${cellWidth}" height="${cellHeight - 25}" rx="4"/>
             </clipPath>
@@ -267,7 +265,7 @@ export const favoritesGridTemplate = (data: {
               <rect class="item-placeholder" x="0" y="0" width="${cellWidth}" height="${cellHeight - 25}" rx="4"/>
             `
             }
-            <text class="item-name" style="font-size:16px" x="0" y="${cellHeight - 3}">
+            <text class="item-name" style="font-size:${TYPOGRAPHY.LARGE_TEXT_SIZE}px" x="0" y="${cellHeight - 3}">
               ${escapeForXml(
                 item.name.length > 15
                   ? item.name.substring(0, 15) + "…"

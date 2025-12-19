@@ -8,6 +8,12 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
+import {
+  ANIMATION,
+  SPACING,
+  TYPOGRAPHY,
+} from "@/lib/svg-templates/common/constants";
+import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
 
 /**
  * Generates a recent activity feed card (text-based listing).
@@ -56,7 +62,7 @@ export function recentActivityFeedTemplate(data: {
     .sort((a, b) => b.date - a.date)
     .slice(0, 5);
 
-  const dims = { w: 280, h: 180 };
+  const dims = getCardDimensions("recentActivityFeed", "default");
 
   const feedItems = sorted.map((item, i) => {
     const date = new Date(item.date * 1000);
@@ -66,7 +72,7 @@ export function recentActivityFeedTemplate(data: {
       timeZone: "UTC",
     });
     return `
-      <g class="stagger" style="animation-delay: ${400 + i * 150}ms" transform="translate(0, ${i * 24})">
+      <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY + i * ANIMATION.STAGGER_INCREMENT}ms" transform="translate(0, ${i * SPACING.ROW_HEIGHT})">
         <circle cx="8" cy="8" r="4" fill="${resolvedColors.circleColor}" />
         <text class="feed-date" x="20" y="12">${dateStr}</text>
         <text class="feed-amount" x="${dims.w - 40}" y="12" text-anchor="end">${item.amount} activities</text>
@@ -90,16 +96,16 @@ export function recentActivityFeedTemplate(data: {
   <style>
     .header {
       fill: ${resolvedColors.titleColor};
-      font: 600 ${calculateDynamicFontSize(title, 16, dims.w - 40)}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${calculateDynamicFontSize(title, TYPOGRAPHY.LARGE_TEXT_SIZE, dims.w - 40)}px 'Segoe UI', Ubuntu, Sans-Serif;
       animation: fadeInAnimation 0.8s ease-in-out forwards;
     }
     .feed-date {
       fill: ${resolvedColors.textColor};
-      font: 500 11px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 500 ${TYPOGRAPHY.SECTION_TITLE_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
     }
     .feed-amount {
       fill: ${resolvedColors.textColor};
-      font: 400 11px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 400 ${TYPOGRAPHY.SECTION_TITLE_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
       opacity: 0.8;
       text-anchor: end;
     }

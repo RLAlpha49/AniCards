@@ -14,6 +14,7 @@ import {
   generateStatusLegend,
   normalizeStatusCounts,
 } from "./shared";
+import { SPACING, TYPOGRAPHY } from "@/lib/svg-templates/common/constants";
 
 /** Status completion input structure. @source */
 interface StatusCompletionInput {
@@ -75,7 +76,7 @@ export function statusCompletionOverviewTemplate(
 
   if (variant === "split") {
     content = `
-      <g transform="translate(25, 65)">
+      <g transform="translate(${SPACING.CARD_PADDING}, 65)">
         ${generateStackedBar(animeStatuses, {
           x: 0,
           y: 0,
@@ -108,7 +109,7 @@ export function statusCompletionOverviewTemplate(
     const combinedLabel = `All Media (${combinedRatio.percentage}% completed)`;
 
     content = `
-      <g transform="translate(25, 65)">
+      <g transform="translate(${SPACING.CARD_PADDING}, 65)">
         ${generateStackedBar(combinedStatuses, {
           x: 0,
           y: 0,
@@ -129,8 +130,8 @@ export function statusCompletionOverviewTemplate(
       <title id="title-id">${safeTitle}</title>
       <style>
         .header { fill: ${resolvedColors.titleColor}; font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif; }
-        .bar-label { font: 500 12px 'Segoe UI', Ubuntu, Sans-Serif; }
-        .legend-text { font: 400 11px 'Segoe UI', Ubuntu, Sans-Serif; }
+        .bar-label { font: 500 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
+        .legend-text { font: 400 ${TYPOGRAPHY.SECTION_TITLE_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
         .stagger { opacity: 0; animation: fadeIn 0.5s ease forwards; }
         @keyframes fadeIn { to { opacity: 1; } }
       </style>

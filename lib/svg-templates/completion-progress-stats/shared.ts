@@ -1,5 +1,10 @@
 import type { MediaListEntry } from "@/lib/types/records";
 import { escapeForXml } from "@/lib/utils";
+import { ANIMATION } from "@/lib/svg-templates/common/constants";
+import {
+  CARD_DIMENSIONS,
+  getCardDimensions,
+} from "@/lib/svg-templates/common/dimensions";
 
 /** Status color mapping for list statuses. @source */
 export const STATUS_COLORS: Record<string, string> = {
@@ -82,29 +87,11 @@ export function getDimensions(
   cardType: string,
   variant: string,
 ): { w: number; h: number } {
-  const dims: Record<string, Record<string, { w: number; h: number }>> = {
-    statusCompletionOverview: {
-      combined: { w: 400, h: 150 },
-      split: { w: 450, h: 220 },
-    },
-    milestones: {
-      default: { w: 350, h: 180 },
-    },
-    personalRecords: {
-      default: { w: 280, h: 260 },
-    },
-    planningBacklog: {
-      default: { w: 350, h: 260 },
-    },
-    mostRewatched: {
-      default: { w: 320, h: 220 },
-      anime: { w: 330, h: 190 },
-      manga: { w: 330, h: 190 },
-    },
-  };
-  return (
-    dims[cardType]?.[variant] ?? dims[cardType]?.default ?? { w: 400, h: 200 }
-  );
+  if (cardType in CARD_DIMENSIONS) {
+    return getCardDimensions(cardType as keyof typeof CARD_DIMENSIONS, variant);
+  }
+
+  return { w: 400, h: 200 };
 }
 
 /**
@@ -171,7 +158,7 @@ export function generateStackedBar(
       usedWidth += segmentWidth;
 
       const color = STATUS_COLORS[s.status] ?? "#95a5a6";
-      return `<rect x="${segmentX.toFixed(2)}" y="${y}" width="${segmentWidth.toFixed(2)}" height="${height}" fill="${color}" class="stagger" style="animation-delay:${400 + i * 80}ms"/>`;
+      return `<rect x="${segmentX.toFixed(2)}" y="${y}" width="${segmentWidth.toFixed(2)}" height="${height}" fill="${color}" class="stagger" style="animation-delay:${ANIMATION.BASE_DELAY + i * ANIMATION.FAST_INCREMENT}ms"/>`;
     })
     .join("");
 
@@ -210,7 +197,7 @@ export function generateStatusLegend(
       const itemX = x + col * 110;
       const itemY = y + row * 18;
       return `
-        <g transform="translate(${itemX}, ${itemY})" class="stagger" style="animation-delay:${600 + i * 50}ms">
+        <g transform="translate(${itemX}, ${itemY})" class="stagger" style="animation-delay:${ANIMATION.LEGEND_BASE_DELAY + i * ANIMATION.LEGEND_INCREMENT}ms">
           <rect x="0" y="-8" width="10" height="10" rx="2" fill="${color}"/>
           <text x="14" y="0" class="legend-text" fill="${textColor}">${escapeForXml(name)}: ${s.count}</text>
         </g>

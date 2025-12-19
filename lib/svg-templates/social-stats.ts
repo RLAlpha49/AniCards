@@ -1,5 +1,12 @@
 import { SocialStats, ColorValue } from "@/lib/types/card";
 import type { TrustedSVG } from "@/lib/types/svg";
+import {
+  ANIMATION,
+  POSITIONING,
+  SPACING,
+  TYPOGRAPHY,
+} from "@/lib/svg-templates/common/constants";
+import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
 
 import {
   calculateDynamicFontSize,
@@ -73,16 +80,7 @@ export const socialStatsTemplate = (data: {
   }
   const dayLabel = daysDifference === 1 ? "day" : "days";
 
-  const dims = (() => {
-    switch (data.variant) {
-      case "compact":
-        return { w: 280, h: 160 };
-      case "minimal":
-        return { w: 280, h: 130 };
-      default:
-        return { w: 280, h: 195 };
-    }
-  })();
+  const dims = getCardDimensions("socialStats", data.variant ?? "default");
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);
 
   const title = `${data.username}'s Social Stats`;
@@ -143,7 +141,7 @@ export const socialStatsTemplate = (data: {
 
     .stat { 
       fill: ${resolvedColors.textColor};
-      font: 400 13px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 400 ${TYPOGRAPHY.STAT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
     }
 
     .stagger {
@@ -167,14 +165,14 @@ export const socialStatsTemplate = (data: {
     ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""}
     stroke-width="2"
   />
-  <g data-testid="card-title" transform="translate(25, 35)">
+  <g data-testid="card-title" transform="translate(${SPACING.CARD_PADDING}, ${SPACING.HEADER_Y})">
     <g transform="translate(0, 0)">
       <text x="0" y="0" class="header" data-testid="header">
         ${safeTitle}
       </text>
     </g>
   </g>
-  <g data-testid="main-card-body" transform="translate(0, 55)">
+  <g data-testid="main-card-body" transform="translate(0, ${SPACING.CONTENT_Y})">
     ${(() => {
       const rows = [
         {
@@ -224,11 +222,11 @@ export const socialStatsTemplate = (data: {
               (stat, index) => `
             <g
               class="stagger"
-              style="animation-delay: ${450 + index * 150}ms"
-              transform="translate(25, ${index * 25})"
+              style="animation-delay: ${ANIMATION.BASE_DELAY + index * ANIMATION.STAGGER_INCREMENT}ms"
+              transform="translate(${SPACING.CARD_PADDING}, ${index * SPACING.ROW_HEIGHT})"
             >
               <text class="stat.bold" y="12.5">${stat.label}</text>
-              <text class="stat.bold" x="199.01" y="12.5">${stat.value}</text>
+              <text class="stat.bold" x="${POSITIONING.STAT_VALUE_X_DEFAULT}" y="12.5">${stat.value}</text>
             </g>`,
             )
             .join("")}

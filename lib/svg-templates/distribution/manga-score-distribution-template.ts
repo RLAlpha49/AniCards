@@ -1,14 +1,9 @@
-import { distributionTemplate } from "./shared";
+import { createDistributionTemplate } from "./shared";
 
-type BaseInput = Parameters<typeof distributionTemplate>[0];
-export type MangaScoreDistributionTemplateInput = Omit<
-  BaseInput,
-  "mediaType" | "kind"
->;
-
-/** SVG template for the `mangaScoreDistribution` card type. */
-export function mangaScoreDistributionTemplate(
-  input: MangaScoreDistributionTemplateInput,
-) {
-  return distributionTemplate({ ...input, mediaType: "manga", kind: "score" });
-}
+export type MangaScoreDistributionTemplateInput = Parameters<
+  ReturnType<typeof createDistributionTemplate>
+>[0];
+export const mangaScoreDistributionTemplate = createDistributionTemplate(
+  "manga",
+  "score",
+);

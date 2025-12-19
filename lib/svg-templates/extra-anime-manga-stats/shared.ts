@@ -1,74 +1,32 @@
 import type { TrustedSVG } from "@/lib/types/svg";
+import { displayNames } from "@/lib/card-data";
+import {
+  ANIMATION,
+  POSITIONING,
+  SPACING,
+  TYPOGRAPHY,
+  getCardDimensions,
+  getColorByIndex,
+  getStatColor,
+  resolveCircleBaseColor,
+} from "@/lib/svg-templates/common";
 
 import {
   calculateDynamicFontSize,
   getCardBorderRadius,
-  isGradient,
-  isValidHexColor,
   processColorsForSVG,
   escapeForXml,
   markTrustedSvg,
 } from "@/lib/utils";
 import type { ColorValue } from "@/lib/types/card";
 
-const DEFAULT_STAT_BASE_COLOR = "#2563eb";
-
-const tryParseJsonGradient = (jsonStr: string): { color: string } | null => {
-  try {
-    const parsed = JSON.parse(jsonStr);
-    // Check if parsed object looks like a gradient
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      (parsed as { type?: unknown }).type &&
-      Array.isArray((parsed as { stops?: unknown }).stops) &&
-      ((parsed as { stops?: unknown[] }).stops?.length ?? 0) > 0
-    ) {
-      for (const stop of (parsed as { stops: unknown[] }).stops) {
-        if (
-          typeof stop === "object" &&
-          stop !== null &&
-          "color" in stop &&
-          typeof (stop as { color?: unknown }).color === "string" &&
-          isValidHexColor((stop as { color: string }).color)
-        ) {
-          return { color: (stop as { color: string }).color };
-        }
-      }
-    }
-  } catch {
-    // JSON parsing failed, not a JSON string
-  }
-  return null;
-};
-
-const resolveCircleBaseColor = (value: ColorValue | undefined): string => {
-  // Handle gradient objects (in-memory form)
-  if (value && typeof value === "object" && isGradient(value)) {
-    for (const stop of value.stops) {
-      if (stop.color && isValidHexColor(stop.color)) {
-        return stop.color;
-      }
-    }
-    return DEFAULT_STAT_BASE_COLOR;
-  }
-
-  // Handle string values
-  if (typeof value === "string") {
-    // Try hex first
-    if (isValidHexColor(value)) {
-      return value;
-    }
-
-    // Try parsing as JSON (for JSON-stringified gradients from config)
-    const gradResult = tryParseJsonGradient(value);
-    if (gradResult) {
-      return gradResult.color;
-    }
-  }
-
-  return DEFAULT_STAT_BASE_COLOR;
-};
+import { generateCommonStyles } from "@/lib/svg-templates/common/style-generators";
+import { generateCardBackground } from "@/lib/svg-templates/common/base-template-utils";
+import {
+  createRectElement,
+  createStaggeredGroup,
+  createTextElement,
+} from "@/lib/svg-templates/common/svg-primitives";
 
 /**
  * Render an SVG card for additional anime/manga statistics including pie/bar
@@ -117,21 +75,22 @@ export const extraAnimeMangaStatsTemplate = (data: {
   const statBaseCircleColor = resolveCircleBaseColor(data.styles.circleColor);
   const titleText = `${data.username}'s ${data.format}`;
   const safeTitle = escapeForXml(titleText);
+  const titleFontSize =
+    Number.parseFloat(calculateDynamicFontSize(titleText)) || 18;
 
   // Determine variant flags
   const isPie = data.showPieChart || data.variant === "pie";
   const isBar = data.variant === "bar";
 
   let svgWidth: number;
-  if (isPie) {
-    svgWidth = 340;
-  } else if (isBar) {
-    svgWidth = 360;
-  } else {
-    svgWidth = 280;
-  }
+  const svgDims = (() => {
+    if (isPie) return getCardDimensions("extraStats", "pie");
+    if (isBar) return getCardDimensions("extraStats", "bar");
+    return getCardDimensions("extraStats", "default");
+  })();
+  svgWidth = svgDims.w;
   const viewBoxWidth = svgWidth;
-  const rectWidth = svgWidth - 1;
+  const svgHeight = svgDims.h;
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);
 
   /** List of formats that should render hearts for favorites (pink heart). @source */
@@ -150,15 +109,21 @@ export const extraAnimeMangaStatsTemplate = (data: {
   const statsContentWithoutPie = data.stats
     .map((stat, index) => {
       const isFavorite = showFavorites && data.favorites?.includes(stat.name);
-      return `
-      <g class="stagger" style="animation-delay: ${450 + index * 150}ms" transform="translate(25, ${
-        index * 25
-      })">
-        ${isFavorite ? heartSVG : ""}
-        <text class="stat bold" y="12.5">${escapeForXml(stat.name)}:</text>
-        <text class="stat bold" x="199.01" y="12.5">${stat.count}</text>
-      </g>
-    `;
+      const content =
+        `${isFavorite ? heartSVG : ""}` +
+        createTextElement(0, 12.5, `${stat.name}:`, "stat bold") +
+        createTextElement(
+          POSITIONING.STAT_VALUE_X_DEFAULT,
+          12.5,
+          String(stat.count),
+          "stat bold",
+        );
+
+      return createStaggeredGroup(
+        `translate(${SPACING.CARD_PADDING}, ${index * SPACING.ROW_HEIGHT})`,
+        content,
+        `${ANIMATION.BASE_DELAY + index * ANIMATION.STAGGER_INCREMENT}ms`,
+      );
     })
     .join("");
 
@@ -178,15 +143,23 @@ export const extraAnimeMangaStatsTemplate = (data: {
         data.fixedStatusColors && data.format.endsWith("Statuses"),
       );
       const pct = ((Math.max(0, stat.count) / totalForPie) * 100).toFixed(0);
-      return `
-        <g class="stagger" style="animation-delay: ${450 + index * 150}ms" transform="translate(0, ${
-          index * 25
-        })">
-          ${isFavorite ? heartLegendSVG : ""}
-          <rect x="-20" y="2" width="12" height="12" fill="${fillColor}" />
-          <text class="stat" y="12.5">${escapeForXml(stat.name)}:</text>
-          <text class="stat" x="125" y="12.5">${stat.count}${data.showPiePercentages ? ` (${pct}%)` : ""}</text>
-        </g>`;
+      const pctSuffix = data.showPiePercentages ? ` (${pct}%)` : "";
+      const content =
+        `${isFavorite ? heartLegendSVG : ""}` +
+        createRectElement(-20, 2, 12, 12, { fill: fillColor }) +
+        createTextElement(0, 12.5, `${stat.name}:`, "stat") +
+        createTextElement(
+          POSITIONING.STAT_VALUE_X_LARGE,
+          12.5,
+          `${stat.count}${pctSuffix}`,
+          "stat",
+        );
+
+      return createStaggeredGroup(
+        `translate(0, ${index * SPACING.ROW_HEIGHT})`,
+        content,
+        `${ANIMATION.BASE_DELAY + index * ANIMATION.STAGGER_INCREMENT}ms`,
+      );
     })
     .join("");
 
@@ -217,7 +190,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
           stroke="${resolvedColors.backgroundColor}"
           stroke-width="1.5"
           class="stagger"
-          style="animation-delay: 450ms"
+          style="animation-delay: ${ANIMATION.BASE_DELAY}ms"
         />
       `;
     }
@@ -252,7 +225,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
                 stroke-width="1.5"
                 stroke-linejoin="round"
                 class="stagger"
-                style="animation-delay: ${450 + stat.index * 150}ms"
+                style="animation-delay: ${ANIMATION.BASE_DELAY + stat.index * ANIMATION.STAGGER_INCREMENT}ms"
               />
             `;
       })
@@ -260,26 +233,41 @@ export const extraAnimeMangaStatsTemplate = (data: {
   })();
 
   const barsContent = isBar
-    ? data.stats
-        .map((stat, index) => {
-          const max = Math.max(...data.stats.map((s) => s.count));
-          const barWidth = ((stat.count / max) * 140).toFixed(2);
-          const isFavorite =
-            showFavorites && data.favorites?.includes(stat.name);
-          return `
-              <g class="stagger" style="animation-delay: ${450 + index * 120}ms" transform="translate(0, ${
-                index * 26
-              })">
-                ${isFavorite ? heartSVG : ""}
-                <text class="stat" y="12">${stat.name}:</text>
-                <rect x="150" y="2" width="${barWidth}" height="14" rx="3" fill="${getColorByIndex(
-                  index,
-                  statBaseCircleColor,
-                )}" />
-                <text class="stat" x="${155 + Number(barWidth)}" y="13">${stat.count}</text>
-              </g>`;
-        })
-        .join("")
+    ? (() => {
+        if (!data.stats || data.stats.length === 0) {
+          return "";
+        }
+
+        const sanitizedCounts = data.stats.map((s) => Math.max(0, s.count));
+        const maxCount = Math.max(1, ...sanitizedCounts);
+
+        const hasRenderableBars = sanitizedCounts.some((c) => c > 0);
+        if (!hasRenderableBars) {
+          return "";
+        }
+
+        return data.stats
+          .map((stat, index) => {
+            const count = Math.max(0, stat.count);
+            const barWidth = ((count / maxCount) * 140).toFixed(2);
+            const isFavorite =
+              showFavorites && data.favorites?.includes(stat.name);
+            const fill = getColorByIndex(index, statBaseCircleColor);
+            const w = Number(barWidth);
+            const content =
+              `${isFavorite ? heartSVG : ""}` +
+              createTextElement(0, 12, `${stat.name}:`, "stat") +
+              createRectElement(150, 2, w, 14, { rx: 3, fill }) +
+              createTextElement(155 + w, 13, String(count), "stat");
+
+            return createStaggeredGroup(
+              `translate(0, ${index * SPACING.ROW_HEIGHT_LARGE})`,
+              content,
+              `${ANIMATION.BASE_DELAY + index * ANIMATION.SLOW_INCREMENT}ms`,
+            );
+          })
+          .join("");
+      })()
     : "";
 
   let mainStatsContent: string;
@@ -302,8 +290,8 @@ export const extraAnimeMangaStatsTemplate = (data: {
     <svg
       xmlns="http://www.w3.org/2000/svg"
       width="${svgWidth}"
-      height="195"
-      viewBox="0 0 ${viewBoxWidth} 195"
+      height="${svgHeight}"
+      viewBox="0 0 ${viewBoxWidth} ${svgHeight}"
       fill="none"
       role="img"
       aria-labelledby="desc-id"
@@ -314,52 +302,14 @@ export const extraAnimeMangaStatsTemplate = (data: {
         ${data.stats.map((stat) => `${escapeForXml(stat.name)}: ${escapeForXml(stat.count)}`).join(", ")}
       </desc>
       <style>
-        /* stylelint-disable selector-class-pattern, keyframes-name-pattern */
-        .header { 
-          fill: ${resolvedColors.titleColor};
-          font: 600 ${calculateDynamicFontSize(titleText)}px 'Segoe UI', Ubuntu, Sans-Serif;
-          animation: fadeInAnimation 0.8s ease-in-out forwards;
-        }
-        
-        [data-testid="card-title"] text {
-          fill: ${resolvedColors.titleColor};
-        }
-  
-        [data-testid="main-card-body"] text {
-          fill: ${resolvedColors.textColor};
-        }
-  
-        .stat { 
-          fill: ${resolvedColors.textColor};
-          font: 400 13px 'Segoe UI', Ubuntu, Sans-Serif;
-        }
-  
+        ${generateCommonStyles(resolvedColors, titleFontSize)}
+
         .stat.bold {
           fill: ${resolvedColors.textColor};
-          font: 600 13px 'Segoe UI', Ubuntu, Sans-Serif;
-        }
-  
-        .stagger {
-          opacity: 0;
-          animation: fadeInAnimation 0.3s ease-in-out forwards;
-        }
-  
-        @keyframes fadeInAnimation {
-          from { opacity: 0; }
-          to { opacity: 1; }
+          font: 600 ${TYPOGRAPHY.STAT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
         }
       </style>
-      <rect
-        data-testid="card-bg"
-        x="0.5"
-        y="0.5"
-        rx="${cardRadius}"
-        height="99%"
-        width="${rectWidth}"
-        fill="${resolvedColors.backgroundColor}"
-        ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""}
-        stroke-width="2"
-      />
+      ${generateCardBackground({ w: viewBoxWidth, h: svgHeight }, cardRadius, resolvedColors)}
       <g data-testid="card-title" transform="translate(25, 35)">
         <g transform="translate(0, 0)">
           <text x="0" y="0" class="header" data-testid="header">
@@ -375,108 +325,46 @@ export const extraAnimeMangaStatsTemplate = (data: {
 };
 
 /**
- * Generate a color variation from a base color using HSL adjustments. Colors
- * are derived deterministically by index to ensure consistent visual ordering.
- * @param index - Zero-based index used to compute a deterministic variation.
- * @param baseColor - The base hex color used to compute variations.
- * @returns A CSS HSL color string.
- * @source
+ * Factory function to create format-specific template wrappers.
+ * Accepts a format string (from displayNames) and returns a wrapper function.
  */
-const getColorByIndex = (index: number, baseColor: string) => {
-  // Convert base color to HSL for easy manipulation
-  const hexToHSL = (hex: string, depth = 0): [number, number, number] => {
-    // Prevent infinite recursion
-    if (depth > 1) {
-      return [219, 82, 51]; // Default HSL for #2563eb
-    }
-
-    // Normalize the hex string: ensure it's lowercase and has the # prefix
-    const normalizedHex = (hex || "").toLowerCase().trim();
-    if (!normalizedHex) {
-      return hexToHSL(DEFAULT_STAT_BASE_COLOR, depth + 1);
-    }
-
-    const result = /^#?([a-f0-9]{2})([a-f0-9]{2})([a-f0-9]{2})$/.exec(
-      normalizedHex,
-    );
-    if (!result) {
-      return hexToHSL(DEFAULT_STAT_BASE_COLOR, depth + 1);
-    }
-
-    const r = Number.parseInt(result[1], 16) / 255;
-    const g = Number.parseInt(result[2], 16) / 255;
-    const b = Number.parseInt(result[3], 16) / 255;
-
-    const max = Math.max(r, g, b),
-      min = Math.min(r, g, b);
-    let h = 0,
-      s = 0;
-
-    const l = (max + min) / 2;
-
-    if (max !== min) {
-      const d = max - min;
-      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-      switch (max) {
-        case r:
-          h = (g - b) / d + (g < b ? 6 : 0);
-          break;
-        case g:
-          h = (b - r) / d + 2;
-          break;
-        case b:
-          h = (r - g) / d + 4;
-          break;
-      }
-      h /= 6;
-    }
-    return [h * 360, s * 100, l * 100];
+export function createExtraStatsTemplate(format: string) {
+  return (
+    input: Omit<Parameters<typeof extraAnimeMangaStatsTemplate>[0], "format">,
+  ) => {
+    return extraAnimeMangaStatsTemplate({ ...input, format });
   };
-
-  const [h, s, l] = hexToHSL(baseColor);
-  const variations = [
-    { s: s * 0.8, l: l * 1.2 }, // Lightest
-    { s: s, l: l }, // Base
-    { s: s * 1.2, l: l * 0.8 },
-    { s: s * 1.4, l: l * 0.6 },
-    { s: s * 1.6, l: l * 0.4 }, // Darkest
-  ];
-
-  const variation = variations[index % variations.length];
-  return `hsl(${h}, ${Math.min(variation.s, 100)}%, ${Math.min(variation.l, 100)}%)`;
-};
+}
 
 /**
- * Selects a color for a stat entry. If `useFixed` is truthy and the stat
- * matches a known set of statuses this function returns a fixed color;
- * otherwise it returns an HSL-based variation of the base color.
- * @param index - Index used to derive color variations by position.
- * @param statName - Name of the stat (used for fixed mapping lookup).
- * @param baseColor - Base color used for non-fixed mapping.
- * @param useFixed - When true, use fixed status mapping for known statuses.
- * @returns A CSS color string.
- * @source
+ * Pre-configured template functions for all extra stats card types.
+ * Maps card type names to their corresponding template functions.
  */
-const getStatColor = (
-  index: number,
-  statName: string,
-  baseColor: string,
-  useFixed: boolean | undefined,
-) => {
-  if (useFixed) {
-    const key = statName.toLowerCase();
-    const map: Record<string, string> = {
-      current: "#16a34a", // green-600
-      watching: "#16a34a",
-      reading: "#16a34a",
-      paused: "#ca8a04", // yellow-600
-      completed: "#2563eb", // blue-600
-      dropped: "#dc2626", // red-600
-      planning: "#6b7280", // gray-500
-      planned: "#6b7280",
-      on_hold: "#ca8a04",
-    };
-    if (map[key]) return map[key];
-  }
-  return getColorByIndex(index, baseColor);
-};
+export const extraStatsTemplates = {
+  animeGenres: createExtraStatsTemplate(displayNames["animeGenres"]),
+  mangaGenres: createExtraStatsTemplate(displayNames["mangaGenres"]),
+  animeTags: createExtraStatsTemplate(displayNames["animeTags"]),
+  mangaTags: createExtraStatsTemplate(displayNames["mangaTags"]),
+  animeStaff: createExtraStatsTemplate(displayNames["animeStaff"]),
+  mangaStaff: createExtraStatsTemplate(displayNames["mangaStaff"]),
+  animeStudios: createExtraStatsTemplate(displayNames["animeStudios"]),
+  animeVoiceActors: createExtraStatsTemplate(displayNames["animeVoiceActors"]),
+  animeStatusDistribution: createExtraStatsTemplate(
+    displayNames["animeStatusDistribution"],
+  ),
+  mangaStatusDistribution: createExtraStatsTemplate(
+    displayNames["mangaStatusDistribution"],
+  ),
+  animeFormatDistribution: createExtraStatsTemplate(
+    displayNames["animeFormatDistribution"],
+  ),
+  mangaFormatDistribution: createExtraStatsTemplate(
+    displayNames["mangaFormatDistribution"],
+  ),
+  animeCountry: createExtraStatsTemplate(displayNames["animeCountry"]),
+  mangaCountry: createExtraStatsTemplate(displayNames["mangaCountry"]),
+} as const;
+
+export type ExtraStatsTemplateInput = Parameters<
+  ReturnType<typeof createExtraStatsTemplate>
+>[0];

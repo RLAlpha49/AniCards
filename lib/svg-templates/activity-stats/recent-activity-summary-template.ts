@@ -8,6 +8,12 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
+import {
+  ANIMATION,
+  SPACING,
+  TYPOGRAPHY,
+} from "@/lib/svg-templates/common/constants";
+import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
 import { generateSparkline } from "./shared";
 
 /**
@@ -69,7 +75,7 @@ export function recentActivitySummaryTemplate(data: {
       })
     : "N/A";
 
-  const dims = { w: 280, h: 160 };
+  const dims = getCardDimensions("recentActivitySummary", "default");
 
   // Generate sparkline data (last 30 points or all if less)
   const sparklineData = sorted.slice(-30).map((item) => item.amount);
@@ -99,16 +105,16 @@ export function recentActivitySummaryTemplate(data: {
   <style>
     .header {
       fill: ${resolvedColors.titleColor};
-      font: 600 ${calculateDynamicFontSize(title, 16, dims.w - 40)}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${calculateDynamicFontSize(title, TYPOGRAPHY.LARGE_TEXT_SIZE, dims.w - 40)}px 'Segoe UI', Ubuntu, Sans-Serif;
       animation: fadeInAnimation 0.8s ease-in-out forwards;
     }
     .stat {
       fill: ${resolvedColors.textColor};
-      font: 400 12px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 400 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
     }
     .stat-value {
       fill: ${resolvedColors.circleColor};
-      font: 600 14px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${TYPOGRAPHY.STAT_VALUE_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
     }
     .sparkline {
       fill: none;
@@ -142,15 +148,15 @@ export function recentActivitySummaryTemplate(data: {
     <text x="0" y="0" class="header">${safeTitle}</text>
   </g>
   <g transform="translate(20, 50)">
-    <g class="stagger" style="animation-delay: 400ms">
+    <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY}ms">
       <text class="stat" y="12">Total Activities:</text>
       <text class="stat-value" x="110" y="12">${totalActivity}</text>
     </g>
-    <g class="stagger" style="animation-delay: 550ms" transform="translate(0, 22)">
+    <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY + ANIMATION.STAGGER_INCREMENT}ms" transform="translate(0, ${SPACING.ROW_HEIGHT_COMPACT})">
       <text class="stat" y="12">Avg per Day:</text>
       <text class="stat-value" x="110" y="12">${avgPerDay}</text>
     </g>
-    <g class="stagger" style="animation-delay: 700ms" transform="translate(0, 44)">
+    <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY + 2 * ANIMATION.STAGGER_INCREMENT}ms" transform="translate(0, ${SPACING.ROW_HEIGHT_COMPACT * 2})">
       <text class="stat" y="12">Best Day:</text>
       <text class="stat-value" x="110" y="12">${bestDay.amount} (${bestDayStr})</text>
     </g>

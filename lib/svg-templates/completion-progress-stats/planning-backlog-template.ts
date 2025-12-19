@@ -8,6 +8,11 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
+import {
+  ANIMATION,
+  SPACING,
+  TYPOGRAPHY,
+} from "@/lib/svg-templates/common/constants";
 import { getDimensions, getMediaTitle } from "./shared";
 
 /** Planning backlog card input structure. @source */
@@ -80,7 +85,7 @@ export function planningBacklogTemplate(
         ? `${entry.media.averageScore}%`
         : "N/A";
       return `
-        <g transform="translate(25, ${85 + i * 32})" class="stagger" style="animation-delay:${400 + i * 80}ms">
+        <g transform="translate(${SPACING.CARD_PADDING}, ${85 + i * 32})" class="stagger" style="animation-delay:${ANIMATION.BASE_DELAY + i * ANIMATION.FAST_INCREMENT}ms">
           <text class="entry-title" fill="${resolvedColors.textColor}">${escapeForXml(mediaTitle.slice(0, 50))}${mediaTitle.length > 50 ? "..." : ""}</text>
           <text class="entry-meta" x="0" y="14" fill="${resolvedColors.circleColor}">${escapeForXml(format)} • Score: ${escapeForXml(score)}</text>
         </g>
@@ -94,9 +99,9 @@ export function planningBacklogTemplate(
       <title id="title-id">${safeTitle}</title>
       <style>
         .header { fill: ${resolvedColors.titleColor}; font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif; }
-        .stats-line { font: 400 12px 'Segoe UI', Ubuntu, Sans-Serif; }
-        .entry-title { font: 500 12px 'Segoe UI', Ubuntu, Sans-Serif; }
-        .entry-meta { font: 400 10px 'Segoe UI', Ubuntu, Sans-Serif; opacity: 0.8; }
+        .stats-line { font: 400 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
+        .entry-title { font: 500 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
+        .entry-meta { font: 400 ${TYPOGRAPHY.SMALL_TEXT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; opacity: 0.8; }
         .stagger { opacity: 0; animation: fadeIn 0.5s ease forwards; }
         @keyframes fadeIn { to { opacity: 1; } }
       </style>
