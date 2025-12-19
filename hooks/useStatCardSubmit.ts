@@ -191,7 +191,7 @@ function isRetryableError(error: unknown, statusCode?: number) {
 
 function calculateBackoffDelay(attempt: number) {
   const safeAttempt = Math.max(0, attempt);
-  const baseDelay = Math.min(1000 * Math.pow(2, safeAttempt), 10000);
+  const baseDelay = Math.min(1000 * Math.pow(2, safeAttempt), 15000);
   const jitter = 0.5 + Math.random() * 0.5;
   return Math.round(baseDelay * jitter);
 }
@@ -306,13 +306,13 @@ export function useStatCardSubmit() {
    * @param timeoutMs - Timeout in milliseconds before aborting the request.
    * @param contextName - Context string used in thrown errors.
    * @returns The original Response when successful.
-   * @throws Error with contextual message on failure.
+   * @throws Error with contextual message on failure.Personal Records
    * @source
    */
   async function fetchWithTimeout(
     url: string,
     options: RequestInit,
-    timeoutMs = 10000,
+    timeoutMs = 15000,
     contextName = "Request",
   ): Promise<Response> {
     const controller = new AbortController();
@@ -390,7 +390,7 @@ export function useStatCardSubmit() {
   ): Promise<Response> {
     const {
       maxRetries = DEFAULT_RETRY_ATTEMPTS,
-      timeoutMs = 10000,
+      timeoutMs = 15000,
       contextName = "Request",
       operationName = "request",
       totalTimeoutMs,
@@ -506,7 +506,7 @@ export function useStatCardSubmit() {
   async function fetchAniListQuery(
     query: string,
     variables: Record<string, unknown>,
-    timeoutMs = 10000,
+    timeoutMs = 15000,
     contextLabel = "query",
     onRetry?: (attempt: number, operation: string) => void,
   ) {
@@ -522,7 +522,7 @@ export function useStatCardSubmit() {
         contextName: `AniList - ${contextLabel}`,
         operationName: `AniList ${contextLabel}`,
         maxRetries: DEFAULT_RETRY_ATTEMPTS,
-        totalTimeoutMs: 15000,
+        totalTimeoutMs: 25000,
         onRetry,
       },
     );
@@ -585,7 +585,7 @@ export function useStatCardSubmit() {
       const userIdData = await fetchAniListQuery(
         USER_ID_QUERY,
         { userName: username },
-        10000,
+        15000,
         "user ID fetch",
         handleRetryUpdate,
       );
@@ -598,7 +598,7 @@ export function useStatCardSubmit() {
       const statsData = await fetchAniListQuery(
         USER_STATS_QUERY,
         { userId: userIdData.User.id },
-        10000,
+        15000,
         "user stats fetch",
         handleRetryUpdate,
       );

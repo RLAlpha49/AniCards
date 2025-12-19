@@ -147,8 +147,6 @@ export const USER_STATS_QUERY = `
               medium
               color
             }
-            format
-            genres
           }
         }
         manga (page: 1, perPage: 25) {
@@ -164,8 +162,6 @@ export const USER_STATS_QUERY = `
               medium
               color
             }
-            format
-            genres
           }
         }
         characters (page: 1, perPage: 25) {
@@ -192,7 +188,6 @@ export const USER_STATS_QUERY = `
               large
               medium
             }
-            primaryOccupations
           }
         }
         studios (page: 1, perPage: 25) {
@@ -241,6 +236,125 @@ export const USER_STATS_QUERY = `
       }
       reviews(userId: $userId) {
         id
+      }
+    }
+    animePlanning: MediaListCollection(userId: $userId, type: ANIME, status: PLANNING, sort: SCORE_DESC) {
+      lists {
+        entries {
+          id
+          score
+          media {
+            id
+            title {
+              english
+              romaji
+              native
+            }
+            episodes
+            averageScore
+            format
+          }
+        }
+      }
+    }
+    mangaPlanning: MediaListCollection(userId: $userId, type: MANGA, status: PLANNING, sort: SCORE_DESC) {
+      lists {
+        entries {
+          id
+          score
+          media {
+            id
+            title {
+              english
+              romaji
+              native
+            }
+            chapters
+            volumes
+            averageScore
+            format
+          }
+        }
+      }
+    }
+    animeRewatched: MediaListCollection(userId: $userId, type: ANIME, sort: REPEAT_DESC) {
+      lists {
+        entries {
+          id
+          repeat
+          progress
+          score
+          media {
+            id
+            title {
+              english
+              romaji
+              native
+            }
+            episodes
+            format
+          }
+        }
+      }
+    }
+    mangaReread: MediaListCollection(userId: $userId, type: MANGA, sort: REPEAT_DESC) {
+      lists {
+        entries {
+          id
+          repeat
+          progress
+          score
+          media {
+            id
+            title {
+              english
+              romaji
+              native
+            }
+            chapters
+            volumes
+            format
+          }
+        }
+      }
+    }
+    animeCompleted: MediaListCollection(userId: $userId, type: ANIME, status: COMPLETED, sort: SCORE_DESC) {
+      lists {
+        entries {
+          id
+          score
+          progress
+          media {
+            id
+            title {
+              english
+              romaji
+              native
+            }
+            episodes
+            format
+          }
+        }
+      }
+    }
+    mangaCompleted: MediaListCollection(userId: $userId, type: MANGA, status: COMPLETED, sort: SCORE_DESC) {
+      lists {
+        entries {
+          id
+          score
+          progress
+          media {
+            id
+            title {
+              english
+              romaji
+              native
+            }
+            chapters
+            volumes
+            format
+          }
+        }
       }
     }
   }

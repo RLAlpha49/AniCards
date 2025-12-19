@@ -3,6 +3,14 @@ import { UserRecord } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
 import { redisClient, apiJsonHeaders } from "@/lib/api-utils";
 import type { Redis as UpstashRedis } from "@upstash/redis";
+import { validateAndNormalizeUserRecord } from "@/lib/card-data/validation";
+import {
+  fetchUserDataParts,
+  reconstructUserRecord,
+  saveUserRecord,
+  deleteUserRecord,
+  UserDataPart,
+} from "@/lib/server/user-data";
 
 /**
  * Tracks the outcome of a user's AniList stats refresh.
@@ -81,7 +89,6 @@ async function updateUserStats(userId: string): Promise<UpdateResult> {
 async function handleFailureTracking(
   redisClient: UpstashRedis,
   userId: string,
-  userKey: string,
 ): Promise<boolean> {
   const failureKey = `failed_updates:${userId}`;
   const currentFailureCount = (await redisClient.get(failureKey)) || 0;
@@ -94,7 +101,7 @@ async function handleFailureTracking(
   if (newFailureCount >= 3) {
     const cardsKey = `cards:${userId}`;
     await Promise.all([
-      redisClient.del(userKey), // Remove user data
+      deleteUserRecord(userId), // Remove user data (all parts)
       redisClient.del(failureKey), // Remove failure tracking
       redisClient.del(cardsKey), // Remove user's card configurations
     ]);
@@ -152,31 +159,56 @@ export async function POST(request: Request) {
       "🛠️ [Cron Job] QStash authorized, starting background update...",
     );
 
-    const userKeys = await redisClient.keys("user:*");
-    const totalUsers = userKeys.length;
+    const allKeys = await redisClient.keys("user:*");
+    // Filter to only include numeric user IDs and avoid analytics or other keys
+    const userIds = Array.from(
+      new Set(
+        allKeys
+          .map((k) => k.split(":")[1])
+          .filter((id) => id && /^\d+$/.test(id)),
+      ),
+    );
+    const totalUsers = userIds.length;
 
-    // Fetch and parse user records from Redis
-    const userRecords = await Promise.all(
-      userKeys.map(async (key) => {
-        const userDataStr = await redisClient.get(key);
-        if (userDataStr) {
-          const user = safeParse<UserRecord>(userDataStr);
-          return { key, user };
-        } else {
-          return null;
+    // Fetch meta for all users to sort by updatedAt
+    const metaKeys = userIds.map((id) => `user:${id}:meta`);
+    const metaResults = await Promise.all(
+      metaKeys.map((key) => redisClient.get(key)),
+    );
+
+    const missingMetaIndices: number[] = [];
+    const validUsers: { id: string; updatedAt: string | number }[] = [];
+
+    metaResults.forEach((meta, i) => {
+      if (meta) {
+        const parsed = typeof meta === "string" ? JSON.parse(meta) : meta;
+        validUsers.push({ id: userIds[i], updatedAt: parsed.updatedAt || 0 });
+      } else {
+        missingMetaIndices.push(i);
+      }
+    });
+
+    if (missingMetaIndices.length > 0) {
+      const legacyKeys = missingMetaIndices.map((i) => `user:${userIds[i]}`);
+      const legacyResults = await Promise.all(
+        legacyKeys.map((key) => redisClient.get(key)),
+      );
+
+      legacyResults.forEach((legacy, i) => {
+        if (legacy) {
+          const record = safeParse<UserRecord>(legacy as string);
+          validUsers.push({
+            id: userIds[missingMetaIndices[i]],
+            updatedAt: record?.updatedAt || 0,
+          });
         }
-      }),
-    );
-
-    // Filter out missing records
-    const validUsers = userRecords.filter(
-      (x): x is { key: string; user: UserRecord } => x !== null,
-    );
+      });
+    }
 
     // Sort by updatedAt (oldest first)
     validUsers.sort((a, b) => {
-      const dateA = new Date(a.user.updatedAt || 0).getTime();
-      const dateB = new Date(b.user.updatedAt || 0).getTime();
+      const dateA = new Date(a.updatedAt || 0).getTime();
+      const dateB = new Date(b.updatedAt || 0).getTime();
       return dateA - dateB;
     });
 
@@ -192,9 +224,23 @@ export async function POST(request: Request) {
     let failedUpdates = 0;
     let removedUsers = 0;
 
+    const allParts: UserDataPart[] = [
+      "meta",
+      "stats",
+      "favourites",
+      "statistics",
+      "pages",
+      "planning",
+      "rewatched",
+      "completed",
+    ];
+
     await Promise.all(
-      batch.map(async ({ key, user }) => {
+      batch.map(async ({ id }) => {
         try {
+          const partsData = await fetchUserDataParts(id, allParts);
+          const user = reconstructUserRecord(partsData);
+
           console.log(
             `👤 [Cron Job] User ${user.userId} (${
               user.username || "no username"
@@ -206,8 +252,17 @@ export async function POST(request: Request) {
           if (updateResult.success) {
             // Update user data in Redis with the fetched stats
             user.stats = updateResult.statsData.data;
-            user.updatedAt = new Date().toISOString();
-            await redisClient.set(key, JSON.stringify(user));
+
+            // Normalize and prune data before saving to keep Redis size down
+            const normalizationResult = validateAndNormalizeUserRecord(user);
+            const finalUser =
+              "normalized" in normalizationResult
+                ? normalizationResult.normalized
+                : user;
+
+            finalUser.updatedAt = new Date().toISOString();
+
+            await saveUserRecord(finalUser);
 
             console.log(
               `✅ [Cron Job] User ${user.userId}: Successfully updated`,
@@ -219,7 +274,6 @@ export async function POST(request: Request) {
             const wasRemoved = await handleFailureTracking(
               redisClient,
               user.userId,
-              key,
             );
             if (wasRemoved) {
               removedUsers++;
@@ -228,7 +282,7 @@ export async function POST(request: Request) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
           console.error(
-            `🔥 [Cron Job] Error processing key ${key}: ${error.message}`,
+            `🔥 [Cron Job] Error processing user ${id}: ${error.message}`,
           );
           if (error.stack) {
             console.error(`💥 [Cron Job] Stack Trace: ${error.stack}`);

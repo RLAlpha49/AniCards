@@ -354,7 +354,14 @@ async function validateIndividualKey(
 
   const issues: string[] = [];
   if (key.startsWith("user:")) {
-    issues.push(...validateUserRecord(parsed));
+    const parts = key.split(":");
+    if (parts.length === 2) {
+      issues.push(...validateUserRecord(parsed));
+    } else if (parts.length === 3) {
+      if (typeof parsed !== "object" || parsed === null) {
+        issues.push(`Part ${parts[2]} is not an object`);
+      }
+    }
   } else if (key.startsWith("cards:")) {
     issues.push(...validateCardsRecord(parsed));
 

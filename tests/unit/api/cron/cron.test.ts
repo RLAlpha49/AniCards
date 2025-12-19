@@ -4,6 +4,8 @@ import {
   sharedRedisMockGet,
   sharedRedisMockSet,
   sharedRedisMockDel,
+  sharedRedisMockMget,
+  sharedRedisMockPipelineExec,
 } from "@/tests/unit/__setup__.test";
 
 const { POST } = await import("@/app/api/cron/route");
@@ -159,6 +161,19 @@ process.env.CRON_SECRET = CRON_SECRET;
 describe("Cron API POST Endpoint", () => {
   afterEach(() => {
     mock.clearAllMocks();
+    sharedRedisMockGet.mockReset();
+    sharedRedisMockSet.mockReset();
+    sharedRedisMockDel.mockReset();
+    sharedRedisMockKeys.mockReset();
+    sharedRedisMockMget.mockReset();
+    sharedRedisMockPipelineExec.mockReset();
+
+    // Restore default behaviors
+    sharedRedisMockMget.mockImplementation(async (...keys: string[]) =>
+      keys.map(() => null),
+    );
+    sharedRedisMockPipelineExec.mockResolvedValue([]);
+
     delete process.env.CRON_SECRET;
     process.env.CRON_SECRET = CRON_SECRET;
   });
@@ -426,7 +441,17 @@ describe("Cron API POST Endpoint", () => {
       const text = await res.text();
       expect(text).toContain("Failed: 1, Removed: 1");
 
-      expect(sharedRedisMockDel).toHaveBeenCalledWith("user:123");
+      expect(sharedRedisMockDel).toHaveBeenCalledWith(
+        "user:123:meta",
+        "user:123:stats",
+        "user:123:favourites",
+        "user:123:statistics",
+        "user:123:pages",
+        "user:123:planning",
+        "user:123:rewatched",
+        "user:123:completed",
+        "user:123",
+      );
       expect(sharedRedisMockDel).toHaveBeenCalledWith("failed_updates:123");
       expect(sharedRedisMockDel).toHaveBeenCalledWith("cards:123");
     });
@@ -539,8 +564,9 @@ describe("Cron API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       // Verify that sharedRedisMockSet was called to update user data
+      // It should be called 8 times for the split parts
       expect(sharedRedisMockSet).toHaveBeenCalledWith(
-        "user:123",
+        "user:123:stats",
         expect.stringContaining(JSON.stringify(mockStatsData.data)),
       );
     });
@@ -574,10 +600,10 @@ describe("Cron API POST Endpoint", () => {
 
       expect(res.status).toBe(200);
 
-      // Extract the call to sharedRedisMockSet for user:123
+      // Extract the call to sharedRedisMockSet for user:123:meta
       const setCall = (
         sharedRedisMockSet.mock.calls as [string, unknown][]
-      ).find(([key]) => key === "user:123");
+      ).find(([key]) => key === "user:123:meta");
       expect(setCall).toBeDefined();
 
       if (setCall) {
@@ -625,13 +651,16 @@ describe("Cron API POST Endpoint", () => {
 
   describe("Invalid Data Handling", () => {
     it("should skip users with invalid/unparseable data", async () => {
-      sharedRedisMockKeys.mockResolvedValueOnce(["user:123", "user:456"]);
+      sharedRedisMockKeys.mockResolvedValueOnce([
+        "user:123:meta",
+        "user:456:meta",
+      ]);
 
       sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
           return Promise.resolve(null);
         }
-        if (key === "user:123") {
+        if (key === "user:123:meta" || key === "user:123") {
           return Promise.resolve(null);
         }
         return Promise.resolve(JSON.stringify(createMockUserRecord("456")));
@@ -717,13 +746,16 @@ describe("Cron API POST Endpoint", () => {
     });
 
     it("should handle individual user processing errors gracefully", async () => {
-      sharedRedisMockKeys.mockResolvedValueOnce(["user:123", "user:456"]);
+      sharedRedisMockKeys.mockResolvedValueOnce([
+        "user:123:meta",
+        "user:456:meta",
+      ]);
 
       sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
           return Promise.resolve(null);
         }
-        if (key === "user:123") {
+        if (key === "user:123:meta" || key === "user:123") {
           return Promise.resolve(null);
         }
         return Promise.resolve(JSON.stringify(createMockUserRecord("456")));

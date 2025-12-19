@@ -1,6 +1,7 @@
 import type { NextResponse } from "next/server";
 import { UserRecord } from "@/lib/types/records";
-import { safeParse } from "@/lib/utils";
+import { validateAndNormalizeUserRecord } from "@/lib/card-data";
+import { saveUserRecord, fetchUserDataParts } from "@/lib/server/user-data";
 import {
   incrementAnalytics,
   handleError,
@@ -48,32 +49,12 @@ export async function POST(request: Request): Promise<NextResponse> {
       return validationError;
     }
 
-    // Define a Redis key for the user data
-    const userKey = `user:${data.userId}`;
     let createdAt = new Date().toISOString();
 
-    // Retrieve the stored record from Redis
-    const storedRecordRaw = await redisClient.get(userKey);
-    if (storedRecordRaw) {
-      console.log(
-        `🔍 [${endpoint}] Found existing record for user ${data.userId}`,
-      );
-      try {
-        // Directly parse the JSON string from Redis
-        const parsedUser = safeParse<UserRecord>(storedRecordRaw);
-        createdAt = parsedUser.createdAt || createdAt;
-      } catch (error) {
-        console.error(
-          `🔥 [${endpoint}] Failed to parse user record from Redis. Data received: ${storedRecordRaw}`,
-        );
-        if (error instanceof Error && error.stack) {
-          console.error(`💥 [${endpoint}] Stack Trace: ${error.stack}`);
-        }
-      }
-    } else {
-      console.log(
-        `📝 [${endpoint}] No existing record found for user ${data.userId}. Creating new record.`,
-      );
+    const partsData = await fetchUserDataParts(data.userId, ["meta"]);
+    if (partsData.meta) {
+      const meta = partsData.meta as Record<string, unknown>;
+      createdAt = (meta.createdAt as string) || createdAt;
     }
 
     const userData: UserRecord = {
@@ -85,11 +66,18 @@ export async function POST(request: Request): Promise<NextResponse> {
       updatedAt: new Date().toISOString(),
     };
 
+    // Normalize and prune data before saving to Redis
+    const normalizationResult = validateAndNormalizeUserRecord(userData);
+    const finalUserData =
+      "normalized" in normalizationResult
+        ? normalizationResult.normalized
+        : userData;
+
     console.log(
-      `📝 [${endpoint}] Saving user data to Redis under key: ${userKey}`,
+      `📝 [${endpoint}] Saving user data to Redis in split format for userId: ${data.userId}`,
     );
-    // Save (or update) the user data in Redis
-    await redisClient.set(userKey, JSON.stringify(userData));
+
+    await saveUserRecord(finalUserData);
 
     // Create/update the username index if a username is provided.
     if (data.username) {

@@ -19,6 +19,7 @@ export {
   resolveUserIdFromUsername,
   fetchUserDataOnly,
   fetchUserData,
+  fetchUserDataForCard,
 } from "./fetching";
 
 // Re-export processing module exports
