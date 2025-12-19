@@ -1,5 +1,20 @@
 import type { TrustedSVG } from "@/lib/types/svg";
 
+import { generateCardBackground } from "@/lib/svg-templates/common/base-template-utils";
+import { generateCommonStyles } from "@/lib/svg-templates/common/style-generators";
+import {
+  ANIMATION,
+  DISTRIBUTION,
+  SPACING,
+  TYPOGRAPHY,
+} from "@/lib/svg-templates/common/constants";
+import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
+import {
+  createRectElement,
+  createStaggeredGroup,
+  createTextElement,
+} from "@/lib/svg-templates/common/svg-primitives";
+
 import {
   calculateDynamicFontSize,
   getCardBorderRadius,
@@ -105,17 +120,6 @@ function normalizeDistributionData(
  * @returns An object containing width (w) and height (h).
  * @source
  */
-function getDimensions(variant: "default" | "horizontal"): {
-  w: number;
-  h: number;
-} {
-  if (variant === "horizontal") {
-    return { w: 320, h: 150 };
-  } else {
-    return { w: 350, h: 260 };
-  }
-}
-
 /**
  * Generates SVG markup for horizontal bar items used in the default variant.
  * @param data - Array of distribution points.
@@ -135,14 +139,29 @@ function generateBarItems(
     .map((d, i) => {
       const width = (d.count / maxCount) * maxBarWidth;
       const safeWidth = Math.max(2, width);
-      const barStartX = 30;
-      const countBaseX = 35;
+      const barStartX = DISTRIBUTION.BAR_START_X;
+      const countBaseX = DISTRIBUTION.COUNT_BASE_X;
 
-      return `<g class="stagger" style="animation-delay:${400 + i * 90}ms" transform="translate(0, ${i * 18})">
-      <text class="score-label" x="0" y="12">${d.value}</text>
-      <rect x="${barStartX}" y="4" rx="3" height="10" width="${safeWidth.toFixed(2)}" fill="${barColor}" opacity="0.85" />
-      <text class="score-count" x="${countBaseX + safeWidth}" y="12">${d.count}</text>
-    </g>`;
+      const content = [
+        createTextElement(0, 12, String(d.value), "score-label"),
+        createRectElement(barStartX, 4, Number(safeWidth.toFixed(2)), 10, {
+          rx: 3,
+          fill: barColor,
+          opacity: 0.85,
+        }),
+        createTextElement(
+          countBaseX + safeWidth,
+          12,
+          String(d.count),
+          "score-count",
+        ),
+      ].join("");
+
+      return createStaggeredGroup(
+        `translate(0, ${i * SPACING.ITEM_GAP})`,
+        content,
+        `${ANIMATION.BASE_DELAY + i * ANIMATION.MEDIUM_INCREMENT}ms`,
+      );
     })
     .join("");
 }
@@ -161,17 +180,49 @@ function generateVerticalBars(
   barColor: string,
 ): string {
   return data
-    .slice(0, 15)
+    .slice(0, DISTRIBUTION.MAX_ITEMS)
     .map((d, i) => {
-      const height = ((d.count / maxCount) * 70).toFixed(2);
-      const x = i * 28 + 35;
-      const barTop = 90 - Number(height);
+      const height = Number(
+        ((d.count / maxCount) * DISTRIBUTION.VERTICAL_BAR_MAX_HEIGHT).toFixed(
+          2,
+        ),
+      );
+      const x =
+        i * DISTRIBUTION.VERTICAL_BAR_SPACING + DISTRIBUTION.COUNT_BASE_X;
+      const barTop = DISTRIBUTION.VERTICAL_BAR_Y_BASE - height;
 
-      return `<g class="stagger" style="animation-delay:${350 + i * 70}ms" transform="translate(${x},0)">
-      <text class="h-count" text-anchor="middle" x="0" y="${barTop - 6}" font-size="10">${d.count}</text>
-      <rect x="-6" y="${barTop}" width="12" height="${height}" rx="2" fill="${barColor}" />
-      <text class="h-score" text-anchor="middle" x="0" y="104" font-size="10">${d.value}</text>
-    </g>`;
+      const content = [
+        createTextElement(0, barTop - 6, String(d.count), "h-count", {
+          textAnchor: "middle",
+          fontSize: TYPOGRAPHY.SMALL_TEXT_SIZE,
+        }),
+        createRectElement(
+          -DISTRIBUTION.VERTICAL_BAR_WIDTH / 2,
+          barTop,
+          DISTRIBUTION.VERTICAL_BAR_WIDTH,
+          height,
+          {
+            rx: 2,
+            fill: barColor,
+          },
+        ),
+        createTextElement(
+          0,
+          DISTRIBUTION.VERTICAL_BAR_Y_BASE + 14,
+          String(d.value),
+          "h-score",
+          {
+            textAnchor: "middle",
+            fontSize: TYPOGRAPHY.SMALL_TEXT_SIZE,
+          },
+        ),
+      ].join("");
+
+      return createStaggeredGroup(
+        `translate(${x},0)`,
+        content,
+        `${ANIMATION.CHART_BASE_DELAY + i * ANIMATION.CHART_INCREMENT}ms`,
+      );
     })
     .join("");
 }
@@ -221,13 +272,15 @@ export function distributionTemplate(
     kind === "score" ? "Score Distribution" : "Year Distribution";
   const title = `${username}'s ${capitalize(mediaType)} ${baseTitle}`;
   const safeTitle = escapeForXml(title);
-  const dims = getDimensions(variant);
+  const dims = getCardDimensions("distribution", variant);
 
   // Layout constants
   const barColor = resolvedColors.circleColor;
-  const rightPadding = 60;
-  const countBaseX = 35;
-  const maxBarWidth = Math.max(10, dims.w - countBaseX - rightPadding);
+  const countBaseX = DISTRIBUTION.COUNT_BASE_X;
+  const maxBarWidth = Math.max(
+    10,
+    dims.w - countBaseX - DISTRIBUTION.MAX_BAR_WIDTH_OFFSET,
+  );
 
   // Generate content based on variant
   const mainContent =
@@ -236,6 +289,7 @@ export function distributionTemplate(
       : `<g transform="translate(30,70)">${generateBarItems(data, maxCount, maxBarWidth, barColor)}</g>`;
 
   const headerFontSize = calculateDynamicFontSize(title, 18, 300);
+  const headerFontSizeNumber = Number.parseFloat(headerFontSize) || 18;
 
   return markTrustedSvg(`
 <svg
@@ -251,31 +305,33 @@ export function distributionTemplate(
     <title id="title-id">${safeTitle}</title>
     <desc id="desc-id">${escapeForXml(data.map((d) => `${d.value}:${d.count}`).join(", "))}</desc>
     <style>
-      /* stylelint-disable selector-class-pattern, keyframes-name-pattern */
-      .header { 
-        fill: ${resolvedColors.titleColor};
-        font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif;
-        animation: fadeInAnimation 0.8s ease-in-out forwards;
-      }
-      .score-label,.score-count,.h-score,.h-count { fill:${resolvedColors.textColor}; font:400 12px 'Segoe UI', Ubuntu, Sans-Serif; }
-      .score-count { font-size:11px; }
-      .h-score,.h-count { font-size:10px; }
-      .stagger { opacity:0; animation: fadeInAnimation 0.6s ease forwards; }
-      @keyframes fadeInAnimation { from { opacity:0 } to { opacity:1 } }
+      ${generateCommonStyles(resolvedColors, headerFontSizeNumber)}
+      .score-label,.score-count,.h-score,.h-count { fill:${resolvedColors.textColor}; font:400 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
+      .score-count { font-size:${TYPOGRAPHY.SECTION_TITLE_SIZE}px; }
+      .h-score,.h-count { font-size:${TYPOGRAPHY.SMALL_TEXT_SIZE}px; }
     </style>
-    <rect
-      x="0.5"
-      y="0.5"
-      width="${dims.w - 1}"
-      height="${dims.h - 1}"
-      rx="${cardRadius}"
-      fill="${resolvedColors.backgroundColor}"
-      ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""}
-      stroke-width="2"
-    />
+    ${generateCardBackground(dims, cardRadius, resolvedColors)}
     <g transform="translate(20,35)"><text class="header">${safeTitle}</text></g>
     ${mainContent}
   </svg>`);
+}
+
+/**
+ * Factory function to create distribution template wrappers.
+ * Accepts mediaType and kind, returns a wrapper that omits both from input.
+ */
+export function createDistributionTemplate(
+  mediaType: "anime" | "manga",
+  kind: "score" | "year",
+) {
+  return (
+    input: Omit<
+      Parameters<typeof distributionTemplate>[0],
+      "mediaType" | "kind"
+    >,
+  ) => {
+    return distributionTemplate({ ...input, mediaType, kind });
+  };
 }
 
 /** Capitalize the first letter of a string. @source */

@@ -8,6 +8,11 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
+import {
+  ANIMATION,
+  SPACING,
+  TYPOGRAPHY,
+} from "@/lib/svg-templates/common/constants";
 import { getDimensions, getMediaTitle, truncateWithEllipsis } from "./shared";
 
 /** Personal records card input structure. @source */
@@ -184,7 +189,7 @@ export function personalRecordsTemplate(
         : resolvedColors.circleColor;
       const valueOpacity = r.missing ? 0.65 : 1;
       return `
-      <g transform="translate(25, ${startY + i * rowHeight})" class="stagger" style="animation-delay:${400 + i * 100}ms">
+      <g transform="translate(${SPACING.CARD_PADDING}, ${startY + i * rowHeight})" class="stagger" style="animation-delay:${ANIMATION.BASE_DELAY + i * ANIMATION.MEDIUM_INCREMENT}ms">
         <text class="record-label" x="0" y="0" fill="${resolvedColors.textColor}">${escapeForXml(r.label)}:</text>
         <text class="record-value" x="0" y="16" fill="${valueFill}" opacity="${valueOpacity}">${r.value}</text>
       </g>
@@ -198,8 +203,8 @@ export function personalRecordsTemplate(
       <title id="title-id">${safeTitle}</title>
       <style>
         .header { fill: ${resolvedColors.titleColor}; font: 600 ${headerFontSize}px 'Segoe UI', Ubuntu, Sans-Serif; }
-        .record-label { font-family: 'Segoe UI', Ubuntu, Sans-Serif; font-weight: 500; font-size: 12px; }
-        .record-value { font-family: 'Segoe UI', Ubuntu, Sans-Serif; font-weight: 400; font-size: 11px; }
+        .record-label { font-family: 'Segoe UI', Ubuntu, Sans-Serif; font-weight: 500; font-size: ${TYPOGRAPHY.STAT_LABEL_SIZE}px; }
+        .record-value { font-family: 'Segoe UI', Ubuntu, Sans-Serif; font-weight: 400; font-size: ${TYPOGRAPHY.SECTION_TITLE_SIZE}px; }
         .stagger { opacity: 0; animation: fadeIn 0.5s ease forwards; }
         @keyframes fadeIn { to { opacity: 1; } }
       </style>

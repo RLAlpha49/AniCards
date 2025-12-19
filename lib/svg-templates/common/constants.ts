@@ -1,0 +1,117 @@
+// Animation timing constants
+export const ANIMATION = {
+  BASE_DELAY: 450,
+  STAGGER_INCREMENT: 150,
+  FAST_INCREMENT: 80,
+  MEDIUM_INCREMENT: 100,
+  SLOW_INCREMENT: 120,
+  HEADER_DURATION: 800,
+  FADE_DURATION: 300,
+  RANK_DURATION: 1000,
+
+  // Additional animation patterns used across templates
+  LEGEND_BASE_DELAY: 600,
+  LEGEND_INCREMENT: 50,
+  PROFILE_BASE_DELAY: 250,
+  CHART_BASE_DELAY: 350,
+  CHART_INCREMENT: 70,
+} as const;
+
+// Spacing and layout constants
+export const SPACING = {
+  CARD_PADDING: 25,
+  HEADER_Y: 35,
+  CONTENT_Y: 55,
+  ROW_HEIGHT: 25,
+  ROW_HEIGHT_COMPACT: 22,
+  ROW_HEIGHT_LARGE: 26,
+  SECTION_GAP: 30,
+  ITEM_GAP: 18,
+  BAR_SPACING: 42,
+} as const;
+
+// Typography constants
+export const TYPOGRAPHY = {
+  HEADER_SIZE: 18,
+  HEADER_SIZE_LARGE: 20,
+  KPI_SIZE: 24,
+  STAT_SIZE: 13,
+  STAT_LABEL_SIZE: 12,
+  STAT_VALUE_SIZE: 14,
+  SECTION_TITLE_SIZE: 11,
+  SMALL_TEXT_SIZE: 10,
+  LARGE_TEXT_SIZE: 16,
+  USERNAME_SIZE: 18,
+} as const;
+
+// Circle and shape constants
+export const SHAPES = {
+  CIRCLE_RADIUS_LARGE: 40,
+  CIRCLE_RADIUS_MEDIUM: 30,
+  CIRCLE_RADIUS_SMALL: 28,
+  CIRCLE_STROKE_WIDTH: 6,
+  CIRCLE_STROKE_WIDTH_THIN: 5,
+  AVATAR_RADIUS: 30,
+  BAR_HEIGHT: 14,
+  BAR_HEIGHT_SMALL: 10,
+  BAR_HEIGHT_LARGE: 16,
+  BAR_RADIUS: 3,
+  CELL_SIZE: 10,
+  CELL_GAP: 2,
+} as const;
+
+// Positioning constants
+export const POSITIONING = {
+  STAT_LABEL_X: 0,
+  STAT_VALUE_X_DEFAULT: 199.01,
+  STAT_VALUE_X_COMPACT: 160,
+  STAT_VALUE_X_SMALL: 120,
+  STAT_VALUE_X_LARGE: 125,
+  BAR_START_X: 30,
+  BAR_START_X_LARGE: 150,
+  COUNT_BASE_X: 35,
+  RIGHT_PADDING: 60,
+  AVATAR_OFFSET_X: 100,
+} as const;
+
+// Heatmap specific constants
+export const HEATMAP = {
+  WEEKS: 13,
+  DAYS_PER_WEEK: 7,
+  BASE_ANIMATION_DELAY: 300,
+  WEEK_DELAY_INCREMENT: 30,
+  DAY_DELAY_INCREMENT: 10,
+} as const;
+
+// Milestone specific constants
+export const MILESTONES = {
+  BAR_SPACING: 42,
+  BAR_HEIGHT: 14,
+  ROW_Y_OFFSET: -22,
+  ROW_HEIGHT: 34,
+  LABEL_Y_OFFSET: -8,
+  VALUE_Y_OFFSET: -3,
+  BASE_DELAY: 400,
+  DELAY_INCREMENT: 100,
+} as const;
+
+// Distribution chart constants
+export const DISTRIBUTION = {
+  MAX_BAR_WIDTH_OFFSET: 60,
+  COUNT_BASE_X: 35,
+  BAR_START_X: 30,
+  VERTICAL_BAR_WIDTH: 12,
+  VERTICAL_BAR_SPACING: 28,
+  VERTICAL_BAR_MAX_HEIGHT: 70,
+  VERTICAL_BAR_Y_BASE: 90,
+  MAX_ITEMS: 15,
+} as const;
+
+// Profile overview constants
+export const PROFILE = {
+  AVATAR_SIZE: 60,
+  AVATAR_RADIUS: 30,
+  AVATAR_STROKE_WIDTH: 2,
+  SECTION_SPACING: 150,
+  YEARS_SECTION_X: 300,
+} as const;

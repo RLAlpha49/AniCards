@@ -8,6 +8,12 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
+import {
+  HEATMAP,
+  SHAPES,
+  TYPOGRAPHY,
+} from "@/lib/svg-templates/common/constants";
+import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
 import { getHeatmapColor, type HeatmapPalette } from "./shared";
 
 /**
@@ -65,15 +71,17 @@ export function activityHeatmapTemplate(data: {
   }
 
   // Generate calendar grid for the last ~90 days (13 weeks)
-  const weeks = 13;
-  const cellSize = 10;
-  const cellGap = 2;
+  const weeks = HEATMAP.WEEKS;
+  const cellSize = SHAPES.CELL_SIZE;
+  const cellGap = SHAPES.CELL_GAP;
   const now = new Date();
   // Start from midnight UTC today
   const startDate = new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
   );
-  startDate.setUTCDate(startDate.getUTCDate() - weeks * 7 + 1);
+  startDate.setUTCDate(
+    startDate.getUTCDate() - weeks * HEATMAP.DAYS_PER_WEEK + 1,
+  );
   // Align to start of week (Sunday) in UTC
   startDate.setUTCDate(startDate.getUTCDate() - startDate.getUTCDay());
 
@@ -103,7 +111,7 @@ export function activityHeatmapTemplate(data: {
           fill="${colorData.color}"
           ${colorData.opacity === 1 ? "" : `fill-opacity="${colorData.opacity}"`}
           class="stagger"
-          style="animation-delay: ${300 + week * 30 + day * 10}ms"
+          style="animation-delay: ${HEATMAP.BASE_ANIMATION_DELAY + week * HEATMAP.WEEK_DELAY_INCREMENT + day * HEATMAP.DAY_DELAY_INCREMENT}ms"
         >
           <title>${key}: ${amount} activities</title>
         </rect>
@@ -123,7 +131,7 @@ export function activityHeatmapTemplate(data: {
     )
     .join("");
 
-  const dims = { w: 220, h: 160 };
+  const dims = getCardDimensions("activityHeatmap", "default");
 
   return markTrustedSvg(`
 <svg
@@ -141,12 +149,12 @@ export function activityHeatmapTemplate(data: {
   <style>
     .header {
       fill: ${resolvedColors.titleColor};
-      font: 600 ${calculateDynamicFontSize(title, 16, 180)}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${calculateDynamicFontSize(title, TYPOGRAPHY.LARGE_TEXT_SIZE, 180)}px 'Segoe UI', Ubuntu, Sans-Serif;
       animation: fadeInAnimation 0.8s ease-in-out forwards;
     }
     .day-label {
       fill: ${resolvedColors.textColor};
-      font: 400 8px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 400 ${TYPOGRAPHY.SMALL_TEXT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
       opacity: 0.7;
     }
     .stagger {

@@ -1,6 +1,12 @@
 import type { TrustedSVG } from "@/lib/types/svg";
 import type { UserAvatar, UserStatistics } from "@/lib/types/records";
 import {
+  ANIMATION,
+  PROFILE,
+  TYPOGRAPHY,
+} from "@/lib/svg-templates/common/constants";
+import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
+import {
   calculateDynamicFontSize,
   escapeForXml,
   getCardBorderRadius,
@@ -8,11 +14,9 @@ import {
   processColorsForSVG,
   toFiniteNumber,
 } from "@/lib/utils";
-import {
-  generateCardBackground,
-  generateCommonStyles,
-  type TemplateStyles,
-} from "./shared";
+import { type TemplateStyles } from "./shared";
+import { generateCommonStyles } from "../common/style-generators";
+import { generateCardBackground } from "../common/base-template-utils";
 
 /**
  * Renders the Profile Overview card showing avatar, display name, and high-level
@@ -66,7 +70,7 @@ export const profileOverviewTemplate = (data: {
       )
     : undefined;
 
-  const dims = { w: 300, h: 170 };
+  const dims = getCardDimensions("profileOverview", "default");
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);
 
   const title = `${data.username}'s Profile`;
@@ -112,11 +116,11 @@ export const profileOverviewTemplate = (data: {
 
     .username {
       fill: ${resolvedColors.titleColor};
-      font: 700 18px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 700 ${TYPOGRAPHY.USERNAME_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
     }
 
     .avatar-clip {
-      clip-path: circle(30px at 35px 35px);
+      clip-path: circle(${PROFILE.AVATAR_RADIUS}px at ${PROFILE.AVATAR_RADIUS + 5}px ${PROFILE.AVATAR_RADIUS + 5}px);
     }
   </style>
 
@@ -133,27 +137,27 @@ export const profileOverviewTemplate = (data: {
           ? `
         <g transform="translate(20, 10)">
           <clipPath id="avatar-clip">
-            <circle cx="30" cy="30" r="30"/>
+            <circle cx="${PROFILE.AVATAR_RADIUS}" cy="${PROFILE.AVATAR_RADIUS}" r="${PROFILE.AVATAR_RADIUS}"/>
           </clipPath>
           <image
-            x="0" y="0" width="60" height="60"
+            x="0" y="0" width="${PROFILE.AVATAR_SIZE}" height="${PROFILE.AVATAR_SIZE}"
             ${hrefAttr}
             clip-path="url(#avatar-clip)"
             preserveAspectRatio="xMidYMid slice"
           />
-          <circle cx="30" cy="30" r="30" fill="none" stroke="${resolvedColors.circleColor}" stroke-width="2"/>
+          <circle cx="${PROFILE.AVATAR_RADIUS}" cy="${PROFILE.AVATAR_RADIUS}" r="${PROFILE.AVATAR_RADIUS}" fill="none" stroke="${resolvedColors.circleColor}" stroke-width="${PROFILE.AVATAR_STROKE_WIDTH}"/>
         </g>
       `
           : ""
       }
       <g data-testid="main-card-body" transform="translate(20, 100)">
-        <g class="stagger" style="animation-delay: 300ms">
+        <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY - 150}ms">
           <text class="section-title" x="0" y="0">ANIME</text>
           <text class="stat-value" x="0" y="20">${animeStats.count}</text>
           <text class="stat-label" x="50" y="20">titles</text>
           <text class="stat-label" x="0" y="40">${daysWatched} days watched</text>
         </g>
-        <g class="stagger" style="animation-delay: 450ms" transform="translate(150, 0)">
+        <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY}ms" transform="translate(${PROFILE.SECTION_SPACING}, 0)">
           <text class="section-title" x="0" y="0">MANGA</text>
           <text class="stat-value" x="0" y="20">${mangaStats.count}</text>
           <text class="stat-label" x="50" y="20">titles</text>
@@ -162,7 +166,7 @@ export const profileOverviewTemplate = (data: {
         ${
           yearsActive
             ? `
-          <g class="stagger" style="animation-delay: 600ms" transform="translate(300, 0)">
+          <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY + 150}ms" transform="translate(${PROFILE.YEARS_SECTION_X}, 0)">
             <text class="section-title" x="0" y="0">ACTIVE</text>
             <text class="stat-value" x="0" y="20">${yearsActive}</text>
             <text class="stat-label" x="30" y="20">year${yearSuffix}</text>

@@ -7,13 +7,15 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
+import { SPACING, TYPOGRAPHY } from "@/lib/svg-templates/common/constants";
+import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
 import {
-  generateCardBackground,
-  generateCommonStyles,
   generateFavouritesSummaryBody,
   getFavouriteCounts,
   type TemplateStyles,
 } from "./shared";
+import { generateCommonStyles } from "../common/style-generators";
+import { generateCardBackground } from "../common/base-template-utils";
 
 /**
  * Renders the Favourites Summary card - a compact KPI-style card summarizing
@@ -56,7 +58,7 @@ export const favoritesSummaryTemplate = (data: {
   const totalFavourites =
     animeCount + mangaCount + charactersCount + staffCount + studiosCount;
 
-  const dims = { w: 350, h: 180 };
+  const dims = getCardDimensions("favoritesSummary", "default");
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);
 
   const title = `${data.username}'s Favourites`;
@@ -88,18 +90,18 @@ export const favoritesSummaryTemplate = (data: {
 
     .total-count {
       fill: ${resolvedColors.circleColor};
-      font: 700 24px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 700 ${TYPOGRAPHY.KPI_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
     }
 
     .category-icon {
       fill: ${resolvedColors.circleColor};
-      font-size: 14px;
+      font-size: ${TYPOGRAPHY.STAT_VALUE_SIZE}px;
     }
   </style>
 
   ${generateCardBackground(dims, cardRadius, resolvedColors)}
 
-  <g data-testid="card-title" transform="translate(25, 35)">
+  <g data-testid="card-title" transform="translate(${SPACING.CARD_PADDING}, ${SPACING.HEADER_Y})">
     <text x="0" y="0" class="header">${safeTitle}</text>
   </g>
 

@@ -8,6 +8,12 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
+import {
+  ANIMATION,
+  SPACING,
+  TYPOGRAPHY,
+} from "@/lib/svg-templates/common/constants";
+import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
 import { computeStreaks } from "./shared";
 
 /**
@@ -52,7 +58,7 @@ export function activityStreaksTemplate(data: {
 
   const streakInfo = computeStreaks(data.activityHistory);
 
-  const dims = { w: 280, h: 160 };
+  const dims = getCardDimensions("activityStreaks", "default");
 
   const stats = [
     {
@@ -72,7 +78,7 @@ export function activityStreaksTemplate(data: {
   const statsContent = stats
     .map(
       (stat, i) => `
-    <g class="stagger" style="animation-delay: ${400 + i * 150}ms" transform="translate(0, ${i * 25})">
+    <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY + i * ANIMATION.STAGGER_INCREMENT}ms" transform="translate(0, ${i * SPACING.ROW_HEIGHT})">
       <text class="stat" y="12">${stat.label}</text>
       <text class="stat-value" x="${dims.w - 40}" y="12" text-anchor="end">${stat.value}</text>
     </g>
@@ -96,16 +102,16 @@ export function activityStreaksTemplate(data: {
   <style>
     .header {
       fill: ${resolvedColors.titleColor};
-      font: 600 ${calculateDynamicFontSize(title, 16, dims.w - 40)}px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${calculateDynamicFontSize(title, TYPOGRAPHY.LARGE_TEXT_SIZE, dims.w - 40)}px 'Segoe UI', Ubuntu, Sans-Serif;
       animation: fadeInAnimation 0.8s ease-in-out forwards;
     }
     .stat {
       fill: ${resolvedColors.textColor};
-      font: 400 12px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 400 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
     }
     .stat-value {
       fill: ${resolvedColors.circleColor};
-      font: 600 12px 'Segoe UI', Ubuntu, Sans-Serif;
+      font: 600 ${TYPOGRAPHY.LARGE_TEXT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
     }
     .stagger {
       opacity: 0;

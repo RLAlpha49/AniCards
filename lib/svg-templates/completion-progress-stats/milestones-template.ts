@@ -7,7 +7,9 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
-import { getDimensions, toSvgIdFragment } from "./shared";
+import { MILESTONES } from "@/lib/svg-templates/common/constants";
+import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
+import { toSvgIdFragment } from "./shared";
 
 /** Milestones card input structure. @source */
 interface MilestonesInput {
@@ -120,10 +122,10 @@ function generateMilestoneBar(opts: MilestoneBarOptions): string {
   const barWidth = (progress / 100) * width;
   const barRadius = Math.max(4, Math.min(barHeight / 2, 10));
   const clipId = `${idPrefix}-ms-clip-${toSvgIdFragment(label)}-${Math.round(x)}-${Math.round(y)}`;
-  const labelY = -8;
-  const valueY = barHeight - 3;
-  const rowY = -22;
-  const rowHeight = barHeight + 34;
+  const labelY = MILESTONES.LABEL_Y_OFFSET;
+  const valueY = barHeight + MILESTONES.VALUE_Y_OFFSET;
+  const rowY = MILESTONES.ROW_Y_OFFSET;
+  const rowHeight = barHeight + MILESTONES.ROW_HEIGHT;
 
   return `
     <g transform="translate(${x}, ${y})" class="stagger" style="animation-delay:${delay}ms">
@@ -170,7 +172,7 @@ export function milestonesTemplate(input: MilestonesInput): TrustedSVG {
   );
 
   const cardRadius = getCardBorderRadius(styles.borderRadius);
-  const baseDims = getDimensions("milestones", variant);
+  const baseDims = getCardDimensions("milestones", variant);
   const title = `${username}'s Milestones`;
   const safeTitle = escapeForXml(title);
   const headerFontSize = calculateDynamicFontSize(title, 18, baseDims.w - 40);
@@ -178,11 +180,15 @@ export function milestonesTemplate(input: MilestonesInput): TrustedSVG {
   const idPrefix = `ms-${toSvgIdFragment(username)}-${toSvgIdFragment(variant)}`;
   const daysWatched = Math.floor((stats.minutesWatched ?? 0) / 1440);
   const barWidth = baseDims.w - 40;
-  const barSpacing = 42;
-  const barHeight = 14;
+  const barSpacing = MILESTONES.BAR_SPACING;
+  const barHeight = MILESTONES.BAR_HEIGHT;
 
   const milestoneBars: string[] = [];
   let yOffset = 70;
+  let barIndex = 0;
+
+  const nextDelay = () =>
+    MILESTONES.BASE_DELAY + barIndex++ * MILESTONES.DELAY_INCREMENT;
 
   if (stats.episodesWatched !== undefined && stats.episodesWatched > 0) {
     milestoneBars.push(
@@ -199,7 +205,7 @@ export function milestonesTemplate(input: MilestonesInput): TrustedSVG {
         circleColor: resolvedColors.circleColor,
         textColor: resolvedColors.textColor,
         backgroundColor: resolvedColors.backgroundColor,
-        delay: 400,
+        delay: nextDelay(),
       }),
     );
     yOffset += barSpacing;
@@ -220,7 +226,7 @@ export function milestonesTemplate(input: MilestonesInput): TrustedSVG {
         circleColor: resolvedColors.circleColor,
         textColor: resolvedColors.textColor,
         backgroundColor: resolvedColors.backgroundColor,
-        delay: 500,
+        delay: nextDelay(),
       }),
     );
     yOffset += barSpacing;
@@ -241,7 +247,7 @@ export function milestonesTemplate(input: MilestonesInput): TrustedSVG {
         circleColor: resolvedColors.circleColor,
         textColor: resolvedColors.textColor,
         backgroundColor: resolvedColors.backgroundColor,
-        delay: 600,
+        delay: nextDelay(),
       }),
     );
     yOffset += barSpacing;
@@ -262,7 +268,7 @@ export function milestonesTemplate(input: MilestonesInput): TrustedSVG {
         circleColor: resolvedColors.circleColor,
         textColor: resolvedColors.textColor,
         backgroundColor: resolvedColors.backgroundColor,
-        delay: 700,
+        delay: nextDelay(),
       }),
     );
     yOffset += barSpacing;
@@ -284,7 +290,7 @@ export function milestonesTemplate(input: MilestonesInput): TrustedSVG {
         circleColor: resolvedColors.circleColor,
         textColor: resolvedColors.textColor,
         backgroundColor: resolvedColors.backgroundColor,
-        delay: 800,
+        delay: nextDelay(),
       }),
     );
   }
