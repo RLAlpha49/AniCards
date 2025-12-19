@@ -8,7 +8,7 @@ import {
   processColorsForSVG,
   escapeForXml,
   markTrustedSvg,
-} from "../utils";
+} from "@/lib/utils";
 import type { ColorValue } from "@/lib/types/card";
 
 const DEFAULT_STAT_BASE_COLOR = "#2563eb";
@@ -20,20 +20,19 @@ const tryParseJsonGradient = (jsonStr: string): { color: string } | null => {
     if (
       typeof parsed === "object" &&
       parsed !== null &&
-      parsed.type &&
-      Array.isArray(parsed.stops) &&
-      parsed.stops.length > 0
+      (parsed as { type?: unknown }).type &&
+      Array.isArray((parsed as { stops?: unknown }).stops) &&
+      ((parsed as { stops?: unknown[] }).stops?.length ?? 0) > 0
     ) {
-      // Try to find first valid hex color in stops
-      for (const stop of parsed.stops) {
+      for (const stop of (parsed as { stops: unknown[] }).stops) {
         if (
           typeof stop === "object" &&
           stop !== null &&
           "color" in stop &&
-          typeof stop.color === "string" &&
-          isValidHexColor(stop.color)
+          typeof (stop as { color?: unknown }).color === "string" &&
+          isValidHexColor((stop as { color: string }).color)
         ) {
-          return { color: stop.color };
+          return { color: (stop as { color: string }).color };
         }
       }
     }

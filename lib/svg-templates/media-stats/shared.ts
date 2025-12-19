@@ -8,7 +8,7 @@ import {
   escapeForXml,
   markTrustedSvg,
   toFiniteNumber,
-} from "../utils";
+} from "@/lib/utils";
 
 /** Media type used by the media stats templates — either anime or manga. @source */
 type MediaType = "anime" | "manga";
