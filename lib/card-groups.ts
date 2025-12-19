@@ -20,6 +20,8 @@ export const VARIATION_LABEL_MAP: Record<string, string> = {
   mixed: "Mixed",
   github: "GitHub",
   fire: "Fire",
+  combined: "Combined",
+  split: "Split",
 };
 
 /**
@@ -201,6 +203,31 @@ export const CARD_GROUPS: CardGroup[] = [
     cardType: "topActivityDays",
     cardTitle: "Top Activity Days",
     variations: ["default"],
+  },
+  {
+    cardType: "statusCompletionOverview",
+    cardTitle: "Status Completion Overview",
+    variations: ["combined", "split"],
+  },
+  {
+    cardType: "milestones",
+    cardTitle: "Consumption Milestones",
+    variations: ["default"],
+  },
+  {
+    cardType: "personalRecords",
+    cardTitle: "Personal Records",
+    variations: ["default", "compact"],
+  },
+  {
+    cardType: "planningBacklog",
+    cardTitle: "Planning Backlog",
+    variations: ["default"],
+  },
+  {
+    cardType: "mostRewatched",
+    cardTitle: "Most Rewatched/Reread",
+    variations: ["default", "anime", "manga"],
   },
 ];
 

@@ -1,5 +1,9 @@
 import { calculateMilestones } from "@/lib/utils/milestones";
-import { UserRecord, UserStatsData } from "@/lib/types/records";
+import {
+  UserRecord,
+  UserStatsData,
+  ActivityHistoryItem,
+} from "@/lib/types/records";
 import {
   SocialStats,
   AnimeStats as TemplateAnimeStats,
@@ -22,6 +26,12 @@ import {
  * @returns SocialStats shaped for template rendering.
  * @source
  */
+function extractActivityHistory(statsRoot: unknown): ActivityHistoryItem[] {
+  if (!statsRoot || typeof statsRoot !== "object") return [];
+  const v = (statsRoot as Record<string, unknown>)["activityHistory"];
+  return Array.isArray(v) ? (v as ActivityHistoryItem[]) : [];
+}
+
 export function toTemplateSocialStats(userRecord: UserRecord): SocialStats {
   return {
     followersPage: userRecord.stats.followersPage,
@@ -29,7 +39,7 @@ export function toTemplateSocialStats(userRecord: UserRecord): SocialStats {
     threadsPage: userRecord.stats.threadsPage,
     threadCommentsPage: userRecord.stats.threadCommentsPage,
     reviewsPage: userRecord.stats.reviewsPage,
-    activityHistory: userRecord.stats.User.stats.activityHistory ?? [],
+    activityHistory: extractActivityHistory(userRecord.stats.User.stats),
   } as SocialStats;
 }
 

@@ -14,7 +14,7 @@ import {
 import generateCardSvg from "@/lib/card-generator";
 import {
   fetchUserData,
-  fetchUserDataOnly,
+  fetchUserDataForCard,
   validateAndNormalizeUserRecord,
   processCardConfig,
   CardDataError,
@@ -67,6 +67,11 @@ const ALLOWED_CARD_TYPES = new Set([
   "activityStreaks",
   "activityPatterns",
   "topActivityDays",
+  "statusCompletionOverview",
+  "milestones",
+  "personalRecords",
+  "planningBacklog",
+  "mostRewatched",
 ]);
 
 /**
@@ -653,7 +658,7 @@ async function loadUserAndCardConfig(
   | { error: Response }
 > {
   if (needsDbCardConfig) {
-    const data = await fetchUserData(effectiveUserId);
+    const data = await fetchUserData(effectiveUserId, params.cardType);
     const { cardDoc } = data;
     let userDoc = data.userDoc;
 
@@ -679,7 +684,7 @@ async function loadUserAndCardConfig(
   }
 
   // Not using DB card config; fetch user only and build config from params
-  const userDoc = await fetchUserDataOnly(effectiveUserId);
+  const userDoc = await fetchUserDataForCard(effectiveUserId, params.cardType);
   const validationResult = validateAndNormalizeUserRecord(userDoc);
   if ("error" in validationResult) {
     return {

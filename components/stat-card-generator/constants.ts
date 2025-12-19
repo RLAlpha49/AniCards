@@ -165,6 +165,51 @@ const activityCards = [
   },
 ];
 
+const statusCompletionVariations = [
+  { id: "combined", label: "Combined" },
+  { id: "split", label: "Split (Anime/Manga)" },
+];
+
+const milestonesVariations = [{ id: "default", label: "Default" }];
+
+const personalRecordsVariations = [{ id: "default", label: "Default" }];
+
+const planningBacklogVariations = [{ id: "default", label: "Default" }];
+
+const mostRewatchedVariations = [
+  { id: "default", label: "Default (All)" },
+  { id: "anime", label: "Anime Only" },
+  { id: "manga", label: "Manga Only" },
+];
+
+const completionProgressCards = [
+  {
+    id: "statusCompletionOverview",
+    label: "Status Completion Overview",
+    variations: statusCompletionVariations,
+  },
+  {
+    id: "milestones",
+    label: "Consumption Milestones",
+    variations: milestonesVariations,
+  },
+  {
+    id: "personalRecords",
+    label: "Personal Records (Longest, Highest Rated, Most Rewatched)",
+    variations: personalRecordsVariations,
+  },
+  {
+    id: "planningBacklog",
+    label: "Planning Backlog",
+    variations: planningBacklogVariations,
+  },
+  {
+    id: "mostRewatched",
+    label: "Most Rewatched/Reread Titles",
+    variations: mostRewatchedVariations,
+  },
+];
+
 export const statCardTypes = [
   createCardType(
     "animeStats",
@@ -210,6 +255,14 @@ export const statCardTypes = [
     createCardType(
       card.id,
       "Activity & Time-Based",
+      card.label,
+      card.variations,
+    ),
+  ),
+  ...completionProgressCards.map((card) =>
+    createCardType(
+      card.id,
+      "Completion & Progress",
       card.label,
       card.variations,
     ),
