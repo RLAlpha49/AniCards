@@ -7,7 +7,7 @@ import {
   escapeForXml,
   markTrustedSvg,
   toFiniteNumber,
-} from "../utils";
+} from "@/lib/utils";
 import type { ColorValue } from "@/lib/types/card";
 
 /** Simple representation of a distribution item with value and a count. @source */

@@ -12,7 +12,7 @@ import {
 } from "react";
 import { useStatCardSubmit } from "@/hooks/useStatCardSubmit";
 import { useUserPreferences, useCardSettings } from "@/lib/stores";
-import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
+import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats/shared";
 import type { TrustedSVG } from "@/lib/types/svg";
 import {
   trackCardGeneration,

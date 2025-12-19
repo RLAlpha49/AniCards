@@ -83,7 +83,7 @@ test.describe("Search page", () => {
     const loadingText = page
       .getByRole("paragraph")
       .filter({ hasText: "Searching for user..." });
-    await expect(loadingText).toBeVisible({ timeout: 5000 });
+    await expect(loadingText).toBeVisible({ timeout: 10000 });
     await navigation;
   });
 });

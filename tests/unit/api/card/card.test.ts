@@ -12,7 +12,7 @@ mock.module("@/lib/utils/milestones", () => ({
   calculateMilestones: mock(() => ({ milestone: 100 })),
 }));
 
-mock.module("@/lib/svg-templates/media-stats", () => ({
+mock.module("@/lib/svg-templates/media-stats/shared", () => ({
   mediaStatsTemplate: mock(
     (data: { styles?: { borderColor?: string } }) =>
       `<!--ANICARDS_TRUSTED_SVG-->` +
@@ -20,18 +20,33 @@ mock.module("@/lib/svg-templates/media-stats", () => ({
   ),
 }));
 
-mock.module("@/lib/svg-templates/profile-favorite-stats", () => ({
-  favoritesGridTemplate: mock(
-    (data: { gridCols?: number; gridRows?: number; variant?: string }) =>
-      `<svg data-template="favorites-grid" gridCols="${data.gridCols ?? "undefined"}" gridRows="${data.gridRows ?? "undefined"}" variant="${data.variant ?? "undefined"}">Favorites Grid</svg>`,
-  ),
-  favoritesSummaryTemplate: mock(
-    () => `<svg data-template="favorites-summary">Favorites Summary</svg>`,
-  ),
-  profileOverviewTemplate: mock(
-    () => `<svg data-template="profile-overview">Profile Overview</svg>`,
-  ),
-}));
+mock.module(
+  "@/lib/svg-templates/profile-favorite-stats/favorites-grid-template",
+  () => ({
+    favoritesGridTemplate: mock(
+      (data: { gridCols?: number; gridRows?: number; variant?: string }) =>
+        `<svg data-template="favorites-grid" gridCols="${data.gridCols ?? "undefined"}" gridRows="${data.gridRows ?? "undefined"}" variant="${data.variant ?? "undefined"}">Favorites Grid</svg>`,
+    ),
+  }),
+);
+
+mock.module(
+  "@/lib/svg-templates/profile-favorite-stats/favorites-summary-template",
+  () => ({
+    favoritesSummaryTemplate: mock(
+      () => `<svg data-template="favorites-summary">Favorites Summary</svg>`,
+    ),
+  }),
+);
+
+mock.module(
+  "@/lib/svg-templates/profile-favorite-stats/profile-overview-template",
+  () => ({
+    profileOverviewTemplate: mock(
+      () => `<svg data-template="profile-overview">Profile Overview</svg>`,
+    ),
+  }),
+);
 
 mock.module("@/lib/svg-templates/social-stats", () => ({
   socialStatsTemplate: mock(
@@ -40,7 +55,7 @@ mock.module("@/lib/svg-templates/social-stats", () => ({
   ),
 }));
 
-mock.module("@/lib/svg-templates/extra-anime-manga-stats", () => ({
+mock.module("@/lib/svg-templates/extra-anime-manga-stats/shared", () => ({
   extraAnimeMangaStatsTemplate: mock(
     (data: {
       styles?: { borderColor?: string };
@@ -51,7 +66,7 @@ mock.module("@/lib/svg-templates/extra-anime-manga-stats", () => ({
   ),
 }));
 
-mock.module("@/lib/svg-templates/distribution", () => ({
+mock.module("@/lib/svg-templates/distribution/shared", () => ({
   distributionTemplate: mock(
     (data: { styles?: { borderColor?: string } }) =>
       `<svg data-template="distribution" stroke="${data.styles?.borderColor ?? "none"}">Distribution</svg>`,
@@ -61,10 +76,11 @@ mock.module("@/lib/svg-templates/distribution", () => ({
 const routeModule = await import("@/app/api/card/route");
 const { GET, OPTIONS } = routeModule;
 const { extraAnimeMangaStatsTemplate } =
-  await import("@/lib/svg-templates/extra-anime-manga-stats");
-const { mediaStatsTemplate } = await import("@/lib/svg-templates/media-stats");
+  await import("@/lib/svg-templates/extra-anime-manga-stats/shared");
+const { mediaStatsTemplate } =
+  await import("@/lib/svg-templates/media-stats/shared");
 const { favoritesGridTemplate } =
-  await import("@/lib/svg-templates/profile-favorite-stats");
+  await import("@/lib/svg-templates/profile-favorite-stats/favorites-grid-template");
 const favoritesGridTemplateMock = favoritesGridTemplate as ReturnType<
   typeof mock<
     (data: { gridCols?: number; gridRows?: number; variant?: string }) => string
@@ -75,7 +91,7 @@ const { colorPresets } =
 const { POST: storeCardsPOST } = await import("@/app/api/store-cards/route");
 const utils = await import("@/lib/utils");
 const { distributionTemplate } =
-  await import("@/lib/svg-templates/distribution");
+  await import("@/lib/svg-templates/distribution/shared");
 const { escapeForXml } = utils;
 
 /**

@@ -1,29 +1,23 @@
 import { calculateMilestones } from "@/lib/utils/milestones";
 import { extractStyles } from "@/lib/utils";
-import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats";
-import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
+import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/shared";
+import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats/shared";
 import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
-import { distributionTemplate } from "@/lib/svg-templates/distribution";
-import {
-  profileOverviewTemplate,
-  favoritesSummaryTemplate,
-  favoritesGridTemplate,
-} from "@/lib/svg-templates/profile-favorite-stats";
-import {
-  activityHeatmapTemplate,
-  recentActivitySummaryTemplate,
-  recentActivityFeedTemplate,
-  activityStreaksTemplate,
-  activityPatternsTemplate,
-  topActivityDaysTemplate,
-} from "@/lib/svg-templates/activity-stats";
-import {
-  statusCompletionOverviewTemplate,
-  milestonesTemplate,
-  personalRecordsTemplate,
-  planningBacklogTemplate,
-  mostRewatchedTemplate,
-} from "@/lib/svg-templates/completion-progress-stats";
+import { distributionTemplate } from "@/lib/svg-templates/distribution/shared";
+import { favoritesGridTemplate } from "@/lib/svg-templates/profile-favorite-stats/favorites-grid-template";
+import { favoritesSummaryTemplate } from "@/lib/svg-templates/profile-favorite-stats/favorites-summary-template";
+import { profileOverviewTemplate } from "@/lib/svg-templates/profile-favorite-stats/profile-overview-template";
+import { activityHeatmapTemplate } from "@/lib/svg-templates/activity-stats/activity-heatmap-template";
+import { activityPatternsTemplate } from "@/lib/svg-templates/activity-stats/activity-patterns-template";
+import { activityStreaksTemplate } from "@/lib/svg-templates/activity-stats/activity-streaks-template";
+import { recentActivityFeedTemplate } from "@/lib/svg-templates/activity-stats/recent-activity-feed-template";
+import { recentActivitySummaryTemplate } from "@/lib/svg-templates/activity-stats/recent-activity-summary-template";
+import { topActivityDaysTemplate } from "@/lib/svg-templates/activity-stats/top-activity-days-template";
+import { milestonesTemplate } from "@/lib/svg-templates/completion-progress-stats/milestones-template";
+import { mostRewatchedTemplate } from "@/lib/svg-templates/completion-progress-stats/most-rewatched-template";
+import { personalRecordsTemplate } from "@/lib/svg-templates/completion-progress-stats/personal-records-template";
+import { planningBacklogTemplate } from "@/lib/svg-templates/completion-progress-stats/planning-backlog-template";
+import { statusCompletionOverviewTemplate } from "@/lib/svg-templates/completion-progress-stats/status-completion-overview-template";
 import { TrustedSVG } from "@/lib/types/svg";
 import {
   ActivityHistoryItem,
