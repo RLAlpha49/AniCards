@@ -71,6 +71,7 @@ export type StaffItem = { staff: { name: { full: string } }; count: number };
 export const displayNames: { [key: string]: string } = {
   animeStats: "Anime Stats",
   socialStats: "Social Stats",
+  socialMilestones: "Social Milestones",
   mangaStats: "Manga Stats",
   animeGenres: "Anime Genres",
   animeTags: "Anime Tags",

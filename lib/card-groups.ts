@@ -62,6 +62,11 @@ export const CARD_GROUPS: CardGroup[] = [
     variations: ["default", "compact", "minimal"],
   },
   {
+    cardType: "socialMilestones",
+    cardTitle: "Social Milestones",
+    variations: ["default"],
+  },
+  {
     cardType: "animeGenres",
     cardTitle: "Anime Genres",
     variations: ["default", "pie", "bar"],

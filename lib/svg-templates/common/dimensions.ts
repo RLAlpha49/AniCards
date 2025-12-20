@@ -11,6 +11,11 @@ export const CARD_DIMENSIONS = {
     minimal: { w: 280, h: 130 },
   },
 
+  // Social & community cards
+  socialMilestones: {
+    default: { w: 350, h: 270 },
+  },
+
   // Media stats variants
   mediaStats: {
     default: { w: 450, h: 195 },

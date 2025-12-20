@@ -3,6 +3,7 @@ import { extractStyles } from "@/lib/utils";
 import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/shared";
 import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats/shared";
 import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
+import { socialMilestonesTemplate } from "@/lib/svg-templates/social-community/social-milestones-template";
 import { distributionTemplate } from "@/lib/svg-templates/distribution/shared";
 import { favoritesGridTemplate } from "@/lib/svg-templates/profile-favorite-stats/favorites-grid-template";
 import { favoritesSummaryTemplate } from "@/lib/svg-templates/profile-favorite-stats/favorites-summary-template";
@@ -102,6 +103,8 @@ type MostRewatchedVariant = "default" | "anime" | "manga";
 type FavoritesGridVariant = "anime" | "manga" | "characters" | "mixed";
 /** @source */
 type ComparativeVariant = "default";
+/** @source */
+type SocialCommunityVariant = "default";
 
 /**
  * Parameters provided to the card generation functions.
@@ -166,6 +169,7 @@ function normalizeVariant(
     animeStats: statsVariants,
     mangaStats: statsVariants,
     socialStats: socialVariants,
+    socialMilestones: new Set<CardGenVariant>(["default"]),
     animeGenres: pieBarVariants,
     animeTags: pieBarVariants,
     animeVoiceActors: pieBarVariants,
@@ -302,6 +306,34 @@ function generateSocialStatsCard(params: CardGenerationParams) {
 }
 
 /**
+ * Generate a social milestones card showing progress towards fixed community tiers.
+ * @source
+ */
+function generateSocialMilestonesCard(params: CardGenerationParams): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+
+  const followers = userRecord.stats?.followersPage?.pageInfo?.total ?? 0;
+  const following = userRecord.stats?.followingPage?.pageInfo?.total ?? 0;
+  const threads = userRecord.stats?.threadsPage?.pageInfo?.total ?? 0;
+  const threadComments =
+    userRecord.stats?.threadCommentsPage?.pageInfo?.total ?? 0;
+  const reviews = userRecord.stats?.reviewsPage?.pageInfo?.total ?? 0;
+
+  return socialMilestonesTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as SocialCommunityVariant,
+    styles: extractStyles(cardConfig),
+    stats: {
+      followers,
+      following,
+      threads,
+      threadComments,
+      reviews,
+    },
+  });
+}
+
+/**
  * Main entry point for generating any supported card SVG.
  * Determines the base card type, normalizes the variant, and dispatches to
  * the appropriate generator function.
@@ -365,6 +397,8 @@ export async function generateCardSvg(
       return generateStatsCard(params, "manga");
     case "socialStats":
       return generateSocialStatsCard(params);
+    case "socialMilestones":
+      return generateSocialMilestonesCard(params);
     case "animeGenres":
     case "animeTags":
     case "animeVoiceActors":
