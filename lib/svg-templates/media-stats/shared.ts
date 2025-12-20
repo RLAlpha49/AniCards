@@ -312,12 +312,14 @@ export const mediaStatsTemplate = (data: {
   const dims = getCardDimensions("mediaStats", data.variant ?? "default");
 
   // Circle radius per variant
-  const circleRadius =
-    data.variant === "compact"
-      ? SHAPES.CIRCLE_RADIUS_MEDIUM
-      : data.variant === "minimal"
-        ? SHAPES.CIRCLE_RADIUS_SMALL
-        : SHAPES.CIRCLE_RADIUS_LARGE;
+  const circleRadius = (() => {
+    if (data.variant === "compact") {
+      return SHAPES.CIRCLE_RADIUS_MEDIUM;
+    } else if (data.variant === "minimal") {
+      return SHAPES.CIRCLE_RADIUS_SMALL;
+    }
+    return SHAPES.CIRCLE_RADIUS_LARGE;
+  })();
 
   // Scale dasharray & dashoffset relative to base radius 40 to avoid overfill on smaller circles
   const baseRadius = SHAPES.CIRCLE_RADIUS_LARGE;
