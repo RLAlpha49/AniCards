@@ -112,6 +112,7 @@ export const CARD_DIMENSIONS = {
   extraStats: {
     default: { w: 280, h: 195 },
     pie: { w: 340, h: 195 },
+    donut: { w: 340, h: 195 },
     bar: { w: 360, h: 195 },
   },
 } as const satisfies Record<string, Record<string, CardDimensions>>;

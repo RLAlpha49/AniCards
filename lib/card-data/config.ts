@@ -67,8 +67,8 @@ export function needsCardConfigFromDb(params: {
   ].includes(baseType);
   if (statusRelevant && params.statusColorsParam == null) return true;
 
-  // Pie chart percentages only matter in pie variations
-  const pieRelevant = variation === "pie";
+  // Pie-like chart percentages only matter in pie/donut variations
+  const pieRelevant = variation === "pie" || variation === "donut";
   if (pieRelevant && params.piePercentagesParam == null) return true;
 
   // Favorites grid layout is only meaningful for the favoritesGrid card.
@@ -281,10 +281,16 @@ function applyBooleanOverridesForBuild(
     }
   }
 
-  if (params.piePercentagesParam === "true" && config.variation === "pie") {
+  if (
+    params.piePercentagesParam === "true" &&
+    (config.variation === "pie" || config.variation === "donut")
+  ) {
     config.showPiePercentages = true;
   }
-  if (params.piePercentagesParam === "false" && config.variation === "pie") {
+  if (
+    params.piePercentagesParam === "false" &&
+    (config.variation === "pie" || config.variation === "donut")
+  ) {
     config.showPiePercentages = false;
   }
 }
@@ -503,7 +509,7 @@ function applyPiePercentFlag(
   params: { piePercentagesParam: string | null },
   effectiveVariation: string,
 ): void {
-  if (effectiveVariation !== "pie") return;
+  if (effectiveVariation !== "pie" && effectiveVariation !== "donut") return;
   if (params.piePercentagesParam === "true") {
     effectiveCardConfig.showPiePercentages = true;
   } else if (params.piePercentagesParam === "false") {

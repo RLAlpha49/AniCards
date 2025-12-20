@@ -274,6 +274,7 @@ export function StatCardTypeSelection({
 
               let VariationIcon = List;
               if (currentVariation === "pie") VariationIcon = PieChart;
+              else if (currentVariation === "donut") VariationIcon = PieChart;
               else if (currentVariation === "bar") VariationIcon = BarChart;
 
               const gridColsValue = clampGridDim(favoritesGridColumns ?? 3, 3);
