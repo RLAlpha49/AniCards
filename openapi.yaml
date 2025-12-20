@@ -131,7 +131,16 @@ paths:
           required: false
           schema:
             type: string
-            enum: ["default", "vertical", "pie", "minimal", "bar", "horizontal"]
+            enum:
+              [
+                "default",
+                "vertical",
+                "pie",
+                "minimal",
+                "bar",
+                "horizontal",
+                "cumulative",
+              ]
           description: "Optional rendering variation; also settable inside stored card configuration."
         - in: query
           name: showFavorites
