@@ -86,6 +86,32 @@ async function updateUserStats(userId: string): Promise<UpdateResult> {
  * @returns True when the user was removed from Redis, false otherwise.
  * @source
  */
+async function getUsernameIndexKey(
+  redisClient: UpstashRedis,
+  userId: string,
+): Promise<string | null> {
+  try {
+    const metaRaw = await redisClient.get(`user:${userId}:meta`);
+    if (!metaRaw) return null;
+
+    const parsed =
+      typeof metaRaw === "string"
+        ? safeParse<Record<string, unknown>>(metaRaw)
+        : (metaRaw as Record<string, unknown>);
+
+    const rawUsername = parsed ? parsed["username"] : undefined;
+    if (typeof rawUsername === "string" && rawUsername.trim()) {
+      return `username:${rawUsername.trim().toLowerCase()}`;
+    }
+  } catch (err) {
+    console.warn(
+      `⚠️ [Cron Job] User ${userId}: Failed to read meta for username cleanup: ${err}`,
+    );
+  }
+
+  return null;
+}
+
 async function handleFailureTracking(
   redisClient: UpstashRedis,
   userId: string,
@@ -100,13 +126,21 @@ async function handleFailureTracking(
 
   if (newFailureCount >= 3) {
     const cardsKey = `cards:${userId}`;
-    await Promise.all([
+    const usernameIndexKey = await getUsernameIndexKey(redisClient, userId);
+
+    const deletions = [
       deleteUserRecord(userId), // Remove user data (all parts)
       redisClient.del(failureKey), // Remove failure tracking
       redisClient.del(cardsKey), // Remove user's card configurations
-    ]);
+      ...(usernameIndexKey ? [redisClient.del(usernameIndexKey)] : []),
+    ];
+
+    await Promise.all(deletions);
+
     console.log(
-      `🗑️ [Cron Job] User ${userId}: Removed from database after 3 failed attempts`,
+      `🗑️ [Cron Job] User ${userId}: Removed from database after 3 failed attempts${
+        usernameIndexKey ? ` (removed ${usernameIndexKey})` : ""
+      }`,
     );
     return true; // User was removed
   } else {
