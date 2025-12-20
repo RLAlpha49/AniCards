@@ -448,6 +448,7 @@ describe("Cron API POST Endpoint", () => {
         "user:123:statistics",
         "user:123:pages",
         "user:123:planning",
+        "user:123:current",
         "user:123:rewatched",
         "user:123:completed",
         "user:123",

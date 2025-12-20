@@ -286,6 +286,8 @@ export interface UserStatsData {
   reviewsPage: ReviewsPage;
   animePlanning?: MediaListCollection;
   mangaPlanning?: MediaListCollection;
+  animeCurrent?: MediaListCollection;
+  mangaCurrent?: MediaListCollection;
   animeRewatched?: MediaListCollection;
   mangaReread?: MediaListCollection;
   animeCompleted?: MediaListCollection;

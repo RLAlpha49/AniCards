@@ -11,6 +11,7 @@ export const VARIATION_LABEL_MAP: Record<string, string> = {
   vertical: "Vertical",
   compact: "Compact",
   minimal: "Minimal",
+  communityFootprint: "Community Footprint",
   pie: "Pie Chart",
   bar: "Bar Chart",
   horizontal: "Horizontal",
@@ -59,7 +60,7 @@ export const CARD_GROUPS: CardGroup[] = [
   {
     cardType: "socialStats",
     cardTitle: "Social Statistics",
-    variations: ["default", "compact", "minimal"],
+    variations: ["default", "compact", "minimal", "communityFootprint"],
   },
   {
     cardType: "socialMilestones",
@@ -232,6 +233,11 @@ export const CARD_GROUPS: CardGroup[] = [
   {
     cardType: "mostRewatched",
     cardTitle: "Most Rewatched/Reread",
+    variations: ["default", "anime", "manga"],
+  },
+  {
+    cardType: "currentlyWatchingReading",
+    cardTitle: "Currently Watching / Reading",
     variations: ["default", "anime", "manga"],
   },
   {

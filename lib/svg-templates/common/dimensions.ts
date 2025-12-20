@@ -9,6 +9,7 @@ export const CARD_DIMENSIONS = {
     default: { w: 280, h: 195 },
     compact: { w: 280, h: 160 },
     minimal: { w: 280, h: 130 },
+    communityFootprint: { w: 280, h: 220 },
   },
 
   // Social & community cards
@@ -68,6 +69,9 @@ export const CARD_DIMENSIONS = {
     default: { w: 320, h: 220 },
     anime: { w: 330, h: 190 },
     manga: { w: 330, h: 190 },
+  },
+  currentlyWatchingReading: {
+    default: { w: 420, h: 260 },
   },
 
   // Profile and favorites

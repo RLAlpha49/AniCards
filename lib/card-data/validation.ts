@@ -105,6 +105,7 @@ export const displayNames: { [key: string]: string } = {
   personalRecords: "Personal Records",
   planningBacklog: "Planning Backlog",
   mostRewatched: "Most Rewatched/Reread",
+  currentlyWatchingReading: "Currently Watching / Reading",
   animeMangaOverview: "Anime vs Manga Overview",
   scoreCompareAnimeManga: "Anime vs Manga Score Comparison",
   countryDiversity: "Country Diversity",
@@ -760,6 +761,41 @@ export function validateAndNormalizeUserRecord(
           )
           .slice(0, 5);
         return { ...coll, lists: [{ name: "All", entries: topByAvgScore }] };
+      })(),
+      animeCurrent: (() => {
+        const raw = statsData.animeCurrent;
+        const coll = normalizeMediaListCollection(raw);
+        if (!coll) return undefined;
+        if (
+          raw &&
+          typeof raw === "object" &&
+          Array.isArray((raw as { lists?: unknown }).lists) &&
+          (raw as { lists: { name?: string }[] }).lists.length === 1 &&
+          (raw as { lists: { name?: string }[] }).lists[0].name === "All"
+        ) {
+          return coll;
+        }
+        const entries = coll.lists.flatMap((l) => l.entries);
+        // Keep most recent items as returned by the AniList sort (UPDATED_TIME_DESC)
+        const recent = entries.slice(0, 6);
+        return { ...coll, lists: [{ name: "All", entries: recent }] };
+      })(),
+      mangaCurrent: (() => {
+        const raw = statsData.mangaCurrent;
+        const coll = normalizeMediaListCollection(raw);
+        if (!coll) return undefined;
+        if (
+          raw &&
+          typeof raw === "object" &&
+          Array.isArray((raw as { lists?: unknown }).lists) &&
+          (raw as { lists: { name?: string }[] }).lists.length === 1 &&
+          (raw as { lists: { name?: string }[] }).lists[0].name === "All"
+        ) {
+          return coll;
+        }
+        const entries = coll.lists.flatMap((l) => l.entries);
+        const recent = entries.slice(0, 6);
+        return { ...coll, lists: [{ name: "All", entries: recent }] };
       })(),
       animeRewatched: (() => {
         const raw = statsData.animeRewatched;

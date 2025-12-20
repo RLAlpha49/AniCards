@@ -18,6 +18,7 @@ import { milestonesTemplate } from "@/lib/svg-templates/completion-progress-stat
 import { mostRewatchedTemplate } from "@/lib/svg-templates/completion-progress-stats/most-rewatched-template";
 import { personalRecordsTemplate } from "@/lib/svg-templates/completion-progress-stats/personal-records-template";
 import { planningBacklogTemplate } from "@/lib/svg-templates/completion-progress-stats/planning-backlog-template";
+import { currentlyWatchingReadingTemplate } from "@/lib/svg-templates/completion-progress-stats/currently-watching-reading-template";
 import { statusCompletionOverviewTemplate } from "@/lib/svg-templates/completion-progress-stats/status-completion-overview-template";
 import { animeMangaOverviewTemplate } from "@/lib/svg-templates/comparative-distribution-stats/anime-manga-overview-template";
 import { scoreCompareAnimeMangaTemplate } from "@/lib/svg-templates/comparative-distribution-stats/score-compare-anime-manga-template";
@@ -68,6 +69,7 @@ type CardGenVariant =
   | "pie"
   | "compact"
   | "minimal"
+  | "communityFootprint"
   | "bar"
   | "horizontal"
   | "anime"
@@ -82,7 +84,7 @@ type CardGenVariant =
 /** @source */
 type StatsVariant = "default" | "vertical" | "minimal";
 /** @source */
-type SocialVariant = "default" | "minimal";
+type SocialVariant = "default" | "compact" | "minimal" | "communityFootprint";
 /** @source */
 type PieBarVariant = "default" | "pie" | "bar";
 /** @source */
@@ -105,6 +107,8 @@ type FavoritesGridVariant = "anime" | "manga" | "characters" | "mixed";
 type ComparativeVariant = "default";
 /** @source */
 type SocialCommunityVariant = "default";
+/** @source */
+type CurrentlyWatchingReadingVariant = "default" | "anime" | "manga";
 
 /**
  * Parameters provided to the card generation functions.
@@ -158,7 +162,12 @@ function normalizeVariant(
     "compact",
     "minimal",
   ]);
-  const socialVariants = new Set<CardGenVariant>(["default", "minimal"]);
+  const socialVariants = new Set<CardGenVariant>([
+    "default",
+    "compact",
+    "minimal",
+    "communityFootprint",
+  ]);
   const pieBarVariants = new Set<CardGenVariant>(["default", "pie", "bar"]);
   const distributionVariants = new Set<CardGenVariant>([
     "default",
@@ -201,6 +210,11 @@ function normalizeVariant(
     personalRecords: new Set<CardGenVariant>(["default"]),
     planningBacklog: new Set<CardGenVariant>(["default"]),
     mostRewatched: new Set<CardGenVariant>(["default", "anime", "manga"]),
+    currentlyWatchingReading: new Set<CardGenVariant>([
+      "default",
+      "anime",
+      "manga",
+    ]),
     animeMangaOverview: new Set<CardGenVariant>(["default"]),
     scoreCompareAnimeManga: new Set<CardGenVariant>(["default"]),
     countryDiversity: new Set<CardGenVariant>(["default"]),
@@ -309,7 +323,9 @@ function generateSocialStatsCard(params: CardGenerationParams) {
  * Generate a social milestones card showing progress towards fixed community tiers.
  * @source
  */
-function generateSocialMilestonesCard(params: CardGenerationParams): TrustedSVG {
+function generateSocialMilestonesCard(
+  params: CardGenerationParams,
+): TrustedSVG {
   const { cardConfig, userRecord, variant } = params;
 
   const followers = userRecord.stats?.followersPage?.pageInfo?.total ?? 0;
@@ -451,6 +467,8 @@ export async function generateCardSvg(
       return generatePlanningBacklogCard(params);
     case "mostRewatched":
       return generateMostRewatchedCard(params);
+    case "currentlyWatchingReading":
+      return await generateCurrentlyWatchingReadingCard(params);
 
     default:
       throw new CardDataError("Unsupported card type", 400);
@@ -1222,6 +1240,88 @@ function generateMostRewatchedCard(params: CardGenerationParams): TrustedSVG {
     mangaReread,
     totalRewatches: userRecord.stats?.animeRewatched?.totalRepeat,
     totalRereads: userRecord.stats?.mangaReread?.totalRepeat,
+  });
+}
+
+/**
+ * Generate a Currently Watching / Reading card showing current anime and manga.
+ * Embeds cover images as data URLs for reliable SVG rendering.
+ * @source
+ */
+async function generateCurrentlyWatchingReadingCard(
+  params: CardGenerationParams,
+): Promise<TrustedSVG> {
+  const { cardConfig, userRecord, variant } = params;
+
+  const typedVariant = variant as CurrentlyWatchingReadingVariant;
+
+  const allAnimeCurrent = extractMediaListEntries(
+    userRecord.stats?.animeCurrent,
+  );
+  const allMangaCurrent = extractMediaListEntries(
+    userRecord.stats?.mangaCurrent,
+  );
+
+  const animeCurrent = typedVariant === "manga" ? [] : allAnimeCurrent;
+  const mangaCurrent = typedVariant === "anime" ? [] : allMangaCurrent;
+
+  const MAX_ROWS = 6;
+  const animeLimit = Math.min(3, animeCurrent.length);
+  const mangaLimit = Math.min(3, mangaCurrent.length);
+  let remaining = MAX_ROWS - (animeLimit + mangaLimit);
+  const animeExtra =
+    remaining > 0
+      ? Math.min(remaining, Math.max(0, animeCurrent.length - animeLimit))
+      : 0;
+  remaining -= animeExtra;
+  const mangaExtra =
+    remaining > 0
+      ? Math.min(remaining, Math.max(0, mangaCurrent.length - mangaLimit))
+      : 0;
+
+  const animeDisplay = animeCurrent.slice(0, animeLimit + animeExtra);
+  const mangaDisplay = mangaCurrent.slice(0, mangaLimit + mangaExtra);
+
+  const embedCovers = async (
+    entries: MediaListEntry[],
+  ): Promise<MediaListEntry[]> => {
+    return Promise.all(
+      entries.map(async (entry) => {
+        const cover = entry.media.coverImage;
+        const url = cover?.large || cover?.medium;
+        if (!url) return entry;
+
+        const dataUrl = await fetchImageAsDataUrl(url);
+        if (!dataUrl) return entry;
+
+        return {
+          ...entry,
+          media: {
+            ...entry.media,
+            coverImage: {
+              ...cover,
+              large: dataUrl,
+              medium: dataUrl,
+            },
+          },
+        };
+      }),
+    );
+  };
+
+  const [embeddedAnime, embeddedManga] = await Promise.all([
+    embedCovers(animeDisplay),
+    embedCovers(mangaDisplay),
+  ]);
+
+  return currentlyWatchingReadingTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: typedVariant,
+    styles: extractStyles(cardConfig),
+    animeCurrent: embeddedAnime,
+    mangaCurrent: embeddedManga,
+    animeCount: userRecord.stats?.animeCurrent?.count,
+    mangaCount: userRecord.stats?.mangaCurrent?.count,
   });
 }
 

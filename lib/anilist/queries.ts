@@ -295,6 +295,53 @@ export const USER_STATS_QUERY = `
         }
       }
     }
+    animeCurrent: MediaListCollection(userId: $userId, type: ANIME, status: CURRENT, sort: UPDATED_TIME_DESC) {
+      lists {
+        entries {
+          id
+          progress
+          media {
+            id
+            title {
+              english
+              romaji
+              native
+            }
+            episodes
+            coverImage {
+              large
+              medium
+              color
+            }
+            format
+          }
+        }
+      }
+    }
+    mangaCurrent: MediaListCollection(userId: $userId, type: MANGA, status: CURRENT, sort: UPDATED_TIME_DESC) {
+      lists {
+        entries {
+          id
+          progress
+          media {
+            id
+            title {
+              english
+              romaji
+              native
+            }
+            chapters
+            volumes
+            coverImage {
+              large
+              medium
+              color
+            }
+            format
+          }
+        }
+      }
+    }
     animeRewatched: MediaListCollection(userId: $userId, type: ANIME, sort: REPEAT_DESC) {
       lists {
         entries {
