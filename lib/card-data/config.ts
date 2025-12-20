@@ -251,6 +251,17 @@ function applyBorderOverrides(
 }
 
 /**
+ * Clamp a favorites grid dimension extracted from URL params to a value between 1 and 5.
+ * Returns the provided fallback when parsing fails or the value is absent.
+ */
+function clampGridDim(raw: string | null | undefined, fallback: number): number {
+  if (raw === null || raw === undefined) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  if (Number.isNaN(parsed)) return fallback;
+  return Math.max(1, Math.min(5, parsed));
+}
+
+/**
  * Applies boolean-style overrides (true/false flags) present in URL params
  * to the StoredCardConfig instance during build-from-params flow.
  */
@@ -339,12 +350,6 @@ export function buildCardConfigFromParams(params: {
 
   // Favorites grid layout params (only meaningful for favoritesGrid)
   if (params.baseCardType === "favoritesGrid") {
-    const clampGridDim = (raw: string | null | undefined, fallback: number) => {
-      if (raw === null || raw === undefined) return fallback;
-      const parsed = Number.parseInt(raw, 10);
-      if (Number.isNaN(parsed)) return fallback;
-      return Math.max(1, Math.min(5, parsed));
-    };
     config.gridCols = clampGridDim(params.gridColsParam, 3);
     config.gridRows = clampGridDim(params.gridRowsParam, 3);
   }
@@ -420,12 +425,6 @@ export function processCardConfig(
 
   // Favorites grid layout params (only meaningful for favoritesGrid)
   if (params.baseCardType === "favoritesGrid") {
-    const clampGridDim = (raw: string | null | undefined, fallback: number) => {
-      if (raw === null || raw === undefined) return fallback;
-      const parsed = Number.parseInt(raw, 10);
-      if (Number.isNaN(parsed)) return fallback;
-      return Math.max(1, Math.min(5, parsed));
-    };
     effectiveCardConfig.gridCols = clampGridDim(params.gridColsParam, 3);
     effectiveCardConfig.gridRows = clampGridDim(params.gridRowsParam, 3);
   }
