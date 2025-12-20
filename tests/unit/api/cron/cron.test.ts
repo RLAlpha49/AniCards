@@ -455,6 +455,7 @@ describe("Cron API POST Endpoint", () => {
       );
       expect(sharedRedisMockDel).toHaveBeenCalledWith("failed_updates:123");
       expect(sharedRedisMockDel).toHaveBeenCalledWith("cards:123");
+      expect(sharedRedisMockDel).toHaveBeenCalledWith("username:user123");
     });
   });
 
@@ -706,6 +707,9 @@ describe("Cron API POST Endpoint", () => {
       expect(res.status).toBe(200);
       const text = await res.text();
       expect(text).toContain("Updated 1/1");
+      expect(sharedRedisMockDel).not.toHaveBeenCalledWith(
+        expect.stringMatching(/^username:/),
+      );
     });
 
     it("should handle null user data from Redis gracefully", async () => {
