@@ -1147,6 +1147,87 @@ describe("Card SVG Route", () => {
       expect(callArgs.variant).toBe("donut");
     });
 
+    it("should allow radar variation for genre/tag cards", async () => {
+      const cases: Array<{
+        cardType: string;
+        statsOverride: Record<string, unknown>;
+      }> = [
+        {
+          cardType: "animeGenres",
+          statsOverride: {
+            User: {
+              statistics: {
+                anime: {
+                  genres: [{ genre: "Action", count: 2 }],
+                },
+              },
+            },
+          },
+        },
+        {
+          cardType: "animeTags",
+          statsOverride: {
+            User: {
+              statistics: {
+                anime: {
+                  tags: [{ tag: { name: "Cute" }, count: 3 }],
+                },
+              },
+            },
+          },
+        },
+        {
+          cardType: "mangaGenres",
+          statsOverride: {
+            User: {
+              statistics: {
+                manga: {
+                  genres: [{ genre: "Drama", count: 4 }],
+                },
+              },
+            },
+          },
+        },
+        {
+          cardType: "mangaTags",
+          statsOverride: {
+            User: {
+              statistics: {
+                manga: {
+                  tags: [{ tag: { name: "Mystery" }, count: 5 }],
+                },
+              },
+            },
+          },
+        },
+      ];
+
+      const templateMock = extraAnimeMangaStatsTemplate as MockFunction<
+        typeof extraAnimeMangaStatsTemplate
+      >;
+
+      for (const { cardType, statsOverride } of cases) {
+        const cardsData = createMockCardData(cardType, "radar");
+        const userData = createMockUserData(542244, "testUser", statsOverride);
+        setupSuccessfulMocks(cardsData, userData);
+
+        const callsBefore = templateMock.mock.calls.length;
+        const req = new Request(
+          createRequestUrl(baseUrl, {
+            userId: "542244",
+            cardType,
+            variation: "radar",
+          }),
+        );
+        const res = await GET(req);
+        expect(res.status).toBe(200);
+
+        expect(templateMock.mock.calls.length).toBe(callsBefore + 1);
+        const callArgs = templateMock.mock.calls.at(-1)![0];
+        expect(callArgs.variant).toBe("radar");
+      }
+    });
+
     it("should pass through supported socialStats variations", async () => {
       const cardsData = createMockCardData("socialStats", "default");
       const userData = createMockUserData(542244, "testUser");

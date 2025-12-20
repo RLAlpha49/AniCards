@@ -38,7 +38,7 @@ import {
  */
 export const extraAnimeMangaStatsTemplate = (data: {
   username: string;
-  variant?: "default" | "pie" | "donut" | "bar";
+  variant?: "default" | "pie" | "donut" | "bar" | "radar";
   styles: {
     titleColor: ColorValue;
     backgroundColor: ColorValue;
@@ -82,13 +82,16 @@ export const extraAnimeMangaStatsTemplate = (data: {
   const isPie = data.showPieChart || data.variant === "pie";
   const isDonut = data.variant === "donut";
   const isBar = data.variant === "bar";
+  const isRadar = data.variant === "radar";
   const isPieLike = isPie || isDonut;
+  const showPercentages = isPieLike && !!data.showPiePercentages;
 
   let svgWidth: number;
   const svgDims = (() => {
     if (isPie) return getCardDimensions("extraStats", "pie");
     if (isDonut) return getCardDimensions("extraStats", "donut");
     if (isBar) return getCardDimensions("extraStats", "bar");
+    if (isRadar) return getCardDimensions("extraStats", "radar");
     return getCardDimensions("extraStats", "default");
   })();
   svgWidth = svgDims.w;
@@ -117,6 +120,13 @@ export const extraAnimeMangaStatsTemplate = (data: {
       const legendHeight =
         data.stats.length > 0 ? data.stats.length * SPACING.ROW_HEIGHT : 0;
       return Math.max(pieLikeChartHeight, legendHeight);
+    }
+
+    if (isRadar) {
+      const radarChartHeight = 140;
+      const legendHeight =
+        data.stats.length > 0 ? data.stats.length * SPACING.ROW_HEIGHT : 0;
+      return Math.max(radarChartHeight, legendHeight);
     }
 
     return data.stats.length > 0 ? data.stats.length * SPACING.ROW_HEIGHT : 0;
@@ -177,7 +187,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
         data.fixedStatusColors && data.format.endsWith("Statuses"),
       );
       const pct = ((Math.max(0, stat.count) / totalForPie) * 100).toFixed(0);
-      const pctSuffix = data.showPiePercentages ? ` (${pct}%)` : "";
+      const pctSuffix = showPercentages ? ` (${pct}%)` : "";
       const content =
         `${isFavorite ? heartLegendSVG : ""}` +
         createRectElement(-20, 2, 12, 12, { fill: fillColor }) +
@@ -359,6 +369,140 @@ export const extraAnimeMangaStatsTemplate = (data: {
     `;
   })();
 
+  const radarChartContent = (() => {
+    const statsForRadar = data.stats.map((stat, index) => ({
+      ...stat,
+      index,
+      count: Math.max(0, stat.count),
+    }));
+
+    const n = statsForRadar.length;
+    if (n === 0) {
+      return `<text x="70" y="70" text-anchor="middle" class="radar-empty">No data</text>`;
+    }
+
+    const maxCount = Math.max(1, ...statsForRadar.map((s) => s.count));
+    const cx = 70;
+    const cy = 70;
+    const R = 55;
+    const rings = 4;
+    const startAngle = -Math.PI / 2;
+    const step = (Math.PI * 2) / Math.max(1, n);
+
+    const truncateLabel = (value: string, maxLen: number) => {
+      const s = String(value ?? "");
+      if (s.length <= maxLen) return s;
+      return `${s.slice(0, Math.max(0, maxLen - 1))}…`;
+    };
+
+    const axisPoints = statsForRadar.map((s, i) => {
+      const angle = startAngle + i * step;
+      const ax = cx + R * Math.cos(angle);
+      const ay = cy + R * Math.sin(angle);
+      const r = (s.count / maxCount) * R;
+      const px = cx + r * Math.cos(angle);
+      const py = cy + r * Math.sin(angle);
+
+      // Label placement
+      const labelPad = 14;
+      const lx = cx + (R + labelPad) * Math.cos(angle);
+      const ly = cy + (R + labelPad) * Math.sin(angle);
+      const cos = Math.cos(angle);
+      let anchor: "start" | "middle" | "end" = "middle";
+      if (cos > 0.35) {
+        anchor = "start";
+      } else if (cos < -0.35) {
+        anchor = "end";
+      }
+
+      return {
+        i,
+        angle,
+        ax,
+        ay,
+        px,
+        py,
+        lx,
+        ly,
+        anchor,
+        label: truncateLabel(s.name, 14),
+      };
+    });
+
+    const mkPointList = (radius: number) => {
+      if (n < 3) return "";
+      return axisPoints
+        .map((p) => {
+          const x = cx + radius * Math.cos(p.angle);
+          const y = cy + radius * Math.sin(p.angle);
+          return `${x.toFixed(2)},${y.toFixed(2)}`;
+        })
+        .join(" ");
+    };
+
+    const grid = (() => {
+      if (n < 3) {
+        return Array.from({ length: rings }, (_, idx) => {
+          const rr = ((idx + 1) / rings) * R;
+          return `<circle cx="${cx}" cy="${cy}" r="${rr.toFixed(2)}" class="radar-grid" />`;
+        }).join("");
+      }
+      return Array.from({ length: rings }, (_, idx) => {
+        const rr = ((idx + 1) / rings) * R;
+        return `<polygon points="${mkPointList(rr)}" class="radar-grid" />`;
+      }).join("");
+    })();
+
+    const axes = axisPoints
+      .map(
+        (p) =>
+          `<line x1="${cx}" y1="${cy}" x2="${p.ax.toFixed(2)}" y2="${p.ay.toFixed(2)}" class="radar-axis" />`,
+      )
+      .join("");
+
+    const valuePointsStr = axisPoints
+      .map((p) => `${p.px.toFixed(2)},${p.py.toFixed(2)}`)
+      .join(" ");
+
+    const area =
+      n >= 3
+        ? `<polygon points="${valuePointsStr}" class="radar-area" />`
+        : `<polyline points="${valuePointsStr}" class="radar-area" fill="none" />`;
+
+    const vertices = axisPoints
+      .map((p) => {
+        const fill = getStatColor(
+          p.i,
+          data.stats[p.i]?.name ?? "",
+          statBaseCircleColor,
+          data.fixedStatusColors && data.format.endsWith("Statuses"),
+        );
+        return `
+          <circle cx="${p.px.toFixed(2)}" cy="${p.py.toFixed(2)}" r="3" fill="${fill}" stroke="${resolvedColors.backgroundColor}" stroke-width="1" class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY + p.i * ANIMATION.STAGGER_INCREMENT}ms" />
+        `;
+      })
+      .join("");
+
+    const labels = axisPoints
+      .map((p, idx) => {
+        const safe = escapeForXml(p.label);
+        return `
+          <text x="${p.lx.toFixed(2)}" y="${p.ly.toFixed(2)}" text-anchor="${p.anchor}" dominant-baseline="central" class="radar-label stagger" style="animation-delay: ${ANIMATION.BASE_DELAY + idx * ANIMATION.STAGGER_INCREMENT}ms">${safe}</text>
+        `;
+      })
+      .join("");
+
+    return `
+      <g>
+        ${grid}
+        ${axes}
+        ${area}
+        ${vertices}
+        ${labels}
+      </g>
+    `;
+  })();
+
   const barsContent = isBar
     ? (() => {
         if (!data.stats || data.stats.length === 0) {
@@ -418,6 +562,19 @@ export const extraAnimeMangaStatsTemplate = (data: {
       `;
   } else if (isBar) {
     mainStatsContent = `<g transform="translate(25, 0)">${barsContent}</g>`;
+  } else if (isRadar) {
+    const radarChartX = Math.max(
+      svgWidth - 250,
+      POSITIONING.STAT_VALUE_X_LARGE + 135,
+    );
+    mainStatsContent = `
+        <g transform="translate(45, 0)">
+          ${statsContentWithPie}
+        </g>
+        <g transform="translate(${radarChartX}, -5)">
+          ${radarChartContent}
+        </g>
+      `;
   } else {
     mainStatsContent = statsContentWithoutPie;
   }
@@ -454,6 +611,38 @@ export const extraAnimeMangaStatsTemplate = (data: {
           fill: ${resolvedColors.textColor};
           opacity: 0.7;
           font: 400 10px 'Segoe UI', Ubuntu, Sans-Serif;
+        }
+
+        .radar-grid {
+          fill: none;
+          stroke: ${resolvedColors.textColor};
+          opacity: 0.16;
+          stroke-width: 1;
+        }
+
+        .radar-axis {
+          stroke: ${resolvedColors.textColor};
+          opacity: 0.18;
+          stroke-width: 1;
+        }
+
+        .radar-area {
+          stroke: ${resolvedColors.titleColor};
+          stroke-width: 2;
+          fill: ${resolvedColors.titleColor};
+          fill-opacity: 0.16;
+        }
+
+        .radar-label {
+          fill: ${resolvedColors.textColor};
+          font: 500 9px 'Segoe UI', Ubuntu, Sans-Serif;
+          opacity: 0.95;
+        }
+
+        .radar-empty {
+          fill: ${resolvedColors.textColor};
+          font: 600 12px 'Segoe UI', Ubuntu, Sans-Serif;
+          opacity: 0.7;
         }
       </style>
       ${generateCardBackground({ w: viewBoxWidth, h: svgHeight }, cardRadius, resolvedColors)}

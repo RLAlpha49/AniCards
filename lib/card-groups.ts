@@ -15,6 +15,7 @@ export const VARIATION_LABEL_MAP: Record<string, string> = {
   pie: "Pie Chart",
   donut: "Donut Chart",
   bar: "Bar Chart",
+  radar: "Radar Chart",
   horizontal: "Horizontal",
   anime: "Anime",
   manga: "Manga",
@@ -71,12 +72,12 @@ export const CARD_GROUPS: CardGroup[] = [
   {
     cardType: "animeGenres",
     cardTitle: "Anime Genres",
-    variations: ["default", "pie", "donut", "bar"],
+    variations: ["default", "pie", "donut", "bar", "radar"],
   },
   {
     cardType: "animeTags",
     cardTitle: "Anime Tags",
-    variations: ["default", "pie", "donut", "bar"],
+    variations: ["default", "pie", "donut", "bar", "radar"],
   },
   {
     cardType: "animeVoiceActors",
@@ -126,12 +127,12 @@ export const CARD_GROUPS: CardGroup[] = [
   {
     cardType: "mangaGenres",
     cardTitle: "Manga Genres",
-    variations: ["default", "pie", "donut", "bar"],
+    variations: ["default", "pie", "donut", "bar", "radar"],
   },
   {
     cardType: "mangaTags",
     cardTitle: "Manga Tags",
-    variations: ["default", "pie", "donut", "bar"],
+    variations: ["default", "pie", "donut", "bar", "radar"],
   },
   {
     cardType: "mangaStaff",
