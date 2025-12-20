@@ -13,6 +13,7 @@ export const VARIATION_LABEL_MAP: Record<string, string> = {
   minimal: "Minimal",
   communityFootprint: "Community Footprint",
   pie: "Pie Chart",
+  donut: "Donut Chart",
   bar: "Bar Chart",
   horizontal: "Horizontal",
   anime: "Anime",
@@ -70,27 +71,27 @@ export const CARD_GROUPS: CardGroup[] = [
   {
     cardType: "animeGenres",
     cardTitle: "Anime Genres",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar"],
   },
   {
     cardType: "animeTags",
     cardTitle: "Anime Tags",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar"],
   },
   {
     cardType: "animeVoiceActors",
     cardTitle: "Voice Actors",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar"],
   },
   {
     cardType: "animeStudios",
     cardTitle: "Animation Studios",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar"],
   },
   {
     cardType: "animeStaff",
     cardTitle: "Anime Staff",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar"],
   },
   {
     cardType: "animeStatusDistribution",
@@ -99,17 +100,18 @@ export const CARD_GROUPS: CardGroup[] = [
       "default",
       { variation: "pie", extras: { statusColors: "true" } },
       { variation: "bar", extras: { statusColors: "true" } },
+      { variation: "donut", extras: { statusColors: "true" } },
     ],
   },
   {
     cardType: "animeFormatDistribution",
     cardTitle: "Anime Format Distribution",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar"],
   },
   {
     cardType: "animeCountry",
     cardTitle: "Anime Country Distribution",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar"],
   },
   {
     cardType: "animeScoreDistribution",
@@ -124,17 +126,17 @@ export const CARD_GROUPS: CardGroup[] = [
   {
     cardType: "mangaGenres",
     cardTitle: "Manga Genres",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar"],
   },
   {
     cardType: "mangaTags",
     cardTitle: "Manga Tags",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar"],
   },
   {
     cardType: "mangaStaff",
     cardTitle: "Manga Staff",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar"],
   },
   {
     cardType: "mangaStatusDistribution",
@@ -143,17 +145,18 @@ export const CARD_GROUPS: CardGroup[] = [
       "default",
       { variation: "pie", extras: { statusColors: "true" } },
       { variation: "bar", extras: { statusColors: "true" } },
+      { variation: "donut", extras: { statusColors: "true" } },
     ],
   },
   {
     cardType: "mangaFormatDistribution",
     cardTitle: "Manga Format Distribution",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar"],
   },
   {
     cardType: "mangaCountry",
     cardTitle: "Manga Country Distribution",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar"],
   },
   {
     cardType: "mangaScoreDistribution",
@@ -385,7 +388,8 @@ function addPiePercentagesParamIfRelevant(
   variation: string,
   showPiePercentages: boolean | undefined,
 ): void {
-  if (variation === "pie") {
+  // Pie-like chart percentages only matter in pie/donut variations.
+  if (variation === "pie" || variation === "donut") {
     params.piePercentages =
       typeof showPiePercentages === "boolean" ? showPiePercentages : false;
   }

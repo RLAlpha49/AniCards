@@ -67,6 +67,7 @@ type CardGenVariant =
   | "default"
   | "vertical"
   | "pie"
+  | "donut"
   | "compact"
   | "minimal"
   | "communityFootprint"
@@ -86,7 +87,7 @@ type StatsVariant = "default" | "vertical" | "minimal";
 /** @source */
 type SocialVariant = "default" | "compact" | "minimal" | "communityFootprint";
 /** @source */
-type PieBarVariant = "default" | "pie" | "bar";
+type PieBarVariant = "default" | "pie" | "bar" | "donut";
 /** @source */
 type DistributionVariant = "default" | "horizontal";
 /** @source */
@@ -139,6 +140,7 @@ function normalizeVariant(
     "default",
     "vertical",
     "pie",
+    "donut",
     "compact",
     "minimal",
     "bar",
@@ -168,7 +170,13 @@ function normalizeVariant(
     "minimal",
     "communityFootprint",
   ]);
-  const pieBarVariants = new Set<CardGenVariant>(["default", "pie", "bar"]);
+  const pieBarVariants = new Set<CardGenVariant>([
+    "default",
+    "pie",
+    "donut",
+    "bar",
+  ]);
+  const statusPieBarVariants = pieBarVariants;
   const distributionVariants = new Set<CardGenVariant>([
     "default",
     "horizontal",
@@ -187,8 +195,8 @@ function normalizeVariant(
     mangaGenres: pieBarVariants,
     mangaTags: pieBarVariants,
     mangaStaff: pieBarVariants,
-    animeStatusDistribution: pieBarVariants,
-    mangaStatusDistribution: pieBarVariants,
+    animeStatusDistribution: statusPieBarVariants,
+    mangaStatusDistribution: statusPieBarVariants,
     animeFormatDistribution: pieBarVariants,
     mangaFormatDistribution: pieBarVariants,
     animeCountry: pieBarVariants,
@@ -673,7 +681,9 @@ function generateCategoryCard(
 
   return extraAnimeMangaStatsTemplate({
     username: userRecord.username ?? userRecord.userId,
-    variant: variant as "default" | "pie" | "bar",
+    variant: ("pie" === variant || "bar" === variant || "donut" === variant
+      ? variant
+      : "default") as PieBarVariant,
     styles: extractStyles(cardConfig),
     format: displayNames[baseCardType],
     stats: items,
@@ -701,7 +711,10 @@ function generateStatusDistributionCard(
     "statuses",
     "status",
     "No status distribution data for this user",
-    { fixedStatusColors: !!params.cardConfig.useStatusColors },
+    {
+      // Respect statusColors/useStatusColors for all variations (pie/donut/bar/default).
+      fixedStatusColors: !!params.cardConfig.useStatusColors,
+    },
   );
 }
 
@@ -766,7 +779,7 @@ function generateSimpleListCard(
     throw new CardDataError(`Not Found: ${notFoundMessage}`, 404);
   }
   const mappedVariant = (
-    ["pie", "bar"].includes(variant) ? variant : "default"
+    ["pie", "bar", "donut"].includes(variant) ? variant : "default"
   ) as PieBarVariant;
   return extraAnimeMangaStatsTemplate({
     username: userRecord.username ?? userRecord.userId,

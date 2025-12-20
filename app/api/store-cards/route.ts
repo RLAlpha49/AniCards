@@ -135,7 +135,8 @@ function buildCardConfig(
 
   // Only save showPiePercentages for card types that support pie variation
   const shouldSavePiePercentages =
-    supportsPieVariation(incoming.cardName) && incoming.variation === "pie";
+    supportsPieVariation(incoming.cardName) &&
+    (incoming.variation === "pie" || incoming.variation === "donut");
 
   const incomingPieDefined = typeof incoming.showPiePercentages === "boolean";
   const previousPie = previous?.showPiePercentages;

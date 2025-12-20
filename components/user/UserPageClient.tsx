@@ -557,8 +557,8 @@ export function UserPageClient() {
     // Never include individual colors in URL - let API resolve from preset or DB
     const includeColors = false;
 
-    // Only include piePercentages for pie variation
-    const isPieVariation = variation === "pie";
+    // Only include piePercentages for pie-like (pie/donut) variations
+    const isPieLikeVariation = variation === "pie" || variation === "donut";
 
     const urlParams = mapStoredConfigToCardUrlParams(
       {
@@ -573,7 +573,7 @@ export function UserPageClient() {
         borderRadius: card.borderRadius,
         showFavorites: isFavoriteCapable ? card.showFavorites : undefined,
         useStatusColors: isStatusDist ? card.useStatusColors : undefined,
-        showPiePercentages: isPieVariation
+        showPiePercentages: isPieLikeVariation
           ? card.showPiePercentages
           : undefined,
         ...(card.cardName === "favoritesGrid"

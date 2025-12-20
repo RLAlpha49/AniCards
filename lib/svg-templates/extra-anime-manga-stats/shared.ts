@@ -38,7 +38,7 @@ import {
  */
 export const extraAnimeMangaStatsTemplate = (data: {
   username: string;
-  variant?: "default" | "pie" | "bar";
+  variant?: "default" | "pie" | "donut" | "bar";
   styles: {
     titleColor: ColorValue;
     backgroundColor: ColorValue;
@@ -80,11 +80,14 @@ export const extraAnimeMangaStatsTemplate = (data: {
 
   // Determine variant flags
   const isPie = data.showPieChart || data.variant === "pie";
+  const isDonut = data.variant === "donut";
   const isBar = data.variant === "bar";
+  const isPieLike = isPie || isDonut;
 
   let svgWidth: number;
   const svgDims = (() => {
     if (isPie) return getCardDimensions("extraStats", "pie");
+    if (isDonut) return getCardDimensions("extraStats", "donut");
     if (isBar) return getCardDimensions("extraStats", "bar");
     return getCardDimensions("extraStats", "default");
   })();
@@ -109,11 +112,11 @@ export const extraAnimeMangaStatsTemplate = (data: {
       return barRowCount > 0 ? barRowCount * SPACING.ROW_HEIGHT_LARGE : 0;
     }
 
-    if (isPie) {
-      const pieChartHeight = 100;
+    if (isPieLike) {
+      const pieLikeChartHeight = 100;
       const legendHeight =
         data.stats.length > 0 ? data.stats.length * SPACING.ROW_HEIGHT : 0;
-      return Math.max(pieChartHeight, legendHeight);
+      return Math.max(pieLikeChartHeight, legendHeight);
     }
 
     return data.stats.length > 0 ? data.stats.length * SPACING.ROW_HEIGHT : 0;
@@ -263,6 +266,99 @@ export const extraAnimeMangaStatsTemplate = (data: {
       .join("");
   })();
 
+  const donutChartContent = (() => {
+    const statsForDonut = data.stats.map((stat, index) => ({
+      ...stat,
+      index,
+      count: Math.max(0, stat.count),
+    }));
+    const total = statsForDonut.reduce((acc, stat) => acc + stat.count, 0);
+
+    const cx = 40;
+    const cy = 40;
+    const outerR = 40;
+    const innerR = 22;
+
+    if (total <= 0) {
+      const strokeColor = getStatColor(
+        0,
+        "no-data",
+        statBaseCircleColor,
+        data.fixedStatusColors && data.format.endsWith("Statuses"),
+      );
+      const ringR = (outerR + innerR) / 2;
+      const ringW = outerR - innerR;
+      return `
+        <circle
+          cx="${cx}"
+          cy="${cy}"
+          r="${ringR}"
+          fill="none"
+          stroke="${strokeColor}"
+          stroke-width="${ringW}"
+          stroke-linecap="butt"
+          class="stagger"
+          style="animation-delay: ${ANIMATION.BASE_DELAY}ms"
+        />
+        <text x="${cx}" y="${cy}" text-anchor="middle" class="donut-total">0</text>
+        <text x="${cx}" y="${cy + 15}" text-anchor="middle" class="donut-label">Total</text>
+      `;
+    }
+
+    let currentAngle = 0;
+    const slices = statsForDonut
+      .filter((s) => s.count > 0)
+      .map((stat) => {
+        const angle = (stat.count / total) * 360;
+        const startAngle = currentAngle;
+        currentAngle += angle;
+
+        const startRadians = ((startAngle - 90) * Math.PI) / 180;
+        const endRadians = ((currentAngle - 90) * Math.PI) / 180;
+        const largeArc = angle > 180 ? 1 : 0;
+
+        const ox1 = cx + outerR * Math.cos(startRadians);
+        const oy1 = cy + outerR * Math.sin(startRadians);
+        const ox2 = cx + outerR * Math.cos(endRadians);
+        const oy2 = cy + outerR * Math.sin(endRadians);
+
+        const ix1 = cx + innerR * Math.cos(startRadians);
+        const iy1 = cy + innerR * Math.sin(startRadians);
+        const ix2 = cx + innerR * Math.cos(endRadians);
+        const iy2 = cy + innerR * Math.sin(endRadians);
+
+        const fill = getStatColor(
+          stat.index,
+          stat.name,
+          statBaseCircleColor,
+          data.fixedStatusColors && data.format.endsWith("Statuses"),
+        );
+
+        return `
+          <path
+            d="M ${ox1} ${oy1}
+              A ${outerR} ${outerR} 0 ${largeArc} 1 ${ox2} ${oy2}
+              L ${ix2} ${iy2}
+              A ${innerR} ${innerR} 0 ${largeArc} 0 ${ix1} ${iy1}
+              Z"
+            fill="${fill}"
+            stroke="${resolvedColors.backgroundColor}"
+            stroke-width="1.2"
+            stroke-linejoin="round"
+            class="stagger"
+            style="animation-delay: ${ANIMATION.BASE_DELAY + stat.index * ANIMATION.STAGGER_INCREMENT}ms"
+          />
+        `;
+      })
+      .join("");
+
+    return `
+      ${slices}
+      <text x="${cx}" y="${cy}" text-anchor="middle" class="donut-total">${total}</text>
+      <text x="${cx}" y="${cy + 15}" text-anchor="middle" class="donut-label">Total</text>
+    `;
+  })();
+
   const barsContent = isBar
     ? (() => {
         if (!data.stats || data.stats.length === 0) {
@@ -311,6 +407,15 @@ export const extraAnimeMangaStatsTemplate = (data: {
           ${pieChartContent}
         </g>
       `;
+  } else if (isDonut) {
+    mainStatsContent = `
+        <g transform="translate(45, 0)">
+          ${statsContentWithPie}
+        </g>
+        <g transform="translate(240, 20)">
+          ${donutChartContent}
+        </g>
+      `;
   } else if (isBar) {
     mainStatsContent = `<g transform="translate(25, 0)">${barsContent}</g>`;
   } else {
@@ -338,6 +443,17 @@ export const extraAnimeMangaStatsTemplate = (data: {
         .stat.bold {
           fill: ${resolvedColors.textColor};
           font: 600 ${TYPOGRAPHY.STAT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
+        }
+
+        .donut-total {
+          fill: ${resolvedColors.textColor};
+          font: 700 14px 'Segoe UI', Ubuntu, Sans-Serif;
+        }
+
+        .donut-label {
+          fill: ${resolvedColors.textColor};
+          opacity: 0.7;
+          font: 400 10px 'Segoe UI', Ubuntu, Sans-Serif;
         }
       </style>
       ${generateCardBackground({ w: viewBoxWidth, h: svgHeight }, cardRadius, resolvedColors)}

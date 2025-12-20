@@ -403,6 +403,30 @@ describe("Store Cards API POST Endpoint", () => {
       expect(stored.cards[0].showPiePercentages).toBe(false);
     });
 
+    it("should persist showPiePercentages=false when donut card omits it", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 999,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStatusDistribution",
+            variation: "donut",
+            titleColor: "#fff",
+            backgroundColor: "#000",
+            textColor: "#000",
+            circleColor: "#fff",
+          },
+        ],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.cards[0].showPiePercentages).toBe(false);
+    });
+
     it("should preserve showPiePercentages=true when explicitly set", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({

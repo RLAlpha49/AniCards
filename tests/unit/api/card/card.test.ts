@@ -1053,6 +1053,39 @@ describe("Card SVG Route", () => {
       expect(res.status).toBe(200);
     });
 
+    it("should allow donut variation for extra stats cards", async () => {
+      const cardsData = createMockCardData("animeStaff", "donut");
+      const userData = createMockUserData(542244, "testUser", {
+        User: {
+          statistics: {
+            anime: {
+              staff: [{ staff: { name: { full: "Some Staff" } }, count: 1 }],
+            },
+          },
+          stats: { activityHistory: [{ date: 1, amount: 1 }] },
+        },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStaff",
+          variation: "donut",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (
+        extraAnimeMangaStatsTemplate as MockFunction<
+          typeof extraAnimeMangaStatsTemplate
+        >
+      ).mock.calls.at(-1)![0];
+      expect(callArgs.variant).toBe("donut");
+    });
+
     it("should pass through supported socialStats variations", async () => {
       const cardsData = createMockCardData("socialStats", "default");
       const userData = createMockUserData(542244, "testUser");
@@ -1198,6 +1231,44 @@ describe("Card SVG Route", () => {
       expect(callArgs.fixedStatusColors).toBeTruthy();
     });
 
+    it("should respect statusColors flag for donut status distribution", async () => {
+      const cardsData = createMockCardData("animeStatusDistribution", "donut", {
+        useStatusColors: false,
+      });
+      const userData = createMockUserData(542244, "testUser", {
+        User: {
+          statistics: {
+            anime: {
+              statuses: [
+                { status: "current", count: 2 },
+                { status: "completed", count: 5 },
+              ],
+            },
+          },
+        },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStatusDistribution",
+          variation: "donut",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (
+        extraAnimeMangaStatsTemplate as MockFunction<
+          typeof extraAnimeMangaStatsTemplate
+        >
+      ).mock.calls[0][0];
+      expect(callArgs.variant).toBe("donut");
+      expect(callArgs.fixedStatusColors).toBeFalsy();
+    });
+
     it("should propagate piePercentages flag to template", async () => {
       const cardsData = createMockCardData("animeStatusDistribution", "pie", {
         showPiePercentages: true,
@@ -1262,6 +1333,40 @@ describe("Card SVG Route", () => {
           typeof extraAnimeMangaStatsTemplate
         >
       ).mock.calls[0][0];
+      expect(callArgs.fixedStatusColors).toBeTruthy();
+    });
+
+    it("should allow URL params to override DB statusColors flag for donut", async () => {
+      const cardsData = createMockCardData("animeStatusDistribution", "donut", {
+        useStatusColors: false,
+      });
+      const userData = createMockUserData(542244, "testUser", {
+        User: {
+          statistics: {
+            anime: { statuses: [{ status: "current", count: 1 }] },
+          },
+        },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStatusDistribution",
+          variation: "donut",
+          statusColors: "true",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (
+        extraAnimeMangaStatsTemplate as MockFunction<
+          typeof extraAnimeMangaStatsTemplate
+        >
+      ).mock.calls[0][0];
+      expect(callArgs.variant).toBe("donut");
       expect(callArgs.fixedStatusColors).toBeTruthy();
     });
   });

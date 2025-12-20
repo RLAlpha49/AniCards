@@ -8,8 +8,11 @@ export interface ColorPreset {
 const pieBarVariations = [
   { id: "default", label: "Default" },
   { id: "pie", label: "Pie Chart" },
+  { id: "donut", label: "Donut Chart" },
   { id: "bar", label: "Bar Chart" },
 ];
+
+const statusDistributionVariations = pieBarVariations;
 
 const verticalHorizontalVariations = [
   { id: "default", label: "Default" },
@@ -295,10 +298,24 @@ export const statCardTypes = [
     socialCommunityVariations,
   ),
   ...animeBreakdownCards.map((card) =>
-    createCardType(card.id, "Anime Breakdowns", card.label, pieBarVariations),
+    createCardType(
+      card.id,
+      "Anime Breakdowns",
+      card.label,
+      card.id.endsWith("StatusDistribution")
+        ? statusDistributionVariations
+        : pieBarVariations,
+    ),
   ),
   ...mangaBreakdownCards.map((card) =>
-    createCardType(card.id, "Manga Breakdowns", card.label, pieBarVariations),
+    createCardType(
+      card.id,
+      "Manga Breakdowns",
+      card.label,
+      card.id.endsWith("StatusDistribution")
+        ? statusDistributionVariations
+        : pieBarVariations,
+    ),
   ),
   ...distributionCards.map((card) =>
     createCardType(
