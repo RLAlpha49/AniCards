@@ -129,7 +129,7 @@ export function isValidCardType(candidate: unknown): boolean {
     return false;
   }
   const [base] = candidate.split("-");
-  return Object.prototype.hasOwnProperty.call(displayNames, base);
+  return Object.hasOwn(displayNames, base);
 }
 
 /**
