@@ -775,6 +775,59 @@ describe("Card SVG Route", () => {
       }
     });
 
+    it("should normalize gridCols/gridRows in cache key so equivalent requests coalesce", async () => {
+      const userData = createMockUserData(542244, "testUser", {
+        User: {
+          favourites: {
+            anime: { nodes: [] },
+            manga: { nodes: [] },
+            characters: { nodes: [] },
+          },
+        },
+      });
+
+      // Both requests use URL-built config path (include color params)
+      sharedRedisMockGet.mockResolvedValueOnce(userData).mockResolvedValueOnce(userData);
+
+      const baseParams = {
+        userId: "542244",
+        cardType: "favoritesGrid",
+        variation: "mixed",
+        titleColor: "#3cc8ff",
+        backgroundColor: "#0b1622",
+        textColor: "#E8E8E8",
+        circleColor: "#3cc8ff",
+      };
+
+      // First request uses "03" formatting and should populate cache
+      const req1 = new Request(
+        createRequestUrl(baseUrl, { ...baseParams, gridCols: "03", gridRows: "03" }),
+      );
+      await GET(req1);
+
+      // First request should track a cache miss
+      let mockCalls = (
+        sharedRedisMockIncr as unknown as { mock: { calls: Array<[string]> } }
+      ).mock.calls;
+      let incrCalls = mockCalls.map((call) => call[0]);
+      expect(incrCalls).toContain("analytics:card_svg:cache_misses");
+
+      // Reset incr tracker for second request
+      sharedRedisMockIncr.mockClear();
+
+      // Second request uses "3" formatting and should hit the same cache entry
+      const req2 = new Request(
+        createRequestUrl(baseUrl, { ...baseParams, gridCols: "3", gridRows: "3" }),
+      );
+      await GET(req2);
+
+      mockCalls = (
+        sharedRedisMockIncr as unknown as { mock: { calls: Array<[string]> } }
+      ).mock.calls;
+      incrCalls = mockCalls.map((call) => call[0]);
+      expect(incrCalls).toContain("analytics:card_svg:cache_hits");
+    });
+
     it("should persist card data when store-cards is called", async () => {
       const cardsPayload = [
         {
