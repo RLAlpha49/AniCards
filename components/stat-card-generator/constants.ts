@@ -30,6 +30,8 @@ const socialStatsVariations = [
   { id: "minimal", label: "Minimal" },
 ];
 
+const socialCommunityVariations = [{ id: "default", label: "Default" }];
+
 const profileMainVariations = [
   { id: "default", label: "Default" },
   { id: "compact", label: "Compact" },
@@ -273,6 +275,12 @@ export const statCardTypes = [
     "Main Stats",
     "Social Stats (Total Activities, Followers, Following, Thread Posts/Comments, Reviews)",
     socialStatsVariations,
+  ),
+  createCardType(
+    "socialMilestones",
+    "Social & Community",
+    "Social Milestones (Followers, Following, Threads, Comments, Reviews)",
+    socialCommunityVariations,
   ),
   ...animeBreakdownCards.map((card) =>
     createCardType(card.id, "Anime Breakdowns", card.label, pieBarVariations),

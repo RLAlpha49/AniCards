@@ -13,7 +13,11 @@
 
 **KEY**: Use Serena tools for discovery, not reading files unless necessary. Always read any relevant memories for context if needed. Memories are for context only, NOT documentation summaries. Never summarize changes or create summary documents unless explicitly asked to, this applies to things outside of memories as well.
 
-## 📚 Context7 Integration
+## Investigating External Libraries/APIs
+
+When working with external libraries or APIs, always use the `get_library_documentation` tool to fetch up-to-date documentation. This ensures you have the latest information on usage patterns, configurations, and best practices.
+
+**If you need API documentation for Anilist, always refer to their current reference docs at [https://docs.anilist.co/reference/](https://docs.anilist.co/reference/).**
 
 **Always `use context7`** when I need code generation, setup or configuration steps, or
 library/API documentation. This means you should automatically use the Context7 MCP

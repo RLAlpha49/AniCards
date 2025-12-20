@@ -554,6 +554,7 @@ export const CARD_TYPE_TO_PARTS: Record<string, UserDataPart[]> = {
   animeStats: ["meta", "statistics"],
   mangaStats: ["meta", "statistics"],
   socialStats: ["meta", "stats", "pages"],
+  socialMilestones: ["meta", "pages"],
   animeGenres: ["meta", "statistics"],
   animeTags: ["meta", "statistics"],
   animeVoiceActors: ["meta", "statistics", "favourites"],

@@ -39,6 +39,7 @@ const ratelimit = createRateLimiter({ limit: 150, window: "10 s" });
 const ALLOWED_CARD_TYPES = new Set([
   "animeStats",
   "socialStats",
+  "socialMilestones",
   "mangaStats",
   "animeGenres",
   "animeTags",
