@@ -562,7 +562,15 @@ export async function GET(request: Request) {
     `🖼️ [Card SVG] Request for ${params.cardType} card - User ID: ${effectiveUserId}`,
   );
 
-  // Try to get from in-memory LRU cache first
+  const normalizeGridDim = (raw: string | null | undefined, fallback = 3) => {
+    if (raw === null || raw === undefined) return fallback;
+    const parsed = Number.parseInt(raw, 10);
+    if (Number.isNaN(parsed)) return fallback;
+    return Math.max(1, Math.min(5, parsed));
+  };
+  const normalizedGridCols = normalizeGridDim(params.gridColsParam);
+  const normalizedGridRows = normalizeGridDim(params.gridRowsParam);
+
   const cacheKey = generateCacheKey(effectiveUserId, params.cardType, {
     variation: params.variationParam,
     colorPreset: params.colorPresetParam,
@@ -575,8 +583,8 @@ export async function GET(request: Request) {
     showFavorites: params.showFavoritesParam,
     statusColors: params.statusColorsParam,
     piePercentages: params.piePercentagesParam,
-    gridCols: params.gridColsParam,
-    gridRows: params.gridRowsParam,
+    gridCols: normalizedGridCols,
+    gridRows: normalizedGridRows,
     _t: params._t,
   });
 
