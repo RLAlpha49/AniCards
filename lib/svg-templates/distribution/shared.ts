@@ -134,7 +134,15 @@ function generateBarItems(
   maxCount: number,
   maxBarWidth: number,
   barColor: string,
+  opts?: {
+    showYearGaps?: boolean;
+  },
 ): string {
+  const showYearGaps = opts?.showYearGaps ?? false;
+  const rowLabelBaselineY = 12;
+  const gapMarkerLineY = rowLabelBaselineY + SPACING.ITEM_GAP / 3;
+  const gapMarkerDotsY = gapMarkerLineY + 2;
+
   return data
     .map((d, i) => {
       const width = (d.count / maxCount) * maxBarWidth;
@@ -142,9 +150,13 @@ function generateBarItems(
       const barStartX = DISTRIBUTION.BAR_START_X;
       const countBaseX = DISTRIBUTION.COUNT_BASE_X;
 
+      const next = data[i + 1];
+      const yearGapSize =
+        showYearGaps && next ? Math.max(0, d.value - next.value - 1) : 0;
+
       const content = [
         createTextElement(0, 12, String(d.value), "score-label"),
-        createRectElement(barStartX, 4, Number(safeWidth.toFixed(2)), 10, {
+        createRectElement(barStartX, 3, Number(safeWidth.toFixed(2)), 10, {
           rx: 3,
           fill: barColor,
           opacity: 0.85,
@@ -155,6 +167,21 @@ function generateBarItems(
           String(d.count),
           "score-count",
         ),
+        yearGapSize > 0
+          ? [
+              `<line class="year-gap-line" x1="${barStartX}" y1="${gapMarkerLineY - 1}" x2="${barStartX + maxBarWidth}" y2="${gapMarkerLineY}" />`,
+              createTextElement(
+                barStartX - 14,
+                gapMarkerDotsY,
+                "⋯",
+                "year-gap-dots",
+                {
+                  textAnchor: "middle",
+                  fontSize: TYPOGRAPHY.SMALL_TEXT_SIZE,
+                },
+              ),
+            ].join("")
+          : "",
       ].join("");
 
       return createStaggeredGroup(
@@ -178,9 +205,14 @@ function generateVerticalBars(
   data: DistributionDatum[],
   maxCount: number,
   barColor: string,
+  opts?: {
+    /** When true, renders subtle markers when there are gaps between consecutive years. */
+    showYearGaps?: boolean;
+  },
 ): string {
+  const showYearGaps = opts?.showYearGaps ?? false;
+
   return data
-    .slice(0, DISTRIBUTION.MAX_ITEMS)
     .map((d, i) => {
       const height = Number(
         ((d.count / maxCount) * DISTRIBUTION.VERTICAL_BAR_MAX_HEIGHT).toFixed(
@@ -190,6 +222,10 @@ function generateVerticalBars(
       const x =
         i * DISTRIBUTION.VERTICAL_BAR_SPACING + DISTRIBUTION.COUNT_BASE_X;
       const barTop = DISTRIBUTION.VERTICAL_BAR_Y_BASE - height;
+
+      const next = data[i + 1];
+      const yearGapSize =
+        showYearGaps && next ? Math.max(0, d.value - next.value - 1) : 0;
 
       const content = [
         createTextElement(0, barTop - 6, String(d.count), "h-count", {
@@ -206,6 +242,21 @@ function generateVerticalBars(
             fill: barColor,
           },
         ),
+        yearGapSize > 0
+          ? [
+              `<line class="year-gap-line" x1="${DISTRIBUTION.VERTICAL_BAR_SPACING / 2}" y1="12" x2="${DISTRIBUTION.VERTICAL_BAR_SPACING / 2}" y2="${DISTRIBUTION.VERTICAL_BAR_Y_BASE + 4}" />`,
+              createTextElement(
+                DISTRIBUTION.VERTICAL_BAR_SPACING / 2,
+                DISTRIBUTION.VERTICAL_BAR_Y_BASE + 11,
+                "⋯",
+                "year-gap-dots",
+                {
+                  textAnchor: "middle",
+                  fontSize: TYPOGRAPHY.SMALL_TEXT_SIZE,
+                },
+              ),
+            ].join("")
+          : "",
         createTextElement(
           0,
           DISTRIBUTION.VERTICAL_BAR_Y_BASE + 14,
@@ -265,14 +316,54 @@ export function distributionTemplate(
 
   // Normalize and sort data
   const data = normalizeDistributionData(input.data, kind);
-  const maxCount = Math.max(1, ...data.map((d) => d.count));
+  const renderedData =
+    variant === "horizontal" ? data.slice(0, DISTRIBUTION.MAX_ITEMS) : data;
+  const maxCount = Math.max(1, ...renderedData.map((d) => d.count));
+
+  const showYearGaps = kind === "year";
+  const hasYearGaps =
+    showYearGaps &&
+    renderedData.some((d, i) => {
+      const next = renderedData[i + 1];
+      return next ? d.value - next.value > 1 : false;
+    });
 
   // Generate title and get dimensions
   const baseTitle =
     kind === "score" ? "Score Distribution" : "Year Distribution";
   const title = `${username}'s ${capitalize(mediaType)} ${baseTitle}`;
   const safeTitle = escapeForXml(title);
-  const dims = getCardDimensions("distribution", variant);
+  const baseDims = getCardDimensions("distribution", variant);
+
+  const dims = (() => {
+    if (variant === "horizontal") {
+      const n = renderedData.length;
+      if (n <= 0) return baseDims;
+
+      const lastX =
+        (n - 1) * DISTRIBUTION.VERTICAL_BAR_SPACING + DISTRIBUTION.COUNT_BASE_X;
+      const requiredWidth =
+        lastX + DISTRIBUTION.VERTICAL_BAR_WIDTH / 2 + SPACING.CARD_PADDING;
+
+      return {
+        ...baseDims,
+        w: Math.max(baseDims.w, Math.ceil(requiredWidth)),
+      };
+    }
+
+    // default variant
+    const n = renderedData.length;
+    if (n <= 0) return baseDims;
+
+    const chartTopY = 70;
+    const lastRowBottom = chartTopY + (n - 1) * SPACING.ITEM_GAP + (4 + 10); // rect y + rect height
+    const requiredHeight = lastRowBottom + SPACING.CARD_PADDING;
+
+    return {
+      ...baseDims,
+      h: Math.max(baseDims.h, Math.ceil(requiredHeight)),
+    };
+  })();
 
   // Layout constants
   const barColor = resolvedColors.circleColor;
@@ -285,8 +376,8 @@ export function distributionTemplate(
   // Generate content based on variant
   const mainContent =
     variant === "horizontal"
-      ? `<g transform="translate(0,40)">${generateVerticalBars(data, maxCount, barColor)}</g>`
-      : `<g transform="translate(30,70)">${generateBarItems(data, maxCount, maxBarWidth, barColor)}</g>`;
+      ? `<g transform="translate(0,40)">${generateVerticalBars(renderedData, maxCount, barColor, { showYearGaps })}</g>`
+      : `<g transform="translate(30,70)">${generateBarItems(renderedData, maxCount, maxBarWidth, barColor, { showYearGaps })}</g>`;
 
   const headerFontSize = calculateDynamicFontSize(title, 18, 300);
   const headerFontSizeNumber = Number.parseFloat(headerFontSize) || 18;
@@ -303,12 +394,23 @@ export function distributionTemplate(
   >
     ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
     <title id="title-id">${safeTitle}</title>
-    <desc id="desc-id">${escapeForXml(data.map((d) => `${d.value}:${d.count}`).join(", "))}</desc>
+    <desc id="desc-id">${escapeForXml(
+      [
+        data.map((d) => `${d.value}:${d.count}`).join(", "),
+        hasYearGaps
+          ? "Gaps between non-consecutive years are indicated with dashed separators."
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
+    )}</desc>
     <style>
       ${generateCommonStyles(resolvedColors, headerFontSizeNumber)}
       .score-label,.score-count,.h-score,.h-count { fill:${resolvedColors.textColor}; font:400 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
       .score-count { font-size:${TYPOGRAPHY.SECTION_TITLE_SIZE}px; }
       .h-score,.h-count { font-size:${TYPOGRAPHY.SMALL_TEXT_SIZE}px; }
+      .year-gap-line { stroke:${resolvedColors.textColor}; stroke-width:1; stroke-dasharray:3 3; opacity:0.35; }
+      .year-gap-dots { fill:${resolvedColors.textColor}; opacity:0.55; }
     </style>
     ${generateCardBackground(dims, cardRadius, resolvedColors)}
     <g transform="translate(20,35)"><text class="header">${safeTitle}</text></g>

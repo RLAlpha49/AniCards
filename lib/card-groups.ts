@@ -229,6 +229,46 @@ export const CARD_GROUPS: CardGroup[] = [
     cardTitle: "Most Rewatched/Reread",
     variations: ["default", "anime", "manga"],
   },
+  {
+    cardType: "animeMangaOverview",
+    cardTitle: "Anime vs Manga Overview",
+    variations: ["default"],
+  },
+  {
+    cardType: "scoreCompareAnimeManga",
+    cardTitle: "Anime vs Manga Score Comparison",
+    variations: ["default"],
+  },
+  {
+    cardType: "countryDiversity",
+    cardTitle: "Country Diversity",
+    variations: ["default"],
+  },
+  {
+    cardType: "genreDiversity",
+    cardTitle: "Genre Diversity",
+    variations: ["default"],
+  },
+  {
+    cardType: "formatPreferenceOverview",
+    cardTitle: "Format Preference Overview",
+    variations: ["default"],
+  },
+  {
+    cardType: "releaseEraPreference",
+    cardTitle: "Release Era Preference",
+    variations: ["default"],
+  },
+  {
+    cardType: "startYearMomentum",
+    cardTitle: "Start-Year Momentum",
+    variations: ["default"],
+  },
+  {
+    cardType: "lengthPreference",
+    cardTitle: "Length Preference",
+    variations: ["default"],
+  },
 ];
 
 /**

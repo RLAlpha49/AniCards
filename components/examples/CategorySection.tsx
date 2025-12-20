@@ -26,7 +26,9 @@ interface CardType {
     | "Profile & Favourites"
     | "Activity & Time"
     | "Anime Breakdowns"
-    | "Manga Breakdowns";
+    | "Manga Breakdowns"
+    | "Completion & Progress"
+    | "Comparisons";
   icon: LucideIcon;
   color: string;
   gradient: string;
@@ -51,6 +53,10 @@ const getCategoryIcon = (category: string): LucideIcon => {
       return PieChart;
     case "Manga Breakdowns":
       return BookOpen;
+    case "Completion & Progress":
+      return BarChart2;
+    case "Comparisons":
+      return PieChart;
     default:
       return BarChart2;
   }
@@ -85,6 +91,20 @@ const getCategoryStyles = (category: string) => {
         text: "text-amber-600 dark:text-amber-400",
         border: "border-amber-200/50 dark:border-amber-800/50",
         gradient: "from-amber-500 to-orange-500",
+      };
+    case "Completion & Progress":
+      return {
+        bg: "bg-emerald-100 dark:bg-emerald-900/30",
+        text: "text-emerald-600 dark:text-emerald-400",
+        border: "border-emerald-200/50 dark:border-emerald-800/50",
+        gradient: "from-emerald-500 to-green-500",
+      };
+    case "Comparisons":
+      return {
+        bg: "bg-indigo-100 dark:bg-indigo-900/30",
+        text: "text-indigo-600 dark:text-indigo-400",
+        border: "border-indigo-200/50 dark:border-indigo-800/50",
+        gradient: "from-indigo-500 to-blue-500",
       };
     case "Main Stats":
     default:

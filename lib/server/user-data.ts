@@ -586,6 +586,14 @@ export const CARD_TYPE_TO_PARTS: Record<string, UserDataPart[]> = {
   personalRecords: ["meta", "completed", "rewatched"],
   planningBacklog: ["meta", "planning"],
   mostRewatched: ["meta", "rewatched"],
+  animeMangaOverview: ["meta", "statistics"],
+  scoreCompareAnimeManga: ["meta", "statistics"],
+  countryDiversity: ["meta", "statistics"],
+  genreDiversity: ["meta", "statistics"],
+  formatPreferenceOverview: ["meta", "statistics"],
+  releaseEraPreference: ["meta", "statistics"],
+  startYearMomentum: ["meta", "statistics"],
+  lengthPreference: ["meta", "statistics"],
 };
 
 /**

@@ -90,8 +90,39 @@ export const extraAnimeMangaStatsTemplate = (data: {
   })();
   svgWidth = svgDims.w;
   const viewBoxWidth = svgWidth;
-  const svgHeight = svgDims.h;
+  const baseHeight = svgDims.h;
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);
+
+  const BODY_Y = SPACING.CONTENT_Y;
+  const bottomPad = SPACING.CARD_PADDING;
+
+  const barRowCount = (() => {
+    if (!isBar || !data.stats || data.stats.length === 0) return 0;
+    const hasRenderableBars = data.stats.some((s) => Math.max(0, s.count) > 0);
+    return hasRenderableBars ? data.stats.length : 0;
+  })();
+
+  const bodyContentHeight = (() => {
+    if (!data.stats) return 0;
+
+    if (isBar) {
+      return barRowCount > 0 ? barRowCount * SPACING.ROW_HEIGHT_LARGE : 0;
+    }
+
+    if (isPie) {
+      const pieChartHeight = 100;
+      const legendHeight =
+        data.stats.length > 0 ? data.stats.length * SPACING.ROW_HEIGHT : 0;
+      return Math.max(pieChartHeight, legendHeight);
+    }
+
+    return data.stats.length > 0 ? data.stats.length * SPACING.ROW_HEIGHT : 0;
+  })();
+
+  const requiredHeight =
+    bodyContentHeight > 0 ? BODY_Y + bodyContentHeight + bottomPad : baseHeight;
+
+  const svgHeight = Math.max(baseHeight, requiredHeight);
 
   /** List of formats that should render hearts for favorites (pink heart). @source */
   const FAVORITE_FORMATS = [
@@ -317,7 +348,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
           </text>
         </g>
       </g>
-      <g data-testid="main-card-body" transform="translate(0, 55)">
+      <g data-testid="main-card-body" transform="translate(0, ${BODY_Y})">
         ${mainStatsContent}
       </g>
     </svg>

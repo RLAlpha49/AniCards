@@ -6,7 +6,7 @@ export interface AnimeStatGenre {
 
 /** Tag bucket in anime statistics with a referenced tag name and count. @source */
 export interface AnimeStatTag {
-  tag: { name: string };
+  tag: { name: string; category?: string };
   count: number;
 }
 
@@ -45,6 +45,8 @@ export interface AnimeStats {
   scores?: { score: number; count: number }[];
   releaseYears?: { releaseYear: number; count: number }[];
   countries?: { country: string; count: number }[];
+  startYears?: { startYear: number; count: number }[];
+  lengths?: { length: string; count: number }[];
 }
 
 /** Genre bucket in manga statistics with a count of items. @source */
@@ -55,7 +57,7 @@ export interface MangaStatGenre {
 
 /** Tag bucket in manga statistics with a referenced tag name and count. @source */
 export interface MangaStatTag {
-  tag: { name: string };
+  tag: { name: string; category?: string };
   count: number;
 }
 
@@ -80,6 +82,8 @@ export interface MangaStats {
   scores?: { score: number; count: number }[];
   releaseYears?: { releaseYear: number; count: number }[];
   countries?: { country: string; count: number }[];
+  startYears?: { startYear: number; count: number }[];
+  lengths?: { length: string; count: number }[];
 }
 
 /** Container that groups anime and manga statistics for a user. @source */

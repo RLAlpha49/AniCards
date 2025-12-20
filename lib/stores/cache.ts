@@ -65,36 +65,67 @@ export interface CacheActions {
 /** Combined store type for cache management */
 export type CacheStore = CacheState & CacheActions;
 
-/**
- * Reads site-prefixed items from localStorage and returns a list of cached
- * entries with key, byte size, and last modified timestamp.
- */
-function getSiteSpecificCacheItems(): CacheItem[] {
-  if (globalThis.window === undefined) return [];
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
 
-  return Object.keys(localStorage)
-    .filter((key) => key.startsWith(APP_PREFIX))
-    .map((key) => {
-      const item = localStorage.getItem(key)!;
-      let size = new Blob([item]).size;
-      let lastModified = new Date().toISOString();
+function getUtf8ByteLength(value: string): number {
+  // Best-effort byte size calculation across browser + test environments.
+  if (typeof TextEncoder !== "undefined") {
+    return new TextEncoder().encode(value).length;
+  }
 
-      try {
-        const parsed = JSON.parse(item);
-        if (parsed.lastModified) {
-          lastModified = parsed.lastModified;
-          size = new Blob([JSON.stringify(parsed)]).size;
-        }
-      } catch {
-        // Ignore parse errors
-      }
+  if (typeof Blob !== "undefined") {
+    return new Blob([value]).size;
+  }
 
-      return {
-        key: key.replace(APP_PREFIX, ""),
-        size,
-        lastModified,
-      };
-    });
+  // Fallback (not truly bytes for non-ASCII), but avoids crashing.
+  return value.length;
+}
+
+function coerceToIsoDateString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
+function tryExtractLastModified(value: string): string | null {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!isRecord(parsed)) return null;
+
+    // Common timestamp keys we may encounter in stored payloads.
+    const direct =
+      coerceToIsoDateString(parsed.lastModified) ??
+      coerceToIsoDateString(parsed.updatedAt) ??
+      coerceToIsoDateString(parsed.modifiedAt);
+    if (direct) return direct;
+
+    // Zustand persist commonly stores { state, version }.
+    const state = parsed.state;
+    if (isRecord(state)) {
+      const fromState =
+        coerceToIsoDateString(state.lastModified) ??
+        coerceToIsoDateString(state.updatedAt) ??
+        coerceToIsoDateString(state.modifiedAt);
+      if (fromState) return fromState;
+    }
+
+    // Some legacy payloads may be wrapped as { value: ... }.
+    const wrappedValue = parsed.value;
+    if (isRecord(wrappedValue)) {
+      const fromValue =
+        coerceToIsoDateString(wrappedValue.lastModified) ??
+        coerceToIsoDateString(wrappedValue.updatedAt) ??
+        coerceToIsoDateString(wrappedValue.modifiedAt);
+      if (fromValue) return fromValue;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -124,8 +155,33 @@ function clearSiteCacheItems(): void {
  */
 export const useCache = create<CacheStore>()(
   devtools(
-    (set, get) => ({
+    (set) => ({
       cacheVersion: 0,
+
+      getCacheItems: () => {
+        if (globalThis.window === undefined) return [];
+
+        const storage = globalThis.window.localStorage;
+        const fallbackLastModified = new Date().toISOString();
+        const items: CacheItem[] = [];
+
+        // Prefer Storage iteration APIs for correctness across environments.
+        for (let i = 0; i < storage.length; i++) {
+          const fullKey = storage.key(i);
+          if (!fullKey?.startsWith(APP_PREFIX)) continue;
+
+          const storedValue = storage.getItem(fullKey) ?? "";
+          items.push({
+            key: fullKey.slice(APP_PREFIX.length),
+            size: getUtf8ByteLength(storedValue),
+            lastModified:
+              tryExtractLastModified(storedValue) ?? fallbackLastModified,
+          });
+        }
+
+        items.sort((a, b) => a.key.localeCompare(b.key));
+        return items;
+      },
 
       clearAllCache: () => {
         clearSiteCacheItems();
@@ -133,6 +189,21 @@ export const useCache = create<CacheStore>()(
           (state) => ({ cacheVersion: state.cacheVersion + 1 }),
           false,
           "clearAllCache",
+        );
+      },
+
+      deleteCacheItem: (key: string) => {
+        if (globalThis.window === undefined) return;
+
+        const fullKey = key.startsWith(APP_PREFIX)
+          ? key
+          : `${APP_PREFIX}${key}`;
+        localStorage.removeItem(fullKey);
+
+        set(
+          (state) => ({ cacheVersion: state.cacheVersion + 1 }),
+          false,
+          "deleteCacheItem",
         );
       },
 
