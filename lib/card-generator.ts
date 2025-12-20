@@ -68,6 +68,7 @@ type CardGenVariant =
   | "vertical"
   | "pie"
   | "donut"
+  | "radar"
   | "compact"
   | "minimal"
   | "communityFootprint"
@@ -89,6 +90,8 @@ type StatsVariant = "default" | "vertical" | "minimal";
 type SocialVariant = "default" | "compact" | "minimal" | "communityFootprint";
 /** @source */
 type PieBarVariant = "default" | "pie" | "bar" | "donut";
+/** @source */
+type ExtraStatsVariant = PieBarVariant | "radar";
 /** @source */
 type DistributionVariant = "default" | "horizontal" | "cumulative";
 /** @source */
@@ -177,6 +180,13 @@ function normalizeVariant(
     "donut",
     "bar",
   ]);
+  const genreTagVariants = new Set<CardGenVariant>([
+    "default",
+    "pie",
+    "donut",
+    "bar",
+    "radar",
+  ]);
   const statusPieBarVariants = pieBarVariants;
   const scoreDistributionVariants = new Set<CardGenVariant>([
     "default",
@@ -193,13 +203,13 @@ function normalizeVariant(
     mangaStats: statsVariants,
     socialStats: socialVariants,
     socialMilestones: new Set<CardGenVariant>(["default"]),
-    animeGenres: pieBarVariants,
-    animeTags: pieBarVariants,
+    animeGenres: genreTagVariants,
+    animeTags: genreTagVariants,
     animeVoiceActors: pieBarVariants,
     animeStudios: pieBarVariants,
     animeStaff: pieBarVariants,
-    mangaGenres: pieBarVariants,
-    mangaTags: pieBarVariants,
+    mangaGenres: genreTagVariants,
+    mangaTags: genreTagVariants,
     mangaStaff: pieBarVariants,
     animeStatusDistribution: statusPieBarVariants,
     mangaStatusDistribution: statusPieBarVariants,
@@ -687,9 +697,9 @@ function generateCategoryCard(
 
   return extraAnimeMangaStatsTemplate({
     username: userRecord.username ?? userRecord.userId,
-    variant: ("pie" === variant || "bar" === variant || "donut" === variant
+    variant: (["pie", "bar", "donut", "radar"].includes(variant)
       ? variant
-      : "default") as PieBarVariant,
+      : "default") as ExtraStatsVariant,
     styles: extractStyles(cardConfig),
     format: displayNames[baseCardType],
     stats: items,

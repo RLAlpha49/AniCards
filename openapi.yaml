@@ -136,10 +136,22 @@ paths:
                 "default",
                 "vertical",
                 "pie",
+                "donut",
+                "radar",
+                "compact",
                 "minimal",
+                "communityFootprint",
                 "bar",
                 "horizontal",
                 "cumulative",
+                "anime",
+                "manga",
+                "characters",
+                "mixed",
+                "github",
+                "fire",
+                "combined",
+                "split",
               ]
           description: "Optional rendering variation; also settable inside stored card configuration."
         - in: query
@@ -617,6 +629,28 @@ components:
         variation:
           type: string
           description: "Template variation name"
+          enum:
+            [
+              "default",
+              "vertical",
+              "pie",
+              "donut",
+              "radar",
+              "compact",
+              "minimal",
+              "communityFootprint",
+              "bar",
+              "horizontal",
+              "cumulative",
+              "anime",
+              "manga",
+              "characters",
+              "mixed",
+              "github",
+              "fire",
+              "combined",
+              "split",
+            ]
         cardName:
           type: string
           description: "Unique name for the card template (used as identifier)"

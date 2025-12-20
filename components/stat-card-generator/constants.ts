@@ -12,6 +12,11 @@ const pieBarVariations = [
   { id: "bar", label: "Bar Chart" },
 ];
 
+const genreTagDistributionVariations = [
+  ...pieBarVariations,
+  { id: "radar", label: "Radar Chart" },
+];
+
 const statusDistributionVariations = pieBarVariations;
 
 const scoreDistributionVariations = [
@@ -75,6 +80,24 @@ const createCardType = (
   label,
   variations,
 });
+
+const getAnimeBreakdownVariations = (cardId: string) => {
+  if (cardId.endsWith("StatusDistribution"))
+    return statusDistributionVariations;
+  if (cardId === "animeGenres" || cardId === "animeTags") {
+    return genreTagDistributionVariations;
+  }
+  return pieBarVariations;
+};
+
+const getMangaBreakdownVariations = (cardId: string) => {
+  if (cardId.endsWith("StatusDistribution"))
+    return statusDistributionVariations;
+  if (cardId === "mangaGenres" || cardId === "mangaTags") {
+    return genreTagDistributionVariations;
+  }
+  return pieBarVariations;
+};
 
 const animeBreakdownCards = [
   { id: "animeGenres", label: "Anime Genres (Top 5 Count)" },
@@ -307,9 +330,7 @@ export const statCardTypes = [
       card.id,
       "Anime Breakdowns",
       card.label,
-      card.id.endsWith("StatusDistribution")
-        ? statusDistributionVariations
-        : pieBarVariations,
+      getAnimeBreakdownVariations(card.id),
     ),
   ),
   ...mangaBreakdownCards.map((card) =>
@@ -317,9 +338,7 @@ export const statCardTypes = [
       card.id,
       "Manga Breakdowns",
       card.label,
-      card.id.endsWith("StatusDistribution")
-        ? statusDistributionVariations
-        : pieBarVariations,
+      getMangaBreakdownVariations(card.id),
     ),
   ),
   ...distributionCards.map((card) =>
