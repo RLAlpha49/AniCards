@@ -26,7 +26,7 @@ export const USER_STATS_QUERY = `
             status
             count
           }
-          formats(limit: 5, sort: COUNT_DESC) {
+          formats(limit: 10, sort: COUNT_DESC) {
             format
             count
           }
@@ -34,22 +34,31 @@ export const USER_STATS_QUERY = `
             score
             count
           }
-          releaseYears(limit: 10, sort: COUNT_DESC) {
+          releaseYears(limit: 25, sort: COUNT_DESC) {
             releaseYear
             count
           }
-          countries(limit: 10, sort: COUNT_DESC) {
+          countries(limit: 25, sort: COUNT_DESC) {
             country
             count
           }
-          genres(limit: 5, sort: COUNT_DESC) {
+          genres(limit: 25, sort: COUNT_DESC) {
             genre
             count
           }
-          tags(limit: 5, sort: COUNT_DESC) {
+          tags(limit: 25, sort: COUNT_DESC) {
             tag {
               name
+              category
             }
+            count
+          }
+          startYears(limit: 50, sort: ID_DESC) {
+            startYear
+            count
+          }
+          lengths(limit: 25, sort: ID_DESC) {
+            length
             count
           }
           voiceActors(limit: 5, sort: COUNT_DESC) {
@@ -85,7 +94,7 @@ export const USER_STATS_QUERY = `
             status
             count
           }
-          formats(limit: 5, sort: COUNT_DESC) {
+          formats(limit: 10, sort: COUNT_DESC) {
             format
             count
           }
@@ -93,22 +102,31 @@ export const USER_STATS_QUERY = `
             score
             count
           }
-          releaseYears(limit: 10, sort: COUNT_DESC) {
+          releaseYears(limit: 25, sort: COUNT_DESC) {
             releaseYear
             count
           }
-          countries(limit: 10, sort: COUNT_DESC) {
+          countries(limit: 25, sort: COUNT_DESC) {
             country
             count
           }
-          genres(limit: 5, sort: COUNT_DESC) {
+          genres(limit: 25, sort: COUNT_DESC) {
             genre
             count
           }
-          tags(limit: 5, sort: COUNT_DESC) {
+          tags(limit: 25, sort: COUNT_DESC) {
             tag {
               name
+              category
             }
+            count
+          }
+          startYears(limit: 50, sort: ID_DESC) {
+            startYear
+            count
+          }
+          lengths(limit: 25, sort: ID_DESC) {
+            length
             count
           }
           staff(limit: 5, sort: COUNT_DESC) {

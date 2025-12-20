@@ -20,6 +20,8 @@ interface HeroSectionProps {
   stats: {
     mainStats: number;
     profileFavourites: number;
+    completionProgress: number;
+    comparisons: number;
     animeBreakdowns: number;
     mangaBreakdowns: number;
     totalVariants: number;
@@ -53,6 +55,20 @@ const STAT_CATEGORIES = [
     icon: Sparkles,
     bg: "bg-teal-100 dark:bg-teal-900/30",
     text: "text-teal-600 dark:text-teal-400",
+  },
+  {
+    key: "completionProgress",
+    label: "Completion & Progress",
+    icon: TrendingUp,
+    bg: "bg-emerald-100 dark:bg-emerald-900/30",
+    text: "text-emerald-600 dark:text-emerald-400",
+  },
+  {
+    key: "comparisons",
+    label: "Comparisons",
+    icon: PieChart,
+    bg: "bg-indigo-100 dark:bg-indigo-900/30",
+    text: "text-indigo-600 dark:text-indigo-400",
   },
   {
     key: "animeBreakdowns",
@@ -160,7 +176,7 @@ export function ExamplesHeroSection({
 
           <motion.div
             variants={itemVariants}
-            className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5"
+            className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6"
           >
             {STAT_CATEGORIES.map((stat) => {
               const Icon = stat.icon;

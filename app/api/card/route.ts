@@ -72,6 +72,14 @@ const ALLOWED_CARD_TYPES = new Set([
   "personalRecords",
   "planningBacklog",
   "mostRewatched",
+  "animeMangaOverview",
+  "scoreCompareAnimeManga",
+  "countryDiversity",
+  "genreDiversity",
+  "formatPreferenceOverview",
+  "releaseEraPreference",
+  "startYearMomentum",
+  "lengthPreference",
 ]);
 
 /**

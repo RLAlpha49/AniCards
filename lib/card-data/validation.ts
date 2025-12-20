@@ -49,7 +49,10 @@ export class CardDataError extends Error {
 /** Representation of a genre and its count for a user's media statistics. @source */
 export type GenreItem = { genre: string; count: number };
 /** Tag item (name + count) used in tag distribution lists. @source */
-export type TagItem = { tag: { name: string }; count: number };
+export type TagItem = {
+  tag: { name: string; category?: string };
+  count: number;
+};
 /** Voice actor item with full name and count (for anime voice actor stats). @source */
 export type VoiceActorItem = {
   voiceActor: { name: { full: string } };
@@ -101,6 +104,14 @@ export const displayNames: { [key: string]: string } = {
   personalRecords: "Personal Records",
   planningBacklog: "Planning Backlog",
   mostRewatched: "Most Rewatched/Reread",
+  animeMangaOverview: "Anime vs Manga Overview",
+  scoreCompareAnimeManga: "Anime vs Manga Score Comparison",
+  countryDiversity: "Country Diversity",
+  genreDiversity: "Genre Diversity",
+  formatPreferenceOverview: "Format Preference Overview",
+  releaseEraPreference: "Release Era Preference",
+  startYearMomentum: "Start-Year Momentum",
+  lengthPreference: "Length Preference",
 };
 
 /**
@@ -323,14 +334,22 @@ export function validateAndNormalizeUserRecord(
             if (!t || typeof t !== "object") return null;
             const rec = t as Record<string, unknown>;
             const tagName = getNestedString(rec, ["tag", "name"]);
+            const tagCategory = getNestedString(rec, ["tag", "category"]);
             return {
-              tag: { name: tagName },
+              tag: {
+                name: tagName,
+                ...(tagCategory ? { category: tagCategory } : {}),
+              },
               count: coerceNumber(rec.count, 0) ?? 0,
             };
           })
           .filter(
-            (t): t is { tag: { name: string }; count: number } =>
-              !!t && !!t.tag && !!t.tag.name,
+            (
+              t,
+            ): t is {
+              tag: { name: string; category?: string };
+              count: number;
+            } => !!t && !!t.tag && !!t.tag.name,
           )
           .slice(0, 25)
       : [];
@@ -470,6 +489,47 @@ export function validateAndNormalizeUserRecord(
           )
       : undefined;
 
+    const rawStartYears = block["startYears"];
+    const startYears = Array.isArray(rawStartYears)
+      ? (rawStartYears as unknown[])
+          .map((s) => {
+            if (!s || typeof s !== "object") return null;
+            const rec = s as Record<string, unknown>;
+            return {
+              startYear: coerceNumber(rec.startYear, Number.NaN),
+              count: coerceNumber(rec.count, 0),
+            };
+          })
+          .filter(
+            (s): s is { startYear: number; count: number } =>
+              s !== null &&
+              Number.isFinite(s.startYear) &&
+              typeof s.count === "number" &&
+              Number.isFinite(s.count),
+          )
+      : undefined;
+
+    const rawLengths = block["lengths"];
+    const lengths = Array.isArray(rawLengths)
+      ? (rawLengths as unknown[])
+          .map((l) => {
+            if (!l || typeof l !== "object") return null;
+            const rec = l as Record<string, unknown>;
+            const length = String(rec.length ?? "").trim();
+            return {
+              length,
+              count: coerceNumber(rec.count, 0),
+            };
+          })
+          .filter(
+            (l): l is { length: string; count: number } =>
+              l !== null &&
+              l.length !== "" &&
+              typeof l.count === "number" &&
+              Number.isFinite(l.count),
+          )
+      : undefined;
+
     const count = coerceNumber(block.count);
     const meanScore = coerceNumber(block.meanScore);
     const standardDeviation = coerceNumber(block.standardDeviation);
@@ -488,6 +548,8 @@ export function validateAndNormalizeUserRecord(
       scores,
       releaseYears,
       countries,
+      startYears,
+      lengths,
     };
 
     if (type === "anime") {

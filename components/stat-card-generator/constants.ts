@@ -210,6 +210,51 @@ const completionProgressCards = [
   },
 ];
 
+const comparativeDefaultVariations = [{ id: "default", label: "Default" }];
+
+const comparativeDistributionCards = [
+  {
+    id: "animeMangaOverview",
+    label: "Anime vs Manga Overview",
+    variations: comparativeDefaultVariations,
+  },
+  {
+    id: "scoreCompareAnimeManga",
+    label: "Anime vs Manga Score Comparison",
+    variations: comparativeDefaultVariations,
+  },
+  {
+    id: "countryDiversity",
+    label: "Country Diversity",
+    variations: comparativeDefaultVariations,
+  },
+  {
+    id: "genreDiversity",
+    label: "Genre Diversity",
+    variations: comparativeDefaultVariations,
+  },
+  {
+    id: "formatPreferenceOverview",
+    label: "Format Preference Overview",
+    variations: comparativeDefaultVariations,
+  },
+  {
+    id: "releaseEraPreference",
+    label: "Release Era Preference",
+    variations: comparativeDefaultVariations,
+  },
+  {
+    id: "startYearMomentum",
+    label: "Start-Year Momentum",
+    variations: comparativeDefaultVariations,
+  },
+  {
+    id: "lengthPreference",
+    label: "Length Preference",
+    variations: comparativeDefaultVariations,
+  },
+];
+
 export const statCardTypes = [
   createCardType(
     "animeStats",
@@ -263,6 +308,14 @@ export const statCardTypes = [
     createCardType(
       card.id,
       "Completion & Progress",
+      card.label,
+      card.variations,
+    ),
+  ),
+  ...comparativeDistributionCards.map((card) =>
+    createCardType(
+      card.id,
+      "Comparative & Distribution",
       card.label,
       card.variations,
     ),

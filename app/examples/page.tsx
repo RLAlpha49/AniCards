@@ -290,6 +290,102 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
     icon: Activity,
     color: "amber",
   },
+
+  // Completion & Progress
+  {
+    title: "Status Completion Overview",
+    description:
+      "Compare anime vs manga completion totals with combined or split views",
+    category: "Completion & Progress",
+    icon: TrendingUp,
+    color: "emerald",
+  },
+  {
+    title: "Consumption Milestones",
+    description: "Celebrate your biggest anime and manga milestones",
+    category: "Completion & Progress",
+    icon: Calendar,
+    color: "green",
+  },
+  {
+    title: "Personal Records",
+    description: "Your personal bests and standout completed titles",
+    category: "Completion & Progress",
+    icon: BarChart2,
+    color: "teal",
+  },
+  {
+    title: "Planning Backlog",
+    description: "Snapshot of your planned watch/read backlog",
+    category: "Completion & Progress",
+    icon: Clock,
+    color: "cyan",
+  },
+  {
+    title: "Most Rewatched/Reread",
+    description: "Your most revisited anime and manga",
+    category: "Completion & Progress",
+    icon: Activity,
+    color: "lime",
+  },
+
+  // Comparisons
+  {
+    title: "Anime vs Manga Overview",
+    description: "High-level overview comparing your anime and manga habits",
+    category: "Comparisons",
+    icon: BarChart2,
+    color: "indigo",
+  },
+  {
+    title: "Anime vs Manga Score Comparison",
+    description: "Compare your scoring patterns between anime and manga",
+    category: "Comparisons",
+    icon: TrendingUp,
+    color: "violet",
+  },
+  {
+    title: "Country Diversity",
+    description: "Compare the diversity of countries across anime and manga",
+    category: "Comparisons",
+    icon: PieChart,
+    color: "rose",
+  },
+  {
+    title: "Genre Diversity",
+    description: "Compare genre diversity across anime and manga",
+    category: "Comparisons",
+    icon: PieChart,
+    color: "purple",
+  },
+  {
+    title: "Format Preference Overview",
+    description: "Compare your format preferences between anime and manga",
+    category: "Comparisons",
+    icon: PieChart,
+    color: "blue",
+  },
+  {
+    title: "Release Era Preference",
+    description: "Compare which release eras you consume most",
+    category: "Comparisons",
+    icon: Calendar,
+    color: "amber",
+  },
+  {
+    title: "Start-Year Momentum",
+    description: "Compare momentum by start year between anime and manga",
+    category: "Comparisons",
+    icon: TrendingUp,
+    color: "orange",
+  },
+  {
+    title: "Length Preference",
+    description: "Compare preferences for shorter vs longer series",
+    category: "Comparisons",
+    icon: TrendingUp,
+    color: "teal",
+  },
 ];
 
 const CATEGORIES = [
@@ -298,6 +394,8 @@ const CATEGORIES = [
   "Activity & Time",
   "Anime Breakdowns",
   "Manga Breakdowns",
+  "Completion & Progress",
+  "Comparisons",
 ] as const;
 
 const BASE_URL = DEFAULT_BASE_CARD_URL;
@@ -427,6 +525,12 @@ export default function ExamplesPage() {
       ).length,
       profileFavourites: cardTypesWithVariants.filter(
         (c) => c.category === "Profile & Favourites",
+      ).length,
+      completionProgress: cardTypesWithVariants.filter(
+        (c) => c.category === "Completion & Progress",
+      ).length,
+      comparisons: cardTypesWithVariants.filter(
+        (c) => c.category === "Comparisons",
       ).length,
       animeBreakdowns: cardTypesWithVariants.filter(
         (c) => c.category === "Anime Breakdowns",

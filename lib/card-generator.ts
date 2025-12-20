@@ -18,6 +18,14 @@ import { mostRewatchedTemplate } from "@/lib/svg-templates/completion-progress-s
 import { personalRecordsTemplate } from "@/lib/svg-templates/completion-progress-stats/personal-records-template";
 import { planningBacklogTemplate } from "@/lib/svg-templates/completion-progress-stats/planning-backlog-template";
 import { statusCompletionOverviewTemplate } from "@/lib/svg-templates/completion-progress-stats/status-completion-overview-template";
+import { animeMangaOverviewTemplate } from "@/lib/svg-templates/comparative-distribution-stats/anime-manga-overview-template";
+import { scoreCompareAnimeMangaTemplate } from "@/lib/svg-templates/comparative-distribution-stats/score-compare-anime-manga-template";
+import { countryDiversityTemplate } from "@/lib/svg-templates/comparative-distribution-stats/country-diversity-template";
+import { genreDiversityTemplate } from "@/lib/svg-templates/comparative-distribution-stats/genre-diversity-template";
+import { formatPreferenceOverviewTemplate } from "@/lib/svg-templates/comparative-distribution-stats/format-preference-overview-template";
+import { releaseEraPreferenceTemplate } from "@/lib/svg-templates/comparative-distribution-stats/release-era-preference-template";
+import { startYearMomentumTemplate } from "@/lib/svg-templates/comparative-distribution-stats/start-year-momentum-template";
+import { lengthPreferenceTemplate } from "@/lib/svg-templates/comparative-distribution-stats/length-preference-template";
 import { TrustedSVG } from "@/lib/types/svg";
 import {
   ActivityHistoryItem,
@@ -92,6 +100,8 @@ type PlanningBacklogVariant = "default";
 type MostRewatchedVariant = "default" | "anime" | "manga";
 /** @source */
 type FavoritesGridVariant = "anime" | "manga" | "characters" | "mixed";
+/** @source */
+type ComparativeVariant = "default";
 
 /**
  * Parameters provided to the card generation functions.
@@ -187,6 +197,14 @@ function normalizeVariant(
     personalRecords: new Set<CardGenVariant>(["default"]),
     planningBacklog: new Set<CardGenVariant>(["default"]),
     mostRewatched: new Set<CardGenVariant>(["default", "anime", "manga"]),
+    animeMangaOverview: new Set<CardGenVariant>(["default"]),
+    scoreCompareAnimeManga: new Set<CardGenVariant>(["default"]),
+    countryDiversity: new Set<CardGenVariant>(["default"]),
+    genreDiversity: new Set<CardGenVariant>(["default"]),
+    formatPreferenceOverview: new Set<CardGenVariant>(["default"]),
+    releaseEraPreference: new Set<CardGenVariant>(["default"]),
+    startYearMomentum: new Set<CardGenVariant>(["default"]),
+    lengthPreference: new Set<CardGenVariant>(["default"]),
   };
 
   const allowedVariants = variantMap[baseCardType!];
@@ -321,6 +339,25 @@ export async function generateCardSvg(
       typeof cardConfig.gridRows === "number" ? cardConfig.gridRows : undefined,
   };
 
+  const comparativeDispatch: Record<
+    string,
+    (p: CardGenerationParams) => TrustedSVG
+  > = {
+    animeMangaOverview: generateAnimeMangaOverviewCard,
+    scoreCompareAnimeManga: generateScoreCompareAnimeMangaCard,
+    countryDiversity: generateCountryDiversityCard,
+    genreDiversity: generateGenreDiversityCard,
+    formatPreferenceOverview: generateFormatPreferenceOverviewCard,
+    releaseEraPreference: generateReleaseEraPreferenceCard,
+    startYearMomentum: generateStartYearMomentumCard,
+    lengthPreference: generateLengthPreferenceCard,
+  };
+
+  const comparativeGenerator = comparativeDispatch[baseCardType];
+  if (comparativeGenerator) {
+    return comparativeGenerator(params);
+  }
+
   switch (baseCardType) {
     case "animeStats":
       return generateStatsCard(params, "anime");
@@ -384,6 +421,146 @@ export async function generateCardSvg(
     default:
       throw new CardDataError("Unsupported card type", 400);
   }
+}
+
+/**
+ * Generate an Anime vs Manga Overview card.
+ * @source
+ */
+function generateAnimeMangaOverviewCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  const animeStats = userRecord.stats?.User?.statistics?.anime;
+  const mangaStats = userRecord.stats?.User?.statistics?.manga;
+
+  return animeMangaOverviewTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ComparativeVariant,
+    styles: extractStyles(cardConfig),
+    animeStats,
+    mangaStats,
+  });
+}
+
+/**
+ * Generate an Anime vs Manga Score Comparison card.
+ * @source
+ */
+function generateScoreCompareAnimeMangaCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  const animeStats = userRecord.stats?.User?.statistics?.anime;
+  const mangaStats = userRecord.stats?.User?.statistics?.manga;
+
+  return scoreCompareAnimeMangaTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ComparativeVariant,
+    styles: extractStyles(cardConfig),
+    animeStats,
+    mangaStats,
+  });
+}
+
+/**
+ * Generate a Country Diversity card.
+ * @source
+ */
+function generateCountryDiversityCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  return countryDiversityTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ComparativeVariant,
+    styles: extractStyles(cardConfig),
+    animeStats: userRecord.stats?.User?.statistics?.anime,
+    mangaStats: userRecord.stats?.User?.statistics?.manga,
+  });
+}
+
+/**
+ * Generate a Genre Diversity card.
+ * @source
+ */
+function generateGenreDiversityCard(params: CardGenerationParams): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  return genreDiversityTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ComparativeVariant,
+    styles: extractStyles(cardConfig),
+    animeStats: userRecord.stats?.User?.statistics?.anime,
+    mangaStats: userRecord.stats?.User?.statistics?.manga,
+  });
+}
+
+/**
+ * Generate a Format Preference Overview card.
+ * @source
+ */
+function generateFormatPreferenceOverviewCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  return formatPreferenceOverviewTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ComparativeVariant,
+    styles: extractStyles(cardConfig),
+    animeStats: userRecord.stats?.User?.statistics?.anime,
+    mangaStats: userRecord.stats?.User?.statistics?.manga,
+  });
+}
+
+/**
+ * Generate a Release Era Preference card.
+ * @source
+ */
+function generateReleaseEraPreferenceCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  return releaseEraPreferenceTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ComparativeVariant,
+    styles: extractStyles(cardConfig),
+    animeStats: userRecord.stats?.User?.statistics?.anime,
+    mangaStats: userRecord.stats?.User?.statistics?.manga,
+  });
+}
+
+/**
+ * Generate a Start-Year Momentum card.
+ * @source
+ */
+function generateStartYearMomentumCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  return startYearMomentumTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ComparativeVariant,
+    styles: extractStyles(cardConfig),
+    animeStats: userRecord.stats?.User?.statistics?.anime,
+    mangaStats: userRecord.stats?.User?.statistics?.manga,
+  });
+}
+
+/**
+ * Generate a Length Preference card.
+ * @source
+ */
+function generateLengthPreferenceCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  return lengthPreferenceTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ComparativeVariant,
+    styles: extractStyles(cardConfig),
+    animeStats: userRecord.stats?.User?.statistics?.anime,
+    mangaStats: userRecord.stats?.User?.statistics?.manga,
+  });
 }
 
 /**

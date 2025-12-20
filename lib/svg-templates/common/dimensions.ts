@@ -73,6 +73,32 @@ export const CARD_DIMENSIONS = {
     default: { w: 350, h: 180 },
   },
 
+  // Comparative & distribution cards
+  animeMangaOverview: {
+    default: { w: 450, h: 220 },
+  },
+  scoreCompareAnimeManga: {
+    default: { w: 450, h: 220 },
+  },
+  countryDiversity: {
+    default: { w: 450, h: 220 },
+  },
+  genreDiversity: {
+    default: { w: 450, h: 220 },
+  },
+  formatPreferenceOverview: {
+    default: { w: 450, h: 220 },
+  },
+  releaseEraPreference: {
+    default: { w: 450, h: 220 },
+  },
+  startYearMomentum: {
+    default: { w: 450, h: 220 },
+  },
+  lengthPreference: {
+    default: { w: 450, h: 220 },
+  },
+
   // Extra anime/manga stats
   extraStats: {
     default: { w: 280, h: 195 },
