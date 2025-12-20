@@ -48,8 +48,101 @@ interface DistributionTemplateInput {
     borderColor?: ColorValue;
     borderRadius?: number;
   };
-  variant?: "default" | "horizontal";
+  variant?: "default" | "horizontal" | "cumulative";
   data: DistributionDatum[];
+}
+
+/**
+ * Generates an SVG cumulative distribution chart (CDF) for score distributions.
+ * Expects data sorted by ascending score value.
+ * @source
+ */
+function generateCumulativeChart(
+  dataAsc: DistributionDatum[],
+  dims: { w: number; h: number },
+): string {
+  const left = 56;
+  const right = 22;
+  const top = 78;
+  const bottom = 42;
+
+  const chartW = Math.max(10, dims.w - left - right);
+  const chartH = Math.max(10, dims.h - top - bottom);
+
+  const total = dataAsc.reduce((sum, d) => sum + d.count, 0);
+  let cumulative = 0;
+
+  const n = dataAsc.length;
+  const stepX = n > 1 ? chartW / (n - 1) : 0;
+  const points = dataAsc.map((d, i) => {
+    cumulative += d.count;
+    const pct = total > 0 ? (cumulative / total) * 100 : 0;
+    const x = left + i * stepX;
+    const y = top + chartH - (pct / 100) * chartH;
+    return { x, y, pct, score: d.value };
+  });
+
+  const polylinePoints = points
+    .map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`)
+    .join(" ");
+
+  const areaPath = (() => {
+    if (points.length === 0) return "";
+    const first = points[0];
+    const last = points.at(-1)!;
+    const d = [
+      `M ${first.x.toFixed(2)} ${(top + chartH).toFixed(2)}`,
+      `L ${first.x.toFixed(2)} ${first.y.toFixed(2)}`,
+      ...points.slice(1).map((p) => `L ${p.x.toFixed(2)} ${p.y.toFixed(2)}`),
+      `L ${last.x.toFixed(2)} ${(top + chartH).toFixed(2)}`,
+      "Z",
+    ].join(" ");
+    return `<path class="cdf-area" d="${d}" />`;
+  })();
+
+  const gridLines = [0, 25, 50, 75, 100]
+    .map((pct) => {
+      const y = top + chartH - (pct / 100) * chartH;
+      return `<g>
+        <line class="cdf-grid" x1="${left}" y1="${y.toFixed(2)}" x2="${(left + chartW).toFixed(2)}" y2="${y.toFixed(2)}" />
+        <text class="cdf-axis" x="${left - 10}" y="${(y + 4).toFixed(2)}" text-anchor="end">${pct}%</text>
+      </g>`;
+    })
+    .join("");
+
+  const xLabels = dataAsc
+    .map((d, i) => {
+      const show = n <= 12 || i % 2 === 0 || i === n - 1;
+      if (!show) return "";
+      const x = left + i * stepX;
+      const y = top + chartH + 18;
+      return `<text class="cdf-axis" x="${x.toFixed(2)}" y="${y.toFixed(2)}" text-anchor="middle">${d.value}</text>`;
+    })
+    .join("");
+
+  const pointDots = points
+    .map(
+      (p, i) =>
+        `<circle class="cdf-dot" cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="${i === points.length - 1 ? 2.4 : 2}" />`,
+    )
+    .join("");
+
+  const legend =
+    total > 0
+      ? `<text class="cdf-legend" x="${left}" y="${(top - 10).toFixed(2)}">Cumulative % of entries</text>`
+      : `<text class="cdf-legend" x="${left}" y="${(top - 10).toFixed(2)}">Cumulative % (no scores yet)</text>`;
+
+  return [
+    `<g>
+      ${legend}
+      ${gridLines}
+      ${areaPath}
+      <polyline class="cdf-line" points="${polylinePoints}" />
+      ${pointDots}
+      ${xLabels}
+    </g>`,
+    `<line class="cdf-baseline" x1="${left}" y1="${(top + chartH).toFixed(2)}" x2="${(left + chartW).toFixed(2)}" y2="${(top + chartH).toFixed(2)}" />`,
+  ].join("");
 }
 
 /**
@@ -315,9 +408,15 @@ export function distributionTemplate(
   const cardRadius = getCardBorderRadius(styles.borderRadius);
 
   // Normalize and sort data
-  const data = normalizeDistributionData(input.data, kind);
+  const normalizedData = normalizeDistributionData(input.data, kind);
+  const renderedDataBase =
+    variant === "horizontal"
+      ? normalizedData.slice(0, DISTRIBUTION.MAX_ITEMS)
+      : normalizedData;
   const renderedData =
-    variant === "horizontal" ? data.slice(0, DISTRIBUTION.MAX_ITEMS) : data;
+    variant === "cumulative" && kind === "score"
+      ? renderedDataBase.toSorted((a, b) => a.value - b.value)
+      : renderedDataBase;
   const maxCount = Math.max(1, ...renderedData.map((d) => d.count));
 
   const showYearGaps = kind === "year";
@@ -351,7 +450,6 @@ export function distributionTemplate(
       };
     }
 
-    // default variant
     const n = renderedData.length;
     if (n <= 0) return baseDims;
 
@@ -374,10 +472,14 @@ export function distributionTemplate(
   );
 
   // Generate content based on variant
-  const mainContent =
-    variant === "horizontal"
-      ? `<g transform="translate(0,40)">${generateVerticalBars(renderedData, maxCount, barColor, { showYearGaps })}</g>`
-      : `<g transform="translate(30,70)">${generateBarItems(renderedData, maxCount, maxBarWidth, barColor, { showYearGaps })}</g>`;
+  let mainContent: string;
+  if (variant === "horizontal") {
+    mainContent = `<g transform="translate(0,40)">${generateVerticalBars(renderedData, maxCount, barColor, { showYearGaps })}</g>`;
+  } else if (variant === "cumulative" && kind === "score") {
+    mainContent = generateCumulativeChart(renderedData, dims);
+  } else {
+    mainContent = `<g transform="translate(30,70)">${generateBarItems(renderedData, maxCount, maxBarWidth, barColor, { showYearGaps })}</g>`;
+  }
 
   const headerFontSize = calculateDynamicFontSize(title, 18, 300);
   const headerFontSizeNumber = Number.parseFloat(headerFontSize) || 18;
@@ -396,7 +498,10 @@ export function distributionTemplate(
     <title id="title-id">${safeTitle}</title>
     <desc id="desc-id">${escapeForXml(
       [
-        data.map((d) => `${d.value}:${d.count}`).join(", "),
+        normalizedData.map((d) => `${d.value}:${d.count}`).join(", "),
+        variant === "cumulative" && kind === "score"
+          ? "Cumulative distribution curve shows the percentage of entries at or below each score bucket."
+          : "",
         hasYearGaps
           ? "Gaps between non-consecutive years are indicated with dashed separators."
           : "",
@@ -411,6 +516,13 @@ export function distributionTemplate(
       .h-score,.h-count { font-size:${TYPOGRAPHY.SMALL_TEXT_SIZE}px; }
       .year-gap-line { stroke:${resolvedColors.textColor}; stroke-width:1; stroke-dasharray:3 3; opacity:0.35; }
       .year-gap-dots { fill:${resolvedColors.textColor}; opacity:0.55; }
+      .cdf-grid { stroke:${resolvedColors.textColor}; stroke-width:1; opacity:0.12; }
+      .cdf-baseline { stroke:${resolvedColors.textColor}; stroke-width:1; opacity:0.22; }
+      .cdf-axis { fill:${resolvedColors.textColor}; font:400 ${TYPOGRAPHY.SMALL_TEXT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; opacity:0.85; }
+      .cdf-legend { fill:${resolvedColors.textColor}; font:600 ${TYPOGRAPHY.SMALL_TEXT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; opacity:0.9; }
+      .cdf-line { stroke:${resolvedColors.circleColor}; stroke-width:2.5; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+      .cdf-area { fill:${resolvedColors.circleColor}; opacity:0.14; }
+      .cdf-dot { fill:${resolvedColors.circleColor}; opacity:0.95; }
     </style>
     ${generateCardBackground(dims, cardRadius, resolvedColors)}
     <g transform="translate(20,35)"><text class="header">${safeTitle}</text></g>

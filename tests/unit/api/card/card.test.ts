@@ -1026,6 +1026,67 @@ describe("Card SVG Route", () => {
       expect(callArgs.variant).toBe("default");
     });
 
+    it("should allow cumulative variation for score distribution cards", async () => {
+      const cardsData = createMockCardData("animeScoreDistribution", "default");
+      const userData = createMockUserData(542244, "testUser", {
+        User: {
+          statistics: {
+            anime: {
+              // Provide a minimal bucket; the template fills missing buckets.
+              scores: [{ score: 10, count: 1 }],
+            },
+          },
+        },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeScoreDistribution",
+          variation: "cumulative",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(distributionTemplate).toHaveBeenCalled();
+      const callArgs = (
+        distributionTemplate as MockFunction<typeof distributionTemplate>
+      ).mock.calls[0][0];
+      expect(callArgs.variant).toBe("cumulative");
+    });
+
+    it("should not allow cumulative variation for year distribution cards", async () => {
+      const cardsData = createMockCardData("animeYearDistribution", "default");
+      const userData = createMockUserData(542244, "testUser", {
+        User: {
+          statistics: {
+            anime: {
+              releaseYears: [{ releaseYear: 2024, count: 3 }],
+            },
+          },
+        },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeYearDistribution",
+          variation: "cumulative",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(distributionTemplate).toHaveBeenCalled();
+      const callArgs = (
+        distributionTemplate as MockFunction<typeof distributionTemplate>
+      ).mock.calls[0][0];
+      expect(callArgs.variant).toBe("default");
+    });
+
     it("should use pie variation for status distribution cards", async () => {
       const cardsData = createMockCardData("animeStatusDistribution", "pie");
       const userData = createMockUserData(542244, "testUser", {

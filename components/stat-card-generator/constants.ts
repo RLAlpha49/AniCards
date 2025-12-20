@@ -14,9 +14,14 @@ const pieBarVariations = [
 
 const statusDistributionVariations = pieBarVariations;
 
-const verticalHorizontalVariations = [
+const scoreDistributionVariations = [
   { id: "default", label: "Default" },
-  { id: "vertical", label: "Vertical" },
+  { id: "horizontal", label: "Horizontal" },
+  { id: "cumulative", label: "Cumulative" },
+];
+
+const yearDistributionVariations = [
+  { id: "default", label: "Default" },
   { id: "horizontal", label: "Horizontal" },
 ];
 
@@ -322,7 +327,9 @@ export const statCardTypes = [
       card.id,
       card.group,
       card.label,
-      verticalHorizontalVariations,
+      card.id.endsWith("ScoreDistribution")
+        ? scoreDistributionVariations
+        : yearDistributionVariations,
     ),
   ),
   ...profileFavouritesCards.map((card) =>

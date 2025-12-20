@@ -73,6 +73,7 @@ type CardGenVariant =
   | "communityFootprint"
   | "bar"
   | "horizontal"
+  | "cumulative"
   | "anime"
   | "manga"
   | "characters"
@@ -89,7 +90,7 @@ type SocialVariant = "default" | "compact" | "minimal" | "communityFootprint";
 /** @source */
 type PieBarVariant = "default" | "pie" | "bar" | "donut";
 /** @source */
-type DistributionVariant = "default" | "horizontal";
+type DistributionVariant = "default" | "horizontal" | "cumulative";
 /** @source */
 type ProfileVariant = "default";
 /** @source */
@@ -177,6 +178,11 @@ function normalizeVariant(
     "bar",
   ]);
   const statusPieBarVariants = pieBarVariants;
+  const scoreDistributionVariants = new Set<CardGenVariant>([
+    "default",
+    "horizontal",
+    "cumulative",
+  ]);
   const distributionVariants = new Set<CardGenVariant>([
     "default",
     "horizontal",
@@ -201,8 +207,8 @@ function normalizeVariant(
     mangaFormatDistribution: pieBarVariants,
     animeCountry: pieBarVariants,
     mangaCountry: pieBarVariants,
-    animeScoreDistribution: distributionVariants,
-    mangaScoreDistribution: distributionVariants,
+    animeScoreDistribution: scoreDistributionVariants,
+    mangaScoreDistribution: scoreDistributionVariants,
     animeYearDistribution: distributionVariants,
     mangaYearDistribution: distributionVariants,
     profileOverview: socialVariants,
@@ -833,9 +839,21 @@ function generateDistributionCard(
       404,
     );
   }
-  const mappedVariant = (
-    ["default", "horizontal"].includes(variant) ? variant : "default"
-  ) as DistributionVariant;
+  const isScoreDistributionVariant = (
+    v: string,
+  ): v is "default" | "horizontal" | "cumulative" =>
+    v === "default" || v === "horizontal" || v === "cumulative";
+  const isYearDistributionVariant = (
+    v: string,
+  ): v is "default" | "horizontal" => v === "default" || v === "horizontal";
+
+  let mappedVariant: DistributionVariant = "default";
+  if (kind === "score" && isScoreDistributionVariant(variant)) {
+    mappedVariant = variant;
+  }
+  if (kind === "year" && isYearDistributionVariant(variant)) {
+    mappedVariant = variant;
+  }
   return distributionTemplate({
     username: userRecord.username ?? userRecord.userId,
     mediaType: isAnime ? "anime" : "manga",
