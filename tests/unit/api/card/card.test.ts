@@ -92,6 +92,8 @@ const { POST: storeCardsPOST } = await import("@/app/api/store-cards/route");
 const utils = await import("@/lib/utils");
 const { distributionTemplate } =
   await import("@/lib/svg-templates/distribution/shared");
+const { socialStatsTemplate } =
+  await import("@/lib/svg-templates/social-stats");
 const { escapeForXml } = utils;
 
 /**
@@ -400,6 +402,169 @@ describe("Card SVG Route", () => {
         mock.clearAllMocks();
         sharedRatelimitMockLimit.mockResolvedValue({ success: true });
       }
+    });
+
+    it("should render currentlyWatchingReading when current lists are empty", async () => {
+      const cardsData = createMockCardData(
+        "currentlyWatchingReading",
+        "default",
+      );
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {}, manga: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "currentlyWatchingReading",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+      const body = await getResponseText(res);
+      expect(body).toContain("No currently watching/reading entries found");
+    });
+
+    it("should render currentlyWatchingReading anime-only with progress bars and covers", async () => {
+      const cardsData = createMockCardData("currentlyWatchingReading", "anime");
+      const coverDataUrl = "data:image/png;base64,iVBORw0KGgo=";
+
+      const userData = createMockUserData(542244, "testUser", {
+        User: {
+          statistics: { anime: {}, manga: {} },
+          stats: { activityHistory: [] },
+        },
+        animeCurrent: {
+          lists: [
+            {
+              entries: [
+                {
+                  id: 1,
+                  progress: 6,
+                  media: {
+                    id: 1,
+                    title: { romaji: "Cowboy Bebop" },
+                    episodes: 12,
+                    coverImage: { large: coverDataUrl, color: "#f16b50" },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        mangaCurrent: {
+          lists: [
+            {
+              entries: [
+                {
+                  id: 2,
+                  progress: 10,
+                  media: {
+                    id: 2,
+                    title: { romaji: "Berserk" },
+                    chapters: 100,
+                    coverImage: { large: coverDataUrl, color: "#2ecc71" },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "currentlyWatchingReading",
+          variation: "anime",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+      const body = await getResponseText(res);
+
+      // Anime-only should not include the manga icon/label in the stats line.
+      expect(body).toContain("📺");
+      expect(body).not.toContain("📚");
+
+      // Progress bar track should be positioned within the translated row group.
+      expect(body).toContain('opacity="0.16"');
+      expect(body).toContain('y="10"');
+
+      // Embedded cover images should render via <image> with a data: URL.
+      expect(body).toContain("<image");
+      expect(body).toContain("data:image/png;base64");
+    });
+
+    it("should render currentlyWatchingReading manga-only with progress bars and covers", async () => {
+      const cardsData = createMockCardData("currentlyWatchingReading", "manga");
+      const coverDataUrl = "data:image/png;base64,iVBORw0KGgo=";
+
+      const userData = createMockUserData(542244, "testUser", {
+        User: {
+          statistics: { anime: {}, manga: {} },
+          stats: { activityHistory: [] },
+        },
+        animeCurrent: {
+          lists: [
+            {
+              entries: [
+                {
+                  id: 1,
+                  progress: 6,
+                  media: {
+                    id: 1,
+                    title: { romaji: "Cowboy Bebop" },
+                    episodes: 12,
+                    coverImage: { large: coverDataUrl, color: "#f16b50" },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        mangaCurrent: {
+          lists: [
+            {
+              entries: [
+                {
+                  id: 2,
+                  progress: 10,
+                  media: {
+                    id: 2,
+                    title: { romaji: "Berserk" },
+                    chapters: 100,
+                    coverImage: { large: coverDataUrl, color: "#2ecc71" },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "currentlyWatchingReading",
+          variation: "manga",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+      const body = await getResponseText(res);
+
+      // Manga-only should not include the anime icon/label in the stats line.
+      expect(body).toContain("📚");
+      expect(body).not.toContain("📺");
+
+      expect(body).toContain('opacity="0.16"');
+      expect(body).toContain('y="10"');
+      expect(body).toContain("<image");
+      expect(body).toContain("data:image/png;base64");
     });
   });
 
@@ -886,6 +1051,55 @@ describe("Card SVG Route", () => {
       );
       const res = await GET(req);
       expect(res.status).toBe(200);
+    });
+
+    it("should pass through supported socialStats variations", async () => {
+      const cardsData = createMockCardData("socialStats", "default");
+      const userData = createMockUserData(542244, "testUser");
+
+      const variations = ["communityFootprint"] as const;
+
+      for (const variation of variations) {
+        setupSuccessfulMocks(cardsData, userData);
+
+        const req = new Request(
+          createRequestUrl(baseUrl, {
+            userId: "542244",
+            cardType: "socialStats",
+            variation,
+          }),
+        );
+        const res = await GET(req);
+        expect(res.status).toBe(200);
+
+        expect(socialStatsTemplate).toHaveBeenCalled();
+        const callArgs = (
+          socialStatsTemplate as MockFunction<typeof socialStatsTemplate>
+        ).mock.calls.at(-1)![0];
+        expect(callArgs.variant).toBe(variation);
+      }
+    });
+
+    it("should fallback to default for invalid socialStats variation", async () => {
+      const cardsData = createMockCardData("socialStats", "default");
+      const userData = createMockUserData(542244, "testUser");
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "socialStats",
+          variation: "unsupported-variant",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(socialStatsTemplate).toHaveBeenCalled();
+      const callArgs = (
+        socialStatsTemplate as MockFunction<typeof socialStatsTemplate>
+      ).mock.calls.at(-1)![0];
+      expect(callArgs.variant).toBe("default");
     });
   });
 

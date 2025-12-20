@@ -107,6 +107,7 @@ export async function GET(request: Request) {
       "statistics",
       "pages",
       "planning",
+      "current",
       "rewatched",
       "completed",
     ];

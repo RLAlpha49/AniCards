@@ -28,6 +28,7 @@ const socialStatsVariations = [
   { id: "default", label: "Default" },
   { id: "compact", label: "Compact" },
   { id: "minimal", label: "Minimal" },
+  { id: "communityFootprint", label: "Community Footprint" },
 ];
 
 const socialCommunityVariations = [{ id: "default", label: "Default" }];
@@ -184,6 +185,12 @@ const mostRewatchedVariations = [
   { id: "manga", label: "Manga Only" },
 ];
 
+const currentlyWatchingReadingVariations = [
+  { id: "default", label: "Default (Anime + Manga)" },
+  { id: "anime", label: "Anime Only" },
+  { id: "manga", label: "Manga Only" },
+];
+
 const completionProgressCards = [
   {
     id: "statusCompletionOverview",
@@ -209,6 +216,11 @@ const completionProgressCards = [
     id: "mostRewatched",
     label: "Most Rewatched/Reread Titles",
     variations: mostRewatchedVariations,
+  },
+  {
+    id: "currentlyWatchingReading",
+    label: "Currently Watching / Reading",
+    variations: currentlyWatchingReadingVariations,
   },
 ];
 

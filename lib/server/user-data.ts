@@ -21,6 +21,7 @@ export type UserDataPart =
   | "statistics"
   | "pages"
   | "planning"
+  | "current"
   | "rewatched"
   | "completed";
 
@@ -220,6 +221,18 @@ function extractPages(statsObj: unknown) {
   };
 }
 
+/** Extract a MediaListCollection-like object from a stats container. */
+function extractMediaListCollection(
+  statsObj: unknown,
+  key: string,
+): MediaListCollection | undefined {
+  if (!isObject(statsObj)) return undefined;
+  const value = statsObj[key];
+  return isObject(value)
+    ? (value as unknown as MediaListCollection)
+    : undefined;
+}
+
 /**
  * Splits a full UserRecord into its constituent parts for granular storage.
  *
@@ -243,48 +256,23 @@ export function splitUserRecord(record: UserRecord) {
   const pages = extractPages(statsObj);
 
   const planning = {
-    animePlanning:
-      isObject(statsObj) &&
-      "animePlanning" in statsObj &&
-      isObject(statsObj["animePlanning"])
-        ? (statsObj["animePlanning"] as unknown as MediaListCollection)
-        : undefined,
-    mangaPlanning:
-      isObject(statsObj) &&
-      "mangaPlanning" in statsObj &&
-      isObject(statsObj["mangaPlanning"])
-        ? (statsObj["mangaPlanning"] as unknown as MediaListCollection)
-        : undefined,
+    animePlanning: extractMediaListCollection(statsObj, "animePlanning"),
+    mangaPlanning: extractMediaListCollection(statsObj, "mangaPlanning"),
+  };
+
+  const current = {
+    animeCurrent: extractMediaListCollection(statsObj, "animeCurrent"),
+    mangaCurrent: extractMediaListCollection(statsObj, "mangaCurrent"),
   };
 
   const rewatched = {
-    animeRewatched:
-      isObject(statsObj) &&
-      "animeRewatched" in statsObj &&
-      isObject(statsObj["animeRewatched"])
-        ? (statsObj["animeRewatched"] as unknown as MediaListCollection)
-        : undefined,
-    mangaReread:
-      isObject(statsObj) &&
-      "mangaReread" in statsObj &&
-      isObject(statsObj["mangaReread"])
-        ? (statsObj["mangaReread"] as unknown as MediaListCollection)
-        : undefined,
+    animeRewatched: extractMediaListCollection(statsObj, "animeRewatched"),
+    mangaReread: extractMediaListCollection(statsObj, "mangaReread"),
   };
 
   const completed = {
-    animeCompleted:
-      isObject(statsObj) &&
-      "animeCompleted" in statsObj &&
-      isObject(statsObj["animeCompleted"])
-        ? (statsObj["animeCompleted"] as unknown as MediaListCollection)
-        : undefined,
-    mangaCompleted:
-      isObject(statsObj) &&
-      "mangaCompleted" in statsObj &&
-      isObject(statsObj["mangaCompleted"])
-        ? (statsObj["mangaCompleted"] as unknown as MediaListCollection)
-        : undefined,
+    animeCompleted: extractMediaListCollection(statsObj, "animeCompleted"),
+    mangaCompleted: extractMediaListCollection(statsObj, "mangaCompleted"),
   };
 
   const userMeta = userObj || {};
@@ -310,6 +298,7 @@ export function splitUserRecord(record: UserRecord) {
     statistics,
     pages,
     planning,
+    current,
     rewatched,
     completed,
   };
@@ -347,6 +336,12 @@ export function reconstructUserRecord(
     | {
         animePlanning?: MediaListCollection;
         mangaPlanning?: MediaListCollection;
+      }
+    | undefined;
+  const currentInput = parts.current as
+    | {
+        animeCurrent?: MediaListCollection;
+        mangaCurrent?: MediaListCollection;
       }
     | undefined;
   const rewatchedInput = parts.rewatched as
@@ -409,6 +404,8 @@ export function reconstructUserRecord(
     reviewsPage,
     animePlanning: planningInput?.animePlanning,
     mangaPlanning: planningInput?.mangaPlanning,
+    animeCurrent: currentInput?.animeCurrent,
+    mangaCurrent: currentInput?.mangaCurrent,
     animeRewatched: rewatchedInput?.animeRewatched,
     mangaReread: rewatchedInput?.mangaReread,
     animeCompleted: completedInput?.animeCompleted,
@@ -478,6 +475,7 @@ export async function deleteUserRecord(userId: string | number): Promise<void> {
     "statistics",
     "pages",
     "planning",
+    "current",
     "rewatched",
     "completed",
   ];
@@ -587,6 +585,7 @@ export const CARD_TYPE_TO_PARTS: Record<string, UserDataPart[]> = {
   personalRecords: ["meta", "completed", "rewatched"],
   planningBacklog: ["meta", "planning"],
   mostRewatched: ["meta", "rewatched"],
+  currentlyWatchingReading: ["meta", "current"],
   animeMangaOverview: ["meta", "statistics"],
   scoreCompareAnimeManga: ["meta", "statistics"],
   countryDiversity: ["meta", "statistics"],
@@ -610,6 +609,7 @@ export function getPartsForCard(cardName: string): UserDataPart[] {
       "statistics",
       "pages",
       "planning",
+      "current",
       "rewatched",
       "completed",
     ]

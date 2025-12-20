@@ -308,8 +308,8 @@ describe("Store Users API", () => {
       expect(data.userId).toBe(1);
 
       expect(sharedRedisMockGet).toHaveBeenCalledWith("user:1");
-      // 8 parts + 1 username index = 9 sets
-      expect(sharedRedisMockSet).toHaveBeenCalledTimes(9);
+      // 9 parts (split storage) + 1 username index = 10 sets
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(10);
 
       const metaValue = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(String(metaValue.userId)).toBe(String(1));
@@ -321,8 +321,8 @@ describe("Store Users API", () => {
       const statsValue = JSON.parse(sharedRedisMockSet.mock.calls[1][1]);
       expect(statsValue).toEqual({ score: 10 });
 
-      expect(sharedRedisMockSet.mock.calls[8][0]).toBe("username:userone");
-      expect(sharedRedisMockSet.mock.calls[8][1]).toBe("1");
+      expect(sharedRedisMockSet.mock.calls[9][0]).toBe("username:userone");
+      expect(sharedRedisMockSet.mock.calls[9][1]).toBe("1");
 
       expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_users:successful_requests",
@@ -343,7 +343,7 @@ describe("Store Users API", () => {
       expect(data.success).toBe(true);
       expect(data.userId).toBe(2);
 
-      expect(sharedRedisMockSet).toHaveBeenCalledTimes(8);
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(9);
       expect(sharedRedisMockSet.mock.calls[0][0]).toBe("user:2:meta");
 
       const metaValue = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
@@ -362,7 +362,7 @@ describe("Store Users API", () => {
       expect(res.status).toBe(200);
       const data = await getJsonResponse(res);
       expect(data.success).toBe(true);
-      expect(sharedRedisMockSet).toHaveBeenCalledTimes(8);
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(9);
     });
 
     it("should normalize username (trim and lowercase)", async () => {
@@ -380,9 +380,9 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      expect(sharedRedisMockSet).toHaveBeenCalledTimes(9);
-      expect(sharedRedisMockSet.mock.calls[8][0]).toBe("username:username");
-      expect(sharedRedisMockSet.mock.calls[8][1]).toBe("4");
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(10);
+      expect(sharedRedisMockSet.mock.calls[9][0]).toBe("username:username");
+      expect(sharedRedisMockSet.mock.calls[9][1]).toBe("4");
     });
 
     it("should update existing user and preserve createdAt", async () => {
@@ -404,17 +404,17 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      // 8 (migration) + 8 (save) + 1 (username) = 17
-      expect(sharedRedisMockSet).toHaveBeenCalledTimes(17);
+      // 9 (migration) + 9 (save) + 1 (username) = 19
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(19);
 
-      // The last save's meta is at index 8
-      const metaValue = JSON.parse(sharedRedisMockSet.mock.calls[8][1]);
+      // The last save's meta is at index 9
+      const metaValue = JSON.parse(sharedRedisMockSet.mock.calls[9][1]);
       expect(metaValue.createdAt).toBe("2022-01-01T00:00:00.000Z");
       expect(metaValue.updatedAt).not.toBe("2022-01-01T00:00:00.000Z");
       expect(metaValue.username).toBe("NewName");
 
-      // The last save's stats is at index 9
-      const statsValue = JSON.parse(sharedRedisMockSet.mock.calls[9][1]);
+      // The last save's stats is at index 10
+      const statsValue = JSON.parse(sharedRedisMockSet.mock.calls[10][1]);
       expect(statsValue).toEqual({ score: 100 });
     });
 
@@ -436,7 +436,7 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      expect(sharedRedisMockSet).toHaveBeenCalledTimes(9);
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(10);
       const statsValue = JSON.parse(sharedRedisMockSet.mock.calls[1][1]);
       expect(statsValue).toEqual(complexStats);
     });
@@ -460,9 +460,9 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      // 8 (migration) + 8 (save) = 16
-      expect(sharedRedisMockSet).toHaveBeenCalledTimes(16);
-      const metaValue = JSON.parse(sharedRedisMockSet.mock.calls[8][1]);
+      // 9 (migration) + 9 (save) = 18
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(18);
+      const metaValue = JSON.parse(sharedRedisMockSet.mock.calls[9][1]);
       expect(metaValue.username).toBeUndefined();
     });
 
@@ -485,10 +485,10 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      // 8 (migration) + 8 (save) + 1 (username) = 17
-      expect(sharedRedisMockSet).toHaveBeenCalledTimes(17);
-      expect(sharedRedisMockSet.mock.calls[16][0]).toBe("username:newname");
-      expect(sharedRedisMockSet.mock.calls[16][1]).toBe("8");
+      // 9 (migration) + 9 (save) + 1 (username) = 19
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(19);
+      expect(sharedRedisMockSet.mock.calls[18][0]).toBe("username:newname");
+      expect(sharedRedisMockSet.mock.calls[18][1]).toBe("8");
     });
   });
 

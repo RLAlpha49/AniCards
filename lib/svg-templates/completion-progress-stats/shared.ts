@@ -212,5 +212,12 @@ export function generateStatusLegend(
  */
 export function getMediaTitle(entry: MediaListEntry): string {
   const title = entry.media.title;
-  return title.english ?? title.romaji ?? title.native ?? "Unknown";
+  const pick = (...candidates: Array<string | null | undefined>): string => {
+    for (const c of candidates) {
+      const s = typeof c === "string" ? c.trim() : "";
+      if (s) return s;
+    }
+    return "Unknown";
+  };
+  return pick(title.english, title.romaji, title.native);
 }

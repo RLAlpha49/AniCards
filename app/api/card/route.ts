@@ -73,6 +73,7 @@ const ALLOWED_CARD_TYPES = new Set([
   "personalRecords",
   "planningBacklog",
   "mostRewatched",
+  "currentlyWatchingReading",
   "animeMangaOverview",
   "scoreCompareAnimeManga",
   "countryDiversity",

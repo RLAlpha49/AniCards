@@ -89,6 +89,7 @@ export async function fetchUserDataOnly(
       "statistics",
       "pages",
       "planning",
+      "current",
       "rewatched",
       "completed",
     ];
@@ -131,6 +132,7 @@ export async function fetchUserData(
         "statistics",
         "pages",
         "planning",
+        "current",
         "rewatched",
         "completed",
       ] as UserDataPart[]);

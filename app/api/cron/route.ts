@@ -231,6 +231,7 @@ export async function POST(request: Request) {
       "statistics",
       "pages",
       "planning",
+      "current",
       "rewatched",
       "completed",
     ];

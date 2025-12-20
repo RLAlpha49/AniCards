@@ -39,7 +39,10 @@ const SOCIAL_TIERS = {
   reviews: [10, 50, 100, 200, 500],
 } as const;
 
-function getTierProgress(value: number, tiers: readonly number[]): {
+function getTierProgress(
+  value: number,
+  tiers: readonly number[],
+): {
   current: number;
   next: number | null;
   progress: number;
@@ -161,8 +164,16 @@ export function socialMilestonesTemplate(
   const rowSpacing = 40;
 
   const rows = [
-    { label: "Followers", value: stats.followers, tiers: SOCIAL_TIERS.followers },
-    { label: "Following", value: stats.following, tiers: SOCIAL_TIERS.following },
+    {
+      label: "Followers",
+      value: stats.followers,
+      tiers: SOCIAL_TIERS.followers,
+    },
+    {
+      label: "Following",
+      value: stats.following,
+      tiers: SOCIAL_TIERS.following,
+    },
     { label: "Threads", value: stats.threads, tiers: SOCIAL_TIERS.threads },
     {
       label: "Thread Comments",

@@ -26,7 +26,7 @@ import {
  */
 export const socialStatsTemplate = (data: {
   username: string;
-  variant?: "default" | "compact" | "minimal";
+  variant?: "default" | "compact" | "minimal" | "communityFootprint";
   styles: {
     titleColor: ColorValue;
     backgroundColor: ColorValue;
@@ -58,6 +58,29 @@ export const socialStatsTemplate = (data: {
 
   // Defensive handling for activityHistory: can be undefined or empty
   const activityHistory = data.activityHistory ?? [];
+  const variant = data.variant ?? "default";
+
+  const toSafeInt = (n: unknown): number => {
+    if (typeof n !== "number" || !Number.isFinite(n)) return 0;
+    return Math.max(0, Math.round(n));
+  };
+
+  const formatCompact = (n: number): string => {
+    if (!Number.isFinite(n)) return "0";
+    if (n < 1000) return n.toLocaleString("en-US");
+    return new Intl.NumberFormat("en-US", {
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(n);
+  };
+
+  const followers = toSafeInt(data.stats.followersPage?.pageInfo?.total);
+  const following = toSafeInt(data.stats.followingPage?.pageInfo?.total);
+  const threads = toSafeInt(data.stats.threadsPage?.pageInfo?.total);
+  const threadComments = toSafeInt(
+    data.stats.threadCommentsPage?.pageInfo?.total,
+  );
+  const reviews = toSafeInt(data.stats.reviewsPage?.pageInfo?.total);
   // Calculate total activity amount
   const totalActivity = activityHistory.length
     ? activityHistory.reduce((acc, curr) => acc + curr.amount, 0)
@@ -80,11 +103,149 @@ export const socialStatsTemplate = (data: {
   }
   const dayLabel = daysDifference === 1 ? "day" : "days";
 
-  const dims = getCardDimensions("socialStats", data.variant ?? "default");
+  const dims = getCardDimensions("socialStats", variant);
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);
 
   const title = `${data.username}'s Social Stats`;
   const safeTitle = escapeForXml(title);
+
+  const activityTimespanStr = hasActivity
+    ? `${totalActivity} over ${daysDifference} ${dayLabel}`
+    : "Unknown";
+  const safeActivityTimespanStr = escapeForXml(activityTimespanStr);
+
+  const descMarkup = `
+    <desc id="desc-id">
+      Total Followers: ${escapeForXml(followers)},
+      Total Following: ${escapeForXml(following)},
+      Total Activity: ${safeActivityTimespanStr},
+      Thread Posts Count: ${escapeForXml(threads)},
+      Thread Comments Count: ${escapeForXml(threadComments)},
+      Total Reviews: ${escapeForXml(reviews)}
+    </desc>`;
+
+  const renderCommunityFootprint = (): string => {
+    const items = [
+      { label: "Followers", value: followers },
+      { label: "Following", value: following },
+      { label: "Threads", value: threads },
+      { label: "Comments", value: threadComments },
+      { label: "Reviews", value: reviews },
+    ];
+
+    const gridX = SPACING.CARD_PADDING;
+    const gridY = 6;
+    const gapX = 10;
+    const gapY = 10;
+    const cellW = Math.floor((dims.w - gridX * 2 - gapX) / 2);
+    const cellH = 42;
+
+    const safeValue = (n: number) => escapeForXml(formatCompact(n));
+    const safeLabel = (s: string) => escapeForXml(s);
+
+    return `
+          <style>
+            .kpi-box {
+              fill: ${resolvedColors.circleColor};
+              fill-opacity: 0.10;
+              stroke: ${resolvedColors.circleColor};
+              stroke-opacity: 0.45;
+              stroke-width: 1;
+            }
+            .kpi-label {
+              fill: ${resolvedColors.textColor};
+              opacity: 0.82;
+              font: 600 10px 'Segoe UI', Ubuntu, Sans-Serif;
+              letter-spacing: 0.4px;
+            }
+            .kpi-value {
+              fill: ${resolvedColors.textColor};
+              font: 700 16px 'Segoe UI', Ubuntu, Sans-Serif;
+            }
+          </style>
+
+          <g transform="translate(0, ${gridY})">
+            ${items
+              .map((it, idx) => {
+                const col = idx % 2;
+                const row = Math.floor(idx / 2);
+
+                const isLast = idx === items.length - 1;
+                const x = gridX + (isLast ? 0 : col * (cellW + gapX));
+                const y = row * (cellH + gapY);
+                const w = isLast ? dims.w - gridX * 2 : cellW;
+
+                return `
+                  <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY + idx * ANIMATION.STAGGER_INCREMENT}ms" transform="translate(${x}, ${y})">
+                    <rect class="kpi-box" rx="10" ry="10" width="${w}" height="${cellH}" />
+                    <text class="kpi-label" x="12" y="15">${safeLabel(it.label)}</text>
+                    <text class="kpi-value" x="12" y="34">${safeValue(it.value)}</text>
+                  </g>`;
+              })
+              .join("")}
+          </g>`;
+  };
+
+  const renderDefaultRows = (): string => {
+    const rows = [
+      {
+        id: "followers",
+        label: "Total Followers:",
+        value: followers,
+      },
+      {
+        id: "following",
+        label: "Total Following:",
+        value: following,
+      },
+      {
+        id: "activity",
+        label: hasActivity
+          ? `Total Activity (${daysDifference} ${dayLabel}):`
+          : "Total Activity (Unknown):",
+        value: totalActivity,
+      },
+      {
+        id: "threads",
+        label: "Thread Posts/Comments:",
+        value: threads + threadComments,
+      },
+      {
+        id: "reviews",
+        label: "Total Reviews:",
+        value: reviews,
+      },
+    ];
+
+    let filtered = rows;
+    if (variant === "compact") {
+      filtered = rows.filter((r) => r.id !== "reviews");
+    } else if (variant === "minimal") {
+      filtered = rows.filter((r) => r.id !== "threads" && r.id !== "reviews");
+    }
+
+    return `
+        <g transform="translate(0, 0)">
+          ${filtered
+            .map(
+              (stat, index) => `
+            <g
+              class="stagger"
+              style="animation-delay: ${ANIMATION.BASE_DELAY + index * ANIMATION.STAGGER_INCREMENT}ms"
+              transform="translate(${SPACING.CARD_PADDING}, ${index * SPACING.ROW_HEIGHT})"
+            >
+              <text class="stat.bold" y="12.5">${escapeForXml(stat.label)}</text>
+              <text class="stat.bold" x="${POSITIONING.STAT_VALUE_X_DEFAULT}" y="12.5">${escapeForXml(String(stat.value))}</text>
+            </g>`,
+            )
+            .join("")}
+        </g>`;
+  };
+
+  const renderBodyMarkup = (): string => {
+    if (variant === "communityFootprint") return renderCommunityFootprint();
+    return renderDefaultRows();
+  };
 
   return markTrustedSvg(`
 <svg
@@ -98,21 +259,7 @@ export const socialStatsTemplate = (data: {
 >
   ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
   <title id="title-id">${safeTitle}</title>
-  ${(() => {
-    const activityTimespanStr = hasActivity
-      ? `${totalActivity} over ${daysDifference} ${dayLabel}`
-      : "Unknown";
-    const safeActivityTimespanStr = escapeForXml(activityTimespanStr);
-
-    return `
-    <desc id="desc-id">
-      Total Followers: ${escapeForXml(data.stats.followersPage.pageInfo.total)},
-      Total Following: ${escapeForXml(data.stats.followingPage.pageInfo.total)},
-      Total Activity: ${safeActivityTimespanStr},
-      Thread Posts/Comments Count: ${escapeForXml(data.stats.threadCommentsPage.pageInfo.total)},
-      Total Reviews: ${escapeForXml(data.stats.reviewsPage.pageInfo.total)}
-    </desc>`;
-  })()}
+  ${descMarkup}
 
   <style>
     /* stylelint-disable selector-class-pattern, keyframes-name-pattern */
@@ -173,65 +320,7 @@ export const socialStatsTemplate = (data: {
     </g>
   </g>
   <g data-testid="main-card-body" transform="translate(0, ${SPACING.CONTENT_Y})">
-    ${(() => {
-      const rows = [
-        {
-          id: "followers",
-          label: "Total Followers:",
-          value: data.stats.followersPage.pageInfo.total,
-        },
-        {
-          id: "following",
-          label: "Total Following:",
-          value: data.stats.followingPage.pageInfo.total,
-        },
-        {
-          id: "activity",
-          label: (() => {
-            return hasActivity
-              ? `Total Activity (${daysDifference} ${dayLabel}):`
-              : `Total Activity (Unknown):`;
-          })(),
-          value: totalActivity,
-        },
-        {
-          id: "threads",
-          label: "Thread Posts/Comments:",
-          value: data.stats.threadCommentsPage.pageInfo.total,
-        },
-        {
-          id: "reviews",
-          label: "Total Reviews:",
-          value: data.stats.reviewsPage.pageInfo.total,
-        },
-      ];
-
-      let filtered = rows;
-      if (data.variant === "compact") {
-        // Remove reviews only
-        filtered = rows.filter((r) => r.id !== "reviews");
-      } else if (data.variant === "minimal") {
-        // Remove thread posts/comments AND reviews
-        filtered = rows.filter((r) => r.id !== "threads" && r.id !== "reviews");
-      }
-
-      return `
-        <g transform="translate(0, 0)">
-          ${filtered
-            .map(
-              (stat, index) => `
-            <g
-              class="stagger"
-              style="animation-delay: ${ANIMATION.BASE_DELAY + index * ANIMATION.STAGGER_INCREMENT}ms"
-              transform="translate(${SPACING.CARD_PADDING}, ${index * SPACING.ROW_HEIGHT})"
-            >
-              <text class="stat.bold" y="12.5">${stat.label}</text>
-              <text class="stat.bold" x="${POSITIONING.STAT_VALUE_X_DEFAULT}" y="12.5">${stat.value}</text>
-            </g>`,
-            )
-            .join("")}
-        </g>`;
-    })()}
+    ${renderBodyMarkup()}
   </g>
 </svg>
 `);
