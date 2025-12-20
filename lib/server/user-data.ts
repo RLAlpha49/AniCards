@@ -522,7 +522,9 @@ export async function fetchUserDataParts(
         data[parts[i]] = typeof val === "string" ? JSON.parse(val) : val;
       } catch (e) {
         console.error(
-          `Failed to parse user data part ${parts[i]} for user ${userId}:`,
+          "Failed to parse user data part %s for user %s:",
+          parts[i],
+          userId,
           e,
         );
         missingAny = true;
