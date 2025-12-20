@@ -675,7 +675,74 @@ export function validateAndNormalizeUserRecord(
     };
   };
 
-  let favoriteAnimeNodes: unknown[] = [];
+  const isPrunedAllList = (raw: unknown): boolean =>
+    !!raw &&
+    typeof raw === "object" &&
+    Array.isArray((raw as { lists?: unknown }).lists) &&
+    (raw as { lists: { name?: string }[] }).lists.length === 1 &&
+    (raw as { lists: { name?: string }[] }).lists[0].name === "All";
+
+  const pruneIfNeeded = (
+    raw: unknown,
+    coll: MediaListCollection | undefined,
+    pruner: (entries: MediaListEntry[]) => MediaListEntry[],
+  ): MediaListCollection | undefined => {
+    if (!coll) return undefined;
+    if (isPrunedAllList(raw)) return coll;
+    const entries = coll.lists.flatMap((l) => l.entries);
+    const pruned = pruner(entries);
+    return { ...coll, lists: [{ name: "All", entries: pruned }] };
+  };
+
+  const combineUnique = (a: MediaListEntry[], b: MediaListEntry[]): MediaListEntry[] => {
+    const combined = [...a];
+    for (const e of b) {
+      if (!combined.some((c) => c.id === e.id)) combined.push(e);
+    }
+    return combined;
+  };
+
+  const mapFavouriteMediaNode = (n: unknown) => {
+    const rec = n as Record<string, unknown>;
+    return {
+      id: coerceNumber(rec.id),
+      title: {
+        english: getNestedString(rec, ["title", "english"]),
+        romaji: getNestedString(rec, ["title", "romaji"]),
+        native: getNestedString(rec, ["title", "native"]),
+      },
+      coverImage: {
+        large: getNestedString(rec, ["coverImage", "large"]),
+        medium: getNestedString(rec, ["coverImage", "medium"]),
+        color: getNestedString(rec, ["coverImage", "color"]),
+      },
+    };
+  };
+
+  const mapFavouritePersonNode = (n: unknown) => {
+    const rec = n as Record<string, unknown>;
+    return {
+      id: coerceNumber(rec.id),
+      name: {
+        full: getNestedString(rec, ["name", "full"]),
+        native: getNestedString(rec, ["name", "native"]),
+      },
+      image: {
+        large: getNestedString(rec, ["image", "large"]),
+        medium: getNestedString(rec, ["image", "medium"]),
+      },
+    };
+  };
+
+  const mapFavouriteStudioNode = (n: unknown) => {
+    const rec = n as Record<string, unknown>;
+    return {
+      id: coerceNumber(rec.id),
+      name: getNestedString(rec, ["name"]),
+    };
+  };
+
+  let favoriteAnimeNodes: unknown[] = []; 
   let favoriteMangaNodes: unknown[] = [];
   let favoriteStaffNodes: unknown[] = [];
   let favoriteStudiosNodes: unknown[] = [];
@@ -722,253 +789,72 @@ export function validateAndNormalizeUserRecord(
       animePlanning: (() => {
         const raw = statsData.animePlanning;
         const coll = normalizeMediaListCollection(raw);
-        if (!coll) return undefined;
-        // If it's already pruned (only one list named "All"), don't prune again
-        if (
-          raw &&
-          typeof raw === "object" &&
-          Array.isArray(raw.lists) &&
-          raw.lists.length === 1 &&
-          raw.lists[0].name === "All"
-        ) {
-          return coll;
-        }
-        const entries = coll.lists.flatMap((l) => l.entries);
-        const topByAvgScore = [...entries]
-          .sort(
-            (a, b) => (b.media.averageScore ?? 0) - (a.media.averageScore ?? 0),
-          )
-          .slice(0, 5);
-        return { ...coll, lists: [{ name: "All", entries: topByAvgScore }] };
+        return pruneIfNeeded(raw, coll, (entries) =>
+          [...entries].sort((a, b) => (b.media.averageScore ?? 0) - (a.media.averageScore ?? 0)).slice(0, 5)
+        );
       })(),
       mangaPlanning: (() => {
         const raw = statsData.mangaPlanning;
         const coll = normalizeMediaListCollection(raw);
-        if (!coll) return undefined;
-        if (
-          raw &&
-          typeof raw === "object" &&
-          Array.isArray(raw.lists) &&
-          raw.lists.length === 1 &&
-          raw.lists[0].name === "All"
-        ) {
-          return coll;
-        }
-        const entries = coll.lists.flatMap((l) => l.entries);
-        const topByAvgScore = [...entries]
-          .sort(
-            (a, b) => (b.media.averageScore ?? 0) - (a.media.averageScore ?? 0),
-          )
-          .slice(0, 5);
-        return { ...coll, lists: [{ name: "All", entries: topByAvgScore }] };
+        return pruneIfNeeded(raw, coll, (entries) =>
+          [...entries].sort((a, b) => (b.media.averageScore ?? 0) - (a.media.averageScore ?? 0)).slice(0, 5)
+        );
       })(),
       animeCurrent: (() => {
         const raw = statsData.animeCurrent;
         const coll = normalizeMediaListCollection(raw);
-        if (!coll) return undefined;
-        if (
-          raw &&
-          typeof raw === "object" &&
-          Array.isArray((raw as { lists?: unknown }).lists) &&
-          (raw as { lists: { name?: string }[] }).lists.length === 1 &&
-          (raw as { lists: { name?: string }[] }).lists[0].name === "All"
-        ) {
-          return coll;
-        }
-        const entries = coll.lists.flatMap((l) => l.entries);
-        // Keep most recent items as returned by the AniList sort (UPDATED_TIME_DESC)
-        const recent = entries.slice(0, 6);
-        return { ...coll, lists: [{ name: "All", entries: recent }] };
+        return pruneIfNeeded(raw, coll, (entries) =>
+          // Keep most recent items as returned by the AniList sort (UPDATED_TIME_DESC)
+          entries.slice(0, 6)
+        );
       })(),
       mangaCurrent: (() => {
         const raw = statsData.mangaCurrent;
         const coll = normalizeMediaListCollection(raw);
-        if (!coll) return undefined;
-        if (
-          raw &&
-          typeof raw === "object" &&
-          Array.isArray((raw as { lists?: unknown }).lists) &&
-          (raw as { lists: { name?: string }[] }).lists.length === 1 &&
-          (raw as { lists: { name?: string }[] }).lists[0].name === "All"
-        ) {
-          return coll;
-        }
-        const entries = coll.lists.flatMap((l) => l.entries);
-        const recent = entries.slice(0, 6);
-        return { ...coll, lists: [{ name: "All", entries: recent }] };
+        return pruneIfNeeded(raw, coll, (entries) => entries.slice(0, 6));
       })(),
       animeRewatched: (() => {
         const raw = statsData.animeRewatched;
         const coll = normalizeMediaListCollection(raw);
-        if (!coll) return undefined;
-        if (
-          raw &&
-          typeof raw === "object" &&
-          Array.isArray(raw.lists) &&
-          raw.lists.length === 1 &&
-          raw.lists[0].name === "All"
-        ) {
-          return coll;
-        }
-        const entries = coll.lists.flatMap((l) => l.entries);
-        const topByRepeat = [...entries]
-          .sort((a, b) => (b.repeat ?? 0) - (a.repeat ?? 0))
-          .slice(0, 10);
-        return { ...coll, lists: [{ name: "All", entries: topByRepeat }] };
+        return pruneIfNeeded(raw, coll, (entries) =>
+          [...entries].sort((a, b) => (b.repeat ?? 0) - (a.repeat ?? 0)).slice(0, 10)
+        );
       })(),
       mangaReread: (() => {
         const raw = statsData.mangaReread;
         const coll = normalizeMediaListCollection(raw);
-        if (!coll) return undefined;
-        if (
-          raw &&
-          typeof raw === "object" &&
-          Array.isArray(raw.lists) &&
-          raw.lists.length === 1 &&
-          raw.lists[0].name === "All"
-        ) {
-          return coll;
-        }
-        const entries = coll.lists.flatMap((l) => l.entries);
-        const topByRepeat = [...entries]
-          .sort((a, b) => (b.repeat ?? 0) - (a.repeat ?? 0))
-          .slice(0, 10);
-        return { ...coll, lists: [{ name: "All", entries: topByRepeat }] };
+        return pruneIfNeeded(raw, coll, (entries) =>
+          [...entries].sort((a, b) => (b.repeat ?? 0) - (a.repeat ?? 0)).slice(0, 10)
+        );
       })(),
       animeCompleted: (() => {
         const raw = statsData.animeCompleted;
         const coll = normalizeMediaListCollection(raw);
-        if (!coll) return undefined;
-        if (
-          raw &&
-          typeof raw === "object" &&
-          Array.isArray(raw.lists) &&
-          raw.lists.length === 1 &&
-          raw.lists[0].name === "All"
-        ) {
-          return coll;
-        }
-        const entries = coll.lists.flatMap((l) => l.entries);
-        const topByScore = [...entries]
-          .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
-          .slice(0, 5);
-        const topByLength = [...entries]
-          .sort((a, b) => (b.media.episodes ?? 0) - (a.media.episodes ?? 0))
-          .slice(0, 5);
-        const combined = [...topByScore];
-        for (const e of topByLength) {
-          if (!combined.some((c) => c.id === e.id)) combined.push(e);
-        }
-        return { ...coll, lists: [{ name: "All", entries: combined }] };
+        return pruneIfNeeded(raw, coll, (entries) => {
+          const topByScore = [...entries].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, 5);
+          const topByLength = [...entries].sort((a, b) => (b.media.episodes ?? 0) - (a.media.episodes ?? 0)).slice(0, 5);
+          return combineUnique(topByScore, topByLength);
+        });
       })(),
       mangaCompleted: (() => {
         const raw = statsData.mangaCompleted;
         const coll = normalizeMediaListCollection(raw);
-        if (!coll) return undefined;
-        if (
-          raw &&
-          typeof raw === "object" &&
-          Array.isArray(raw.lists) &&
-          raw.lists.length === 1 &&
-          raw.lists[0].name === "All"
-        ) {
-          return coll;
-        }
-        const entries = coll.lists.flatMap((l) => l.entries);
-        const topByScore = [...entries]
-          .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
-          .slice(0, 5);
-        const topByLength = [...entries]
-          .sort((a, b) => (b.media.chapters ?? 0) - (a.media.chapters ?? 0))
-          .slice(0, 5);
-        const combined = [...topByScore];
-        for (const e of topByLength) {
-          if (!combined.some((c) => c.id === e.id)) combined.push(e);
-        }
-        return { ...coll, lists: [{ name: "All", entries: combined }] };
+        return pruneIfNeeded(raw, coll, (entries) => {
+          const topByScore = [...entries].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, 5);
+          const topByLength = [...entries].sort((a, b) => (b.media.chapters ?? 0) - (a.media.chapters ?? 0)).slice(0, 5);
+          return combineUnique(topByScore, topByLength);
+        });
       })(),
       User: {
         stats: {
           activityHistory: normalizedActivityHistory,
         },
         favourites: {
-          anime: {
-            nodes: favoriteAnimeNodes.map((a: unknown) => {
-              const rec = a as Record<string, unknown>;
-              return {
-                id: coerceNumber(rec.id),
-                title: {
-                  english: getNestedString(rec, ["title", "english"]),
-                  romaji: getNestedString(rec, ["title", "romaji"]),
-                  native: getNestedString(rec, ["title", "native"]),
-                },
-                coverImage: {
-                  large: getNestedString(rec, ["coverImage", "large"]),
-                  medium: getNestedString(rec, ["coverImage", "medium"]),
-                  color: getNestedString(rec, ["coverImage", "color"]),
-                },
-              };
-            }),
-          },
-          manga: {
-            nodes: favoriteMangaNodes.map((m: unknown) => {
-              const rec = m as Record<string, unknown>;
-              return {
-                id: coerceNumber(rec.id),
-                title: {
-                  english: getNestedString(rec, ["title", "english"]),
-                  romaji: getNestedString(rec, ["title", "romaji"]),
-                  native: getNestedString(rec, ["title", "native"]),
-                },
-                coverImage: {
-                  large: getNestedString(rec, ["coverImage", "large"]),
-                  medium: getNestedString(rec, ["coverImage", "medium"]),
-                  color: getNestedString(rec, ["coverImage", "color"]),
-                },
-              };
-            }),
-          },
-          staff: {
-            nodes: favoriteStaffNodes.map((s: unknown) => {
-              const rec = s as Record<string, unknown>;
-              return {
-                id: coerceNumber(rec.id),
-                name: {
-                  full: getNestedString(rec, ["name", "full"]),
-                  native: getNestedString(rec, ["name", "native"]),
-                },
-                image: {
-                  large: getNestedString(rec, ["image", "large"]),
-                  medium: getNestedString(rec, ["image", "medium"]),
-                },
-              };
-            }),
-          },
-          studios: {
-            nodes: favoriteStudiosNodes.map((s: unknown) => {
-              const rec = s as Record<string, unknown>;
-              return {
-                id: coerceNumber(rec.id),
-                name: getNestedString(rec, ["name"]),
-              };
-            }),
-          },
-          characters: {
-            nodes: favoriteCharactersNodes.map((s: unknown) => {
-              const rec = s as Record<string, unknown>;
-              return {
-                id: coerceNumber(rec.id),
-                name: {
-                  full: getNestedString(rec, ["name", "full"]),
-                  native: getNestedString(rec, ["name", "native"]),
-                },
-                image: {
-                  large: getNestedString(rec, ["image", "large"]),
-                  medium: getNestedString(rec, ["image", "medium"]),
-                },
-              };
-            }),
-          },
+          anime: { nodes: favoriteAnimeNodes.map(mapFavouriteMediaNode) },
+          manga: { nodes: favoriteMangaNodes.map(mapFavouriteMediaNode) },
+          staff: { nodes: favoriteStaffNodes.map(mapFavouritePersonNode) },
+          studios: { nodes: favoriteStudiosNodes.map(mapFavouriteStudioNode) },
+          characters: { nodes: favoriteCharactersNodes.map(mapFavouritePersonNode) },
         },
         statistics: {
           anime: normalizeStatBlock(
