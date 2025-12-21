@@ -110,6 +110,10 @@ const animeBreakdownCards = [
     label: "Anime Status Distribution (Current, Completed, etc.)",
   },
   { id: "animeFormatDistribution", label: "Anime Format Distribution" },
+  {
+    id: "animeSourceMaterialDistribution",
+    label: "Anime Source Material Distribution",
+  },
   { id: "animeCountry", label: "Anime Country" },
 ];
 

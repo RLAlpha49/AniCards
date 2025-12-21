@@ -2,7 +2,21 @@
 name: unified-card-types-combiner
 description: "Research-only: combine multiple model-generated NEW_CARD_TYPES_<MODEL>.md proposals into one authoritative, deduplicated ./docs/NEW_CARD_TYPES.md (no code changes)."
 agent: agent
-tools: ['read/readFile', 'edit/createFile', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/searchResults', 'search/textSearch', 'search/usages', 'web', 'agent', 'memory', 'todo']
+tools:
+  [
+    "read/readFile",
+    "edit/createFile",
+    "search/codebase",
+    "search/fileSearch",
+    "search/listDirectory",
+    "search/searchResults",
+    "search/textSearch",
+    "search/usages",
+    "web",
+    "agent",
+    "memory",
+    "todo",
+  ]
 ---
 
 # AniCards — NEW_CARD_TYPES Combiner (Research-only)

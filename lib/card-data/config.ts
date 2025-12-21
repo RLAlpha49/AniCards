@@ -254,7 +254,10 @@ function applyBorderOverrides(
  * Clamp a favorites grid dimension extracted from URL params to a value between 1 and 5.
  * Returns the provided fallback when parsing fails or the value is absent.
  */
-function clampGridDim(raw: string | null | undefined, fallback: number): number {
+function clampGridDim(
+  raw: string | null | undefined,
+  fallback: number,
+): number {
   if (raw === null || raw === undefined) return fallback;
   const parsed = Number.parseInt(raw, 10);
   if (Number.isNaN(parsed)) return fallback;

@@ -385,6 +385,101 @@ describe("Store Users API", () => {
       expect(sharedRedisMockSet.mock.calls[9][1]).toBe("4");
     });
 
+    it("should compute and store animeSourceMaterialDistributionTotals before pruning", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockSet.mockResolvedValue(true);
+
+      const statsPayload = {
+        User: {
+          statistics: {
+            anime: {},
+            manga: {},
+          },
+          stats: {
+            activityHistory: [],
+          },
+        },
+        followersPage: { pageInfo: { total: 0 }, followers: [] },
+        followingPage: { pageInfo: { total: 0 }, following: [] },
+        threadsPage: { pageInfo: { total: 0 }, threads: [] },
+        threadCommentsPage: { pageInfo: { total: 0 }, threadComments: [] },
+        reviewsPage: { pageInfo: { total: 0 }, reviews: [] },
+        animeCurrent: {
+          lists: [
+            {
+              name: "Watching",
+              entries: [
+                {
+                  id: 1,
+                  progress: 1,
+                  media: { id: 10, source: "MANGA", title: { romaji: "A" } },
+                },
+                {
+                  id: 2,
+                  progress: 1,
+                  media: { id: 12, title: { romaji: "B" } },
+                },
+              ],
+            },
+          ],
+        },
+        animeCompleted: {
+          lists: [
+            {
+              name: "Completed",
+              entries: [
+                {
+                  id: 3,
+                  score: 10,
+                  media: {
+                    id: 10,
+                    source: "MANGA",
+                    title: { romaji: "A" },
+                  },
+                },
+                {
+                  id: 4,
+                  score: 10,
+                  media: {
+                    id: 11,
+                    source: "ORIGINAL",
+                    title: { romaji: "C" },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      const reqBody = {
+        userId: 42,
+        username: "FullListUser",
+        stats: statsPayload,
+      };
+      const req = createTestRequest(reqBody, "http://localhost");
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const metaSetCall = sharedRedisMockSet.mock.calls.find(
+        (call) => call[0] === "user:42:meta",
+      );
+      expect(metaSetCall).toBeTruthy();
+      const metaValue = JSON.parse(metaSetCall![1]);
+
+      expect(metaValue).toHaveProperty("animeSourceMaterialDistributionTotals");
+      const totals = metaValue.animeSourceMaterialDistributionTotals as Array<{
+        source: string;
+        count: number;
+      }>;
+
+      // Dedupes by media id across CURRENT + COMPLETED (mediaId=10 appears twice)
+      expect(totals).toContainEqual({ source: "MANGA", count: 1 });
+      expect(totals).toContainEqual({ source: "ORIGINAL", count: 1 });
+      expect(totals).toContainEqual({ source: "UNKNOWN", count: 1 });
+    });
+
     it("should update existing user and preserve createdAt", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const existingRecord = {

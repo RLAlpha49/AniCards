@@ -260,6 +260,7 @@ export interface MediaListEntry {
     volumes?: number;
     averageScore?: number;
     format?: string;
+    source?: string;
   };
 }
 
@@ -294,11 +295,18 @@ export interface UserStatsData {
   mangaCompleted?: MediaListCollection;
 }
 
+/** Stored bucket counts for the Source Material Distribution card. @source */
+export interface SourceMaterialDistributionTotalsEntry {
+  source: string;
+  count: number;
+}
+
 /** Redis user record shape used for persisting user data and stats. @source */
 export interface UserRecord {
   userId: string;
   username?: string;
   stats: UserStatsData;
+  animeSourceMaterialDistributionTotals?: SourceMaterialDistributionTotalsEntry[];
   statistics?: UserSection["statistics"];
   favourites?: UserSection["favourites"];
   pages?: {
