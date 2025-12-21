@@ -2,7 +2,21 @@
 name: new-card-types-research
 description: "Research-only: propose new, feasible AniCards card types/variants and write results to ./docs/NEW_CARD_TYPES_<MODEL>.md (no code changes)."
 agent: agent
-tools: ['read/readFile', 'edit/createFile', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/searchResults', 'search/textSearch', 'search/usages', 'web', 'agent', 'memory', 'todo']
+tools:
+  [
+    "read/readFile",
+    "edit/createFile",
+    "search/codebase",
+    "search/fileSearch",
+    "search/listDirectory",
+    "search/searchResults",
+    "search/textSearch",
+    "search/usages",
+    "web",
+    "agent",
+    "memory",
+    "todo",
+  ]
 ---
 
 # AniCards — New Card Types / Variants (Research Only)
@@ -51,7 +65,7 @@ Where `<MODEL>` is the model identifier you are running as (e.g., `gpt-5.2`, `cl
 
 For **each** proposed card:
 
-1. **Run targeted repository searches** to confirm it does *not* already exist.
+1. **Run targeted repository searches** to confirm it does _not_ already exist.
 2. If a similar card exists:
    - either **do not propose it**, or
    - clearly explain how your proposal **differs** and why it’s still valuable.
@@ -61,19 +75,26 @@ For **each** proposed card:
 Only propose cards whose required data is already available from at least one of the following:
 
 ### A) AniList API
+
 Use AniList GraphQL API reference:
+
 - https://docs.anilist.co/reference/
 
 For these cards, you must include:
+
 - **Exact GraphQL fields** required
 - A **minimal sample query** that returns the needed fields
 
 ### B) Local Project Data
+
 If the card can be built from existing local data, include:
+
 - relevant file paths (e.g. under `lib/`, `lib/anilist/`, `lib/card-data/`, etc.)
 
 ### C) Requires Backend Changes (allowed, but must be explicit)
+
 If a card would require new backend collection or storage:
+
 - label it **"requires backend changes"**
 - list the **exact new fields** needed
 - describe where they’d need to be stored (paths / modules / storage layer)
@@ -83,15 +104,17 @@ If a card would require new backend collection or storage:
 At the top of the file include:
 
 ### Metadata
+
 - Model id
 - Date
 - Number of ideas
 
 ### Summary Table
+
 A short table:
 
 | Name | Category | Feasibility |
-|------|----------|-------------|
+| ---- | -------- | ----------- |
 
 Then group entries by category (examples: Anime, Character, User, Studio, Trends, Other).
 
@@ -112,6 +135,7 @@ For each card idea, include:
 
 ```markdown
 ### Top Characters by Voice Actor Diversity
+
 - Category: Character
 - Description: Shows characters ranked by number of distinct voice actors (e.g., different versions, languages).
 - Required Data: character.name, character.voiceActors (AniList field `character.voiceActors{name, language, id}`)

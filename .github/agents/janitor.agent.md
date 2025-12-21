@@ -1,7 +1,8 @@
 ---
-description: 'Perform janitorial tasks on any codebase including cleanup, simplification, and tech debt remediation.'
+description: "Perform janitorial tasks on any codebase including cleanup, simplification, and tech debt remediation."
 name: "Janitor"
 ---
+
 # Universal Janitor
 
 Clean any codebase by eliminating tech debt. Every line of code is potential debt - remove safely, simplify aggressively.
