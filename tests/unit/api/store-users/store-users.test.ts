@@ -670,6 +670,148 @@ describe("Store Users API", () => {
       expect(totals).toContainEqual({ a: "Drama", b: "Fantasy", count: 1 });
     });
 
+    it("should persist userReviews/userRecommendations and dropped lists", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockSet.mockResolvedValue(true);
+
+      const statsPayload = {
+        User: {
+          statistics: {
+            anime: {},
+            manga: {},
+          },
+          stats: {
+            activityHistory: [],
+          },
+        },
+        followersPage: { pageInfo: { total: 0 }, followers: [] },
+        followingPage: { pageInfo: { total: 0 }, following: [] },
+        threadsPage: { pageInfo: { total: 0 }, threads: [] },
+        threadCommentsPage: { pageInfo: { total: 0 }, threadComments: [] },
+        reviewsPage: { pageInfo: { total: 0 }, reviews: [] },
+        userReviews: {
+          pageInfo: { total: 1 },
+          reviews: [
+            {
+              id: 100,
+              score: 70,
+              rating: 10,
+              ratingAmount: 42,
+              summary: "A review summary",
+              createdAt: 1700000000,
+              media: {
+                id: 200,
+                title: { romaji: "Example Anime" },
+                type: "ANIME",
+                genres: ["Action"],
+              },
+            },
+          ],
+        },
+        userRecommendations: {
+          pageInfo: { total: 1 },
+          recommendations: [
+            {
+              id: 300,
+              rating: 5,
+              media: { id: 1, title: { romaji: "A" } },
+              mediaRecommendation: { id: 2, title: { romaji: "B" } },
+            },
+          ],
+        },
+        animeCompleted: {
+          lists: [
+            {
+              name: "Completed",
+              entries: [
+                {
+                  id: 1,
+                  score: 9,
+                  media: {
+                    id: 10,
+                    title: { romaji: "Completed With Dates" },
+                    episodes: 12,
+                    averageScore: 82,
+                    genres: ["Drama"],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        animeDropped: {
+          lists: [
+            {
+              name: "Dropped",
+              entries: [
+                {
+                  id: 2,
+                  progress: 3,
+                  media: {
+                    id: 11,
+                    title: { romaji: "Dropped Anime" },
+                    episodes: 12,
+                    genres: ["Comedy"],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        mangaDropped: {
+          lists: [
+            {
+              name: "Dropped",
+              entries: [
+                {
+                  id: 3,
+                  progress: 5,
+                  media: {
+                    id: 21,
+                    title: { romaji: "Dropped Manga" },
+                    chapters: 100,
+                    genres: ["Adventure"],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      const reqBody = {
+        userId: 99,
+        username: "NewFieldsUser",
+        stats: statsPayload,
+      };
+      const req = createTestRequest(reqBody, "http://localhost");
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const pagesSetCall = sharedRedisMockSet.mock.calls.find(
+        (call) => call[0] === "user:99:pages",
+      );
+      expect(pagesSetCall).toBeTruthy();
+      const pagesValue = JSON.parse(pagesSetCall![1]);
+      expect(pagesValue.userReviews?.reviews).toHaveLength(1);
+      expect(pagesValue.userRecommendations?.recommendations).toHaveLength(1);
+
+      const completedSetCall = sharedRedisMockSet.mock.calls.find(
+        (call) => call[0] === "user:99:completed",
+      );
+      expect(completedSetCall).toBeTruthy();
+      const completedValue = JSON.parse(completedSetCall![1]);
+
+      expect(completedValue.animeDropped?.lists?.[0]?.entries).toHaveLength(1);
+      expect(completedValue.mangaDropped?.lists?.[0]?.entries).toHaveLength(1);
+
+      const storedEntry =
+        completedValue.animeCompleted?.lists?.[0]?.entries?.[0];
+      expect(storedEntry).toBeTruthy();
+    });
+
     it("should update existing user and preserve createdAt", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const existingRecord = {

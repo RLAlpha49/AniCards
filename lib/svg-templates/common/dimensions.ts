@@ -38,9 +38,6 @@ export const CARD_DIMENSIONS = {
   recentActivityFeed: {
     default: { w: 280, h: 180 },
   },
-  activityPatterns: {
-    default: { w: 320, h: 180 },
-  },
   topActivityDays: {
     default: { w: 320, h: 180 },
   },
@@ -115,6 +112,23 @@ export const CARD_DIMENSIONS = {
     donut: { w: 340, h: 195 },
     bar: { w: 360, h: 195 },
     radar: { w: 450, h: 195 },
+  },
+
+  // User analytics cards
+  tagCategoryDistribution: {
+    default: { w: 450, h: 220 },
+  },
+  tagDiversity: {
+    default: { w: 450, h: 220 },
+  },
+  seasonalViewingPatterns: {
+    default: { w: 350, h: 200 },
+  },
+  droppedMedia: {
+    default: { w: 450, h: 220 },
+  },
+  reviewStats: {
+    default: { w: 450, h: 220 },
   },
 } as const satisfies Record<string, Record<string, CardDimensions>>;
 

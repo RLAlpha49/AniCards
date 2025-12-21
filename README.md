@@ -25,6 +25,9 @@ Each card has a `cardType` ID and supports one or more `variation` values.
 
 - **Anime Statistics** (`animeStats`) — Variations: Default, Vertical, Compact, Minimal
 - **Manga Statistics** (`mangaStats`) — Variations: Default, Vertical, Compact, Minimal
+
+### Social
+
 - **Social Statistics** (`socialStats`) — Variations: Default, Compact, Minimal, Community Footprint
 - **Social Milestones** (`socialMilestones`) — Variations: Default
 
@@ -54,6 +57,7 @@ Each card has a `cardType` ID and supports one or more `variation` values.
 - **Anime Country Distribution** (`animeCountry`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
 - **Anime Score Distribution** (`animeScoreDistribution`) — Variations: Default, Horizontal, Cumulative
 - **Anime Year Distribution** (`animeYearDistribution`) — Variations: Default, Horizontal
+- **Anime Genre Synergy** (`animeGenreSynergy`) — Variations: Default
 
 ### Manga Breakdowns
 
@@ -74,7 +78,6 @@ Each card has a `cardType` ID and supports one or more `variation` values.
 - **Recent Activity Summary** (`recentActivitySummary`) — Variations: Default
 - **Recent Activity Feed** (`recentActivityFeed`) — Variations: Default
 - **Activity Streaks** (`activityStreaks`) — Variations: Default
-- **Activity Patterns** (`activityPatterns`) — Variations: Default
 - **Top Activity Days** (`topActivityDays`) — Variations: Default
 
 ### Completion & Progress
@@ -86,7 +89,7 @@ Each card has a `cardType` ID and supports one or more `variation` values.
 - **Most Rewatched/Reread** (`mostRewatched`) — Variations: Default, Anime, Manga
 - **Currently Watching / Reading** (`currentlyWatchingReading`) — Variations: Default, Anime, Manga
 
-### Comparisons
+### Comparisons & Diversity
 
 - **Anime vs Manga Overview** (`animeMangaOverview`) — Variations: Default
 - **Anime vs Manga Score Comparison** (`scoreCompareAnimeManga`) — Variations: Default
@@ -96,6 +99,14 @@ Each card has a `cardType` ID and supports one or more `variation` values.
 - **Release Era Preference** (`releaseEraPreference`) — Variations: Default
 - **Start-Year Momentum** (`startYearMomentum`) — Variations: Default
 - **Length Preference** (`lengthPreference`) — Variations: Default
+
+### User Analytics & Misc
+
+- **Tag Category Distribution** (`tagCategoryDistribution`) — Variations: Default
+- **Tag Diversity** (`tagDiversity`) — Variations: Default
+- **Seasonal Viewing Patterns** (`seasonalViewingPatterns`) — Variations: Default
+- **Dropped Media** (`droppedMedia`) — Variations: Default
+- **Review Statistics** (`reviewStats`) — Variations: Default
 
 ## 🛠️ Customization
 
@@ -118,7 +129,7 @@ https://api.anicards.alpha49.com/card.svg?cardType={CARD_TYPE}&userId={USER_ID}&
 - `borderRadius` (optional): Numeric value (pixels) to override the card corner radius.
 - `showFavorites` (optional): `true` or `false` — applicable only to certain category cards (voice actors, studios, staff) to visualize favorites.
 - `statusColors` (optional): `true` or `false` — tells status distribution cards to use fixed status colors.
-- `piePercentages` (optional): `true` or `false` — show percentage labels on pie charts (only meaningful for `pie` variants).
+- `piePercentages` (optional): `true` or `false` — show percentage labels on pie charts (only meaningful for `pie`/`donut` variants).
 - `_t` (optional): Any value used to bust caches (commonly a timestamp).
 
 ### Notes

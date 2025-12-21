@@ -380,9 +380,7 @@ function seasonCountsFromLists(userRecord: UserRecord): Map<string, number> {
  * (deduped by media id). Prefers stored totals computed at write time.
  * @source
  */
-export function toTemplateAnimeSeasonalPreference(
-  userRecord: UserRecord,
-): {
+export function toTemplateAnimeSeasonalPreference(userRecord: UserRecord): {
   name: string;
   count: number;
 }[] {
@@ -454,7 +452,8 @@ export function toTemplateAnimeEpisodeLengthPreferences(
   };
 
   for (const entry of lengths) {
-    const lengthValue = typeof entry?.length === "string" ? entry.length.trim() : "";
+    const lengthValue =
+      typeof entry?.length === "string" ? entry.length.trim() : "";
     const count =
       typeof entry?.count === "number" && Number.isFinite(entry.count)
         ? Math.max(0, entry.count)
@@ -491,13 +490,14 @@ export function toTemplateAnimeGenreSynergy(
   if (!Array.isArray(totals) || totals.length === 0) return [];
 
   return [...totals]
-    .filter((t) =>
-      !!t &&
-      typeof t.a === "string" &&
-      typeof t.b === "string" &&
-      typeof t.count === "number" &&
-      Number.isFinite(t.count) &&
-      t.count > 0,
+    .filter(
+      (t) =>
+        !!t &&
+        typeof t.a === "string" &&
+        typeof t.b === "string" &&
+        typeof t.count === "number" &&
+        Number.isFinite(t.count) &&
+        t.count > 0,
     )
     .map((t) => ({
       name: `${t.a} + ${t.b}`,
@@ -505,4 +505,153 @@ export function toTemplateAnimeGenreSynergy(
     }))
     .sort((x, y) => y.count - x.count || x.name.localeCompare(y.name))
     .slice(0, 10);
+}
+
+/**
+ * Computes the Shannon entropy (normalized to 0-1) for a set of counts.
+ * Used for diversity calculations.
+ * @source
+ */
+function normalizedShannon(counts: number[]): number {
+  const safeCounts = counts.filter((c) => c > 0);
+  if (safeCounts.length === 0) return 0;
+
+  const total = safeCounts.reduce((a, b) => a + b, 0);
+  if (total === 0) return 0;
+
+  const entropy = -safeCounts.reduce((sum, c) => {
+    const p = c / total;
+    return sum + (p > 0 ? p * Math.log(p) : 0);
+  }, 0);
+
+  const maxEntropy = Math.log(safeCounts.length);
+  return maxEntropy > 0 ? entropy / maxEntropy : 0;
+}
+
+/**
+ * Builds tag category distribution for anime/manga.
+ * Groups tags by their category field and counts occurrences.
+ * @source
+ */
+export function toTemplateTagCategoryDistribution(
+  userRecord: UserRecord,
+  mediaType: "anime" | "manga",
+): { name: string; count: number }[] {
+  const stats =
+    mediaType === "anime"
+      ? userRecord.stats?.User?.statistics?.anime
+      : userRecord.stats?.User?.statistics?.manga;
+
+  const tags = stats?.tags as
+    | { tag: { name: string; category?: string }; count: number }[]
+    | undefined;
+
+  if (!Array.isArray(tags) || tags.length === 0) return [];
+
+  const categoryGroups = tags.reduce(
+    (acc, { tag, count }) => {
+      const category = tag.category || "Uncategorized";
+      acc[category] = (acc[category] || 0) + (count || 0);
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+
+  return Object.entries(categoryGroups)
+    .map(([name, count]) => ({ name, count }))
+    .filter((x) => x.count > 0)
+    .sort((a, b) => b.count - a.count);
+}
+
+/**
+ * Computes tag diversity index using Shannon entropy.
+ * Returns a score from 0-100 and top contributing categories.
+ * @source
+ */
+export function toTemplateTagDiversity(
+  userRecord: UserRecord,
+  mediaType: "anime" | "manga",
+): {
+  diversityScore: number;
+  distinctTags: number;
+  topCategories: { name: string; count: number }[];
+} {
+  const stats =
+    mediaType === "anime"
+      ? userRecord.stats?.User?.statistics?.anime
+      : userRecord.stats?.User?.statistics?.manga;
+
+  const tags = stats?.tags as
+    | { tag: { name: string; category?: string }; count: number }[]
+    | undefined;
+
+  if (!Array.isArray(tags) || tags.length === 0) {
+    return { diversityScore: 0, distinctTags: 0, topCategories: [] };
+  }
+
+  const counts = tags.map((t) => Math.max(0, t.count));
+  const diversityScore = Math.round(normalizedShannon(counts) * 100);
+  const distinctTags = tags.filter((t) => t.count > 0).length;
+
+  // Group by category for top contributors
+  const categoryGroups = tags.reduce(
+    (acc, { tag, count }) => {
+      const category = tag.category || "Uncategorized";
+      acc[category] = (acc[category] || 0) + (count || 0);
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+
+  const topCategories = Object.entries(categoryGroups)
+    .map(([name, count]) => ({ name, count }))
+    .filter((x) => x.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  return { diversityScore, distinctTags, topCategories };
+}
+
+/**
+ * Groups activity history by calendar season (Winter/Spring/Summer/Fall).
+ * Returns activity counts per season based on when the user was active.
+ * @source
+ */
+export function toTemplateSeasonalViewingPatterns(
+  userRecord: UserRecord,
+): { name: string; count: number }[] {
+  const activityHistory = userRecord.stats?.User?.stats?.activityHistory as
+    | ActivityHistoryItem[]
+    | undefined;
+
+  if (!Array.isArray(activityHistory) || activityHistory.length === 0) {
+    return [];
+  }
+
+  const seasonGroups = { Winter: 0, Spring: 0, Summer: 0, Fall: 0 };
+
+  for (const activity of activityHistory) {
+    if (!activity.date || !activity.amount) continue;
+
+    const date = new Date(activity.date * 1000);
+    const month = date.getUTCMonth(); // 0-11
+
+    if (month === 11 || month === 0 || month === 1) {
+      seasonGroups.Winter += activity.amount;
+    } else if (month >= 2 && month <= 4) {
+      seasonGroups.Spring += activity.amount;
+    } else if (month >= 5 && month <= 7) {
+      seasonGroups.Summer += activity.amount;
+    } else {
+      seasonGroups.Fall += activity.amount;
+    }
+  }
+
+  const order: (keyof typeof seasonGroups)[] = [
+    "Winter",
+    "Spring",
+    "Summer",
+    "Fall",
+  ];
+  return order.map((name) => ({ name, count: seasonGroups[name] }));
 }

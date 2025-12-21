@@ -13,7 +13,6 @@ import { favoritesGridTemplate } from "@/lib/svg-templates/profile-favorite-stat
 import { favoritesSummaryTemplate } from "@/lib/svg-templates/profile-favorite-stats/favorites-summary-template";
 import { profileOverviewTemplate } from "@/lib/svg-templates/profile-favorite-stats/profile-overview-template";
 import { activityHeatmapTemplate } from "@/lib/svg-templates/activity-stats/activity-heatmap-template";
-import { activityPatternsTemplate } from "@/lib/svg-templates/activity-stats/activity-patterns-template";
 import { activityStreaksTemplate } from "@/lib/svg-templates/activity-stats/activity-streaks-template";
 import { recentActivityFeedTemplate } from "@/lib/svg-templates/activity-stats/recent-activity-feed-template";
 import { recentActivitySummaryTemplate } from "@/lib/svg-templates/activity-stats/recent-activity-summary-template";
@@ -32,6 +31,13 @@ import { formatPreferenceOverviewTemplate } from "@/lib/svg-templates/comparativ
 import { releaseEraPreferenceTemplate } from "@/lib/svg-templates/comparative-distribution-stats/release-era-preference-template";
 import { startYearMomentumTemplate } from "@/lib/svg-templates/comparative-distribution-stats/start-year-momentum-template";
 import { lengthPreferenceTemplate } from "@/lib/svg-templates/comparative-distribution-stats/length-preference-template";
+import {
+  tagCategoryDistributionTemplate,
+  tagDiversityTemplate,
+  seasonalViewingPatternsTemplate,
+  droppedMediaTemplate,
+  reviewStatsTemplate,
+} from "@/lib/svg-templates/user-analytics";
 import { TrustedSVG } from "@/lib/types/svg";
 import {
   ActivityHistoryItem,
@@ -239,7 +245,6 @@ function normalizeVariant(
     recentActivitySummary: new Set<CardGenVariant>(["default"]),
     recentActivityFeed: new Set<CardGenVariant>(["default"]),
     activityStreaks: new Set<CardGenVariant>(["default"]),
-    activityPatterns: new Set<CardGenVariant>(["default"]),
     topActivityDays: new Set<CardGenVariant>(["default"]),
     statusCompletionOverview: new Set<CardGenVariant>(["combined", "split"]),
     milestones: new Set<CardGenVariant>(["default"]),
@@ -259,6 +264,9 @@ function normalizeVariant(
     releaseEraPreference: new Set<CardGenVariant>(["default"]),
     startYearMomentum: new Set<CardGenVariant>(["default"]),
     lengthPreference: new Set<CardGenVariant>(["default"]),
+    tagCategoryDistribution: new Set<CardGenVariant>(["default"]),
+    tagDiversity: new Set<CardGenVariant>(["default"]),
+    seasonalViewingPatterns: new Set<CardGenVariant>(["default"]),
   };
 
   const allowedVariants = variantMap[baseCardType!];
@@ -435,6 +443,11 @@ export async function generateCardSvg(
     releaseEraPreference: generateReleaseEraPreferenceCard,
     startYearMomentum: generateStartYearMomentumCard,
     lengthPreference: generateLengthPreferenceCard,
+    tagCategoryDistribution: generateTagCategoryDistributionCard,
+    tagDiversity: generateTagDiversityCard,
+    seasonalViewingPatterns: generateSeasonalViewingPatternsCard,
+    droppedMedia: generateDroppedMediaCard,
+    reviewStats: generateReviewStatsCard,
   };
 
   const comparativeGenerator = comparativeDispatch[baseCardType];
@@ -497,8 +510,6 @@ export async function generateCardSvg(
       return generateRecentActivityFeedCard(params);
     case "activityStreaks":
       return generateActivityStreaksCard(params);
-    case "activityPatterns":
-      return generateActivityPatternsCard(params);
     case "topActivityDays":
       return generateTopActivityDaysCard(params);
     case "statusCompletionOverview":
@@ -1236,26 +1247,6 @@ function generateActivityStreaksCard(params: CardGenerationParams): TrustedSVG {
 }
 
 /**
- * Generate an Activity Patterns card showing day-of-week distribution.
- * @param params - Card generation parameters and options.
- * @returns A TrustedSVG with the rendered activity patterns card.
- * @source
- */
-function generateActivityPatternsCard(
-  params: CardGenerationParams,
-): TrustedSVG {
-  const { cardConfig, userRecord, variant } = params;
-  const activityHistory = extractActivityHistory(userRecord.stats?.User?.stats);
-
-  return activityPatternsTemplate({
-    username: userRecord.username ?? userRecord.userId,
-    variant: variant as ActivityCompactVariant,
-    styles: extractStyles(cardConfig),
-    activityHistory,
-  });
-}
-
-/**
  * Generate a Top Activity Days card showing days with the highest activity.
  * @param params - Card generation parameters and options.
  * @returns A TrustedSVG with the rendered top activity days card.
@@ -1505,6 +1496,97 @@ async function generateCurrentlyWatchingReadingCard(
     mangaCurrent: embeddedManga,
     animeCount: userRecord.stats?.animeCurrent?.count,
     mangaCount: userRecord.stats?.mangaCurrent?.count,
+  });
+}
+
+/** Variant type for user analytics cards. @source */
+type UserAnalyticsVariant = "default";
+
+/**
+ * Generate a Tag Category Distribution card.
+ * @source
+ */
+function generateTagCategoryDistributionCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+
+  return tagCategoryDistributionTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as UserAnalyticsVariant,
+    styles: extractStyles(cardConfig),
+    animeStats: userRecord.stats?.User?.statistics?.anime,
+    mangaStats: userRecord.stats?.User?.statistics?.manga,
+  });
+}
+
+/**
+ * Generate a Tag Diversity card.
+ * @source
+ */
+function generateTagDiversityCard(params: CardGenerationParams): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+
+  return tagDiversityTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as UserAnalyticsVariant,
+    styles: extractStyles(cardConfig),
+    animeStats: userRecord.stats?.User?.statistics?.anime,
+    mangaStats: userRecord.stats?.User?.statistics?.manga,
+  });
+}
+
+/**
+ * Generate a Seasonal Viewing Patterns card.
+ * @source
+ */
+function generateSeasonalViewingPatternsCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  const activityHistory = extractActivityHistory(userRecord.stats?.User?.stats);
+
+  return seasonalViewingPatternsTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as UserAnalyticsVariant,
+    styles: extractStyles(cardConfig),
+    activityHistory,
+  });
+}
+
+/**
+ * Generate a Dropped Media card.
+ * @source
+ */
+function generateDroppedMediaCard(params: CardGenerationParams): TrustedSVG {
+  const { cardConfig, userRecord } = params;
+
+  const animeDropped = extractMediaListEntries(userRecord.stats?.animeDropped);
+  const mangaDropped = extractMediaListEntries(userRecord.stats?.mangaDropped);
+
+  return droppedMediaTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: "default",
+    styles: extractStyles(cardConfig),
+    animeDropped,
+    mangaDropped,
+  });
+}
+
+/**
+ * Generate a Review Stats card.
+ * @source
+ */
+function generateReviewStatsCard(params: CardGenerationParams): TrustedSVG {
+  const { cardConfig, userRecord } = params;
+
+  const reviews = userRecord.stats?.userReviews?.reviews;
+
+  return reviewStatsTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: "default",
+    styles: extractStyles(cardConfig),
+    reviews,
   });
 }
 

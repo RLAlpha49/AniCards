@@ -719,7 +719,10 @@ describe("Card SVG Route", () => {
     });
 
     it("should render animeSeasonalPreference using stored totals (split meta)", async () => {
-      const cardsData = createMockCardData("animeSeasonalPreference", "default");
+      const cardsData = createMockCardData(
+        "animeSeasonalPreference",
+        "default",
+      );
 
       // Cards record is fetched via GET first.
       sharedRedisMockGet.mockResolvedValueOnce(cardsData);
@@ -838,8 +841,65 @@ describe("Card SVG Route", () => {
 
       expect(callArgs.format).toBe("Genre Synergy");
       expect(callArgs.variant).toBe("default");
-      expect(callArgs.stats).toContainEqual({ name: "Action + Drama", count: 2 });
-      expect(callArgs.stats).toContainEqual({ name: "Comedy + Drama", count: 1 });
+      expect(callArgs.stats).toContainEqual({
+        name: "Action + Drama",
+        count: 2,
+      });
+      expect(callArgs.stats).toContainEqual({
+        name: "Comedy + Drama",
+        count: 1,
+      });
+    });
+
+    it("should display N/A for avg progress for manga drops with unknown chapter totals", async () => {
+      const cardsData = createMockCardData("droppedMedia", "default");
+
+      const statsPayload = {
+        User: {
+          statistics: { anime: {}, manga: {} },
+          stats: { activityHistory: [] },
+        },
+        followersPage: { pageInfo: { total: 0 }, followers: [] },
+        followingPage: { pageInfo: { total: 0 }, following: [] },
+        threadsPage: { pageInfo: { total: 0 }, threads: [] },
+        threadCommentsPage: { pageInfo: { total: 0 }, threadComments: [] },
+        reviewsPage: { pageInfo: { total: 0 }, reviews: [] },
+        mangaDropped: {
+          lists: [
+            {
+              name: "Dropped",
+              entries: [
+                {
+                  id: 1,
+                  progress: 20,
+                  media: {
+                    id: 101,
+                    title: { romaji: "Ongoing Manga" },
+                    // chapters deliberately omitted to simulate unknown total
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      const userData = createMockUserData(999, "ongoingUser", statsPayload);
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, { userId: "999", cardType: "droppedMedia" }),
+      );
+
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+      const body = await getResponseText(res);
+
+      expect(body).toContain("Avg. Progress");
+      expect(body).toContain("N/A");
+      expect(body).toContain("Dropped");
+      // Should reflect one dropped entry
+      expect(body).toContain("1");
     });
 
     it("should render animeEpisodeLengthPreferences using bucketed statistics lengths", async () => {

@@ -14,7 +14,6 @@ tools:
     "search/usages",
     "web",
     "agent",
-    "memory",
     "todo",
   ]
 ---

@@ -195,6 +195,7 @@ export interface UserSection {
   statistics: UserStatistics;
   name?: string;
   avatar?: UserAvatar;
+  bannerImage?: string;
   createdAt?: number;
 }
 
@@ -245,6 +246,52 @@ export interface ReviewsPage {
   reviews: { id: number }[];
 }
 
+/** A detailed review entry with score, ratings, and media info. @source */
+export interface ReviewEntry {
+  id: number;
+  score: number;
+  rating: number;
+  ratingAmount: number;
+  summary?: string;
+  createdAt?: number;
+  media: {
+    id: number;
+    title: {
+      romaji?: string;
+    };
+    type?: string;
+    genres?: string[];
+  };
+}
+
+/** Page container for detailed user reviews. @source */
+export interface UserReviewsPage {
+  reviews: ReviewEntry[];
+}
+
+/** A recommendation entry with ratings and media pairs. @source */
+export interface RecommendationEntry {
+  id: number;
+  rating: number;
+  media: {
+    id: number;
+    title: {
+      romaji?: string;
+    };
+  };
+  mediaRecommendation: {
+    id: number;
+    title: {
+      romaji?: string;
+    };
+  };
+}
+
+/** Page container for user recommendations. @source */
+export interface UserRecommendationsPage {
+  recommendations: RecommendationEntry[];
+}
+
 /** A media list entry for anime or manga with progress, score, and repeat data. @source */
 export interface MediaListEntry {
   id: number;
@@ -288,6 +335,8 @@ export interface UserStatsData {
   threadsPage: ThreadsPage;
   threadCommentsPage: ThreadCommentsPage;
   reviewsPage: ReviewsPage;
+  userReviews?: UserReviewsPage;
+  userRecommendations?: UserRecommendationsPage;
   animePlanning?: MediaListCollection;
   mangaPlanning?: MediaListCollection;
   animeCurrent?: MediaListCollection;
@@ -296,6 +345,8 @@ export interface UserStatsData {
   mangaReread?: MediaListCollection;
   animeCompleted?: MediaListCollection;
   mangaCompleted?: MediaListCollection;
+  animeDropped?: MediaListCollection;
+  mangaDropped?: MediaListCollection;
 }
 
 /** Stored bucket counts for the Source Material Distribution card. @source */

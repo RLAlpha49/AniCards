@@ -34,6 +34,9 @@ export {
   toTemplateAnimeGenreSynergy,
   mapCategoryItem,
   processFavorites,
+  toTemplateTagCategoryDistribution,
+  toTemplateTagDiversity,
+  toTemplateSeasonalViewingPatterns,
 } from "./processing";
 
 // Re-export config module exports

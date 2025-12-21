@@ -211,11 +211,6 @@ const activityCards = [
     variations: activityFullVariations,
   },
   {
-    id: "activityPatterns",
-    label: "Activity Patterns (Day of Week)",
-    variations: activityCompactVariations,
-  },
-  {
     id: "topActivityDays",
     label: "Top Activity Days (Highest activity days)",
     variations: activityCompactVariations,
@@ -323,6 +318,36 @@ const comparativeDistributionCards = [
   },
 ];
 
+const userAnalyticsDefaultVariations = [{ id: "default", label: "Default" }];
+
+const userAnalyticsCards = [
+  {
+    id: "tagCategoryDistribution",
+    label: "Tag Category Distribution",
+    variations: userAnalyticsDefaultVariations,
+  },
+  {
+    id: "tagDiversity",
+    label: "Tag Diversity",
+    variations: userAnalyticsDefaultVariations,
+  },
+  {
+    id: "seasonalViewingPatterns",
+    label: "Seasonal Viewing Patterns",
+    variations: userAnalyticsDefaultVariations,
+  },
+  {
+    id: "droppedMedia",
+    label: "Dropped Media",
+    variations: userAnalyticsDefaultVariations,
+  },
+  {
+    id: "reviewStats",
+    label: "Review Statistics",
+    variations: userAnalyticsDefaultVariations,
+  },
+];
+
 export const statCardTypes = [
   createCardType(
     "animeStats",
@@ -405,6 +430,9 @@ export const statCardTypes = [
       card.label,
       card.variations,
     ),
+  ),
+  ...userAnalyticsCards.map((card) =>
+    createCardType(card.id, "User Analytics", card.label, card.variations),
   ),
 ];
 

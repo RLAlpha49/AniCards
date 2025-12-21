@@ -9,6 +9,10 @@ import {
   MangaStatStaff,
   MediaListCollection,
   MediaListEntry,
+  ReviewEntry,
+  RecommendationEntry,
+  UserReviewsPage,
+  UserRecommendationsPage,
   SourceMaterialDistributionTotalsEntry,
   SeasonalPreferenceTotalsEntry,
   AnimeGenreSynergyTotalsEntry,
@@ -104,7 +108,6 @@ export const displayNames: { [key: string]: string } = {
   recentActivitySummary: "Recent Activity Summary",
   recentActivityFeed: "Recent Activity Feed",
   activityStreaks: "Activity Streaks",
-  activityPatterns: "Activity Patterns",
   topActivityDays: "Top Activity Days",
   statusCompletionOverview: "Status Completion Overview",
   milestones: "Consumption Milestones",
@@ -121,6 +124,11 @@ export const displayNames: { [key: string]: string } = {
   startYearMomentum: "Start-Year Momentum",
   lengthPreference: "Length Preference",
   animeEpisodeLengthPreferences: "Episode Length Preferences",
+  tagCategoryDistribution: "Tag Category Distribution",
+  tagDiversity: "Tag Diversity",
+  seasonalViewingPatterns: "Seasonal Viewing Patterns",
+  droppedMedia: "Dropped Media",
+  reviewStats: "Review Statistics",
 };
 
 /**
@@ -624,9 +632,100 @@ export function validateAndNormalizeUserRecord(
         source: getNestedString(media, ["source"]) || undefined,
         season: getNestedString(media, ["season"]) || undefined,
         seasonYear: coerceNumber(media?.seasonYear),
-        ...(genres && genres.length ? { genres } : {}),
+        ...(genres?.length ? { genres } : {}),
       },
     } as MediaListEntry;
+  };
+
+  const mapReviewEntry = (raw: unknown): ReviewEntry | null => {
+    if (!raw || typeof raw !== "object") return null;
+    const rec = raw as Record<string, unknown>;
+    const media = (rec.media as Record<string, unknown> | undefined) ?? {};
+
+    const rawGenres = media.genres;
+    const genres = Array.isArray(rawGenres)
+      ? rawGenres
+          .filter((g): g is string => typeof g === "string")
+          .map((g) => g.trim())
+          .filter((g) => g.length > 0)
+      : undefined;
+
+    const summary =
+      typeof rec.summary === "string"
+        ? rec.summary.trim().slice(0, 500)
+        : undefined;
+
+    return {
+      id: coerceNumber(rec.id, 0) ?? 0,
+      score: coerceNumber(rec.score, 0) ?? 0,
+      rating: coerceNumber(rec.rating, 0) ?? 0,
+      ratingAmount: coerceNumber(rec.ratingAmount, 0) ?? 0,
+      summary: summary || undefined,
+      createdAt: coerceNumber(rec.createdAt),
+      media: {
+        id: coerceNumber(media.id, 0) ?? 0,
+        title: {
+          romaji: getNestedString(media, ["title", "romaji"]) || undefined,
+        },
+        type: getNestedString(media, ["type"]) || undefined,
+        ...(genres?.length ? { genres } : {}),
+      },
+    };
+  };
+
+  const normalizeUserReviewsPage = (
+    raw: unknown,
+  ): UserReviewsPage | undefined => {
+    if (!raw || typeof raw !== "object") return undefined;
+    const rec = raw as Record<string, unknown>;
+    const rawReviews = Array.isArray(rec.reviews) ? rec.reviews : [];
+    const reviews = rawReviews
+      .map(mapReviewEntry)
+      .filter((x): x is ReviewEntry => x !== null)
+      .slice(0, 50);
+    return reviews.length ? { reviews } : undefined;
+  };
+
+  const mapRecommendationEntry = (raw: unknown): RecommendationEntry | null => {
+    if (!raw || typeof raw !== "object") return null;
+    const rec = raw as Record<string, unknown>;
+    const media = (rec.media as Record<string, unknown> | undefined) ?? {};
+    const mediaRecommendation =
+      (rec.mediaRecommendation as Record<string, unknown> | undefined) ?? {};
+
+    return {
+      id: coerceNumber(rec.id, 0) ?? 0,
+      rating: coerceNumber(rec.rating, 0) ?? 0,
+      media: {
+        id: coerceNumber(media.id, 0) ?? 0,
+        title: {
+          romaji: getNestedString(media, ["title", "romaji"]) || undefined,
+        },
+      },
+      mediaRecommendation: {
+        id: coerceNumber(mediaRecommendation.id, 0) ?? 0,
+        title: {
+          romaji:
+            getNestedString(mediaRecommendation, ["title", "romaji"]) ||
+            undefined,
+        },
+      },
+    };
+  };
+
+  const normalizeUserRecommendationsPage = (
+    raw: unknown,
+  ): UserRecommendationsPage | undefined => {
+    if (!raw || typeof raw !== "object") return undefined;
+    const rec = raw as Record<string, unknown>;
+    const rawRecs = Array.isArray(rec.recommendations)
+      ? rec.recommendations
+      : [];
+    const recommendations = rawRecs
+      .map(mapRecommendationEntry)
+      .filter((x): x is RecommendationEntry => x !== null)
+      .slice(0, 25);
+    return recommendations.length ? { recommendations } : undefined;
   };
 
   const normalizeMediaListCollection = (
@@ -782,7 +881,11 @@ export function validateAndNormalizeUserRecord(
 
         // Canonicalize ordering so stored data stays consistent.
         const [left, right] = a.localeCompare(b) <= 0 ? [a, b] : [b, a];
-        return { a: left, b: right, count } satisfies AnimeGenreSynergyTotalsEntry;
+        return {
+          a: left,
+          b: right,
+          count,
+        } satisfies AnimeGenreSynergyTotalsEntry;
       })
       .filter((x): x is AnimeGenreSynergyTotalsEntry => x !== null);
 
@@ -846,7 +949,9 @@ export function validateAndNormalizeUserRecord(
   const computeAnimeSeasonalPreferenceTotals = ():
     | SeasonalPreferenceTotalsEntry[]
     | undefined => {
-    const completedFull = normalizeMediaListCollection(statsData.animeCompleted);
+    const completedFull = normalizeMediaListCollection(
+      statsData.animeCompleted,
+    );
     const currentFull = normalizeMediaListCollection(statsData.animeCurrent);
 
     const completedEntries =
@@ -864,7 +969,12 @@ export function validateAndNormalizeUserRecord(
 
     const normalizeSeason = (v: string | undefined): string => {
       const raw = (v ?? "").trim().toUpperCase();
-      if (raw === "WINTER" || raw === "SPRING" || raw === "SUMMER" || raw === "FALL") {
+      if (
+        raw === "WINTER" ||
+        raw === "SPRING" ||
+        raw === "SUMMER" ||
+        raw === "FALL"
+      ) {
         return raw;
       }
       return "UNKNOWN";
@@ -893,7 +1003,9 @@ export function validateAndNormalizeUserRecord(
   const computeAnimeGenreSynergyTotals = ():
     | AnimeGenreSynergyTotalsEntry[]
     | undefined => {
-    const completedFull = normalizeMediaListCollection(statsData.animeCompleted);
+    const completedFull = normalizeMediaListCollection(
+      statsData.animeCompleted,
+    );
     const entries = completedFull?.lists.flatMap((l) => l.entries) ?? [];
     if (!entries.length) return undefined;
 
@@ -905,7 +1017,9 @@ export function validateAndNormalizeUserRecord(
       const raw = entry.media?.genres ?? [];
       if (!Array.isArray(raw) || raw.length < 2) continue;
 
-      const uniqueGenres = [...new Set(raw.map((g) => g.trim()).filter(Boolean))]
+      const uniqueGenres = [
+        ...new Set(raw.map((g) => g.trim()).filter(Boolean)),
+      ]
         .slice(0, MAX_GENRES_PER_TITLE)
         .sort((a, b) => a.localeCompare(b));
 
@@ -913,8 +1027,8 @@ export function validateAndNormalizeUserRecord(
 
       for (let i = 0; i < uniqueGenres.length; i++) {
         for (let j = i + 1; j < uniqueGenres.length; j++) {
-          const a = uniqueGenres[i]!;
-          const b = uniqueGenres[j]!;
+          const a = uniqueGenres[i];
+          const b = uniqueGenres[j];
           const key = `${a}|||${b}`;
           counts.set(key, (counts.get(key) ?? 0) + 1);
         }
@@ -1050,6 +1164,10 @@ export function validateAndNormalizeUserRecord(
       reviewsPage: normalizePage(statsData.reviewsPage, {
         itemsKey: "reviews",
       }),
+      userReviews: normalizeUserReviewsPage(statsData.userReviews),
+      userRecommendations: normalizeUserRecommendationsPage(
+        statsData.userRecommendations,
+      ),
       // We limit the entries saved to the database to only what's needed for the cards
       animePlanning: (() => {
         const raw = statsData.animePlanning;
@@ -1131,6 +1249,19 @@ export function validateAndNormalizeUserRecord(
             .slice(0, 5);
           return combineUnique(topByScore, topByLength);
         });
+      })(),
+      animeDropped: (() => {
+        const raw = statsData.animeDropped;
+        const coll = normalizeMediaListCollection(raw);
+        return pruneIfNeeded(raw, coll, (entries) =>
+          // Keep most recent items as returned by the AniList sort (UPDATED_TIME_DESC)
+          entries.slice(0, 30),
+        );
+      })(),
+      mangaDropped: (() => {
+        const raw = statsData.mangaDropped;
+        const coll = normalizeMediaListCollection(raw);
+        return pruneIfNeeded(raw, coll, (entries) => entries.slice(0, 30));
       })(),
       User: {
         stats: {

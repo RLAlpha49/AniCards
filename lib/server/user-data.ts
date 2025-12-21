@@ -10,6 +10,8 @@ import {
   ThreadsPage,
   ThreadCommentsPage,
   ReviewsPage,
+  UserReviewsPage,
+  UserRecommendationsPage,
   MediaListCollection,
   ReconstructedUserRecord,
   SourceMaterialDistributionTotalsEntry,
@@ -186,44 +188,74 @@ function extractFavourites(
   return {};
 }
 
+function extractPageOrDefault<T>(
+  statsObj: unknown,
+  key: string,
+  fallback: T,
+): T {
+  const value = isObject(statsObj) ? statsObj[key] : undefined;
+  return isObject(value) ? (value as unknown as T) : fallback;
+}
+
+function extractOptionalArrayContainer<T>(
+  statsObj: unknown,
+  key: string,
+  itemsKey: string,
+): T | undefined {
+  const value = isObject(statsObj) ? statsObj[key] : undefined;
+  if (!isObject(value)) return undefined;
+  const items = value[itemsKey];
+  return Array.isArray(items) ? (value as unknown as T) : undefined;
+}
+
 /** Extract pages and list-like containers safely */
 function extractPages(statsObj: unknown) {
-  const followersPage =
-    isObject(statsObj) &&
-    "followersPage" in statsObj &&
-    isObject(statsObj["followersPage"])
-      ? (statsObj["followersPage"] as unknown as FollowersPage)
-      : DEFAULT_FOLLOWERS_PAGE;
-  const followingPage =
-    isObject(statsObj) &&
-    "followingPage" in statsObj &&
-    isObject(statsObj["followingPage"])
-      ? (statsObj["followingPage"] as unknown as FollowingPage)
-      : DEFAULT_FOLLOWING_PAGE;
-  const threadsPage =
-    isObject(statsObj) &&
-    "threadsPage" in statsObj &&
-    isObject(statsObj["threadsPage"])
-      ? (statsObj["threadsPage"] as unknown as ThreadsPage)
-      : DEFAULT_THREADS_PAGE;
-  const threadCommentsPage =
-    isObject(statsObj) &&
-    "threadCommentsPage" in statsObj &&
-    isObject(statsObj["threadCommentsPage"])
-      ? (statsObj["threadCommentsPage"] as unknown as ThreadCommentsPage)
-      : DEFAULT_THREAD_COMMENTS_PAGE;
-  const reviewsPage =
-    isObject(statsObj) &&
-    "reviewsPage" in statsObj &&
-    isObject(statsObj["reviewsPage"])
-      ? (statsObj["reviewsPage"] as unknown as ReviewsPage)
-      : DEFAULT_REVIEWS_PAGE;
+  const followersPage = extractPageOrDefault<FollowersPage>(
+    statsObj,
+    "followersPage",
+    DEFAULT_FOLLOWERS_PAGE,
+  );
+  const followingPage = extractPageOrDefault<FollowingPage>(
+    statsObj,
+    "followingPage",
+    DEFAULT_FOLLOWING_PAGE,
+  );
+  const threadsPage = extractPageOrDefault<ThreadsPage>(
+    statsObj,
+    "threadsPage",
+    DEFAULT_THREADS_PAGE,
+  );
+  const threadCommentsPage = extractPageOrDefault<ThreadCommentsPage>(
+    statsObj,
+    "threadCommentsPage",
+    DEFAULT_THREAD_COMMENTS_PAGE,
+  );
+  const reviewsPage = extractPageOrDefault<ReviewsPage>(
+    statsObj,
+    "reviewsPage",
+    DEFAULT_REVIEWS_PAGE,
+  );
+
+  const userReviews = extractOptionalArrayContainer<UserReviewsPage>(
+    statsObj,
+    "userReviews",
+    "reviews",
+  );
+  const userRecommendations =
+    extractOptionalArrayContainer<UserRecommendationsPage>(
+      statsObj,
+      "userRecommendations",
+      "recommendations",
+    );
+
   return {
     followersPage,
     followingPage,
     threadsPage,
     threadCommentsPage,
     reviewsPage,
+    ...(userReviews ? { userReviews } : {}),
+    ...(userRecommendations ? { userRecommendations } : {}),
   };
 }
 
@@ -279,6 +311,8 @@ export function splitUserRecord(record: UserRecord) {
   const completed = {
     animeCompleted: extractMediaListCollection(statsObj, "animeCompleted"),
     mangaCompleted: extractMediaListCollection(statsObj, "mangaCompleted"),
+    animeDropped: extractMediaListCollection(statsObj, "animeDropped"),
+    mangaDropped: extractMediaListCollection(statsObj, "mangaDropped"),
   };
 
   const userMeta = userObj || {};
@@ -328,6 +362,8 @@ export function reconstructUserRecord(
         threadsPage?: ThreadsPage;
         threadCommentsPage?: ThreadCommentsPage;
         reviewsPage?: ReviewsPage;
+        userReviews?: UserReviewsPage;
+        userRecommendations?: UserRecommendationsPage;
       }
     | undefined;
 
@@ -337,6 +373,8 @@ export function reconstructUserRecord(
   const threadCommentsPage =
     pagesInput?.threadCommentsPage ?? DEFAULT_THREAD_COMMENTS_PAGE;
   const reviewsPage = pagesInput?.reviewsPage ?? DEFAULT_REVIEWS_PAGE;
+  const userReviews = pagesInput?.userReviews;
+  const userRecommendations = pagesInput?.userRecommendations;
 
   const planningInput = parts.planning as
     | {
@@ -360,6 +398,8 @@ export function reconstructUserRecord(
     | {
         animeCompleted?: MediaListCollection;
         mangaCompleted?: MediaListCollection;
+        animeDropped?: MediaListCollection;
+        mangaDropped?: MediaListCollection;
       }
     | undefined;
 
@@ -408,6 +448,8 @@ export function reconstructUserRecord(
     threadsPage,
     threadCommentsPage,
     reviewsPage,
+    userReviews,
+    userRecommendations,
     animePlanning: planningInput?.animePlanning,
     mangaPlanning: planningInput?.mangaPlanning,
     animeCurrent: currentInput?.animeCurrent,
@@ -416,6 +458,8 @@ export function reconstructUserRecord(
     mangaReread: rewatchedInput?.mangaReread,
     animeCompleted: completedInput?.animeCompleted,
     mangaCompleted: completedInput?.mangaCompleted,
+    animeDropped: completedInput?.animeDropped,
+    mangaDropped: completedInput?.mangaDropped,
   };
 
   const {
@@ -589,7 +633,6 @@ export const CARD_TYPE_TO_PARTS: Record<string, UserDataPart[]> = {
   recentActivitySummary: ["meta", "stats"],
   recentActivityFeed: ["meta", "stats"],
   activityStreaks: ["meta", "stats"],
-  activityPatterns: ["meta", "stats"],
   topActivityDays: ["meta", "stats"],
   statusCompletionOverview: ["meta", "statistics"],
   milestones: ["meta", "statistics"],
@@ -606,6 +649,11 @@ export const CARD_TYPE_TO_PARTS: Record<string, UserDataPart[]> = {
   startYearMomentum: ["meta", "statistics"],
   lengthPreference: ["meta", "statistics"],
   animeEpisodeLengthPreferences: ["meta", "statistics"],
+  tagCategoryDistribution: ["meta", "statistics"],
+  tagDiversity: ["meta", "statistics"],
+  seasonalViewingPatterns: ["meta", "stats"],
+  droppedMedia: ["meta", "completed"],
+  reviewStats: ["meta", "pages"],
 };
 
 /**

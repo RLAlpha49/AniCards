@@ -70,7 +70,6 @@ const ALLOWED_CARD_TYPES = new Set([
   "recentActivitySummary",
   "recentActivityFeed",
   "activityStreaks",
-  "activityPatterns",
   "topActivityDays",
   "statusCompletionOverview",
   "milestones",
@@ -86,6 +85,11 @@ const ALLOWED_CARD_TYPES = new Set([
   "releaseEraPreference",
   "startYearMomentum",
   "lengthPreference",
+  "tagCategoryDistribution",
+  "tagDiversity",
+  "seasonalViewingPatterns",
+  "droppedMedia",
+  "reviewStats",
 ]);
 
 /**

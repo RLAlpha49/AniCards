@@ -216,11 +216,6 @@ export const CARD_GROUPS: CardGroup[] = [
     variations: ["default"],
   },
   {
-    cardType: "activityPatterns",
-    cardTitle: "Activity Patterns",
-    variations: ["default"],
-  },
-  {
     cardType: "topActivityDays",
     cardTitle: "Top Activity Days",
     variations: ["default"],

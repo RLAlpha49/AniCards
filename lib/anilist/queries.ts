@@ -144,6 +144,7 @@ const USER_STATS_USER_FIELDS = `
       large
       medium
     }
+    bannerImage
     createdAt
     favourites {
       anime (page: 1, perPage: 25) {
@@ -253,6 +254,42 @@ const USER_STATS_PAGES = `
       id
     }
   }
+  userReviews: Page(page: 1, perPage: 50) {
+    reviews(userId: $userId, sort: CREATED_AT_DESC) {
+      id
+      score
+      rating
+      ratingAmount
+      summary
+      createdAt
+      media {
+        id
+        title {
+          romaji
+        }
+        type
+        genres
+      }
+    }
+  }
+  userRecommendations: Page(page: 1, perPage: 25) {
+    recommendations(userId: $userId, sort: RATING_DESC) {
+      id
+      rating
+      media {
+        id
+        title {
+          romaji
+        }
+      }
+      mediaRecommendation {
+        id
+        title {
+          romaji
+        }
+      }
+    }
+  }
 `;
 
 const USER_STATS_ANIME_LISTS = `
@@ -340,6 +377,27 @@ const USER_STATS_ANIME_LISTS = `
           source
           season
           seasonYear
+          averageScore
+        }
+      }
+    }
+  }
+  animeDropped: MediaListCollection(userId: $userId, type: ANIME, status: DROPPED, sort: UPDATED_TIME_DESC) {
+    lists {
+      entries {
+        id
+        progress
+        score
+        media {
+          id
+          title {
+            english
+            romaji
+            native
+          }
+          genres
+          episodes
+          format
         }
       }
     }
@@ -425,6 +483,29 @@ const USER_STATS_MANGA_LISTS = `
             romaji
             native
           }
+          genres
+          chapters
+          volumes
+          format
+          averageScore
+        }
+      }
+    }
+  }
+  mangaDropped: MediaListCollection(userId: $userId, type: MANGA, status: DROPPED, sort: UPDATED_TIME_DESC) {
+    lists {
+      entries {
+        id
+        progress
+        score
+        media {
+          id
+          title {
+            english
+            romaji
+            native
+          }
+          genres
           chapters
           volumes
           format

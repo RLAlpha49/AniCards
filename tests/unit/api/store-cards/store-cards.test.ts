@@ -174,6 +174,42 @@ describe("Store Cards API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(400);
     });
+
+    it("should return invalid names and suggestions for typos", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 542244,
+        statsData: {},
+        cards: [
+          {
+            cardName: "tagCategoryDistribution",
+            variation: "default",
+            titleColor: "#000",
+            backgroundColor: "#fff",
+            textColor: "#333",
+            circleColor: "#f00",
+          },
+          {
+            cardName: "tagCategoryDistribuution", // typo
+            variation: "default",
+            titleColor: "#000",
+            backgroundColor: "#fff",
+            textColor: "#333",
+            circleColor: "#f00",
+          },
+        ],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(Array.isArray(data.invalidCardNames)).toBe(true);
+      expect(data.invalidCardNames).toContain("tagCategoryDistribuution");
+      expect(data.suggestions).toBeDefined();
+      expect(data.suggestions["tagCategoryDistribuution"]).toContain(
+        "tagCategoryDistribution",
+      );
+    });
   });
 
   describe("Basic Storage", () => {
