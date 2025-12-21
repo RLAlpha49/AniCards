@@ -31,6 +31,7 @@ This is an engineering task (not research-only). Follow the repo conventions, us
 6. Add (or extend) an SVG template under `lib/svg-templates/*` and wire it into `lib/card-generator.ts` (add a case that returns the new template). Follow the project patterns for naming, variants and `TrustedSVG` returns.
 7. Add or update unit tests (under `tests/unit`) to assert the UI & API behavior for the new types; do NOT add E2E tests.
 8. Run and pass `bun test` before declaring work done.
+9. Use subagents at required checkpoints: call `Plan` before making edits for a Section or multiple cards (MANDATORY); call `Expert Next.js Developer` before any backend/API/query/schema changes; call `Janitor` as the final step to run tests, fix failing unit tests, run formatters/linters, and apply safe cleanups. Convert the `Plan` output into a `manage_todo_list` todo list and follow the project's planning progress rules (exactly one todo `in-progress`, mark completed immediately after finishing, add follow-ups as needed).
 
 ## Implementation checklist (detailed)
 
@@ -78,18 +79,50 @@ For each card type in the selected doc section:
 - Start the dev server (`bun run dev` / `next dev`) and use the site to generate a preview via the UI.
 - Use the Chrome DevTools automation tools to call the API endpoint directly and inspect the returned SVG.
 
-## When to spawn a subagent
+## Subagent usage (MANDATORY)
 
-- Use the `Plan` subagent when you need repository-wide discovery or a proposed implementation plan for many cards (produce a per-card TODO list).
-- Use `Expert Next.js Developer` subagent for risky architectural changes (e.g., schema changes, caching semantics, complex refactors) and have it run a quick verification (search for impacted symbols and tests).
+This workflow requires calling subagents at specific checkpoints. Do not proceed with multi-card/section requests or non-trivial changes until the appropriate subagents have been consulted and their outputs have been applied.
 
-When using a subagent: pass the exact list of cards to implement, what files to check/update, and the verification steps you expect (unit tests added + manual preview checks).
+**Plan** (MANDATORY first step)
 
-- Use the `Janitor` subagent as the final step to review and automatically fix issues after implementation. Run it with the following instructions:
-  - Review all changes made for the card implementation (source files, tests, and docs).
-  - Run `bun test` and fix any failing unit tests; re-run tests until they pass.
-  - Run formatters and linters (e.g., Prettier/ESLint) and apply fixes where appropriate.
-  - Apply safe, small refactors and cleanup (remove dead code, improve typings, consolidate duplicates) without making unreviewed behavioral changes; if a substantial design decision is required, report it instead of applying it.
+- Call the `Plan` subagent at the start when the user requests a Section or atleast one CardType, or whenever you are unsure of scope. Provide:
+  - `cards`: the exact list of card IDs/names to implement
+  - `scope`: file globs to inspect (for example `components/stat-card-generator/**`, `lib/**`, `tests/**`)
+  - `expected deliverables`: a per-card TODO list following this prompt's Implementation checklist, prioritized order, estimated files to change, and risk flags (e.g., requires new AniList fields)
+  - `verification steps`: unit tests to add, build & run instructions, manual preview URL(s)
+- Wait for Plan's output, convert each plan item into a `manage_todo_list` TODO, mark exactly one todo `in-progress`, and do not begin edits until that is done.
+
+**Expert Next.js Developer** (MANDATORY for backend/query/schema/caching changes)
+
+- For any change that affects AniList queries, server-side fetching, API routes, caching, or architecture, call the `Expert Next.js Developer` subagent before editing. Provide:
+  - the list of cards and the fields/areas you plan to change
+  - files you expect will be impacted
+  - a request to run a repository search for impacted symbols and tests and to provide a short risk assessment and implementation guidance
+- Apply its recommendations (safer migration steps, tests to add, search results) before proceeding.
+
+**Janitor** (MANDATORY final step)
+
+- After implementing code and tests, call the `Janitor` subagent with instructions to:
+  - run `bun run typecheck` and fail on type errors
+  - run `bun test` and fix failing unit tests until all pass
+  - run `bun run format:write` and `bun run lint -- --fix`, then re-run lint/format to verify
+  - perform safe cleanups and simplifications (ensure each cleanup is covered by tests):
+    - remove unused imports, variables, functions, and exports
+    - remove dead branches and commented-out code
+    - consolidate duplicate logic into shared helpers and add tests
+    - inline single-use helpers where appropriate and safe
+    - tighten types and remove unnecessary `any` usages when covered by tests
+    - update or remove obsolete/duplicate tests
+    - etc.
+  - produce a short report summarizing: tests/lint results, list of files changed/removed, deleted symbols, tests added/modified, and any follow-up todos converted to `manage_todo_list` items
+- Only finalize the change and mark the task done after Janitor confirms tests pass and lint/format issues are fixed.
+
+**Notes and invocation tips**
+
+- Pass precise, machine-friendly inputs to subagents (cards, file globs, expected outputs) and use their output to create/manage todos.
+- Stop and ask the user for clarification if any subagent reports a blocking issue.
+
+This is a mandatory requirement: failing to call the required subagent(s) at the specified checkpoints is a violation of this prompt's workflow.
 
 ## Example checklist
 

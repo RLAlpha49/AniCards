@@ -63,8 +63,6 @@ Clean any codebase by eliminating tech debt. Every line of code is potential deb
 
 ## Research Tools
 
-Use `microsoft.docs.mcp` for:
-
 - Language-specific best practices
 - Modern syntax patterns
 - Performance optimization guides
