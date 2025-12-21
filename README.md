@@ -19,44 +19,82 @@ Submit your design concepts (sketches, Figma files, or detailed descriptions) an
 
 ## 📊 Available Card Types
 
-### Statistics
+Each card has a `cardType` ID and supports one or more `variation` values.
 
-- **Anime Statistics**: Overview of anime watched, episodes, and time spent.
-  - Variations: Default, Vertical, Compact, Minimal
-- **Manga Statistics**: Overview of manga read, chapters, and volumes.
-  - Variations: Default, Vertical, Compact, Minimal
-- **Social Statistics**: Followers, following, and activity stats.
-  - Variations: Default, Compact, Minimal
+### Main Stats
 
-### Content Breakdown
+- **Anime Statistics** (`animeStats`) — Variations: Default, Vertical, Compact, Minimal
+- **Manga Statistics** (`mangaStats`) — Variations: Default, Vertical, Compact, Minimal
+- **Social Statistics** (`socialStats`) — Variations: Default, Compact, Minimal, Community Footprint
+- **Social Milestones** (`socialMilestones`) — Variations: Default
 
-- **Genres**: Top genres for Anime or Manga.
-  - Variations: Default, Pie Chart, Bar Chart
-- **Tags**: Top tags for Anime or Manga.
-  - Variations: Default, Pie Chart, Bar Chart
-- **Voice Actors**: Top voice actors.
-  - Variations: Default, Pie Chart, Bar Chart
-- **Studios**: Top animation studios.
-  - Variations: Default, Pie Chart, Bar Chart
-- **Staff**: Top staff members for Anime or Manga.
-  - Variations: Default, Pie Chart, Bar Chart
+### Profile & Favourites
 
-### Distributions
+- **Profile Overview** (`profileOverview`) — Variations: Default, Compact, Minimal
+- **Favourites Summary** (`favoritesSummary`) — Variations: Default, Compact, Minimal
+- **Favourites Grid** (`favoritesGrid`) — Variations: Anime, Manga, Characters, Mixed
+  - Optional layout params: `gridCols` (1–5), `gridRows` (1–5)
 
-- **Status Distribution**: Breakdown by watching/reading status.
-  - Variations: Default, Pie Chart, Bar Chart
-- **Format Distribution**: Breakdown by media format (TV, Movie, etc.).
-  - Variations: Default, Pie Chart, Bar Chart
-- **Source Material Distribution**: Breakdown by adaptation source (Manga, Original, Light Novel, etc.).
-  - Variations: Default, Pie Chart, Donut Chart, Bar Chart
-- **Country Distribution**: Breakdown by country of origin.
-  - Variations: Default, Pie Chart, Bar Chart
-- **Seasonal Preference**: Breakdown by anime release season (Winter/Spring/Summer/Fall).
-  - Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
-- **Score Distribution**: Distribution of scores given.
-  - Variations: Default, Horizontal
-- **Year Distribution**: Distribution of content by release year.
-  - Variations: Default, Horizontal
+### Anime Breakdowns
+
+- **Anime Genres** (`animeGenres`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
+- **Anime Tags** (`animeTags`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
+- **Voice Actors** (`animeVoiceActors`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
+  - Optional flag: `showFavorites`
+- **Animation Studios** (`animeStudios`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
+  - Optional flag: `showFavorites`
+- **Anime Staff** (`animeStaff`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
+  - Optional flag: `showFavorites`
+- **Anime Status Distribution** (`animeStatusDistribution`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
+  - Optional flag: `statusColors`
+- **Anime Format Distribution** (`animeFormatDistribution`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
+- **Anime Source Material Distribution** (`animeSourceMaterialDistribution`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
+- **Anime Seasonal Preference** (`animeSeasonalPreference`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
+- **Anime Country Distribution** (`animeCountry`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
+- **Anime Score Distribution** (`animeScoreDistribution`) — Variations: Default, Horizontal, Cumulative
+- **Anime Year Distribution** (`animeYearDistribution`) — Variations: Default, Horizontal
+
+### Manga Breakdowns
+
+- **Manga Genres** (`mangaGenres`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
+- **Manga Tags** (`mangaTags`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
+- **Manga Staff** (`mangaStaff`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
+  - Optional flag: `showFavorites`
+- **Manga Status Distribution** (`mangaStatusDistribution`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
+  - Optional flag: `statusColors`
+- **Manga Format Distribution** (`mangaFormatDistribution`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
+- **Manga Country Distribution** (`mangaCountry`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
+- **Manga Score Distribution** (`mangaScoreDistribution`) — Variations: Default, Horizontal, Cumulative
+- **Manga Year Distribution** (`mangaYearDistribution`) — Variations: Default, Horizontal
+
+### Activity & Time
+
+- **Activity Heatmap** (`activityHeatmap`) — Variations: Default, GitHub, Fire
+- **Recent Activity Summary** (`recentActivitySummary`) — Variations: Default
+- **Recent Activity Feed** (`recentActivityFeed`) — Variations: Default
+- **Activity Streaks** (`activityStreaks`) — Variations: Default
+- **Activity Patterns** (`activityPatterns`) — Variations: Default
+- **Top Activity Days** (`topActivityDays`) — Variations: Default
+
+### Completion & Progress
+
+- **Status Completion Overview** (`statusCompletionOverview`) — Variations: Combined, Split
+- **Consumption Milestones** (`milestones`) — Variations: Default
+- **Personal Records** (`personalRecords`) — Variations: Default
+- **Planning Backlog** (`planningBacklog`) — Variations: Default
+- **Most Rewatched/Reread** (`mostRewatched`) — Variations: Default, Anime, Manga
+- **Currently Watching / Reading** (`currentlyWatchingReading`) — Variations: Default, Anime, Manga
+
+### Comparisons
+
+- **Anime vs Manga Overview** (`animeMangaOverview`) — Variations: Default
+- **Anime vs Manga Score Comparison** (`scoreCompareAnimeManga`) — Variations: Default
+- **Country Diversity** (`countryDiversity`) — Variations: Default
+- **Genre Diversity** (`genreDiversity`) — Variations: Default
+- **Format Preference Overview** (`formatPreferenceOverview`) — Variations: Default
+- **Release Era Preference** (`releaseEraPreference`) — Variations: Default
+- **Start-Year Momentum** (`startYearMomentum`) — Variations: Default
+- **Length Preference** (`lengthPreference`) — Variations: Default
 
 ## 🛠️ Customization
 

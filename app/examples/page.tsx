@@ -87,6 +87,13 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
     icon: Users,
     color: "green",
   },
+  {
+    title: "Social Milestones",
+    description: "Milestones and achievements based on your social activity",
+    category: "Main Stats",
+    icon: TrendingUp,
+    color: "emerald",
+  },
 
   // Profile & Favourites
   {
@@ -165,6 +172,22 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
     category: "Anime Breakdowns",
     icon: PieChart,
     color: "violet",
+  },
+  {
+    title: "Anime Source Material Distribution",
+    description:
+      "Breakdown of anime by source material (Manga, Original, Light Novel, etc.)",
+    category: "Anime Breakdowns",
+    icon: PieChart,
+    color: "orange",
+  },
+  {
+    title: "Anime Seasonal Preference",
+    description:
+      "Breakdown of anime releases by season (Winter/Spring/Summer/Fall)",
+    category: "Anime Breakdowns",
+    icon: Calendar,
+    color: "amber",
   },
   {
     title: "Anime Country Distribution",
@@ -327,6 +350,14 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
     category: "Completion & Progress",
     icon: Activity,
     color: "lime",
+  },
+  {
+    title: "Currently Watching / Reading",
+    description:
+      "Snapshot of what you're currently watching/reading with anime-only and manga-only views",
+    category: "Completion & Progress",
+    icon: Clock,
+    color: "cyan",
   },
 
   // Comparisons

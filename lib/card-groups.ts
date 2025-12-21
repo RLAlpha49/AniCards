@@ -17,6 +17,7 @@ export const VARIATION_LABEL_MAP: Record<string, string> = {
   bar: "Bar Chart",
   radar: "Radar Chart",
   horizontal: "Horizontal",
+  cumulative: "Cumulative",
   anime: "Anime",
   manga: "Manga",
   characters: "Characters",
@@ -115,9 +116,19 @@ export const CARD_GROUPS: CardGroup[] = [
     variations: ["default", "pie", "donut", "bar"],
   },
   {
+    cardType: "animeSourceMaterialDistribution",
+    cardTitle: "Anime Source Material Distribution",
+    variations: ["default", "pie", "donut", "bar"],
+  },
+  {
+    cardType: "animeSeasonalPreference",
+    cardTitle: "Anime Seasonal Preference",
+    variations: ["default", "pie", "donut", "bar", "radar"],
+  },
+  {
     cardType: "animeScoreDistribution",
     cardTitle: "Anime Score Distribution",
-    variations: ["default", "horizontal"],
+    variations: ["default", "horizontal", "cumulative"],
   },
   {
     cardType: "animeYearDistribution",
@@ -162,7 +173,7 @@ export const CARD_GROUPS: CardGroup[] = [
   {
     cardType: "mangaScoreDistribution",
     cardTitle: "Manga Score Distribution",
-    variations: ["default", "horizontal"],
+    variations: ["default", "horizontal", "cumulative"],
   },
   {
     cardType: "mangaYearDistribution",
@@ -172,12 +183,12 @@ export const CARD_GROUPS: CardGroup[] = [
   {
     cardType: "profileOverview",
     cardTitle: "Profile Overview",
-    variations: ["default"],
+    variations: ["default", "compact", "minimal"],
   },
   {
     cardType: "favoritesSummary",
     cardTitle: "Favourites Summary",
-    variations: ["default"],
+    variations: ["default", "compact", "minimal"],
   },
   {
     cardType: "favoritesGrid",
@@ -227,7 +238,7 @@ export const CARD_GROUPS: CardGroup[] = [
   {
     cardType: "personalRecords",
     cardTitle: "Personal Records",
-    variations: ["default", "compact"],
+    variations: ["default"],
   },
   {
     cardType: "planningBacklog",
