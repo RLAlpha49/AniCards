@@ -84,7 +84,11 @@ const createCardType = (
 const getAnimeBreakdownVariations = (cardId: string) => {
   if (cardId.endsWith("StatusDistribution"))
     return statusDistributionVariations;
-  if (cardId === "animeGenres" || cardId === "animeTags") {
+  if (
+    cardId === "animeGenres" ||
+    cardId === "animeTags" ||
+    cardId === "animeSeasonalPreference"
+  ) {
     return genreTagDistributionVariations;
   }
   return pieBarVariations;
@@ -113,6 +117,10 @@ const animeBreakdownCards = [
   {
     id: "animeSourceMaterialDistribution",
     label: "Anime Source Material Distribution",
+  },
+  {
+    id: "animeSeasonalPreference",
+    label: "Anime Seasonal Preference (Winter/Spring/Summer/Fall)",
   },
   { id: "animeCountry", label: "Anime Country" },
 ];

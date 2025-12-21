@@ -261,6 +261,8 @@ export interface MediaListEntry {
     averageScore?: number;
     format?: string;
     source?: string;
+    season?: string;
+    seasonYear?: number;
   };
 }
 
@@ -301,12 +303,19 @@ export interface SourceMaterialDistributionTotalsEntry {
   count: number;
 }
 
+/** Stored bucket counts for the Anime Seasonal Preference card. @source */
+export interface SeasonalPreferenceTotalsEntry {
+  season: string;
+  count: number;
+}
+
 /** Redis user record shape used for persisting user data and stats. @source */
 export interface UserRecord {
   userId: string;
   username?: string;
   stats: UserStatsData;
   animeSourceMaterialDistributionTotals?: SourceMaterialDistributionTotalsEntry[];
+  animeSeasonalPreferenceTotals?: SeasonalPreferenceTotalsEntry[];
   statistics?: UserSection["statistics"];
   favourites?: UserSection["favourites"];
   pages?: {

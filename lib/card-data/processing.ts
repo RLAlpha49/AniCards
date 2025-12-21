@@ -306,3 +306,107 @@ export function toTemplateAnimeSourceMaterialDistribution(
 
   return [...head, { name: "Other", count: otherCount }];
 }
+
+const SEASON_LABEL_OVERRIDES: Record<string, string> = {
+  WINTER: "Winter",
+  SPRING: "Spring",
+  SUMMER: "Summer",
+  FALL: "Fall",
+  UNKNOWN: "Unknown",
+};
+
+function normalizeSeason(value: string | undefined): string {
+  const raw = (value ?? "").trim().toUpperCase();
+  if (
+    raw === "WINTER" ||
+    raw === "SPRING" ||
+    raw === "SUMMER" ||
+    raw === "FALL"
+  ) {
+    return raw;
+  }
+  return "UNKNOWN";
+}
+
+function toSeasonLabel(season: string): string {
+  const key = normalizeSeason(season);
+  return SEASON_LABEL_OVERRIDES[key] ?? "Unknown";
+}
+
+function addSeasonCount(
+  map: Map<string, number>,
+  season: string | undefined,
+  count: number,
+): void {
+  const key = normalizeSeason(season);
+  const safeCount = Number.isFinite(count) ? count : 0;
+  if (safeCount <= 0) return;
+  map.set(key, (map.get(key) ?? 0) + safeCount);
+}
+
+function seasonCountsFromStoredTotals(
+  totals: UserRecord["animeSeasonalPreferenceTotals"],
+): Map<string, number> | null {
+  if (!Array.isArray(totals) || totals.length === 0) return null;
+  const map = new Map<string, number>();
+  for (const item of totals) {
+    addSeasonCount(map, item.season, item.count);
+  }
+  return map.size > 0 ? map : null;
+}
+
+function seasonCountsFromLists(userRecord: UserRecord): Map<string, number> {
+  const completed = extractMediaListEntries(userRecord.stats?.animeCompleted);
+  const current = extractMediaListEntries(userRecord.stats?.animeCurrent);
+
+  const uniqueByMediaId = new Map<number, MediaListEntry>();
+  for (const entry of [...completed, ...current]) {
+    const mediaId = entry.media?.id;
+    if (!mediaId) continue;
+    if (!uniqueByMediaId.has(mediaId)) uniqueByMediaId.set(mediaId, entry);
+  }
+
+  const map = new Map<string, number>();
+  for (const entry of uniqueByMediaId.values()) {
+    addSeasonCount(map, entry.media.season, 1);
+  }
+  return map;
+}
+
+/**
+ * Computes a distribution of anime titles by release season.
+ *
+ * Uses the user's anime CURRENT + COMPLETED lists and counts unique titles
+ * (deduped by media id). Prefers stored totals computed at write time.
+ * @source
+ */
+export function toTemplateAnimeSeasonalPreference(
+  userRecord: UserRecord,
+): {
+  name: string;
+  count: number;
+}[] {
+  const seasonToCount =
+    seasonCountsFromStoredTotals(userRecord.animeSeasonalPreferenceTotals) ??
+    seasonCountsFromLists(userRecord);
+
+  const order = ["WINTER", "SPRING", "SUMMER", "FALL"];
+  const items = order.map((season) => ({
+    name: toSeasonLabel(season),
+    count: seasonToCount.get(season) ?? 0,
+  }));
+
+  const unknownCount = seasonToCount.get("UNKNOWN") ?? 0;
+  const withUnknown =
+    unknownCount > 0
+      ? [...items, { name: toSeasonLabel("UNKNOWN"), count: unknownCount }]
+      : items;
+
+  const total = withUnknown.reduce(
+    (sum, item) => sum + Math.max(0, item.count),
+    0,
+  );
+  if (total <= 0) return [];
+
+  return withUnknown;
+}

@@ -29,6 +29,7 @@ export {
   toTemplateAnimeStats,
   toTemplateMangaStats,
   toTemplateAnimeSourceMaterialDistribution,
+  toTemplateAnimeSeasonalPreference,
   mapCategoryItem,
   processFavorites,
 } from "./processing";

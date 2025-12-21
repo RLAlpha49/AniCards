@@ -2,6 +2,7 @@ import { calculateMilestones } from "@/lib/utils/milestones";
 import { extractStyles } from "@/lib/utils";
 import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/shared";
 import { animeSourceMaterialDistributionTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-source-material-distribution-template";
+import { animeSeasonalPreferenceTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-seasonal-preference-template";
 import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats/shared";
 import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
 import { socialMilestonesTemplate } from "@/lib/svg-templates/social-community/social-milestones-template";
@@ -42,6 +43,7 @@ import {
   toTemplateMangaStats,
   toTemplateSocialStats,
   toTemplateAnimeSourceMaterialDistribution,
+  toTemplateAnimeSeasonalPreference,
   mapCategoryItem,
   displayNames,
   CardDataError,
@@ -218,6 +220,7 @@ function normalizeVariant(
     animeFormatDistribution: pieBarVariants,
     mangaFormatDistribution: pieBarVariants,
     animeSourceMaterialDistribution: pieBarVariants,
+    animeSeasonalPreference: genreTagVariants,
     animeCountry: pieBarVariants,
     mangaCountry: pieBarVariants,
     animeScoreDistribution: scoreDistributionVariants,
@@ -459,6 +462,8 @@ export async function generateCardSvg(
       return generateFormatDistributionCard(params, baseCardType);
     case "animeSourceMaterialDistribution":
       return generateSourceMaterialDistributionCard(params);
+    case "animeSeasonalPreference":
+      return generateSeasonalPreferenceCard(params);
     case "animeScoreDistribution":
     case "mangaScoreDistribution":
       return generateDistributionCard(params, baseCardType, "score");
@@ -783,6 +788,38 @@ function generateSourceMaterialDistributionCard(
   ) as PieBarVariant;
 
   return animeSourceMaterialDistributionTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: mappedVariant,
+    styles: extractStyles(cardConfig),
+    stats: statsList,
+    showPieChart: mappedVariant === "pie",
+    showPiePercentages: !!cardConfig.showPiePercentages,
+  });
+}
+
+/**
+ * Generate an Anime Seasonal Preference card showing counts by release season.
+ * Data is computed from the user's anime CURRENT + COMPLETED lists.
+ * @source
+ */
+function generateSeasonalPreferenceCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+
+  const statsList = toTemplateAnimeSeasonalPreference(userRecord);
+  if (!statsList.length) {
+    throw new CardDataError(
+      "Not Found: No seasonal preference data for this user",
+      404,
+    );
+  }
+
+  const mappedVariant = (
+    ["pie", "bar", "donut", "radar"].includes(variant) ? variant : "default"
+  ) as ExtraStatsVariant;
+
+  return animeSeasonalPreferenceTemplate({
     username: userRecord.username ?? userRecord.userId,
     variant: mappedVariant,
     styles: extractStyles(cardConfig),

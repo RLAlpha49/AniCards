@@ -685,6 +685,9 @@ export const extraStatsTemplates = {
   mangaStaff: createExtraStatsTemplate(displayNames["mangaStaff"]),
   animeStudios: createExtraStatsTemplate(displayNames["animeStudios"]),
   animeVoiceActors: createExtraStatsTemplate(displayNames["animeVoiceActors"]),
+  animeSeasonalPreference: createExtraStatsTemplate(
+    displayNames["animeSeasonalPreference"],
+  ),
   animeStatusDistribution: createExtraStatsTemplate(
     displayNames["animeStatusDistribution"],
   ),

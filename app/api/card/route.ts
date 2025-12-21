@@ -54,6 +54,7 @@ const ALLOWED_CARD_TYPES = new Set([
   "animeFormatDistribution",
   "mangaFormatDistribution",
   "animeSourceMaterialDistribution",
+  "animeSeasonalPreference",
   "animeScoreDistribution",
   "mangaScoreDistribution",
   "animeYearDistribution",

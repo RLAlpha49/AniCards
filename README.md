@@ -47,8 +47,12 @@ Submit your design concepts (sketches, Figma files, or detailed descriptions) an
   - Variations: Default, Pie Chart, Bar Chart
 - **Format Distribution**: Breakdown by media format (TV, Movie, etc.).
   - Variations: Default, Pie Chart, Bar Chart
+- **Source Material Distribution**: Breakdown by adaptation source (Manga, Original, Light Novel, etc.).
+  - Variations: Default, Pie Chart, Donut Chart, Bar Chart
 - **Country Distribution**: Breakdown by country of origin.
   - Variations: Default, Pie Chart, Bar Chart
+- **Seasonal Preference**: Breakdown by anime release season (Winter/Spring/Summer/Fall).
+  - Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
 - **Score Distribution**: Distribution of scores given.
   - Variations: Default, Horizontal
 - **Year Distribution**: Distribution of content by release year.

@@ -10,6 +10,7 @@ import {
   MediaListCollection,
   MediaListEntry,
   SourceMaterialDistributionTotalsEntry,
+  SeasonalPreferenceTotalsEntry,
   UserAvatar,
 } from "@/lib/types/records";
 import type { ErrorCategory, RecoverySuggestion } from "@/lib/error-messages";
@@ -87,6 +88,7 @@ export const displayNames: { [key: string]: string } = {
   animeFormatDistribution: "Anime Formats",
   mangaFormatDistribution: "Manga Formats",
   animeSourceMaterialDistribution: "Anime Source Materials",
+  animeSeasonalPreference: "Anime Seasons",
   animeScoreDistribution: "Anime Scores",
   mangaScoreDistribution: "Manga Scores",
   animeYearDistribution: "Anime Years",
@@ -609,6 +611,8 @@ export function validateAndNormalizeUserRecord(
         averageScore: coerceNumber(media?.averageScore),
         format: getNestedString(media, ["format"]) || undefined,
         source: getNestedString(media, ["source"]) || undefined,
+        season: getNestedString(media, ["season"]) || undefined,
+        seasonYear: coerceNumber(media?.seasonYear),
       },
     } as MediaListEntry;
   };
@@ -724,6 +728,29 @@ export function validateAndNormalizeUserRecord(
     return normalized.length ? normalized : undefined;
   };
 
+  const normalizeStoredSeasonTotals = (
+    value: unknown,
+  ): SeasonalPreferenceTotalsEntry[] | undefined => {
+    if (!Array.isArray(value)) return undefined;
+
+    const normalized = value
+      .map((item) => {
+        if (!item || typeof item !== "object") return null;
+        const rec = item as Record<string, unknown>;
+        const season = typeof rec.season === "string" ? rec.season : "";
+        const count =
+          typeof rec.count === "number" && Number.isFinite(rec.count)
+            ? rec.count
+            : Number.NaN;
+        if (!season.trim() || !Number.isFinite(count) || count <= 0)
+          return null;
+        return { season: season.trim(), count };
+      })
+      .filter((x): x is SeasonalPreferenceTotalsEntry => x !== null);
+
+    return normalized.length ? normalized : undefined;
+  };
+
   /**
    * Compute pre-aggregated totals for Source Material Distribution.
    *
@@ -763,8 +790,59 @@ export function validateAndNormalizeUserRecord(
       .sort((a, b) => b.count - a.count);
   };
 
+  /**
+   * Compute pre-aggregated totals for the Anime Seasonal Preference card.
+   *
+   * IMPORTANT: This uses the *full* CURRENT + COMPLETED lists as returned by AniList
+   * (after normalization), before we prune what gets persisted to Redis.
+   */
+  const computeAnimeSeasonalPreferenceTotals = ():
+    | SeasonalPreferenceTotalsEntry[]
+    | undefined => {
+    const completedFull = normalizeMediaListCollection(statsData.animeCompleted);
+    const currentFull = normalizeMediaListCollection(statsData.animeCurrent);
+
+    const completedEntries =
+      completedFull?.lists.flatMap((l) => l.entries) ?? [];
+    const currentEntries = currentFull?.lists.flatMap((l) => l.entries) ?? [];
+    const all = [...completedEntries, ...currentEntries];
+    if (!all.length) return undefined;
+
+    const uniqueByMediaId = new Map<number, MediaListEntry>();
+    for (const entry of all) {
+      const mediaId = entry.media?.id;
+      if (!mediaId) continue;
+      if (!uniqueByMediaId.has(mediaId)) uniqueByMediaId.set(mediaId, entry);
+    }
+
+    const normalizeSeason = (v: string | undefined): string => {
+      const raw = (v ?? "").trim().toUpperCase();
+      if (raw === "WINTER" || raw === "SPRING" || raw === "SUMMER" || raw === "FALL") {
+        return raw;
+      }
+      return "UNKNOWN";
+    };
+
+    const counts = new Map<string, number>();
+    for (const entry of uniqueByMediaId.values()) {
+      const season = normalizeSeason(entry.media.season);
+      counts.set(season, (counts.get(season) ?? 0) + 1);
+    }
+
+    const order = ["WINTER", "SPRING", "SUMMER", "FALL", "UNKNOWN"];
+    const items = order
+      .map((season) => ({ season, count: counts.get(season) ?? 0 }))
+      .filter((x) => x.count > 0);
+
+    return items.length ? items : undefined;
+  };
+
   const storedAnimeSourceTotals = normalizeStoredSourceTotals(
     (user as Record<string, unknown>).animeSourceMaterialDistributionTotals,
+  );
+
+  const storedAnimeSeasonTotals = normalizeStoredSeasonTotals(
+    (user as Record<string, unknown>).animeSeasonalPreferenceTotals,
   );
 
   const combineUnique = (
@@ -847,6 +925,8 @@ export function validateAndNormalizeUserRecord(
     updatedAt: String(user.updatedAt ?? new Date().toISOString()),
     animeSourceMaterialDistributionTotals:
       storedAnimeSourceTotals ?? computeAnimeSourceMaterialDistributionTotals(),
+    animeSeasonalPreferenceTotals:
+      storedAnimeSeasonTotals ?? computeAnimeSeasonalPreferenceTotals(),
     stats: {
       followersPage: normalizePage(statsData.followersPage, {
         itemsKey: "followers",

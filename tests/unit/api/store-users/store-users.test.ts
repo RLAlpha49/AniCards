@@ -480,6 +480,108 @@ describe("Store Users API", () => {
       expect(totals).toContainEqual({ source: "UNKNOWN", count: 1 });
     });
 
+    it("should compute and store animeSeasonalPreferenceTotals before pruning", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockSet.mockResolvedValue(true);
+
+      const statsPayload = {
+        User: {
+          statistics: {
+            anime: {},
+            manga: {},
+          },
+          stats: {
+            activityHistory: [],
+          },
+        },
+        followersPage: { pageInfo: { total: 0 }, followers: [] },
+        followingPage: { pageInfo: { total: 0 }, following: [] },
+        threadsPage: { pageInfo: { total: 0 }, threads: [] },
+        threadCommentsPage: { pageInfo: { total: 0 }, threadComments: [] },
+        reviewsPage: { pageInfo: { total: 0 }, reviews: [] },
+        animeCurrent: {
+          lists: [
+            {
+              name: "Watching",
+              entries: [
+                {
+                  id: 1,
+                  progress: 1,
+                  media: {
+                    id: 10,
+                    season: "WINTER",
+                    seasonYear: 2024,
+                    title: { romaji: "A" },
+                  },
+                },
+                {
+                  id: 2,
+                  progress: 1,
+                  media: { id: 12, title: { romaji: "B" } },
+                },
+              ],
+            },
+          ],
+        },
+        animeCompleted: {
+          lists: [
+            {
+              name: "Completed",
+              entries: [
+                {
+                  id: 3,
+                  score: 10,
+                  media: {
+                    id: 10,
+                    season: "WINTER",
+                    seasonYear: 2024,
+                    title: { romaji: "A" },
+                  },
+                },
+                {
+                  id: 4,
+                  score: 10,
+                  media: {
+                    id: 11,
+                    season: "SPRING",
+                    seasonYear: 2024,
+                    title: { romaji: "C" },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      const reqBody = {
+        userId: 43,
+        username: "SeasonUser",
+        stats: statsPayload,
+      };
+      const req = createTestRequest(reqBody, "http://localhost");
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const metaSetCall = sharedRedisMockSet.mock.calls.find(
+        (call) => call[0] === "user:43:meta",
+      );
+      expect(metaSetCall).toBeTruthy();
+      const metaValue = JSON.parse(metaSetCall![1]);
+
+      expect(metaValue).toHaveProperty("animeSeasonalPreferenceTotals");
+      const totals = metaValue.animeSeasonalPreferenceTotals as Array<{
+        season: string;
+        count: number;
+      }>;
+
+      // Dedupes by media id across CURRENT + COMPLETED (mediaId=10 appears twice)
+      expect(totals).toContainEqual({ season: "WINTER", count: 1 });
+      expect(totals).toContainEqual({ season: "SPRING", count: 1 });
+      expect(totals).toContainEqual({ season: "UNKNOWN", count: 1 });
+    });
+
     it("should update existing user and preserve createdAt", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const existingRecord = {

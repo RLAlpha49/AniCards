@@ -56,16 +56,36 @@ mock.module("@/lib/svg-templates/social-stats", () => ({
   ),
 }));
 
-mock.module("@/lib/svg-templates/extra-anime-manga-stats/shared", () => ({
-  extraAnimeMangaStatsTemplate: mock(
+mock.module("@/lib/svg-templates/extra-anime-manga-stats/shared", () => {
+  const extraAnimeMangaStatsTemplate = mock(
     (data: {
       styles?: { borderColor?: string };
       fixedStatusColors?: boolean;
       showPiePercentages?: boolean;
+      format?: string;
     }) =>
       `<svg data-template="extra" stroke="${data.styles?.borderColor ?? "none"}" fixedStatusColors="${data.fixedStatusColors ?? false}" showPiePercentages="${data.showPiePercentages ?? false}">Extra Stats</svg>`,
-  ),
-}));
+  );
+
+  const createExtraStatsTemplate = (format: string) => {
+    return (input: {
+      styles?: { borderColor?: string };
+      fixedStatusColors?: boolean;
+      showPiePercentages?: boolean;
+    }) => extraAnimeMangaStatsTemplate({ ...input, format });
+  };
+
+  // Minimal map needed for template wrappers used by the generator.
+  const extraStatsTemplates = {
+    animeSeasonalPreference: createExtraStatsTemplate("Anime Seasons"),
+  };
+
+  return {
+    extraAnimeMangaStatsTemplate,
+    createExtraStatsTemplate,
+    extraStatsTemplates,
+  };
+});
 
 mock.module("@/lib/svg-templates/distribution/shared", () => ({
   distributionTemplate: mock(
@@ -693,6 +713,86 @@ describe("Card SVG Route", () => {
       expect(callArgs.format).toBe("Anime Source Materials");
       expect(callArgs.stats).toContainEqual({ name: "Manga", count: 50 });
       expect(callArgs.stats).toContainEqual({ name: "Original", count: 25 });
+    });
+
+    it("should render animeSeasonalPreference using stored totals (split meta)", async () => {
+      const cardsData = createMockCardData("animeSeasonalPreference", "default");
+
+      // Cards record is fetched via GET first.
+      sharedRedisMockGet.mockResolvedValueOnce(cardsData);
+
+      // User record is fetched via split parts (mget). Provide meta/current/completed.
+      const metaPart = JSON.stringify({
+        userId: "542244",
+        username: "testUser",
+        ip: "127.0.0.1",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        // Stored totals should win over any pruned list entries.
+        animeSeasonalPreferenceTotals: [
+          { season: "WINTER", count: 10 },
+          { season: "SUMMER", count: 5 },
+        ],
+      });
+
+      const currentPart = JSON.stringify({
+        animeCurrent: {
+          lists: [
+            {
+              name: "All",
+              entries: [
+                {
+                  id: 1,
+                  media: { id: 1, title: { romaji: "X" }, season: "FALL" },
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      const completedPart = JSON.stringify({
+        animeCompleted: {
+          lists: [
+            {
+              name: "All",
+              entries: [
+                {
+                  id: 2,
+                  media: { id: 2, title: { romaji: "Y" }, season: "FALL" },
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      sharedRedisMockMget.mockResolvedValueOnce([
+        metaPart,
+        currentPart,
+        completedPart,
+      ]);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeSeasonalPreference",
+        }),
+      );
+
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (
+        extraAnimeMangaStatsTemplate as MockFunction<
+          typeof extraAnimeMangaStatsTemplate
+        >
+      ).mock.calls.at(-1)![0];
+
+      expect(callArgs.format).toBe("Anime Seasons");
+      expect(callArgs.stats).toContainEqual({ name: "Winter", count: 10 });
+      expect(callArgs.stats).toContainEqual({ name: "Summer", count: 5 });
     });
 
     it("should return 404 when card config is not found in DB", async () => {

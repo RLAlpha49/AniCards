@@ -295,6 +295,8 @@ const USER_STATS_ANIME_LISTS = `
           }
           format
           source
+          season
+          seasonYear
         }
       }
     }
@@ -335,6 +337,8 @@ const USER_STATS_ANIME_LISTS = `
           episodes
           format
           source
+          season
+          seasonYear
         }
       }
     }
