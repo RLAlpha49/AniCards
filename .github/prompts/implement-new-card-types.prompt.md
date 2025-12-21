@@ -12,6 +12,7 @@ You are an expert Next.js/TypeScript maintainer for **AniCards**. Your objective
 Expected usage: The user will provide either the name of a section (the exact heading) from the unified `./docs/NEW_CARD_TYPES.md` (for example: "Anime Breakdowns") OR the name of a single card type to implement (either the card ID, e.g., `animeGenres`, or the display name, e.g., "Anime Genres"). When invoked with a section name, the agent will read that section from `./docs/NEW_CARD_TYPES.md` and implement all card types listed there. When invoked with a card type name, the agent will locate the single card entry in `./docs/NEW_CARD_TYPES.md` and implement only that card.
 
 Example invocations:
+
 ```
 /implement-new-card-types Section: "Anime Breakdowns"
 /implement-new-card-types CardType: "animeGenres"
@@ -84,13 +85,13 @@ For each card type in the selected doc section:
 
 When using a subagent: pass the exact list of cards to implement, what files to check/update, and the verification steps you expect (unit tests added + manual preview checks).
 
-## Security & stable-by-default guidance
+- Use the `Janitor` subagent as the final step to review and automatically fix issues after implementation. Run it with the following instructions:
+  - Review all changes made for the card implementation (source files, tests, and docs).
+  - Run `bun test` and fix any failing unit tests; re-run tests until they pass.
+  - Run formatters and linters (e.g., Prettier/ESLint) and apply fixes where appropriate.
+  - Apply safe, small refactors and cleanup (remove dead code, improve typings, consolidate duplicates) without making unreviewed behavioral changes; if a substantial design decision is required, report it instead of applying it.
 
-- Follow `./.github/instructions/security-and-owasp.instructions.md` for input validation and SSRF prevention when adding any new network call or URL parameter handling. Validate and sanitize all user-controlled inputs in `app/api/card/route.ts`.
-- Keep the API deny-by-default by ensuring new types are only added explicitly to `ALLOWED_CARD_TYPES`.
-- Prefer optional fields and safe fallback behavior: if the user's data lacks the expected fields, return an informative user-friendly SVG error using `CardDataError` (existing pattern) rather than a server error.
-
-## Example PR checklist
+## Example checklist
 
 - [ ] Tests added/updated (unit)
 - [ ] `statCardTypes` updated
@@ -107,3 +108,4 @@ When using a subagent: pass the exact list of cards to implement, what files to 
 - All new card types in the selected section are implemented and selectable in the generator UI.
 - API endpoint renders a valid SVG for each new card type and at least the `default` variant.
 - Unit tests added and pass locally (`bun test`).
+- Code reviewed by Janitor subagent.
