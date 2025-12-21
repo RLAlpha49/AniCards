@@ -294,6 +294,7 @@ const USER_STATS_ANIME_LISTS = `
             color
           }
           format
+          source
         }
       }
     }
@@ -333,6 +334,7 @@ const USER_STATS_ANIME_LISTS = `
           }
           episodes
           format
+          source
         }
       }
     }

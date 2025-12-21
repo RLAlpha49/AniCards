@@ -9,6 +9,7 @@ import {
   MangaStatStaff,
   MediaListCollection,
   MediaListEntry,
+  SourceMaterialDistributionTotalsEntry,
   UserAvatar,
 } from "@/lib/types/records";
 import type { ErrorCategory, RecoverySuggestion } from "@/lib/error-messages";
@@ -85,6 +86,7 @@ export const displayNames: { [key: string]: string } = {
   mangaStatusDistribution: "Manga Statuses",
   animeFormatDistribution: "Anime Formats",
   mangaFormatDistribution: "Manga Formats",
+  animeSourceMaterialDistribution: "Anime Source Materials",
   animeScoreDistribution: "Anime Scores",
   mangaScoreDistribution: "Manga Scores",
   animeYearDistribution: "Anime Years",
@@ -606,6 +608,7 @@ export function validateAndNormalizeUserRecord(
         volumes: coerceNumber(media?.volumes),
         averageScore: coerceNumber(media?.averageScore),
         format: getNestedString(media, ["format"]) || undefined,
+        source: getNestedString(media, ["source"]) || undefined,
       },
     } as MediaListEntry;
   };
@@ -694,7 +697,80 @@ export function validateAndNormalizeUserRecord(
     return { ...coll, lists: [{ name: "All", entries: pruned }] };
   };
 
-  const combineUnique = (a: MediaListEntry[], b: MediaListEntry[]): MediaListEntry[] => {
+  /**
+   * If the record already contains stored totals (computed at write time), keep them.
+   * Otherwise, we can derive totals from the available list data.
+   */
+  const normalizeStoredSourceTotals = (
+    value: unknown,
+  ): SourceMaterialDistributionTotalsEntry[] | undefined => {
+    if (!Array.isArray(value)) return undefined;
+
+    const normalized = value
+      .map((item) => {
+        if (!item || typeof item !== "object") return null;
+        const rec = item as Record<string, unknown>;
+        const source = typeof rec.source === "string" ? rec.source : "";
+        const count =
+          typeof rec.count === "number" && Number.isFinite(rec.count)
+            ? rec.count
+            : Number.NaN;
+        if (!source.trim() || !Number.isFinite(count) || count <= 0)
+          return null;
+        return { source: source.trim(), count };
+      })
+      .filter((x): x is SourceMaterialDistributionTotalsEntry => x !== null);
+
+    return normalized.length ? normalized : undefined;
+  };
+
+  /**
+   * Compute pre-aggregated totals for Source Material Distribution.
+   *
+   * IMPORTANT: This uses the *full* CURRENT + COMPLETED lists as returned by AniList
+   * (after normalization), before we prune what gets persisted to Redis.
+   */
+  const computeAnimeSourceMaterialDistributionTotals = ():
+    | SourceMaterialDistributionTotalsEntry[]
+    | undefined => {
+    const completedFull = normalizeMediaListCollection(
+      statsData.animeCompleted,
+    );
+    const currentFull = normalizeMediaListCollection(statsData.animeCurrent);
+
+    const completedEntries =
+      completedFull?.lists.flatMap((l) => l.entries) ?? [];
+    const currentEntries = currentFull?.lists.flatMap((l) => l.entries) ?? [];
+    const all = [...completedEntries, ...currentEntries];
+    if (!all.length) return undefined;
+
+    const uniqueByMediaId = new Map<number, MediaListEntry>();
+    for (const entry of all) {
+      const mediaId = entry.media?.id;
+      if (!mediaId) continue;
+      if (!uniqueByMediaId.has(mediaId)) uniqueByMediaId.set(mediaId, entry);
+    }
+
+    const counts = new Map<string, number>();
+    for (const entry of uniqueByMediaId.values()) {
+      const source = (entry.media.source ?? "UNKNOWN").trim() || "UNKNOWN";
+      counts.set(source, (counts.get(source) ?? 0) + 1);
+    }
+
+    return [...counts.entries()]
+      .map(([source, count]) => ({ source, count }))
+      .filter((x) => x.count > 0)
+      .sort((a, b) => b.count - a.count);
+  };
+
+  const storedAnimeSourceTotals = normalizeStoredSourceTotals(
+    (user as Record<string, unknown>).animeSourceMaterialDistributionTotals,
+  );
+
+  const combineUnique = (
+    a: MediaListEntry[],
+    b: MediaListEntry[],
+  ): MediaListEntry[] => {
     const combined = [...a];
     for (const e of b) {
       if (!combined.some((c) => c.id === e.id)) combined.push(e);
@@ -742,7 +818,7 @@ export function validateAndNormalizeUserRecord(
     };
   };
 
-  let favoriteAnimeNodes: unknown[] = []; 
+  let favoriteAnimeNodes: unknown[] = [];
   let favoriteMangaNodes: unknown[] = [];
   let favoriteStaffNodes: unknown[] = [];
   let favoriteStudiosNodes: unknown[] = [];
@@ -769,6 +845,8 @@ export function validateAndNormalizeUserRecord(
     ip: String(user.ip ?? ""),
     createdAt: String(user.createdAt ?? new Date().toISOString()),
     updatedAt: String(user.updatedAt ?? new Date().toISOString()),
+    animeSourceMaterialDistributionTotals:
+      storedAnimeSourceTotals ?? computeAnimeSourceMaterialDistributionTotals(),
     stats: {
       followersPage: normalizePage(statsData.followersPage, {
         itemsKey: "followers",
@@ -790,14 +868,24 @@ export function validateAndNormalizeUserRecord(
         const raw = statsData.animePlanning;
         const coll = normalizeMediaListCollection(raw);
         return pruneIfNeeded(raw, coll, (entries) =>
-          [...entries].sort((a, b) => (b.media.averageScore ?? 0) - (a.media.averageScore ?? 0)).slice(0, 5)
+          [...entries]
+            .sort(
+              (a, b) =>
+                (b.media.averageScore ?? 0) - (a.media.averageScore ?? 0),
+            )
+            .slice(0, 5),
         );
       })(),
       mangaPlanning: (() => {
         const raw = statsData.mangaPlanning;
         const coll = normalizeMediaListCollection(raw);
         return pruneIfNeeded(raw, coll, (entries) =>
-          [...entries].sort((a, b) => (b.media.averageScore ?? 0) - (a.media.averageScore ?? 0)).slice(0, 5)
+          [...entries]
+            .sort(
+              (a, b) =>
+                (b.media.averageScore ?? 0) - (a.media.averageScore ?? 0),
+            )
+            .slice(0, 5),
         );
       })(),
       animeCurrent: (() => {
@@ -805,7 +893,7 @@ export function validateAndNormalizeUserRecord(
         const coll = normalizeMediaListCollection(raw);
         return pruneIfNeeded(raw, coll, (entries) =>
           // Keep most recent items as returned by the AniList sort (UPDATED_TIME_DESC)
-          entries.slice(0, 6)
+          entries.slice(0, 6),
         );
       })(),
       mangaCurrent: (() => {
@@ -817,22 +905,30 @@ export function validateAndNormalizeUserRecord(
         const raw = statsData.animeRewatched;
         const coll = normalizeMediaListCollection(raw);
         return pruneIfNeeded(raw, coll, (entries) =>
-          [...entries].sort((a, b) => (b.repeat ?? 0) - (a.repeat ?? 0)).slice(0, 10)
+          [...entries]
+            .sort((a, b) => (b.repeat ?? 0) - (a.repeat ?? 0))
+            .slice(0, 10),
         );
       })(),
       mangaReread: (() => {
         const raw = statsData.mangaReread;
         const coll = normalizeMediaListCollection(raw);
         return pruneIfNeeded(raw, coll, (entries) =>
-          [...entries].sort((a, b) => (b.repeat ?? 0) - (a.repeat ?? 0)).slice(0, 10)
+          [...entries]
+            .sort((a, b) => (b.repeat ?? 0) - (a.repeat ?? 0))
+            .slice(0, 10),
         );
       })(),
       animeCompleted: (() => {
         const raw = statsData.animeCompleted;
         const coll = normalizeMediaListCollection(raw);
         return pruneIfNeeded(raw, coll, (entries) => {
-          const topByScore = [...entries].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, 5);
-          const topByLength = [...entries].sort((a, b) => (b.media.episodes ?? 0) - (a.media.episodes ?? 0)).slice(0, 5);
+          const topByScore = [...entries]
+            .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+            .slice(0, 5);
+          const topByLength = [...entries]
+            .sort((a, b) => (b.media.episodes ?? 0) - (a.media.episodes ?? 0))
+            .slice(0, 5);
           return combineUnique(topByScore, topByLength);
         });
       })(),
@@ -840,8 +936,12 @@ export function validateAndNormalizeUserRecord(
         const raw = statsData.mangaCompleted;
         const coll = normalizeMediaListCollection(raw);
         return pruneIfNeeded(raw, coll, (entries) => {
-          const topByScore = [...entries].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, 5);
-          const topByLength = [...entries].sort((a, b) => (b.media.chapters ?? 0) - (a.media.chapters ?? 0)).slice(0, 5);
+          const topByScore = [...entries]
+            .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+            .slice(0, 5);
+          const topByLength = [...entries]
+            .sort((a, b) => (b.media.chapters ?? 0) - (a.media.chapters ?? 0))
+            .slice(0, 5);
           return combineUnique(topByScore, topByLength);
         });
       })(),
@@ -854,7 +954,9 @@ export function validateAndNormalizeUserRecord(
           manga: { nodes: favoriteMangaNodes.map(mapFavouriteMediaNode) },
           staff: { nodes: favoriteStaffNodes.map(mapFavouritePersonNode) },
           studios: { nodes: favoriteStudiosNodes.map(mapFavouriteStudioNode) },
-          characters: { nodes: favoriteCharactersNodes.map(mapFavouritePersonNode) },
+          characters: {
+            nodes: favoriteCharactersNodes.map(mapFavouritePersonNode),
+          },
         },
         statistics: {
           anime: normalizeStatBlock(

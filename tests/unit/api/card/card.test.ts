@@ -3,6 +3,7 @@ import {
   sharedRedisMockSet,
   sharedRedisMockGet,
   sharedRedisMockIncr,
+  sharedRedisMockMget,
   sharedRatelimitMockLimit,
   sharedRatelimitMockSlidingWindow,
 } from "@/tests/unit/__setup__.test";
@@ -281,6 +282,7 @@ describe("Card SVG Route", () => {
     // Reset mocks to their default state
     sharedRatelimitMockLimit.mockResolvedValue({ success: true });
     sharedRedisMockGet.mockClear();
+    sharedRedisMockMget.mockClear();
     sharedRedisMockSet.mockClear();
     sharedRedisMockIncr.mockClear();
   });
@@ -610,6 +612,89 @@ describe("Card SVG Route", () => {
       );
     });
 
+    it("should render animeSourceMaterialDistribution using stored totals (split meta)", async () => {
+      const cardsData = createMockCardData(
+        "animeSourceMaterialDistribution",
+        "default",
+      );
+
+      // Cards record is fetched via GET first.
+      sharedRedisMockGet.mockResolvedValueOnce(cardsData);
+
+      // User record is fetched via split parts (mget). Provide meta/current/completed.
+      const metaPart = JSON.stringify({
+        userId: "542244",
+        username: "testUser",
+        ip: "127.0.0.1",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        // Stored totals should win over any pruned list entries.
+        animeSourceMaterialDistributionTotals: [
+          { source: "MANGA", count: 50 },
+          { source: "ORIGINAL", count: 25 },
+        ],
+      });
+
+      const currentPart = JSON.stringify({
+        animeCurrent: {
+          lists: [
+            {
+              name: "All",
+              entries: [
+                {
+                  id: 1,
+                  media: { id: 1, title: { romaji: "X" }, source: "OTHER" },
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      const completedPart = JSON.stringify({
+        animeCompleted: {
+          lists: [
+            {
+              name: "All",
+              entries: [
+                {
+                  id: 2,
+                  media: { id: 2, title: { romaji: "Y" }, source: "OTHER" },
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      sharedRedisMockMget.mockResolvedValueOnce([
+        metaPart,
+        currentPart,
+        completedPart,
+      ]);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeSourceMaterialDistribution",
+        }),
+      );
+
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (
+        extraAnimeMangaStatsTemplate as MockFunction<
+          typeof extraAnimeMangaStatsTemplate
+        >
+      ).mock.calls.at(-1)![0];
+
+      expect(callArgs.format).toBe("Anime Source Materials");
+      expect(callArgs.stats).toContainEqual({ name: "Manga", count: 50 });
+      expect(callArgs.stats).toContainEqual({ name: "Original", count: 25 });
+    });
+
     it("should return 404 when card config is not found in DB", async () => {
       const userData = createMockUserData(542244, "testUser");
       const cardsData = JSON.stringify({
@@ -787,7 +872,9 @@ describe("Card SVG Route", () => {
       });
 
       // Both requests use URL-built config path (include color params)
-      sharedRedisMockGet.mockResolvedValueOnce(userData).mockResolvedValueOnce(userData);
+      sharedRedisMockGet
+        .mockResolvedValueOnce(userData)
+        .mockResolvedValueOnce(userData);
 
       const baseParams = {
         userId: "542244",
@@ -801,7 +888,11 @@ describe("Card SVG Route", () => {
 
       // First request uses "03" formatting and should populate cache
       const req1 = new Request(
-        createRequestUrl(baseUrl, { ...baseParams, gridCols: "03", gridRows: "03" }),
+        createRequestUrl(baseUrl, {
+          ...baseParams,
+          gridCols: "03",
+          gridRows: "03",
+        }),
       );
       await GET(req1);
 
@@ -817,7 +908,11 @@ describe("Card SVG Route", () => {
 
       // Second request uses "3" formatting and should hit the same cache entry
       const req2 = new Request(
-        createRequestUrl(baseUrl, { ...baseParams, gridCols: "3", gridRows: "3" }),
+        createRequestUrl(baseUrl, {
+          ...baseParams,
+          gridCols: "3",
+          gridRows: "3",
+        }),
       );
       await GET(req2);
 

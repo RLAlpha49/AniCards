@@ -3,6 +3,7 @@ import {
   UserRecord,
   UserStatsData,
   ActivityHistoryItem,
+  MediaListEntry,
 } from "@/lib/types/records";
 import {
   SocialStats,
@@ -193,4 +194,115 @@ export function processFavorites(
     return getFavoritesForCardType(favourites, baseCardType);
   }
   return [];
+}
+
+/**
+ * Extract all entries from a MediaListCollection-like object.
+ * @source
+ */
+function extractMediaListEntries(
+  collection: { lists: { entries: MediaListEntry[] }[] } | undefined,
+): MediaListEntry[] {
+  if (!collection?.lists) return [];
+  return collection.lists.flatMap((list) => list.entries ?? []);
+}
+
+const SOURCE_LABEL_OVERRIDES: Record<string, string> = {
+  ORIGINAL: "Original",
+  MANGA: "Manga",
+  LIGHT_NOVEL: "Light Novel",
+  VISUAL_NOVEL: "Visual Novel",
+  VIDEO_GAME: "Video Game",
+  OTHER: "Other",
+  NOVEL: "Novel",
+  DOUJINSHI: "Doujinshi",
+  ANIME: "Anime",
+  WEB_NOVEL: "Web Novel",
+  LIVE_ACTION: "Live Action",
+  GAME: "Game",
+  COMIC: "Comic",
+  MULTIMEDIA_PROJECT: "Multimedia Project",
+  PICTURE_BOOK: "Picture Book",
+  UNKNOWN: "Unknown",
+};
+
+function toTitleCaseFromEnum(value: string): string {
+  return value
+    .trim()
+    .replaceAll(/_+/g, " ")
+    .toLowerCase()
+    .replaceAll(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function toSourceLabel(source: string | undefined): string {
+  const key = (source ?? "").trim();
+  if (!key) return SOURCE_LABEL_OVERRIDES.UNKNOWN;
+  return SOURCE_LABEL_OVERRIDES[key] ?? toTitleCaseFromEnum(key);
+}
+
+/**
+ * Computes a distribution of anime titles by adaptation source.
+ *
+ * Uses the user's anime CURRENT + COMPLETED lists and counts unique titles
+ * (deduped by media id). The resulting list is sorted by count desc and
+ * optionally collapses long tails into an "Other" bucket.
+ * @source
+ */
+export function toTemplateAnimeSourceMaterialDistribution(
+  userRecord: UserRecord,
+): {
+  name: string;
+  count: number;
+}[] {
+  const storedTotals = userRecord.animeSourceMaterialDistributionTotals;
+  if (Array.isArray(storedTotals) && storedTotals.length > 0) {
+    const items = storedTotals
+      .map(({ source, count }) => ({
+        name: toSourceLabel(source),
+        count: Number.isFinite(count) ? count : 0,
+      }))
+      .filter((x) => x.count > 0)
+      .sort((a, b) => b.count - a.count);
+
+    const MAX_BUCKETS = 10;
+    if (items.length <= MAX_BUCKETS) return items;
+
+    const head = items.slice(0, MAX_BUCKETS - 1);
+    const otherCount = items
+      .slice(MAX_BUCKETS - 1)
+      .reduce((sum, item) => sum + item.count, 0);
+
+    return [...head, { name: "Other", count: otherCount }];
+  }
+
+  const completed = extractMediaListEntries(userRecord.stats?.animeCompleted);
+  const current = extractMediaListEntries(userRecord.stats?.animeCurrent);
+
+  const uniqueByMediaId = new Map<number, MediaListEntry>();
+  for (const entry of [...completed, ...current]) {
+    const mediaId = entry.media?.id;
+    if (!mediaId) continue;
+    if (!uniqueByMediaId.has(mediaId)) uniqueByMediaId.set(mediaId, entry);
+  }
+
+  const bySource = new Map<string, number>();
+  for (const entry of uniqueByMediaId.values()) {
+    const key = (entry.media.source ?? "UNKNOWN").trim() || "UNKNOWN";
+    bySource.set(key, (bySource.get(key) ?? 0) + 1);
+  }
+
+  const items = [...bySource.entries()]
+    .map(([source, count]) => ({ name: toSourceLabel(source), count }))
+    .filter((x) => x.count > 0)
+    .sort((a, b) => b.count - a.count);
+
+  const MAX_BUCKETS = 10;
+  if (items.length <= MAX_BUCKETS) return items;
+
+  const head = items.slice(0, MAX_BUCKETS - 1);
+  const otherCount = items
+    .slice(MAX_BUCKETS - 1)
+    .reduce((sum, item) => sum + item.count, 0);
+
+  return [...head, { name: "Other", count: otherCount }];
 }

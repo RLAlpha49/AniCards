@@ -139,7 +139,10 @@ function clampGridDim(n: number | undefined, fallback: number): number {
 /**
  * Embed a cover image object (large/medium) by converting its URL to a data URL.
  */
-async function embedCover(cover: { large?: string; medium?: string }): Promise<{ large?: string; medium?: string }> {
+async function embedCover(cover: {
+  large?: string;
+  medium?: string;
+}): Promise<{ large?: string; medium?: string }> {
   const url = cover.large || cover.medium;
   if (!url) return cover;
   const dataUrl = await fetchImageAsDataUrl(url);
@@ -150,7 +153,10 @@ async function embedCover(cover: { large?: string; medium?: string }): Promise<{
 /**
  * Embed a generic image (used for character images).
  */
-async function embedImage(image: { large?: string; medium?: string }): Promise<{ large?: string; medium?: string }> {
+async function embedImage(image: {
+  large?: string;
+  medium?: string;
+}): Promise<{ large?: string; medium?: string }> {
   const url = image.large || image.medium;
   if (!url) return image;
   const dataUrl = await fetchImageAsDataUrl(url);
@@ -167,7 +173,10 @@ async function embedCoverNodesWithLimit<
   const head = nodes.slice(0, limit);
   const tail = nodes.slice(limit);
   const embeddedHead = await Promise.all(
-    head.map(async (n) => ({ ...n, coverImage: await embedCover(n.coverImage) })),
+    head.map(async (n) => ({
+      ...n,
+      coverImage: await embedCover(n.coverImage),
+    })),
   );
   return [...embeddedHead, ...tail];
 }
@@ -239,15 +248,36 @@ function computeMixedCounts(
 /**
  * Helper that applies non-mixed embedding (single-variant) up to the given limit.
  */
-async function embedNonMixed(favourites: UserFavourites, limit: number): Promise<UserFavourites> {
+async function embedNonMixed(
+  favourites: UserFavourites,
+  limit: number,
+): Promise<UserFavourites> {
   const anime = favourites.anime
-    ? { ...favourites.anime, nodes: await embedCoverNodesWithLimit(favourites.anime.nodes ?? [], limit) }
+    ? {
+        ...favourites.anime,
+        nodes: await embedCoverNodesWithLimit(
+          favourites.anime.nodes ?? [],
+          limit,
+        ),
+      }
     : undefined;
   const manga = favourites.manga
-    ? { ...favourites.manga, nodes: await embedCoverNodesWithLimit(favourites.manga.nodes ?? [], limit) }
+    ? {
+        ...favourites.manga,
+        nodes: await embedCoverNodesWithLimit(
+          favourites.manga.nodes ?? [],
+          limit,
+        ),
+      }
     : undefined;
   const characters = favourites.characters
-    ? { ...favourites.characters, nodes: await embedCharacterNodesWithLimit(favourites.characters.nodes ?? [], limit) }
+    ? {
+        ...favourites.characters,
+        nodes: await embedCharacterNodesWithLimit(
+          favourites.characters.nodes ?? [],
+          limit,
+        ),
+      }
     : undefined;
   return { ...favourites, anime, manga, characters };
 }
@@ -270,21 +300,51 @@ export async function embedFavoritesGridImages(
   const mangaNodes = favourites.manga?.nodes ?? [];
   const characterNodes = favourites.characters?.nodes ?? [];
 
-  const totalAvailable = animeNodes.length + mangaNodes.length + characterNodes.length;
+  const totalAvailable =
+    animeNodes.length + mangaNodes.length + characterNodes.length;
   if (totalAvailable === 0) {
     return {
       ...favourites,
-      anime: favourites.anime ? { ...favourites.anime, nodes: animeNodes } : undefined,
-      manga: favourites.manga ? { ...favourites.manga, nodes: mangaNodes } : undefined,
-      characters: favourites.characters ? { ...favourites.characters, nodes: characterNodes } : undefined,
+      anime: favourites.anime
+        ? { ...favourites.anime, nodes: animeNodes }
+        : undefined,
+      manga: favourites.manga
+        ? { ...favourites.manga, nodes: mangaNodes }
+        : undefined,
+      characters: favourites.characters
+        ? { ...favourites.characters, nodes: characterNodes }
+        : undefined,
     };
   }
 
-  const counts = computeMixedCounts(capacity, animeNodes.length, mangaNodes.length, characterNodes.length);
+  const counts = computeMixedCounts(
+    capacity,
+    animeNodes.length,
+    mangaNodes.length,
+    characterNodes.length,
+  );
 
-  const anime = favourites.anime ? { ...favourites.anime, nodes: await embedCoverNodesWithLimit(animeNodes, counts.anime) } : undefined;
-  const manga = favourites.manga ? { ...favourites.manga, nodes: await embedCoverNodesWithLimit(mangaNodes, counts.manga) } : undefined;
-  const characters = favourites.characters ? { ...favourites.characters, nodes: await embedCharacterNodesWithLimit(characterNodes, counts.characters) } : undefined;
+  const anime = favourites.anime
+    ? {
+        ...favourites.anime,
+        nodes: await embedCoverNodesWithLimit(animeNodes, counts.anime),
+      }
+    : undefined;
+  const manga = favourites.manga
+    ? {
+        ...favourites.manga,
+        nodes: await embedCoverNodesWithLimit(mangaNodes, counts.manga),
+      }
+    : undefined;
+  const characters = favourites.characters
+    ? {
+        ...favourites.characters,
+        nodes: await embedCharacterNodesWithLimit(
+          characterNodes,
+          counts.characters,
+        ),
+      }
+    : undefined;
 
   return { ...favourites, anime, manga, characters };
 }

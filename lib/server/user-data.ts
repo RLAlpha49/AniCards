@@ -12,6 +12,7 @@ import {
   ReviewsPage,
   MediaListCollection,
   ReconstructedUserRecord,
+  SourceMaterialDistributionTotalsEntry,
 } from "@/lib/types/records";
 
 export type UserDataPart =
@@ -37,6 +38,7 @@ interface UserMeta {
   name?: string;
   avatar?: UserAvatar;
   userCreatedAt?: number;
+  animeSourceMaterialDistributionTotals?: SourceMaterialDistributionTotalsEntry[];
 }
 
 /* Helpers and defaults for extracting data from loosely-typed legacy shapes. */
@@ -573,6 +575,7 @@ export const CARD_TYPE_TO_PARTS: Record<string, UserDataPart[]> = {
   mangaYearDistribution: ["meta", "statistics"],
   animeCountry: ["meta", "statistics"],
   mangaCountry: ["meta", "statistics"],
+  animeSourceMaterialDistribution: ["meta", "current", "completed"],
   profileOverview: ["meta", "statistics"],
   favoritesSummary: ["meta", "favourites"],
   favoritesGrid: ["meta", "favourites"],

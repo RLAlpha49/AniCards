@@ -28,6 +28,7 @@ export {
   buildCommonTemplateFields,
   toTemplateAnimeStats,
   toTemplateMangaStats,
+  toTemplateAnimeSourceMaterialDistribution,
   mapCategoryItem,
   processFavorites,
 } from "./processing";
