@@ -11,6 +11,7 @@ import {
   MediaListEntry,
   SourceMaterialDistributionTotalsEntry,
   SeasonalPreferenceTotalsEntry,
+  AnimeGenreSynergyTotalsEntry,
   UserAvatar,
 } from "@/lib/types/records";
 import type { ErrorCategory, RecoverySuggestion } from "@/lib/error-messages";
@@ -89,6 +90,7 @@ export const displayNames: { [key: string]: string } = {
   mangaFormatDistribution: "Manga Formats",
   animeSourceMaterialDistribution: "Anime Source Materials",
   animeSeasonalPreference: "Anime Seasons",
+  animeGenreSynergy: "Genre Synergy",
   animeScoreDistribution: "Anime Scores",
   mangaScoreDistribution: "Manga Scores",
   animeYearDistribution: "Anime Years",
@@ -593,6 +595,14 @@ export function validateAndNormalizeUserRecord(
           }
         : undefined;
 
+    const rawGenres = media["genres"];
+    const genres = Array.isArray(rawGenres)
+      ? rawGenres
+          .filter((g): g is string => typeof g === "string")
+          .map((g) => g.trim())
+          .filter((g) => g.length > 0)
+      : undefined;
+
     return {
       id: coerceNumber(r.id, 0) ?? 0,
       score: coerceNumber(r.score),
@@ -614,6 +624,7 @@ export function validateAndNormalizeUserRecord(
         source: getNestedString(media, ["source"]) || undefined,
         season: getNestedString(media, ["season"]) || undefined,
         seasonYear: coerceNumber(media?.seasonYear),
+        ...(genres && genres.length ? { genres } : {}),
       },
     } as MediaListEntry;
   };
@@ -749,6 +760,44 @@ export function validateAndNormalizeUserRecord(
     return normalized.length ? normalized : undefined;
   };
 
+  const normalizeStoredGenreSynergyTotals = (
+    value: unknown,
+  ): AnimeGenreSynergyTotalsEntry[] | undefined => {
+    if (!Array.isArray(value)) return undefined;
+
+    const normalized = value
+      .map((item) => {
+        if (!item || typeof item !== "object") return null;
+        const rec = item as Record<string, unknown>;
+        const a = typeof rec.a === "string" ? rec.a.trim() : "";
+        const b = typeof rec.b === "string" ? rec.b.trim() : "";
+        const count =
+          typeof rec.count === "number" && Number.isFinite(rec.count)
+            ? rec.count
+            : Number.NaN;
+
+        if (!a || !b || a === b || !Number.isFinite(count) || count <= 0) {
+          return null;
+        }
+
+        // Canonicalize ordering so stored data stays consistent.
+        const [left, right] = a.localeCompare(b) <= 0 ? [a, b] : [b, a];
+        return { a: left, b: right, count } satisfies AnimeGenreSynergyTotalsEntry;
+      })
+      .filter((x): x is AnimeGenreSynergyTotalsEntry => x !== null);
+
+    if (!normalized.length) return undefined;
+
+    // Deduplicate by pair, keeping the max count just in case.
+    const byKey = new Map<string, AnimeGenreSynergyTotalsEntry>();
+    for (const item of normalized) {
+      const key = `${item.a}|||${item.b}`;
+      const existing = byKey.get(key);
+      if (!existing || item.count > existing.count) byKey.set(key, item);
+    }
+    return [...byKey.values()];
+  };
+
   /**
    * Compute pre-aggregated totals for Source Material Distribution.
    *
@@ -835,12 +884,70 @@ export function validateAndNormalizeUserRecord(
     return items.length ? items : undefined;
   };
 
+  /**
+   * Compute pre-aggregated co-occurrence totals for Genre Synergy.
+   *
+   * IMPORTANT: This uses the *full* COMPLETED list as returned by AniList
+   * (after normalization), before we prune what gets persisted to Redis.
+   */
+  const computeAnimeGenreSynergyTotals = ():
+    | AnimeGenreSynergyTotalsEntry[]
+    | undefined => {
+    const completedFull = normalizeMediaListCollection(statsData.animeCompleted);
+    const entries = completedFull?.lists.flatMap((l) => l.entries) ?? [];
+    if (!entries.length) return undefined;
+
+    const TOP_N = 10;
+    const MAX_GENRES_PER_TITLE = 12;
+
+    const counts = new Map<string, number>();
+    for (const entry of entries) {
+      const raw = entry.media?.genres ?? [];
+      if (!Array.isArray(raw) || raw.length < 2) continue;
+
+      const uniqueGenres = [...new Set(raw.map((g) => g.trim()).filter(Boolean))]
+        .slice(0, MAX_GENRES_PER_TITLE)
+        .sort((a, b) => a.localeCompare(b));
+
+      if (uniqueGenres.length < 2) continue;
+
+      for (let i = 0; i < uniqueGenres.length; i++) {
+        for (let j = i + 1; j < uniqueGenres.length; j++) {
+          const a = uniqueGenres[i]!;
+          const b = uniqueGenres[j]!;
+          const key = `${a}|||${b}`;
+          counts.set(key, (counts.get(key) ?? 0) + 1);
+        }
+      }
+    }
+
+    const items: AnimeGenreSynergyTotalsEntry[] = [...counts.entries()]
+      .map(([key, count]) => {
+        const [a, b] = key.split("|||");
+        if (!a || !b) return null;
+        return { a, b, count } satisfies AnimeGenreSynergyTotalsEntry;
+      })
+      .filter((x): x is AnimeGenreSynergyTotalsEntry => x !== null)
+      .filter((x) => x.count > 0)
+      .sort(
+        (x, y) =>
+          y.count - x.count || x.a.localeCompare(y.a) || x.b.localeCompare(y.b),
+      )
+      .slice(0, TOP_N);
+
+    return items.length ? items : undefined;
+  };
+
   const storedAnimeSourceTotals = normalizeStoredSourceTotals(
     (user as Record<string, unknown>).animeSourceMaterialDistributionTotals,
   );
 
   const storedAnimeSeasonTotals = normalizeStoredSeasonTotals(
     (user as Record<string, unknown>).animeSeasonalPreferenceTotals,
+  );
+
+  const storedAnimeGenreSynergyTotals = normalizeStoredGenreSynergyTotals(
+    (user as Record<string, unknown>).animeGenreSynergyTotals,
   );
 
   const combineUnique = (
@@ -925,6 +1032,8 @@ export function validateAndNormalizeUserRecord(
       storedAnimeSourceTotals ?? computeAnimeSourceMaterialDistributionTotals(),
     animeSeasonalPreferenceTotals:
       storedAnimeSeasonTotals ?? computeAnimeSeasonalPreferenceTotals(),
+    animeGenreSynergyTotals:
+      storedAnimeGenreSynergyTotals ?? computeAnimeGenreSynergyTotals(),
     stats: {
       followersPage: normalizePage(statsData.followersPage, {
         itemsKey: "followers",

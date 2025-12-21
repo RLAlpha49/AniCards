@@ -582,6 +582,94 @@ describe("Store Users API", () => {
       expect(totals).toContainEqual({ season: "UNKNOWN", count: 1 });
     });
 
+    it("should compute and store animeGenreSynergyTotals before pruning", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockSet.mockResolvedValue(true);
+
+      const statsPayload = {
+        User: {
+          statistics: {
+            anime: {},
+            manga: {},
+          },
+          stats: {
+            activityHistory: [],
+          },
+        },
+        followersPage: { pageInfo: { total: 0 }, followers: [] },
+        followingPage: { pageInfo: { total: 0 }, following: [] },
+        threadsPage: { pageInfo: { total: 0 }, threads: [] },
+        threadCommentsPage: { pageInfo: { total: 0 }, threadComments: [] },
+        reviewsPage: { pageInfo: { total: 0 }, reviews: [] },
+        animeCompleted: {
+          lists: [
+            {
+              name: "Completed",
+              entries: [
+                {
+                  id: 1,
+                  score: 10,
+                  media: {
+                    id: 101,
+                    title: { romaji: "A" },
+                    genres: ["Action", "Drama", "Comedy"],
+                  },
+                },
+                {
+                  id: 2,
+                  score: 10,
+                  media: {
+                    id: 102,
+                    title: { romaji: "B" },
+                    genres: ["Action", "Drama"],
+                  },
+                },
+                {
+                  id: 3,
+                  score: 10,
+                  media: {
+                    id: 103,
+                    title: { romaji: "C" },
+                    genres: ["Drama", "Fantasy"],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      const reqBody = {
+        userId: 44,
+        username: "GenreSynergyUser",
+        stats: statsPayload,
+      };
+      const req = createTestRequest(reqBody, "http://localhost");
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const metaSetCall = sharedRedisMockSet.mock.calls.find(
+        (call) => call[0] === "user:44:meta",
+      );
+      expect(metaSetCall).toBeTruthy();
+      const metaValue = JSON.parse(metaSetCall![1]);
+
+      expect(metaValue).toHaveProperty("animeGenreSynergyTotals");
+      const totals = metaValue.animeGenreSynergyTotals as Array<{
+        a: string;
+        b: string;
+        count: number;
+      }>;
+
+      // "Action + Drama" appears in two completed titles.
+      expect(totals).toContainEqual({ a: "Action", b: "Drama", count: 2 });
+      // Other pairs appear once.
+      expect(totals).toContainEqual({ a: "Action", b: "Comedy", count: 1 });
+      expect(totals).toContainEqual({ a: "Comedy", b: "Drama", count: 1 });
+      expect(totals).toContainEqual({ a: "Drama", b: "Fantasy", count: 1 });
+    });
+
     it("should update existing user and preserve createdAt", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const existingRecord = {

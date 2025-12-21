@@ -798,6 +798,50 @@ describe("Card SVG Route", () => {
       expect(callArgs.stats).toContainEqual({ name: "Summer", count: 5 });
     });
 
+    it("should render animeGenreSynergy using stored totals (split meta)", async () => {
+      const cardsData = createMockCardData("animeGenreSynergy", "default");
+
+      // Cards record is fetched via GET first.
+      sharedRedisMockGet.mockResolvedValueOnce(cardsData);
+
+      // User record is fetched via split parts (mget). Provide meta only.
+      const metaPart = JSON.stringify({
+        userId: "542244",
+        username: "testUser",
+        ip: "127.0.0.1",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        animeGenreSynergyTotals: [
+          { a: "Action", b: "Drama", count: 2 },
+          { a: "Comedy", b: "Drama", count: 1 },
+        ],
+      });
+
+      sharedRedisMockMget.mockResolvedValueOnce([metaPart]);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeGenreSynergy",
+        }),
+      );
+
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (
+        extraAnimeMangaStatsTemplate as MockFunction<
+          typeof extraAnimeMangaStatsTemplate
+        >
+      ).mock.calls.at(-1)![0];
+
+      expect(callArgs.format).toBe("Genre Synergy");
+      expect(callArgs.variant).toBe("default");
+      expect(callArgs.stats).toContainEqual({ name: "Action + Drama", count: 2 });
+      expect(callArgs.stats).toContainEqual({ name: "Comedy + Drama", count: 1 });
+    });
+
     it("should render animeEpisodeLengthPreferences using bucketed statistics lengths", async () => {
       const cardsData = createMockCardData(
         "animeEpisodeLengthPreferences",
@@ -842,7 +886,7 @@ describe("Card SVG Route", () => {
       expect(callArgs.variant).toBe("bar");
       expect(callArgs.stats).toEqual([
         { name: "Short (<15 min)", count: 2 },
-        { name: "Standard (20-25 min)", count: 5 },
+        { name: "Standard (~25 min)", count: 5 },
         { name: "Long (>30 min)", count: 1 },
       ]);
     });

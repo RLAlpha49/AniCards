@@ -334,6 +334,7 @@ const USER_STATS_ANIME_LISTS = `
             romaji
             native
           }
+          genres
           episodes
           format
           source

@@ -263,6 +263,7 @@ export interface MediaListEntry {
     source?: string;
     season?: string;
     seasonYear?: number;
+    genres?: string[];
   };
 }
 
@@ -309,6 +310,18 @@ export interface SeasonalPreferenceTotalsEntry {
   count: number;
 }
 
+/**
+ * Stored co-occurrence totals for the Anime Genre Synergy card.
+ * Each entry represents an unordered pair of genres and the number of titles
+ * in which they co-occur.
+ * @source
+ */
+export interface AnimeGenreSynergyTotalsEntry {
+  a: string;
+  b: string;
+  count: number;
+}
+
 /** Redis user record shape used for persisting user data and stats. @source */
 export interface UserRecord {
   userId: string;
@@ -316,6 +329,7 @@ export interface UserRecord {
   stats: UserStatsData;
   animeSourceMaterialDistributionTotals?: SourceMaterialDistributionTotalsEntry[];
   animeSeasonalPreferenceTotals?: SeasonalPreferenceTotalsEntry[];
+  animeGenreSynergyTotals?: AnimeGenreSynergyTotalsEntry[];
   statistics?: UserSection["statistics"];
   favourites?: UserSection["favourites"];
   pages?: {

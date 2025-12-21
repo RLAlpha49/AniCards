@@ -31,6 +31,7 @@ export {
   toTemplateAnimeSourceMaterialDistribution,
   toTemplateAnimeSeasonalPreference,
   toTemplateAnimeEpisodeLengthPreferences,
+  toTemplateAnimeGenreSynergy,
   mapCategoryItem,
   processFavorites,
 } from "./processing";

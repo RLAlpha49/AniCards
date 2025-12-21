@@ -14,6 +14,7 @@ import {
   ReconstructedUserRecord,
   SourceMaterialDistributionTotalsEntry,
   SeasonalPreferenceTotalsEntry,
+  AnimeGenreSynergyTotalsEntry,
 } from "@/lib/types/records";
 
 export type UserDataPart =
@@ -41,6 +42,7 @@ interface UserMeta {
   userCreatedAt?: number;
   animeSourceMaterialDistributionTotals?: SourceMaterialDistributionTotalsEntry[];
   animeSeasonalPreferenceTotals?: SeasonalPreferenceTotalsEntry[];
+  animeGenreSynergyTotals?: AnimeGenreSynergyTotalsEntry[];
 }
 
 /* Helpers and defaults for extracting data from loosely-typed legacy shapes. */
@@ -579,6 +581,7 @@ export const CARD_TYPE_TO_PARTS: Record<string, UserDataPart[]> = {
   mangaCountry: ["meta", "statistics"],
   animeSourceMaterialDistribution: ["meta", "current", "completed"],
   animeSeasonalPreference: ["meta", "current", "completed"],
+  animeGenreSynergy: ["meta"],
   profileOverview: ["meta", "statistics"],
   favoritesSummary: ["meta", "favourites"],
   favoritesGrid: ["meta", "favourites"],

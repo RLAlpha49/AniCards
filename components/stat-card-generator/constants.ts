@@ -19,6 +19,8 @@ const genreTagDistributionVariations = [
 
 const statusDistributionVariations = pieBarVariations;
 
+const defaultOnlyVariations = [{ id: "default", label: "Default" }];
+
 const scoreDistributionVariations = [
   { id: "default", label: "Default" },
   { id: "horizontal", label: "Horizontal" },
@@ -84,6 +86,7 @@ const createCardType = (
 const getAnimeBreakdownVariations = (cardId: string) => {
   if (cardId.endsWith("StatusDistribution"))
     return statusDistributionVariations;
+  if (cardId === "animeGenreSynergy") return defaultOnlyVariations;
   if (
     cardId === "animeGenres" ||
     cardId === "animeTags" ||
@@ -125,6 +128,10 @@ const animeBreakdownCards = [
   {
     id: "animeEpisodeLengthPreferences",
     label: "Episode Length Preferences (Short/Standard/Long)",
+  },
+  {
+    id: "animeGenreSynergy",
+    label: "Genre Synergy (Top Genre Pairs)",
   },
   { id: "animeCountry", label: "Anime Country" },
 ];

@@ -811,24 +811,43 @@ function validateUniqueCardTypes(
 ): NextResponse<ApiError> | null {
   const maxSupportedTypes = Object.keys(displayNames).length || 33;
   const MAX_ALLOWED_CARDS = Math.max(33, maxSupportedTypes);
-  const uniqueCardNames = new Set<string>();
+
+  const supportedNames = new Set<string>(Object.keys(displayNames));
+  const uniqueSupportedNames = new Set<string>();
+  const unknownNames = new Set<string>();
 
   for (const c of cards) {
     if (typeof c === "object" && c !== null) {
       const name = (c as Record<string, unknown>).cardName;
       if (typeof name === "string" && name.length > 0) {
-        uniqueCardNames.add(name);
+        if (supportedNames.has(name)) {
+          uniqueSupportedNames.add(name);
+        } else {
+          unknownNames.add(name);
+        }
       }
     }
   }
 
-  if (uniqueCardNames.size > MAX_ALLOWED_CARDS) {
+  // If any invalid/unsupported card names are present, return a clear error
+  if (unknownNames.size > 0) {
     console.warn(
-      `⚠️ [${endpoint}] Too many unique card types provided: ${uniqueCardNames.size} (max ${MAX_ALLOWED_CARDS})`,
+      `⚠️ [${endpoint}] Invalid card types provided: ${[...unknownNames].join(", ")}`,
+    );
+    return NextResponse.json(
+      { error: "Invalid data: Invalid card type" },
+      { status: 400, headers: apiJsonHeaders(request) },
+    );
+  }
+
+  // Enforce the allowed maximum against supported card types only
+  if (uniqueSupportedNames.size > MAX_ALLOWED_CARDS) {
+    console.warn(
+      `⚠️ [${endpoint}] Too many unique card types provided: ${uniqueSupportedNames.size} (max ${MAX_ALLOWED_CARDS})`,
     );
     return NextResponse.json(
       {
-        error: `Too many cards provided: ${uniqueCardNames.size} (max ${MAX_ALLOWED_CARDS})`,
+        error: `Too many cards provided: ${uniqueSupportedNames.size} (max ${MAX_ALLOWED_CARDS})`,
       },
       { status: 400, headers: apiJsonHeaders(request) },
     );

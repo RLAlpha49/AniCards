@@ -4,6 +4,7 @@ import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-ma
 import { animeSourceMaterialDistributionTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-source-material-distribution-template";
 import { animeSeasonalPreferenceTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-seasonal-preference-template";
 import { animeEpisodeLengthPreferencesTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-episode-length-preferences-template";
+import { animeGenreSynergyTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-genre-synergy-template";
 import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats/shared";
 import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
 import { socialMilestonesTemplate } from "@/lib/svg-templates/social-community/social-milestones-template";
@@ -46,6 +47,7 @@ import {
   toTemplateAnimeSourceMaterialDistribution,
   toTemplateAnimeSeasonalPreference,
   toTemplateAnimeEpisodeLengthPreferences,
+  toTemplateAnimeGenreSynergy,
   mapCategoryItem,
   displayNames,
   CardDataError,
@@ -224,6 +226,7 @@ function normalizeVariant(
     animeSourceMaterialDistribution: pieBarVariants,
     animeSeasonalPreference: genreTagVariants,
     animeEpisodeLengthPreferences: pieBarVariants,
+    animeGenreSynergy: new Set<CardGenVariant>(["default"]),
     animeCountry: pieBarVariants,
     mangaCountry: pieBarVariants,
     animeScoreDistribution: scoreDistributionVariants,
@@ -469,6 +472,8 @@ export async function generateCardSvg(
       return generateSeasonalPreferenceCard(params);
     case "animeEpisodeLengthPreferences":
       return generateEpisodeLengthPreferencesCard(params);
+    case "animeGenreSynergy":
+      return generateGenreSynergyCard(params);
     case "animeScoreDistribution":
     case "mangaScoreDistribution":
       return generateDistributionCard(params, baseCardType, "score");
@@ -864,6 +869,31 @@ function generateEpisodeLengthPreferencesCard(
     stats: statsList,
     showPieChart: mappedVariant === "pie",
     showPiePercentages: !!cardConfig.showPiePercentages,
+  });
+}
+
+/**
+ * Generate an Anime Genre Synergy card showing top genre pairs.
+ *
+ * Uses pre-aggregated totals stored on the user record at write time.
+ * @source
+ */
+function generateGenreSynergyCard(params: CardGenerationParams): TrustedSVG {
+  const { cardConfig, userRecord } = params;
+
+  const statsList = toTemplateAnimeGenreSynergy(userRecord);
+  if (!statsList.length) {
+    throw new CardDataError(
+      "Not Found: No genre synergy data for this user",
+      404,
+    );
+  }
+
+  return animeGenreSynergyTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: "default",
+    styles: extractStyles(cardConfig),
+    stats: statsList,
   });
 }
 
