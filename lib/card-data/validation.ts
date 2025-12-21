@@ -118,6 +118,7 @@ export const displayNames: { [key: string]: string } = {
   releaseEraPreference: "Release Era Preference",
   startYearMomentum: "Start-Year Momentum",
   lengthPreference: "Length Preference",
+  animeEpisodeLengthPreferences: "Episode Length Preferences",
 };
 
 /**
@@ -635,9 +636,6 @@ export function validateAndNormalizeUserRecord(
       .map(mapMediaListEntry)
       .filter((x): x is MediaListEntry => x !== null);
 
-    // AniList should return unique list entries, but in practice we can receive
-    // duplicates (or accumulate them via legacy persisted shapes). Deduping here
-    // ensures all downstream cards behave predictably.
     const rank = (e: MediaListEntry): readonly [number, number, number] => [
       e.repeat ?? 0,
       e.score ?? 0,

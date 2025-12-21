@@ -410,3 +410,68 @@ export function toTemplateAnimeSeasonalPreference(
 
   return withUnknown;
 }
+
+type LengthStat = { length: string; count: number };
+
+const EPISODE_LENGTH_BUCKET_LABELS = {
+  short: "Short (<15 min)",
+  standard: "Standard (~25 min)",
+  long: "Long (>30 min)",
+} as const;
+
+type EpisodeLengthBucketLabel =
+  (typeof EPISODE_LENGTH_BUCKET_LABELS)[keyof typeof EPISODE_LENGTH_BUCKET_LABELS];
+
+function getEpisodeLengthBucketLabel(length: number): EpisodeLengthBucketLabel {
+  if (length < 15) return EPISODE_LENGTH_BUCKET_LABELS.short;
+  if (length <= 30) return EPISODE_LENGTH_BUCKET_LABELS.standard;
+  return EPISODE_LENGTH_BUCKET_LABELS.long;
+}
+
+/**
+ * Buckets AniList anime `statistics.anime.lengths` into three coarse categories.
+ *
+ * Note: AniList exposes `UserStatistics.lengths` as `UserLengthStatistic.length: String`.
+ * This helper treats the `length` as a numeric value and buckets it.
+ *
+ * @source
+ */
+export function toTemplateAnimeEpisodeLengthPreferences(
+  userRecord: UserRecord,
+): {
+  name: string;
+  count: number;
+}[] {
+  const lengths = userRecord.stats?.User?.statistics?.anime?.lengths as
+    | LengthStat[]
+    | undefined;
+  if (!Array.isArray(lengths) || lengths.length === 0) return [];
+
+  const buckets: Record<EpisodeLengthBucketLabel, number> = {
+    [EPISODE_LENGTH_BUCKET_LABELS.short]: 0,
+    [EPISODE_LENGTH_BUCKET_LABELS.standard]: 0,
+    [EPISODE_LENGTH_BUCKET_LABELS.long]: 0,
+  };
+
+  for (const entry of lengths) {
+    const lengthValue = typeof entry?.length === "string" ? entry.length.trim() : "";
+    const count =
+      typeof entry?.count === "number" && Number.isFinite(entry.count)
+        ? Math.max(0, entry.count)
+        : 0;
+    const parsed = Number.parseInt(lengthValue, 10);
+    if (!lengthValue || count <= 0 || !Number.isFinite(parsed)) continue;
+
+    buckets[getEpisodeLengthBucketLabel(parsed)] += count;
+  }
+
+  const stats = Object.entries(buckets).map(([name, count]) => ({
+    name,
+    count,
+  }));
+
+  const total = stats.reduce((sum, item) => sum + Math.max(0, item.count), 0);
+  if (total <= 0) return [];
+
+  return stats;
+}

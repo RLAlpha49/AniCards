@@ -688,6 +688,9 @@ export const extraStatsTemplates = {
   animeSeasonalPreference: createExtraStatsTemplate(
     displayNames["animeSeasonalPreference"],
   ),
+  animeEpisodeLengthPreferences: createExtraStatsTemplate(
+    displayNames["animeEpisodeLengthPreferences"],
+  ),
   animeStatusDistribution: createExtraStatsTemplate(
     displayNames["animeStatusDistribution"],
   ),

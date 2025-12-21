@@ -122,6 +122,10 @@ const animeBreakdownCards = [
     id: "animeSeasonalPreference",
     label: "Anime Seasonal Preference (Winter/Spring/Summer/Fall)",
   },
+  {
+    id: "animeEpisodeLengthPreferences",
+    label: "Episode Length Preferences (Short/Standard/Long)",
+  },
   { id: "animeCountry", label: "Anime Country" },
 ];
 

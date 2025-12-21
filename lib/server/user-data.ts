@@ -602,6 +602,7 @@ export const CARD_TYPE_TO_PARTS: Record<string, UserDataPart[]> = {
   releaseEraPreference: ["meta", "statistics"],
   startYearMomentum: ["meta", "statistics"],
   lengthPreference: ["meta", "statistics"],
+  animeEpisodeLengthPreferences: ["meta", "statistics"],
 };
 
 /**

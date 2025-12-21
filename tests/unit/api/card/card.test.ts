@@ -78,6 +78,9 @@ mock.module("@/lib/svg-templates/extra-anime-manga-stats/shared", () => {
   // Minimal map needed for template wrappers used by the generator.
   const extraStatsTemplates = {
     animeSeasonalPreference: createExtraStatsTemplate("Anime Seasons"),
+    animeEpisodeLengthPreferences: createExtraStatsTemplate(
+      "Episode Length Preferences",
+    ),
   };
 
   return {
@@ -793,6 +796,55 @@ describe("Card SVG Route", () => {
       expect(callArgs.format).toBe("Anime Seasons");
       expect(callArgs.stats).toContainEqual({ name: "Winter", count: 10 });
       expect(callArgs.stats).toContainEqual({ name: "Summer", count: 5 });
+    });
+
+    it("should render animeEpisodeLengthPreferences using bucketed statistics lengths", async () => {
+      const cardsData = createMockCardData(
+        "animeEpisodeLengthPreferences",
+        "default",
+      );
+      const userData = createMockUserData(542244, "testUser", {
+        User: {
+          statistics: {
+            anime: {
+              lengths: [
+                { length: "12", count: 2 },
+                { length: "24", count: 5 },
+                { length: "50", count: 1 },
+              ],
+            },
+            manga: {},
+          },
+        },
+      });
+
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeEpisodeLengthPreferences",
+          variation: "bar",
+        }),
+      );
+
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (
+        extraAnimeMangaStatsTemplate as MockFunction<
+          typeof extraAnimeMangaStatsTemplate
+        >
+      ).mock.calls.at(-1)![0];
+
+      expect(callArgs.format).toBe("Episode Length Preferences");
+      expect(callArgs.variant).toBe("bar");
+      expect(callArgs.stats).toEqual([
+        { name: "Short (<15 min)", count: 2 },
+        { name: "Standard (20-25 min)", count: 5 },
+        { name: "Long (>30 min)", count: 1 },
+      ]);
     });
 
     it("should return 404 when card config is not found in DB", async () => {

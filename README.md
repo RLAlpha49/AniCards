@@ -50,6 +50,7 @@ Each card has a `cardType` ID and supports one or more `variation` values.
 - **Anime Format Distribution** (`animeFormatDistribution`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
 - **Anime Source Material Distribution** (`animeSourceMaterialDistribution`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
 - **Anime Seasonal Preference** (`animeSeasonalPreference`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
+- **Episode Length Preferences** (`animeEpisodeLengthPreferences`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
 - **Anime Country Distribution** (`animeCountry`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
 - **Anime Score Distribution** (`animeScoreDistribution`) — Variations: Default, Horizontal, Cumulative
 - **Anime Year Distribution** (`animeYearDistribution`) — Variations: Default, Horizontal
