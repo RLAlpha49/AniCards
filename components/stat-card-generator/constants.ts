@@ -150,47 +150,6 @@ const mangaBreakdownCards = [
   { id: "mangaCountry", label: "Manga Country" },
 ];
 
-const distributionCards = [
-  {
-    id: "animeScoreDistribution",
-    label: "Anime Score Distribution",
-    group: "Anime Breakdowns",
-  },
-  {
-    id: "mangaScoreDistribution",
-    label: "Manga Score Distribution",
-    group: "Manga Breakdowns",
-  },
-  {
-    id: "animeYearDistribution",
-    label: "Anime Year Distribution",
-    group: "Anime Breakdowns",
-  },
-  {
-    id: "mangaYearDistribution",
-    label: "Manga Year Distribution",
-    group: "Manga Breakdowns",
-  },
-];
-
-const profileFavouritesCards = [
-  {
-    id: "profileOverview",
-    label: "Profile Overview (Avatar + Totals)",
-    variations: profileMainVariations,
-  },
-  {
-    id: "favoritesSummary",
-    label: "Favourites Summary",
-    variations: profileMainVariations,
-  },
-  {
-    id: "favoritesGrid",
-    label: "Favourites Grid",
-    variations: favoritesGridVariations,
-  },
-];
-
 const activityCards = [
   {
     id: "activityHeatmap",
@@ -277,88 +236,9 @@ const completionProgressCards = [
 
 const comparativeDefaultVariations = [{ id: "default", label: "Default" }];
 
-const comparativeDistributionCards = [
-  {
-    id: "animeMangaOverview",
-    label: "Anime vs Manga Overview",
-    variations: comparativeDefaultVariations,
-  },
-  {
-    id: "scoreCompareAnimeManga",
-    label: "Anime vs Manga Score Comparison",
-    variations: comparativeDefaultVariations,
-  },
-  {
-    id: "countryDiversity",
-    label: "Country Diversity",
-    variations: comparativeDefaultVariations,
-  },
-  {
-    id: "genreDiversity",
-    label: "Genre Diversity",
-    variations: comparativeDefaultVariations,
-  },
-  {
-    id: "formatPreferenceOverview",
-    label: "Format Preference Overview",
-    variations: comparativeDefaultVariations,
-  },
-  {
-    id: "releaseEraPreference",
-    label: "Release Era Preference",
-    variations: comparativeDefaultVariations,
-  },
-  {
-    id: "startYearMomentum",
-    label: "Start-Year Momentum",
-    variations: comparativeDefaultVariations,
-  },
-  {
-    id: "lengthPreference",
-    label: "Length Preference",
-    variations: comparativeDefaultVariations,
-  },
-];
-
 const userAnalyticsDefaultVariations = [{ id: "default", label: "Default" }];
 
 const studioDefaultVariations = [{ id: "default", label: "Default" }];
-
-const studioCards = [
-  {
-    id: "studioCollaboration",
-    label: "Studio Collaboration (Co-Production Pairs)",
-    variations: studioDefaultVariations,
-  },
-];
-
-const userAnalyticsCards = [
-  {
-    id: "tagCategoryDistribution",
-    label: "Tag Category Distribution",
-    variations: userAnalyticsDefaultVariations,
-  },
-  {
-    id: "tagDiversity",
-    label: "Tag Diversity",
-    variations: userAnalyticsDefaultVariations,
-  },
-  {
-    id: "seasonalViewingPatterns",
-    label: "Seasonal Viewing Patterns",
-    variations: userAnalyticsDefaultVariations,
-  },
-  {
-    id: "droppedMedia",
-    label: "Dropped Media",
-    variations: userAnalyticsDefaultVariations,
-  },
-  {
-    id: "reviewStats",
-    label: "Review Statistics",
-    variations: userAnalyticsDefaultVariations,
-  },
-];
 
 export const statCardTypes = [
   // Group: Core Stats

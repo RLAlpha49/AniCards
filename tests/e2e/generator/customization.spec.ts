@@ -148,7 +148,7 @@ test.describe("Generator customization and options", () => {
     });
 
     await test.step("Select card, variant, and favorites", async () => {
-      await page.getByRole("tab", { name: /Anime Breakdowns/i }).click();
+      await page.getByRole("tab", { name: /Anime Deep Dive/i }).click();
 
       const voiceActorsCard = page
         .getByText(/Anime Voice Actors/i)
