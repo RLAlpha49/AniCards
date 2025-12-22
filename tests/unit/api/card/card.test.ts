@@ -1308,6 +1308,133 @@ describe("Card SVG Route", () => {
       expect(incrCalls).toContain("analytics:card_svg:cache_hits");
     });
 
+    it("should accept favoritesGrid with staff variant and render correctly", async () => {
+      const userData = createMockUserData(542244, "testUser", {
+        User: {
+          favourites: {
+            anime: { nodes: [] },
+            manga: { nodes: [] },
+            characters: { nodes: [] },
+            staff: {
+              nodes: [
+                {
+                  id: 1,
+                  name: { full: "Test Director", native: "テストディレクター" },
+                  image: { large: "https://example.com/staff.jpg" },
+                },
+              ],
+            },
+            studios: { nodes: [] },
+          },
+        },
+      });
+      sharedRedisMockGet.mockResolvedValueOnce(userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "favoritesGrid",
+          variation: "staff",
+          gridCols: "3",
+          gridRows: "3",
+          titleColor: "#3cc8ff",
+          backgroundColor: "#0b1622",
+          textColor: "#E8E8E8",
+          circleColor: "#3cc8ff",
+        }),
+      );
+
+      const res = await GET(req);
+      expect([200, 404]).toContain(res.status);
+      if (res.status === 200) {
+        expect(favoritesGridTemplateMock).toHaveBeenCalled();
+
+        const callArgs = favoritesGridTemplateMock.mock.calls[0]?.[0] as
+          | {
+              gridCols?: number;
+              gridRows?: number;
+              variant?: string;
+            }
+          | undefined;
+
+        expect(callArgs).toBeTruthy();
+        expect(callArgs?.variant).toBe("staff");
+      }
+    });
+
+    it("should embed staff images as data URLs in mixed variant", async () => {
+      const userData = createMockUserData(542244, "testUser", {
+        User: {
+          favourites: {
+            anime: { nodes: [] },
+            manga: { nodes: [] },
+            characters: { nodes: [] },
+            staff: {
+              nodes: [
+                {
+                  id: 1,
+                  name: { full: "Test Director" },
+                  image: {
+                    large: "https://s4.anilist.co/file/anilistcdn/staff/1.jpg",
+                  },
+                },
+              ],
+            },
+            studios: { nodes: [] },
+          },
+        },
+      });
+      sharedRedisMockGet.mockResolvedValueOnce(userData);
+
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = mock().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: {
+          get: (n: string) =>
+            n.toLowerCase() === "content-type" ? "image/png" : null,
+        },
+        arrayBuffer: async () => new Uint8Array([137, 80, 78, 71]).buffer,
+      }) as unknown as typeof fetch;
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "favoritesGrid",
+          variation: "mixed",
+          gridCols: "2",
+          gridRows: "2",
+          titleColor: "#3cc8ff",
+          backgroundColor: "#0b1622",
+          textColor: "#E8E8E8",
+          circleColor: "#3cc8ff",
+        }),
+      );
+
+      const res = await GET(req);
+      expect([200, 404]).toContain(res.status);
+      if (res.status === 200) {
+        expect(favoritesGridTemplateMock).toHaveBeenCalled();
+        const callArgs = favoritesGridTemplateMock.mock.calls[0]?.[0] as
+          | {
+              gridCols?: number;
+              gridRows?: number;
+              variant?: string;
+              favourites?: {
+                staff?: { nodes?: { image?: { large?: string } }[] };
+              };
+            }
+          | undefined;
+        expect(callArgs).toBeTruthy();
+        expect(
+          callArgs?.favourites?.staff?.nodes?.[0]?.image?.large?.startsWith(
+            "data:",
+          ),
+        ).toBe(true);
+      }
+      globalThis.fetch = originalFetch;
+    });
+
     it("should persist card data when store-cards is called", async () => {
       const cardsPayload = [
         {

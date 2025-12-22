@@ -205,22 +205,26 @@ function computeMixedCounts(
   animeAvailable: number,
   mangaAvailable: number,
   charactersAvailable: number,
-): Record<"anime" | "manga" | "characters", number> {
-  const counts: Record<"anime" | "manga" | "characters", number> = {
+  staffAvailable: number,
+): Record<"anime" | "manga" | "characters" | "staff", number> {
+  const counts: Record<"anime" | "manga" | "characters" | "staff", number> = {
     anime: 0,
     manga: 0,
     characters: 0,
+    staff: 0,
   };
 
   const categories = [
     { key: "anime" as const, available: animeAvailable },
     { key: "manga" as const, available: mangaAvailable },
     { key: "characters" as const, available: charactersAvailable },
+    { key: "staff" as const, available: staffAvailable },
   ].filter((c) => c.available > 0);
 
   if (categories.length === 0) return counts;
 
-  const totalAvailable = animeAvailable + mangaAvailable + charactersAvailable;
+  const totalAvailable =
+    animeAvailable + mangaAvailable + charactersAvailable + staffAvailable;
   const targetTotal = Math.min(capacity, totalAvailable);
   const base = Math.floor(targetTotal / categories.length);
   let remainder = targetTotal - base * categories.length;
@@ -243,6 +247,33 @@ function computeMixedCounts(
   }
 
   return counts;
+}
+
+/**
+ * Create a default mixed-variant result when there are no available items to embed.
+ */
+function createEmptyMixedResult(
+  favourites: UserFavourites,
+  animeNodes: unknown[],
+  mangaNodes: unknown[],
+  characterNodes: unknown[],
+  staffNodes: unknown[],
+) {
+  return {
+    ...favourites,
+    anime: favourites.anime
+      ? { ...favourites.anime, nodes: animeNodes }
+      : undefined,
+    manga: favourites.manga
+      ? { ...favourites.manga, nodes: mangaNodes }
+      : undefined,
+    characters: favourites.characters
+      ? { ...favourites.characters, nodes: characterNodes }
+      : undefined,
+    staff: favourites.staff
+      ? { ...favourites.staff, nodes: staffNodes }
+      : { nodes: [] },
+  };
 }
 
 /**
@@ -284,7 +315,7 @@ async function embedNonMixed(
 
 export async function embedFavoritesGridImages(
   favourites: UserFavourites,
-  variant: "anime" | "manga" | "characters" | "studios" | "mixed",
+  variant: "anime" | "manga" | "characters" | "staff" | "studios" | "mixed",
   gridRows?: number,
   gridCols?: number,
 ): Promise<UserFavourites> {
@@ -297,59 +328,100 @@ export async function embedFavoritesGridImages(
     return favourites;
   }
 
+  // Staff variant: embed staff images like characters
+  if (variant === "staff") {
+    return await embedStaffVariant(favourites, capacity);
+  }
+
+  async function embedStaffVariant(
+    favourites: UserFavourites,
+    capacity: number,
+  ): Promise<UserFavourites> {
+    const staffNodes = favourites.staff?.nodes ?? [];
+    const staff = {
+      ...(favourites.staff ?? { nodes: [] }),
+      nodes: await embedCharacterNodesWithLimit(staffNodes, capacity),
+    };
+    return { ...favourites, staff };
+  }
+
   if (variant !== "mixed") {
     return await embedNonMixed(favourites, capacity);
   }
 
-  const animeNodes = favourites.anime?.nodes ?? [];
-  const mangaNodes = favourites.manga?.nodes ?? [];
-  const characterNodes = favourites.characters?.nodes ?? [];
+  return await embedMixedVariant(favourites, capacity);
 
-  const totalAvailable =
-    animeNodes.length + mangaNodes.length + characterNodes.length;
-  if (totalAvailable === 0) {
-    return {
-      ...favourites,
-      anime: favourites.anime
-        ? { ...favourites.anime, nodes: animeNodes }
-        : undefined,
-      manga: favourites.manga
-        ? { ...favourites.manga, nodes: mangaNodes }
-        : undefined,
-      characters: favourites.characters
-        ? { ...favourites.characters, nodes: characterNodes }
-        : undefined,
+  async function embedMixedVariant(
+    favourites: UserFavourites,
+    capacity: number,
+  ): Promise<UserFavourites> {
+    const animeNodes = favourites.anime?.nodes ?? [];
+    const mangaNodes = favourites.manga?.nodes ?? [];
+    const characterNodes = favourites.characters?.nodes ?? [];
+    const staffNodes = favourites.staff?.nodes ?? [];
+
+    const totalAvailable =
+      animeNodes.length +
+      mangaNodes.length +
+      characterNodes.length +
+      staffNodes.length;
+    if (totalAvailable === 0) {
+      return {
+        ...favourites,
+        anime: favourites.anime
+          ? { ...favourites.anime, nodes: animeNodes }
+          : undefined,
+        manga: favourites.manga
+          ? { ...favourites.manga, nodes: mangaNodes }
+          : undefined,
+        characters: favourites.characters
+          ? { ...favourites.characters, nodes: characterNodes }
+          : undefined,
+        staff: favourites.staff
+          ? { ...favourites.staff, nodes: staffNodes }
+          : { nodes: [] },
+      };
+    }
+
+    const counts = computeMixedCounts(
+      capacity,
+      animeNodes.length,
+      mangaNodes.length,
+      characterNodes.length,
+      staffNodes.length,
+    );
+
+    const anime = favourites.anime
+      ? {
+          ...favourites.anime,
+          nodes: await embedCoverNodesWithLimit(animeNodes, counts.anime),
+        }
+      : undefined;
+    const manga = favourites.manga
+      ? {
+          ...favourites.manga,
+          nodes: await embedCoverNodesWithLimit(mangaNodes, counts.manga),
+        }
+      : undefined;
+    const characters = favourites.characters
+      ? {
+          ...favourites.characters,
+          nodes: await embedCharacterNodesWithLimit(
+            characterNodes,
+            counts.characters,
+          ),
+        }
+      : undefined;
+
+    const staffLimit =
+      counts.staff && counts.staff > 0
+        ? counts.staff
+        : Math.min(staffNodes.length, capacity);
+    const staff = {
+      ...(favourites.staff ?? { nodes: [] }),
+      nodes: await embedCharacterNodesWithLimit(staffNodes, staffLimit),
     };
+
+    return { ...favourites, anime, manga, characters, staff };
   }
-
-  const counts = computeMixedCounts(
-    capacity,
-    animeNodes.length,
-    mangaNodes.length,
-    characterNodes.length,
-  );
-
-  const anime = favourites.anime
-    ? {
-        ...favourites.anime,
-        nodes: await embedCoverNodesWithLimit(animeNodes, counts.anime),
-      }
-    : undefined;
-  const manga = favourites.manga
-    ? {
-        ...favourites.manga,
-        nodes: await embedCoverNodesWithLimit(mangaNodes, counts.manga),
-      }
-    : undefined;
-  const characters = favourites.characters
-    ? {
-        ...favourites.characters,
-        nodes: await embedCharacterNodesWithLimit(
-          characterNodes,
-          counts.characters,
-        ),
-      }
-    : undefined;
-
-  return { ...favourites, anime, manga, characters };
 }

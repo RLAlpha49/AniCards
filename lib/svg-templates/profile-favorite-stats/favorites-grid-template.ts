@@ -21,7 +21,7 @@ import { ANIMATION, TYPOGRAPHY } from "../common/constants";
  */
 export const favoritesGridTemplate = (data: {
   username: string;
-  variant?: "anime" | "manga" | "characters" | "studios" | "mixed";
+  variant?: "anime" | "manga" | "characters" | "staff" | "studios" | "mixed";
   styles: TemplateStyles;
   favourites: UserFavourites;
   gridCols?: number;
@@ -57,7 +57,7 @@ export const favoritesGridTemplate = (data: {
     name: string;
     image?: string;
     color?: string;
-    type: "anime" | "manga" | "character" | "studio";
+    type: "anime" | "manga" | "character" | "staff" | "studio";
   };
 
   type GridCell = {
@@ -108,6 +108,16 @@ export const favoritesGridTemplate = (data: {
     }));
   };
 
+  const buildStaffItems = (): GridItem[] => {
+    const staffNodes = data.favourites.staff?.nodes ?? [];
+    return staffNodes.map((n) => ({
+      id: n.id,
+      name: n.name.full || n.name.native || "Unknown",
+      image: n.image.large || n.image.medium,
+      type: "staff" as const,
+    }));
+  };
+
   /**
    * Generate a consistent color from a string (studio name).
    * Uses a simple hash to pick from a palette of accent colors.
@@ -145,6 +155,7 @@ export const favoritesGridTemplate = (data: {
     anime: GridItem[],
     manga: GridItem[],
     characters: GridItem[],
+    staff: GridItem[],
     studios: GridItem[],
     limit: number,
   ): GridItem[] => {
@@ -153,6 +164,7 @@ export const favoritesGridTemplate = (data: {
       [...anime],
       [...manga],
       [...characters],
+      [...staff],
       [...studios],
     ];
     const result: GridItem[] = [];
@@ -180,6 +192,8 @@ export const favoritesGridTemplate = (data: {
     gridItems = buildMangaItems().slice(0, gridCapacity);
   } else if (variant === "characters") {
     gridItems = buildCharacterItems().slice(0, gridCapacity);
+  } else if (variant === "staff") {
+    gridItems = buildStaffItems().slice(0, gridCapacity);
   } else if (variant === "studios") {
     gridItems = buildStudioItems().slice(0, gridCapacity);
   } else {
@@ -188,6 +202,7 @@ export const favoritesGridTemplate = (data: {
       buildAnimeItems(),
       buildMangaItems(),
       buildCharacterItems(),
+      buildStaffItems(),
       buildStudioItems(),
       gridCapacity,
     );

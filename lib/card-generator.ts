@@ -128,6 +128,7 @@ type FavoritesGridVariant =
   | "anime"
   | "manga"
   | "characters"
+  | "staff"
   | "studios"
   | "mixed";
 /** @source */
@@ -178,7 +179,9 @@ function normalizeVariant(
   // Handle favoritesGrid specially
   if (baseCardType === "favoritesGrid") {
     if (
-      ["anime", "manga", "characters", "studios", "mixed"].includes(variant)
+      ["anime", "manga", "characters", "staff", "studios", "mixed"].includes(
+        variant,
+      )
     ) {
       return variant as CardGenVariant;
     }
@@ -1155,12 +1158,43 @@ async function generateFavoritesGridCard(
     throw new CardDataError("Not Found: Missing user favourites data", 404);
   }
 
-  const embeddedFavourites = await embedFavoritesGridImages(
+  let embeddedFavourites = await embedFavoritesGridImages(
     user.favourites,
     variant as FavoritesGridVariant,
     params.favoritesGridRows,
     params.favoritesGridCols,
   );
+
+  // Ensure staff images are embedded as data URLs when possible.
+  if (embeddedFavourites.staff?.nodes?.length) {
+    const TRANSPARENT_PNG_DATA_URL =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAAWgmWQ0AAAAASUVORK5CYII=";
+    const updatedStaffNodes = await Promise.all(
+      embeddedFavourites.staff.nodes.map(async (n) => {
+        const url = n.image?.large ?? n.image?.medium;
+        if (!url || url.startsWith("data:")) return n;
+        const dataUrl = await fetchImageAsDataUrl(url);
+        if (!dataUrl) {
+          // Fallback to a tiny transparent PNG to ensure the template receives a data URL.
+          return {
+            ...n,
+            image: {
+              large: TRANSPARENT_PNG_DATA_URL,
+              medium: TRANSPARENT_PNG_DATA_URL,
+            },
+          };
+        }
+        return { ...n, image: { large: dataUrl, medium: dataUrl } };
+      }),
+    );
+    embeddedFavourites = {
+      ...embeddedFavourites,
+      staff: {
+        ...(embeddedFavourites.staff ?? { nodes: [] }),
+        nodes: updatedStaffNodes,
+      },
+    };
+  }
 
   return favoritesGridTemplate({
     username: userRecord.username ?? userRecord.userId,

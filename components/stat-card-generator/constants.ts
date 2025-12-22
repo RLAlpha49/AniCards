@@ -58,6 +58,7 @@ const favoritesGridVariations = [
   { id: "anime", label: "Anime Grid" },
   { id: "manga", label: "Manga Grid" },
   { id: "characters", label: "Character Grid" },
+  { id: "staff", label: "Staff Grid" },
   { id: "studios", label: "Studios Grid" },
   { id: "mixed", label: "Mixed Favourites" },
 ];
