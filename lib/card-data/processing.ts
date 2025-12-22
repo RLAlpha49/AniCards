@@ -248,6 +248,23 @@ function toSourceLabel(source: string | undefined): string {
  * optionally collapses long tails into an "Other" bucket.
  * @source
  */
+function finalizeDistribution(
+  rawItems: { name: string; count: number }[],
+  maxBuckets = 10,
+): { name: string; count: number }[] {
+  const items = rawItems
+    .map(({ name, count }) => ({ name, count: Number.isFinite(count) ? Math.max(0, count) : 0 }))
+    .filter((x) => x.count > 0)
+    .sort((a, b) => b.count - a.count);
+
+  if (items.length <= maxBuckets) return items;
+
+  const head = items.slice(0, maxBuckets - 1);
+  const otherCount = items.slice(maxBuckets - 1).reduce((sum, item) => sum + item.count, 0);
+
+  return [...head, { name: "Other", count: otherCount }];
+}
+
 export function toTemplateAnimeSourceMaterialDistribution(
   userRecord: UserRecord,
 ): {
@@ -256,23 +273,12 @@ export function toTemplateAnimeSourceMaterialDistribution(
 }[] {
   const storedTotals = userRecord.animeSourceMaterialDistributionTotals;
   if (Array.isArray(storedTotals) && storedTotals.length > 0) {
-    const items = storedTotals
-      .map(({ source, count }) => ({
-        name: toSourceLabel(source),
-        count: Number.isFinite(count) ? count : 0,
-      }))
-      .filter((x) => x.count > 0)
-      .sort((a, b) => b.count - a.count);
+    const raw = storedTotals.map(({ source, count }) => ({
+      name: toSourceLabel(source),
+      count: Number.isFinite(count) ? count : 0,
+    }));
 
-    const MAX_BUCKETS = 10;
-    if (items.length <= MAX_BUCKETS) return items;
-
-    const head = items.slice(0, MAX_BUCKETS - 1);
-    const otherCount = items
-      .slice(MAX_BUCKETS - 1)
-      .reduce((sum, item) => sum + item.count, 0);
-
-    return [...head, { name: "Other", count: otherCount }];
+    return finalizeDistribution(raw);
   }
 
   const completed = extractMediaListEntries(userRecord.stats?.animeCompleted);
@@ -291,20 +297,12 @@ export function toTemplateAnimeSourceMaterialDistribution(
     bySource.set(key, (bySource.get(key) ?? 0) + 1);
   }
 
-  const items = [...bySource.entries()]
-    .map(([source, count]) => ({ name: toSourceLabel(source), count }))
-    .filter((x) => x.count > 0)
-    .sort((a, b) => b.count - a.count);
+  const raw = [...bySource.entries()].map(([source, count]) => ({
+    name: toSourceLabel(source),
+    count,
+  }));
 
-  const MAX_BUCKETS = 10;
-  if (items.length <= MAX_BUCKETS) return items;
-
-  const head = items.slice(0, MAX_BUCKETS - 1);
-  const otherCount = items
-    .slice(MAX_BUCKETS - 1)
-    .reduce((sum, item) => sum + item.count, 0);
-
-  return [...head, { name: "Other", count: otherCount }];
+  return finalizeDistribution(raw);
 }
 
 const SEASON_LABEL_OVERRIDES: Record<string, string> = {
@@ -476,17 +474,17 @@ export function toTemplateAnimeEpisodeLengthPreferences(
 }
 
 /**
- * Builds a list of top genre pairs (co-occurrences) for the Genre Synergy card.
+ * Convert an array of pair totals into template-friendly {name,count} entries.
  *
- * Uses pre-aggregated `userRecord.animeGenreSynergyTotals` which is computed
- * at write time from the full completed list (before pruning).
- *
- * @source
+ * Filters invalid entries, maps to display names using the provided labelizer,
+ * sorts by count (desc) then name, and limits the result to `maxItems`.
+ * @internal
  */
-export function toTemplateAnimeGenreSynergy(
-  userRecord: UserRecord,
+function buildTopPairsFromTotals(
+  totals: Array<{ a?: string; b?: string; count?: number }> | undefined,
+  labelizer: (a: string, b: string) => string = (a, b) => `${a} + ${b}`,
+  maxItems = 10,
 ): { name: string; count: number }[] {
-  const totals = userRecord.animeGenreSynergyTotals;
   if (!Array.isArray(totals) || totals.length === 0) return [];
 
   return [...totals]
@@ -500,11 +498,29 @@ export function toTemplateAnimeGenreSynergy(
         t.count > 0,
     )
     .map((t) => ({
-      name: `${t.a} + ${t.b}`,
-      count: Math.max(0, t.count),
+      name: labelizer(t.a as string, t.b as string),
+      count: Math.max(0, t.count as number),
     }))
     .sort((x, y) => y.count - x.count || x.name.localeCompare(y.name))
-    .slice(0, 10);
+    .slice(0, maxItems);
+}
+
+/**
+ * Builds a list of top genre pairs (co-occurrences) for the Genre Synergy card.
+ *
+ * Uses pre-aggregated `userRecord.animeGenreSynergyTotals` which is computed
+ * at write time from the full completed list (before pruning).
+ *
+ * @source
+ */
+export function toTemplateAnimeGenreSynergy(
+  userRecord: UserRecord,
+): { name: string; count: number }[] {
+  return buildTopPairsFromTotals(
+    userRecord.animeGenreSynergyTotals,
+    (a, b) => `${a} + ${b}`,
+    10,
+  );
 }
 
 /**
@@ -518,25 +534,11 @@ export function toTemplateAnimeGenreSynergy(
 export function toTemplateStudioCollaboration(
   userRecord: UserRecord,
 ): { name: string; count: number }[] {
-  const totals = userRecord.studioCollaborationTotals;
-  if (!Array.isArray(totals) || totals.length === 0) return [];
-
-  return [...totals]
-    .filter(
-      (t) =>
-        !!t &&
-        typeof t.a === "string" &&
-        typeof t.b === "string" &&
-        typeof t.count === "number" &&
-        Number.isFinite(t.count) &&
-        t.count > 0,
-    )
-    .map((t) => ({
-      name: `${t.a} + ${t.b}`,
-      count: Math.max(0, t.count),
-    }))
-    .sort((x, y) => y.count - x.count || x.name.localeCompare(y.name))
-    .slice(0, 10);
+  return buildTopPairsFromTotals(
+    userRecord.studioCollaborationTotals,
+    (a, b) => `${a} + ${b}`,
+    10,
+  );
 }
 
 /**

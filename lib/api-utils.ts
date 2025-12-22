@@ -802,6 +802,79 @@ function validateCardsArrayField(
 }
 
 /**
+ * Collects card names from the provided card objects and separates them
+ * into supported (uniqueSupportedNames) and unknownNames sets.
+ */
+function collectUniqueAndUnknownCardNames(
+  cards: unknown[],
+  supportedNames: Set<string>,
+): { uniqueSupportedNames: Set<string>; unknownNames: Set<string> } {
+  const uniqueSupportedNames = new Set<string>();
+  const unknownNames = new Set<string>();
+
+  for (const c of cards) {
+    if (typeof c === "object" && c !== null) {
+      const name = (c as Record<string, unknown>).cardName;
+      if (typeof name === "string" && name.length > 0) {
+        if (supportedNames.has(name)) uniqueSupportedNames.add(name);
+        else unknownNames.add(name);
+      }
+    }
+  }
+
+  return { uniqueSupportedNames, unknownNames };
+}
+
+/**
+ * Compute the Levenshtein edit distance between two strings.
+ */
+function levenshteinDistance(a: string, b: string): number {
+  const n = a.length;
+  const m = b.length;
+  const dp: number[][] = Array.from({ length: n + 1 }, () =>
+    new Array<number>(m + 1).fill(0),
+  );
+
+  for (let i = 0; i <= n; i++) dp[i][0] = i;
+  for (let j = 0; j <= m; j++) dp[0][j] = j;
+
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= m; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost,
+      );
+    }
+  }
+
+  return dp[n][m];
+}
+
+/**
+ * Build suggestion candidates for unknown names using Levenshtein distance.
+ */
+function buildLevenshteinSuggestions(
+  unknownNames: Set<string>,
+  supportedArray: string[],
+  maxDistance = 3,
+  topN = 3,
+): Record<string, string[]> {
+  const suggestions: Record<string, string[]> = {};
+  for (const unknown of unknownNames) {
+    const candidates = supportedArray
+      .map((s) => ({ s, d: levenshteinDistance(unknown, s) }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, topN)
+      .filter((c) => c.d <= maxDistance)
+      .map((c) => c.s);
+    if (candidates.length) suggestions[unknown] = candidates;
+  }
+  return suggestions;
+}
+
+/**
  * Enforces a maximum on unique card types and returns an API error if exceeded.
  */
 function validateUniqueCardTypes(
@@ -813,21 +886,10 @@ function validateUniqueCardTypes(
   const MAX_ALLOWED_CARDS = Math.max(33, maxSupportedTypes);
 
   const supportedNames = new Set<string>(Object.keys(displayNames));
-  const uniqueSupportedNames = new Set<string>();
-  const unknownNames = new Set<string>();
-
-  for (const c of cards) {
-    if (typeof c === "object" && c !== null) {
-      const name = (c as Record<string, unknown>).cardName;
-      if (typeof name === "string" && name.length > 0) {
-        if (supportedNames.has(name)) {
-          uniqueSupportedNames.add(name);
-        } else {
-          unknownNames.add(name);
-        }
-      }
-    }
-  }
+  const { uniqueSupportedNames, unknownNames } = collectUniqueAndUnknownCardNames(
+    cards,
+    supportedNames,
+  );
 
   // If any invalid/unsupported card names are present, return a clear error
   if (unknownNames.size > 0) {
@@ -835,40 +897,7 @@ function validateUniqueCardTypes(
       `⚠️ [${endpoint}] Invalid card types provided: ${[...unknownNames].join(", ")}`,
     );
 
-    // Provide helpful suggestions for common typos by computing edit distance
-    const supportedArray = [...supportedNames];
-
-    const levenshtein = (a: string, b: string): number => {
-      const n = a.length;
-      const m = b.length;
-      const dp: number[][] = Array.from({ length: n + 1 }, () =>
-        new Array<number>(m + 1).fill(0),
-      );
-      for (let i = 0; i <= n; i++) dp[i][0] = i;
-      for (let j = 0; j <= m; j++) dp[0][j] = j;
-      for (let i = 1; i <= n; i++) {
-        for (let j = 1; j <= m; j++) {
-          const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-          dp[i][j] = Math.min(
-            dp[i - 1][j] + 1,
-            dp[i][j - 1] + 1,
-            dp[i - 1][j - 1] + cost,
-          );
-        }
-      }
-      return dp[n][m];
-    };
-
-    const suggestions: Record<string, string[]> = {};
-    for (const unknown of unknownNames) {
-      const candidates = supportedArray
-        .map((s) => ({ s, d: levenshtein(unknown, s) }))
-        .sort((a, b) => a.d - b.d)
-        .slice(0, 3)
-        .filter((c) => c.d <= 3)
-        .map((c) => c.s);
-      if (candidates.length) suggestions[unknown] = candidates;
-    }
+    const suggestions = buildLevenshteinSuggestions(unknownNames, [...supportedNames]);
 
     return NextResponse.json(
       {
