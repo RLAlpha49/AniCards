@@ -509,6 +509,7 @@ export function useStatCardSubmit() {
     timeoutMs = 15000,
     contextLabel = "query",
     onRetry?: (attempt: number, operation: string) => void,
+    totalTimeoutMs = 25000,
   ) {
     const response = await fetchWithRetry(
       "/api/anilist",
@@ -522,7 +523,7 @@ export function useStatCardSubmit() {
         contextName: `AniList - ${contextLabel}`,
         operationName: `AniList ${contextLabel}`,
         maxRetries: DEFAULT_RETRY_ATTEMPTS,
-        totalTimeoutMs: 25000,
+        totalTimeoutMs,
         onRetry,
       },
     );
@@ -598,9 +599,10 @@ export function useStatCardSubmit() {
       const statsData = await fetchAniListQuery(
         USER_STATS_QUERY,
         { userId: userIdData.User.id },
-        15000,
+        30000,
         "user stats fetch",
         handleRetryUpdate,
+        30000,
       );
       if (!statsData) {
         throw new Error(
