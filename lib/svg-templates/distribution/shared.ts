@@ -371,11 +371,116 @@ function generateVerticalBars(
     .join("");
 }
 
-/*
-Variants:
-- default: Horizontal list of proportional bars (like previous score default)
-- horizontal: Condensed mini vertical bars (like previous horizontal score variant)
-*/
+/**
+ * Prepare rendered data for the template and compute summary stats.
+ * - Slices and sorts based on variant/kind
+ * - Computes the maximum count for scaling
+ * - Detects gaps between non-consecutive years (for year kind)
+ */
+function prepareRenderedData(
+  normalizedData: DistributionDatum[],
+  variant: DistributionTemplateInput["variant"],
+  kind: "score" | "year",
+): {
+  renderedData: DistributionDatum[];
+  maxCount: number;
+  hasYearGaps: boolean;
+} {
+  const renderedDataBase =
+    variant === "horizontal"
+      ? normalizedData.slice(0, DISTRIBUTION.MAX_ITEMS)
+      : normalizedData;
+
+  const renderedData =
+    variant === "cumulative" && kind === "score"
+      ? renderedDataBase.toSorted((a, b) => a.value - b.value)
+      : renderedDataBase;
+
+  let maxCount = 1;
+  let hasYearGaps = false;
+
+  for (let i = 0; i < renderedData.length; i += 1) {
+    const current = renderedData[i];
+
+    if (current.count > maxCount) {
+      maxCount = current.count;
+    }
+
+    if (!hasYearGaps && kind === "year" && i < renderedData.length - 1) {
+      const next = renderedData[i + 1];
+      if (next && current.value - next.value > 1) {
+        hasYearGaps = true;
+      }
+    }
+  }
+
+  return { renderedData, maxCount, hasYearGaps };
+}
+
+/**
+ * Compute the required dimensions for a variant based on the rendered data
+ */
+function computeDimsForVariant(
+  variant: DistributionTemplateInput["variant"],
+  renderedData: DistributionDatum[],
+  baseDims: { w: number; h: number },
+) {
+  if (variant === "horizontal") {
+    const n = renderedData.length;
+    if (n <= 0) return baseDims;
+
+    const lastX =
+      (n - 1) * DISTRIBUTION.VERTICAL_BAR_SPACING + DISTRIBUTION.COUNT_BASE_X;
+    const requiredWidth =
+      lastX + DISTRIBUTION.VERTICAL_BAR_WIDTH / 2 + SPACING.CARD_PADDING;
+
+    return {
+      ...baseDims,
+      w: Math.max(baseDims.w, Math.ceil(requiredWidth)),
+    };
+  }
+
+  const n = renderedData.length;
+  if (n <= 0) return baseDims;
+
+  const chartTopY = 70;
+  const lastRowBottom = chartTopY + (n - 1) * SPACING.ITEM_GAP + (4 + 10); // rect y + rect height
+  const requiredHeight = lastRowBottom + SPACING.CARD_PADDING;
+
+  return {
+    ...baseDims,
+    h: Math.max(baseDims.h, Math.ceil(requiredHeight)),
+  };
+}
+
+/**
+ * Build the main content SVG string for the given variant and kind.
+ */
+function renderMainContent(
+  variant: DistributionTemplateInput["variant"],
+  kind: "score" | "year",
+  renderedData: DistributionDatum[],
+  opts: {
+    dims: { w: number; h: number };
+    maxCount: number;
+    maxBarWidth: number;
+    barColor: string;
+    showYearGaps: boolean;
+  },
+) {
+  const { dims, maxCount, maxBarWidth, barColor, showYearGaps } = opts;
+
+  if (variant === "horizontal") {
+    return `<g transform="translate(0,40)">${generateVerticalBars(renderedData, maxCount, barColor, { showYearGaps })}</g>`;
+  }
+
+  if (variant === "cumulative" && kind === "score") {
+    return generateCumulativeChart(renderedData, dims);
+  }
+
+  return `<g transform="translate(30,70)">${generateBarItems(renderedData, maxCount, maxBarWidth, barColor, { showYearGaps })}</g>`;
+}
+
 /**
  * Renders an SVG string representing a distribution (score or year)
  * chart for a user; the output is a ready-to-embed SVG string.
@@ -409,34 +514,12 @@ export function distributionTemplate(
 
   // Normalize and sort data
   const normalizedData = normalizeDistributionData(input.data, kind);
-  const renderedDataBase =
-    variant === "horizontal"
-      ? normalizedData.slice(0, DISTRIBUTION.MAX_ITEMS)
-      : normalizedData;
-  const renderedData =
-    variant === "cumulative" && kind === "score"
-      ? renderedDataBase.toSorted((a, b) => a.value - b.value)
-      : renderedDataBase;
-  let maxCount = 1;
-  let hasYearGaps = false;
 
-  {
-    const n = renderedData.length;
-    for (let i = 0; i < n; i += 1) {
-      const current = renderedData[i];
-
-      if (current.count > maxCount) {
-        maxCount = current.count;
-      }
-
-      if (!hasYearGaps && kind === "year" && i < n - 1) {
-        const next = renderedData[i + 1];
-        if (next && current.value - next.value > 1) {
-          hasYearGaps = true;
-        }
-      }
-    }
-  }
+  const { renderedData, maxCount, hasYearGaps } = prepareRenderedData(
+    normalizedData,
+    variant,
+    kind,
+  );
 
   const showYearGaps = kind === "year";
 
@@ -446,35 +529,7 @@ export function distributionTemplate(
   const title = `${username}'s ${capitalize(mediaType)} ${baseTitle}`;
   const safeTitle = escapeForXml(title);
   const baseDims = getCardDimensions("distribution", variant);
-
-  const dims = (() => {
-    if (variant === "horizontal") {
-      const n = renderedData.length;
-      if (n <= 0) return baseDims;
-
-      const lastX =
-        (n - 1) * DISTRIBUTION.VERTICAL_BAR_SPACING + DISTRIBUTION.COUNT_BASE_X;
-      const requiredWidth =
-        lastX + DISTRIBUTION.VERTICAL_BAR_WIDTH / 2 + SPACING.CARD_PADDING;
-
-      return {
-        ...baseDims,
-        w: Math.max(baseDims.w, Math.ceil(requiredWidth)),
-      };
-    }
-
-    const n = renderedData.length;
-    if (n <= 0) return baseDims;
-
-    const chartTopY = 70;
-    const lastRowBottom = chartTopY + (n - 1) * SPACING.ITEM_GAP + (4 + 10); // rect y + rect height
-    const requiredHeight = lastRowBottom + SPACING.CARD_PADDING;
-
-    return {
-      ...baseDims,
-      h: Math.max(baseDims.h, Math.ceil(requiredHeight)),
-    };
-  })();
+  const dims = computeDimsForVariant(variant, renderedData, baseDims);
 
   // Layout constants
   const barColor = resolvedColors.circleColor;
@@ -485,14 +540,13 @@ export function distributionTemplate(
   );
 
   // Generate content based on variant
-  let mainContent: string;
-  if (variant === "horizontal") {
-    mainContent = `<g transform="translate(0,40)">${generateVerticalBars(renderedData, maxCount, barColor, { showYearGaps })}</g>`;
-  } else if (variant === "cumulative" && kind === "score") {
-    mainContent = generateCumulativeChart(renderedData, dims);
-  } else {
-    mainContent = `<g transform="translate(30,70)">${generateBarItems(renderedData, maxCount, maxBarWidth, barColor, { showYearGaps })}</g>`;
-  }
+  const mainContent = renderMainContent(variant, kind, renderedData, {
+    dims,
+    maxCount,
+    maxBarWidth,
+    barColor,
+    showYearGaps,
+  });
 
   const headerFontSize = calculateDynamicFontSize(title, 18, 300);
   const headerFontSizeNumber = Number.parseFloat(headerFontSize) || 18;

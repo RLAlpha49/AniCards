@@ -59,8 +59,8 @@ async function expectOkJson(
 
   // Check statistics if present in expected (allow explicit null)
   if (
-    Object.prototype.hasOwnProperty.call(expected, "statistics") ||
-    Object.prototype.hasOwnProperty.call(expected, "stats")
+    Object.hasOwn(expected, "statistics") ||
+    Object.hasOwn(expected, "stats")
   ) {
     const expStats = expected.statistics ?? expected.stats;
     if (expStats === null || expStats === undefined) {

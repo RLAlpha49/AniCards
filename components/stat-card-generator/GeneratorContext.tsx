@@ -322,6 +322,20 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
   const showFavoritesByCard = defaultShowFavoritesByCard;
   const hasBorder = defaultBorderEnabled;
 
+  // Sanitize persisted default variants that don't match available variations.
+  useEffect(() => {
+    for (const type of statCardTypes) {
+      const stored = selectedCardVariants[type.id];
+      if (
+        stored &&
+        type.variations &&
+        !type.variations.some((v) => v.id === stored)
+      ) {
+        setDefaultVariant(type.id, type.variations[0].id);
+      }
+    }
+  }, [selectedCardVariants, setDefaultVariant]);
+
   const allSelected = useMemo(
     () => statCardTypes.every((type) => selectedCards.includes(type.id)),
     [selectedCards],
@@ -379,12 +393,25 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
   const handleToggleCard = useCallback(
     (cardId: string) => {
       const [baseId] = cardId.split("-");
-      const newTypes = selectedCards.includes(baseId)
+      const isSelected = selectedCards.includes(baseId);
+      const newTypes = isSelected
         ? selectedCards.filter((id) => id !== baseId)
         : [...selectedCards, baseId];
       setDefaultCardTypes(newTypes);
+
+      if (!isSelected) {
+        const type = statCardTypes.find((t) => t.id === baseId);
+        if (type?.variations && !selectedCardVariants[baseId]) {
+          setDefaultVariant(baseId, type.variations[0].id);
+        }
+      }
     },
-    [selectedCards, setDefaultCardTypes],
+    [
+      selectedCards,
+      selectedCardVariants,
+      setDefaultCardTypes,
+      setDefaultVariant,
+    ],
   );
 
   const handleVariantChange = useCallback(
@@ -400,10 +427,12 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
     setDefaultCardTypes(newTypes);
 
     if (selectingAll) {
-      // Set default variants for newly selected cards
+      // Set default variants for newly selected cards using the first available
+      // variation for each card so selects display a valid option.
       for (const type of statCardTypes) {
         if (type.variations && !selectedCardVariants[type.id]) {
-          setDefaultVariant(type.id, "default");
+          const defaultVariant = type.variations[0]?.id ?? "default";
+          setDefaultVariant(type.id, defaultVariant);
         }
       }
     }
@@ -597,21 +626,40 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
     [setDefaultUsername],
   );
 
-  const openPreview = useCallback((cardType: string, variant?: string) => {
-    setPreviewType(cardType);
-    setPreviewVariation(variant || "default");
-    setPreviewOpen(true);
-  }, []);
+  const getValidVariant = useCallback(
+    (cardType: string, candidate?: string) => {
+      const type = statCardTypes.find((t) => t.id === cardType);
+      if (!type?.variations || type.variations.length === 0) {
+        return candidate ?? "default";
+      }
+      if (candidate && type.variations.some((v) => v.id === candidate)) {
+        return candidate;
+      }
+      const stored = selectedCardVariants[cardType];
+      if (stored && type.variations.some((v) => v.id === stored)) {
+        return stored;
+      }
+      return type.variations[0].id;
+    },
+    [selectedCardVariants],
+  );
+
+  const openPreview = useCallback(
+    (cardType: string, variant?: string) => {
+      setPreviewType(cardType);
+      setPreviewVariation(getValidVariant(cardType, variant));
+      setPreviewOpen(true);
+    },
+    [getValidVariant],
+  );
 
   const closePreview = useCallback(() => setPreviewOpen(false), []);
 
   const handlePreview = useCallback(
     (cardType: string, variant?: string) => {
-      const variantToUse =
-        variant || selectedCardVariants[cardType] || "default";
-      openPreview(cardType, variantToUse);
+      openPreview(cardType, variant);
     },
-    [selectedCardVariants, openPreview],
+    [openPreview],
   );
 
   const colorPickers = useMemo<ColorPickerConfig[]>(

@@ -430,12 +430,15 @@ export async function POST(request: Request) {
     const headers = apiJsonHeaders(request);
     headers["Content-Type"] = "text/plain";
 
+    const recFor5Note = recFor5.note ? ` — ${recFor5.note}` : "";
+    const recFor10Note = recFor10.note ? ` — ${recFor10.note}` : "";
+
     const scheduleMessage = [
       `Updated ${successfulUpdates}/${batch.length} users successfully. Failed: ${failedUpdates}, Removed: ${removedUsers}`,
       "",
       `Recommended schedules to refresh all ${totalUsers} users at least once per 24 hours:`,
-      ` - Update 5 users/run: ${recFor5.cron} (${recFor5.runsPerDay} runs/day, ~every ${recFor5.intervalMinutes} min)${recFor5.note ? ` — ${recFor5.note}` : ""}`,
-      ` - Update 10 users/run: ${recFor10.cron} (${recFor10.runsPerDay} runs/day, ~every ${recFor10.intervalMinutes} min)${recFor10.note ? ` — ${recFor10.note}` : ""}`,
+      ` - Update 5 users/run: ${recFor5.cron} (${recFor5.runsPerDay} runs/day, ~every ${recFor5.intervalMinutes} min)${recFor5Note}`,
+      ` - Update 10 users/run: ${recFor10.cron} (${recFor10.runsPerDay} runs/day, ~every ${recFor10.intervalMinutes} min)${recFor10Note}`,
     ].join("\n");
 
     return new Response(scheduleMessage, { status: 200, headers });

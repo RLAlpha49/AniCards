@@ -254,9 +254,16 @@ export function StatCardTypeSelection({
           >
             {grouped.map[activeGroup]?.map((type, index) => {
               const isSelected = selectedCards.includes(type.id);
-              const currentVariation =
-                selectedCardVariants[type.id] ||
-                (type.variations ? "default" : "");
+              const currentVariation = (() => {
+                const selected = selectedCardVariants[type.id];
+                if (
+                  selected &&
+                  type.variations?.some((v) => v.id === selected)
+                ) {
+                  return selected;
+                }
+                return type.variations?.[0]?.id ?? "";
+              })();
               const supportsFavorites = FAVORITE_CARD_IDS.has(type.id);
               const isFavorite = showFavoritesByCard[type.id];
               const isFavoritesGrid = type.id === FAVORITES_GRID_CARD_ID;
