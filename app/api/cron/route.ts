@@ -330,12 +330,11 @@ export async function POST(request: Request) {
       return dateA - dateB;
     });
 
-    // Select the 10 oldest users
-    const ANILIST_RATE_LIMIT = 10;
-    const batch = validUsers.slice(0, ANILIST_RATE_LIMIT);
+    // Select the 5 oldest users
+    const batch = validUsers.slice(0, 5);
 
     console.log(
-      `🚀 [Cron Job] Starting background update for ${batch.length} users (10 oldest out of ${totalUsers}).`,
+      `🚀 [Cron Job] Starting background update for ${batch.length} users (5 oldest out of ${totalUsers}).`,
     );
 
     let successfulUpdates = 0;
