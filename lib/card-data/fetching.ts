@@ -92,7 +92,8 @@ export async function fetchUserDataOnly(
       "current",
       "rewatched",
       "completed",
-    ]; 
+      "aggregates",
+    ];
     const userDataParts = await fetchUserDataParts(numericUserId, allParts);
 
     if (!userDataParts.meta) {

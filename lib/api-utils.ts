@@ -886,10 +886,8 @@ function validateUniqueCardTypes(
   const MAX_ALLOWED_CARDS = Math.max(33, maxSupportedTypes);
 
   const supportedNames = new Set<string>(Object.keys(displayNames));
-  const { uniqueSupportedNames, unknownNames } = collectUniqueAndUnknownCardNames(
-    cards,
-    supportedNames,
-  );
+  const { uniqueSupportedNames, unknownNames } =
+    collectUniqueAndUnknownCardNames(cards, supportedNames);
 
   // If any invalid/unsupported card names are present, return a clear error
   if (unknownNames.size > 0) {
@@ -897,7 +895,9 @@ function validateUniqueCardTypes(
       `⚠️ [${endpoint}] Invalid card types provided: ${[...unknownNames].join(", ")}`,
     );
 
-    const suggestions = buildLevenshteinSuggestions(unknownNames, [...supportedNames]);
+    const suggestions = buildLevenshteinSuggestions(unknownNames, [
+      ...supportedNames,
+    ]);
 
     return NextResponse.json(
       {

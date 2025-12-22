@@ -644,14 +644,16 @@ describe("Card SVG Route", () => {
       // Cards record is fetched via GET first.
       sharedRedisMockGet.mockResolvedValueOnce(cardsData);
 
-      // User record is fetched via split parts (mget). Provide meta/current/completed.
+      // User record is fetched via split parts (mget). Provide meta/current/completed and aggregates.
       const metaPart = JSON.stringify({
         userId: "542244",
         username: "testUser",
         ip: "127.0.0.1",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        // Stored totals should win over any pruned list entries.
+      });
+
+      const aggregatesPart = JSON.stringify({
         animeSourceMaterialDistributionTotals: [
           { source: "MANGA", count: 50 },
           { source: "ORIGINAL", count: 25 },
@@ -694,6 +696,7 @@ describe("Card SVG Route", () => {
         metaPart,
         currentPart,
         completedPart,
+        aggregatesPart,
       ]);
 
       const req = new Request(
@@ -727,14 +730,16 @@ describe("Card SVG Route", () => {
       // Cards record is fetched via GET first.
       sharedRedisMockGet.mockResolvedValueOnce(cardsData);
 
-      // User record is fetched via split parts (mget). Provide meta/current/completed.
+      // User record is fetched via split parts (mget). Provide meta/current/completed and aggregates.
       const metaPart = JSON.stringify({
         userId: "542244",
         username: "testUser",
         ip: "127.0.0.1",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        // Stored totals should win over any pruned list entries.
+      });
+
+      const aggregatesPart = JSON.stringify({
         animeSeasonalPreferenceTotals: [
           { season: "WINTER", count: 10 },
           { season: "SUMMER", count: 5 },
@@ -777,6 +782,7 @@ describe("Card SVG Route", () => {
         metaPart,
         currentPart,
         completedPart,
+        aggregatesPart,
       ]);
 
       const req = new Request(
@@ -807,20 +813,23 @@ describe("Card SVG Route", () => {
       // Cards record is fetched via GET first.
       sharedRedisMockGet.mockResolvedValueOnce(cardsData);
 
-      // User record is fetched via split parts (mget). Provide meta only.
+      // User record is fetched via split parts (mget). Provide meta and aggregates.
       const metaPart = JSON.stringify({
         userId: "542244",
         username: "testUser",
         ip: "127.0.0.1",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+      });
+
+      const aggregatesPart = JSON.stringify({
         animeGenreSynergyTotals: [
           { a: "Action", b: "Drama", count: 2 },
           { a: "Comedy", b: "Drama", count: 1 },
         ],
       });
 
-      sharedRedisMockMget.mockResolvedValueOnce([metaPart]);
+      sharedRedisMockMget.mockResolvedValueOnce([metaPart, aggregatesPart]);
 
       const req = new Request(
         createRequestUrl(baseUrl, {
@@ -857,20 +866,31 @@ describe("Card SVG Route", () => {
       // Cards record is fetched via GET first.
       sharedRedisMockGet.mockResolvedValueOnce(cardsData);
 
-      // User record is fetched via split parts (mget). Provide meta only.
+      // User record is fetched via split parts (mget). Provide meta and aggregates.
       const metaPart = JSON.stringify({
         userId: "542244",
         username: "testUser",
         ip: "127.0.0.1",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+      });
+
+      const aggregatesPart = JSON.stringify({
         studioCollaborationTotals: [
           { a: "Bones", b: "Madhouse", count: 3 },
           { a: "MAPPA", b: "Wit Studio", count: 2 },
         ],
       });
 
-      sharedRedisMockMget.mockResolvedValueOnce([metaPart]);
+      const completedPart = JSON.stringify({
+        animeCompleted: { lists: [] },
+      });
+
+      sharedRedisMockMget.mockResolvedValueOnce([
+        metaPart,
+        completedPart,
+        aggregatesPart,
+      ]);
 
       const req = new Request(
         createRequestUrl(baseUrl, {

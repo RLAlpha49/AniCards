@@ -255,8 +255,12 @@ describe("Cron API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
       const text = await res.text();
-      expect(text).toBe(
+      expect(text).toContain(
         "Updated 0/0 users successfully. Failed: 0, Removed: 0",
+      );
+      // Should include scheduling recommendations even when there are zero users
+      expect(text).toContain(
+        `Recommended schedules to refresh all 0 users at least once per 24 hours:`,
       );
       expect(sharedRedisMockKeys).toHaveBeenCalledWith("user:*");
     });
@@ -283,8 +287,11 @@ describe("Cron API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
       const text = await res.text();
-      expect(text).toBe(
+      expect(text).toContain(
         `Updated ${userKeys.length}/${userKeys.length} users successfully. Failed: 0, Removed: 0`,
+      );
+      expect(text).toContain(
+        `Recommended schedules to refresh all ${userKeys.length} users at least once per 24 hours:`,
       );
     });
 
@@ -314,6 +321,11 @@ describe("Cron API POST Endpoint", () => {
       expect(res.status).toBe(200);
       const text = await res.text();
       expect(text).toContain("Updated 10/10 users successfully");
+
+      // Verify the cron recommendations are included and correct for 15 users
+      expect(text).toContain("Update 5 users/run: 0 */8 * * *");
+      expect(text).toContain("Update 10 users/run: 0 */12 * * *");
+
       expect(globalThis.fetch).toHaveBeenCalledTimes(10);
     });
 
@@ -451,6 +463,7 @@ describe("Cron API POST Endpoint", () => {
         "user:123:current",
         "user:123:rewatched",
         "user:123:completed",
+        "user:123:aggregates",
         "user:123",
       );
       expect(sharedRedisMockDel).toHaveBeenCalledWith("failed_updates:123");

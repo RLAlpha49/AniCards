@@ -1177,21 +1177,27 @@ export function validateAndNormalizeUserRecord(
     return items.length ? items : undefined;
   };
 
+  const storedAggregates = isObject(
+    (user as Record<string, unknown>).aggregates,
+  )
+    ? ((user as Record<string, unknown>).aggregates as Record<string, unknown>)
+    : undefined;
+
   const storedAnimeSourceTotals = normalizeStoredSourceTotals(
-    (user as Record<string, unknown>).animeSourceMaterialDistributionTotals,
+    storedAggregates?.animeSourceMaterialDistributionTotals,
   );
 
   const storedAnimeSeasonTotals = normalizeStoredSeasonTotals(
-    (user as Record<string, unknown>).animeSeasonalPreferenceTotals,
+    storedAggregates?.animeSeasonalPreferenceTotals,
   );
 
   const storedAnimeGenreSynergyTotals = normalizeStoredGenreSynergyTotals(
-    (user as Record<string, unknown>).animeGenreSynergyTotals,
+    storedAggregates?.animeGenreSynergyTotals,
   );
 
   const storedStudioCollaborationTotals =
     normalizeStoredStudioCollaborationTotals(
-      (user as Record<string, unknown>).studioCollaborationTotals,
+      storedAggregates?.studioCollaborationTotals,
     );
 
   const combineUnique = (
@@ -1266,20 +1272,38 @@ export function validateAndNormalizeUserRecord(
     favoriteCharactersNodes = statsData.User.favourites.characters.nodes;
   }
 
+  const aggregatedAnimeSource =
+    storedAnimeSourceTotals ?? computeAnimeSourceMaterialDistributionTotals();
+  const aggregatedAnimeSeason =
+    storedAnimeSeasonTotals ?? computeAnimeSeasonalPreferenceTotals();
+  const aggregatedAnimeGenreSynergy =
+    storedAnimeGenreSynergyTotals ?? computeAnimeGenreSynergyTotals();
+  const aggregatedStudioCollaboration =
+    storedStudioCollaborationTotals ?? computeStudioCollaborationTotals();
+
+  const aggregatesObj: Record<string, unknown> = {};
+  if (Array.isArray(aggregatedAnimeSource) && aggregatedAnimeSource.length)
+    aggregatesObj.animeSourceMaterialDistributionTotals = aggregatedAnimeSource;
+  if (Array.isArray(aggregatedAnimeSeason) && aggregatedAnimeSeason.length)
+    aggregatesObj.animeSeasonalPreferenceTotals = aggregatedAnimeSeason;
+  if (
+    Array.isArray(aggregatedAnimeGenreSynergy) &&
+    aggregatedAnimeGenreSynergy.length
+  )
+    aggregatesObj.animeGenreSynergyTotals = aggregatedAnimeGenreSynergy;
+  if (
+    Array.isArray(aggregatedStudioCollaboration) &&
+    aggregatedStudioCollaboration.length
+  )
+    aggregatesObj.studioCollaborationTotals = aggregatedStudioCollaboration;
+
   const normalizedUser: UserRecord = {
     userId: String(user.userId ?? ""),
     username: user.username ?? undefined,
     ip: String(user.ip ?? ""),
     createdAt: String(user.createdAt ?? new Date().toISOString()),
     updatedAt: String(user.updatedAt ?? new Date().toISOString()),
-    animeSourceMaterialDistributionTotals:
-      storedAnimeSourceTotals ?? computeAnimeSourceMaterialDistributionTotals(),
-    animeSeasonalPreferenceTotals:
-      storedAnimeSeasonTotals ?? computeAnimeSeasonalPreferenceTotals(),
-    animeGenreSynergyTotals:
-      storedAnimeGenreSynergyTotals ?? computeAnimeGenreSynergyTotals(),
-    studioCollaborationTotals:
-      storedStudioCollaborationTotals ?? computeStudioCollaborationTotals(),
+    ...(Object.keys(aggregatesObj).length ? { aggregates: aggregatesObj } : {}),
     stats: {
       followersPage: normalizePage(statsData.followersPage, {
         itemsKey: "followers",

@@ -388,6 +388,16 @@ export interface StudioCollaborationTotalsEntry {
   count: number;
 }
 
+/**
+ * Aggregates / precomputed totals stored separately from main `meta`.
+ */
+export interface UserAggregates {
+  animeSourceMaterialDistributionTotals?: SourceMaterialDistributionTotalsEntry[];
+  animeSeasonalPreferenceTotals?: SeasonalPreferenceTotalsEntry[];
+  animeGenreSynergyTotals?: AnimeGenreSynergyTotalsEntry[];
+  studioCollaborationTotals?: StudioCollaborationTotalsEntry[];
+}
+
 /** Redis user record shape used for persisting user data and stats. @source */
 export interface UserRecord {
   userId: string;
@@ -397,6 +407,7 @@ export interface UserRecord {
   animeSeasonalPreferenceTotals?: SeasonalPreferenceTotalsEntry[];
   animeGenreSynergyTotals?: AnimeGenreSynergyTotalsEntry[];
   studioCollaborationTotals?: StudioCollaborationTotalsEntry[];
+  aggregates?: UserAggregates;
   statistics?: UserSection["statistics"];
   favourites?: UserSection["favourites"];
   pages?: {

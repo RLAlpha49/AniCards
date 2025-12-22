@@ -253,14 +253,19 @@ function finalizeDistribution(
   maxBuckets = 10,
 ): { name: string; count: number }[] {
   const items = rawItems
-    .map(({ name, count }) => ({ name, count: Number.isFinite(count) ? Math.max(0, count) : 0 }))
+    .map(({ name, count }) => ({
+      name,
+      count: Number.isFinite(count) ? Math.max(0, count) : 0,
+    }))
     .filter((x) => x.count > 0)
     .sort((a, b) => b.count - a.count);
 
   if (items.length <= maxBuckets) return items;
 
   const head = items.slice(0, maxBuckets - 1);
-  const otherCount = items.slice(maxBuckets - 1).reduce((sum, item) => sum + item.count, 0);
+  const otherCount = items
+    .slice(maxBuckets - 1)
+    .reduce((sum, item) => sum + item.count, 0);
 
   return [...head, { name: "Other", count: otherCount }];
 }
@@ -271,7 +276,8 @@ export function toTemplateAnimeSourceMaterialDistribution(
   name: string;
   count: number;
 }[] {
-  const storedTotals = userRecord.animeSourceMaterialDistributionTotals;
+  const storedTotals =
+    userRecord.aggregates?.animeSourceMaterialDistributionTotals;
   if (Array.isArray(storedTotals) && storedTotals.length > 0) {
     const raw = storedTotals.map(({ source, count }) => ({
       name: toSourceLabel(source),
@@ -383,8 +389,9 @@ export function toTemplateAnimeSeasonalPreference(userRecord: UserRecord): {
   count: number;
 }[] {
   const seasonToCount =
-    seasonCountsFromStoredTotals(userRecord.animeSeasonalPreferenceTotals) ??
-    seasonCountsFromLists(userRecord);
+    seasonCountsFromStoredTotals(
+      userRecord.aggregates?.animeSeasonalPreferenceTotals,
+    ) ?? seasonCountsFromLists(userRecord);
 
   const order = ["WINTER", "SPRING", "SUMMER", "FALL"];
   const items = order.map((season) => ({
@@ -517,7 +524,7 @@ export function toTemplateAnimeGenreSynergy(
   userRecord: UserRecord,
 ): { name: string; count: number }[] {
   return buildTopPairsFromTotals(
-    userRecord.animeGenreSynergyTotals,
+    userRecord.aggregates?.animeGenreSynergyTotals,
     (a, b) => `${a} + ${b}`,
     10,
   );
@@ -535,7 +542,7 @@ export function toTemplateStudioCollaboration(
   userRecord: UserRecord,
 ): { name: string; count: number }[] {
   return buildTopPairsFromTotals(
-    userRecord.studioCollaborationTotals,
+    userRecord.aggregates?.studioCollaborationTotals,
     (a, b) => `${a} + ${b}`,
     10,
   );

@@ -462,17 +462,20 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      const metaSetCall = sharedRedisMockSet.mock.calls.find(
-        (call) => call[0] === "user:42:meta",
+      const aggregatesSetCall = sharedRedisMockSet.mock.calls.find(
+        (call) => call[0] === "user:42:aggregates",
       );
-      expect(metaSetCall).toBeTruthy();
-      const metaValue = JSON.parse(metaSetCall![1]);
+      expect(aggregatesSetCall).toBeTruthy();
+      const aggregatesValue = JSON.parse(aggregatesSetCall![1]);
 
-      expect(metaValue).toHaveProperty("animeSourceMaterialDistributionTotals");
-      const totals = metaValue.animeSourceMaterialDistributionTotals as Array<{
-        source: string;
-        count: number;
-      }>;
+      expect(aggregatesValue).toHaveProperty(
+        "animeSourceMaterialDistributionTotals",
+      );
+      const totals =
+        aggregatesValue.animeSourceMaterialDistributionTotals as Array<{
+          source: string;
+          count: number;
+        }>;
 
       // Dedupes by media id across CURRENT + COMPLETED (mediaId=10 appears twice)
       expect(totals).toContainEqual({ source: "MANGA", count: 1 });
@@ -564,14 +567,14 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      const metaSetCall = sharedRedisMockSet.mock.calls.find(
-        (call) => call[0] === "user:43:meta",
+      const aggregatesSetCall = sharedRedisMockSet.mock.calls.find(
+        (call) => call[0] === "user:43:aggregates",
       );
-      expect(metaSetCall).toBeTruthy();
-      const metaValue = JSON.parse(metaSetCall![1]);
+      expect(aggregatesSetCall).toBeTruthy();
+      const aggregatesValue = JSON.parse(aggregatesSetCall![1]);
 
-      expect(metaValue).toHaveProperty("animeSeasonalPreferenceTotals");
-      const totals = metaValue.animeSeasonalPreferenceTotals as Array<{
+      expect(aggregatesValue).toHaveProperty("animeSeasonalPreferenceTotals");
+      const totals = aggregatesValue.animeSeasonalPreferenceTotals as Array<{
         season: string;
         count: number;
       }>;
@@ -649,14 +652,14 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      const metaSetCall = sharedRedisMockSet.mock.calls.find(
-        (call) => call[0] === "user:44:meta",
+      const aggregatesSetCall = sharedRedisMockSet.mock.calls.find(
+        (call) => call[0] === "user:44:aggregates",
       );
-      expect(metaSetCall).toBeTruthy();
-      const metaValue = JSON.parse(metaSetCall![1]);
+      expect(aggregatesSetCall).toBeTruthy();
+      const aggregatesValue = JSON.parse(aggregatesSetCall![1]);
 
-      expect(metaValue).toHaveProperty("animeGenreSynergyTotals");
-      const totals = metaValue.animeGenreSynergyTotals as Array<{
+      expect(aggregatesValue).toHaveProperty("animeGenreSynergyTotals");
+      const totals = aggregatesValue.animeGenreSynergyTotals as Array<{
         a: string;
         b: string;
         count: number;

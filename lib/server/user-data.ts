@@ -29,7 +29,8 @@ export type UserDataPart =
   | "planning"
   | "current"
   | "rewatched"
-  | "completed";
+  | "completed"
+  | "aggregates";
 
 export const getUserDataKey = (userId: string | number, part: UserDataPart) =>
   `user:${userId}:${part}`;
@@ -43,6 +44,9 @@ interface UserMeta {
   name?: string;
   avatar?: UserAvatar;
   userCreatedAt?: number;
+}
+
+interface UserAggregates {
   animeSourceMaterialDistributionTotals?: SourceMaterialDistributionTotalsEntry[];
   animeSeasonalPreferenceTotals?: SeasonalPreferenceTotalsEntry[];
   animeGenreSynergyTotals?: AnimeGenreSynergyTotalsEntry[];
@@ -285,12 +289,22 @@ function extractMediaListCollection(
 export function splitUserRecord(record: UserRecord) {
   const { stats: rawStats, ...metaBase } = record;
 
+  const aggregates = isObject(
+    (record as unknown as Record<string, unknown>).aggregates,
+  )
+    ? ((record as unknown as Record<string, unknown>)
+        .aggregates as UserAggregates)
+    : undefined;
+
+  const metaBaseRest = metaBase as Record<string, unknown>;
+
   const statsObj = (rawStats || {}) as unknown;
   const userObj = isObject((statsObj as Record<string, unknown>)["User"])
     ? ((statsObj as Record<string, unknown>)["User"] as Record<string, unknown>)
     : undefined;
 
-  const statistics = extractStatistics(statsObj, userObj);
+  const statistics =
+    rawStats === null ? null : extractStatistics(statsObj, userObj);
   const activityStats = extractActivityStats(statsObj, userObj);
   const favourites = extractFavourites(record, statsObj, userObj);
   const pages = extractPages(statsObj);
@@ -319,9 +333,16 @@ export function splitUserRecord(record: UserRecord) {
 
   const userMeta = userObj || {};
 
-  const meta: UserMeta = {
-    ...metaBase,
-    userId: String(metaBase.userId || ""),
+  const meta: UserMeta & Record<string, unknown> = {
+    ...metaBaseRest,
+    userId: String(metaBaseRest.userId || ""),
+    username:
+      typeof metaBaseRest.username === "string"
+        ? metaBaseRest.username
+        : undefined,
+    ip: String(metaBaseRest.ip || ""),
+    createdAt: String(metaBaseRest.createdAt || new Date().toISOString()),
+    updatedAt: String(metaBaseRest.updatedAt || new Date().toISOString()),
     name:
       getStringProp(userMeta, "name") ||
       getStringProp(record as unknown, "name"),
@@ -335,6 +356,7 @@ export function splitUserRecord(record: UserRecord) {
 
   return {
     meta,
+    ...(aggregates ? { aggregates } : {}),
     activity: activityStats,
     favourites,
     statistics,
@@ -343,7 +365,7 @@ export function splitUserRecord(record: UserRecord) {
     current,
     rewatched,
     completed,
-  }; 
+  };
 }
 
 /**
@@ -355,7 +377,10 @@ export function reconstructUserRecord(
   const meta = parts.meta as UserMeta | undefined;
   const activity = parts.activity as UserSection["stats"] | undefined;
   const favourites = parts.favourites as UserSection["favourites"] | undefined;
-  const statistics = parts.statistics as UserSection["statistics"] | undefined;
+  const statisticsPart = parts.statistics as
+    | UserSection["statistics"]
+    | null
+    | undefined;
 
   const pagesInput = parts.pages as
     | {
@@ -405,6 +430,31 @@ export function reconstructUserRecord(
       }
     | undefined;
 
+  const defaultStatistics: UserSection["statistics"] = {
+    anime: {
+      count: 0,
+      episodesWatched: 0,
+      minutesWatched: 0,
+      meanScore: 0,
+      standardDeviation: 0,
+      genres: [],
+      tags: [],
+      voiceActors: [],
+      studios: [],
+      staff: [],
+    },
+    manga: {
+      count: 0,
+      chaptersRead: 0,
+      volumesRead: 0,
+      meanScore: 0,
+      standardDeviation: 0,
+      genres: [],
+      tags: [],
+      staff: [],
+    },
+  };
+
   const userSection: UserSection = {
     stats: activity || { activityHistory: [] },
     favourites: favourites || {
@@ -414,30 +464,10 @@ export function reconstructUserRecord(
       staff: { nodes: [] },
       studios: { nodes: [] },
     },
-    statistics: statistics || {
-      anime: {
-        count: 0,
-        episodesWatched: 0,
-        minutesWatched: 0,
-        meanScore: 0,
-        standardDeviation: 0,
-        genres: [],
-        tags: [],
-        voiceActors: [],
-        studios: [],
-        staff: [],
-      },
-      manga: {
-        count: 0,
-        chaptersRead: 0,
-        volumesRead: 0,
-        meanScore: 0,
-        standardDeviation: 0,
-        genres: [],
-        tags: [],
-        staff: [],
-      },
-    },
+    statistics:
+      statisticsPart === null
+        ? (null as unknown as UserSection["statistics"])
+        : statisticsPart || defaultStatistics,
     name: meta?.name,
     avatar: meta?.avatar,
     createdAt: meta?.userCreatedAt,
@@ -464,6 +494,7 @@ export function reconstructUserRecord(
     mangaDropped: completedInput?.mangaDropped,
   };
 
+  const tmpMeta = meta as unknown as Record<string, unknown> | undefined;
   const {
     userId: _u,
     username: _un,
@@ -474,7 +505,8 @@ export function reconstructUserRecord(
     avatar: _a,
     userCreatedAt: _uc,
     ...rest
-  } = meta || {};
+  } = tmpMeta || {};
+  const aggregates = parts.aggregates as UserAggregates | undefined;
 
   return {
     userId: meta?.userId || "",
@@ -493,6 +525,7 @@ export function reconstructUserRecord(
       reviewsPage,
     },
     ...rest,
+    ...(aggregates ? { aggregates } : {}),
   };
 }
 
@@ -500,7 +533,10 @@ export function reconstructUserRecord(
  * Saves a full UserRecord in the split format.
  */
 export async function saveUserRecord(record: UserRecord): Promise<void> {
-  const split = splitUserRecord(record);
+  const split = splitUserRecord(record) as unknown as Record<
+    UserDataPart,
+    unknown
+  >;
   const pipeline = redisClient.pipeline();
 
   (Object.keys(split) as UserDataPart[]).forEach((part) => {
@@ -530,11 +566,12 @@ export async function deleteUserRecord(userId: string | number): Promise<void> {
     "current",
     "rewatched",
     "completed",
+    "aggregates",
   ];
   const keys = parts.map((part) => getUserDataKey(userId, part));
   keys.push(`user:${userId}`);
   await redisClient.del(...keys);
-} 
+}
 
 /**
  * Migrates a legacy user record to the new split format.
@@ -590,13 +627,16 @@ export async function fetchUserDataParts(
     const fullRecord = await migrateUserRecord(userId);
     if (!fullRecord) return data;
 
-    const split = splitUserRecord(fullRecord);
+    const split = splitUserRecord(fullRecord) as unknown as Record<
+      UserDataPart,
+      unknown
+    >;
     parts.forEach((part) => {
       data[part] = split[part];
     });
   }
 
-  return data; 
+  return data;
 }
 
 /**
@@ -625,9 +665,15 @@ export const CARD_TYPE_TO_PARTS: Record<string, UserDataPart[]> = {
   mangaYearDistribution: ["meta", "statistics"],
   animeCountry: ["meta", "statistics"],
   mangaCountry: ["meta", "statistics"],
-  animeSourceMaterialDistribution: ["meta", "current", "completed"],
-  animeSeasonalPreference: ["meta", "current", "completed"],
-  animeGenreSynergy: ["meta"],
+  animeSourceMaterialDistribution: [
+    "meta",
+    "current",
+    "completed",
+    "aggregates",
+  ],
+  animeSeasonalPreference: ["meta", "current", "completed", "aggregates"],
+  animeGenreSynergy: ["meta", "aggregates"],
+  studioCollaboration: ["meta", "completed", "aggregates"],
   profileOverview: ["meta", "statistics"],
   favoritesSummary: ["meta", "favourites"],
   favoritesGrid: ["meta", "favourites"],

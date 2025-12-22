@@ -110,6 +110,7 @@ export async function GET(request: Request) {
       "current",
       "rewatched",
       "completed",
+      "aggregates",
     ];
     const userDataParts = await fetchUserDataParts(numericUserId, allParts);
     const duration = Date.now() - startTime;

@@ -57,11 +57,15 @@ async function expectOkJson(
   expect(String(json.userId)).toBe(String(expected.userId));
   if (expected.username) expect(json.username).toBe(expected.username);
 
-  // Check statistics if provided in expected
-  if (expected.statistics || expected.stats) {
-    const expStats = expected.statistics || expected.stats;
-    // If it's a simple object, use toMatchObject, otherwise check nested
-    if (typeof expStats === "object" && expStats !== null) {
+  // Check statistics if present in expected (allow explicit null)
+  if (
+    Object.prototype.hasOwnProperty.call(expected, "statistics") ||
+    Object.prototype.hasOwnProperty.call(expected, "stats")
+  ) {
+    const expStats = expected.statistics ?? expected.stats;
+    if (expStats === null || expStats === undefined) {
+      expect(json.statistics).toEqual(expStats);
+    } else if (typeof expStats === "object") {
       expect(json.statistics).toMatchObject(expStats);
     } else {
       expect(json.statistics).toEqual(expStats);
