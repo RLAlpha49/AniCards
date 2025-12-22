@@ -11,9 +11,23 @@ export const VARIATION_LABEL_MAP: Record<string, string> = {
   vertical: "Vertical",
   compact: "Compact",
   minimal: "Minimal",
+  badges: "Badges",
   pie: "Pie Chart",
+  donut: "Donut Chart",
   bar: "Bar Chart",
+  radar: "Radar Chart",
   horizontal: "Horizontal",
+  cumulative: "Cumulative",
+  anime: "Anime",
+  manga: "Manga",
+  characters: "Characters",
+  staff: "Staff",
+  studios: "Studios",
+  mixed: "Mixed",
+  github: "GitHub",
+  fire: "Fire",
+  combined: "Combined",
+  split: "Split",
 };
 
 /**
@@ -51,32 +65,37 @@ export const CARD_GROUPS: CardGroup[] = [
   {
     cardType: "socialStats",
     cardTitle: "Social Statistics",
-    variations: ["default", "compact", "minimal"],
+    variations: ["default", "compact", "minimal", "badges"],
+  },
+  {
+    cardType: "socialMilestones",
+    cardTitle: "Social Milestones",
+    variations: ["default"],
   },
   {
     cardType: "animeGenres",
     cardTitle: "Anime Genres",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar", "radar"],
   },
   {
     cardType: "animeTags",
     cardTitle: "Anime Tags",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar", "radar"],
   },
   {
     cardType: "animeVoiceActors",
     cardTitle: "Voice Actors",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar"],
   },
   {
     cardType: "animeStudios",
     cardTitle: "Animation Studios",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar"],
   },
   {
     cardType: "animeStaff",
     cardTitle: "Anime Staff",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar"],
   },
   {
     cardType: "animeStatusDistribution",
@@ -85,22 +104,33 @@ export const CARD_GROUPS: CardGroup[] = [
       "default",
       { variation: "pie", extras: { statusColors: "true" } },
       { variation: "bar", extras: { statusColors: "true" } },
+      { variation: "donut", extras: { statusColors: "true" } },
     ],
   },
   {
     cardType: "animeFormatDistribution",
     cardTitle: "Anime Format Distribution",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar"],
   },
   {
     cardType: "animeCountry",
     cardTitle: "Anime Country Distribution",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar"],
+  },
+  {
+    cardType: "animeSourceMaterialDistribution",
+    cardTitle: "Anime Source Material Distribution",
+    variations: ["default", "pie", "donut", "bar"],
+  },
+  {
+    cardType: "animeSeasonalPreference",
+    cardTitle: "Anime Seasonal Preference",
+    variations: ["default", "pie", "donut", "bar", "radar"],
   },
   {
     cardType: "animeScoreDistribution",
     cardTitle: "Anime Score Distribution",
-    variations: ["default", "horizontal"],
+    variations: ["default", "horizontal", "cumulative"],
   },
   {
     cardType: "animeYearDistribution",
@@ -108,19 +138,29 @@ export const CARD_GROUPS: CardGroup[] = [
     variations: ["default", "horizontal"],
   },
   {
+    cardType: "animeEpisodeLengthPreferences",
+    cardTitle: "Episode Length Preferences",
+    variations: ["default", "pie", "donut", "bar"],
+  },
+  {
+    cardType: "animeGenreSynergy",
+    cardTitle: "Genre Synergy",
+    variations: ["default"],
+  },
+  {
     cardType: "mangaGenres",
     cardTitle: "Manga Genres",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar", "radar"],
   },
   {
     cardType: "mangaTags",
     cardTitle: "Manga Tags",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar", "radar"],
   },
   {
     cardType: "mangaStaff",
     cardTitle: "Manga Staff",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar"],
   },
   {
     cardType: "mangaStatusDistribution",
@@ -129,27 +169,168 @@ export const CARD_GROUPS: CardGroup[] = [
       "default",
       { variation: "pie", extras: { statusColors: "true" } },
       { variation: "bar", extras: { statusColors: "true" } },
+      { variation: "donut", extras: { statusColors: "true" } },
     ],
   },
   {
     cardType: "mangaFormatDistribution",
     cardTitle: "Manga Format Distribution",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar"],
   },
   {
     cardType: "mangaCountry",
     cardTitle: "Manga Country Distribution",
-    variations: ["default", "pie", "bar"],
+    variations: ["default", "pie", "donut", "bar"],
   },
   {
     cardType: "mangaScoreDistribution",
     cardTitle: "Manga Score Distribution",
-    variations: ["default", "horizontal"],
+    variations: ["default", "horizontal", "cumulative"],
   },
   {
     cardType: "mangaYearDistribution",
     cardTitle: "Manga Year Distribution",
     variations: ["default", "horizontal"],
+  },
+  {
+    cardType: "profileOverview",
+    cardTitle: "Profile Overview",
+    variations: ["default"],
+  },
+  {
+    cardType: "favoritesSummary",
+    cardTitle: "Favourites Summary",
+    variations: ["default"],
+  },
+  {
+    cardType: "favoritesGrid",
+    cardTitle: "Favourites Grid",
+    variations: ["anime", "manga", "characters", "staff", "studios", "mixed"],
+  },
+  {
+    cardType: "activityHeatmap",
+    cardTitle: "Activity Heatmap",
+    variations: ["default", "github", "fire"],
+  },
+  {
+    cardType: "recentActivitySummary",
+    cardTitle: "Recent Activity Summary",
+    variations: ["default"],
+  },
+  {
+    cardType: "recentActivityFeed",
+    cardTitle: "Recent Activity Feed",
+    variations: ["default"],
+  },
+  {
+    cardType: "activityStreaks",
+    cardTitle: "Activity Streaks",
+    variations: ["default"],
+  },
+  {
+    cardType: "topActivityDays",
+    cardTitle: "Top Activity Days",
+    variations: ["default"],
+  },
+  {
+    cardType: "statusCompletionOverview",
+    cardTitle: "Status Completion Overview",
+    variations: ["combined", "split"],
+  },
+  {
+    cardType: "milestones",
+    cardTitle: "Consumption Milestones",
+    variations: ["default"],
+  },
+  {
+    cardType: "personalRecords",
+    cardTitle: "Personal Records",
+    variations: ["default"],
+  },
+  {
+    cardType: "planningBacklog",
+    cardTitle: "Planning Backlog",
+    variations: ["default"],
+  },
+  {
+    cardType: "mostRewatched",
+    cardTitle: "Most Rewatched/Reread",
+    variations: ["default", "anime", "manga"],
+  },
+  {
+    cardType: "currentlyWatchingReading",
+    cardTitle: "Currently Watching / Reading",
+    variations: ["default", "anime", "manga"],
+  },
+  {
+    cardType: "animeMangaOverview",
+    cardTitle: "Anime vs Manga Overview",
+    variations: ["default"],
+  },
+  {
+    cardType: "scoreCompareAnimeManga",
+    cardTitle: "Anime vs Manga Score Comparison",
+    variations: ["default"],
+  },
+  {
+    cardType: "countryDiversity",
+    cardTitle: "Country Diversity",
+    variations: ["default"],
+  },
+  {
+    cardType: "genreDiversity",
+    cardTitle: "Genre Diversity",
+    variations: ["default"],
+  },
+  {
+    cardType: "formatPreferenceOverview",
+    cardTitle: "Format Preference Overview",
+    variations: ["default"],
+  },
+  {
+    cardType: "releaseEraPreference",
+    cardTitle: "Release Era Preference",
+    variations: ["default"],
+  },
+  {
+    cardType: "startYearMomentum",
+    cardTitle: "Start-Year Momentum",
+    variations: ["default"],
+  },
+  {
+    cardType: "lengthPreference",
+    cardTitle: "Length Preference",
+    variations: ["default"],
+  },
+  {
+    cardType: "tagCategoryDistribution",
+    cardTitle: "Tag Category Distribution",
+    variations: ["default"],
+  },
+  {
+    cardType: "tagDiversity",
+    cardTitle: "Tag Diversity",
+    variations: ["default"],
+  },
+  {
+    cardType: "seasonalViewingPatterns",
+    cardTitle: "Seasonal Viewing Patterns",
+    variations: ["default"],
+  },
+  {
+    cardType: "droppedMedia",
+    cardTitle: "Dropped Media",
+    variations: ["default"],
+  },
+  {
+    cardType: "reviewStats",
+    cardTitle: "Review Statistics",
+    variations: ["default"],
+  },
+  {
+    cardType: "studioCollaboration",
+    cardTitle: "Studio Collaboration",
+    variations: ["default"],
   },
 ];
 
@@ -186,6 +367,10 @@ export interface CardUrlParams {
   statusColors?: boolean;
   /** Show percentages on pie charts */
   piePercentages?: boolean;
+  /** Favorites grid columns (1-5) */
+  gridCols?: number;
+  /** Favorites grid rows (1-5) */
+  gridRows?: number;
 }
 
 /**
@@ -252,7 +437,8 @@ function addPiePercentagesParamIfRelevant(
   variation: string,
   showPiePercentages: boolean | undefined,
 ): void {
-  if (variation === "pie") {
+  // Pie-like chart percentages only matter in pie/donut variations.
+  if (variation === "pie" || variation === "donut") {
     params.piePercentages =
       typeof showPiePercentages === "boolean" ? showPiePercentages : false;
   }
@@ -316,6 +502,15 @@ export function mapStoredConfigToCardUrlParams(
     candidate.showPiePercentages,
   );
 
+  if (typeof candidate.gridCols === "number") {
+    const n = Math.trunc(candidate.gridCols);
+    params.gridCols = Math.max(1, Math.min(5, n));
+  }
+  if (typeof candidate.gridRows === "number") {
+    const n = Math.trunc(candidate.gridRows);
+    params.gridRows = Math.max(1, Math.min(5, n));
+  }
+
   return params;
 }
 
@@ -344,6 +539,20 @@ function setBooleanParam(
 ): void {
   if (typeof value === "boolean") {
     searchParams.set(key, value ? "true" : "false");
+  }
+}
+
+/**
+ * Helper to set a numeric search param if the value is a finite number.
+ * @source
+ */
+function setNumberParam(
+  searchParams: URLSearchParams,
+  key: string,
+  value: number | undefined,
+): void {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    searchParams.set(key, String(value));
   }
 }
 
@@ -398,6 +607,10 @@ export function buildCardUrlWithParams(
   setBooleanParam(searchParams, "showFavorites", params.showFavorites);
   setBooleanParam(searchParams, "statusColors", params.statusColors);
   setBooleanParam(searchParams, "piePercentages", params.piePercentages);
+
+  // Favorites grid layout (optional)
+  setNumberParam(searchParams, "gridCols", params.gridCols);
+  setNumberParam(searchParams, "gridRows", params.gridRows);
 
   return `${baseUrl}?${searchParams.toString()}`;
 }

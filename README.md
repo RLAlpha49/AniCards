@@ -6,14 +6,6 @@ AniCards is a dynamic and customizable tool designed to generate beautiful stati
 
 Experience AniCards live at [anicards.alpha49.com](https://anicards.alpha49.com)
 
-## ✨ Features
-
-- **10+ Card Types**: Visualize detailed statistics including anime consumption, manga progress, social interactions, genres, staff details, and more.
-- **Custom Designs**: Choose from preset themes or create your own color combinations to match your unique style.
-- **Dynamic SVGs**: Enjoy animated, vector-based cards that are optimized and easily shareable.
-- **Fast & Lightweight**: Built with Next.js and optimized with modern web practices for quick loading times.
-- **Easy Integration**: Use a simple URL to display your stats anywhere.
-
 ## 🎨 Card Style Requests
 
 **I especially encourage design submissions!** If you have an idea for:
@@ -27,40 +19,86 @@ Submit your design concepts (sketches, Figma files, or detailed descriptions) an
 
 ## 📊 Available Card Types
 
-### Statistics
+Each card has a `cardType` ID and supports one or more `variation` values.
 
-- **Anime Statistics**: Overview of anime watched, episodes, and time spent.
-  - Variations: Default, Vertical, Compact, Minimal
-- **Manga Statistics**: Overview of manga read, chapters, and volumes.
-  - Variations: Default, Vertical, Compact, Minimal
-- **Social Statistics**: Followers, following, and activity stats.
-  - Variations: Default, Compact, Minimal
+### Core Stats
 
-### Content Breakdown
+- **Anime Statistics** (`animeStats`) — Variations: Default, Vertical, Compact, Minimal
+- **Manga Statistics** (`mangaStats`) — Variations: Default, Vertical, Compact, Minimal
+- **Social Statistics** (`socialStats`) — Variations: Default, Compact, Minimal, Badges
+- **Profile Overview** (`profileOverview`) — Variations: Default, Compact, Minimal
+- **Anime vs Manga Overview** (`animeMangaOverview`) — Variations: Default
 
-- **Genres**: Top genres for Anime or Manga.
-  - Variations: Default, Pie Chart, Bar Chart
-- **Tags**: Top tags for Anime or Manga.
-  - Variations: Default, Pie Chart, Bar Chart
-- **Voice Actors**: Top voice actors.
-  - Variations: Default, Pie Chart, Bar Chart
-- **Studios**: Top animation studios.
-  - Variations: Default, Pie Chart, Bar Chart
-- **Staff**: Top staff members for Anime or Manga.
-  - Variations: Default, Pie Chart, Bar Chart
+### Anime Deep Dive
 
-### Distributions
+- **Anime Genres** (`animeGenres`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
+- **Anime Tags** (`animeTags`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
+- **Voice Actors** (`animeVoiceActors`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
+  - Optional flag: `showFavorites`
+- **Animation Studios** (`animeStudios`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
+  - Optional flag: `showFavorites`
+- **Anime Staff** (`animeStaff`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
+  - Optional flag: `showFavorites`
+- **Anime Status Distribution** (`animeStatusDistribution`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
+  - Optional flag: `statusColors`
+- **Anime Format Distribution** (`animeFormatDistribution`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
+- **Anime Source Material Distribution** (`animeSourceMaterialDistribution`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
+- **Anime Seasonal Preference** (`animeSeasonalPreference`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
+- **Episode Length Preferences** (`animeEpisodeLengthPreferences`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
+- **Anime Country Distribution** (`animeCountry`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
+- **Anime Score Distribution** (`animeScoreDistribution`) — Variations: Default, Horizontal, Cumulative
+- **Anime Year Distribution** (`animeYearDistribution`) — Variations: Default, Horizontal
+- **Anime Genre Synergy** (`animeGenreSynergy`) — Variations: Default
 
-- **Status Distribution**: Breakdown by watching/reading status.
-  - Variations: Default, Pie Chart, Bar Chart
-- **Format Distribution**: Breakdown by media format (TV, Movie, etc.).
-  - Variations: Default, Pie Chart, Bar Chart
-- **Country Distribution**: Breakdown by country of origin.
-  - Variations: Default, Pie Chart, Bar Chart
-- **Score Distribution**: Distribution of scores given.
-  - Variations: Default, Horizontal
-- **Year Distribution**: Distribution of content by release year.
-  - Variations: Default, Horizontal
+### Manga Deep Dive
+
+- **Manga Genres** (`mangaGenres`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
+- **Manga Tags** (`mangaTags`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
+- **Manga Staff** (`mangaStaff`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
+  - Optional flag: `showFavorites`
+- **Manga Status Distribution** (`mangaStatusDistribution`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
+  - Optional flag: `statusColors`
+- **Manga Format Distribution** (`mangaFormatDistribution`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
+- **Manga Country Distribution** (`mangaCountry`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
+- **Manga Score Distribution** (`mangaScoreDistribution`) — Variations: Default, Horizontal, Cumulative
+- **Manga Year Distribution** (`mangaYearDistribution`) — Variations: Default, Horizontal
+
+### Activity & Engagement
+
+- **Activity Heatmap** (`activityHeatmap`) — Variations: Default, GitHub, Fire
+- **Recent Activity Summary** (`recentActivitySummary`) — Variations: Default
+- **Recent Activity Feed** (`recentActivityFeed`) — Variations: Default
+- **Activity Streaks** (`activityStreaks`) — Variations: Default
+- **Top Activity Days** (`topActivityDays`) — Variations: Default
+- **Social Milestones** (`socialMilestones`) — Variations: Default
+- **Review Statistics** (`reviewStats`) — Variations: Default
+- **Seasonal Viewing Patterns** (`seasonalViewingPatterns`) — Variations: Default
+
+### Library & Progress
+
+- **Favourites Summary** (`favoritesSummary`) — Variations: Default, Compact, Minimal
+- **Favourites Grid** (`favoritesGrid`) — Variations: Anime, Manga, Characters, Mixed
+  - Optional layout params: `gridCols` (1–5), `gridRows` (1–5)
+- **Status Completion Overview** (`statusCompletionOverview`) — Variations: Combined, Split
+- **Consumption Milestones** (`milestones`) — Variations: Default
+- **Personal Records** (`personalRecords`) — Variations: Default
+- **Planning Backlog** (`planningBacklog`) — Variations: Default
+- **Most Rewatched/Reread** (`mostRewatched`) — Variations: Default, Anime, Manga
+- **Currently Watching / Reading** (`currentlyWatchingReading`) — Variations: Default, Anime, Manga
+- **Dropped Media** (`droppedMedia`) — Variations: Default
+
+### Advanced Analytics
+
+- **Anime vs Manga Score Comparison** (`scoreCompareAnimeManga`) — Variations: Default
+- **Country Diversity** (`countryDiversity`) — Variations: Default
+- **Genre Diversity** (`genreDiversity`) — Variations: Default
+- **Format Preference Overview** (`formatPreferenceOverview`) — Variations: Default
+- **Release Era Preference** (`releaseEraPreference`) — Variations: Default
+- **Start-Year Momentum** (`startYearMomentum`) — Variations: Default
+- **Length Preference** (`lengthPreference`) — Variations: Default
+- **Tag Category Distribution** (`tagCategoryDistribution`) — Variations: Default
+- **Tag Diversity** (`tagDiversity`) — Variations: Default
+- **Studio Collaboration** (`studioCollaboration`) — Variations: Default
 
 ## 🛠️ Customization
 
@@ -83,7 +121,7 @@ https://api.anicards.alpha49.com/card.svg?cardType={CARD_TYPE}&userId={USER_ID}&
 - `borderRadius` (optional): Numeric value (pixels) to override the card corner radius.
 - `showFavorites` (optional): `true` or `false` — applicable only to certain category cards (voice actors, studios, staff) to visualize favorites.
 - `statusColors` (optional): `true` or `false` — tells status distribution cards to use fixed status colors.
-- `piePercentages` (optional): `true` or `false` — show percentage labels on pie charts (only meaningful for `pie` variants).
+- `piePercentages` (optional): `true` or `false` — show percentage labels on pie charts (only meaningful for `pie`/`donut` variants).
 - `_t` (optional): Any value used to bust caches (commonly a timestamp).
 
 ### Notes

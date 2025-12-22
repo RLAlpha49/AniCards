@@ -108,6 +108,6 @@ applyTo: "**/*.{ts,tsx}"
 
 ## Documentation & Comments
 
-- Add JSDoc to public APIs; include `@remarks` or `@example` when helpful.
+- Add JSDoc to public APIs; include `@remarks` when helpful.
 - Write comments that capture intent, and remove stale notes during refactors.
 - Update architecture or design docs when introducing significant patterns.

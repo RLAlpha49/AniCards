@@ -18,9 +18,12 @@ interface HeroSectionProps {
   searchQuery: string;
   onSearchChange: (value: string) => void;
   stats: {
-    mainStats: number;
-    animeBreakdowns: number;
-    mangaBreakdowns: number;
+    coreStats: number;
+    animeDeepDive: number;
+    mangaDeepDive: number;
+    activityEngagement: number;
+    libraryProgress: number;
+    advancedAnalytics: number;
     totalVariants: number;
   };
 }
@@ -40,25 +43,46 @@ const itemVariants = {
 
 const STAT_CATEGORIES = [
   {
-    key: "mainStats",
-    label: "Main Stats",
+    key: "coreStats",
+    label: "Core Stats",
     icon: BarChart2,
     bg: "bg-blue-100 dark:bg-blue-900/30",
     text: "text-blue-600 dark:text-blue-400",
   },
   {
-    key: "animeBreakdowns",
-    label: "Anime Breakdowns",
+    key: "animeDeepDive",
+    label: "Anime Deep Dive",
     icon: PieChart,
     bg: "bg-purple-100 dark:bg-purple-900/30",
     text: "text-purple-600 dark:text-purple-400",
   },
   {
-    key: "mangaBreakdowns",
-    label: "Manga Breakdowns",
+    key: "mangaDeepDive",
+    label: "Manga Deep Dive",
     icon: BookOpen,
     bg: "bg-pink-100 dark:bg-pink-900/30",
     text: "text-pink-600 dark:text-pink-400",
+  },
+  {
+    key: "activityEngagement",
+    label: "Activity & Engagement",
+    icon: Sparkles,
+    bg: "bg-amber-100 dark:bg-amber-900/30",
+    text: "text-amber-600 dark:text-amber-400",
+  },
+  {
+    key: "libraryProgress",
+    label: "Library & Progress",
+    icon: Sparkles,
+    bg: "bg-emerald-100 dark:bg-emerald-900/30",
+    text: "text-emerald-600 dark:text-emerald-400",
+  },
+  {
+    key: "advancedAnalytics",
+    label: "Advanced Analytics",
+    icon: TrendingUp,
+    bg: "bg-indigo-100 dark:bg-indigo-900/30",
+    text: "text-indigo-600 dark:text-indigo-400",
   },
   {
     key: "totalVariants",
@@ -152,7 +176,7 @@ export function ExamplesHeroSection({
 
           <motion.div
             variants={itemVariants}
-            className="grid grid-cols-2 gap-4 sm:grid-cols-4"
+            className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6"
           >
             {STAT_CATEGORIES.map((stat) => {
               const Icon = stat.icon;

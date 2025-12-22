@@ -163,9 +163,21 @@ export const mockUserStatsData: UserStatsData = {
     favourites: {
       staff: {
         nodes: [
-          { id: 95185, name: { full: "Hiroyuki Sawano" } },
-          { id: 96413, name: { full: "Yuki Kajiura" } },
-          { id: 95586, name: { full: "Kevin Penkin" } },
+          {
+            id: 95185,
+            name: { full: "Hiroyuki Sawano" },
+            image: { large: "", medium: "" },
+          },
+          {
+            id: 96413,
+            name: { full: "Yuki Kajiura" },
+            image: { large: "", medium: "" },
+          },
+          {
+            id: 95586,
+            name: { full: "Kevin Penkin" },
+            image: { large: "", medium: "" },
+          },
         ],
       },
       studios: {
@@ -177,9 +189,21 @@ export const mockUserStatsData: UserStatsData = {
       },
       characters: {
         nodes: [
-          { id: 40882, name: { full: "Levi Ackerman" } },
-          { id: 36765, name: { full: "Killua Zoldyck" } },
-          { id: 71, name: { full: "Edward Elric" } },
+          {
+            id: 40882,
+            name: { full: "Levi Ackerman" },
+            image: { large: "", medium: "" },
+          },
+          {
+            id: 36765,
+            name: { full: "Killua Zoldyck" },
+            image: { large: "", medium: "" },
+          },
+          {
+            id: 71,
+            name: { full: "Edward Elric" },
+            image: { large: "", medium: "" },
+          },
         ],
       },
     },

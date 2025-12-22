@@ -14,7 +14,7 @@ import {
 import generateCardSvg from "@/lib/card-generator";
 import {
   fetchUserData,
-  fetchUserDataOnly,
+  fetchUserDataForCard,
   validateAndNormalizeUserRecord,
   processCardConfig,
   CardDataError,
@@ -39,6 +39,7 @@ const ratelimit = createRateLimiter({ limit: 150, window: "10 s" });
 const ALLOWED_CARD_TYPES = new Set([
   "animeStats",
   "socialStats",
+  "socialMilestones",
   "mangaStats",
   "animeGenres",
   "animeTags",
@@ -52,12 +53,44 @@ const ALLOWED_CARD_TYPES = new Set([
   "mangaStatusDistribution",
   "animeFormatDistribution",
   "mangaFormatDistribution",
+  "animeSourceMaterialDistribution",
+  "animeSeasonalPreference",
+  "animeEpisodeLengthPreferences",
+  "animeGenreSynergy",
   "animeScoreDistribution",
   "mangaScoreDistribution",
   "animeYearDistribution",
   "mangaYearDistribution",
   "animeCountry",
   "mangaCountry",
+  "profileOverview",
+  "favoritesSummary",
+  "favoritesGrid",
+  "activityHeatmap",
+  "recentActivitySummary",
+  "recentActivityFeed",
+  "activityStreaks",
+  "topActivityDays",
+  "statusCompletionOverview",
+  "milestones",
+  "personalRecords",
+  "planningBacklog",
+  "mostRewatched",
+  "currentlyWatchingReading",
+  "animeMangaOverview",
+  "scoreCompareAnimeManga",
+  "countryDiversity",
+  "genreDiversity",
+  "formatPreferenceOverview",
+  "releaseEraPreference",
+  "startYearMomentum",
+  "lengthPreference",
+  "tagCategoryDistribution",
+  "tagDiversity",
+  "seasonalViewingPatterns",
+  "droppedMedia",
+  "reviewStats",
+  "studioCollaboration",
 ]);
 
 /**
@@ -186,7 +219,8 @@ interface ValidatedParams {
   showFavoritesParam: string | null;
   statusColorsParam: string | null;
   piePercentagesParam: string | null;
-  // Color and styling params
+  gridColsParam: string | null;
+  gridRowsParam: string | null;
   colorPresetParam: string | null;
   titleColorParam: string | null;
   backgroundColorParam: string | null;
@@ -283,6 +317,8 @@ function extractAndValidateParams(
     showFavoritesParam: searchParams.get("showFavorites"),
     statusColorsParam: searchParams.get("statusColors"),
     piePercentagesParam: searchParams.get("piePercentages"),
+    gridColsParam: searchParams.get("gridCols"),
+    gridRowsParam: searchParams.get("gridRows"),
     colorPresetParam: searchParams.get("colorPreset"),
     titleColorParam: searchParams.get("titleColor"),
     backgroundColorParam: searchParams.get("backgroundColor"),
@@ -535,7 +571,15 @@ export async function GET(request: Request) {
     `🖼️ [Card SVG] Request for ${params.cardType} card - User ID: ${effectiveUserId}`,
   );
 
-  // Try to get from in-memory LRU cache first
+  const normalizeGridDim = (raw: string | null | undefined, fallback = 3) => {
+    if (raw === null || raw === undefined) return fallback;
+    const parsed = Number.parseInt(raw, 10);
+    if (Number.isNaN(parsed)) return fallback;
+    return Math.max(1, Math.min(5, parsed));
+  };
+  const normalizedGridCols = normalizeGridDim(params.gridColsParam);
+  const normalizedGridRows = normalizeGridDim(params.gridRowsParam);
+
   const cacheKey = generateCacheKey(effectiveUserId, params.cardType, {
     variation: params.variationParam,
     colorPreset: params.colorPresetParam,
@@ -548,6 +592,8 @@ export async function GET(request: Request) {
     showFavorites: params.showFavoritesParam,
     statusColors: params.statusColorsParam,
     piePercentages: params.piePercentagesParam,
+    gridCols: normalizedGridCols,
+    gridRows: normalizedGridRows,
     _t: params._t,
   });
 
@@ -560,6 +606,29 @@ export async function GET(request: Request) {
       console.log(
         `♻️ [Card SVG] Serving stale cache for user ${effectiveUserId} (will revalidate in background)`,
       );
+
+      // Fire-and-forget revalidation: start background generation to refresh the cache.
+      // Ensure any errors are caught and logged so the response is not blocked.
+      void (async () => {
+        try {
+          await generateCardResponse(
+            request,
+            params,
+            effectiveUserId,
+            startTime,
+            cacheKey,
+          );
+          console.log(
+            `♻️ [Card SVG] Background revalidation completed for user ${effectiveUserId}`,
+          );
+        } catch (err: unknown) {
+          console.error(
+            `⚠️ [Card SVG] Background revalidation failed for user ${effectiveUserId} (cacheKey: ${cacheKey}):`,
+            err,
+          );
+        }
+      })();
+
       // Return stale content immediately while revalidating in background
       return createSuccessResponse(
         markTrustedSvg(cachedEntry.svg),
@@ -616,7 +685,7 @@ async function loadUserAndCardConfig(
   | { error: Response }
 > {
   if (needsDbCardConfig) {
-    const data = await fetchUserData(effectiveUserId);
+    const data = await fetchUserData(effectiveUserId, params.cardType);
     const { cardDoc } = data;
     let userDoc = data.userDoc;
 
@@ -642,7 +711,7 @@ async function loadUserAndCardConfig(
   }
 
   // Not using DB card config; fetch user only and build config from params
-  const userDoc = await fetchUserDataOnly(effectiveUserId);
+  const userDoc = await fetchUserDataForCard(effectiveUserId, params.cardType);
   const validationResult = validateAndNormalizeUserRecord(userDoc);
   if ("error" in validationResult) {
     return {
@@ -698,7 +767,7 @@ async function generateCardResponse(
       `🎨 [Card SVG] Generating ${params.cardType} (${effectiveVariation}) SVG for user ${effectiveUserId}${needsDbCardConfig ? " (with DB card lookup)" : " (from URL params)"}`,
     );
 
-    const svgContent = generateCardSvg(
+    const svgContent = await generateCardSvg(
       cardConfig,
       userDoc,
       effectiveVariation as

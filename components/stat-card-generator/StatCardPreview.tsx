@@ -41,37 +41,6 @@ interface StatCardPreviewProps {
 }
 
 /**
- * Human friendly display names for the `cardType` values.
- * @source
- */
-const displayNamesMap: { [key: string]: string } = {
-  animeStats: "Anime Stats",
-  socialStats: "Social Stats",
-  mangaStats: "Manga Stats",
-  animeGenres: "Anime Genres",
-  animeTags: "Anime Tags",
-  animeVoiceActors: "Anime Voice Actors",
-  animeStudios: "Anime Studios",
-  animeStaff: "Anime Staff",
-  mangaGenres: "Manga Genres",
-  mangaTags: "Manga Tags",
-  mangaStaff: "Manga Staff",
-  animeStatusDistribution: "Anime Statuses",
-  mangaStatusDistribution: "Manga Statuses",
-  animeFormatDistribution: "Anime Formats",
-  mangaFormatDistribution: "Manga Formats",
-  animeScoreDistribution: "Anime Scores",
-  mangaScoreDistribution: "Manga Scores",
-  animeYearDistribution: "Anime Years",
-  mangaYearDistribution: "Manga Years",
-  animeCountry: "Anime Countries",
-  mangaCountry: "Manga Countries",
-};
-
-// Export for backward compatibility
-export const displayNames = displayNamesMap;
-
-/**
  * Dialog component used to preview stat cards.
  * The preview fetches a sample SVG from a preview API and displays the
  * rendered image with a loading state.
@@ -158,7 +127,7 @@ export function StatCardPreview({
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <span className="text-lg font-bold text-slate-900 dark:text-white">
-                      {displayNamesMap[cardType] || cardType}
+                      {cardType}
                     </span>
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
                       {effectiveVariation}

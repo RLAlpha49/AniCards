@@ -8,12 +8,27 @@ export interface ColorPreset {
 const pieBarVariations = [
   { id: "default", label: "Default" },
   { id: "pie", label: "Pie Chart" },
+  { id: "donut", label: "Donut Chart" },
   { id: "bar", label: "Bar Chart" },
 ];
 
-const verticalHorizontalVariations = [
+const genreTagDistributionVariations = [
+  ...pieBarVariations,
+  { id: "radar", label: "Radar Chart" },
+];
+
+const statusDistributionVariations = pieBarVariations;
+
+const defaultOnlyVariations = [{ id: "default", label: "Default" }];
+
+const scoreDistributionVariations = [
   { id: "default", label: "Default" },
-  { id: "vertical", label: "Vertical" },
+  { id: "horizontal", label: "Horizontal" },
+  { id: "cumulative", label: "Cumulative" },
+];
+
+const yearDistributionVariations = [
+  { id: "default", label: "Default" },
   { id: "horizontal", label: "Horizontal" },
 ];
 
@@ -28,7 +43,35 @@ const socialStatsVariations = [
   { id: "default", label: "Default" },
   { id: "compact", label: "Compact" },
   { id: "minimal", label: "Minimal" },
+  { id: "badges", label: "Badges" },
 ];
+
+const socialCommunityVariations = [{ id: "default", label: "Default" }];
+
+const profileMainVariations = [
+  { id: "default", label: "Default" },
+  { id: "compact", label: "Compact" },
+  { id: "minimal", label: "Minimal" },
+];
+
+const favoritesGridVariations = [
+  { id: "anime", label: "Anime Grid" },
+  { id: "manga", label: "Manga Grid" },
+  { id: "characters", label: "Character Grid" },
+  { id: "staff", label: "Staff Grid" },
+  { id: "studios", label: "Studios Grid" },
+  { id: "mixed", label: "Mixed Favourites" },
+];
+
+const activityHeatmapVariations = [
+  { id: "default", label: "Default (Theme)" },
+  { id: "github", label: "GitHub Green" },
+  { id: "fire", label: "Fire Red" },
+];
+
+const activityCompactVariations = [{ id: "default", label: "Default" }];
+
+const activityFullVariations = [{ id: "default", label: "Default" }];
 
 const createCardType = (
   id: string,
@@ -42,6 +85,29 @@ const createCardType = (
   variations,
 });
 
+const getAnimeBreakdownVariations = (cardId: string) => {
+  if (cardId.endsWith("StatusDistribution"))
+    return statusDistributionVariations;
+  if (cardId === "animeGenreSynergy") return defaultOnlyVariations;
+  if (
+    cardId === "animeGenres" ||
+    cardId === "animeTags" ||
+    cardId === "animeSeasonalPreference"
+  ) {
+    return genreTagDistributionVariations;
+  }
+  return pieBarVariations;
+};
+
+const getMangaBreakdownVariations = (cardId: string) => {
+  if (cardId.endsWith("StatusDistribution"))
+    return statusDistributionVariations;
+  if (cardId === "mangaGenres" || cardId === "mangaTags") {
+    return genreTagDistributionVariations;
+  }
+  return pieBarVariations;
+};
+
 const animeBreakdownCards = [
   { id: "animeGenres", label: "Anime Genres (Top 5 Count)" },
   { id: "animeTags", label: "Anime Tags (Top 5 Count)" },
@@ -53,6 +119,22 @@ const animeBreakdownCards = [
     label: "Anime Status Distribution (Current, Completed, etc.)",
   },
   { id: "animeFormatDistribution", label: "Anime Format Distribution" },
+  {
+    id: "animeSourceMaterialDistribution",
+    label: "Anime Source Material Distribution",
+  },
+  {
+    id: "animeSeasonalPreference",
+    label: "Anime Seasonal Preference (Winter/Spring/Summer/Fall)",
+  },
+  {
+    id: "animeEpisodeLengthPreferences",
+    label: "Episode Length Preferences (Short/Standard/Long)",
+  },
+  {
+    id: "animeGenreSynergy",
+    label: "Genre Synergy (Top Genre Pairs)",
+  },
   { id: "animeCountry", label: "Anime Country" },
 ];
 
@@ -68,61 +150,284 @@ const mangaBreakdownCards = [
   { id: "mangaCountry", label: "Manga Country" },
 ];
 
-const distributionCards = [
+const activityCards = [
   {
-    id: "animeScoreDistribution",
-    label: "Anime Score Distribution",
-    group: "Anime Breakdowns",
+    id: "activityHeatmap",
+    label: "Activity Heatmap (GitHub-style Calendar)",
+    variations: activityHeatmapVariations,
   },
   {
-    id: "mangaScoreDistribution",
-    label: "Manga Score Distribution",
-    group: "Manga Breakdowns",
+    id: "recentActivitySummary",
+    label: "Recent Activity Summary (Totals + Sparkline)",
+    variations: activityFullVariations,
   },
   {
-    id: "animeYearDistribution",
-    label: "Anime Year Distribution",
-    group: "Anime Breakdowns",
+    id: "recentActivityFeed",
+    label: "Recent Activity Feed (Daily Entries)",
+    variations: activityCompactVariations,
   },
   {
-    id: "mangaYearDistribution",
-    label: "Manga Year Distribution",
-    group: "Manga Breakdowns",
+    id: "activityStreaks",
+    label: "Activity Streaks & Peaks",
+    variations: activityFullVariations,
+  },
+  {
+    id: "topActivityDays",
+    label: "Top Activity Days (Highest activity days)",
+    variations: activityCompactVariations,
   },
 ];
 
+const statusCompletionVariations = [
+  { id: "combined", label: "Combined" },
+  { id: "split", label: "Split (Anime/Manga)" },
+];
+
+const milestonesVariations = [{ id: "default", label: "Default" }];
+
+const personalRecordsVariations = [{ id: "default", label: "Default" }];
+
+const planningBacklogVariations = [{ id: "default", label: "Default" }];
+
+const mostRewatchedVariations = [
+  { id: "default", label: "Default (All)" },
+  { id: "anime", label: "Anime Only" },
+  { id: "manga", label: "Manga Only" },
+];
+
+const currentlyWatchingReadingVariations = [
+  { id: "default", label: "Default (Anime + Manga)" },
+  { id: "anime", label: "Anime Only" },
+  { id: "manga", label: "Manga Only" },
+];
+
+const completionProgressCards = [
+  {
+    id: "statusCompletionOverview",
+    label: "Status Completion Overview",
+    variations: statusCompletionVariations,
+  },
+  {
+    id: "milestones",
+    label: "Consumption Milestones",
+    variations: milestonesVariations,
+  },
+  {
+    id: "personalRecords",
+    label: "Personal Records (Longest, Highest Rated, Most Rewatched)",
+    variations: personalRecordsVariations,
+  },
+  {
+    id: "planningBacklog",
+    label: "Planning Backlog",
+    variations: planningBacklogVariations,
+  },
+  {
+    id: "mostRewatched",
+    label: "Most Rewatched/Reread Titles",
+    variations: mostRewatchedVariations,
+  },
+  {
+    id: "currentlyWatchingReading",
+    label: "Currently Watching / Reading",
+    variations: currentlyWatchingReadingVariations,
+  },
+];
+
+const comparativeDefaultVariations = [{ id: "default", label: "Default" }];
+
+const userAnalyticsDefaultVariations = [{ id: "default", label: "Default" }];
+
+const studioDefaultVariations = [{ id: "default", label: "Default" }];
+
 export const statCardTypes = [
+  // Group: Core Stats
   createCardType(
     "animeStats",
-    "Main Stats",
+    "Core Stats",
     "Anime Stats (Count, Episodes Watched, Minutes Watched, Mean Score, Standard Deviation)",
     mainStatsVariations,
   ),
   createCardType(
     "mangaStats",
-    "Main Stats",
+    "Core Stats",
     "Manga Stats (Count, Chapters Read, Volumes Read, Mean Score, Standard Deviation)",
     mainStatsVariations,
   ),
   createCardType(
     "socialStats",
-    "Main Stats",
+    "Core Stats",
     "Social Stats (Total Activities, Followers, Following, Thread Posts/Comments, Reviews)",
     socialStatsVariations,
   ),
+  createCardType(
+    "profileOverview",
+    "Core Stats",
+    "Profile Overview (Avatar + Totals)",
+    profileMainVariations,
+  ),
+  createCardType(
+    "animeMangaOverview",
+    "Core Stats",
+    "Anime vs Manga Overview",
+    comparativeDefaultVariations,
+  ),
+
+  // Group: Anime Deep Dive
   ...animeBreakdownCards.map((card) =>
-    createCardType(card.id, "Anime Breakdowns", card.label, pieBarVariations),
-  ),
-  ...mangaBreakdownCards.map((card) =>
-    createCardType(card.id, "Manga Breakdowns", card.label, pieBarVariations),
-  ),
-  ...distributionCards.map((card) =>
     createCardType(
       card.id,
-      card.group,
+      "Anime Deep Dive",
       card.label,
-      verticalHorizontalVariations,
+      getAnimeBreakdownVariations(card.id),
     ),
+  ),
+  createCardType(
+    "animeScoreDistribution",
+    "Anime Deep Dive",
+    "Anime Score Distribution",
+    scoreDistributionVariations,
+  ),
+  createCardType(
+    "animeYearDistribution",
+    "Anime Deep Dive",
+    "Anime Year Distribution",
+    yearDistributionVariations,
+  ),
+
+  // Group: Manga Deep Dive
+  ...mangaBreakdownCards.map((card) =>
+    createCardType(
+      card.id,
+      "Manga Deep Dive",
+      card.label,
+      getMangaBreakdownVariations(card.id),
+    ),
+  ),
+  createCardType(
+    "mangaScoreDistribution",
+    "Manga Deep Dive",
+    "Manga Score Distribution",
+    scoreDistributionVariations,
+  ),
+  createCardType(
+    "mangaYearDistribution",
+    "Manga Deep Dive",
+    "Manga Year Distribution",
+    yearDistributionVariations,
+  ),
+
+  // Group: Activity & Engagement
+  ...activityCards.map((card) =>
+    createCardType(
+      card.id,
+      "Activity & Engagement",
+      card.label,
+      card.variations,
+    ),
+  ),
+  createCardType(
+    "socialMilestones",
+    "Activity & Engagement",
+    "Social Milestones (Followers, Following, Threads, Comments, Reviews)",
+    socialCommunityVariations,
+  ),
+  createCardType(
+    "reviewStats",
+    "Activity & Engagement",
+    "Review Statistics",
+    userAnalyticsDefaultVariations,
+  ),
+  createCardType(
+    "seasonalViewingPatterns",
+    "Activity & Engagement",
+    "Seasonal Viewing Patterns",
+    userAnalyticsDefaultVariations,
+  ),
+
+  // Group: Library & Progress
+  createCardType(
+    "favoritesSummary",
+    "Library & Progress",
+    "Favourites Summary",
+    profileMainVariations,
+  ),
+  createCardType(
+    "favoritesGrid",
+    "Library & Progress",
+    "Favourites Grid",
+    favoritesGridVariations,
+  ),
+  ...completionProgressCards.map((card) =>
+    createCardType(card.id, "Library & Progress", card.label, card.variations),
+  ),
+  createCardType(
+    "droppedMedia",
+    "Library & Progress",
+    "Dropped Media",
+    userAnalyticsDefaultVariations,
+  ),
+
+  // Group: Advanced Analytics
+  createCardType(
+    "scoreCompareAnimeManga",
+    "Advanced Analytics",
+    "Anime vs Manga Score Comparison",
+    comparativeDefaultVariations,
+  ),
+  createCardType(
+    "countryDiversity",
+    "Advanced Analytics",
+    "Country Diversity",
+    comparativeDefaultVariations,
+  ),
+  createCardType(
+    "genreDiversity",
+    "Advanced Analytics",
+    "Genre Diversity",
+    comparativeDefaultVariations,
+  ),
+  createCardType(
+    "formatPreferenceOverview",
+    "Advanced Analytics",
+    "Format Preference Overview",
+    comparativeDefaultVariations,
+  ),
+  createCardType(
+    "releaseEraPreference",
+    "Advanced Analytics",
+    "Release Era Preference",
+    comparativeDefaultVariations,
+  ),
+  createCardType(
+    "startYearMomentum",
+    "Advanced Analytics",
+    "Start-Year Momentum",
+    comparativeDefaultVariations,
+  ),
+  createCardType(
+    "lengthPreference",
+    "Advanced Analytics",
+    "Length Preference",
+    comparativeDefaultVariations,
+  ),
+  createCardType(
+    "tagCategoryDistribution",
+    "Advanced Analytics",
+    "Tag Category Distribution",
+    userAnalyticsDefaultVariations,
+  ),
+  createCardType(
+    "tagDiversity",
+    "Advanced Analytics",
+    "Tag Diversity",
+    userAnalyticsDefaultVariations,
+  ),
+  createCardType(
+    "studioCollaboration",
+    "Advanced Analytics",
+    "Studio Collaboration (Co-Production Pairs)",
+    studioDefaultVariations,
   ),
 ];
 

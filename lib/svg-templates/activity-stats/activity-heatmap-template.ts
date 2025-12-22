@@ -1,0 +1,229 @@
+import type { ColorValue } from "@/lib/types/card";
+import type { ActivityHistoryItem } from "@/lib/types/records";
+import type { TrustedSVG } from "@/lib/types/svg";
+import {
+  calculateDynamicFontSize,
+  escapeForXml,
+  getCardBorderRadius,
+  markTrustedSvg,
+  processColorsForSVG,
+} from "@/lib/utils";
+import {
+  HEATMAP,
+  SHAPES,
+  TYPOGRAPHY,
+} from "@/lib/svg-templates/common/constants";
+import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
+import { getHeatmapColor, type HeatmapPalette } from "./shared";
+
+/**
+ * Generates a GitHub-style activity heatmap calendar.
+ * @param data - Template input with username, styles, activity history, and variant.
+ * @returns TrustedSVG string for the heatmap card.
+ * @source
+ */
+export function activityHeatmapTemplate(data: {
+  username: string;
+  variant?: "default" | "github" | "fire";
+  styles: {
+    titleColor: ColorValue;
+    backgroundColor: ColorValue;
+    textColor: ColorValue;
+    circleColor: ColorValue;
+    borderColor?: ColorValue;
+    borderRadius?: number;
+  };
+  activityHistory: ActivityHistoryItem[];
+}): TrustedSVG {
+  const { gradientDefs, resolvedColors } = processColorsForSVG(
+    {
+      titleColor: data.styles.titleColor,
+      backgroundColor: data.styles.backgroundColor,
+      textColor: data.styles.textColor,
+      circleColor: data.styles.circleColor,
+      borderColor: data.styles.borderColor,
+    },
+    [
+      "titleColor",
+      "backgroundColor",
+      "textColor",
+      "circleColor",
+      "borderColor",
+    ],
+  );
+
+  const cardRadius = getCardBorderRadius(data.styles.borderRadius);
+  const palette = (data.variant as HeatmapPalette) || "default";
+  const title = `${data.username}'s Activity Heatmap`;
+  const safeTitle = escapeForXml(title);
+
+  // Process activity history into a date map
+  const activityMap = new Map<string, number>();
+  let maxAmount = 1;
+
+  for (const item of data.activityHistory) {
+    const date = new Date(item.date * 1000);
+    const key = date.toISOString().split("T")[0];
+    const current = activityMap.get(key) || 0;
+    const newAmount = current + item.amount;
+    activityMap.set(key, newAmount);
+    maxAmount = Math.max(maxAmount, newAmount);
+  }
+
+  // Generate calendar grid for the last ~90 days (13 weeks)
+  const weeks = HEATMAP.WEEKS;
+  const cellSize = SHAPES.CELL_SIZE;
+  const cellGap = SHAPES.CELL_GAP;
+  const now = new Date();
+  // Start from midnight UTC today
+  const startDate = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
+  startDate.setUTCDate(
+    startDate.getUTCDate() - weeks * HEATMAP.DAYS_PER_WEEK + 1,
+  );
+  // Align to start of week (Sunday) in UTC
+  startDate.setUTCDate(startDate.getUTCDate() - startDate.getUTCDay());
+
+  const gridX = 30;
+  const gridY = 60;
+  const gridStep = cellSize + cellGap;
+  const dayLabelX = gridX - 6;
+  const dayLabelBaselineOffset = cellSize - 3;
+  const monthLabelY = gridY - 10;
+
+  const cells: string[] = [];
+  const currentDate = new Date(startDate);
+
+  for (let week = 0; week < weeks; week++) {
+    for (let day = 0; day < 7; day++) {
+      const key = currentDate.toISOString().split("T")[0];
+      const amount = activityMap.get(key) || 0;
+      const intensity = amount / maxAmount;
+      const colorData = getHeatmapColor(
+        intensity,
+        palette,
+        resolvedColors.titleColor,
+      );
+      const x = gridX + week * gridStep;
+      const y = gridY + day * gridStep;
+
+      cells.push(`
+        <rect
+          x="${x}"
+          y="${y}"
+          width="${cellSize}"
+          height="${cellSize}"
+          rx="2"
+          fill="${colorData.color}"
+          ${colorData.opacity === 1 ? "" : `fill-opacity="${colorData.opacity}"`}
+          class="stagger"
+          style="animation-delay: ${HEATMAP.BASE_ANIMATION_DELAY + week * HEATMAP.WEEK_DELAY_INCREMENT + day * HEATMAP.DAY_DELAY_INCREMENT}ms"
+        >
+          <title>${key}: ${amount} activities</title>
+        </rect>
+      `);
+
+      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+    }
+  }
+
+  const monthNames = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ] as const;
+
+  const monthLabels: string[] = [];
+  let prevMonth: number | undefined;
+  for (let week = 0; week < weeks; week++) {
+    const weekStart = new Date(startDate);
+    weekStart.setUTCDate(startDate.getUTCDate() + week * HEATMAP.DAYS_PER_WEEK);
+    const month = weekStart.getUTCMonth();
+    if (week === 0 || month !== prevMonth) {
+      monthLabels.push(
+        `<text x="${gridX + week * gridStep}" y="${monthLabelY}" class="month-label">${monthNames[month]}</text>`,
+      );
+      prevMonth = month;
+    }
+  }
+
+  // Day labels
+  const dayLabels = ["Sun", "", "Tue", "", "Thu", "", "Sat"];
+  const dayLabelsSvg = dayLabels
+    .map((label, i) =>
+      label
+        ? `<text x="${dayLabelX}" y="${gridY + i * gridStep + dayLabelBaselineOffset}" class="day-label">${label}</text>`
+        : "",
+    )
+    .join("");
+
+  const dims = getCardDimensions("activityHeatmap", "default");
+
+  return markTrustedSvg(`
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="${dims.w}"
+  height="${dims.h}"
+  viewBox="0 0 ${dims.w} ${dims.h}"
+  fill="none"
+  role="img"
+  aria-labelledby="desc-id"
+>
+  ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
+  <title id="title-id">${safeTitle}</title>
+  <desc id="desc-id">Activity heatmap showing ${data.activityHistory.length} activity entries</desc>
+  <style>
+    .header {
+      fill: ${resolvedColors.titleColor};
+      font: 600 ${calculateDynamicFontSize(title, TYPOGRAPHY.LARGE_TEXT_SIZE, 180)}px 'Segoe UI', Ubuntu, Sans-Serif;
+      animation: fadeInAnimation 0.8s ease-in-out forwards;
+    }
+    .day-label {
+      fill: ${resolvedColors.textColor};
+      font: 400 ${TYPOGRAPHY.SMALL_TEXT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
+      opacity: 0.7;
+      text-anchor: end;
+    }
+    .month-label {
+      fill: ${resolvedColors.textColor};
+      font: 400 ${TYPOGRAPHY.SMALL_TEXT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
+      opacity: 0.7;
+    }
+    .stagger {
+      opacity: 0;
+      animation: fadeInAnimation 0.3s ease-in-out forwards;
+    }
+    @keyframes fadeInAnimation {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+  </style>
+  <rect
+    x="0.5"
+    y="0.5"
+    rx="${cardRadius}"
+    height="${dims.h - 1}"
+    width="${dims.w - 1}"
+    fill="${resolvedColors.backgroundColor}"
+    ${resolvedColors.borderColor ? `stroke="${resolvedColors.borderColor}"` : ""}
+    stroke-width="2"
+  />
+  <g transform="translate(15, 30)">
+    <text x="0" y="0" class="header">${safeTitle}</text>
+  </g>
+  ${monthLabels.join("")}
+  ${dayLabelsSvg}
+  ${cells.join("")}
+</svg>
+`);
+}

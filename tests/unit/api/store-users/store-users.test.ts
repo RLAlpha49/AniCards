@@ -11,6 +11,9 @@ import {
   sharedRedisMockSet,
   sharedRedisMockGet,
   sharedRedisMockIncr,
+  sharedRedisMockDel,
+  sharedRedisMockMget,
+  sharedRedisMockPipelineExec,
   sharedRatelimitMockLimit,
 } from "@/tests/unit/__setup__.test";
 
@@ -62,9 +65,39 @@ async function getJsonResponse(res: Response) {
   return res.clone().json();
 }
 
+/**
+ * MGET helpers to simulate Redis responses of string or null values.
+ */
+async function mgetReturnNulls(...keys: string[]): Promise<(string | null)[]> {
+  return keys.map(() => null);
+}
+async function mgetReturnObjectStrings(
+  ...keys: string[]
+): Promise<(string | null)[]> {
+  return keys.map(() => "[object Object]");
+}
+async function mgetReturnCorruptedData(
+  ...keys: string[]
+): Promise<(string | null)[]> {
+  return keys.map(() => "corrupted data");
+}
+
 describe("Store Users API", () => {
   afterEach(() => {
     mock.clearAllMocks();
+    sharedRedisMockGet.mockReset();
+    sharedRedisMockSet.mockReset();
+    sharedRedisMockDel.mockReset();
+    sharedRedisMockIncr.mockReset();
+    sharedRatelimitMockLimit.mockReset();
+    sharedRedisMockMget.mockReset();
+    sharedRedisMockPipelineExec.mockReset();
+
+    // Restore default behaviors
+    sharedRedisMockIncr.mockResolvedValue(1);
+    sharedRatelimitMockLimit.mockResolvedValue({ success: true });
+    sharedRedisMockMget.mockImplementation(mgetReturnNulls);
+    sharedRedisMockPipelineExec.mockResolvedValue([]);
   });
 
   describe("POST - Request Validation & Security", () => {
@@ -263,8 +296,7 @@ describe("Store Users API", () => {
     it("should successfully store new user with username", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       sharedRedisMockGet.mockResolvedValueOnce(null);
-      sharedRedisMockSet.mockResolvedValueOnce(true);
-      sharedRedisMockSet.mockResolvedValueOnce(true);
+      sharedRedisMockSet.mockResolvedValue(true);
 
       const reqBody = { userId: 1, username: "UserOne", stats: { score: 10 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -276,18 +308,21 @@ describe("Store Users API", () => {
       expect(data.userId).toBe(1);
 
       expect(sharedRedisMockGet).toHaveBeenCalledWith("user:1");
-      expect(sharedRedisMockSet).toHaveBeenCalledTimes(2);
+      // 9 parts (split storage) + 1 username index = 10 sets
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(10);
 
-      const storedValue = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(storedValue.userId).toBe(1);
-      expect(storedValue.username).toBe("UserOne");
-      expect(storedValue.stats).toEqual({ score: 10 });
-      expect(storedValue.ip).toBe("127.0.0.1");
-      expect(storedValue).toHaveProperty("createdAt");
-      expect(storedValue).toHaveProperty("updatedAt");
+      const metaValue = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(String(metaValue.userId)).toBe(String(1));
+      expect(metaValue.username).toBe("UserOne");
+      expect(metaValue.ip).toBe("127.0.0.1");
+      expect(metaValue).toHaveProperty("createdAt");
+      expect(metaValue).toHaveProperty("updatedAt");
 
-      expect(sharedRedisMockSet.mock.calls[1][0]).toBe("username:userone");
-      expect(sharedRedisMockSet.mock.calls[1][1]).toBe("1");
+      const statsValue = JSON.parse(sharedRedisMockSet.mock.calls[1][1]);
+      expect(statsValue).toEqual({ score: 10 });
+
+      expect(sharedRedisMockSet.mock.calls[9][0]).toBe("username:userone");
+      expect(sharedRedisMockSet.mock.calls[9][1]).toBe("1");
 
       expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_users:successful_requests",
@@ -297,7 +332,7 @@ describe("Store Users API", () => {
     it("should successfully store new user without username", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       sharedRedisMockGet.mockResolvedValueOnce(null);
-      sharedRedisMockSet.mockResolvedValueOnce(true);
+      sharedRedisMockSet.mockResolvedValue(true);
 
       const reqBody = { userId: 2, stats: { score: 20 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -308,17 +343,17 @@ describe("Store Users API", () => {
       expect(data.success).toBe(true);
       expect(data.userId).toBe(2);
 
-      expect(sharedRedisMockSet).toHaveBeenCalledTimes(1);
-      expect(sharedRedisMockSet.mock.calls[0][0]).toBe("user:2");
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(9);
+      expect(sharedRedisMockSet.mock.calls[0][0]).toBe("user:2:meta");
 
-      const storedValue = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(storedValue.username).toBeUndefined();
+      const metaValue = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(metaValue.username).toBeUndefined();
     });
 
     it("should accept null username explicitly", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       sharedRedisMockGet.mockResolvedValueOnce(null);
-      sharedRedisMockSet.mockResolvedValueOnce(true);
+      sharedRedisMockSet.mockResolvedValue(true);
 
       const reqBody = { userId: 3, username: null, stats: { score: 30 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -327,14 +362,13 @@ describe("Store Users API", () => {
       expect(res.status).toBe(200);
       const data = await getJsonResponse(res);
       expect(data.success).toBe(true);
-      expect(sharedRedisMockSet).toHaveBeenCalledTimes(1);
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(9);
     });
 
     it("should normalize username (trim and lowercase)", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       sharedRedisMockGet.mockResolvedValueOnce(null);
-      sharedRedisMockSet.mockResolvedValueOnce(true);
-      sharedRedisMockSet.mockResolvedValueOnce(true);
+      sharedRedisMockSet.mockResolvedValue(true);
 
       const reqBody = {
         userId: 4,
@@ -346,8 +380,439 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      expect(sharedRedisMockSet.mock.calls[1][0]).toBe("username:username");
-      expect(sharedRedisMockSet.mock.calls[1][1]).toBe("4");
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(10);
+      expect(sharedRedisMockSet.mock.calls[9][0]).toBe("username:username");
+      expect(sharedRedisMockSet.mock.calls[9][1]).toBe("4");
+    });
+
+    it("should compute and store animeSourceMaterialDistributionTotals before pruning", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockSet.mockResolvedValue(true);
+
+      const statsPayload = {
+        User: {
+          statistics: {
+            anime: {},
+            manga: {},
+          },
+          stats: {
+            activityHistory: [],
+          },
+        },
+        followersPage: { pageInfo: { total: 0 }, followers: [] },
+        followingPage: { pageInfo: { total: 0 }, following: [] },
+        threadsPage: { pageInfo: { total: 0 }, threads: [] },
+        threadCommentsPage: { pageInfo: { total: 0 }, threadComments: [] },
+        reviewsPage: { pageInfo: { total: 0 }, reviews: [] },
+        animeCurrent: {
+          lists: [
+            {
+              name: "Watching",
+              entries: [
+                {
+                  id: 1,
+                  progress: 1,
+                  media: { id: 10, source: "MANGA", title: { romaji: "A" } },
+                },
+                {
+                  id: 2,
+                  progress: 1,
+                  media: { id: 12, title: { romaji: "B" } },
+                },
+              ],
+            },
+          ],
+        },
+        animeCompleted: {
+          lists: [
+            {
+              name: "Completed",
+              entries: [
+                {
+                  id: 3,
+                  score: 10,
+                  media: {
+                    id: 10,
+                    source: "MANGA",
+                    title: { romaji: "A" },
+                  },
+                },
+                {
+                  id: 4,
+                  score: 10,
+                  media: {
+                    id: 11,
+                    source: "ORIGINAL",
+                    title: { romaji: "C" },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      const reqBody = {
+        userId: 42,
+        username: "FullListUser",
+        stats: statsPayload,
+      };
+      const req = createTestRequest(reqBody, "http://localhost");
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const aggregatesSetCall = sharedRedisMockSet.mock.calls.find(
+        (call) => call[0] === "user:42:aggregates",
+      );
+      expect(aggregatesSetCall).toBeTruthy();
+      const aggregatesValue = JSON.parse(aggregatesSetCall![1]);
+
+      expect(aggregatesValue).toHaveProperty(
+        "animeSourceMaterialDistributionTotals",
+      );
+      const totals =
+        aggregatesValue.animeSourceMaterialDistributionTotals as Array<{
+          source: string;
+          count: number;
+        }>;
+
+      // Dedupes by media id across CURRENT + COMPLETED (mediaId=10 appears twice)
+      expect(totals).toContainEqual({ source: "MANGA", count: 1 });
+      expect(totals).toContainEqual({ source: "ORIGINAL", count: 1 });
+      expect(totals).toContainEqual({ source: "UNKNOWN", count: 1 });
+    });
+
+    it("should compute and store animeSeasonalPreferenceTotals before pruning", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockSet.mockResolvedValue(true);
+
+      const statsPayload = {
+        User: {
+          statistics: {
+            anime: {},
+            manga: {},
+          },
+          stats: {
+            activityHistory: [],
+          },
+        },
+        followersPage: { pageInfo: { total: 0 }, followers: [] },
+        followingPage: { pageInfo: { total: 0 }, following: [] },
+        threadsPage: { pageInfo: { total: 0 }, threads: [] },
+        threadCommentsPage: { pageInfo: { total: 0 }, threadComments: [] },
+        reviewsPage: { pageInfo: { total: 0 }, reviews: [] },
+        animeCurrent: {
+          lists: [
+            {
+              name: "Watching",
+              entries: [
+                {
+                  id: 1,
+                  progress: 1,
+                  media: {
+                    id: 10,
+                    season: "WINTER",
+                    seasonYear: 2024,
+                    title: { romaji: "A" },
+                  },
+                },
+                {
+                  id: 2,
+                  progress: 1,
+                  media: { id: 12, title: { romaji: "B" } },
+                },
+              ],
+            },
+          ],
+        },
+        animeCompleted: {
+          lists: [
+            {
+              name: "Completed",
+              entries: [
+                {
+                  id: 3,
+                  score: 10,
+                  media: {
+                    id: 10,
+                    season: "WINTER",
+                    seasonYear: 2024,
+                    title: { romaji: "A" },
+                  },
+                },
+                {
+                  id: 4,
+                  score: 10,
+                  media: {
+                    id: 11,
+                    season: "SPRING",
+                    seasonYear: 2024,
+                    title: { romaji: "C" },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      const reqBody = {
+        userId: 43,
+        username: "SeasonUser",
+        stats: statsPayload,
+      };
+      const req = createTestRequest(reqBody, "http://localhost");
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const aggregatesSetCall = sharedRedisMockSet.mock.calls.find(
+        (call) => call[0] === "user:43:aggregates",
+      );
+      expect(aggregatesSetCall).toBeTruthy();
+      const aggregatesValue = JSON.parse(aggregatesSetCall![1]);
+
+      expect(aggregatesValue).toHaveProperty("animeSeasonalPreferenceTotals");
+      const totals = aggregatesValue.animeSeasonalPreferenceTotals as Array<{
+        season: string;
+        count: number;
+      }>;
+
+      // Dedupes by media id across CURRENT + COMPLETED (mediaId=10 appears twice)
+      expect(totals).toContainEqual({ season: "WINTER", count: 1 });
+      expect(totals).toContainEqual({ season: "SPRING", count: 1 });
+      expect(totals).toContainEqual({ season: "UNKNOWN", count: 1 });
+    });
+
+    it("should compute and store animeGenreSynergyTotals before pruning", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockSet.mockResolvedValue(true);
+
+      const statsPayload = {
+        User: {
+          statistics: {
+            anime: {},
+            manga: {},
+          },
+          stats: {
+            activityHistory: [],
+          },
+        },
+        followersPage: { pageInfo: { total: 0 }, followers: [] },
+        followingPage: { pageInfo: { total: 0 }, following: [] },
+        threadsPage: { pageInfo: { total: 0 }, threads: [] },
+        threadCommentsPage: { pageInfo: { total: 0 }, threadComments: [] },
+        reviewsPage: { pageInfo: { total: 0 }, reviews: [] },
+        animeCompleted: {
+          lists: [
+            {
+              name: "Completed",
+              entries: [
+                {
+                  id: 1,
+                  score: 10,
+                  media: {
+                    id: 101,
+                    title: { romaji: "A" },
+                    genres: ["Action", "Drama", "Comedy"],
+                  },
+                },
+                {
+                  id: 2,
+                  score: 10,
+                  media: {
+                    id: 102,
+                    title: { romaji: "B" },
+                    genres: ["Action", "Drama"],
+                  },
+                },
+                {
+                  id: 3,
+                  score: 10,
+                  media: {
+                    id: 103,
+                    title: { romaji: "C" },
+                    genres: ["Drama", "Fantasy"],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      const reqBody = {
+        userId: 44,
+        username: "GenreSynergyUser",
+        stats: statsPayload,
+      };
+      const req = createTestRequest(reqBody, "http://localhost");
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const aggregatesSetCall = sharedRedisMockSet.mock.calls.find(
+        (call) => call[0] === "user:44:aggregates",
+      );
+      expect(aggregatesSetCall).toBeTruthy();
+      const aggregatesValue = JSON.parse(aggregatesSetCall![1]);
+
+      expect(aggregatesValue).toHaveProperty("animeGenreSynergyTotals");
+      const totals = aggregatesValue.animeGenreSynergyTotals as Array<{
+        a: string;
+        b: string;
+        count: number;
+      }>;
+
+      // "Action + Drama" appears in two completed titles.
+      expect(totals).toContainEqual({ a: "Action", b: "Drama", count: 2 });
+      // Other pairs appear once.
+      expect(totals).toContainEqual({ a: "Action", b: "Comedy", count: 1 });
+      expect(totals).toContainEqual({ a: "Comedy", b: "Drama", count: 1 });
+      expect(totals).toContainEqual({ a: "Drama", b: "Fantasy", count: 1 });
+    });
+
+    it("should persist userReviews/userRecommendations and dropped lists", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockSet.mockResolvedValue(true);
+
+      const statsPayload = {
+        User: {
+          statistics: {
+            anime: {},
+            manga: {},
+          },
+          stats: {
+            activityHistory: [],
+          },
+        },
+        followersPage: { pageInfo: { total: 0 }, followers: [] },
+        followingPage: { pageInfo: { total: 0 }, following: [] },
+        threadsPage: { pageInfo: { total: 0 }, threads: [] },
+        threadCommentsPage: { pageInfo: { total: 0 }, threadComments: [] },
+        reviewsPage: { pageInfo: { total: 0 }, reviews: [] },
+        userReviews: {
+          pageInfo: { total: 1 },
+          reviews: [
+            {
+              id: 100,
+              score: 70,
+              rating: 10,
+              ratingAmount: 42,
+              summary: "A review summary",
+              createdAt: 1700000000,
+              media: {
+                id: 200,
+                title: { romaji: "Example Anime" },
+                type: "ANIME",
+                genres: ["Action"],
+              },
+            },
+          ],
+        },
+        userRecommendations: {
+          pageInfo: { total: 1 },
+          recommendations: [
+            {
+              id: 300,
+              rating: 5,
+              media: { id: 1, title: { romaji: "A" } },
+              mediaRecommendation: { id: 2, title: { romaji: "B" } },
+            },
+          ],
+        },
+        animeCompleted: {
+          lists: [
+            {
+              name: "Completed",
+              entries: [
+                {
+                  id: 1,
+                  score: 9,
+                  media: {
+                    id: 10,
+                    title: { romaji: "Completed With Dates" },
+                    episodes: 12,
+                    averageScore: 82,
+                    genres: ["Drama"],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        animeDropped: {
+          lists: [
+            {
+              name: "Dropped",
+              entries: [
+                {
+                  id: 2,
+                  progress: 3,
+                  media: {
+                    id: 11,
+                    title: { romaji: "Dropped Anime" },
+                    episodes: 12,
+                    genres: ["Comedy"],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        mangaDropped: {
+          lists: [
+            {
+              name: "Dropped",
+              entries: [
+                {
+                  id: 3,
+                  progress: 5,
+                  media: {
+                    id: 21,
+                    title: { romaji: "Dropped Manga" },
+                    chapters: 100,
+                    genres: ["Adventure"],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      const reqBody = {
+        userId: 99,
+        username: "NewFieldsUser",
+        stats: statsPayload,
+      };
+      const req = createTestRequest(reqBody, "http://localhost");
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const pagesSetCall = sharedRedisMockSet.mock.calls.find(
+        (call) => call[0] === "user:99:pages",
+      );
+      expect(pagesSetCall).toBeTruthy();
+      const pagesValue = JSON.parse(pagesSetCall![1]);
+      expect(pagesValue.userReviews?.reviews).toHaveLength(1);
+      expect(pagesValue.userRecommendations?.recommendations).toHaveLength(1);
+
+      const completedSetCall = sharedRedisMockSet.mock.calls.find(
+        (call) => call[0] === "user:99:completed",
+      );
+      expect(completedSetCall).toBeTruthy();
+      const completedValue = JSON.parse(completedSetCall![1]);
+
+      expect(completedValue.animeDropped?.lists?.[0]?.entries).toHaveLength(1);
+      expect(completedValue.mangaDropped?.lists?.[0]?.entries).toHaveLength(1);
+
+      const storedEntry =
+        completedValue.animeCompleted?.lists?.[0]?.entries?.[0];
+      expect(storedEntry).toBeTruthy();
     });
 
     it("should update existing user and preserve createdAt", async () => {
@@ -361,8 +826,7 @@ describe("Store Users API", () => {
         updatedAt: "2022-01-01T00:00:00.000Z",
       };
       sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(existingRecord));
-      sharedRedisMockSet.mockResolvedValueOnce(true);
-      sharedRedisMockSet.mockResolvedValueOnce(true);
+      sharedRedisMockSet.mockResolvedValue(true);
 
       const reqBody = { userId: 5, username: "NewName", stats: { score: 100 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -370,17 +834,24 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      const storedValue = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(storedValue.createdAt).toBe("2022-01-01T00:00:00.000Z");
-      expect(storedValue.updatedAt).not.toBe("2022-01-01T00:00:00.000Z");
-      expect(storedValue.username).toBe("NewName");
-      expect(storedValue.stats).toEqual({ score: 100 });
+      // 9 (migration) + 9 (save) + 1 (username) = 19
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(19);
+
+      // The last save's meta is at index 9
+      const metaValue = JSON.parse(sharedRedisMockSet.mock.calls[9][1]);
+      expect(metaValue.createdAt).toBe("2022-01-01T00:00:00.000Z");
+      expect(metaValue.updatedAt).not.toBe("2022-01-01T00:00:00.000Z");
+      expect(metaValue.username).toBe("NewName");
+
+      // The last save's stats is at index 10
+      const statsValue = JSON.parse(sharedRedisMockSet.mock.calls[10][1]);
+      expect(statsValue).toEqual({ score: 100 });
     });
 
     it("should handle complex stats objects", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       sharedRedisMockGet.mockResolvedValueOnce(null);
-      sharedRedisMockSet.mockResolvedValueOnce(true);
+      sharedRedisMockSet.mockResolvedValue(true);
 
       const complexStats = {
         animeCount: 150,
@@ -395,8 +866,9 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      const storedValue = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(storedValue.stats).toEqual(complexStats);
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(10);
+      const statsValue = JSON.parse(sharedRedisMockSet.mock.calls[1][1]);
+      expect(statsValue).toEqual(complexStats);
     });
 
     it("should update existing user without username when not provided", async () => {
@@ -410,7 +882,7 @@ describe("Store Users API", () => {
         updatedAt: "2022-01-01T00:00:00.000Z",
       };
       sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(existingRecord));
-      sharedRedisMockSet.mockResolvedValueOnce(true);
+      sharedRedisMockSet.mockResolvedValue(true);
 
       const reqBody = { userId: 7, stats: { score: 50 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -418,9 +890,10 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      expect(sharedRedisMockSet).toHaveBeenCalledTimes(1);
-      const storedValue = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(storedValue.username).toBeUndefined();
+      // 9 (migration) + 9 (save) = 18
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(18);
+      const metaValue = JSON.parse(sharedRedisMockSet.mock.calls[9][1]);
+      expect(metaValue.username).toBeUndefined();
     });
 
     it("should replace username when changing from existing name to new name", async () => {
@@ -434,8 +907,7 @@ describe("Store Users API", () => {
         updatedAt: "2022-01-01T00:00:00.000Z",
       };
       sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(existingRecord));
-      sharedRedisMockSet.mockResolvedValueOnce(true);
-      sharedRedisMockSet.mockResolvedValueOnce(true);
+      sharedRedisMockSet.mockResolvedValue(true);
 
       const reqBody = { userId: 8, username: "NewName", stats: { score: 50 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -443,9 +915,10 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      expect(sharedRedisMockSet).toHaveBeenCalledTimes(2);
-      expect(sharedRedisMockSet.mock.calls[1][0]).toBe("username:newname");
-      expect(sharedRedisMockSet.mock.calls[1][1]).toBe("8");
+      // 9 (migration) + 9 (save) + 1 (username) = 19
+      expect(sharedRedisMockSet).toHaveBeenCalledTimes(19);
+      expect(sharedRedisMockSet.mock.calls[18][0]).toBe("username:newname");
+      expect(sharedRedisMockSet.mock.calls[18][1]).toBe("8");
     });
   });
 
@@ -453,7 +926,7 @@ describe("Store Users API", () => {
     it("should include updatedAt timestamp in stored record", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       sharedRedisMockGet.mockResolvedValueOnce(null);
-      sharedRedisMockSet.mockResolvedValueOnce(true);
+      sharedRedisMockSet.mockResolvedValue(true);
 
       const beforeTime = new Date();
       const reqBody = { userId: 9, username: "user9", stats: { score: 10 } };
@@ -463,8 +936,8 @@ describe("Store Users API", () => {
       const afterTime = new Date();
 
       expect(res.status).toBe(200);
-      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      const timestamp = new Date(stored.updatedAt);
+      const metaValue = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      const timestamp = new Date(metaValue.updatedAt);
 
       expect(timestamp.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());
       expect(timestamp.getTime()).toBeLessThanOrEqual(afterTime.getTime());
@@ -473,7 +946,7 @@ describe("Store Users API", () => {
     it("should generate new createdAt for new user records", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       sharedRedisMockGet.mockResolvedValueOnce(null);
-      sharedRedisMockSet.mockResolvedValueOnce(true);
+      sharedRedisMockSet.mockResolvedValue(true);
 
       const beforeTime = new Date();
       const reqBody = { userId: 10, username: "user10", stats: { score: 10 } };
@@ -483,8 +956,8 @@ describe("Store Users API", () => {
       const afterTime = new Date();
 
       expect(res.status).toBe(200);
-      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      const createdAt = new Date(stored.createdAt);
+      const metaValue = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      const createdAt = new Date(metaValue.createdAt);
 
       expect(createdAt.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());
       expect(createdAt.getTime()).toBeLessThanOrEqual(afterTime.getTime());
@@ -495,7 +968,9 @@ describe("Store Users API", () => {
     it("should return 500 error if redis storage fails", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       sharedRedisMockGet.mockResolvedValueOnce(null);
-      sharedRedisMockSet.mockRejectedValueOnce(new Error("Redis failure"));
+      sharedRedisMockPipelineExec.mockRejectedValueOnce(
+        new Error("Redis failure"),
+      );
 
       const reqBody = { userId: 11, username: "user11", stats: { score: 30 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -511,7 +986,7 @@ describe("Store Users API", () => {
 
     it("should return 500 error if redis get fails", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      sharedRedisMockGet.mockRejectedValueOnce(new Error("Redis get failure"));
+      sharedRedisMockMget.mockRejectedValueOnce(new Error("Redis get failure"));
 
       const reqBody = { userId: 12, username: "user12", stats: { score: 30 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -524,8 +999,9 @@ describe("Store Users API", () => {
 
     it("should recover gracefully from corrupted Redis record (invalid JSON)", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      sharedRedisMockGet.mockResolvedValueOnce("[object Object]");
-      sharedRedisMockSet.mockResolvedValueOnce(true);
+      sharedRedisMockMget.mockImplementation(mgetReturnObjectStrings);
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockSet.mockResolvedValue(true);
 
       const reqBody = { userId: 13, username: "user13", stats: { score: 30 } };
       const req = createTestRequest(reqBody, "http://localhost");
@@ -541,8 +1017,9 @@ describe("Store Users API", () => {
 
     it("should generate new createdAt when recovering from corrupted record", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      sharedRedisMockGet.mockResolvedValueOnce("corrupted data");
-      sharedRedisMockSet.mockResolvedValueOnce(true);
+      sharedRedisMockMget.mockImplementation(mgetReturnCorruptedData);
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockSet.mockResolvedValue(true);
 
       const beforeTime = new Date();
       const reqBody = { userId: 14, username: "user14", stats: { score: 30 } };
@@ -552,8 +1029,8 @@ describe("Store Users API", () => {
       const afterTime = new Date();
 
       expect(res.status).toBe(200);
-      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      const createdAt = new Date(stored.createdAt);
+      const metaValue = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      const createdAt = new Date(metaValue.createdAt);
 
       expect(createdAt.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());
       expect(createdAt.getTime()).toBeLessThanOrEqual(afterTime.getTime());
@@ -632,7 +1109,9 @@ describe("Store Users API", () => {
     it("should increment failed_requests metric on Redis error", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       sharedRedisMockGet.mockResolvedValueOnce(null);
-      sharedRedisMockSet.mockRejectedValueOnce(new Error("Redis failure"));
+      sharedRedisMockPipelineExec.mockRejectedValueOnce(
+        new Error("Redis failure"),
+      );
 
       const reqBody = { userId: 18, username: "user18", stats: { score: 10 } };
       const req = createTestRequest(reqBody, "http://localhost");

@@ -3,6 +3,14 @@ import { UserRecord } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
 import { redisClient, apiJsonHeaders } from "@/lib/api-utils";
 import type { Redis as UpstashRedis } from "@upstash/redis";
+import { validateAndNormalizeUserRecord } from "@/lib/card-data/validation";
+import {
+  fetchUserDataParts,
+  reconstructUserRecord,
+  saveUserRecord,
+  deleteUserRecord,
+  UserDataPart,
+} from "@/lib/server/user-data";
 
 /**
  * Tracks the outcome of a user's AniList stats refresh.
@@ -78,10 +86,35 @@ async function updateUserStats(userId: string): Promise<UpdateResult> {
  * @returns True when the user was removed from Redis, false otherwise.
  * @source
  */
+async function getUsernameIndexKey(
+  redisClient: UpstashRedis,
+  userId: string,
+): Promise<string | null> {
+  try {
+    const metaRaw = await redisClient.get(`user:${userId}:meta`);
+    if (!metaRaw) return null;
+
+    const parsed =
+      typeof metaRaw === "string"
+        ? safeParse<Record<string, unknown>>(metaRaw)
+        : (metaRaw as Record<string, unknown>);
+
+    const rawUsername = parsed ? parsed["username"] : undefined;
+    if (typeof rawUsername === "string" && rawUsername.trim()) {
+      return `username:${rawUsername.trim().toLowerCase()}`;
+    }
+  } catch (err) {
+    console.warn(
+      `⚠️ [Cron Job] User ${userId}: Failed to read meta for username cleanup: ${err}`,
+    );
+  }
+
+  return null;
+}
+
 async function handleFailureTracking(
   redisClient: UpstashRedis,
   userId: string,
-  userKey: string,
 ): Promise<boolean> {
   const failureKey = `failed_updates:${userId}`;
   const currentFailureCount = (await redisClient.get(failureKey)) || 0;
@@ -93,13 +126,21 @@ async function handleFailureTracking(
 
   if (newFailureCount >= 3) {
     const cardsKey = `cards:${userId}`;
-    await Promise.all([
-      redisClient.del(userKey), // Remove user data
+    const usernameIndexKey = await getUsernameIndexKey(redisClient, userId);
+
+    const deletions = [
+      deleteUserRecord(userId), // Remove user data (all parts)
       redisClient.del(failureKey), // Remove failure tracking
       redisClient.del(cardsKey), // Remove user's card configurations
-    ]);
+      ...(usernameIndexKey ? [redisClient.del(usernameIndexKey)] : []),
+    ];
+
+    await Promise.all(deletions);
+
     console.log(
-      `🗑️ [Cron Job] User ${userId}: Removed from database after 3 failed attempts`,
+      `🗑️ [Cron Job] User ${userId}: Removed from database after 3 failed attempts${
+        usernameIndexKey ? ` (removed ${usernameIndexKey})` : ""
+      }`,
     );
     return true; // User was removed
   } else {
@@ -121,6 +162,90 @@ async function clearFailureTracking(
 ): Promise<void> {
   const failureKey = `failed_updates:${userId}`;
   await redisClient.del(failureKey);
+}
+
+/**
+ * Computes a recommended cron expression so that all users are refreshed at least once
+ * every 24 hours given the number of users and the number processed per run.
+ *
+ * Strategy:
+ * - runsNeeded = ceil(totalUsers / batchSize)
+ * - If runsNeeded <= 1 => run once per day ("0 0 * * *").
+ * - If runsNeeded > 1440 => impossible with this batch size, suggest every minute ("* * * * *").
+ * - Otherwise pick N = floor(1440 / runsNeeded) minutes.
+ *   - If N >= 60, convert to an hourly schedule (e.g. run at minute 0 every H hours).
+ *   - Else use a minute-based schedule (every N minutes).
+ *
+ * Returns cron expression, estimated runs/day, and approximate interval (minutes).
+ */
+function computeCronForBatch(
+  totalUsers: number,
+  batchSize: number,
+): {
+  runsNeeded: number;
+  cron: string;
+  runsPerDay: number;
+  intervalMinutes: number;
+  note?: string;
+} {
+  const runsNeeded =
+    totalUsers === 0 ? 0 : Math.max(1, Math.ceil(totalUsers / batchSize));
+
+  if (totalUsers === 0) {
+    return {
+      runsNeeded: 0,
+      cron: "0 0 * * *",
+      runsPerDay: 1,
+      intervalMinutes: 1440,
+      note: "No users",
+    };
+  }
+
+  if (runsNeeded <= 1) {
+    return {
+      runsNeeded,
+      cron: "0 0 * * *",
+      runsPerDay: 1,
+      intervalMinutes: 1440,
+    };
+  }
+
+  if (runsNeeded > 1440) {
+    return {
+      runsNeeded,
+      cron: "* * * * *",
+      runsPerDay: 1440,
+      intervalMinutes: 1,
+      note: "Cannot satisfy with this batch size; consider increasing batch size or parallelism",
+    };
+  }
+
+  const Nmin = Math.max(1, Math.floor(1440 / runsNeeded));
+  if (Nmin >= 60) {
+    const H = Math.max(1, Math.floor(Nmin / 60));
+    if (H >= 24) {
+      return {
+        runsNeeded,
+        cron: "0 0 * * *",
+        runsPerDay: 1,
+        intervalMinutes: 1440,
+      };
+    }
+    const runsPerDay = Math.ceil(24 / H);
+    const interval = Math.round(1440 / runsPerDay);
+    return {
+      runsNeeded,
+      cron: `0 */${H} * * *`,
+      runsPerDay,
+      intervalMinutes: interval,
+    };
+  } else {
+    const cron = Nmin === 1 ? "* * * * *" : `*/${Nmin} * * * *`;
+    const runsPerHour = Math.ceil(60 / Nmin);
+    const runsPerDay = runsPerHour * 24;
+    const interval = Math.round(1440 / runsPerDay);
+    return { runsNeeded, cron, runsPerDay, intervalMinutes: interval };
+  }
 }
 
 /**
@@ -152,31 +277,56 @@ export async function POST(request: Request) {
       "🛠️ [Cron Job] QStash authorized, starting background update...",
     );
 
-    const userKeys = await redisClient.keys("user:*");
-    const totalUsers = userKeys.length;
+    const allKeys = await redisClient.keys("user:*");
+    // Filter to only include numeric user IDs and avoid analytics or other keys
+    const userIds = Array.from(
+      new Set(
+        allKeys
+          .map((k) => k.split(":")[1])
+          .filter((id) => id && /^\d+$/.test(id)),
+      ),
+    );
+    const totalUsers = userIds.length;
 
-    // Fetch and parse user records from Redis
-    const userRecords = await Promise.all(
-      userKeys.map(async (key) => {
-        const userDataStr = await redisClient.get(key);
-        if (userDataStr) {
-          const user = safeParse<UserRecord>(userDataStr);
-          return { key, user };
-        } else {
-          return null;
+    // Fetch meta for all users to sort by updatedAt
+    const metaKeys = userIds.map((id) => `user:${id}:meta`);
+    const metaResults = await Promise.all(
+      metaKeys.map((key) => redisClient.get(key)),
+    );
+
+    const missingMetaIndices: number[] = [];
+    const validUsers: { id: string; updatedAt: string | number }[] = [];
+
+    metaResults.forEach((meta, i) => {
+      if (meta) {
+        const parsed = typeof meta === "string" ? JSON.parse(meta) : meta;
+        validUsers.push({ id: userIds[i], updatedAt: parsed.updatedAt || 0 });
+      } else {
+        missingMetaIndices.push(i);
+      }
+    });
+
+    if (missingMetaIndices.length > 0) {
+      const legacyKeys = missingMetaIndices.map((i) => `user:${userIds[i]}`);
+      const legacyResults = await Promise.all(
+        legacyKeys.map((key) => redisClient.get(key)),
+      );
+
+      legacyResults.forEach((legacy, i) => {
+        if (legacy) {
+          const record = safeParse<UserRecord>(legacy as string);
+          validUsers.push({
+            id: userIds[missingMetaIndices[i]],
+            updatedAt: record?.updatedAt || 0,
+          });
         }
-      }),
-    );
-
-    // Filter out missing records
-    const validUsers = userRecords.filter(
-      (x): x is { key: string; user: UserRecord } => x !== null,
-    );
+      });
+    }
 
     // Sort by updatedAt (oldest first)
     validUsers.sort((a, b) => {
-      const dateA = new Date(a.user.updatedAt || 0).getTime();
-      const dateB = new Date(b.user.updatedAt || 0).getTime();
+      const dateA = new Date(a.updatedAt || 0).getTime();
+      const dateB = new Date(b.updatedAt || 0).getTime();
       return dateA - dateB;
     });
 
@@ -192,9 +342,25 @@ export async function POST(request: Request) {
     let failedUpdates = 0;
     let removedUsers = 0;
 
+    const allParts: UserDataPart[] = [
+      "meta",
+      "activity",
+      "favourites",
+      "statistics",
+      "pages",
+      "planning",
+      "current",
+      "rewatched",
+      "completed",
+      "aggregates",
+    ];
+
     await Promise.all(
-      batch.map(async ({ key, user }) => {
+      batch.map(async ({ id }) => {
         try {
+          const partsData = await fetchUserDataParts(id, allParts);
+          const user = reconstructUserRecord(partsData);
+
           console.log(
             `👤 [Cron Job] User ${user.userId} (${
               user.username || "no username"
@@ -206,8 +372,17 @@ export async function POST(request: Request) {
           if (updateResult.success) {
             // Update user data in Redis with the fetched stats
             user.stats = updateResult.statsData.data;
-            user.updatedAt = new Date().toISOString();
-            await redisClient.set(key, JSON.stringify(user));
+
+            // Normalize and prune data before saving to keep Redis size down
+            const normalizationResult = validateAndNormalizeUserRecord(user);
+            const finalUser =
+              "normalized" in normalizationResult
+                ? normalizationResult.normalized
+                : user;
+
+            finalUser.updatedAt = new Date().toISOString();
+
+            await saveUserRecord(finalUser);
 
             console.log(
               `✅ [Cron Job] User ${user.userId}: Successfully updated`,
@@ -219,7 +394,6 @@ export async function POST(request: Request) {
             const wasRemoved = await handleFailureTracking(
               redisClient,
               user.userId,
-              key,
             );
             if (wasRemoved) {
               removedUsers++;
@@ -228,7 +402,7 @@ export async function POST(request: Request) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
           console.error(
-            `🔥 [Cron Job] Error processing key ${key}: ${error.message}`,
+            `🔥 [Cron Job] Error processing user ${id}: ${error.message}`,
           );
           if (error.stack) {
             console.error(`💥 [Cron Job] Stack Trace: ${error.stack}`);
@@ -241,15 +415,33 @@ export async function POST(request: Request) {
       `🎉 [Cron Job] Cron job completed successfully. Processed ${batch.length} users out of total ${totalUsers} users.`,
       `📊 Results: ${successfulUpdates} successful, ${failedUpdates} failed (404), ${removedUsers} removed.`,
     );
+
+    // Compute recommended cron expressions for 5 and 10 users per run
+    const recFor5 = computeCronForBatch(totalUsers, 5);
+    const recFor10 = computeCronForBatch(totalUsers, 10);
+
+    console.log(
+      `🔁 [Cron Job] Scheduling recommendation: 5/users -> ${recFor5.cron} (${recFor5.runsPerDay} runs/day, ~every ${recFor5.intervalMinutes} min).`,
+    );
+    console.log(
+      `🔁 [Cron Job] Scheduling recommendation: 10/users -> ${recFor10.cron} (${recFor10.runsPerDay} runs/day, ~every ${recFor10.intervalMinutes} min).`,
+    );
+
     const headers = apiJsonHeaders(request);
     headers["Content-Type"] = "text/plain";
-    return new Response(
+
+    const recFor5Note = recFor5.note ? ` — ${recFor5.note}` : "";
+    const recFor10Note = recFor10.note ? ` — ${recFor10.note}` : "";
+
+    const scheduleMessage = [
       `Updated ${successfulUpdates}/${batch.length} users successfully. Failed: ${failedUpdates}, Removed: ${removedUsers}`,
-      {
-        status: 200,
-        headers,
-      },
-    );
+      "",
+      `Recommended schedules to refresh all ${totalUsers} users at least once per 24 hours:`,
+      ` - Update 5 users/run: ${recFor5.cron} (${recFor5.runsPerDay} runs/day, ~every ${recFor5.intervalMinutes} min)${recFor5Note}`,
+      ` - Update 10 users/run: ${recFor10.cron} (${recFor10.runsPerDay} runs/day, ~every ${recFor10.intervalMinutes} min)${recFor10Note}`,
+    ].join("\n");
+
+    return new Response(scheduleMessage, { status: 200, headers });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.error(`🔥 [Cron Job] Cron job failed: ${error.message}`);

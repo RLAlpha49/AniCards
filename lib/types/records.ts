@@ -6,7 +6,7 @@ export interface AnimeStatGenre {
 
 /** Tag bucket in anime statistics with a referenced tag name and count. @source */
 export interface AnimeStatTag {
-  tag: { name: string };
+  tag: { name: string; category?: string };
   count: number;
 }
 
@@ -45,6 +45,8 @@ export interface AnimeStats {
   scores?: { score: number; count: number }[];
   releaseYears?: { releaseYear: number; count: number }[];
   countries?: { country: string; count: number }[];
+  startYears?: { startYear: number; count: number }[];
+  lengths?: { length: string; count: number }[];
 }
 
 /** Genre bucket in manga statistics with a count of items. @source */
@@ -55,7 +57,7 @@ export interface MangaStatGenre {
 
 /** Tag bucket in manga statistics with a referenced tag name and count. @source */
 export interface MangaStatTag {
-  tag: { name: string };
+  tag: { name: string; category?: string };
   count: number;
 }
 
@@ -80,6 +82,8 @@ export interface MangaStats {
   scores?: { score: number; count: number }[];
   releaseYears?: { releaseYear: number; count: number }[];
   countries?: { country: string; count: number }[];
+  startYears?: { startYear: number; count: number }[];
+  lengths?: { length: string; count: number }[];
 }
 
 /** Container that groups anime and manga statistics for a user. @source */
@@ -88,34 +92,111 @@ export interface UserStatistics {
   manga: MangaStats;
 }
 
+/** Title structure for anime/manga with multiple language options. @source */
+export interface MediaTitle {
+  english?: string;
+  romaji?: string;
+  native?: string;
+}
+
+/** Cover image structure for anime/manga with size variants and color. @source */
+export interface MediaCoverImage {
+  large?: string;
+  medium?: string;
+  color?: string;
+}
+
+/** A favorite anime node with title and cover. @source */
+export interface FavoriteAnimeNode {
+  id: number;
+  title: MediaTitle;
+  coverImage: MediaCoverImage;
+}
+
+/** A favorite manga node with title and cover. @source */
+export interface FavoriteMangaNode {
+  id: number;
+  title: MediaTitle;
+  coverImage: MediaCoverImage;
+}
+
+/** Character image structure with size variants. @source */
+export interface CharacterImage {
+  large?: string;
+  medium?: string;
+}
+
+/** A favorite character node with name and image. @source */
+export interface FavoriteCharacterNode {
+  id: number;
+  name: {
+    full: string;
+    native?: string;
+  };
+  image: CharacterImage;
+}
+
+/** Staff image structure with size variants. @source */
+export interface StaffImage {
+  large?: string;
+  medium?: string;
+}
+
+/** A favorite staff node with name and image. @source */
+export interface FavoriteStaffNode {
+  id: number;
+  name: {
+    full: string;
+    native?: string;
+  };
+  image: StaffImage;
+}
+
+/** A favorite studio node with name. @source */
+export interface FavoriteStudioNode {
+  id: number;
+  name: string;
+}
+
+/** Favourites container with anime, manga, characters, staff, and studios. @source */
+export interface UserFavourites {
+  anime?: {
+    nodes: FavoriteAnimeNode[];
+    pageInfo?: PageInfo;
+  };
+  manga?: {
+    nodes: FavoriteMangaNode[];
+    pageInfo?: PageInfo;
+  };
+  characters?: {
+    nodes: FavoriteCharacterNode[];
+    pageInfo?: PageInfo;
+  };
+  staff: {
+    nodes: FavoriteStaffNode[];
+    pageInfo?: PageInfo;
+  };
+  studios: {
+    nodes: FavoriteStudioNode[];
+    pageInfo?: PageInfo;
+  };
+}
+
+/** User avatar structure with size variants. @source */
+export interface UserAvatar {
+  large?: string;
+  medium?: string;
+}
+
 /** User section returned by AniList GraphQL for a User entry. @source */
 export interface UserSection {
-  stats: ActivityStats;
-  favourites: {
-    staff: {
-      nodes: {
-        id: number;
-        name: {
-          full: string;
-        };
-      }[];
-    };
-    studios: {
-      nodes: {
-        id: number;
-        name: string;
-      }[];
-    };
-    characters?: {
-      nodes: {
-        id: number;
-        name: {
-          full: string;
-        };
-      }[];
-    };
-  };
+  stats: ActivityStats | Record<string, unknown>;
+  favourites: UserFavourites;
   statistics: UserStatistics;
+  name?: string;
+  avatar?: UserAvatar;
+  bannerImage?: string;
+  createdAt?: number;
 }
 
 /** A single activity history item with a date (epoch seconds) and numeric amount. @source */
@@ -127,6 +208,7 @@ export interface ActivityHistoryItem {
 /** Activity statistics container used for charting and summaries. @source */
 export interface ActivityStats {
   activityHistory: ActivityHistoryItem[];
+  [key: string]: unknown;
 }
 
 /** Pagination information used in AniList Page objects. @source */
@@ -164,6 +246,90 @@ export interface ReviewsPage {
   reviews: { id: number }[];
 }
 
+/** A detailed review entry with score, ratings, and media info. @source */
+export interface ReviewEntry {
+  id: number;
+  score: number;
+  rating: number;
+  ratingAmount: number;
+  summary?: string;
+  createdAt?: number;
+  media: {
+    id: number;
+    title: {
+      romaji?: string;
+    };
+    type?: string;
+    genres?: string[];
+  };
+}
+
+/** Page container for detailed user reviews. @source */
+export interface UserReviewsPage {
+  reviews: ReviewEntry[];
+}
+
+/** A recommendation entry with ratings and media pairs. @source */
+export interface RecommendationEntry {
+  id: number;
+  rating: number;
+  media: {
+    id: number;
+    title: {
+      romaji?: string;
+    };
+  };
+  mediaRecommendation: {
+    id: number;
+    title: {
+      romaji?: string;
+    };
+  };
+}
+
+/** Page container for user recommendations. @source */
+export interface UserRecommendationsPage {
+  recommendations: RecommendationEntry[];
+}
+
+/** A media list entry for anime or manga with progress, score, and repeat data. @source */
+export interface MediaListEntry {
+  id: number;
+  score?: number;
+  progress?: number;
+  repeat?: number;
+  media: {
+    id: number;
+    title: MediaTitle;
+    coverImage?: MediaCoverImage;
+    episodes?: number;
+    chapters?: number;
+    volumes?: number;
+    averageScore?: number;
+    format?: string;
+    source?: string;
+    season?: string;
+    seasonYear?: number;
+    genres?: string[];
+    studios?: {
+      nodes: { id: number; name: string }[];
+    };
+  };
+}
+
+/** A list within MediaListCollection containing entries grouped by status. @source */
+export interface MediaListGroup {
+  name?: string;
+  entries: MediaListEntry[];
+}
+
+/** MediaListCollection response containing grouped lists of media entries. @source */
+export interface MediaListCollection {
+  lists: MediaListGroup[];
+  count?: number;
+  totalRepeat?: number;
+}
+
 /** Combined user stats and page containers returned by AniList endpoints. @source */
 export interface UserStatsData {
   User: UserSection;
@@ -172,58 +338,128 @@ export interface UserStatsData {
   threadsPage: ThreadsPage;
   threadCommentsPage: ThreadCommentsPage;
   reviewsPage: ReviewsPage;
+  userReviews?: UserReviewsPage;
+  userRecommendations?: UserRecommendationsPage;
+  animePlanning?: MediaListCollection;
+  mangaPlanning?: MediaListCollection;
+  animeCurrent?: MediaListCollection;
+  mangaCurrent?: MediaListCollection;
+  animeRewatched?: MediaListCollection;
+  mangaReread?: MediaListCollection;
+  animeCompleted?: MediaListCollection;
+  mangaCompleted?: MediaListCollection;
+  animeDropped?: MediaListCollection;
+  mangaDropped?: MediaListCollection;
+}
+
+/** Stored bucket counts for the Source Material Distribution card. @source */
+export interface SourceMaterialDistributionTotalsEntry {
+  source: string;
+  count: number;
+}
+
+/** Stored bucket counts for the Anime Seasonal Preference card. @source */
+export interface SeasonalPreferenceTotalsEntry {
+  season: string;
+  count: number;
+}
+
+/**
+ * Stored co-occurrence totals for the Anime Genre Synergy card.
+ * Each entry represents an unordered pair of genres and the number of titles
+ * in which they co-occur.
+ * @source
+ */
+export interface AnimeGenreSynergyTotalsEntry {
+  a: string;
+  b: string;
+  count: number;
+}
+
+/**
+ * Stored co-occurrence totals for the Studio Collaboration card.
+ * Each entry represents an unordered pair of studios and the number of titles
+ * in which they co-occur (co-productions).
+ * @source
+ */
+export interface StudioCollaborationTotalsEntry {
+  a: string;
+  b: string;
+  count: number;
+}
+
+/**
+ * Aggregates / precomputed totals stored separately from main `meta`.
+ */
+export interface UserAggregates {
+  animeSourceMaterialDistributionTotals?: SourceMaterialDistributionTotalsEntry[];
+  animeSeasonalPreferenceTotals?: SeasonalPreferenceTotalsEntry[];
+  animeGenreSynergyTotals?: AnimeGenreSynergyTotalsEntry[];
+  studioCollaborationTotals?: StudioCollaborationTotalsEntry[];
 }
 
 /** Redis user record shape used for persisting user data and stats. @source */
 export interface UserRecord {
-  // Unique identifier of the user (using string for IDs, which can also hold numeric values)
   userId: string;
-  // The user's display name (optional if not always provided)
   username?: string;
-  // Object containing user statistics.
   stats: UserStatsData;
-  // The IP address from which the user data was recorded.
+  animeSourceMaterialDistributionTotals?: SourceMaterialDistributionTotalsEntry[];
+  animeSeasonalPreferenceTotals?: SeasonalPreferenceTotalsEntry[];
+  animeGenreSynergyTotals?: AnimeGenreSynergyTotalsEntry[];
+  studioCollaborationTotals?: StudioCollaborationTotalsEntry[];
+  aggregates?: UserAggregates;
+  statistics?: UserSection["statistics"];
+  favourites?: UserSection["favourites"];
+  pages?: {
+    followersPage?: FollowersPage;
+    followingPage?: FollowingPage;
+    threadsPage?: ThreadsPage;
+    threadCommentsPage?: ThreadCommentsPage;
+    reviewsPage?: ReviewsPage;
+  };
   ip: string;
-  // The timestamp at which the record was created in ISO format.
   createdAt: string;
-  // The timestamp at which the record was last updated in ISO format.
   updatedAt: string;
 }
 
+/**
+ * A more specific shape returned by `reconstructUserRecord` which guarantees
+ * that convenience fields like `statistics`, `favourites` and page containers
+ * are present.
+ */
+export type ReconstructedUserRecord = UserRecord & {
+  statistics: UserSection["statistics"];
+  favourites: UserSection["favourites"];
+  pages: {
+    followersPage: FollowersPage;
+    followingPage: FollowingPage;
+    threadsPage: ThreadsPage;
+    threadCommentsPage: ThreadCommentsPage;
+    reviewsPage: ReviewsPage;
+  };
+};
+
 /** Stored card configuration shape persisted in user-card records. @source */
 export interface StoredCardConfig {
-  // A unique name identifier for the card (used for picking the right template)
   cardName: string;
-  // The variation of the card (e.g., "default", "compact", "detailed")
   variation: string;
-  // Color preset name used for this card ("custom" if colors were manually chosen)
   colorPreset?: string;
-  // Color for the title in the card template (optional when using a named preset).
   titleColor?: string;
-  // Background color for the card (optional when using a named preset).
   backgroundColor?: string;
-  // Color for the text (optional when using a named preset).
   textColor?: string;
-  // Circle color, for any circular elements in the card (optional when using a named preset).
   circleColor?: string;
-  // Optional border color for the card background.
   borderColor?: string;
-  // Optional border radius for the card background (applies when border is enabled).
   borderRadius?: number;
-  // Whether to show favorites (pink heart) for this card
   showFavorites?: boolean;
-  // Whether to use fixed status distribution colors (only meaningful for status distribution cards)
   useStatusColors?: boolean;
-  // Whether to show percentages in pie chart legends (only meaningful for pie variants)
   showPiePercentages?: boolean;
+  gridCols?: number;
+  gridRows?: number;
 }
 
 /** Cards record in storage containing a userId, a list of stored card configs and update timestamp. @source */
 export interface CardsRecord {
-  // The user identifier that this record belongs to.
   userId: number;
-  // An array of card configurations.
   cards: StoredCardConfig[];
-  // The timestamp at which the record was last updated in ISO format.
   updatedAt: string;
 }

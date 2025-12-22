@@ -231,6 +231,10 @@ function GeneratorMain({
     handlePreview,
     handleToggleShowFavorites,
     showFavoritesByCard,
+    favoritesGridColumns,
+    favoritesGridRows,
+    setFavoritesGridColumns,
+    setFavoritesGridRows,
   } = useGeneratorContext();
 
   return (
@@ -285,6 +289,10 @@ function GeneratorMain({
                 onPreview={handlePreview}
                 showFavoritesByCard={showFavoritesByCard}
                 onToggleShowFavorites={handleToggleShowFavorites}
+                favoritesGridColumns={favoritesGridColumns}
+                favoritesGridRows={favoritesGridRows}
+                onFavoritesGridColumnsChange={setFavoritesGridColumns}
+                onFavoritesGridRowsChange={setFavoritesGridRows}
               />
             )}
 

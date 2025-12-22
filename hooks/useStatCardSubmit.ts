@@ -31,18 +31,10 @@ interface SubmitParams {
   borderEnabled?: boolean;
   borderColor?: string;
   borderRadius?: number;
-}
-
-/**
- * Enhanced error information with recovery suggestions.
- * @source
- */
-interface ErrorInfo {
-  error: Error;
-  details?: ErrorDetails;
-  statusCode?: number;
-  username?: string;
-  retryable?: boolean;
+  favoritesGrid?: {
+    columns: number;
+    rows: number;
+  };
 }
 
 /**
@@ -75,6 +67,7 @@ function buildCardsPayload(params: {
   borderColor?: string;
   borderRadius?: number;
   showFavoritesByCard: Record<string, boolean>;
+  favoritesGrid?: { columns: number; rows: number };
 }) {
   const {
     selectedCards,
@@ -87,7 +80,16 @@ function buildCardsPayload(params: {
     borderColor,
     borderRadius,
     showFavoritesByCard,
+    favoritesGrid,
   } = params;
+
+  const clampGridDim = (n: number | undefined, fallback: number): number => {
+    if (typeof n !== "number" || !Number.isFinite(n)) return fallback;
+    return Math.max(1, Math.min(5, Math.trunc(n)));
+  };
+
+  const resolvedGridCols = clampGridDim(favoritesGrid?.columns, 3);
+  const resolvedGridRows = clampGridDim(favoritesGrid?.rows, 3);
 
   return selectedCards.map((cardId) => {
     // Card identifiers may include a variation suffix, e.g. `cardName-variation`.
@@ -107,6 +109,12 @@ function buildCardsPayload(params: {
         : {}),
       ...(cardName === "mangaStatusDistribution" && useMangaStatusColors
         ? { useStatusColors: true }
+        : {}),
+      ...(cardName === "favoritesGrid"
+        ? {
+            gridCols: resolvedGridCols,
+            gridRows: resolvedGridRows,
+          }
         : {}),
       ...(borderEnabled && borderColor ? { borderColor } : {}),
       ...(borderEnabled && typeof borderRadius === "number"
@@ -183,7 +191,7 @@ function isRetryableError(error: unknown, statusCode?: number) {
 
 function calculateBackoffDelay(attempt: number) {
   const safeAttempt = Math.max(0, attempt);
-  const baseDelay = Math.min(1000 * Math.pow(2, safeAttempt), 10000);
+  const baseDelay = Math.min(1000 * Math.pow(2, safeAttempt), 15000);
   const jitter = 0.5 + Math.random() * 0.5;
   return Math.round(baseDelay * jitter);
 }
@@ -298,13 +306,13 @@ export function useStatCardSubmit() {
    * @param timeoutMs - Timeout in milliseconds before aborting the request.
    * @param contextName - Context string used in thrown errors.
    * @returns The original Response when successful.
-   * @throws Error with contextual message on failure.
+   * @throws Error with contextual message on failure.Personal Records
    * @source
    */
   async function fetchWithTimeout(
     url: string,
     options: RequestInit,
-    timeoutMs = 10000,
+    timeoutMs = 15000,
     contextName = "Request",
   ): Promise<Response> {
     const controller = new AbortController();
@@ -382,7 +390,7 @@ export function useStatCardSubmit() {
   ): Promise<Response> {
     const {
       maxRetries = DEFAULT_RETRY_ATTEMPTS,
-      timeoutMs = 10000,
+      timeoutMs = 15000,
       contextName = "Request",
       operationName = "request",
       totalTimeoutMs,
@@ -498,9 +506,10 @@ export function useStatCardSubmit() {
   async function fetchAniListQuery(
     query: string,
     variables: Record<string, unknown>,
-    timeoutMs = 10000,
+    timeoutMs = 15000,
     contextLabel = "query",
     onRetry?: (attempt: number, operation: string) => void,
+    totalTimeoutMs = 25000,
   ) {
     const response = await fetchWithRetry(
       "/api/anilist",
@@ -514,7 +523,7 @@ export function useStatCardSubmit() {
         contextName: `AniList - ${contextLabel}`,
         operationName: `AniList ${contextLabel}`,
         maxRetries: DEFAULT_RETRY_ATTEMPTS,
-        totalTimeoutMs: 15000,
+        totalTimeoutMs,
         onRetry,
       },
     );
@@ -552,6 +561,7 @@ export function useStatCardSubmit() {
     borderEnabled,
     borderColor,
     borderRadius,
+    favoritesGrid,
   }: SubmitParams): Promise<{ success: boolean; userId?: string }> => {
     setLoading(true);
     setError(null);
@@ -576,7 +586,7 @@ export function useStatCardSubmit() {
       const userIdData = await fetchAniListQuery(
         USER_ID_QUERY,
         { userName: username },
-        10000,
+        15000,
         "user ID fetch",
         handleRetryUpdate,
       );
@@ -589,9 +599,10 @@ export function useStatCardSubmit() {
       const statsData = await fetchAniListQuery(
         USER_STATS_QUERY,
         { userId: userIdData.User.id },
-        10000,
+        30000,
         "user stats fetch",
         handleRetryUpdate,
+        30000,
       );
       if (!statsData) {
         throw new Error(
@@ -611,6 +622,7 @@ export function useStatCardSubmit() {
         borderColor,
         borderRadius,
         showFavoritesByCard,
+        favoritesGrid,
       });
 
       // The store endpoints deduplicate by userId/username (with upsert semantics), so retrying the same payload is safe.

@@ -12,7 +12,7 @@ import {
 } from "react";
 import { useStatCardSubmit } from "@/hooks/useStatCardSubmit";
 import { useUserPreferences, useCardSettings } from "@/lib/stores";
-import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
+import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats/shared";
 import type { TrustedSVG } from "@/lib/types/svg";
 import {
   trackCardGeneration,
@@ -56,6 +56,11 @@ interface GeneratorContextValue {
   previewType: string;
   previewVariation: string;
   showFavoritesByCard: Record<string, boolean>;
+  /** Favorites grid layout controls (favoritesGrid card only). Values clamped to [1..5]. */
+  favoritesGridColumns: number;
+  favoritesGridRows: number;
+  setFavoritesGridColumns: (next: number) => void;
+  setFavoritesGridRows: (next: number) => void;
   useAnimeStatusColors: boolean;
   useMangaStatusColors: boolean;
   showPiePercentages: boolean;
@@ -185,6 +190,8 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
     defaultCardTypes,
     defaultVariants,
     defaultShowFavoritesByCard,
+    favoritesGridColumns,
+    favoritesGridRows,
     defaultBorderEnabled,
     defaultBorderColor,
     defaultBorderRadius,
@@ -194,6 +201,8 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
     setSavedColorConfig,
     setDefaultCardTypes,
     setDefaultVariant,
+    setFavoritesGridColumns: setFavoritesGridColumnsSetting,
+    setFavoritesGridRows: setFavoritesGridRowsSetting,
     toggleShowFavorites,
     setDefaultBorderEnabled,
     setDefaultBorderColor,
@@ -249,6 +258,24 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
   const [previewVariation, setPreviewVariation] = useState("");
   const [currentStep, setCurrentStep] = useState(0);
 
+  const clampGridSize = useCallback((n: number) => {
+    const parsed = Number.isFinite(n) ? Math.round(n) : 3;
+    return Math.max(1, Math.min(5, parsed));
+  }, []);
+
+  const setFavoritesGridColumns = useCallback(
+    (next: number) => setFavoritesGridColumnsSetting(clampGridSize(next)),
+    [clampGridSize, setFavoritesGridColumnsSetting],
+  );
+
+  const setFavoritesGridRows = useCallback(
+    (next: number) => setFavoritesGridRowsSetting(clampGridSize(next)),
+    [clampGridSize, setFavoritesGridRowsSetting],
+  );
+
+  const clampedFavoritesGridColumns = clampGridSize(favoritesGridColumns);
+  const clampedFavoritesGridRows = clampGridSize(favoritesGridRows);
+
   const {
     loading,
     error,
@@ -294,6 +321,20 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
   const selectedCardVariants = defaultVariants;
   const showFavoritesByCard = defaultShowFavoritesByCard;
   const hasBorder = defaultBorderEnabled;
+
+  // Sanitize persisted default variants that don't match available variations.
+  useEffect(() => {
+    for (const type of statCardTypes) {
+      const stored = selectedCardVariants[type.id];
+      if (
+        stored &&
+        type.variations &&
+        !type.variations.some((v) => v.id === stored)
+      ) {
+        setDefaultVariant(type.id, type.variations[0].id);
+      }
+    }
+  }, [selectedCardVariants, setDefaultVariant]);
 
   const allSelected = useMemo(
     () => statCardTypes.every((type) => selectedCards.includes(type.id)),
@@ -352,12 +393,25 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
   const handleToggleCard = useCallback(
     (cardId: string) => {
       const [baseId] = cardId.split("-");
-      const newTypes = selectedCards.includes(baseId)
+      const isSelected = selectedCards.includes(baseId);
+      const newTypes = isSelected
         ? selectedCards.filter((id) => id !== baseId)
         : [...selectedCards, baseId];
       setDefaultCardTypes(newTypes);
+
+      if (!isSelected) {
+        const type = statCardTypes.find((t) => t.id === baseId);
+        if (type?.variations && !selectedCardVariants[baseId]) {
+          setDefaultVariant(baseId, type.variations[0].id);
+        }
+      }
     },
-    [selectedCards, setDefaultCardTypes],
+    [
+      selectedCards,
+      selectedCardVariants,
+      setDefaultCardTypes,
+      setDefaultVariant,
+    ],
   );
 
   const handleVariantChange = useCallback(
@@ -373,10 +427,12 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
     setDefaultCardTypes(newTypes);
 
     if (selectingAll) {
-      // Set default variants for newly selected cards
+      // Set default variants for newly selected cards using the first available
+      // variation for each card so selects display a valid option.
       for (const type of statCardTypes) {
         if (type.variations && !selectedCardVariants[type.id]) {
-          setDefaultVariant(type.id, "default");
+          const defaultVariant = type.variations[0]?.id ?? "default";
+          setDefaultVariant(type.id, defaultVariant);
         }
       }
     }
@@ -529,6 +585,10 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
       borderEnabled: hasBorder,
       borderColor,
       borderRadius,
+      favoritesGrid: {
+        columns: clampedFavoritesGridColumns,
+        rows: clampedFavoritesGridRows,
+      },
     });
 
     if (result.success && result.userId) {
@@ -554,6 +614,8 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
     hasBorder,
     borderColor,
     borderRadius,
+    clampedFavoritesGridColumns,
+    clampedFavoritesGridRows,
     submit,
   ]);
 
@@ -564,21 +626,40 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
     [setDefaultUsername],
   );
 
-  const openPreview = useCallback((cardType: string, variant?: string) => {
-    setPreviewType(cardType);
-    setPreviewVariation(variant || "default");
-    setPreviewOpen(true);
-  }, []);
+  const getValidVariant = useCallback(
+    (cardType: string, candidate?: string) => {
+      const type = statCardTypes.find((t) => t.id === cardType);
+      if (!type?.variations || type.variations.length === 0) {
+        return candidate ?? "default";
+      }
+      if (candidate && type.variations.some((v) => v.id === candidate)) {
+        return candidate;
+      }
+      const stored = selectedCardVariants[cardType];
+      if (stored && type.variations.some((v) => v.id === stored)) {
+        return stored;
+      }
+      return type.variations[0].id;
+    },
+    [selectedCardVariants],
+  );
+
+  const openPreview = useCallback(
+    (cardType: string, variant?: string) => {
+      setPreviewType(cardType);
+      setPreviewVariation(getValidVariant(cardType, variant));
+      setPreviewOpen(true);
+    },
+    [getValidVariant],
+  );
 
   const closePreview = useCallback(() => setPreviewOpen(false), []);
 
   const handlePreview = useCallback(
     (cardType: string, variant?: string) => {
-      const variantToUse =
-        variant || selectedCardVariants[cardType] || "default";
-      openPreview(cardType, variantToUse);
+      openPreview(cardType, variant);
     },
-    [selectedCardVariants, openPreview],
+    [openPreview],
   );
 
   const colorPickers = useMemo<ColorPickerConfig[]>(
@@ -640,6 +721,10 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
       previewType,
       previewVariation,
       showFavoritesByCard,
+      favoritesGridColumns: clampedFavoritesGridColumns,
+      favoritesGridRows: clampedFavoritesGridRows,
+      setFavoritesGridColumns,
+      setFavoritesGridRows,
       useAnimeStatusColors,
       useMangaStatusColors,
       showPiePercentages,
@@ -740,6 +825,8 @@ export function GeneratorProvider({ children }: GeneratorProviderProps) {
       handleSubmit,
       openPreview,
       closePreview,
+      clampedFavoritesGridColumns,
+      clampedFavoritesGridRows,
     ],
   );
 

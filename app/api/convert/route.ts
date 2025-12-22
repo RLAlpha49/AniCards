@@ -812,6 +812,10 @@ export async function POST(request: NextRequest) {
           domain === "::1",
       );
 
+    if (isDevelopment) {
+      allowedDomains.push("localhost", "api.localhost", "127.0.0.1", "::1");
+    }
+
     // In production, require HTTPS. In development, allow HTTP for localhost
     if (!isUrlAuthorized(parsedUrl, allowedDomains, isDevelopment)) {
       console.warn(
@@ -822,6 +826,11 @@ export async function POST(request: NextRequest) {
         request,
         403,
       );
+    }
+
+    // In development, normalize api.localhost to localhost for DNS resolution
+    if (isDevelopment && parsedUrl.hostname === "api.localhost") {
+      parsedUrl.hostname = "localhost";
     }
 
     console.log(`🔍 [Convert API] Fetching SVG from: ${parsedUrl.href}`);

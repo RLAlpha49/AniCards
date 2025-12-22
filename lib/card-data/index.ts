@@ -19,6 +19,7 @@ export {
   resolveUserIdFromUsername,
   fetchUserDataOnly,
   fetchUserData,
+  fetchUserDataForCard,
 } from "./fetching";
 
 // Re-export processing module exports
@@ -27,8 +28,16 @@ export {
   buildCommonTemplateFields,
   toTemplateAnimeStats,
   toTemplateMangaStats,
+  toTemplateAnimeSourceMaterialDistribution,
+  toTemplateAnimeSeasonalPreference,
+  toTemplateAnimeEpisodeLengthPreferences,
+  toTemplateAnimeGenreSynergy,
+  toTemplateStudioCollaboration,
   mapCategoryItem,
   processFavorites,
+  toTemplateTagCategoryDistribution,
+  toTemplateTagDiversity,
+  toTemplateSeasonalViewingPatterns,
 } from "./processing";
 
 // Re-export config module exports

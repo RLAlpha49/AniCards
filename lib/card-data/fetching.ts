@@ -6,6 +6,12 @@ import {
 import { safeParse } from "@/lib/utils";
 import { UserRecord, CardsRecord } from "@/lib/types/records";
 import { CardDataError } from "./validation";
+import {
+  fetchUserDataParts,
+  reconstructUserRecord,
+  UserDataPart,
+  getPartsForCard,
+} from "@/lib/server/user-data";
 
 /**
  * Resolves a username to a numeric user ID via the Redis username index.
@@ -34,6 +40,37 @@ export async function resolveUserIdFromUsername(
 }
 
 /**
+ * Loads only the required user record parts from Redis for a numeric user ID and card name.
+ * @param numericUserId - Numeric user id.
+ * @param cardName - Name of the card to determine required parts.
+ * @returns Parsed UserRecord (potentially partial).
+ * @throws {CardDataError} If no data exists (404) or parsed data is corrupted (500).
+ * @source
+ */
+export async function fetchUserDataForCard(
+  numericUserId: number,
+  cardName: string,
+): Promise<UserRecord> {
+  try {
+    const parts = getPartsForCard(cardName);
+    const userDataParts = await fetchUserDataParts(numericUserId, parts);
+
+    if (!userDataParts.meta) {
+      throw new CardDataError("Not Found: User data not found", 404);
+    }
+
+    return reconstructUserRecord(userDataParts);
+  } catch (error) {
+    if (error instanceof CardDataError) throw error;
+
+    incrementAnalytics(
+      buildAnalyticsMetricKey("card_svg", "corrupted_user_records"),
+    ).catch(() => {});
+    throw new CardDataError("Server Error: Corrupted user record", 500);
+  }
+}
+
+/**
  * Loads only the user record from Redis for a numeric user ID.
  * This is used when card configuration can be built entirely from URL params.
  * @param numericUserId - Numeric user id stored in Redis key 'user:{id}'.
@@ -44,18 +81,29 @@ export async function resolveUserIdFromUsername(
 export async function fetchUserDataOnly(
   numericUserId: number,
 ): Promise<UserRecord> {
-  const userDataStr = await redisClient.get(`user:${numericUserId}`);
-
-  if (!userDataStr || userDataStr === "null") {
-    throw new CardDataError("Not Found: User data not found", 404);
-  }
-
   try {
-    return safeParse<UserRecord>(
-      userDataStr,
-      `Card SVG: user:${numericUserId}`,
-    );
-  } catch {
+    const allParts: UserDataPart[] = [
+      "meta",
+      "activity",
+      "favourites",
+      "statistics",
+      "pages",
+      "planning",
+      "current",
+      "rewatched",
+      "completed",
+      "aggregates",
+    ];
+    const userDataParts = await fetchUserDataParts(numericUserId, allParts);
+
+    if (!userDataParts.meta) {
+      throw new CardDataError("Not Found: User data not found", 404);
+    }
+
+    return reconstructUserRecord(userDataParts);
+  } catch (error) {
+    if (error instanceof CardDataError) throw error;
+
     incrementAnalytics(
       buildAnalyticsMetricKey("card_svg", "corrupted_user_records"),
     ).catch(() => {});
@@ -67,24 +115,46 @@ export async function fetchUserDataOnly(
  * Loads and parses cached cards and user records from Redis for a numeric user ID.
  * Validates presence and JSON structure; records corrupted or missing values will increment analytics and throw CardDataError.
  * @param numericUserId - Numeric user id stored in Redis keys 'cards:{id}' and 'user:{id}'.
+ * @param cardName - Optional card name to fetch only required user data parts.
  * @returns Object containing parsed card (CardsRecord) and user (UserRecord) documents.
  * @throws {CardDataError} If no data exists (404) or parsed data is corrupted (500).
  * @source
  */
 export async function fetchUserData(
   numericUserId: number,
+  cardName?: string,
 ): Promise<{ cardDoc: CardsRecord; userDoc: UserRecord }> {
-  const [cardsDataStr, userDataStr] = await Promise.all([
-    redisClient.get(`cards:${numericUserId}`),
-    redisClient.get(`user:${numericUserId}`),
-  ]);
+  const parts = cardName
+    ? getPartsForCard(cardName)
+    : ([
+        "meta",
+        "activity",
+        "favourites",
+        "statistics",
+        "pages",
+        "planning",
+        "current",
+        "rewatched",
+        "completed",
+      ] as UserDataPart[]);
 
-  if (
-    !cardsDataStr ||
-    cardsDataStr === "null" ||
-    !userDataStr ||
-    userDataStr === "null"
-  ) {
+  // Fetch cards data first - if this fails with a Redis error, let it bubble up
+  // to generate a generic "Internal Error" response as expected by tests.
+  const cardsDataStr = await redisClient.get(`cards:${numericUserId}`);
+
+  let userDataParts: Partial<Record<UserDataPart, unknown>>;
+  try {
+    userDataParts = await fetchUserDataParts(numericUserId, parts);
+  } catch (error) {
+    if (error instanceof CardDataError) throw error;
+
+    incrementAnalytics(
+      buildAnalyticsMetricKey("card_svg", "corrupted_user_records"),
+    ).catch(() => {});
+    throw new CardDataError("Server Error: Corrupted user record", 500);
+  }
+
+  if (!cardsDataStr || cardsDataStr === "null" || !userDataParts.meta) {
     throw new CardDataError("Not Found: User data not found", 404);
   }
 
@@ -92,7 +162,7 @@ export async function fetchUserData(
   let userDoc: UserRecord;
   try {
     cardDoc = safeParse<CardsRecord>(
-      cardsDataStr,
+      cardsDataStr as string,
       `Card SVG: cards:${numericUserId}`,
     );
   } catch {
@@ -101,11 +171,9 @@ export async function fetchUserData(
     ).catch(() => {});
     throw new CardDataError("Server Error: Corrupted card configuration", 500);
   }
+
   try {
-    userDoc = safeParse<UserRecord>(
-      userDataStr,
-      `Card SVG: user:${numericUserId}`,
-    );
+    userDoc = reconstructUserRecord(userDataParts);
   } catch {
     incrementAnalytics(
       buildAnalyticsMetricKey("card_svg", "corrupted_user_records"),

@@ -18,6 +18,27 @@ export const sharedRedisMockDel = mock();
 export const sharedRedisMockIncr = mock(async () => 1);
 export const sharedRedisMockRpush = mock();
 export const sharedRedisMockLrange = mock();
+export const sharedRedisMockMget = mock(
+  async (...keys: string[]): Promise<(string | null)[]> => keys.map(() => null),
+);
+export const sharedRedisMockPipeline = mock();
+export const sharedRedisMockPipelineSet = mock();
+export const sharedRedisMockPipelineDel = mock();
+export const sharedRedisMockPipelineExec = mock(async () => []);
+
+const sharedRedisPipelineMock = {
+  set: mock((...args: unknown[]) => {
+    sharedRedisMockPipelineSet(...args);
+    sharedRedisMockSet(...args);
+    return sharedRedisPipelineMock;
+  }),
+  del: mock((...args: unknown[]) => {
+    sharedRedisMockPipelineDel(...args);
+    sharedRedisMockDel(...args);
+    return sharedRedisPipelineMock;
+  }),
+  exec: sharedRedisMockPipelineExec,
+};
 
 const sharedRedisFakeClient = {
   keys: sharedRedisMockKeys,
@@ -27,6 +48,8 @@ const sharedRedisFakeClient = {
   incr: sharedRedisMockIncr,
   rpush: sharedRedisMockRpush,
   lrange: sharedRedisMockLrange,
+  mget: sharedRedisMockMget,
+  pipeline: mock(() => sharedRedisPipelineMock),
 };
 
 // Register the shared Redis mock FIRST

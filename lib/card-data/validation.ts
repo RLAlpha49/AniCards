@@ -7,6 +7,17 @@ import {
   AnimeStatStudio,
   AnimeStatStaff,
   MangaStatStaff,
+  MediaListCollection,
+  MediaListEntry,
+  ReviewEntry,
+  RecommendationEntry,
+  UserReviewsPage,
+  UserRecommendationsPage,
+  SourceMaterialDistributionTotalsEntry,
+  SeasonalPreferenceTotalsEntry,
+  AnimeGenreSynergyTotalsEntry,
+  StudioCollaborationTotalsEntry,
+  UserAvatar,
 } from "@/lib/types/records";
 import type { ErrorCategory, RecoverySuggestion } from "@/lib/error-messages";
 import { getErrorDetails } from "@/lib/error-messages";
@@ -46,7 +57,10 @@ export class CardDataError extends Error {
 /** Representation of a genre and its count for a user's media statistics. @source */
 export type GenreItem = { genre: string; count: number };
 /** Tag item (name + count) used in tag distribution lists. @source */
-export type TagItem = { tag: { name: string }; count: number };
+export type TagItem = {
+  tag: { name: string; category?: string };
+  count: number;
+};
 /** Voice actor item with full name and count (for anime voice actor stats). @source */
 export type VoiceActorItem = {
   voiceActor: { name: { full: string } };
@@ -65,6 +79,7 @@ export type StaffItem = { staff: { name: { full: string } }; count: number };
 export const displayNames: { [key: string]: string } = {
   animeStats: "Anime Stats",
   socialStats: "Social Stats",
+  socialMilestones: "Social Milestones",
   mangaStats: "Manga Stats",
   animeGenres: "Anime Genres",
   animeTags: "Anime Tags",
@@ -78,13 +93,61 @@ export const displayNames: { [key: string]: string } = {
   mangaStatusDistribution: "Manga Statuses",
   animeFormatDistribution: "Anime Formats",
   mangaFormatDistribution: "Manga Formats",
+  animeSourceMaterialDistribution: "Anime Source Materials",
+  animeSeasonalPreference: "Anime Seasons",
+  animeGenreSynergy: "Genre Synergy",
   animeScoreDistribution: "Anime Scores",
   mangaScoreDistribution: "Manga Scores",
   animeYearDistribution: "Anime Years",
   mangaYearDistribution: "Manga Years",
   animeCountry: "Anime Countries",
   mangaCountry: "Manga Countries",
+  profileOverview: "Profile Overview",
+  favoritesSummary: "Favourites Summary",
+  favoritesGrid: "Favourites Grid",
+  activityHeatmap: "Activity Heatmap",
+  recentActivitySummary: "Recent Activity Summary",
+  recentActivityFeed: "Recent Activity Feed",
+  activityStreaks: "Activity Streaks",
+  topActivityDays: "Top Activity Days",
+  statusCompletionOverview: "Status Completion Overview",
+  milestones: "Consumption Milestones",
+  personalRecords: "Personal Records",
+  planningBacklog: "Planning Backlog",
+  mostRewatched: "Most Rewatched/Reread",
+  currentlyWatchingReading: "Currently Watching / Reading",
+  animeMangaOverview: "Anime vs Manga Overview",
+  scoreCompareAnimeManga: "Anime vs Manga Score Comparison",
+  countryDiversity: "Country Diversity",
+  genreDiversity: "Genre Diversity",
+  formatPreferenceOverview: "Format Preference Overview",
+  releaseEraPreference: "Release Era Preference",
+  startYearMomentum: "Start-Year Momentum",
+  lengthPreference: "Length Preference",
+  animeEpisodeLengthPreferences: "Episode Length Preferences",
+  tagCategoryDistribution: "Tag Category Distribution",
+  tagDiversity: "Tag Diversity",
+  seasonalViewingPatterns: "Seasonal Viewing Patterns",
+  droppedMedia: "Dropped Media",
+  reviewStats: "Review Statistics",
+  studioCollaboration: "Studio Collaboration",
 };
+
+/**
+ * Returns whether the provided card type string corresponds to a supported
+ * base card type. Accepts values with optional suffix variants (e.g.
+ * "animeStats-vertical") and validates against the server-known
+ * `displayNames` mapping.
+ * @param candidate - Card type string to validate.
+ * @returns true when the base card type is supported, false otherwise.
+ */
+export function isValidCardType(candidate: unknown): boolean {
+  if (typeof candidate !== "string" || candidate.trim().length === 0) {
+    return false;
+  }
+  const [base] = candidate.split("-");
+  return Object.hasOwn(displayNames, base);
+}
 
 /**
  * Extracts favourite names from a user's favourites block for a card base type.
@@ -142,15 +205,20 @@ export function validateAndNormalizeUserRecord(
 
   const rawActivityHistory = statsData?.User?.stats?.activityHistory;
   const normalizedActivityHistory = Array.isArray(rawActivityHistory)
-    ? rawActivityHistory.map((a: unknown) => {
-        const item = a as { date?: unknown; amount?: unknown };
-        const date = Number(item?.date ?? Number.NaN);
-        const amount = Number(item?.amount ?? Number.NaN);
-        return {
-          date: Number.isFinite(date) ? date : 0,
-          amount: Number.isFinite(amount) ? amount : 0,
-        };
-      })
+    ? rawActivityHistory
+        .map((a: unknown) => {
+          const item = a as { date?: unknown; amount?: unknown };
+          const date = Number(item?.date ?? Number.NaN);
+          const amount = Number(item?.amount ?? Number.NaN);
+          return {
+            date: Number.isFinite(date) ? date : 0,
+            amount: Number.isFinite(amount) ? amount : 0,
+          };
+        })
+        .filter((entry) => {
+          const oneYearAgo = Math.floor(Date.now() / 1000) - 31536000;
+          return entry.date >= oneYearAgo;
+        })
     : [];
 
   /**
@@ -276,6 +344,7 @@ export function validateAndNormalizeUserRecord(
           .filter(
             (g): g is { genre: string; count: number } => !!g && g.genre !== "",
           )
+          .slice(0, 25)
       : [];
     const rawTags = block["tags"];
     const tags = Array.isArray(rawTags)
@@ -284,15 +353,24 @@ export function validateAndNormalizeUserRecord(
             if (!t || typeof t !== "object") return null;
             const rec = t as Record<string, unknown>;
             const tagName = getNestedString(rec, ["tag", "name"]);
+            const tagCategory = getNestedString(rec, ["tag", "category"]);
             return {
-              tag: { name: tagName },
+              tag: {
+                name: tagName,
+                ...(tagCategory ? { category: tagCategory } : {}),
+              },
               count: coerceNumber(rec.count, 0) ?? 0,
             };
           })
           .filter(
-            (t): t is { tag: { name: string }; count: number } =>
-              !!t && !!t.tag && !!t.tag.name,
+            (
+              t,
+            ): t is {
+              tag: { name: string; category?: string };
+              count: number;
+            } => !!t && !!t.tag && !!t.tag.name,
           )
+          .slice(0, 25)
       : [];
     const rawVoiceActors = block["voiceActors"];
     const voiceActors: AnimeStatVoiceActor[] = Array.isArray(rawVoiceActors)
@@ -314,6 +392,7 @@ export function validateAndNormalizeUserRecord(
             (v): v is AnimeStatVoiceActor =>
               getNestedString(v, ["voiceActor", "name", "full"]) !== "",
           )
+          .slice(0, 25)
       : [];
     const rawStudios = block["studios"];
     const studios: AnimeStatStudio[] = Array.isArray(rawStudios)
@@ -331,6 +410,7 @@ export function validateAndNormalizeUserRecord(
             (s): s is AnimeStatStudio =>
               getNestedString(s, ["studio", "name"]) !== "",
           )
+          .slice(0, 25)
       : [];
     const rawStaff = block["staff"];
     const staff: AnimeStatStaff[] | MangaStatStaff[] = Array.isArray(rawStaff)
@@ -348,6 +428,7 @@ export function validateAndNormalizeUserRecord(
             (s): s is AnimeStatStaff | MangaStatStaff =>
               getNestedString(s, ["staff", "name", "full"]) !== "",
           )
+          .slice(0, 25)
       : [];
     const rawStatuses = block["statuses"];
     const statuses = Array.isArray(rawStatuses)
@@ -427,6 +508,47 @@ export function validateAndNormalizeUserRecord(
           )
       : undefined;
 
+    const rawStartYears = block["startYears"];
+    const startYears = Array.isArray(rawStartYears)
+      ? (rawStartYears as unknown[])
+          .map((s) => {
+            if (!s || typeof s !== "object") return null;
+            const rec = s as Record<string, unknown>;
+            return {
+              startYear: coerceNumber(rec.startYear, Number.NaN),
+              count: coerceNumber(rec.count, 0),
+            };
+          })
+          .filter(
+            (s): s is { startYear: number; count: number } =>
+              s !== null &&
+              Number.isFinite(s.startYear) &&
+              typeof s.count === "number" &&
+              Number.isFinite(s.count),
+          )
+      : undefined;
+
+    const rawLengths = block["lengths"];
+    const lengths = Array.isArray(rawLengths)
+      ? (rawLengths as unknown[])
+          .map((l) => {
+            if (!l || typeof l !== "object") return null;
+            const rec = l as Record<string, unknown>;
+            const length = String(rec.length ?? "").trim();
+            return {
+              length,
+              count: coerceNumber(rec.count, 0),
+            };
+          })
+          .filter(
+            (l): l is { length: string; count: number } =>
+              l !== null &&
+              l.length !== "" &&
+              typeof l.count === "number" &&
+              Number.isFinite(l.count),
+          )
+      : undefined;
+
     const count = coerceNumber(block.count);
     const meanScore = coerceNumber(block.meanScore);
     const standardDeviation = coerceNumber(block.standardDeviation);
@@ -445,6 +567,8 @@ export function validateAndNormalizeUserRecord(
       scores,
       releaseYears,
       countries,
+      startYears,
+      lengths,
     };
 
     if (type === "anime") {
@@ -459,9 +583,685 @@ export function validateAndNormalizeUserRecord(
     return normalizedBlock;
   };
 
+  /**
+   * Normalizes AniList MediaListCollection structures (planning, completed, rewatched, etc.).
+   * Ensures `lists` is an array and sanitizes entries to match `MediaListEntry` shape.
+   * @param raw - Raw MediaListCollection-like object from the AniList response.
+   * @returns MediaListCollection or undefined when input is invalid.
+   */
+  const mapMediaListEntry = (e: unknown): MediaListEntry | null => {
+    if (!e || typeof e !== "object") return null;
+    const r = e as Record<string, unknown>;
+    const media = (r.media as Record<string, unknown> | undefined) ?? {};
+    const _coverLarge = getNestedString(media, ["coverImage", "large"]);
+    const _coverMedium = getNestedString(media, ["coverImage", "medium"]);
+    const _coverColor = getNestedString(media, ["coverImage", "color"]);
+    const coverImage =
+      _coverLarge || _coverMedium || _coverColor
+        ? {
+            large: _coverLarge || undefined,
+            medium: _coverMedium || undefined,
+            color: _coverColor || undefined,
+          }
+        : undefined;
+
+    const rawGenres = media["genres"];
+    const genres = Array.isArray(rawGenres)
+      ? rawGenres
+          .filter((g): g is string => typeof g === "string")
+          .map((g) => g.trim())
+          .filter((g) => g.length > 0)
+      : undefined;
+
+    const rawStudiosNodes = (media as { studios?: { nodes?: unknown } }).studios
+      ?.nodes;
+    const studios = Array.isArray(rawStudiosNodes)
+      ? rawStudiosNodes
+          .map((s) => {
+            if (!s || typeof s !== "object") return null;
+            const rec = s as Record<string, unknown>;
+            const id = coerceNumber(rec.id);
+            const name = typeof rec.name === "string" ? rec.name.trim() : "";
+            if (!Number.isFinite(id) || !name) return null;
+            return { id, name };
+          })
+          .filter((x): x is { id: number; name: string } => x !== null)
+      : undefined;
+
+    return {
+      id: coerceNumber(r.id, 0) ?? 0,
+      score: coerceNumber(r.score),
+      progress: coerceNumber(r.progress),
+      repeat: coerceNumber(r.repeat),
+      media: {
+        id: coerceNumber(media?.id, 0) ?? 0,
+        title: {
+          english: getNestedString(media, ["title", "english"]),
+          romaji: getNestedString(media, ["title", "romaji"]),
+          native: getNestedString(media, ["title", "native"]),
+        },
+        ...(coverImage ? { coverImage } : {}),
+        episodes: coerceNumber(media?.episodes),
+        chapters: coerceNumber(media?.chapters),
+        volumes: coerceNumber(media?.volumes),
+        averageScore: coerceNumber(media?.averageScore),
+        format: getNestedString(media, ["format"]) || undefined,
+        source: getNestedString(media, ["source"]) || undefined,
+        season: getNestedString(media, ["season"]) || undefined,
+        seasonYear: coerceNumber(media?.seasonYear),
+        ...(studios?.length ? { studios: { nodes: studios } } : {}),
+        ...(genres?.length ? { genres } : {}),
+      },
+    } as MediaListEntry;
+  };
+
+  const mapReviewEntry = (raw: unknown): ReviewEntry | null => {
+    if (!raw || typeof raw !== "object") return null;
+    const rec = raw as Record<string, unknown>;
+    const media = (rec.media as Record<string, unknown> | undefined) ?? {};
+
+    const rawGenres = media.genres;
+    const genres = Array.isArray(rawGenres)
+      ? rawGenres
+          .filter((g): g is string => typeof g === "string")
+          .map((g) => g.trim())
+          .filter((g) => g.length > 0)
+      : undefined;
+
+    const summary =
+      typeof rec.summary === "string"
+        ? rec.summary.trim().slice(0, 500)
+        : undefined;
+
+    return {
+      id: coerceNumber(rec.id, 0) ?? 0,
+      score: coerceNumber(rec.score, 0) ?? 0,
+      rating: coerceNumber(rec.rating, 0) ?? 0,
+      ratingAmount: coerceNumber(rec.ratingAmount, 0) ?? 0,
+      summary: summary || undefined,
+      createdAt: coerceNumber(rec.createdAt),
+      media: {
+        id: coerceNumber(media.id, 0) ?? 0,
+        title: {
+          romaji: getNestedString(media, ["title", "romaji"]) || undefined,
+        },
+        type: getNestedString(media, ["type"]) || undefined,
+        ...(genres?.length ? { genres } : {}),
+      },
+    };
+  };
+
+  const normalizeUserReviewsPage = (
+    raw: unknown,
+  ): UserReviewsPage | undefined => {
+    if (!raw || typeof raw !== "object") return undefined;
+    const rec = raw as Record<string, unknown>;
+    const rawReviews = Array.isArray(rec.reviews) ? rec.reviews : [];
+    const reviews = rawReviews
+      .map(mapReviewEntry)
+      .filter((x): x is ReviewEntry => x !== null)
+      .slice(0, 50);
+    return reviews.length ? { reviews } : undefined;
+  };
+
+  const mapRecommendationEntry = (raw: unknown): RecommendationEntry | null => {
+    if (!raw || typeof raw !== "object") return null;
+    const rec = raw as Record<string, unknown>;
+    const media = (rec.media as Record<string, unknown> | undefined) ?? {};
+    const mediaRecommendation =
+      (rec.mediaRecommendation as Record<string, unknown> | undefined) ?? {};
+
+    return {
+      id: coerceNumber(rec.id, 0) ?? 0,
+      rating: coerceNumber(rec.rating, 0) ?? 0,
+      media: {
+        id: coerceNumber(media.id, 0) ?? 0,
+        title: {
+          romaji: getNestedString(media, ["title", "romaji"]) || undefined,
+        },
+      },
+      mediaRecommendation: {
+        id: coerceNumber(mediaRecommendation.id, 0) ?? 0,
+        title: {
+          romaji:
+            getNestedString(mediaRecommendation, ["title", "romaji"]) ||
+            undefined,
+        },
+      },
+    };
+  };
+
+  const normalizeUserRecommendationsPage = (
+    raw: unknown,
+  ): UserRecommendationsPage | undefined => {
+    if (!raw || typeof raw !== "object") return undefined;
+    const rec = raw as Record<string, unknown>;
+    const rawRecs = Array.isArray(rec.recommendations)
+      ? rec.recommendations
+      : [];
+    const recommendations = rawRecs
+      .map(mapRecommendationEntry)
+      .filter((x): x is RecommendationEntry => x !== null)
+      .slice(0, 25);
+    return recommendations.length ? { recommendations } : undefined;
+  };
+
+  const normalizeMediaListCollection = (
+    raw: unknown,
+  ): MediaListCollection | undefined => {
+    if (!raw || typeof raw !== "object") return undefined;
+    const v = raw as Record<string, unknown>;
+    if (!Array.isArray(v.lists)) return undefined;
+
+    const allEntriesRaw: MediaListEntry[] = (v.lists as unknown[])
+      .flatMap((list) => {
+        const rec =
+          list && typeof list === "object"
+            ? (list as Record<string, unknown>)
+            : {};
+        return Array.isArray(rec.entries) ? rec.entries : [];
+      })
+      .map(mapMediaListEntry)
+      .filter((x): x is MediaListEntry => x !== null);
+
+    const rank = (e: MediaListEntry): readonly [number, number, number] => [
+      e.repeat ?? 0,
+      e.score ?? 0,
+      e.progress ?? 0,
+    ];
+    const isBetter = (
+      current: MediaListEntry,
+      next: MediaListEntry,
+    ): boolean => {
+      const a = rank(current);
+      const b = rank(next);
+      for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) return b[i] > a[i];
+      }
+      return false;
+    };
+
+    const byMediaId = new Map<number, MediaListEntry>();
+    for (const entry of allEntriesRaw) {
+      const mediaId = entry.media?.id;
+      if (!mediaId) continue;
+      const existing = byMediaId.get(mediaId);
+      if (!existing || isBetter(existing, entry)) byMediaId.set(mediaId, entry);
+    }
+
+    const allEntries = [...byMediaId.values()];
+
+    const rawCount = coerceNumber(v.count);
+    const totalCount = rawCount ?? allEntries.length;
+
+    const rawTotalRepeat = coerceNumber(v.totalRepeat);
+    const computedTotalRepeat = allEntries.reduce(
+      (sum, e) => sum + (e.repeat ?? 0),
+      0,
+    );
+    const totalRepeat = rawTotalRepeat ?? computedTotalRepeat;
+
+    return {
+      lists: [{ name: "All", entries: allEntries }],
+      count: totalCount,
+      totalRepeat,
+    };
+  };
+
+  const isPrunedAllList = (raw: unknown): boolean =>
+    !!raw &&
+    typeof raw === "object" &&
+    Array.isArray((raw as { lists?: unknown }).lists) &&
+    (raw as { lists: { name?: string }[] }).lists.length === 1 &&
+    (raw as { lists: { name?: string }[] }).lists[0].name === "All";
+
+  const pruneIfNeeded = (
+    raw: unknown,
+    coll: MediaListCollection | undefined,
+    pruner: (entries: MediaListEntry[]) => MediaListEntry[],
+  ): MediaListCollection | undefined => {
+    if (!coll) return undefined;
+    if (isPrunedAllList(raw)) return coll;
+    const entries = coll.lists.flatMap((l) => l.entries);
+    const pruned = pruner(entries);
+    return { ...coll, lists: [{ name: "All", entries: pruned }] };
+  };
+
+  /**
+   * If the record already contains stored totals (computed at write time), keep them.
+   * Otherwise, we can derive totals from the available list data.
+   */
+  const normalizeStoredSourceTotals = (
+    value: unknown,
+  ): SourceMaterialDistributionTotalsEntry[] | undefined => {
+    if (!Array.isArray(value)) return undefined;
+
+    const normalized = value
+      .map((item) => {
+        if (!item || typeof item !== "object") return null;
+        const rec = item as Record<string, unknown>;
+        const source = typeof rec.source === "string" ? rec.source : "";
+        const count =
+          typeof rec.count === "number" && Number.isFinite(rec.count)
+            ? rec.count
+            : Number.NaN;
+        if (!source.trim() || !Number.isFinite(count) || count <= 0)
+          return null;
+        return { source: source.trim(), count };
+      })
+      .filter((x): x is SourceMaterialDistributionTotalsEntry => x !== null);
+
+    return normalized.length ? normalized : undefined;
+  };
+
+  const normalizeStoredSeasonTotals = (
+    value: unknown,
+  ): SeasonalPreferenceTotalsEntry[] | undefined => {
+    if (!Array.isArray(value)) return undefined;
+
+    const normalized = value
+      .map((item) => {
+        if (!item || typeof item !== "object") return null;
+        const rec = item as Record<string, unknown>;
+        const season = typeof rec.season === "string" ? rec.season : "";
+        const count =
+          typeof rec.count === "number" && Number.isFinite(rec.count)
+            ? rec.count
+            : Number.NaN;
+        if (!season.trim() || !Number.isFinite(count) || count <= 0)
+          return null;
+        return { season: season.trim(), count };
+      })
+      .filter((x): x is SeasonalPreferenceTotalsEntry => x !== null);
+
+    return normalized.length ? normalized : undefined;
+  };
+
+  const normalizeStoredGenreSynergyTotals = (
+    value: unknown,
+  ): AnimeGenreSynergyTotalsEntry[] | undefined => {
+    if (!Array.isArray(value)) return undefined;
+
+    const normalized = value
+      .map((item) => {
+        if (!item || typeof item !== "object") return null;
+        const rec = item as Record<string, unknown>;
+        const a = typeof rec.a === "string" ? rec.a.trim() : "";
+        const b = typeof rec.b === "string" ? rec.b.trim() : "";
+        const count =
+          typeof rec.count === "number" && Number.isFinite(rec.count)
+            ? rec.count
+            : Number.NaN;
+
+        if (!a || !b || a === b || !Number.isFinite(count) || count <= 0) {
+          return null;
+        }
+
+        // Canonicalize ordering so stored data stays consistent.
+        const [left, right] = a.localeCompare(b) <= 0 ? [a, b] : [b, a];
+        return {
+          a: left,
+          b: right,
+          count,
+        } satisfies AnimeGenreSynergyTotalsEntry;
+      })
+      .filter((x): x is AnimeGenreSynergyTotalsEntry => x !== null);
+
+    if (!normalized.length) return undefined;
+
+    // Deduplicate by pair, keeping the max count just in case.
+    const byKey = new Map<string, AnimeGenreSynergyTotalsEntry>();
+    for (const item of normalized) {
+      const key = `${item.a}|||${item.b}`;
+      const existing = byKey.get(key);
+      if (!existing || item.count > existing.count) byKey.set(key, item);
+    }
+    return [...byKey.values()];
+  };
+
+  /**
+   * Normalize stored studio collaboration totals from the database.
+   * Each entry has two studio names (a, b) and a count of co-productions.
+   */
+  const normalizeStoredStudioCollaborationTotals = (
+    value: unknown,
+  ): StudioCollaborationTotalsEntry[] | undefined => {
+    if (!Array.isArray(value)) return undefined;
+
+    const normalized = value
+      .map((item) => {
+        if (!item || typeof item !== "object") return null;
+        const rec = item as Record<string, unknown>;
+        const a = typeof rec.a === "string" ? rec.a.trim() : "";
+        const b = typeof rec.b === "string" ? rec.b.trim() : "";
+        const count =
+          typeof rec.count === "number" && Number.isFinite(rec.count)
+            ? rec.count
+            : Number.NaN;
+
+        if (!a || !b || a === b || !Number.isFinite(count) || count <= 0) {
+          return null;
+        }
+
+        // Canonicalize ordering so stored data stays consistent.
+        const [left, right] = a.localeCompare(b) <= 0 ? [a, b] : [b, a];
+        return {
+          a: left,
+          b: right,
+          count,
+        } satisfies StudioCollaborationTotalsEntry;
+      })
+      .filter((x): x is StudioCollaborationTotalsEntry => x !== null);
+
+    if (!normalized.length) return undefined;
+
+    // Deduplicate by pair, keeping the max count.
+    const byKey = new Map<string, StudioCollaborationTotalsEntry>();
+    for (const item of normalized) {
+      const key = `${item.a}|||${item.b}`;
+      const existing = byKey.get(key);
+      if (!existing || item.count > existing.count) byKey.set(key, item);
+    }
+    return [...byKey.values()];
+  };
+
+  /**
+   * Compute pre-aggregated totals for Source Material Distribution.
+   *
+   * IMPORTANT: This uses the *full* CURRENT + COMPLETED lists as returned by AniList
+   * (after normalization), before we prune what gets persisted to Redis.
+   */
+  const computeAnimeSourceMaterialDistributionTotals = ():
+    | SourceMaterialDistributionTotalsEntry[]
+    | undefined => {
+    const completedFull = normalizeMediaListCollection(
+      statsData.animeCompleted,
+    );
+    const currentFull = normalizeMediaListCollection(statsData.animeCurrent);
+
+    const completedEntries =
+      completedFull?.lists.flatMap((l) => l.entries) ?? [];
+    const currentEntries = currentFull?.lists.flatMap((l) => l.entries) ?? [];
+    const all = [...completedEntries, ...currentEntries];
+    if (!all.length) return undefined;
+
+    const uniqueByMediaId = new Map<number, MediaListEntry>();
+    for (const entry of all) {
+      const mediaId = entry.media?.id;
+      if (!mediaId) continue;
+      if (!uniqueByMediaId.has(mediaId)) uniqueByMediaId.set(mediaId, entry);
+    }
+
+    const counts = new Map<string, number>();
+    for (const entry of uniqueByMediaId.values()) {
+      const source = (entry.media.source ?? "UNKNOWN").trim() || "UNKNOWN";
+      counts.set(source, (counts.get(source) ?? 0) + 1);
+    }
+
+    return [...counts.entries()]
+      .map(([source, count]) => ({ source, count }))
+      .filter((x) => x.count > 0)
+      .sort((a, b) => b.count - a.count);
+  };
+
+  /**
+   * Compute pre-aggregated totals for the Anime Seasonal Preference card.
+   *
+   * IMPORTANT: This uses the *full* CURRENT + COMPLETED lists as returned by AniList
+   * (after normalization), before we prune what gets persisted to Redis.
+   */
+  const computeAnimeSeasonalPreferenceTotals = ():
+    | SeasonalPreferenceTotalsEntry[]
+    | undefined => {
+    const completedFull = normalizeMediaListCollection(
+      statsData.animeCompleted,
+    );
+    const currentFull = normalizeMediaListCollection(statsData.animeCurrent);
+
+    const completedEntries =
+      completedFull?.lists.flatMap((l) => l.entries) ?? [];
+    const currentEntries = currentFull?.lists.flatMap((l) => l.entries) ?? [];
+    const all = [...completedEntries, ...currentEntries];
+    if (!all.length) return undefined;
+
+    const uniqueByMediaId = new Map<number, MediaListEntry>();
+    for (const entry of all) {
+      const mediaId = entry.media?.id;
+      if (!mediaId) continue;
+      if (!uniqueByMediaId.has(mediaId)) uniqueByMediaId.set(mediaId, entry);
+    }
+
+    const normalizeSeason = (v: string | undefined): string => {
+      const raw = (v ?? "").trim().toUpperCase();
+      if (
+        raw === "WINTER" ||
+        raw === "SPRING" ||
+        raw === "SUMMER" ||
+        raw === "FALL"
+      ) {
+        return raw;
+      }
+      return "UNKNOWN";
+    };
+
+    const counts = new Map<string, number>();
+    for (const entry of uniqueByMediaId.values()) {
+      const season = normalizeSeason(entry.media.season);
+      counts.set(season, (counts.get(season) ?? 0) + 1);
+    }
+
+    const order = ["WINTER", "SPRING", "SUMMER", "FALL", "UNKNOWN"];
+    const items = order
+      .map((season) => ({ season, count: counts.get(season) ?? 0 }))
+      .filter((x) => x.count > 0);
+
+    return items.length ? items : undefined;
+  };
+
+  /**
+   * Compute pre-aggregated co-occurrence totals for Genre Synergy.
+   *
+   * IMPORTANT: This uses the *full* COMPLETED list as returned by AniList
+   * (after normalization), before we prune what gets persisted to Redis.
+   */
+  const computeAnimeGenreSynergyTotals = ():
+    | AnimeGenreSynergyTotalsEntry[]
+    | undefined => {
+    const completedFull = normalizeMediaListCollection(
+      statsData.animeCompleted,
+    );
+    const entries = completedFull?.lists.flatMap((l) => l.entries) ?? [];
+    if (!entries.length) return undefined;
+
+    const TOP_N = 10;
+    const MAX_GENRES_PER_TITLE = 12;
+
+    const counts = new Map<string, number>();
+    for (const entry of entries) {
+      const raw = entry.media?.genres ?? [];
+      if (!Array.isArray(raw) || raw.length < 2) continue;
+
+      const uniqueGenres = [
+        ...new Set(raw.map((g) => g.trim()).filter(Boolean)),
+      ]
+        .slice(0, MAX_GENRES_PER_TITLE)
+        .sort((a, b) => a.localeCompare(b));
+
+      if (uniqueGenres.length < 2) continue;
+
+      for (let i = 0; i < uniqueGenres.length; i++) {
+        for (let j = i + 1; j < uniqueGenres.length; j++) {
+          const a = uniqueGenres[i];
+          const b = uniqueGenres[j];
+          const key = `${a}|||${b}`;
+          counts.set(key, (counts.get(key) ?? 0) + 1);
+        }
+      }
+    }
+
+    const items: AnimeGenreSynergyTotalsEntry[] = [...counts.entries()]
+      .map(([key, count]) => {
+        const [a, b] = key.split("|||");
+        if (!a || !b) return null;
+        return { a, b, count } satisfies AnimeGenreSynergyTotalsEntry;
+      })
+      .filter((x): x is AnimeGenreSynergyTotalsEntry => x !== null)
+      .filter((x) => x.count > 0)
+      .sort(
+        (x, y) =>
+          y.count - x.count || x.a.localeCompare(y.a) || x.b.localeCompare(y.b),
+      )
+      .slice(0, TOP_N);
+
+    return items.length ? items : undefined;
+  };
+
+  /**
+   * Compute pre-aggregated totals for Studio Collaboration card.
+   * Counts how often pairs of studios (main studios only) collaborated on completed anime.
+   */
+  const computeStudioCollaborationTotals = ():
+    | StudioCollaborationTotalsEntry[]
+    | undefined => {
+    const completedFull = normalizeMediaListCollection(
+      statsData.animeCompleted,
+    );
+    const entries = completedFull?.lists.flatMap((l) => l.entries) ?? [];
+    if (!entries.length) return undefined;
+
+    const TOP_N = 10;
+    const MAX_STUDIOS_PER_TITLE = 6;
+
+    const counts = new Map<string, number>();
+    for (const entry of entries) {
+      const rawStudios = entry.media?.studios?.nodes ?? [];
+      if (!Array.isArray(rawStudios) || rawStudios.length < 2) continue;
+
+      const studioNames = [
+        ...new Set(
+          rawStudios
+            .map((s) => (typeof s?.name === "string" ? s.name.trim() : ""))
+            .filter(Boolean),
+        ),
+      ]
+        .slice(0, MAX_STUDIOS_PER_TITLE)
+        .sort((a, b) => a.localeCompare(b));
+
+      if (studioNames.length < 2) continue;
+
+      // Count all unique pairs
+      for (let i = 0; i < studioNames.length; i++) {
+        for (let j = i + 1; j < studioNames.length; j++) {
+          const a = studioNames[i];
+          const b = studioNames[j];
+          const key = `${a}|||${b}`;
+          counts.set(key, (counts.get(key) ?? 0) + 1);
+        }
+      }
+    }
+
+    const items: StudioCollaborationTotalsEntry[] = [...counts.entries()]
+      .map(([key, count]) => {
+        const [a, b] = key.split("|||");
+        if (!a || !b) return null;
+        return { a, b, count } satisfies StudioCollaborationTotalsEntry;
+      })
+      .filter((x): x is StudioCollaborationTotalsEntry => x !== null)
+      .filter((x) => x.count > 0)
+      .sort(
+        (x, y) =>
+          y.count - x.count || x.a.localeCompare(y.a) || x.b.localeCompare(y.b),
+      )
+      .slice(0, TOP_N);
+
+    return items.length ? items : undefined;
+  };
+
+  const storedAggregates = isObject(
+    (user as Record<string, unknown>).aggregates,
+  )
+    ? ((user as Record<string, unknown>).aggregates as Record<string, unknown>)
+    : undefined;
+
+  const storedAnimeSourceTotals = normalizeStoredSourceTotals(
+    storedAggregates?.animeSourceMaterialDistributionTotals,
+  );
+
+  const storedAnimeSeasonTotals = normalizeStoredSeasonTotals(
+    storedAggregates?.animeSeasonalPreferenceTotals,
+  );
+
+  const storedAnimeGenreSynergyTotals = normalizeStoredGenreSynergyTotals(
+    storedAggregates?.animeGenreSynergyTotals,
+  );
+
+  const storedStudioCollaborationTotals =
+    normalizeStoredStudioCollaborationTotals(
+      storedAggregates?.studioCollaborationTotals,
+    );
+
+  const combineUnique = (
+    a: MediaListEntry[],
+    b: MediaListEntry[],
+  ): MediaListEntry[] => {
+    const combined = [...a];
+    for (const e of b) {
+      if (!combined.some((c) => c.id === e.id)) combined.push(e);
+    }
+    return combined;
+  };
+
+  const mapFavouriteMediaNode = (n: unknown) => {
+    const rec = n as Record<string, unknown>;
+    return {
+      id: coerceNumber(rec.id),
+      title: {
+        english: getNestedString(rec, ["title", "english"]),
+        romaji: getNestedString(rec, ["title", "romaji"]),
+        native: getNestedString(rec, ["title", "native"]),
+      },
+      coverImage: {
+        large: getNestedString(rec, ["coverImage", "large"]),
+        medium: getNestedString(rec, ["coverImage", "medium"]),
+        color: getNestedString(rec, ["coverImage", "color"]),
+      },
+    };
+  };
+
+  const mapFavouritePersonNode = (n: unknown) => {
+    const rec = n as Record<string, unknown>;
+    return {
+      id: coerceNumber(rec.id),
+      name: {
+        full: getNestedString(rec, ["name", "full"]),
+        native: getNestedString(rec, ["name", "native"]),
+      },
+      image: {
+        large: getNestedString(rec, ["image", "large"]),
+        medium: getNestedString(rec, ["image", "medium"]),
+      },
+    };
+  };
+
+  const mapFavouriteStudioNode = (n: unknown) => {
+    const rec = n as Record<string, unknown>;
+    return {
+      id: coerceNumber(rec.id),
+      name: getNestedString(rec, ["name"]),
+    };
+  };
+
+  let favoriteAnimeNodes: unknown[] = [];
+  let favoriteMangaNodes: unknown[] = [];
   let favoriteStaffNodes: unknown[] = [];
   let favoriteStudiosNodes: unknown[] = [];
   let favoriteCharactersNodes: unknown[] = [];
+  if (Array.isArray(statsData.User?.favourites?.anime?.nodes)) {
+    favoriteAnimeNodes = statsData.User.favourites.anime.nodes;
+  }
+  if (Array.isArray(statsData.User?.favourites?.manga?.nodes)) {
+    favoriteMangaNodes = statsData.User.favourites.manga.nodes;
+  }
   if (Array.isArray(statsData.User?.favourites?.staff?.nodes)) {
     favoriteStaffNodes = statsData.User.favourites.staff.nodes;
   }
@@ -472,12 +1272,38 @@ export function validateAndNormalizeUserRecord(
     favoriteCharactersNodes = statsData.User.favourites.characters.nodes;
   }
 
+  const aggregatedAnimeSource =
+    storedAnimeSourceTotals ?? computeAnimeSourceMaterialDistributionTotals();
+  const aggregatedAnimeSeason =
+    storedAnimeSeasonTotals ?? computeAnimeSeasonalPreferenceTotals();
+  const aggregatedAnimeGenreSynergy =
+    storedAnimeGenreSynergyTotals ?? computeAnimeGenreSynergyTotals();
+  const aggregatedStudioCollaboration =
+    storedStudioCollaborationTotals ?? computeStudioCollaborationTotals();
+
+  const aggregatesObj: Record<string, unknown> = {};
+  if (Array.isArray(aggregatedAnimeSource) && aggregatedAnimeSource.length)
+    aggregatesObj.animeSourceMaterialDistributionTotals = aggregatedAnimeSource;
+  if (Array.isArray(aggregatedAnimeSeason) && aggregatedAnimeSeason.length)
+    aggregatesObj.animeSeasonalPreferenceTotals = aggregatedAnimeSeason;
+  if (
+    Array.isArray(aggregatedAnimeGenreSynergy) &&
+    aggregatedAnimeGenreSynergy.length
+  )
+    aggregatesObj.animeGenreSynergyTotals = aggregatedAnimeGenreSynergy;
+  if (
+    Array.isArray(aggregatedStudioCollaboration) &&
+    aggregatedStudioCollaboration.length
+  )
+    aggregatesObj.studioCollaborationTotals = aggregatedStudioCollaboration;
+
   const normalizedUser: UserRecord = {
     userId: String(user.userId ?? ""),
     username: user.username ?? undefined,
     ip: String(user.ip ?? ""),
     createdAt: String(user.createdAt ?? new Date().toISOString()),
     updatedAt: String(user.updatedAt ?? new Date().toISOString()),
+    ...(Object.keys(aggregatesObj).length ? { aggregates: aggregatesObj } : {}),
     stats: {
       followersPage: normalizePage(statsData.followersPage, {
         itemsKey: "followers",
@@ -494,37 +1320,116 @@ export function validateAndNormalizeUserRecord(
       reviewsPage: normalizePage(statsData.reviewsPage, {
         itemsKey: "reviews",
       }),
+      userReviews: normalizeUserReviewsPage(statsData.userReviews),
+      userRecommendations: normalizeUserRecommendationsPage(
+        statsData.userRecommendations,
+      ),
+      // We limit the entries saved to the database to only what's needed for the cards
+      animePlanning: (() => {
+        const raw = statsData.animePlanning;
+        const coll = normalizeMediaListCollection(raw);
+        return pruneIfNeeded(raw, coll, (entries) =>
+          [...entries]
+            .sort(
+              (a, b) =>
+                (b.media.averageScore ?? 0) - (a.media.averageScore ?? 0),
+            )
+            .slice(0, 5),
+        );
+      })(),
+      mangaPlanning: (() => {
+        const raw = statsData.mangaPlanning;
+        const coll = normalizeMediaListCollection(raw);
+        return pruneIfNeeded(raw, coll, (entries) =>
+          [...entries]
+            .sort(
+              (a, b) =>
+                (b.media.averageScore ?? 0) - (a.media.averageScore ?? 0),
+            )
+            .slice(0, 5),
+        );
+      })(),
+      animeCurrent: (() => {
+        const raw = statsData.animeCurrent;
+        const coll = normalizeMediaListCollection(raw);
+        return pruneIfNeeded(raw, coll, (entries) =>
+          // Keep most recent items as returned by the AniList sort (UPDATED_TIME_DESC)
+          entries.slice(0, 6),
+        );
+      })(),
+      mangaCurrent: (() => {
+        const raw = statsData.mangaCurrent;
+        const coll = normalizeMediaListCollection(raw);
+        return pruneIfNeeded(raw, coll, (entries) => entries.slice(0, 6));
+      })(),
+      animeRewatched: (() => {
+        const raw = statsData.animeRewatched;
+        const coll = normalizeMediaListCollection(raw);
+        return pruneIfNeeded(raw, coll, (entries) =>
+          [...entries]
+            .sort((a, b) => (b.repeat ?? 0) - (a.repeat ?? 0))
+            .slice(0, 10),
+        );
+      })(),
+      mangaReread: (() => {
+        const raw = statsData.mangaReread;
+        const coll = normalizeMediaListCollection(raw);
+        return pruneIfNeeded(raw, coll, (entries) =>
+          [...entries]
+            .sort((a, b) => (b.repeat ?? 0) - (a.repeat ?? 0))
+            .slice(0, 10),
+        );
+      })(),
+      animeCompleted: (() => {
+        const raw = statsData.animeCompleted;
+        const coll = normalizeMediaListCollection(raw);
+        return pruneIfNeeded(raw, coll, (entries) => {
+          const topByScore = [...entries]
+            .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+            .slice(0, 5);
+          const topByLength = [...entries]
+            .sort((a, b) => (b.media.episodes ?? 0) - (a.media.episodes ?? 0))
+            .slice(0, 5);
+          return combineUnique(topByScore, topByLength);
+        });
+      })(),
+      mangaCompleted: (() => {
+        const raw = statsData.mangaCompleted;
+        const coll = normalizeMediaListCollection(raw);
+        return pruneIfNeeded(raw, coll, (entries) => {
+          const topByScore = [...entries]
+            .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+            .slice(0, 5);
+          const topByLength = [...entries]
+            .sort((a, b) => (b.media.chapters ?? 0) - (a.media.chapters ?? 0))
+            .slice(0, 5);
+          return combineUnique(topByScore, topByLength);
+        });
+      })(),
+      animeDropped: (() => {
+        const raw = statsData.animeDropped;
+        const coll = normalizeMediaListCollection(raw);
+        return pruneIfNeeded(raw, coll, (entries) =>
+          // Keep most recent items as returned by the AniList sort (UPDATED_TIME_DESC)
+          entries.slice(0, 30),
+        );
+      })(),
+      mangaDropped: (() => {
+        const raw = statsData.mangaDropped;
+        const coll = normalizeMediaListCollection(raw);
+        return pruneIfNeeded(raw, coll, (entries) => entries.slice(0, 30));
+      })(),
       User: {
         stats: {
           activityHistory: normalizedActivityHistory,
         },
         favourites: {
-          staff: {
-            nodes: favoriteStaffNodes.map((s: unknown) => {
-              const rec = s as Record<string, unknown>;
-              return {
-                id: coerceNumber(rec.id),
-                name: { full: getNestedString(rec, ["name", "full"]) },
-              };
-            }),
-          },
-          studios: {
-            nodes: favoriteStudiosNodes.map((s: unknown) => {
-              const rec = s as Record<string, unknown>;
-              return {
-                id: coerceNumber(rec.id),
-                name: getNestedString(rec, ["name"]),
-              };
-            }),
-          },
+          anime: { nodes: favoriteAnimeNodes.map(mapFavouriteMediaNode) },
+          manga: { nodes: favoriteMangaNodes.map(mapFavouriteMediaNode) },
+          staff: { nodes: favoriteStaffNodes.map(mapFavouritePersonNode) },
+          studios: { nodes: favoriteStudiosNodes.map(mapFavouriteStudioNode) },
           characters: {
-            nodes: favoriteCharactersNodes.map((s: unknown) => {
-              const rec = s as Record<string, unknown>;
-              return {
-                id: coerceNumber(rec.id),
-                name: { full: getNestedString(rec, ["name", "full"]) },
-              };
-            }),
+            nodes: favoriteCharactersNodes.map(mapFavouritePersonNode),
           },
         },
         statistics: {
@@ -537,6 +1442,31 @@ export function validateAndNormalizeUserRecord(
             "manga",
           ) as MangaStats | undefined,
         },
+        avatar: (() => {
+          const rawAvatar = statsData.User?.avatar;
+          if (
+            rawAvatar &&
+            typeof rawAvatar === "object" &&
+            (typeof (rawAvatar as Record<string, unknown>).large === "string" ||
+              typeof (rawAvatar as Record<string, unknown>).medium === "string")
+          ) {
+            const av = rawAvatar as Record<string, unknown>;
+            return {
+              large: typeof av.large === "string" ? av.large : undefined,
+              medium: typeof av.medium === "string" ? av.medium : undefined,
+            } as UserAvatar;
+          }
+          return undefined;
+        })(),
+        createdAt: (() => {
+          const rawCreatedAt = statsData.User?.createdAt;
+          if (typeof rawCreatedAt === "number") return rawCreatedAt;
+          if (typeof rawCreatedAt === "string") {
+            const parsed = Number.parseInt(rawCreatedAt, 10);
+            return Number.isFinite(parsed) ? parsed : undefined;
+          }
+          return undefined;
+        })(),
       },
     } as unknown as UserStatsData,
   };

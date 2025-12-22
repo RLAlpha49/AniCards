@@ -5,8 +5,11 @@ import {
   jsonWithCors,
   apiJsonHeaders,
 } from "@/lib/api-utils";
-import { UserRecord } from "@/lib/types/records";
-import { safeParse } from "@/lib/utils";
+import {
+  fetchUserDataParts,
+  reconstructUserRecord,
+  UserDataPart,
+} from "@/lib/server/user-data";
 
 /**
  * Retrieves user data by userId or username and records analytics around the lookup.
@@ -97,18 +100,31 @@ export async function GET(request: Request) {
   }
 
   try {
-    const userDataRaw = await redisClient.get(key);
+    const allParts: UserDataPart[] = [
+      "meta",
+      "activity",
+      "favourites",
+      "statistics",
+      "pages",
+      "planning",
+      "current",
+      "rewatched",
+      "completed",
+      "aggregates",
+    ];
+    const userDataParts = await fetchUserDataParts(numericUserId, allParts);
     const duration = Date.now() - startTime;
-    if (!userDataRaw) {
+
+    if (!userDataParts.meta) {
       console.warn(
-        `⚠️ [User API] User record not found for key ${key} [${duration}ms]`,
+        `⚠️ [User API] User record not found for userId ${numericUserId} [${duration}ms]`,
       );
       return jsonWithCors({ error: "User not found" }, request, 404);
     }
 
-    const userData: UserRecord = safeParse<UserRecord>(userDataRaw);
+    const userData = reconstructUserRecord(userDataParts);
     console.log(
-      `✅ [User API] Successfully fetched user data for user ${numericUserId} [${duration}ms]`,
+      `✅ [User API] Successfully fetched and reconstructed user data for user ${numericUserId} [${duration}ms]`,
     );
     incrementAnalytics("analytics:user_api:successful_requests").catch(
       () => {},

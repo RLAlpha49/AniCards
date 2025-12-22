@@ -136,10 +136,22 @@ paths:
                 "default",
                 "vertical",
                 "pie",
+                "donut",
+                "radar",
                 "compact",
                 "minimal",
+                "badges",
                 "bar",
                 "horizontal",
+                "cumulative",
+                "anime",
+                "manga",
+                "characters",
+                "mixed",
+                "github",
+                "fire",
+                "combined",
+                "split",
               ]
           description: "Optional rendering variation; also settable inside stored card configuration."
         - in: query
@@ -617,6 +629,28 @@ components:
         variation:
           type: string
           description: "Template variation name"
+          enum:
+            [
+              "default",
+              "vertical",
+              "pie",
+              "donut",
+              "radar",
+              "compact",
+              "minimal",
+              "badges",
+              "bar",
+              "horizontal",
+              "cumulative",
+              "anime",
+              "manga",
+              "characters",
+              "mixed",
+              "github",
+              "fire",
+              "combined",
+              "split",
+            ]
         cardName:
           type: string
           description: "Unique name for the card template (used as identifier)"
@@ -702,6 +736,7 @@ components:
           additionalProperties: true
         cards:
           type: array
+          maxItems: 24
           items:
             $ref: "#/components/schemas/StoredCardConfig"
       required: ["userId", "cards"]
@@ -719,7 +754,7 @@ components:
       required: ["userId", "stats"]
     UserRecord:
       type: object
-      description: "User data stored in Redis including statistics and favourites"
+      description: "User data stored in Redis including statistics and favorites"
       properties:
         userId:
           type: string

@@ -148,7 +148,7 @@ test.describe("Generator customization and options", () => {
     });
 
     await test.step("Select card, variant, and favorites", async () => {
-      await page.getByRole("tab", { name: /Anime Breakdowns/i }).click();
+      await page.getByRole("tab", { name: /Anime Deep Dive/i }).click();
 
       const voiceActorsCard = page
         .getByText(/Anime Voice Actors/i)
@@ -164,7 +164,7 @@ test.describe("Generator customization and options", () => {
       await variantCombo.click();
       await page.getByRole("option", { name: /Pie Chart/i }).click();
 
-      const favoritesToggle = voiceActorsCard.getByLabel(/Favorites Only/i);
+      const favoritesToggle = voiceActorsCard.getByLabel(/Show Favorites/i);
       await favoritesToggle.click();
       await expect(favoritesToggle).toBeChecked();
     });

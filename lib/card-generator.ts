@@ -1,19 +1,61 @@
 import { calculateMilestones } from "@/lib/utils/milestones";
 import { extractStyles } from "@/lib/utils";
-import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats";
-import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats";
+import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/shared";
+import { animeSourceMaterialDistributionTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-source-material-distribution-template";
+import { animeSeasonalPreferenceTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-seasonal-preference-template";
+import { animeEpisodeLengthPreferencesTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-episode-length-preferences-template";
+import { animeGenreSynergyTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-genre-synergy-template";
+import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats/shared";
 import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
-import { distributionTemplate } from "@/lib/svg-templates/distribution";
+import { socialMilestonesTemplate } from "@/lib/svg-templates/social-community/social-milestones-template";
+import { distributionTemplate } from "@/lib/svg-templates/distribution/shared";
+import { favoritesGridTemplate } from "@/lib/svg-templates/profile-favorite-stats/favorites-grid-template";
+import { favoritesSummaryTemplate } from "@/lib/svg-templates/profile-favorite-stats/favorites-summary-template";
+import { profileOverviewTemplate } from "@/lib/svg-templates/profile-favorite-stats/profile-overview-template";
+import { activityHeatmapTemplate } from "@/lib/svg-templates/activity-stats/activity-heatmap-template";
+import { activityStreaksTemplate } from "@/lib/svg-templates/activity-stats/activity-streaks-template";
+import { recentActivityFeedTemplate } from "@/lib/svg-templates/activity-stats/recent-activity-feed-template";
+import { recentActivitySummaryTemplate } from "@/lib/svg-templates/activity-stats/recent-activity-summary-template";
+import { topActivityDaysTemplate } from "@/lib/svg-templates/activity-stats/top-activity-days-template";
+import { milestonesTemplate } from "@/lib/svg-templates/completion-progress-stats/milestones-template";
+import { mostRewatchedTemplate } from "@/lib/svg-templates/completion-progress-stats/most-rewatched-template";
+import { personalRecordsTemplate } from "@/lib/svg-templates/completion-progress-stats/personal-records-template";
+import { planningBacklogTemplate } from "@/lib/svg-templates/completion-progress-stats/planning-backlog-template";
+import { currentlyWatchingReadingTemplate } from "@/lib/svg-templates/completion-progress-stats/currently-watching-reading-template";
+import { statusCompletionOverviewTemplate } from "@/lib/svg-templates/completion-progress-stats/status-completion-overview-template";
+import { animeMangaOverviewTemplate } from "@/lib/svg-templates/comparative-distribution-stats/anime-manga-overview-template";
+import { scoreCompareAnimeMangaTemplate } from "@/lib/svg-templates/comparative-distribution-stats/score-compare-anime-manga-template";
+import { countryDiversityTemplate } from "@/lib/svg-templates/comparative-distribution-stats/country-diversity-template";
+import { genreDiversityTemplate } from "@/lib/svg-templates/comparative-distribution-stats/genre-diversity-template";
+import { formatPreferenceOverviewTemplate } from "@/lib/svg-templates/comparative-distribution-stats/format-preference-overview-template";
+import { releaseEraPreferenceTemplate } from "@/lib/svg-templates/comparative-distribution-stats/release-era-preference-template";
+import { startYearMomentumTemplate } from "@/lib/svg-templates/comparative-distribution-stats/start-year-momentum-template";
+import { lengthPreferenceTemplate } from "@/lib/svg-templates/comparative-distribution-stats/length-preference-template";
+import {
+  tagCategoryDistributionTemplate,
+  tagDiversityTemplate,
+  seasonalViewingPatternsTemplate,
+  droppedMediaTemplate,
+  reviewStatsTemplate,
+} from "@/lib/svg-templates/user-analytics";
+import { studioCollaborationTemplate } from "@/lib/svg-templates/studio-stats";
 import { TrustedSVG } from "@/lib/types/svg";
 import {
+  ActivityHistoryItem,
   StoredCardConfig,
   UserRecord,
   UserStatsData,
+  MediaListEntry,
 } from "@/lib/types/records";
 import {
   toTemplateAnimeStats,
   toTemplateMangaStats,
   toTemplateSocialStats,
+  toTemplateAnimeSourceMaterialDistribution,
+  toTemplateAnimeSeasonalPreference,
+  toTemplateAnimeEpisodeLengthPreferences,
+  toTemplateAnimeGenreSynergy,
+  toTemplateStudioCollaboration,
   mapCategoryItem,
   displayNames,
   CardDataError,
@@ -27,6 +69,10 @@ import {
   AnimeStats as TemplateAnimeStats,
   MangaStats as TemplateMangaStats,
 } from "@/lib/types/card";
+import {
+  fetchImageAsDataUrl,
+  embedFavoritesGridImages,
+} from "@/lib/image-utils";
 
 /**
  * Supported visual variants for generated cards.
@@ -37,19 +83,60 @@ type CardGenVariant =
   | "default"
   | "vertical"
   | "pie"
+  | "donut"
+  | "radar"
   | "compact"
   | "minimal"
+  | "badges"
   | "bar"
-  | "horizontal";
+  | "horizontal"
+  | "cumulative"
+  | "anime"
+  | "manga"
+  | "characters"
+  | "studios"
+  | "mixed"
+  | "github"
+  | "fire"
+  | "combined"
+  | "split";
 
 /** @source */
-type StatsVariant = "default" | "vertical" | "compact" | "minimal";
+type StatsVariant = "default" | "vertical" | "minimal";
 /** @source */
-type SocialVariant = "default" | "compact" | "minimal";
+type SocialVariant = "default" | "compact" | "minimal" | "badges";
 /** @source */
-type PieBarVariant = "default" | "pie" | "bar";
+type PieBarVariant = "default" | "pie" | "bar" | "donut";
 /** @source */
-type DistributionVariant = "default" | "horizontal";
+type ExtraStatsVariant = PieBarVariant | "radar";
+/** @source */
+type DistributionVariant = "default" | "horizontal" | "cumulative";
+/** @source */
+type ProfileVariant = "default";
+/** @source */
+type StatusCompletionVariant = "combined" | "split";
+/** @source */
+type MilestonesVariant = "default";
+/** @source */
+type PersonalRecordsVariant = "default";
+/** @source */
+type PlanningBacklogVariant = "default";
+/** @source */
+type MostRewatchedVariant = "default" | "anime" | "manga";
+/** @source */
+type FavoritesGridVariant =
+  | "anime"
+  | "manga"
+  | "characters"
+  | "staff"
+  | "studios"
+  | "mixed";
+/** @source */
+type ComparativeVariant = "default";
+/** @source */
+type SocialCommunityVariant = "default";
+/** @source */
+type CurrentlyWatchingReadingVariant = "default" | "anime" | "manga";
 
 /**
  * Parameters provided to the card generation functions.
@@ -60,6 +147,8 @@ interface CardGenerationParams {
   userRecord: UserRecord;
   variant: string;
   favorites?: string[];
+  favoritesGridCols?: number;
+  favoritesGridRows?: number;
 }
 
 /**
@@ -78,6 +167,7 @@ function normalizeVariant(
     "default",
     "vertical",
     "pie",
+    "donut",
     "compact",
     "minimal",
     "bar",
@@ -85,7 +175,21 @@ function normalizeVariant(
   ]);
   // Default early for invalid variant types
   if (!variant || typeof variant !== "string") return "default";
-  if (!globalVariants.has(variant as CardGenVariant)) return "default";
+
+  // Accept legacy 'communityFootprint' variant as alias for 'badges'
+  if (variant === "communityFootprint") variant = "badges";
+
+  // Handle favoritesGrid specially
+  if (baseCardType === "favoritesGrid") {
+    if (
+      ["anime", "manga", "characters", "staff", "studios", "mixed"].includes(
+        variant,
+      )
+    ) {
+      return variant as CardGenVariant;
+    }
+    return "mixed" as CardGenVariant;
+  }
 
   // Allowed variant sets for groups of card types
   const statsVariants = new Set<CardGenVariant>([
@@ -98,52 +202,106 @@ function normalizeVariant(
     "default",
     "compact",
     "minimal",
+    "badges",
   ]);
-  const pieBarVariants = new Set<CardGenVariant>(["default", "pie", "bar"]);
+  const pieBarVariants = new Set<CardGenVariant>([
+    "default",
+    "pie",
+    "donut",
+    "bar",
+  ]);
+  const genreTagVariants = new Set<CardGenVariant>([
+    "default",
+    "pie",
+    "donut",
+    "bar",
+    "radar",
+  ]);
+  const statusPieBarVariants = pieBarVariants;
+  const scoreDistributionVariants = new Set<CardGenVariant>([
+    "default",
+    "horizontal",
+    "cumulative",
+  ]);
   const distributionVariants = new Set<CardGenVariant>([
     "default",
     "horizontal",
   ]);
 
-  switch (baseCardType) {
-    case "animeStats":
-    case "mangaStats":
-      return statsVariants.has(variant as CardGenVariant)
-        ? (variant as CardGenVariant)
-        : "default";
-    case "socialStats":
-      return socialVariants.has(variant as CardGenVariant)
-        ? (variant as CardGenVariant)
-        : "default";
-    case "animeGenres":
-    case "animeTags":
-    case "animeVoiceActors":
-    case "animeStudios":
-    case "animeStaff":
-    case "mangaGenres":
-    case "mangaTags":
-    case "mangaStaff":
-    case "animeStatusDistribution":
-    case "mangaStatusDistribution":
-    case "animeFormatDistribution":
-    case "mangaFormatDistribution":
-    case "animeCountry":
-    case "mangaCountry":
-      return pieBarVariants.has(variant as CardGenVariant)
-        ? (variant as CardGenVariant)
-        : "default";
-    case "animeScoreDistribution":
-    case "mangaScoreDistribution":
-    case "animeYearDistribution":
-    case "mangaYearDistribution":
-      return distributionVariants.has(variant as CardGenVariant)
-        ? (variant as CardGenVariant)
-        : "default";
-    default:
-      return globalVariants.has(variant as CardGenVariant)
-        ? (variant as CardGenVariant)
-        : "default";
+  const variantMap: Record<string, Set<CardGenVariant>> = {
+    animeStats: statsVariants,
+    mangaStats: statsVariants,
+    socialStats: socialVariants,
+    socialMilestones: new Set<CardGenVariant>(["default"]),
+    animeGenres: genreTagVariants,
+    animeTags: genreTagVariants,
+    animeVoiceActors: pieBarVariants,
+    animeStudios: pieBarVariants,
+    animeStaff: pieBarVariants,
+    mangaGenres: genreTagVariants,
+    mangaTags: genreTagVariants,
+    mangaStaff: pieBarVariants,
+    animeStatusDistribution: statusPieBarVariants,
+    mangaStatusDistribution: statusPieBarVariants,
+    animeFormatDistribution: pieBarVariants,
+    mangaFormatDistribution: pieBarVariants,
+    animeSourceMaterialDistribution: pieBarVariants,
+    animeSeasonalPreference: genreTagVariants,
+    animeEpisodeLengthPreferences: pieBarVariants,
+    animeGenreSynergy: new Set<CardGenVariant>(["default"]),
+    animeCountry: pieBarVariants,
+    mangaCountry: pieBarVariants,
+    animeScoreDistribution: scoreDistributionVariants,
+    mangaScoreDistribution: scoreDistributionVariants,
+    animeYearDistribution: distributionVariants,
+    mangaYearDistribution: distributionVariants,
+    profileOverview: socialVariants,
+    favoritesSummary: socialVariants,
+    activityHeatmap: new Set<CardGenVariant>(["default", "github", "fire"]),
+    recentActivitySummary: new Set<CardGenVariant>(["default"]),
+    recentActivityFeed: new Set<CardGenVariant>(["default"]),
+    activityStreaks: new Set<CardGenVariant>(["default"]),
+    topActivityDays: new Set<CardGenVariant>(["default"]),
+    statusCompletionOverview: new Set<CardGenVariant>(["combined", "split"]),
+    milestones: new Set<CardGenVariant>(["default"]),
+    personalRecords: new Set<CardGenVariant>(["default"]),
+    planningBacklog: new Set<CardGenVariant>(["default"]),
+    mostRewatched: new Set<CardGenVariant>(["default", "anime", "manga"]),
+    currentlyWatchingReading: new Set<CardGenVariant>([
+      "default",
+      "anime",
+      "manga",
+    ]),
+    animeMangaOverview: new Set<CardGenVariant>(["default"]),
+    scoreCompareAnimeManga: new Set<CardGenVariant>(["default"]),
+    countryDiversity: new Set<CardGenVariant>(["default"]),
+    genreDiversity: new Set<CardGenVariant>(["default"]),
+    formatPreferenceOverview: new Set<CardGenVariant>(["default"]),
+    releaseEraPreference: new Set<CardGenVariant>(["default"]),
+    startYearMomentum: new Set<CardGenVariant>(["default"]),
+    lengthPreference: new Set<CardGenVariant>(["default"]),
+    tagCategoryDistribution: new Set<CardGenVariant>(["default"]),
+    tagDiversity: new Set<CardGenVariant>(["default"]),
+    seasonalViewingPatterns: new Set<CardGenVariant>(["default"]),
+    droppedMedia: new Set<CardGenVariant>(["default"]),
+    reviewStats: new Set<CardGenVariant>(["default"]),
+    studioCollaboration: new Set<CardGenVariant>(["default"]),
+  };
+
+  const allowedVariants = variantMap[baseCardType!];
+  if (allowedVariants) {
+    return allowedVariants.has(variant as CardGenVariant)
+      ? (variant as CardGenVariant)
+      : "default";
   }
+
+  if (!globalVariants.has(variant as CardGenVariant)) {
+    return "default";
+  }
+
+  return globalVariants.has(variant as CardGenVariant)
+    ? (variant as CardGenVariant)
+    : "default";
 }
 
 /**
@@ -203,6 +361,16 @@ function generateStatsCard(
  * @returns A TrustedSVG with the rendered social stats card.
  * @source
  */
+function isRecord(x: unknown): x is Record<string, unknown> {
+  return x !== null && typeof x === "object";
+}
+
+function extractActivityHistory(statsRoot: unknown): ActivityHistoryItem[] {
+  if (!isRecord(statsRoot)) return [];
+  const v = statsRoot["activityHistory"];
+  return Array.isArray(v) ? (v as ActivityHistoryItem[]) : [];
+}
+
 function generateSocialStatsCard(params: CardGenerationParams) {
   const { cardConfig, userRecord, variant } = params;
   return socialStatsTemplate({
@@ -210,7 +378,37 @@ function generateSocialStatsCard(params: CardGenerationParams) {
     variant: variant as SocialVariant,
     styles: extractStyles(cardConfig),
     stats: toTemplateSocialStats(userRecord),
-    activityHistory: userRecord.stats.User.stats.activityHistory ?? [],
+    activityHistory: extractActivityHistory(userRecord.stats?.User?.stats),
+  });
+}
+
+/**
+ * Generate a social milestones card showing progress towards fixed community tiers.
+ * @source
+ */
+function generateSocialMilestonesCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+
+  const followers = userRecord.stats?.followersPage?.pageInfo?.total ?? 0;
+  const following = userRecord.stats?.followingPage?.pageInfo?.total ?? 0;
+  const threads = userRecord.stats?.threadsPage?.pageInfo?.total ?? 0;
+  const threadComments =
+    userRecord.stats?.threadCommentsPage?.pageInfo?.total ?? 0;
+  const reviews = userRecord.stats?.reviewsPage?.pageInfo?.total ?? 0;
+
+  return socialMilestonesTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as SocialCommunityVariant,
+    styles: extractStyles(cardConfig),
+    stats: {
+      followers,
+      following,
+      threads,
+      threadComments,
+      reviews,
+    },
   });
 }
 
@@ -226,23 +424,13 @@ function generateSocialStatsCard(params: CardGenerationParams) {
  * @throws {CardDataError} When required configuration or stats data are missing or the card type is unsupported.
  * @source
  */
-export function generateCardSvg(
+export async function generateCardSvg(
   cardConfig: StoredCardConfig,
   userRecord: UserRecord,
   variant: string,
   favorites?: string[],
-): TrustedSVG {
+): Promise<TrustedSVG> {
   if (!cardConfig || !userRecord?.stats) {
-    throw new CardDataError(
-      "Not Found: Missing card configuration or stats data",
-      404,
-    );
-  }
-
-  if (
-    !userRecord.stats?.User?.statistics?.anime &&
-    !userRecord.stats?.User?.statistics?.manga
-  ) {
     throw new CardDataError(
       "Not Found: Missing card configuration or stats data",
       404,
@@ -256,7 +444,36 @@ export function generateCardSvg(
     userRecord,
     variant: normalizedVariant,
     favorites,
+    favoritesGridCols:
+      typeof cardConfig.gridCols === "number" ? cardConfig.gridCols : undefined,
+    favoritesGridRows:
+      typeof cardConfig.gridRows === "number" ? cardConfig.gridRows : undefined,
   };
+
+  const comparativeDispatch: Record<
+    string,
+    (p: CardGenerationParams) => TrustedSVG
+  > = {
+    animeMangaOverview: generateAnimeMangaOverviewCard,
+    scoreCompareAnimeManga: generateScoreCompareAnimeMangaCard,
+    countryDiversity: generateCountryDiversityCard,
+    genreDiversity: generateGenreDiversityCard,
+    formatPreferenceOverview: generateFormatPreferenceOverviewCard,
+    releaseEraPreference: generateReleaseEraPreferenceCard,
+    startYearMomentum: generateStartYearMomentumCard,
+    lengthPreference: generateLengthPreferenceCard,
+    tagCategoryDistribution: generateTagCategoryDistributionCard,
+    tagDiversity: generateTagDiversityCard,
+    seasonalViewingPatterns: generateSeasonalViewingPatternsCard,
+    droppedMedia: generateDroppedMediaCard,
+    reviewStats: generateReviewStatsCard,
+    studioCollaboration: generateStudioCollaborationCard,
+  };
+
+  const comparativeGenerator = comparativeDispatch[baseCardType];
+  if (comparativeGenerator) {
+    return comparativeGenerator(params);
+  }
 
   switch (baseCardType) {
     case "animeStats":
@@ -265,6 +482,8 @@ export function generateCardSvg(
       return generateStatsCard(params, "manga");
     case "socialStats":
       return generateSocialStatsCard(params);
+    case "socialMilestones":
+      return generateSocialMilestonesCard(params);
     case "animeGenres":
     case "animeTags":
     case "animeVoiceActors":
@@ -280,6 +499,14 @@ export function generateCardSvg(
     case "animeFormatDistribution":
     case "mangaFormatDistribution":
       return generateFormatDistributionCard(params, baseCardType);
+    case "animeSourceMaterialDistribution":
+      return generateSourceMaterialDistributionCard(params);
+    case "animeSeasonalPreference":
+      return generateSeasonalPreferenceCard(params);
+    case "animeEpisodeLengthPreferences":
+      return generateEpisodeLengthPreferencesCard(params);
+    case "animeGenreSynergy":
+      return generateGenreSynergyCard(params);
     case "animeScoreDistribution":
     case "mangaScoreDistribution":
       return generateDistributionCard(params, baseCardType, "score");
@@ -289,9 +516,178 @@ export function generateCardSvg(
     case "animeCountry":
     case "mangaCountry":
       return generateCountryCard(params, baseCardType);
+    case "profileOverview":
+      return await generateProfileOverviewCard(params);
+    case "favoritesSummary":
+      return generateFavoritesSummaryCard(params);
+    case "favoritesGrid":
+      return generateFavoritesGridCard(params);
+    case "activityHeatmap":
+      return generateActivityHeatmapCard(params);
+    case "recentActivitySummary":
+      return generateRecentActivitySummaryCard(params);
+    case "recentActivityFeed":
+      return generateRecentActivityFeedCard(params);
+    case "activityStreaks":
+      return generateActivityStreaksCard(params);
+    case "topActivityDays":
+      return generateTopActivityDaysCard(params);
+    case "statusCompletionOverview":
+      return generateStatusCompletionOverviewCard(params);
+    case "milestones":
+      return generateMilestonesCard(params);
+    case "personalRecords":
+      return generatePersonalRecordsCard(params);
+    case "planningBacklog":
+      return generatePlanningBacklogCard(params);
+    case "mostRewatched":
+      return generateMostRewatchedCard(params);
+    case "currentlyWatchingReading":
+      return await generateCurrentlyWatchingReadingCard(params);
+
     default:
       throw new CardDataError("Unsupported card type", 400);
   }
+}
+
+/**
+ * Generate an Anime vs Manga Overview card.
+ * @source
+ */
+function generateAnimeMangaOverviewCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  const animeStats = userRecord.stats?.User?.statistics?.anime;
+  const mangaStats = userRecord.stats?.User?.statistics?.manga;
+
+  return animeMangaOverviewTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ComparativeVariant,
+    styles: extractStyles(cardConfig),
+    animeStats,
+    mangaStats,
+  });
+}
+
+/**
+ * Generate an Anime vs Manga Score Comparison card.
+ * @source
+ */
+function generateScoreCompareAnimeMangaCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  const animeStats = userRecord.stats?.User?.statistics?.anime;
+  const mangaStats = userRecord.stats?.User?.statistics?.manga;
+
+  return scoreCompareAnimeMangaTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ComparativeVariant,
+    styles: extractStyles(cardConfig),
+    animeStats,
+    mangaStats,
+  });
+}
+
+/**
+ * Generate a Country Diversity card.
+ * @source
+ */
+function generateCountryDiversityCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  return countryDiversityTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ComparativeVariant,
+    styles: extractStyles(cardConfig),
+    animeStats: userRecord.stats?.User?.statistics?.anime,
+    mangaStats: userRecord.stats?.User?.statistics?.manga,
+  });
+}
+
+/**
+ * Generate a Genre Diversity card.
+ * @source
+ */
+function generateGenreDiversityCard(params: CardGenerationParams): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  return genreDiversityTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ComparativeVariant,
+    styles: extractStyles(cardConfig),
+    animeStats: userRecord.stats?.User?.statistics?.anime,
+    mangaStats: userRecord.stats?.User?.statistics?.manga,
+  });
+}
+
+/**
+ * Generate a Format Preference Overview card.
+ * @source
+ */
+function generateFormatPreferenceOverviewCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  return formatPreferenceOverviewTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ComparativeVariant,
+    styles: extractStyles(cardConfig),
+    animeStats: userRecord.stats?.User?.statistics?.anime,
+    mangaStats: userRecord.stats?.User?.statistics?.manga,
+  });
+}
+
+/**
+ * Generate a Release Era Preference card.
+ * @source
+ */
+function generateReleaseEraPreferenceCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  return releaseEraPreferenceTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ComparativeVariant,
+    styles: extractStyles(cardConfig),
+    animeStats: userRecord.stats?.User?.statistics?.anime,
+    mangaStats: userRecord.stats?.User?.statistics?.manga,
+  });
+}
+
+/**
+ * Generate a Start-Year Momentum card.
+ * @source
+ */
+function generateStartYearMomentumCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  return startYearMomentumTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ComparativeVariant,
+    styles: extractStyles(cardConfig),
+    animeStats: userRecord.stats?.User?.statistics?.anime,
+    mangaStats: userRecord.stats?.User?.statistics?.manga,
+  });
+}
+
+/**
+ * Generate a Length Preference card.
+ * @source
+ */
+function generateLengthPreferenceCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  return lengthPreferenceTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ComparativeVariant,
+    styles: extractStyles(cardConfig),
+    animeStats: userRecord.stats?.User?.statistics?.anime,
+    mangaStats: userRecord.stats?.User?.statistics?.manga,
+  });
 }
 
 /**
@@ -352,7 +748,9 @@ function generateCategoryCard(
 
   return extraAnimeMangaStatsTemplate({
     username: userRecord.username ?? userRecord.userId,
-    variant: variant as "default" | "pie" | "bar",
+    variant: (["pie", "bar", "donut", "radar"].includes(variant)
+      ? variant
+      : "default") as ExtraStatsVariant,
     styles: extractStyles(cardConfig),
     format: displayNames[baseCardType],
     stats: items,
@@ -380,7 +778,10 @@ function generateStatusDistributionCard(
     "statuses",
     "status",
     "No status distribution data for this user",
-    { fixedStatusColors: !!params.cardConfig.useStatusColors },
+    {
+      // Respect statusColors/useStatusColors for all variations (pie/donut/bar/default).
+      fixedStatusColors: !!params.cardConfig.useStatusColors,
+    },
   );
 }
 
@@ -403,6 +804,128 @@ function generateFormatDistributionCard(
     "format",
     "No format distribution data for this user",
   );
+}
+
+/**
+ * Generate a Source Material Distribution card showing counts by adaptation source.
+ * Data is computed from the user's anime CURRENT + COMPLETED lists.
+ * @source
+ */
+function generateSourceMaterialDistributionCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+
+  const statsList = toTemplateAnimeSourceMaterialDistribution(userRecord);
+  if (!statsList.length) {
+    throw new CardDataError(
+      "Not Found: No source material distribution data for this user",
+      404,
+    );
+  }
+
+  const mappedVariant = (
+    ["pie", "bar", "donut"].includes(variant) ? variant : "default"
+  ) as PieBarVariant;
+
+  return animeSourceMaterialDistributionTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: mappedVariant,
+    styles: extractStyles(cardConfig),
+    stats: statsList,
+    showPieChart: mappedVariant === "pie",
+    showPiePercentages: !!cardConfig.showPiePercentages,
+  });
+}
+
+/**
+ * Generate an Anime Seasonal Preference card showing counts by release season.
+ * Data is computed from the user's anime CURRENT + COMPLETED lists.
+ * @source
+ */
+function generateSeasonalPreferenceCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+
+  const statsList = toTemplateAnimeSeasonalPreference(userRecord);
+  if (!statsList.length) {
+    throw new CardDataError(
+      "Not Found: No seasonal preference data for this user",
+      404,
+    );
+  }
+
+  const mappedVariant = (
+    ["pie", "bar", "donut", "radar"].includes(variant) ? variant : "default"
+  ) as ExtraStatsVariant;
+
+  return animeSeasonalPreferenceTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: mappedVariant,
+    styles: extractStyles(cardConfig),
+    stats: statsList,
+    showPieChart: mappedVariant === "pie",
+    showPiePercentages: !!cardConfig.showPiePercentages,
+  });
+}
+
+/**
+ * Generate an Episode Length Preferences card.
+ *
+ * Uses the user's anime statistics `lengths` and buckets into Short/Standard/Long.
+ * @source
+ */
+function generateEpisodeLengthPreferencesCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+
+  const statsList = toTemplateAnimeEpisodeLengthPreferences(userRecord);
+  if (!statsList.length) {
+    throw new CardDataError(
+      "Not Found: No episode length preference data for this user",
+      404,
+    );
+  }
+
+  const mappedVariant = (
+    ["pie", "bar", "donut"].includes(variant) ? variant : "default"
+  ) as PieBarVariant;
+
+  return animeEpisodeLengthPreferencesTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: mappedVariant,
+    styles: extractStyles(cardConfig),
+    stats: statsList,
+    showPieChart: mappedVariant === "pie",
+    showPiePercentages: !!cardConfig.showPiePercentages,
+  });
+}
+
+/**
+ * Generate an Anime Genre Synergy card showing top genre pairs.
+ *
+ * Uses pre-aggregated totals stored on the user record at write time.
+ * @source
+ */
+function generateGenreSynergyCard(params: CardGenerationParams): TrustedSVG {
+  const { cardConfig, userRecord } = params;
+
+  const statsList = toTemplateAnimeGenreSynergy(userRecord);
+  if (!statsList.length) {
+    throw new CardDataError(
+      "Not Found: No genre synergy data for this user",
+      404,
+    );
+  }
+
+  return animeGenreSynergyTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: "default",
+    styles: extractStyles(cardConfig),
+    stats: statsList,
+  });
 }
 
 /**
@@ -445,7 +968,7 @@ function generateSimpleListCard(
     throw new CardDataError(`Not Found: ${notFoundMessage}`, 404);
   }
   const mappedVariant = (
-    ["pie", "bar"].includes(variant) ? variant : "default"
+    ["pie", "bar", "donut"].includes(variant) ? variant : "default"
   ) as PieBarVariant;
   return extraAnimeMangaStatsTemplate({
     username: userRecord.username ?? userRecord.userId,
@@ -499,9 +1022,21 @@ function generateDistributionCard(
       404,
     );
   }
-  const mappedVariant = (
-    ["default", "horizontal"].includes(variant) ? variant : "default"
-  ) as DistributionVariant;
+  const isScoreDistributionVariant = (
+    v: string,
+  ): v is "default" | "horizontal" | "cumulative" =>
+    v === "default" || v === "horizontal" || v === "cumulative";
+  const isYearDistributionVariant = (
+    v: string,
+  ): v is "default" | "horizontal" => v === "default" || v === "horizontal";
+
+  let mappedVariant: DistributionVariant = "default";
+  if (kind === "score" && isScoreDistributionVariant(variant)) {
+    mappedVariant = variant;
+  }
+  if (kind === "year" && isYearDistributionVariant(variant)) {
+    mappedVariant = variant;
+  }
   return distributionTemplate({
     username: userRecord.username ?? userRecord.userId,
     mediaType: isAnime ? "anime" : "manga",
@@ -556,6 +1091,578 @@ function generateCountryCard(
     stats: list,
     showPieChart: mappedVariant === "pie",
     showPiePercentages: !!cardConfig.showPiePercentages,
+  });
+}
+
+/**
+ * Generate a Profile Overview card showing user avatar, name, and key stats.
+ * @param params - Card generation parameters and options.
+ * @returns A TrustedSVG with the rendered profile overview card.
+ * @source
+ */
+async function generateProfileOverviewCard(
+  params: CardGenerationParams,
+): Promise<TrustedSVG> {
+  const { cardConfig, userRecord, variant } = params;
+  const user = userRecord.stats?.User;
+
+  if (!user?.statistics) {
+    throw new CardDataError("Not Found: Missing user statistics", 404);
+  }
+
+  const avatarUrl = user.avatar?.large || user.avatar?.medium;
+  const avatarDataUrl = avatarUrl ? await fetchImageAsDataUrl(avatarUrl) : null;
+
+  return profileOverviewTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ProfileVariant,
+    styles: extractStyles(cardConfig),
+    statistics: user.statistics,
+    avatar: user.avatar,
+    avatarDataUrl: avatarDataUrl ?? undefined,
+    createdAt: user.createdAt,
+  });
+}
+
+/**
+ * Generate a Favourites Summary card showing counts of favorites in each category.
+ * @param params - Card generation parameters and options.
+ * @returns A TrustedSVG with the rendered favourites summary card.
+ * @source
+ */
+function generateFavoritesSummaryCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  const user = userRecord.stats?.User;
+
+  if (!user?.favourites) {
+    throw new CardDataError("Not Found: Missing user favourites data", 404);
+  }
+
+  return favoritesSummaryTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ProfileVariant,
+    styles: extractStyles(cardConfig),
+    favourites: user.favourites,
+  });
+}
+
+/**
+ * Generate a Favourites Grid card showing favourite anime/manga/characters as a grid.
+ * @param params - Card generation parameters and options.
+ * @returns A TrustedSVG with the rendered favourites grid card.
+ * @source
+ */
+async function generateFavoritesGridCard(
+  params: CardGenerationParams,
+): Promise<TrustedSVG> {
+  const { cardConfig, userRecord, variant } = params;
+  const user = userRecord.stats?.User;
+
+  if (!user?.favourites) {
+    throw new CardDataError("Not Found: Missing user favourites data", 404);
+  }
+
+  let embeddedFavourites = await embedFavoritesGridImages(
+    user.favourites,
+    variant as FavoritesGridVariant,
+    params.favoritesGridRows,
+    params.favoritesGridCols,
+  );
+
+  // Ensure staff images are embedded as data URLs when possible.
+  if (embeddedFavourites.staff?.nodes?.length) {
+    const TRANSPARENT_PNG_DATA_URL =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAAWgmWQ0AAAAASUVORK5CYII=";
+    const updatedStaffNodes = await Promise.all(
+      embeddedFavourites.staff.nodes.map(async (n) => {
+        const url = n.image?.large ?? n.image?.medium;
+        if (!url || url.startsWith("data:")) return n;
+        const dataUrl = await fetchImageAsDataUrl(url);
+        if (!dataUrl) {
+          // Fallback to a tiny transparent PNG to ensure the template receives a data URL.
+          return {
+            ...n,
+            image: {
+              large: TRANSPARENT_PNG_DATA_URL,
+              medium: TRANSPARENT_PNG_DATA_URL,
+            },
+          };
+        }
+        return { ...n, image: { large: dataUrl, medium: dataUrl } };
+      }),
+    );
+    embeddedFavourites = {
+      ...embeddedFavourites,
+      staff: {
+        ...(embeddedFavourites.staff ?? { nodes: [] }),
+        nodes: updatedStaffNodes,
+      },
+    };
+  }
+
+  return favoritesGridTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as FavoritesGridVariant,
+    styles: extractStyles(cardConfig),
+    favourites: embeddedFavourites,
+    gridCols: params.favoritesGridCols,
+    gridRows: params.favoritesGridRows,
+  });
+}
+
+/** Variant type for activity heatmap cards. @source */
+type ActivityHeatmapVariant = "default" | "github" | "fire";
+
+/** Variant type for activity summary/streaks cards. @source */
+type ActivityVariant = "default";
+
+/** Variant type for activity feed/patterns cards. @source */
+type ActivityCompactVariant = "default";
+
+/**
+ * Generate an Activity Heatmap card showing a GitHub-style calendar.
+ * @param params - Card generation parameters and options.
+ * @returns A TrustedSVG with the rendered activity heatmap card.
+ * @source
+ */
+function generateActivityHeatmapCard(params: CardGenerationParams): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  const activityHistory = extractActivityHistory(userRecord.stats?.User?.stats);
+
+  return activityHeatmapTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ActivityHeatmapVariant,
+    styles: extractStyles(cardConfig),
+    activityHistory,
+  });
+}
+
+/**
+ * Generate a Recent Activity Summary card with sparkline.
+ * @param params - Card generation parameters and options.
+ * @returns A TrustedSVG with the rendered activity summary card.
+ * @source
+ */
+function generateRecentActivitySummaryCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  const activityHistory = extractActivityHistory(userRecord.stats?.User?.stats);
+
+  return recentActivitySummaryTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ActivityVariant,
+    styles: extractStyles(cardConfig),
+    activityHistory,
+  });
+}
+
+/**
+ * Generate a Recent Activity Feed card showing recent activity entries.
+ * @param params - Card generation parameters and options.
+ * @returns A TrustedSVG with the rendered activity feed card.
+ * @source
+ */
+function generateRecentActivityFeedCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  const activityHistory = extractActivityHistory(userRecord.stats?.User?.stats);
+
+  return recentActivityFeedTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ActivityCompactVariant,
+    styles: extractStyles(cardConfig),
+    activityHistory,
+  });
+}
+
+/**
+ * Generate an Activity Streaks card showing current and longest streaks.
+ * @param params - Card generation parameters and options.
+ * @returns A TrustedSVG with the rendered activity streaks card.
+ * @source
+ */
+function generateActivityStreaksCard(params: CardGenerationParams): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  const activityHistory = extractActivityHistory(userRecord.stats?.User?.stats);
+
+  return activityStreaksTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ActivityVariant,
+    styles: extractStyles(cardConfig),
+    activityHistory,
+  });
+}
+
+/**
+ * Generate a Top Activity Days card showing days with the highest activity.
+ * @param params - Card generation parameters and options.
+ * @returns A TrustedSVG with the rendered top activity days card.
+ * @source
+ */
+function generateTopActivityDaysCard(params: CardGenerationParams): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  const activityHistory = extractActivityHistory(userRecord.stats?.User?.stats);
+
+  return topActivityDaysTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as ActivityCompactVariant,
+    styles: extractStyles(cardConfig),
+    activityHistory,
+  });
+}
+
+/**
+ * Helper to extract all entries from a MediaListCollection.
+ * @param collection - The MediaListCollection object.
+ * @returns Flattened array of MediaListEntry items.
+ * @source
+ */
+function extractMediaListEntries(
+  collection: { lists: { entries: MediaListEntry[] }[] } | undefined,
+): MediaListEntry[] {
+  if (!collection?.lists) return [];
+  return collection.lists.flatMap((list) => list.entries ?? []);
+}
+
+/**
+ * Generate a Status Completion Overview card showing cross-media completion.
+ * @param params - Card generation parameters and options.
+ * @returns A TrustedSVG with the rendered status completion overview card.
+ * @source
+ */
+function generateStatusCompletionOverviewCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  const animeStats = userRecord.stats?.User?.statistics?.anime;
+  const mangaStats = userRecord.stats?.User?.statistics?.manga;
+
+  const animeStatuses = (animeStats?.statuses ?? []).map((s) => ({
+    status: s.status,
+    count: s.count,
+  }));
+  const mangaStatuses = (mangaStats?.statuses ?? []).map((s) => ({
+    status: s.status,
+    count: s.count,
+  }));
+
+  return statusCompletionOverviewTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as StatusCompletionVariant,
+    styles: extractStyles(cardConfig),
+    animeStatuses,
+    mangaStatuses,
+  });
+}
+
+/**
+ * Generate a Milestones card celebrating consumption achievements.
+ * @param params - Card generation parameters and options.
+ * @returns A TrustedSVG with the rendered milestones card.
+ * @source
+ */
+function generateMilestonesCard(params: CardGenerationParams): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  const animeStats = userRecord.stats?.User?.statistics?.anime;
+  const mangaStats = userRecord.stats?.User?.statistics?.manga;
+
+  return milestonesTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as MilestonesVariant,
+    styles: extractStyles(cardConfig),
+    stats: {
+      animeCount: animeStats?.count,
+      episodesWatched: animeStats?.episodesWatched,
+      minutesWatched: animeStats?.minutesWatched,
+      mangaCount: mangaStats?.count,
+      chaptersRead: mangaStats?.chaptersRead,
+      volumesRead: mangaStats?.volumesRead,
+    },
+  });
+}
+
+/**
+ * Generate a Personal Records card showing user's personal bests.
+ * @param params - Card generation parameters and options.
+ * @returns A TrustedSVG with the rendered personal records card.
+ * @source
+ */
+function generatePersonalRecordsCard(params: CardGenerationParams): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+
+  const animeCompleted = extractMediaListEntries(
+    userRecord.stats?.animeCompleted,
+  );
+  const mangaCompleted = extractMediaListEntries(
+    userRecord.stats?.mangaCompleted,
+  );
+  const animeRewatched = extractMediaListEntries(
+    userRecord.stats?.animeRewatched,
+  );
+  const mangaReread = extractMediaListEntries(userRecord.stats?.mangaReread);
+
+  return personalRecordsTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as PersonalRecordsVariant,
+    styles: extractStyles(cardConfig),
+    animeCompleted,
+    mangaCompleted,
+    animeRewatched,
+    mangaReread,
+  });
+}
+
+/**
+ * Generate a Planning Backlog card showing planned titles.
+ * @param params - Card generation parameters and options.
+ * @returns A TrustedSVG with the rendered planning backlog card.
+ * @source
+ */
+function generatePlanningBacklogCard(params: CardGenerationParams): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+
+  const animePlanning = extractMediaListEntries(
+    userRecord.stats?.animePlanning,
+  );
+  const mangaPlanning = extractMediaListEntries(
+    userRecord.stats?.mangaPlanning,
+  );
+
+  return planningBacklogTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as PlanningBacklogVariant,
+    styles: extractStyles(cardConfig),
+    animePlanning,
+    mangaPlanning,
+    animeCount: userRecord.stats?.animePlanning?.count,
+    mangaCount: userRecord.stats?.mangaPlanning?.count,
+  });
+}
+
+/**
+ * Generate a Most Rewatched/Reread card showing revisited titles.
+ * @param params - Card generation parameters and options.
+ * @returns A TrustedSVG with the rendered most rewatched card.
+ * @source
+ */
+function generateMostRewatchedCard(params: CardGenerationParams): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+
+  const animeRewatched = extractMediaListEntries(
+    userRecord.stats?.animeRewatched,
+  );
+  const mangaReread = extractMediaListEntries(userRecord.stats?.mangaReread);
+
+  return mostRewatchedTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as MostRewatchedVariant,
+    styles: extractStyles(cardConfig),
+    animeRewatched,
+    mangaReread,
+    totalRewatches: userRecord.stats?.animeRewatched?.totalRepeat,
+    totalRereads: userRecord.stats?.mangaReread?.totalRepeat,
+  });
+}
+
+/**
+ * Generate a Currently Watching / Reading card showing current anime and manga.
+ * Embeds cover images as data URLs for reliable SVG rendering.
+ * @source
+ */
+async function generateCurrentlyWatchingReadingCard(
+  params: CardGenerationParams,
+): Promise<TrustedSVG> {
+  const { cardConfig, userRecord, variant } = params;
+
+  const typedVariant = variant as CurrentlyWatchingReadingVariant;
+
+  const allAnimeCurrent = extractMediaListEntries(
+    userRecord.stats?.animeCurrent,
+  );
+  const allMangaCurrent = extractMediaListEntries(
+    userRecord.stats?.mangaCurrent,
+  );
+
+  const animeCurrent = typedVariant === "manga" ? [] : allAnimeCurrent;
+  const mangaCurrent = typedVariant === "anime" ? [] : allMangaCurrent;
+
+  const MAX_ROWS = 6;
+  const animeLimit = Math.min(3, animeCurrent.length);
+  const mangaLimit = Math.min(3, mangaCurrent.length);
+  let remaining = MAX_ROWS - (animeLimit + mangaLimit);
+  const animeExtra =
+    remaining > 0
+      ? Math.min(remaining, Math.max(0, animeCurrent.length - animeLimit))
+      : 0;
+  remaining -= animeExtra;
+  const mangaExtra =
+    remaining > 0
+      ? Math.min(remaining, Math.max(0, mangaCurrent.length - mangaLimit))
+      : 0;
+
+  const animeDisplay = animeCurrent.slice(0, animeLimit + animeExtra);
+  const mangaDisplay = mangaCurrent.slice(0, mangaLimit + mangaExtra);
+
+  const embedCovers = async (
+    entries: MediaListEntry[],
+  ): Promise<MediaListEntry[]> => {
+    return Promise.all(
+      entries.map(async (entry) => {
+        const cover = entry.media.coverImage;
+        const url = cover?.large || cover?.medium;
+        if (!url) return entry;
+
+        const dataUrl = await fetchImageAsDataUrl(url);
+        if (!dataUrl) return entry;
+
+        return {
+          ...entry,
+          media: {
+            ...entry.media,
+            coverImage: {
+              ...cover,
+              large: dataUrl,
+              medium: dataUrl,
+            },
+          },
+        };
+      }),
+    );
+  };
+
+  const [embeddedAnime, embeddedManga] = await Promise.all([
+    embedCovers(animeDisplay),
+    embedCovers(mangaDisplay),
+  ]);
+
+  return currentlyWatchingReadingTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: typedVariant,
+    styles: extractStyles(cardConfig),
+    animeCurrent: embeddedAnime,
+    mangaCurrent: embeddedManga,
+    animeCount: userRecord.stats?.animeCurrent?.count,
+    mangaCount: userRecord.stats?.mangaCurrent?.count,
+  });
+}
+
+/** Variant type for user analytics cards. @source */
+type UserAnalyticsVariant = "default";
+
+/**
+ * Generate a Tag Category Distribution card.
+ * @source
+ */
+function generateTagCategoryDistributionCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+
+  return tagCategoryDistributionTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as UserAnalyticsVariant,
+    styles: extractStyles(cardConfig),
+    animeStats: userRecord.stats?.User?.statistics?.anime,
+    mangaStats: userRecord.stats?.User?.statistics?.manga,
+  });
+}
+
+/**
+ * Generate a Tag Diversity card.
+ * @source
+ */
+function generateTagDiversityCard(params: CardGenerationParams): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+
+  return tagDiversityTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as UserAnalyticsVariant,
+    styles: extractStyles(cardConfig),
+    animeStats: userRecord.stats?.User?.statistics?.anime,
+    mangaStats: userRecord.stats?.User?.statistics?.manga,
+  });
+}
+
+/**
+ * Generate a Seasonal Viewing Patterns card.
+ * @source
+ */
+function generateSeasonalViewingPatternsCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord, variant } = params;
+  const activityHistory = extractActivityHistory(userRecord.stats?.User?.stats);
+
+  return seasonalViewingPatternsTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: variant as UserAnalyticsVariant,
+    styles: extractStyles(cardConfig),
+    activityHistory,
+  });
+}
+
+/**
+ * Generate a Dropped Media card.
+ * @source
+ */
+function generateDroppedMediaCard(params: CardGenerationParams): TrustedSVG {
+  const { cardConfig, userRecord } = params;
+
+  const animeDropped = extractMediaListEntries(userRecord.stats?.animeDropped);
+  const mangaDropped = extractMediaListEntries(userRecord.stats?.mangaDropped);
+
+  return droppedMediaTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: "default",
+    styles: extractStyles(cardConfig),
+    animeDropped,
+    mangaDropped,
+  });
+}
+
+/**
+ * Generate a Review Stats card.
+ * @source
+ */
+function generateReviewStatsCard(params: CardGenerationParams): TrustedSVG {
+  const { cardConfig, userRecord } = params;
+
+  const reviews = userRecord.stats?.userReviews?.reviews;
+
+  return reviewStatsTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: "default",
+    styles: extractStyles(cardConfig),
+    reviews,
+  });
+}
+
+/**
+ * Generate a Studio Collaboration card showing top studio co-occurrence pairs.
+ * @source
+ */
+function generateStudioCollaborationCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord } = params;
+
+  const statsList = toTemplateStudioCollaboration(userRecord);
+  if (!statsList.length) {
+    throw new CardDataError(
+      "Not Found: No studio collaboration data for this user",
+      404,
+    );
+  }
+
+  return studioCollaborationTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: "default",
+    styles: extractStyles(cardConfig),
+    stats: statsList,
   });
 }
 

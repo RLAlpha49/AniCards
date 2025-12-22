@@ -1,7 +1,7 @@
 "use client";
 
 import { CardList } from "@/components/user/CardList";
-import { displayNames } from "@/components/stat-card-generator/StatCardPreview";
+import { displayNames } from "@/lib/card-data/validation";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import CTASection from "@/components/CTASection";
@@ -71,6 +71,8 @@ interface CardData {
   borderColor?: string;
   // Color preset name (if not "custom", use preset instead of individual colors)
   colorPreset?: string;
+  gridCols?: number;
+  gridRows?: number;
 }
 
 type ApiUser = { userId?: string | number; username?: string };
@@ -245,6 +247,79 @@ const parseAndValidateCards = (cardsParam: string): CardData[] => {
  * @returns JSX element for the user's stat cards page.
  * @source
  */
+
+/**
+ * Safely read a string property from a Record-like object.
+ * Returns the string value or undefined if not present or not a string.
+ */
+function getStringField(
+  obj: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const v = obj[key];
+  return typeof v === "string" ? v : undefined;
+}
+
+/**
+ * Safely read a boolean property from a Record-like object.
+ * Returns the boolean value or undefined if not present or not a boolean.
+ */
+function getBooleanField(
+  obj: Record<string, unknown>,
+  key: string,
+): boolean | undefined {
+  const v = obj[key];
+  return typeof v === "boolean" ? v : undefined;
+}
+
+/**
+ * Safely read a finite number property from a Record-like object.
+ * Returns the number value or undefined if not present or not a finite number.
+ */
+function getFiniteNumberField(
+  obj: Record<string, unknown>,
+  key: string,
+): number | undefined {
+  const v = obj[key];
+  return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+}
+
+/**
+ * Read a grid size property, clamp and truncate it to the allowed range [1, 5].
+ */
+function getGridSizeField(
+  obj: Record<string, unknown>,
+  key: string,
+): number | undefined {
+  const n = getFiniteNumberField(obj, key);
+  if (n === undefined) return undefined;
+  return Math.max(1, Math.min(5, Math.trunc(n)));
+}
+
+function normalizeCardEntry(raw: unknown): CardData | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const cardName = getStringField(r, "cardName");
+  if (!cardName) return null;
+  return {
+    cardName,
+    variation: getStringField(r, "variation"),
+    useStatusColors: getBooleanField(r, "useStatusColors"),
+    showPiePercentages: getBooleanField(r, "showPiePercentages"),
+    showFavorites: getBooleanField(r, "showFavorites"),
+    borderRadius: getFiniteNumberField(r, "borderRadius"),
+    // Color configuration
+    titleColor: getStringField(r, "titleColor"),
+    backgroundColor: getStringField(r, "backgroundColor"),
+    textColor: getStringField(r, "textColor"),
+    circleColor: getStringField(r, "circleColor"),
+    borderColor: getStringField(r, "borderColor"),
+    colorPreset: getStringField(r, "colorPreset"),
+    gridCols: getGridSizeField(r, "gridCols"),
+    gridRows: getGridSizeField(r, "gridRows"),
+  };
+}
+
 export function UserPageClient() {
   const searchParams = useSearchParams();
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -298,39 +373,6 @@ export function UserPageClient() {
   function extractValidatedCards(raw: unknown): CardData[] {
     const a = (raw as ApiCards).cards || [];
     return a.map(normalizeCardEntry).filter(Boolean) as CardData[];
-  }
-
-  function normalizeCardEntry(raw: unknown): CardData | null {
-    if (!raw || typeof raw !== "object") return null;
-    const r = raw as Record<string, unknown>;
-    if (typeof r.cardName !== "string" || !r.cardName) return null;
-    return {
-      cardName: r.cardName,
-      variation: typeof r.variation === "string" ? r.variation : undefined,
-      useStatusColors:
-        typeof r.useStatusColors === "boolean" ? r.useStatusColors : undefined,
-      showPiePercentages:
-        typeof r.showPiePercentages === "boolean"
-          ? r.showPiePercentages
-          : undefined,
-      showFavorites:
-        typeof r.showFavorites === "boolean" ? r.showFavorites : undefined,
-      borderRadius:
-        typeof r.borderRadius === "number" && Number.isFinite(r.borderRadius)
-          ? r.borderRadius
-          : undefined,
-      // Color configuration
-      titleColor: typeof r.titleColor === "string" ? r.titleColor : undefined,
-      backgroundColor:
-        typeof r.backgroundColor === "string" ? r.backgroundColor : undefined,
-      textColor: typeof r.textColor === "string" ? r.textColor : undefined,
-      circleColor:
-        typeof r.circleColor === "string" ? r.circleColor : undefined,
-      borderColor:
-        typeof r.borderColor === "string" ? r.borderColor : undefined,
-      colorPreset:
-        typeof r.colorPreset === "string" ? r.colorPreset : undefined,
-    };
   }
 
   async function resolveByParams(
@@ -515,8 +557,8 @@ export function UserPageClient() {
     // Never include individual colors in URL - let API resolve from preset or DB
     const includeColors = false;
 
-    // Only include piePercentages for pie variation
-    const isPieVariation = variation === "pie";
+    // Only include piePercentages for pie-like (pie/donut) variations
+    const isPieLikeVariation = variation === "pie" || variation === "donut";
 
     const urlParams = mapStoredConfigToCardUrlParams(
       {
@@ -531,9 +573,12 @@ export function UserPageClient() {
         borderRadius: card.borderRadius,
         showFavorites: isFavoriteCapable ? card.showFavorites : undefined,
         useStatusColors: isStatusDist ? card.useStatusColors : undefined,
-        showPiePercentages: isPieVariation
+        showPiePercentages: isPieLikeVariation
           ? card.showPiePercentages
           : undefined,
+        ...(card.cardName === "favoritesGrid"
+          ? { gridCols: card.gridCols, gridRows: card.gridRows }
+          : {}),
       },
       {
         userId: userData?.userId,
