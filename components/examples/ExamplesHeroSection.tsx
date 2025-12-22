@@ -20,6 +20,7 @@ interface HeroSectionProps {
   stats: {
     mainStats: number;
     profileFavourites: number;
+    activityTime: number;
     completionProgress: number;
     comparisons: number;
     animeBreakdowns: number;
@@ -55,6 +56,13 @@ const STAT_CATEGORIES = [
     icon: Sparkles,
     bg: "bg-teal-100 dark:bg-teal-900/30",
     text: "text-teal-600 dark:text-teal-400",
+  },
+  {
+    key: "activityTime",
+    label: "Activity & Time",
+    icon: Sparkles,
+    bg: "bg-amber-100 dark:bg-amber-900/30",
+    text: "text-amber-600 dark:text-amber-400",
   },
   {
     key: "completionProgress",

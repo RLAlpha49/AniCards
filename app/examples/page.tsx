@@ -94,6 +94,13 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
     icon: TrendingUp,
     color: "emerald",
   },
+  {
+    title: "Review Statistics",
+    description: "Overview of your review activity and ratings",
+    category: "Main Stats",
+    icon: BarChart2,
+    color: "blue",
+  },
 
   // Profile & Favourites
   {
@@ -210,6 +217,27 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
     icon: TrendingUp,
     color: "lime",
   },
+  {
+    title: "Episode Length Preferences",
+    description: "Breakdown of your preferred anime episode lengths",
+    category: "Anime Breakdowns",
+    icon: Clock,
+    color: "blue",
+  },
+  {
+    title: "Genre Synergy",
+    description: "Top genre combinations in your anime collection",
+    category: "Anime Breakdowns",
+    icon: BarChart2,
+    color: "indigo",
+  },
+  {
+    title: "Studio Collaboration",
+    description: "Most frequent studio collaborations in your collection",
+    category: "Anime Breakdowns",
+    icon: Building2,
+    color: "cyan",
+  },
 
   // Manga Breakdowns
   {
@@ -300,7 +328,7 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
     color: "amber",
   },
   {
-    title: "Activity Patterns",
+    title: "Seasonal Viewing Patterns",
     description: "Patterns by day-of-week and month to show peak times",
     category: "Activity & Time",
     icon: Calendar,
@@ -359,6 +387,13 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
     icon: Clock,
     color: "cyan",
   },
+  {
+    title: "Dropped Media",
+    description: "Overview of titles you've dropped from your list",
+    category: "Completion & Progress",
+    icon: Activity,
+    color: "rose",
+  },
 
   // Comparisons
   {
@@ -416,6 +451,20 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
     category: "Comparisons",
     icon: TrendingUp,
     color: "teal",
+  },
+  {
+    title: "Tag Category Distribution",
+    description: "Compare tag categories across anime and manga",
+    category: "Comparisons",
+    icon: PieChart,
+    color: "indigo",
+  },
+  {
+    title: "Tag Diversity",
+    description: "Compare tag diversity across anime and manga",
+    category: "Comparisons",
+    icon: PieChart,
+    color: "violet",
   },
 ];
 
@@ -556,6 +605,9 @@ export default function ExamplesPage() {
       ).length,
       profileFavourites: cardTypesWithVariants.filter(
         (c) => c.category === "Profile & Favourites",
+      ).length,
+      activityTime: cardTypesWithVariants.filter(
+        (c) => c.category === "Activity & Time",
       ).length,
       completionProgress: cardTypesWithVariants.filter(
         (c) => c.category === "Completion & Progress",

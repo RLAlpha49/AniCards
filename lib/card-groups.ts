@@ -21,6 +21,8 @@ export const VARIATION_LABEL_MAP: Record<string, string> = {
   anime: "Anime",
   manga: "Manga",
   characters: "Characters",
+  staff: "Staff",
+  studios: "Studios",
   mixed: "Mixed",
   github: "GitHub",
   fire: "Fire",
@@ -136,6 +138,16 @@ export const CARD_GROUPS: CardGroup[] = [
     variations: ["default", "horizontal"],
   },
   {
+    cardType: "animeEpisodeLengthPreferences",
+    cardTitle: "Episode Length Preferences",
+    variations: ["default", "pie", "donut", "bar"],
+  },
+  {
+    cardType: "animeGenreSynergy",
+    cardTitle: "Genre Synergy",
+    variations: ["default"],
+  },
+  {
     cardType: "mangaGenres",
     cardTitle: "Manga Genres",
     variations: ["default", "pie", "donut", "bar", "radar"],
@@ -183,17 +195,17 @@ export const CARD_GROUPS: CardGroup[] = [
   {
     cardType: "profileOverview",
     cardTitle: "Profile Overview",
-    variations: ["default", "compact", "minimal"],
+    variations: ["default"],
   },
   {
     cardType: "favoritesSummary",
     cardTitle: "Favourites Summary",
-    variations: ["default", "compact", "minimal"],
+    variations: ["default"],
   },
   {
     cardType: "favoritesGrid",
     cardTitle: "Favourites Grid",
-    variations: ["anime", "manga", "characters", "mixed"],
+    variations: ["anime", "manga", "characters", "staff", "studios", "mixed"],
   },
   {
     cardType: "activityHeatmap",
@@ -288,6 +300,36 @@ export const CARD_GROUPS: CardGroup[] = [
   {
     cardType: "lengthPreference",
     cardTitle: "Length Preference",
+    variations: ["default"],
+  },
+  {
+    cardType: "tagCategoryDistribution",
+    cardTitle: "Tag Category Distribution",
+    variations: ["default"],
+  },
+  {
+    cardType: "tagDiversity",
+    cardTitle: "Tag Diversity",
+    variations: ["default"],
+  },
+  {
+    cardType: "seasonalViewingPatterns",
+    cardTitle: "Seasonal Viewing Patterns",
+    variations: ["default"],
+  },
+  {
+    cardType: "droppedMedia",
+    cardTitle: "Dropped Media",
+    variations: ["default"],
+  },
+  {
+    cardType: "reviewStats",
+    cardTitle: "Review Statistics",
+    variations: ["default"],
+  },
+  {
+    cardType: "studioCollaboration",
+    cardTitle: "Studio Collaboration",
     variations: ["default"],
   },
 ];

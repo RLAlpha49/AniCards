@@ -280,6 +280,9 @@ function normalizeVariant(
     tagCategoryDistribution: new Set<CardGenVariant>(["default"]),
     tagDiversity: new Set<CardGenVariant>(["default"]),
     seasonalViewingPatterns: new Set<CardGenVariant>(["default"]),
+    droppedMedia: new Set<CardGenVariant>(["default"]),
+    reviewStats: new Set<CardGenVariant>(["default"]),
+    studioCollaboration: new Set<CardGenVariant>(["default"]),
   };
 
   const allowedVariants = variantMap[baseCardType!];
