@@ -165,6 +165,90 @@ async function clearFailureTracking(
 }
 
 /**
+ * Computes a recommended cron expression so that all users are refreshed at least once
+ * every 24 hours given the number of users and the number processed per run.
+ *
+ * Strategy:
+ * - runsNeeded = ceil(totalUsers / batchSize)
+ * - If runsNeeded <= 1 => run once per day ("0 0 * * *").
+ * - If runsNeeded > 1440 => impossible with this batch size, suggest every minute ("* * * * *").
+ * - Otherwise pick N = floor(1440 / runsNeeded) minutes.
+ *   - If N >= 60, convert to an hourly schedule (e.g. run at minute 0 every H hours).
+ *   - Else use a minute-based schedule (every N minutes).
+ *
+ * Returns cron expression, estimated runs/day, and approximate interval (minutes).
+ */
+function computeCronForBatch(
+  totalUsers: number,
+  batchSize: number,
+): {
+  runsNeeded: number;
+  cron: string;
+  runsPerDay: number;
+  intervalMinutes: number;
+  note?: string;
+} {
+  const runsNeeded =
+    totalUsers === 0 ? 0 : Math.max(1, Math.ceil(totalUsers / batchSize));
+
+  if (totalUsers === 0) {
+    return {
+      runsNeeded: 0,
+      cron: "0 0 * * *",
+      runsPerDay: 1,
+      intervalMinutes: 1440,
+      note: "No users",
+    };
+  }
+
+  if (runsNeeded <= 1) {
+    return {
+      runsNeeded,
+      cron: "0 0 * * *",
+      runsPerDay: 1,
+      intervalMinutes: 1440,
+    };
+  }
+
+  if (runsNeeded > 1440) {
+    return {
+      runsNeeded,
+      cron: "* * * * *",
+      runsPerDay: 1440,
+      intervalMinutes: 1,
+      note: "Cannot satisfy with this batch size; consider increasing batch size or parallelism",
+    };
+  }
+
+  const Nmin = Math.max(1, Math.floor(1440 / runsNeeded));
+  if (Nmin >= 60) {
+    const H = Math.max(1, Math.floor(Nmin / 60));
+    if (H >= 24) {
+      return {
+        runsNeeded,
+        cron: "0 0 * * *",
+        runsPerDay: 1,
+        intervalMinutes: 1440,
+      };
+    }
+    const runsPerDay = Math.ceil(24 / H);
+    const interval = Math.round(1440 / runsPerDay);
+    return {
+      runsNeeded,
+      cron: `0 */${H} * * *`,
+      runsPerDay,
+      intervalMinutes: interval,
+    };
+  } else {
+    const cron = Nmin === 1 ? "* * * * *" : `*/${Nmin} * * * *`;
+    const runsPerHour = Math.ceil(60 / Nmin);
+    const runsPerDay = runsPerHour * 24;
+    const interval = Math.round(1440 / runsPerDay);
+    return { runsNeeded, cron, runsPerDay, intervalMinutes: interval };
+  }
+}
+
+/**
  * Executes the cron job that batches AniList stat refreshes for the oldest users.
  * @param request - Incoming request which must include the cron secret header.
  * @returns Response summarizing processed, failed, and removed users.
@@ -268,6 +352,7 @@ export async function POST(request: Request) {
       "current",
       "rewatched",
       "completed",
+      "aggregates",
     ];
 
     await Promise.all(
@@ -330,15 +415,30 @@ export async function POST(request: Request) {
       `🎉 [Cron Job] Cron job completed successfully. Processed ${batch.length} users out of total ${totalUsers} users.`,
       `📊 Results: ${successfulUpdates} successful, ${failedUpdates} failed (404), ${removedUsers} removed.`,
     );
+
+    // Compute recommended cron expressions for 5 and 10 users per run
+    const recFor5 = computeCronForBatch(totalUsers, 5);
+    const recFor10 = computeCronForBatch(totalUsers, 10);
+
+    console.log(
+      `🔁 [Cron Job] Scheduling recommendation: 5/users -> ${recFor5.cron} (${recFor5.runsPerDay} runs/day, ~every ${recFor5.intervalMinutes} min).`,
+    );
+    console.log(
+      `🔁 [Cron Job] Scheduling recommendation: 10/users -> ${recFor10.cron} (${recFor10.runsPerDay} runs/day, ~every ${recFor10.intervalMinutes} min).`,
+    );
+
     const headers = apiJsonHeaders(request);
     headers["Content-Type"] = "text/plain";
-    return new Response(
+
+    const scheduleMessage = [
       `Updated ${successfulUpdates}/${batch.length} users successfully. Failed: ${failedUpdates}, Removed: ${removedUsers}`,
-      {
-        status: 200,
-        headers,
-      },
-    );
+      "",
+      `Recommended schedules to refresh all ${totalUsers} users at least once per 24 hours:`,
+      ` - Update 5 users/run: ${recFor5.cron} (${recFor5.runsPerDay} runs/day, ~every ${recFor5.intervalMinutes} min)${recFor5.note ? ` — ${recFor5.note}` : ""}`,
+      ` - Update 10 users/run: ${recFor10.cron} (${recFor10.runsPerDay} runs/day, ~every ${recFor10.intervalMinutes} min)${recFor10.note ? ` — ${recFor10.note}` : ""}`,
+    ].join("\n");
+
+    return new Response(scheduleMessage, { status: 200, headers });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.error(`🔥 [Cron Job] Cron job failed: ${error.message}`);
