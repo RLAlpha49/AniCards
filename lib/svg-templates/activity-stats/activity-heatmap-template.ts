@@ -85,6 +85,13 @@ export function activityHeatmapTemplate(data: {
   // Align to start of week (Sunday) in UTC
   startDate.setUTCDate(startDate.getUTCDate() - startDate.getUTCDay());
 
+  const gridX = 30;
+  const gridY = 60;
+  const gridStep = cellSize + cellGap;
+  const dayLabelX = gridX - 6;
+  const dayLabelBaselineOffset = cellSize - 3;
+  const monthLabelY = gridY - 10;
+
   const cells: string[] = [];
   const currentDate = new Date(startDate);
 
@@ -98,8 +105,8 @@ export function activityHeatmapTemplate(data: {
         palette,
         resolvedColors.titleColor,
       );
-      const x = 25 + week * (cellSize + cellGap);
-      const y = 55 + day * (cellSize + cellGap);
+      const x = gridX + week * gridStep;
+      const y = gridY + day * gridStep;
 
       cells.push(`
         <rect
@@ -121,12 +128,41 @@ export function activityHeatmapTemplate(data: {
     }
   }
 
+  const monthNames = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ] as const;
+
+  const monthLabels: string[] = [];
+  let prevMonth: number | undefined;
+  for (let week = 0; week < weeks; week++) {
+    const weekStart = new Date(startDate);
+    weekStart.setUTCDate(startDate.getUTCDate() + week * HEATMAP.DAYS_PER_WEEK);
+    const month = weekStart.getUTCMonth();
+    if (week === 0 || month !== prevMonth) {
+      monthLabels.push(
+        `<text x="${gridX + week * gridStep}" y="${monthLabelY}" class="month-label">${monthNames[month]}</text>`,
+      );
+      prevMonth = month;
+    }
+  }
+
   // Day labels
   const dayLabels = ["Sun", "", "Tue", "", "Thu", "", "Sat"];
   const dayLabelsSvg = dayLabels
     .map((label, i) =>
       label
-        ? `<text x="10" y="${62 + i * (cellSize + cellGap)}" class="day-label">${label}</text>`
+        ? `<text x="${dayLabelX}" y="${gridY + i * gridStep + dayLabelBaselineOffset}" class="day-label">${label}</text>`
         : "",
     )
     .join("");
@@ -156,6 +192,12 @@ export function activityHeatmapTemplate(data: {
       fill: ${resolvedColors.textColor};
       font: 400 ${TYPOGRAPHY.SMALL_TEXT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
       opacity: 0.7;
+      text-anchor: end;
+    }
+    .month-label {
+      fill: ${resolvedColors.textColor};
+      font: 400 ${TYPOGRAPHY.SMALL_TEXT_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif;
+      opacity: 0.7;
     }
     .stagger {
       opacity: 0;
@@ -179,6 +221,7 @@ export function activityHeatmapTemplate(data: {
   <g transform="translate(15, 30)">
     <text x="0" y="0" class="header">${safeTitle}</text>
   </g>
+  ${monthLabels.join("")}
   ${dayLabelsSvg}
   ${cells.join("")}
 </svg>
