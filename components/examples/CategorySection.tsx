@@ -8,6 +8,7 @@ import {
   LucideIcon,
   Users,
   Calendar,
+  TrendingUp,
 } from "lucide-react";
 import { ExampleCard } from "./ExampleCard";
 
@@ -22,13 +23,12 @@ interface CardType {
   description: string;
   variants: CardVariant[];
   category:
-    | "Main Stats"
-    | "Profile & Favourites"
-    | "Activity & Time"
-    | "Anime Breakdowns"
-    | "Manga Breakdowns"
-    | "Completion & Progress"
-    | "Comparisons";
+    | "Core Stats"
+    | "Anime Deep Dive"
+    | "Manga Deep Dive"
+    | "Activity & Engagement"
+    | "Library & Progress"
+    | "Advanced Analytics";
   icon: LucideIcon;
   color: string;
   gradient: string;
@@ -43,20 +43,18 @@ interface CategorySectionProps {
 
 const getCategoryIcon = (category: string): LucideIcon => {
   switch (category) {
-    case "Main Stats":
+    case "Core Stats":
       return BarChart2;
-    case "Profile & Favourites":
-      return Users;
-    case "Activity & Time":
-      return Calendar;
-    case "Anime Breakdowns":
+    case "Anime Deep Dive":
       return PieChart;
-    case "Manga Breakdowns":
+    case "Manga Deep Dive":
       return BookOpen;
-    case "Completion & Progress":
-      return BarChart2;
-    case "Comparisons":
-      return PieChart;
+    case "Activity & Engagement":
+      return Calendar;
+    case "Library & Progress":
+      return Users;
+    case "Advanced Analytics":
+      return TrendingUp;
     default:
       return BarChart2;
   }
@@ -64,49 +62,42 @@ const getCategoryIcon = (category: string): LucideIcon => {
 
 const getCategoryStyles = (category: string) => {
   switch (category) {
-    case "Anime Breakdowns":
+    case "Anime Deep Dive":
       return {
         bg: "bg-purple-100 dark:bg-purple-900/30",
         text: "text-purple-600 dark:text-purple-400",
         border: "border-purple-200/50 dark:border-purple-800/50",
         gradient: "from-purple-500 to-violet-500",
       };
-    case "Manga Breakdowns":
+    case "Manga Deep Dive":
       return {
         bg: "bg-pink-100 dark:bg-pink-900/30",
         text: "text-pink-600 dark:text-pink-400",
         border: "border-pink-200/50 dark:border-pink-800/50",
         gradient: "from-pink-500 to-rose-500",
       };
-    case "Profile & Favourites":
-      return {
-        bg: "bg-teal-100 dark:bg-teal-900/30",
-        text: "text-teal-600 dark:text-teal-400",
-        border: "border-teal-200/50 dark:border-teal-800/50",
-        gradient: "from-teal-500 to-emerald-500",
-      };
-    case "Activity & Time":
-      return {
-        bg: "bg-amber-100 dark:bg-amber-900/30",
-        text: "text-amber-600 dark:text-amber-400",
-        border: "border-amber-200/50 dark:border-amber-800/50",
-        gradient: "from-amber-500 to-orange-500",
-      };
-    case "Completion & Progress":
+    case "Library & Progress":
       return {
         bg: "bg-emerald-100 dark:bg-emerald-900/30",
         text: "text-emerald-600 dark:text-emerald-400",
         border: "border-emerald-200/50 dark:border-emerald-800/50",
         gradient: "from-emerald-500 to-green-500",
       };
-    case "Comparisons":
+    case "Activity & Engagement":
+      return {
+        bg: "bg-amber-100 dark:bg-amber-900/30",
+        text: "text-amber-600 dark:text-amber-400",
+        border: "border-amber-200/50 dark:border-amber-800/50",
+        gradient: "from-amber-500 to-orange-500",
+      };
+    case "Advanced Analytics":
       return {
         bg: "bg-indigo-100 dark:bg-indigo-900/30",
         text: "text-indigo-600 dark:text-indigo-400",
         border: "border-indigo-200/50 dark:border-indigo-800/50",
         gradient: "from-indigo-500 to-blue-500",
       };
-    case "Main Stats":
+    case "Core Stats":
     default:
       return {
         bg: "bg-blue-100 dark:bg-blue-900/30",

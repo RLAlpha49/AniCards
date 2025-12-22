@@ -361,93 +361,193 @@ const userAnalyticsCards = [
 ];
 
 export const statCardTypes = [
+  // Group: Core Stats
   createCardType(
     "animeStats",
-    "Main Stats",
+    "Core Stats",
     "Anime Stats (Count, Episodes Watched, Minutes Watched, Mean Score, Standard Deviation)",
     mainStatsVariations,
   ),
   createCardType(
     "mangaStats",
-    "Main Stats",
+    "Core Stats",
     "Manga Stats (Count, Chapters Read, Volumes Read, Mean Score, Standard Deviation)",
     mainStatsVariations,
   ),
   createCardType(
     "socialStats",
-    "Main Stats",
+    "Core Stats",
     "Social Stats (Total Activities, Followers, Following, Thread Posts/Comments, Reviews)",
     socialStatsVariations,
   ),
   createCardType(
-    "socialMilestones",
-    "Social & Community",
-    "Social Milestones (Followers, Following, Threads, Comments, Reviews)",
-    socialCommunityVariations,
+    "profileOverview",
+    "Core Stats",
+    "Profile Overview (Avatar + Totals)",
+    profileMainVariations,
   ),
+  createCardType(
+    "animeMangaOverview",
+    "Core Stats",
+    "Anime vs Manga Overview",
+    comparativeDefaultVariations,
+  ),
+
+  // Group: Anime Deep Dive
   ...animeBreakdownCards.map((card) =>
     createCardType(
       card.id,
-      "Anime Breakdowns",
+      "Anime Deep Dive",
       card.label,
       getAnimeBreakdownVariations(card.id),
     ),
   ),
+  createCardType(
+    "animeScoreDistribution",
+    "Anime Deep Dive",
+    "Anime Score Distribution",
+    scoreDistributionVariations,
+  ),
+  createCardType(
+    "animeYearDistribution",
+    "Anime Deep Dive",
+    "Anime Year Distribution",
+    yearDistributionVariations,
+  ),
+
+  // Group: Manga Deep Dive
   ...mangaBreakdownCards.map((card) =>
     createCardType(
       card.id,
-      "Manga Breakdowns",
+      "Manga Deep Dive",
       card.label,
       getMangaBreakdownVariations(card.id),
     ),
   ),
-  ...distributionCards.map((card) =>
-    createCardType(
-      card.id,
-      card.group,
-      card.label,
-      card.id.endsWith("ScoreDistribution")
-        ? scoreDistributionVariations
-        : yearDistributionVariations,
-    ),
+  createCardType(
+    "mangaScoreDistribution",
+    "Manga Deep Dive",
+    "Manga Score Distribution",
+    scoreDistributionVariations,
   ),
-  ...profileFavouritesCards.map((card) =>
-    createCardType(
-      card.id,
-      "Profile & Favourites",
-      card.label,
-      card.variations,
-    ),
+  createCardType(
+    "mangaYearDistribution",
+    "Manga Deep Dive",
+    "Manga Year Distribution",
+    yearDistributionVariations,
   ),
+
+  // Group: Activity & Engagement
   ...activityCards.map((card) =>
     createCardType(
       card.id,
-      "Activity & Time-Based",
+      "Activity & Engagement",
       card.label,
       card.variations,
     ),
+  ),
+  createCardType(
+    "socialMilestones",
+    "Activity & Engagement",
+    "Social Milestones (Followers, Following, Threads, Comments, Reviews)",
+    socialCommunityVariations,
+  ),
+  createCardType(
+    "reviewStats",
+    "Activity & Engagement",
+    "Review Statistics",
+    userAnalyticsDefaultVariations,
+  ),
+  createCardType(
+    "seasonalViewingPatterns",
+    "Activity & Engagement",
+    "Seasonal Viewing Patterns",
+    userAnalyticsDefaultVariations,
+  ),
+
+  // Group: Library & Progress
+  createCardType(
+    "favoritesSummary",
+    "Library & Progress",
+    "Favourites Summary",
+    profileMainVariations,
+  ),
+  createCardType(
+    "favoritesGrid",
+    "Library & Progress",
+    "Favourites Grid",
+    favoritesGridVariations,
   ),
   ...completionProgressCards.map((card) =>
-    createCardType(
-      card.id,
-      "Completion & Progress",
-      card.label,
-      card.variations,
-    ),
+    createCardType(card.id, "Library & Progress", card.label, card.variations),
   ),
-  ...comparativeDistributionCards.map((card) =>
-    createCardType(
-      card.id,
-      "Comparative & Distribution",
-      card.label,
-      card.variations,
-    ),
+  createCardType(
+    "droppedMedia",
+    "Library & Progress",
+    "Dropped Media",
+    userAnalyticsDefaultVariations,
   ),
-  ...userAnalyticsCards.map((card) =>
-    createCardType(card.id, "User Analytics", card.label, card.variations),
+
+  // Group: Advanced Analytics
+  createCardType(
+    "scoreCompareAnimeManga",
+    "Advanced Analytics",
+    "Anime vs Manga Score Comparison",
+    comparativeDefaultVariations,
   ),
-  ...studioCards.map((card) =>
-    createCardType(card.id, "Studio Stats", card.label, card.variations),
+  createCardType(
+    "countryDiversity",
+    "Advanced Analytics",
+    "Country Diversity",
+    comparativeDefaultVariations,
+  ),
+  createCardType(
+    "genreDiversity",
+    "Advanced Analytics",
+    "Genre Diversity",
+    comparativeDefaultVariations,
+  ),
+  createCardType(
+    "formatPreferenceOverview",
+    "Advanced Analytics",
+    "Format Preference Overview",
+    comparativeDefaultVariations,
+  ),
+  createCardType(
+    "releaseEraPreference",
+    "Advanced Analytics",
+    "Release Era Preference",
+    comparativeDefaultVariations,
+  ),
+  createCardType(
+    "startYearMomentum",
+    "Advanced Analytics",
+    "Start-Year Momentum",
+    comparativeDefaultVariations,
+  ),
+  createCardType(
+    "lengthPreference",
+    "Advanced Analytics",
+    "Length Preference",
+    comparativeDefaultVariations,
+  ),
+  createCardType(
+    "tagCategoryDistribution",
+    "Advanced Analytics",
+    "Tag Category Distribution",
+    userAnalyticsDefaultVariations,
+  ),
+  createCardType(
+    "tagDiversity",
+    "Advanced Analytics",
+    "Tag Diversity",
+    userAnalyticsDefaultVariations,
+  ),
+  createCardType(
+    "studioCollaboration",
+    "Advanced Analytics",
+    "Studio Collaboration (Co-Production Pairs)",
+    studioDefaultVariations,
   ),
 ];
 

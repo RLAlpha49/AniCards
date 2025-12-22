@@ -21,24 +21,15 @@ Submit your design concepts (sketches, Figma files, or detailed descriptions) an
 
 Each card has a `cardType` ID and supports one or more `variation` values.
 
-### Main Stats
+### Core Stats
 
 - **Anime Statistics** (`animeStats`) — Variations: Default, Vertical, Compact, Minimal
 - **Manga Statistics** (`mangaStats`) — Variations: Default, Vertical, Compact, Minimal
-
-### Social
-
 - **Social Statistics** (`socialStats`) — Variations: Default, Compact, Minimal, Badges
-- **Social Milestones** (`socialMilestones`) — Variations: Default
-
-### Profile & Favourites
-
 - **Profile Overview** (`profileOverview`) — Variations: Default, Compact, Minimal
-- **Favourites Summary** (`favoritesSummary`) — Variations: Default, Compact, Minimal
-- **Favourites Grid** (`favoritesGrid`) — Variations: Anime, Manga, Characters, Mixed
-  - Optional layout params: `gridCols` (1–5), `gridRows` (1–5)
+- **Anime vs Manga Overview** (`animeMangaOverview`) — Variations: Default
 
-### Anime Breakdowns
+### Anime Deep Dive
 
 - **Anime Genres** (`animeGenres`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
 - **Anime Tags** (`animeTags`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
@@ -59,7 +50,7 @@ Each card has a `cardType` ID and supports one or more `variation` values.
 - **Anime Year Distribution** (`animeYearDistribution`) — Variations: Default, Horizontal
 - **Anime Genre Synergy** (`animeGenreSynergy`) — Variations: Default
 
-### Manga Breakdowns
+### Manga Deep Dive
 
 - **Manga Genres** (`mangaGenres`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
 - **Manga Tags** (`mangaTags`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart, Radar Chart
@@ -72,26 +63,32 @@ Each card has a `cardType` ID and supports one or more `variation` values.
 - **Manga Score Distribution** (`mangaScoreDistribution`) — Variations: Default, Horizontal, Cumulative
 - **Manga Year Distribution** (`mangaYearDistribution`) — Variations: Default, Horizontal
 
-### Activity & Time
+### Activity & Engagement
 
 - **Activity Heatmap** (`activityHeatmap`) — Variations: Default, GitHub, Fire
 - **Recent Activity Summary** (`recentActivitySummary`) — Variations: Default
 - **Recent Activity Feed** (`recentActivityFeed`) — Variations: Default
 - **Activity Streaks** (`activityStreaks`) — Variations: Default
 - **Top Activity Days** (`topActivityDays`) — Variations: Default
+- **Social Milestones** (`socialMilestones`) — Variations: Default
+- **Review Statistics** (`reviewStats`) — Variations: Default
+- **Seasonal Viewing Patterns** (`seasonalViewingPatterns`) — Variations: Default
 
-### Completion & Progress
+### Library & Progress
 
+- **Favourites Summary** (`favoritesSummary`) — Variations: Default, Compact, Minimal
+- **Favourites Grid** (`favoritesGrid`) — Variations: Anime, Manga, Characters, Mixed
+  - Optional layout params: `gridCols` (1–5), `gridRows` (1–5)
 - **Status Completion Overview** (`statusCompletionOverview`) — Variations: Combined, Split
 - **Consumption Milestones** (`milestones`) — Variations: Default
 - **Personal Records** (`personalRecords`) — Variations: Default
 - **Planning Backlog** (`planningBacklog`) — Variations: Default
 - **Most Rewatched/Reread** (`mostRewatched`) — Variations: Default, Anime, Manga
 - **Currently Watching / Reading** (`currentlyWatchingReading`) — Variations: Default, Anime, Manga
+- **Dropped Media** (`droppedMedia`) — Variations: Default
 
-### Comparisons & Diversity
+### Advanced Analytics
 
-- **Anime vs Manga Overview** (`animeMangaOverview`) — Variations: Default
 - **Anime vs Manga Score Comparison** (`scoreCompareAnimeManga`) — Variations: Default
 - **Country Diversity** (`countryDiversity`) — Variations: Default
 - **Genre Diversity** (`genreDiversity`) — Variations: Default
@@ -99,14 +96,9 @@ Each card has a `cardType` ID and supports one or more `variation` values.
 - **Release Era Preference** (`releaseEraPreference`) — Variations: Default
 - **Start-Year Momentum** (`startYearMomentum`) — Variations: Default
 - **Length Preference** (`lengthPreference`) — Variations: Default
-
-### User Analytics & Misc
-
 - **Tag Category Distribution** (`tagCategoryDistribution`) — Variations: Default
 - **Tag Diversity** (`tagDiversity`) — Variations: Default
-- **Seasonal Viewing Patterns** (`seasonalViewingPatterns`) — Variations: Default
-- **Dropped Media** (`droppedMedia`) — Variations: Default
-- **Review Statistics** (`reviewStats`) — Variations: Default
+- **Studio Collaboration** (`studioCollaboration`) — Variations: Default
 
 ## 🛠️ Customization
 
