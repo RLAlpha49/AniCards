@@ -26,7 +26,7 @@ import {
  */
 export const socialStatsTemplate = (data: {
   username: string;
-  variant?: "default" | "compact" | "minimal" | "communityFootprint";
+  variant?: "default" | "compact" | "minimal" | "badges";
   styles: {
     titleColor: ColorValue;
     backgroundColor: ColorValue;
@@ -124,7 +124,7 @@ export const socialStatsTemplate = (data: {
       Total Reviews: ${escapeForXml(reviews)}
     </desc>`;
 
-  const renderCommunityFootprint = (): string => {
+  const renderBadges = (): string => {
     const items = [
       { label: "Followers", value: followers },
       { label: "Following", value: following },
@@ -243,7 +243,7 @@ export const socialStatsTemplate = (data: {
   };
 
   const renderBodyMarkup = (): string => {
-    if (variant === "communityFootprint") return renderCommunityFootprint();
+    if (variant === "badges") return renderBadges();
     return renderDefaultRows();
   };
 

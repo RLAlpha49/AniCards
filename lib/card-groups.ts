@@ -11,7 +11,7 @@ export const VARIATION_LABEL_MAP: Record<string, string> = {
   vertical: "Vertical",
   compact: "Compact",
   minimal: "Minimal",
-  communityFootprint: "Community Footprint",
+  badges: "Badges",
   pie: "Pie Chart",
   donut: "Donut Chart",
   bar: "Bar Chart",
@@ -65,7 +65,7 @@ export const CARD_GROUPS: CardGroup[] = [
   {
     cardType: "socialStats",
     cardTitle: "Social Statistics",
-    variations: ["default", "compact", "minimal", "communityFootprint"],
+    variations: ["default", "compact", "minimal", "badges"],
   },
   {
     cardType: "socialMilestones",

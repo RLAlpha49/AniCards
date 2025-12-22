@@ -1892,7 +1892,7 @@ describe("Card SVG Route", () => {
       const cardsData = createMockCardData("socialStats", "default");
       const userData = createMockUserData(542244, "testUser");
 
-      const variations = ["communityFootprint"] as const;
+      const variations = ["badges"] as const;
 
       for (const variation of variations) {
         setupSuccessfulMocks(cardsData, userData);
@@ -1913,6 +1913,28 @@ describe("Card SVG Route", () => {
         ).mock.calls.at(-1)![0];
         expect(callArgs.variant).toBe(variation);
       }
+    });
+
+    it("should accept legacy communityFootprint variation and normalize to badges", async () => {
+      const cardsData = createMockCardData("socialStats", "default");
+      const userData = createMockUserData(542244, "testUser");
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "socialStats",
+          variation: "communityFootprint",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(socialStatsTemplate).toHaveBeenCalled();
+      const callArgs = (
+        socialStatsTemplate as MockFunction<typeof socialStatsTemplate>
+      ).mock.calls.at(-1)![0];
+      expect(callArgs.variant).toBe("badges");
     });
 
     it("should fallback to default for invalid socialStats variation", async () => {

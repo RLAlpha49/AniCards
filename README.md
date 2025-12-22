@@ -28,7 +28,7 @@ Each card has a `cardType` ID and supports one or more `variation` values.
 
 ### Social
 
-- **Social Statistics** (`socialStats`) — Variations: Default, Compact, Minimal, Community Footprint
+- **Social Statistics** (`socialStats`) — Variations: Default, Compact, Minimal, Badges
 - **Social Milestones** (`socialMilestones`) — Variations: Default
 
 ### Profile & Favourites

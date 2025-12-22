@@ -87,7 +87,7 @@ type CardGenVariant =
   | "radar"
   | "compact"
   | "minimal"
-  | "communityFootprint"
+  | "badges"
   | "bar"
   | "horizontal"
   | "cumulative"
@@ -104,7 +104,7 @@ type CardGenVariant =
 /** @source */
 type StatsVariant = "default" | "vertical" | "minimal";
 /** @source */
-type SocialVariant = "default" | "compact" | "minimal" | "communityFootprint";
+type SocialVariant = "default" | "compact" | "minimal" | "badges";
 /** @source */
 type PieBarVariant = "default" | "pie" | "bar" | "donut";
 /** @source */
@@ -176,6 +176,9 @@ function normalizeVariant(
   // Default early for invalid variant types
   if (!variant || typeof variant !== "string") return "default";
 
+  // Accept legacy 'communityFootprint' variant as alias for 'badges'
+  if (variant === "communityFootprint") variant = "badges";
+
   // Handle favoritesGrid specially
   if (baseCardType === "favoritesGrid") {
     if (
@@ -199,7 +202,7 @@ function normalizeVariant(
     "default",
     "compact",
     "minimal",
-    "communityFootprint",
+    "badges",
   ]);
   const pieBarVariants = new Set<CardGenVariant>([
     "default",

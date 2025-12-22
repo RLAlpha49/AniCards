@@ -43,7 +43,7 @@ const socialStatsVariations = [
   { id: "default", label: "Default" },
   { id: "compact", label: "Compact" },
   { id: "minimal", label: "Minimal" },
-  { id: "communityFootprint", label: "Community Footprint" },
+  { id: "badges", label: "Badges" },
 ];
 
 const socialCommunityVariations = [{ id: "default", label: "Default" }];

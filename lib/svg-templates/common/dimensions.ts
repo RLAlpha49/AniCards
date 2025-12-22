@@ -9,7 +9,7 @@ export const CARD_DIMENSIONS = {
     default: { w: 280, h: 195 },
     compact: { w: 280, h: 160 },
     minimal: { w: 280, h: 130 },
-    communityFootprint: { w: 280, h: 220 },
+    badges: { w: 280, h: 220 },
   },
 
   // Social & community cards
