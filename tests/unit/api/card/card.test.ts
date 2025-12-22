@@ -851,6 +851,135 @@ describe("Card SVG Route", () => {
       });
     });
 
+    it("should render studioCollaboration using stored totals (split meta)", async () => {
+      const cardsData = createMockCardData("studioCollaboration", "default");
+
+      // Cards record is fetched via GET first.
+      sharedRedisMockGet.mockResolvedValueOnce(cardsData);
+
+      // User record is fetched via split parts (mget). Provide meta only.
+      const metaPart = JSON.stringify({
+        userId: "542244",
+        username: "testUser",
+        ip: "127.0.0.1",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        studioCollaborationTotals: [
+          { a: "Bones", b: "Madhouse", count: 3 },
+          { a: "MAPPA", b: "Wit Studio", count: 2 },
+        ],
+      });
+
+      sharedRedisMockMget.mockResolvedValueOnce([metaPart]);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "studioCollaboration",
+        }),
+      );
+
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (
+        extraAnimeMangaStatsTemplate as MockFunction<
+          typeof extraAnimeMangaStatsTemplate
+        >
+      ).mock.calls.at(-1)![0];
+
+      expect(callArgs.format).toBe("Studio Collaboration");
+      expect(callArgs.stats).toContainEqual({
+        name: "Bones + Madhouse",
+        count: 3,
+      });
+      expect(callArgs.stats).toContainEqual({
+        name: "MAPPA + Wit Studio",
+        count: 2,
+      });
+    });
+
+    it("should render studioCollaboration using completed lists", async () => {
+      const cardsData = createMockCardData("studioCollaboration", "default");
+
+      const statsPayload = {
+        User: { statistics: { anime: {} }, stats: { activityHistory: [] } },
+        followersPage: { pageInfo: { total: 0 }, followers: [] },
+        followingPage: { pageInfo: { total: 0 }, following: [] },
+        threadsPage: { pageInfo: { total: 0 }, threads: [] },
+        threadCommentsPage: { pageInfo: { total: 0 }, threadComments: [] },
+        reviewsPage: { pageInfo: { total: 0 }, reviews: [] },
+        animeCompleted: {
+          lists: [
+            {
+              name: "All",
+              entries: [
+                {
+                  id: 1,
+                  media: {
+                    id: 100,
+                    title: { romaji: "X" },
+                    startDate: { year: 2023 },
+                    studios: {
+                      nodes: [
+                        { id: 1, name: "MAPPA" },
+                        { id: 2, name: "Wit Studio" },
+                      ],
+                    },
+                  },
+                },
+                {
+                  id: 2,
+                  media: {
+                    id: 101,
+                    title: { romaji: "Y" },
+                    startDate: { year: 2022 },
+                    studios: {
+                      nodes: [
+                        { id: 3, name: "Bones" },
+                        { id: 2, name: "Wit Studio" },
+                      ],
+                    },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      const userData = createMockUserData(542244, "testUser", statsPayload);
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "studioCollaboration",
+        }),
+      );
+
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (
+        extraAnimeMangaStatsTemplate as MockFunction<
+          typeof extraAnimeMangaStatsTemplate
+        >
+      ).mock.calls.at(-1)![0];
+
+      expect(callArgs.format).toBe("Studio Collaboration");
+      expect(callArgs.stats).toContainEqual({
+        name: "MAPPA + Wit Studio",
+        count: 1,
+      });
+      expect(callArgs.stats).toContainEqual({
+        name: "Bones + Wit Studio",
+        count: 1,
+      });
+    });
+
     it("should display N/A for avg progress for manga drops with unknown chapter totals", async () => {
       const cardsData = createMockCardData("droppedMedia", "default");
 

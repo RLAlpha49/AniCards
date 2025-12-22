@@ -93,6 +93,8 @@ export function getVariantLabel(variant: string): string {
       return "Manga";
     case "characters":
       return "Characters";
+    case "studios":
+      return "Studios";
     default:
       return "Favorites";
   }

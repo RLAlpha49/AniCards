@@ -378,6 +378,12 @@ const USER_STATS_ANIME_LISTS = `
           season
           seasonYear
           averageScore
+          studios(isMain: true) {
+            nodes {
+              id
+              name
+            }
+          }
         }
       }
     }

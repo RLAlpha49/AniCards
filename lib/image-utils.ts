@@ -284,13 +284,18 @@ async function embedNonMixed(
 
 export async function embedFavoritesGridImages(
   favourites: UserFavourites,
-  variant: "anime" | "manga" | "characters" | "mixed",
+  variant: "anime" | "manga" | "characters" | "studios" | "mixed",
   gridRows?: number,
   gridCols?: number,
 ): Promise<UserFavourites> {
   const rows = clampGridDim(gridRows, 3);
   const cols = clampGridDim(gridCols, 3);
   const capacity = rows * cols;
+
+  // Studios don't have images, so return favourites as-is for that variant
+  if (variant === "studios") {
+    return favourites;
+  }
 
   if (variant !== "mixed") {
     return await embedNonMixed(favourites, capacity);

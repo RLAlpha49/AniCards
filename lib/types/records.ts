@@ -311,6 +311,9 @@ export interface MediaListEntry {
     season?: string;
     seasonYear?: number;
     genres?: string[];
+    studios?: {
+      nodes: { id: number; name: string }[];
+    };
   };
 }
 
@@ -373,6 +376,18 @@ export interface AnimeGenreSynergyTotalsEntry {
   count: number;
 }
 
+/**
+ * Stored co-occurrence totals for the Studio Collaboration card.
+ * Each entry represents an unordered pair of studios and the number of titles
+ * in which they co-occur (co-productions).
+ * @source
+ */
+export interface StudioCollaborationTotalsEntry {
+  a: string;
+  b: string;
+  count: number;
+}
+
 /** Redis user record shape used for persisting user data and stats. @source */
 export interface UserRecord {
   userId: string;
@@ -381,6 +396,7 @@ export interface UserRecord {
   animeSourceMaterialDistributionTotals?: SourceMaterialDistributionTotalsEntry[];
   animeSeasonalPreferenceTotals?: SeasonalPreferenceTotalsEntry[];
   animeGenreSynergyTotals?: AnimeGenreSynergyTotalsEntry[];
+  studioCollaborationTotals?: StudioCollaborationTotalsEntry[];
   statistics?: UserSection["statistics"];
   favourites?: UserSection["favourites"];
   pages?: {

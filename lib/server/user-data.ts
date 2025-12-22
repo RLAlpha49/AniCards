@@ -17,6 +17,7 @@ import {
   SourceMaterialDistributionTotalsEntry,
   SeasonalPreferenceTotalsEntry,
   AnimeGenreSynergyTotalsEntry,
+  StudioCollaborationTotalsEntry,
 } from "@/lib/types/records";
 
 export type UserDataPart =
@@ -45,6 +46,7 @@ interface UserMeta {
   animeSourceMaterialDistributionTotals?: SourceMaterialDistributionTotalsEntry[];
   animeSeasonalPreferenceTotals?: SeasonalPreferenceTotalsEntry[];
   animeGenreSynergyTotals?: AnimeGenreSynergyTotalsEntry[];
+  studioCollaborationTotals?: StudioCollaborationTotalsEntry[];
 }
 
 /* Helpers and defaults for extracting data from loosely-typed legacy shapes. */

@@ -58,6 +58,7 @@ const favoritesGridVariations = [
   { id: "anime", label: "Anime Grid" },
   { id: "manga", label: "Manga Grid" },
   { id: "characters", label: "Character Grid" },
+  { id: "studios", label: "Studios Grid" },
   { id: "mixed", label: "Mixed Favourites" },
 ];
 
@@ -320,6 +321,16 @@ const comparativeDistributionCards = [
 
 const userAnalyticsDefaultVariations = [{ id: "default", label: "Default" }];
 
+const studioDefaultVariations = [{ id: "default", label: "Default" }];
+
+const studioCards = [
+  {
+    id: "studioCollaboration",
+    label: "Studio Collaboration (Co-Production Pairs)",
+    variations: studioDefaultVariations,
+  },
+];
+
 const userAnalyticsCards = [
   {
     id: "tagCategoryDistribution",
@@ -433,6 +444,9 @@ export const statCardTypes = [
   ),
   ...userAnalyticsCards.map((card) =>
     createCardType(card.id, "User Analytics", card.label, card.variations),
+  ),
+  ...studioCards.map((card) =>
+    createCardType(card.id, "Studio Stats", card.label, card.variations),
   ),
 ];
 

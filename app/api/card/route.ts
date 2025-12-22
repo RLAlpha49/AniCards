@@ -90,6 +90,7 @@ const ALLOWED_CARD_TYPES = new Set([
   "seasonalViewingPatterns",
   "droppedMedia",
   "reviewStats",
+  "studioCollaboration",
 ]);
 
 /**

@@ -21,7 +21,7 @@ import { ANIMATION, TYPOGRAPHY } from "../common/constants";
  */
 export const favoritesGridTemplate = (data: {
   username: string;
-  variant?: "anime" | "manga" | "characters" | "mixed";
+  variant?: "anime" | "manga" | "characters" | "studios" | "mixed";
   styles: TemplateStyles;
   favourites: UserFavourites;
   gridCols?: number;
@@ -57,7 +57,7 @@ export const favoritesGridTemplate = (data: {
     name: string;
     image?: string;
     color?: string;
-    type: "anime" | "manga" | "character";
+    type: "anime" | "manga" | "character" | "studio";
   };
 
   type GridCell = {
@@ -98,14 +98,63 @@ export const favoritesGridTemplate = (data: {
     }));
   };
 
+  const buildStudioItems = (): GridItem[] => {
+    const studioNodes = data.favourites.studios?.nodes ?? [];
+    return studioNodes.map((n) => ({
+      id: n.id,
+      name: n.name || "Unknown",
+      image: undefined, // Studios don't have images
+      type: "studio" as const,
+    }));
+  };
+
+  /**
+   * Generate a consistent color from a string (studio name).
+   * Uses a simple hash to pick from a palette of accent colors.
+   */
+  const getStudioColor = (name: string): string => {
+    const palette = [
+      "#3b82f6", // blue
+      "#8b5cf6", // violet
+      "#ec4899", // pink
+      "#f59e0b", // amber
+      "#10b981", // emerald
+      "#ef4444", // red
+      "#06b6d4", // cyan
+      "#84cc16", // lime
+    ];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = (name.codePointAt(i) ?? 0) + ((hash << 5) - hash);
+    }
+    return palette[Math.abs(hash) % palette.length];
+  };
+
+  /**
+   * Get initials from studio name (up to 2 characters).
+   */
+  const getStudioInitials = (name: string): string => {
+    const words = name.trim().split(/\s+/);
+    if (words.length >= 2) {
+      return (words[0][0] + words[1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
+
   const takeInterleavedMixed = (
     anime: GridItem[],
     manga: GridItem[],
     characters: GridItem[],
+    studios: GridItem[],
     limit: number,
   ): GridItem[] => {
     // Round-robin across pools until we hit `limit` or all pools are empty.
-    const pools: GridItem[][] = [[...anime], [...manga], [...characters]];
+    const pools: GridItem[][] = [
+      [...anime],
+      [...manga],
+      [...characters],
+      [...studios],
+    ];
     const result: GridItem[] = [];
 
     let poolIndex = 0;
@@ -131,12 +180,15 @@ export const favoritesGridTemplate = (data: {
     gridItems = buildMangaItems().slice(0, gridCapacity);
   } else if (variant === "characters") {
     gridItems = buildCharacterItems().slice(0, gridCapacity);
+  } else if (variant === "studios") {
+    gridItems = buildStudioItems().slice(0, gridCapacity);
   } else {
     // mixed
     gridItems = takeInterleavedMixed(
       buildAnimeItems(),
       buildMangaItems(),
       buildCharacterItems(),
+      buildStudioItems(),
       gridCapacity,
     );
   }
@@ -243,6 +295,32 @@ export const favoritesGridTemplate = (data: {
           }
 
           const clipId = `clip-${item.type}-${item.id}-${i}`;
+
+          // Studios don't have images - render text-only tiles with initials
+          if (item.type === "studio") {
+            const studioColor = getStudioColor(item.name);
+            const initials = getStudioInitials(item.name);
+            return `
+          <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY - ANIMATION.STAGGER_INCREMENT + i * ANIMATION.MEDIUM_INCREMENT}ms" transform="translate(${x}, ${y})">
+            <a xlink:href="${escapeForXml(anilistUrl)}" target="_blank">
+              <rect x="0" y="0" width="${cellWidth}" height="${cellHeight - 25}" rx="4" fill="${studioColor}" opacity="0.9"/>
+              <text x="${cellWidth / 2}" y="${(cellHeight - 25) / 2 + 12}" 
+                    text-anchor="middle" 
+                    fill="white" 
+                    font-size="32" 
+                    font-weight="bold" 
+                    font-family="'Segoe UI', Ubuntu, Sans-Serif">${escapeForXml(initials)}</text>
+            </a>
+            <text class="item-name" style="font-size:${TYPOGRAPHY.LARGE_TEXT_SIZE}px" x="0" y="${cellHeight - 3}">
+              ${escapeForXml(
+                item.name.length > 15
+                  ? item.name.substring(0, 15) + "…"
+                  : item.name,
+              )}
+            </text>
+          </g>
+        `;
+          }
 
           return `
           <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY - ANIMATION.STAGGER_INCREMENT + i * ANIMATION.MEDIUM_INCREMENT}ms" transform="translate(${x}, ${y})">

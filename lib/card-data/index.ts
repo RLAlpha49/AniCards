@@ -32,6 +32,7 @@ export {
   toTemplateAnimeSeasonalPreference,
   toTemplateAnimeEpisodeLengthPreferences,
   toTemplateAnimeGenreSynergy,
+  toTemplateStudioCollaboration,
   mapCategoryItem,
   processFavorites,
   toTemplateTagCategoryDistribution,

@@ -508,6 +508,38 @@ export function toTemplateAnimeGenreSynergy(
 }
 
 /**
+ * Builds a list of top studio co-occurrence pairs for the Studio Collaboration card.
+ *
+ * Uses pre-aggregated `userRecord.studioCollaborationTotals` which is computed
+ * at write time from the full completed list.
+ *
+ * @source
+ */
+export function toTemplateStudioCollaboration(
+  userRecord: UserRecord,
+): { name: string; count: number }[] {
+  const totals = userRecord.studioCollaborationTotals;
+  if (!Array.isArray(totals) || totals.length === 0) return [];
+
+  return [...totals]
+    .filter(
+      (t) =>
+        !!t &&
+        typeof t.a === "string" &&
+        typeof t.b === "string" &&
+        typeof t.count === "number" &&
+        Number.isFinite(t.count) &&
+        t.count > 0,
+    )
+    .map((t) => ({
+      name: `${t.a} + ${t.b}`,
+      count: Math.max(0, t.count),
+    }))
+    .sort((x, y) => y.count - x.count || x.name.localeCompare(y.name))
+    .slice(0, 10);
+}
+
+/**
  * Computes the Shannon entropy (normalized to 0-1) for a set of counts.
  * Used for diversity calculations.
  * @source

@@ -38,6 +38,7 @@ import {
   droppedMediaTemplate,
   reviewStatsTemplate,
 } from "@/lib/svg-templates/user-analytics";
+import { studioCollaborationTemplate } from "@/lib/svg-templates/studio-stats";
 import { TrustedSVG } from "@/lib/types/svg";
 import {
   ActivityHistoryItem,
@@ -54,6 +55,7 @@ import {
   toTemplateAnimeSeasonalPreference,
   toTemplateAnimeEpisodeLengthPreferences,
   toTemplateAnimeGenreSynergy,
+  toTemplateStudioCollaboration,
   mapCategoryItem,
   displayNames,
   CardDataError,
@@ -92,6 +94,7 @@ type CardGenVariant =
   | "anime"
   | "manga"
   | "characters"
+  | "studios"
   | "mixed"
   | "github"
   | "fire"
@@ -121,7 +124,12 @@ type PlanningBacklogVariant = "default";
 /** @source */
 type MostRewatchedVariant = "default" | "anime" | "manga";
 /** @source */
-type FavoritesGridVariant = "anime" | "manga" | "characters" | "mixed";
+type FavoritesGridVariant =
+  | "anime"
+  | "manga"
+  | "characters"
+  | "studios"
+  | "mixed";
 /** @source */
 type ComparativeVariant = "default";
 /** @source */
@@ -169,7 +177,9 @@ function normalizeVariant(
 
   // Handle favoritesGrid specially
   if (baseCardType === "favoritesGrid") {
-    if (["anime", "manga", "characters", "mixed"].includes(variant)) {
+    if (
+      ["anime", "manga", "characters", "studios", "mixed"].includes(variant)
+    ) {
       return variant as CardGenVariant;
     }
     return "mixed" as CardGenVariant;
@@ -448,6 +458,7 @@ export async function generateCardSvg(
     seasonalViewingPatterns: generateSeasonalViewingPatternsCard,
     droppedMedia: generateDroppedMediaCard,
     reviewStats: generateReviewStatsCard,
+    studioCollaboration: generateStudioCollaborationCard,
   };
 
   const comparativeGenerator = comparativeDispatch[baseCardType];
@@ -1587,6 +1598,31 @@ function generateReviewStatsCard(params: CardGenerationParams): TrustedSVG {
     variant: "default",
     styles: extractStyles(cardConfig),
     reviews,
+  });
+}
+
+/**
+ * Generate a Studio Collaboration card showing top studio co-occurrence pairs.
+ * @source
+ */
+function generateStudioCollaborationCard(
+  params: CardGenerationParams,
+): TrustedSVG {
+  const { cardConfig, userRecord } = params;
+
+  const statsList = toTemplateStudioCollaboration(userRecord);
+  if (!statsList.length) {
+    throw new CardDataError(
+      "Not Found: No studio collaboration data for this user",
+      404,
+    );
+  }
+
+  return studioCollaborationTemplate({
+    username: userRecord.username ?? userRecord.userId,
+    variant: "default",
+    styles: extractStyles(cardConfig),
+    stats: statsList,
   });
 }
 
