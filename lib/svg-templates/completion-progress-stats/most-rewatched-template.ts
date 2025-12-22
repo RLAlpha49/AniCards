@@ -13,7 +13,11 @@ import {
   SPACING,
   TYPOGRAPHY,
 } from "@/lib/svg-templates/common/constants";
-import { getDimensions, getMediaTitle } from "./shared";
+import {
+  getDimensions,
+  getMediaTitle,
+  dedupeByMediaIdKeepHighestRepeat,
+} from "./shared";
 
 /** Most rewatched card input structure. @source */
 interface MostRewatchedInput {
@@ -39,27 +43,6 @@ interface MostRewatchedInput {
  */
 export function mostRewatchedTemplate(input: MostRewatchedInput): TrustedSVG {
   const { username, styles, variant = "default" } = input;
-
-  const dedupeByMediaIdKeepHighestRepeat = (
-    entries: MediaListEntry[],
-  ): MediaListEntry[] => {
-    const byId = new Map<number, MediaListEntry>();
-    for (const entry of entries) {
-      const mediaId = entry.media?.id;
-      if (!mediaId) continue;
-
-      const existing = byId.get(mediaId);
-      if (!existing) {
-        byId.set(mediaId, entry);
-        continue;
-      }
-
-      const existingRepeat = existing.repeat ?? 0;
-      const nextRepeat = entry.repeat ?? 0;
-      if (nextRepeat > existingRepeat) byId.set(mediaId, entry);
-    }
-    return [...byId.values()];
-  };
 
   const animeRewatched = dedupeByMediaIdKeepHighestRepeat(
     input.animeRewatched?.filter((e) => (e.repeat ?? 0) > 0) ?? [],

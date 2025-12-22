@@ -207,6 +207,32 @@ export function generateStatusLegend(
 }
 
 /**
+ * Deduplicate a list of MediaListEntry items by media.id, keeping the entry
+ * with the highest `repeat` value. Entries without a numeric `media.id`
+ * are skipped.
+ */
+export function dedupeByMediaIdKeepHighestRepeat(
+  entries: MediaListEntry[],
+): MediaListEntry[] {
+  const byId = new Map<number, MediaListEntry>();
+  for (const entry of entries ?? []) {
+    const mediaId = entry.media?.id;
+    if (!mediaId) continue;
+
+    const existing = byId.get(mediaId);
+    if (!existing) {
+      byId.set(mediaId, entry);
+      continue;
+    }
+
+    const existingRepeat = existing.repeat ?? 0;
+    const nextRepeat = entry.repeat ?? 0;
+    if (nextRepeat > existingRepeat) byId.set(mediaId, entry);
+  }
+  return [...byId.values()];
+}
+
+/**
  * Get media title with fallback.
  * @source
  */
