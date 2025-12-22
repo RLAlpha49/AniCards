@@ -22,7 +22,7 @@ import {
 
 export type UserDataPart =
   | "meta"
-  | "stats"
+  | "activity"
   | "favourites"
   | "statistics"
   | "pages"
@@ -279,7 +279,7 @@ function extractMediaListCollection(
  * This function is defensive and supports multiple legacy shapes that were
  * observed in production (flat activityHistory, flat statistics, or the
  * newer `User`-wrapped shape). The goal is to ensure each part contains the
- * expected shape (e.g., `stats` should never accidentally contain the full
+ * expected shape (e.g., `activity` should never accidentally contain the full
  * user record).
  */
 export function splitUserRecord(record: UserRecord) {
@@ -335,7 +335,7 @@ export function splitUserRecord(record: UserRecord) {
 
   return {
     meta,
-    stats: activityStats,
+    activity: activityStats,
     favourites,
     statistics,
     pages,
@@ -343,7 +343,7 @@ export function splitUserRecord(record: UserRecord) {
     current,
     rewatched,
     completed,
-  };
+  }; 
 }
 
 /**
@@ -353,7 +353,7 @@ export function reconstructUserRecord(
   parts: Partial<Record<UserDataPart, unknown>>,
 ): ReconstructedUserRecord {
   const meta = parts.meta as UserMeta | undefined;
-  const stats = parts.stats as UserSection["stats"] | undefined;
+  const activity = parts.activity as UserSection["stats"] | undefined;
   const favourites = parts.favourites as UserSection["favourites"] | undefined;
   const statistics = parts.statistics as UserSection["statistics"] | undefined;
 
@@ -406,7 +406,7 @@ export function reconstructUserRecord(
     | undefined;
 
   const userSection: UserSection = {
-    stats: stats || { activityHistory: [] },
+    stats: activity || { activityHistory: [] },
     favourites: favourites || {
       anime: { nodes: [] },
       manga: { nodes: [] },
@@ -522,7 +522,7 @@ export async function saveUserRecord(record: UserRecord): Promise<void> {
 export async function deleteUserRecord(userId: string | number): Promise<void> {
   const parts: UserDataPart[] = [
     "meta",
-    "stats",
+    "activity",
     "favourites",
     "statistics",
     "pages",
@@ -534,7 +534,7 @@ export async function deleteUserRecord(userId: string | number): Promise<void> {
   const keys = parts.map((part) => getUserDataKey(userId, part));
   keys.push(`user:${userId}`);
   await redisClient.del(...keys);
-}
+} 
 
 /**
  * Migrates a legacy user record to the new split format.
@@ -596,7 +596,7 @@ export async function fetchUserDataParts(
     });
   }
 
-  return data;
+  return data; 
 }
 
 /**
@@ -605,7 +605,7 @@ export async function fetchUserDataParts(
 export const CARD_TYPE_TO_PARTS: Record<string, UserDataPart[]> = {
   animeStats: ["meta", "statistics"],
   mangaStats: ["meta", "statistics"],
-  socialStats: ["meta", "stats", "pages"],
+  socialStats: ["meta", "activity", "pages"],
   socialMilestones: ["meta", "pages"],
   animeGenres: ["meta", "statistics"],
   animeTags: ["meta", "statistics"],
@@ -631,11 +631,11 @@ export const CARD_TYPE_TO_PARTS: Record<string, UserDataPart[]> = {
   profileOverview: ["meta", "statistics"],
   favoritesSummary: ["meta", "favourites"],
   favoritesGrid: ["meta", "favourites"],
-  activityHeatmap: ["meta", "stats"],
-  recentActivitySummary: ["meta", "stats"],
-  recentActivityFeed: ["meta", "stats"],
-  activityStreaks: ["meta", "stats"],
-  topActivityDays: ["meta", "stats"],
+  activityHeatmap: ["meta", "activity"],
+  recentActivitySummary: ["meta", "activity"],
+  recentActivityFeed: ["meta", "activity"],
+  activityStreaks: ["meta", "activity"],
+  topActivityDays: ["meta", "activity"],
   statusCompletionOverview: ["meta", "statistics"],
   milestones: ["meta", "statistics"],
   personalRecords: ["meta", "completed", "rewatched"],
@@ -653,7 +653,7 @@ export const CARD_TYPE_TO_PARTS: Record<string, UserDataPart[]> = {
   animeEpisodeLengthPreferences: ["meta", "statistics"],
   tagCategoryDistribution: ["meta", "statistics"],
   tagDiversity: ["meta", "statistics"],
-  seasonalViewingPatterns: ["meta", "stats"],
+  seasonalViewingPatterns: ["meta", "activity"],
   droppedMedia: ["meta", "completed"],
   reviewStats: ["meta", "pages"],
 };
@@ -666,7 +666,7 @@ export function getPartsForCard(cardName: string): UserDataPart[] {
   return (
     CARD_TYPE_TO_PARTS[baseCardType] || [
       "meta",
-      "stats",
+      "activity",
       "favourites",
       "statistics",
       "pages",

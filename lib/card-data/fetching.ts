@@ -84,7 +84,7 @@ export async function fetchUserDataOnly(
   try {
     const allParts: UserDataPart[] = [
       "meta",
-      "stats",
+      "activity",
       "favourites",
       "statistics",
       "pages",
@@ -92,7 +92,7 @@ export async function fetchUserDataOnly(
       "current",
       "rewatched",
       "completed",
-    ];
+    ]; 
     const userDataParts = await fetchUserDataParts(numericUserId, allParts);
 
     if (!userDataParts.meta) {
@@ -127,7 +127,7 @@ export async function fetchUserData(
     ? getPartsForCard(cardName)
     : ([
         "meta",
-        "stats",
+        "activity",
         "favourites",
         "statistics",
         "pages",

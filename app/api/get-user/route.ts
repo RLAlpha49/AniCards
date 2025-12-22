@@ -102,7 +102,7 @@ export async function GET(request: Request) {
   try {
     const allParts: UserDataPart[] = [
       "meta",
-      "stats",
+      "activity",
       "favourites",
       "statistics",
       "pages",

@@ -260,7 +260,7 @@ export async function POST(request: Request) {
 
     const allParts: UserDataPart[] = [
       "meta",
-      "stats",
+      "activity",
       "favourites",
       "statistics",
       "pages",

@@ -443,7 +443,7 @@ describe("Cron API POST Endpoint", () => {
 
       expect(sharedRedisMockDel).toHaveBeenCalledWith(
         "user:123:meta",
-        "user:123:stats",
+        "user:123:activity",
         "user:123:favourites",
         "user:123:statistics",
         "user:123:pages",
@@ -568,7 +568,7 @@ describe("Cron API POST Endpoint", () => {
       // Verify that sharedRedisMockSet was called to update user data
       // It should be called 8 times for the split parts
       expect(sharedRedisMockSet).toHaveBeenCalledWith(
-        "user:123:stats",
+        "user:123:activity",
         expect.stringContaining(JSON.stringify(mockStatsData.data)),
       );
     });

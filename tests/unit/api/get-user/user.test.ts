@@ -107,7 +107,7 @@ function mockRedisSequence(...values: Array<unknown>) {
     if (
       values.length === 1 &&
       (key.endsWith(":meta") ||
-        key.endsWith(":stats") ||
+        key.endsWith(":activity") ||
         key.endsWith(":favourites") ||
         key.endsWith(":pages"))
     ) {
