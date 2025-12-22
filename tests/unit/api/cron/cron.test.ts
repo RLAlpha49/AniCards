@@ -295,7 +295,7 @@ describe("Cron API POST Endpoint", () => {
       );
     });
 
-    it("should process only the 10 oldest users when more than ANILIST_RATE_LIMIT users exist", async () => {
+    it("should process only the 5 oldest users when more than ANILIST_RATE_LIMIT users exist", async () => {
       const userKeys = Array.from({ length: 15 }, (_, i) => `user:${i + 1}`);
       sharedRedisMockKeys.mockResolvedValueOnce(userKeys);
 
@@ -320,13 +320,13 @@ describe("Cron API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
       const text = await res.text();
-      expect(text).toContain("Updated 10/10 users successfully");
+      expect(text).toContain("Updated 5/5 users successfully");
 
       // Verify the cron recommendations are included and correct for 15 users
       expect(text).toContain("Update 5 users/run: 0 */8 * * *");
       expect(text).toContain("Update 10 users/run: 0 */12 * * *");
 
-      expect(globalThis.fetch).toHaveBeenCalledTimes(10);
+      expect(globalThis.fetch).toHaveBeenCalledTimes(5);
     });
 
     it("should sort users by updatedAt (oldest first) before selecting batch", async () => {
@@ -844,8 +844,8 @@ describe("Cron API POST Endpoint", () => {
       expect(text).toContain("Failed: 1");
     });
 
-    it("should handle processing 10 users (at rate limit) with mixed outcomes", async () => {
-      const userKeys = Array.from({ length: 10 }, (_, i) => `user:${i + 1}`);
+    it("should handle processing 5 users (at rate limit) with mixed outcomes", async () => {
+      const userKeys = Array.from({ length: 5 }, (_, i) => `user:${i + 1}`);
       sharedRedisMockKeys.mockResolvedValueOnce(userKeys);
 
       sharedRedisMockGet.mockImplementation((key: string) => {
@@ -860,7 +860,7 @@ describe("Cron API POST Endpoint", () => {
 
       globalThis.fetch = toFetchMock(
         mock().mockImplementation(
-          createMixedOutcomesFetchImplementation(["3", "7"]),
+          createMixedOutcomesFetchImplementation(["3", "5"]),
         ),
       );
 
@@ -870,7 +870,7 @@ describe("Cron API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
       const text = await res.text();
-      expect(text).toContain("Updated 8/10");
+      expect(text).toContain("Updated 3/5");
       expect(text).toContain("Failed: 2");
     });
   });
