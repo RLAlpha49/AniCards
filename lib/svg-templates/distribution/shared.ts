@@ -417,15 +417,28 @@ export function distributionTemplate(
     variant === "cumulative" && kind === "score"
       ? renderedDataBase.toSorted((a, b) => a.value - b.value)
       : renderedDataBase;
-  const maxCount = Math.max(1, ...renderedData.map((d) => d.count));
+  let maxCount = 1;
+  let hasYearGaps = false;
+
+  {
+    const n = renderedData.length;
+    for (let i = 0; i < n; i += 1) {
+      const current = renderedData[i];
+
+      if (current.count > maxCount) {
+        maxCount = current.count;
+      }
+
+      if (!hasYearGaps && kind === "year" && i < n - 1) {
+        const next = renderedData[i + 1];
+        if (next && current.value - next.value > 1) {
+          hasYearGaps = true;
+        }
+      }
+    }
+  }
 
   const showYearGaps = kind === "year";
-  const hasYearGaps =
-    showYearGaps &&
-    renderedData.some((d, i) => {
-      const next = renderedData[i + 1];
-      return next ? d.value - next.value > 1 : false;
-    });
 
   // Generate title and get dimensions
   const baseTitle =
