@@ -1,4 +1,4 @@
-import { redisClient, apiJsonHeaders } from "@/lib/api-utils";
+import { redisClient, apiJsonHeaders, scanAllKeys } from "@/lib/api-utils";
 import type { Redis as UpstashRedis } from "@upstash/redis";
 import { safeParse } from "@/lib/utils";
 
@@ -40,7 +40,7 @@ async function fetchAnalyticsData(
   redisClient: UpstashRedis,
 ): Promise<Record<string, number>> {
   const analyticsPattern = "analytics:*";
-  const analyticsKeysAll = await redisClient.keys(analyticsPattern);
+  const analyticsKeysAll = await scanAllKeys(analyticsPattern);
   const analyticsKeys = analyticsKeysAll.filter(
     (key) => key !== "analytics:reports",
   );

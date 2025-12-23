@@ -87,6 +87,33 @@ export const redisClient: Redis = new Proxy({} as Record<string, unknown>, {
   },
 }) as unknown as Redis;
 
+/**
+ * Scans all keys matching a pattern using the Redis SCAN command.
+ * This is safer and more efficient than the KEYS command for large datasets.
+ * @param pattern - The pattern to match (e.g., "user:*").
+ * @param count - The number of keys to fetch per scan iteration.
+ * @returns A promise that resolves to an array of all matching keys.
+ * @source
+ */
+export async function scanAllKeys(
+  pattern: string,
+  count: number = 1000,
+): Promise<string[]> {
+  let cursor: string | number = 0;
+  const allKeys: string[] = [];
+
+  do {
+    const [nextCursor, keys] = (await redisClient.scan(cursor, {
+      match: pattern,
+      count,
+    })) as [string | number, string[]];
+    cursor = nextCursor;
+    allKeys.push(...keys);
+  } while (cursor !== 0 && cursor !== "0");
+
+  return allKeys;
+}
+
 let _realRatelimit: Ratelimit | undefined;
 /**
  * A lazily-initialized Upstash rate limiter proxy which creates the
