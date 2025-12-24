@@ -254,7 +254,7 @@ function ensureCardConfig(
   }
   return {
     cardId,
-    enabled: true,
+    enabled: false,
     variant: "default",
     colorOverride: {
       useCustomSettings: false,
@@ -285,7 +285,7 @@ function seedMissingCardConfigs(
     didChange = true;
     next[cardId] = {
       cardId,
-      enabled: true,
+      enabled: false,
       variant: "default",
       colorOverride: { useCustomSettings: false },
       advancedSettings: {},
