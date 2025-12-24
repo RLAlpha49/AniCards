@@ -1,3 +1,5 @@
+import { ColorValue } from "./card";
+
 /** Genre bucket in anime statistics with a count of items. @source */
 export interface AnimeStatGenre {
   genre: string;
@@ -444,10 +446,10 @@ export interface StoredCardConfig {
   cardName: string;
   variation?: string;
   colorPreset?: string;
-  titleColor?: string;
-  backgroundColor?: string;
-  textColor?: string;
-  circleColor?: string;
+  titleColor?: ColorValue;
+  backgroundColor?: ColorValue;
+  textColor?: ColorValue;
+  circleColor?: ColorValue;
   borderColor?: string;
   borderRadius?: number;
   showFavorites?: boolean;
@@ -462,10 +464,10 @@ export interface StoredCardConfig {
 /** Global settings for user card configurations. @source */
 export interface GlobalCardSettings {
   colorPreset?: string;
-  titleColor?: string;
-  backgroundColor?: string;
-  textColor?: string;
-  circleColor?: string;
+  titleColor?: ColorValue;
+  backgroundColor?: ColorValue;
+  textColor?: ColorValue;
+  circleColor?: ColorValue;
   borderEnabled?: boolean;
   borderColor?: string;
   borderRadius?: number;

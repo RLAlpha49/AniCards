@@ -20,10 +20,10 @@ const DEFAULT_DEBOUNCE_MS = 1500;
  */
 interface GlobalSettingsPayload {
   colorPreset: string;
-  titleColor?: string;
-  backgroundColor?: string;
-  textColor?: string;
-  circleColor?: string;
+  titleColor?: ColorValue;
+  backgroundColor?: ColorValue;
+  textColor?: ColorValue;
+  circleColor?: ColorValue;
   borderEnabled: boolean;
   borderColor: string;
   borderRadius?: number;
@@ -84,26 +84,15 @@ function buildCardsFromState(): {
     globalBorderRadius,
   } = state;
 
-  const colorToString = (color: ColorValue): string =>
-    typeof color === "string" ? color : JSON.stringify(color);
-
   // Build global settings payload
   const shouldSendGlobalColors =
     !globalColorPreset || globalColorPreset === "custom";
   const globalSettings: GlobalSettingsPayload = {
     colorPreset: globalColorPreset,
-    titleColor: shouldSendGlobalColors
-      ? colorToString(globalColors[0])
-      : undefined,
-    backgroundColor: shouldSendGlobalColors
-      ? colorToString(globalColors[1])
-      : undefined,
-    textColor: shouldSendGlobalColors
-      ? colorToString(globalColors[2])
-      : undefined,
-    circleColor: shouldSendGlobalColors
-      ? colorToString(globalColors[3])
-      : undefined,
+    titleColor: shouldSendGlobalColors ? globalColors[0] : undefined,
+    backgroundColor: shouldSendGlobalColors ? globalColors[1] : undefined,
+    textColor: shouldSendGlobalColors ? globalColors[2] : undefined,
+    circleColor: shouldSendGlobalColors ? globalColors[3] : undefined,
     borderEnabled: globalBorderEnabled,
     borderColor: globalBorderColor,
     borderRadius: globalBorderEnabled ? globalBorderRadius : undefined,
@@ -134,18 +123,10 @@ function buildCardsFromState(): {
         cardName: config.cardId,
         variation: config.variant,
         colorPreset: effectivePreset,
-        titleColor: shouldSendColors
-          ? colorToString(effectiveColors[0])
-          : undefined,
-        backgroundColor: shouldSendColors
-          ? colorToString(effectiveColors[1])
-          : undefined,
-        textColor: shouldSendColors
-          ? colorToString(effectiveColors[2])
-          : undefined,
-        circleColor: shouldSendColors
-          ? colorToString(effectiveColors[3])
-          : undefined,
+        titleColor: shouldSendColors ? effectiveColors[0] : undefined,
+        backgroundColor: shouldSendColors ? effectiveColors[1] : undefined,
+        textColor: shouldSendColors ? effectiveColors[2] : undefined,
+        circleColor: shouldSendColors ? effectiveColors[3] : undefined,
         borderColor: config.borderColor,
         borderRadius: globalBorderEnabled ? config.borderRadius : undefined,
         useStatusColors: config.advancedSettings.useStatusColors,

@@ -98,14 +98,6 @@ export function needsCardConfigFromDb(params: {
 }
 
 /**
- * Converts a color value to string format for config storage.
- * @source
- */
-function colorToString(color: ColorValue): string {
-  return typeof color === "string" ? color : JSON.stringify(color);
-}
-
-/**
  * Applies preset colors to a card config.
  * @source
  */
@@ -113,10 +105,10 @@ function applyPresetColorsToConfig(
   config: StoredCardConfig,
   presetColors: ColorValue[],
 ): void {
-  config.titleColor = colorToString(presetColors[0]);
-  config.backgroundColor = colorToString(presetColors[1]);
-  config.textColor = colorToString(presetColors[2]);
-  config.circleColor = colorToString(presetColors[3]);
+  config.titleColor = presetColors[0];
+  config.backgroundColor = presetColors[1];
+  config.textColor = presetColors[2];
+  config.circleColor = presetColors[3];
 }
 
 /**

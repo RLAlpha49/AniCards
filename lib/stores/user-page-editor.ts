@@ -191,10 +191,10 @@ export interface ServerCardData {
   cardName: string;
   variation?: string;
   colorPreset?: string;
-  titleColor?: string;
-  backgroundColor?: string;
-  textColor?: string;
-  circleColor?: string;
+  titleColor?: ColorValue;
+  backgroundColor?: ColorValue;
+  textColor?: ColorValue;
+  circleColor?: ColorValue;
   borderColor?: string;
   borderRadius?: number;
   useStatusColors?: boolean;
@@ -212,14 +212,13 @@ export interface ServerCardData {
  */
 export interface ServerGlobalSettings {
   colorPreset?: string;
-  titleColor?: string;
-  backgroundColor?: string;
-  textColor?: string;
-  circleColor?: string;
+  titleColor?: ColorValue;
+  backgroundColor?: ColorValue;
+  textColor?: ColorValue;
+  circleColor?: ColorValue;
   borderEnabled?: boolean;
   borderColor?: string;
   borderRadius?: number;
-  // Advanced settings defaults
   useStatusColors?: boolean;
   showPiePercentages?: boolean;
   showFavorites?: boolean;
@@ -385,11 +384,14 @@ function serverCardToEditorConfig(
     const globalCircle = normalizeForCompare(globalColors[3]);
 
     const hasExplicitColorOverride =
-      (card.titleColor !== undefined && card.titleColor !== globalTitle) ||
+      (card.titleColor !== undefined &&
+        normalizeForCompare(card.titleColor) !== globalTitle) ||
       (card.backgroundColor !== undefined &&
-        card.backgroundColor !== globalBackground) ||
-      (card.textColor !== undefined && card.textColor !== globalText) ||
-      (card.circleColor !== undefined && card.circleColor !== globalCircle);
+        normalizeForCompare(card.backgroundColor) !== globalBackground) ||
+      (card.textColor !== undefined &&
+        normalizeForCompare(card.textColor) !== globalText) ||
+      (card.circleColor !== undefined &&
+        normalizeForCompare(card.circleColor) !== globalCircle);
 
     const hasPresetOverride =
       typeof card.colorPreset === "string" && card.colorPreset !== globalPreset;
