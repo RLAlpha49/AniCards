@@ -109,14 +109,14 @@ const getMangaBreakdownVariations = (cardId: string) => {
 };
 
 const animeBreakdownCards = [
-  { id: "animeGenres", label: "Anime Genres (Top 5 Count)" },
-  { id: "animeTags", label: "Anime Tags (Top 5 Count)" },
-  { id: "animeVoiceActors", label: "Anime Voice Actors (Top 5 Count)" },
-  { id: "animeStudios", label: "Anime Studios (Top 5 Count)" },
-  { id: "animeStaff", label: "Anime Staff (Top 5 Count)" },
+  { id: "animeGenres", label: "Anime Genres" },
+  { id: "animeTags", label: "Anime Tags" },
+  { id: "animeVoiceActors", label: "Anime Voice Actors" },
+  { id: "animeStudios", label: "Anime Studios" },
+  { id: "animeStaff", label: "Anime Staff" },
   {
     id: "animeStatusDistribution",
-    label: "Anime Status Distribution (Current, Completed, etc.)",
+    label: "Anime Status Distribution",
   },
   { id: "animeFormatDistribution", label: "Anime Format Distribution" },
   {
@@ -125,26 +125,26 @@ const animeBreakdownCards = [
   },
   {
     id: "animeSeasonalPreference",
-    label: "Anime Seasonal Preference (Winter/Spring/Summer/Fall)",
+    label: "Anime Seasonal Preference",
   },
   {
     id: "animeEpisodeLengthPreferences",
-    label: "Episode Length Preferences (Short/Standard/Long)",
+    label: "Episode Length Preferences",
   },
   {
     id: "animeGenreSynergy",
-    label: "Genre Synergy (Top Genre Pairs)",
+    label: "Genre Synergy",
   },
   { id: "animeCountry", label: "Anime Country" },
 ];
 
 const mangaBreakdownCards = [
-  { id: "mangaGenres", label: "Manga Genres (Top 5 Count)" },
-  { id: "mangaTags", label: "Manga Tags (Top 5 Count)" },
-  { id: "mangaStaff", label: "Manga Staff (Top 5 Count)" },
+  { id: "mangaGenres", label: "Manga Genres" },
+  { id: "mangaTags", label: "Manga Tags" },
+  { id: "mangaStaff", label: "Manga Staff" },
   {
     id: "mangaStatusDistribution",
-    label: "Manga Status Distribution (Current, Completed, etc.)",
+    label: "Manga Status Distribution",
   },
   { id: "mangaFormatDistribution", label: "Manga Format Distribution" },
   { id: "mangaCountry", label: "Manga Country" },
@@ -153,17 +153,17 @@ const mangaBreakdownCards = [
 const activityCards = [
   {
     id: "activityHeatmap",
-    label: "Activity Heatmap (GitHub-style Calendar)",
+    label: "Activity Heatmap",
     variations: activityHeatmapVariations,
   },
   {
     id: "recentActivitySummary",
-    label: "Recent Activity Summary (Totals + Sparkline)",
+    label: "Recent Activity Summary",
     variations: activityFullVariations,
   },
   {
     id: "recentActivityFeed",
-    label: "Recent Activity Feed (Daily Entries)",
+    label: "Recent Activity Feed",
     variations: activityCompactVariations,
   },
   {
@@ -173,7 +173,7 @@ const activityCards = [
   },
   {
     id: "topActivityDays",
-    label: "Top Activity Days (Highest activity days)",
+    label: "Top Activity Days",
     variations: activityCompactVariations,
   },
 ];
@@ -214,7 +214,7 @@ const completionProgressCards = [
   },
   {
     id: "personalRecords",
-    label: "Personal Records (Longest, Highest Rated, Most Rewatched)",
+    label: "Personal Records",
     variations: personalRecordsVariations,
   },
   {
@@ -245,25 +245,25 @@ export const statCardTypes = [
   createCardType(
     "animeStats",
     "Core Stats",
-    "Anime Stats (Count, Episodes Watched, Minutes Watched, Mean Score, Standard Deviation)",
+    "Anime Stats",
     mainStatsVariations,
   ),
   createCardType(
     "mangaStats",
     "Core Stats",
-    "Manga Stats (Count, Chapters Read, Volumes Read, Mean Score, Standard Deviation)",
+    "Manga Stats",
     mainStatsVariations,
   ),
   createCardType(
     "socialStats",
     "Core Stats",
-    "Social Stats (Total Activities, Followers, Following, Thread Posts/Comments, Reviews)",
+    "Social Stats",
     socialStatsVariations,
   ),
   createCardType(
     "profileOverview",
     "Core Stats",
-    "Profile Overview (Avatar + Totals)",
+    "Profile Overview",
     profileMainVariations,
   ),
   createCardType(
@@ -329,7 +329,7 @@ export const statCardTypes = [
   createCardType(
     "socialMilestones",
     "Activity & Engagement",
-    "Social Milestones (Followers, Following, Threads, Comments, Reviews)",
+    "Social Milestones",
     socialCommunityVariations,
   ),
   createCardType(
@@ -426,7 +426,7 @@ export const statCardTypes = [
   createCardType(
     "studioCollaboration",
     "Advanced Analytics",
-    "Studio Collaboration (Co-Production Pairs)",
+    "Studio Collaboration",
     studioDefaultVariations,
   ),
 ];

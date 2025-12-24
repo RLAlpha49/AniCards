@@ -15,6 +15,7 @@ import {
   Layers,
   Filter,
   ChevronDown,
+  ChevronUp,
   Sparkles,
 } from "lucide-react";
 import {
@@ -400,7 +401,7 @@ function ColorPresetSelectorComponent({
                         <motion.div
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
-                          className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-[2px]"
+                          className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/30 backdrop-blur-[2px]"
                         >
                           <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-lg dark:bg-slate-900">
                             <Check className="h-4 w-4 text-blue-600 dark:text-blue-400" />
@@ -462,8 +463,8 @@ function ColorPresetSelectorComponent({
         </TooltipProvider>
       </div>
 
-      {/* Expand Button */}
-      {visiblePresets.length < filteredPresets.length && (
+      {/* Expand/Collapse Button */}
+      {hasMorePresets && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -473,11 +474,20 @@ function ColorPresetSelectorComponent({
             variant="outline"
             size="sm"
             type="button"
-            onClick={() => setIsExpanded(true)}
+            onClick={() => setIsExpanded(!isExpanded)}
             className="gap-2 rounded-full border-slate-200/50 bg-white px-4 text-sm font-medium text-slate-600 shadow-sm hover:bg-slate-50 hover:shadow-md dark:border-slate-700/50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
           >
-            <ChevronDown className="h-4 w-4" />
-            Show all {totalPresets} presets
+            {isExpanded ? (
+              <>
+                <ChevronUp className="h-4 w-4" />
+                Show less
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-4 w-4" />
+                Show all {totalPresets} presets
+              </>
+            )}
           </Button>
         </motion.div>
       )}

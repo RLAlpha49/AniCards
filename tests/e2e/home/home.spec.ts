@@ -1,22 +1,15 @@
 import { test, expect } from "@playwright/test";
-import { GeneratorPage } from "../fixtures/test-utils";
 
 test.describe("Home page", () => {
-  test("opens generator from hero CTA", async ({ page }) => {
-    const generator = new GeneratorPage(page);
-
+  test("navigates to search from hero CTA", async ({ page }) => {
     await test.step("Open homepage", async () => {
       await page.goto("/");
     });
 
-    await test.step("Open generator via hero CTA", async () => {
+    await test.step("Navigate to search via hero CTA", async () => {
       await page.getByRole("button", { name: /create your card/i }).click();
-      await generator.waitForGeneratorOpen();
-    });
-
-    await test.step("Close generator with Escape", async () => {
-      await page.keyboard.press("Escape");
-      await expect(generator.getDialog()).not.toBeVisible();
+      await expect(page).toHaveURL(/\/search(?:\?|$)/);
+      await expect(page.getByLabel(/anilist username/i)).toBeVisible();
     });
   });
 

@@ -178,28 +178,6 @@ export const seoConfigs = {
     canonical: `${SITE_URL}/projects`,
   },
 
-  settings: {
-    title: "Settings - AniCards",
-    description:
-      "Customize your AniCards experience. Adjust theme preferences, sidebar behavior, and default card settings to personalize your stat card generation.",
-    keywords: [
-      "settings",
-      "preferences",
-      "customization",
-      "theme",
-      "configuration",
-    ],
-    canonical: `${SITE_URL}/settings`,
-  },
-
-  license: {
-    title: "License - AniCards",
-    description:
-      "View the MIT license for AniCards. Learn about the terms and conditions for using and contributing to this open-source project.",
-    keywords: ["license", "MIT", "open source", "terms", "legal"],
-    canonical: `${SITE_URL}/license`,
-  },
-
   user: {
     title: "User Stats - AniCards",
     description:

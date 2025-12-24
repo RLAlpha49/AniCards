@@ -1,4 +1,8 @@
-import { StoredCardConfig, CardsRecord } from "@/lib/types/records";
+import {
+  StoredCardConfig,
+  CardsRecord,
+  GlobalCardSettings,
+} from "@/lib/types/records";
 import type { NextResponse } from "next/server";
 import {
   incrementAnalytics,
@@ -12,7 +16,7 @@ import {
   jsonWithCors,
 } from "@/lib/api-utils";
 import { clampBorderRadius, safeParse } from "@/lib/utils";
-import { isValidCardType } from "@/lib/card-data/validation";
+import { displayNames, isValidCardType } from "@/lib/card-data/validation";
 
 /**
  * Card types that support pie variation and thus can use showPiePercentages.
@@ -44,6 +48,25 @@ const CARD_TYPES_WITH_FAVORITES = new Set([
   "animeStaff",
   "mangaStaff",
 ]);
+
+/**
+ * Cached list of supported base card types.
+ * Used to ensure stored Redis records are never empty/partial.
+ */
+const SUPPORTED_BASE_CARD_TYPES = Object.keys(displayNames);
+
+/**
+ * Ensures the stored record always contains every supported base card type.
+ * Missing card types are added as disabled.
+ */
+function ensureAllSupportedCardTypesPresent(
+  cardsMap: Map<string, StoredCardConfig>,
+): void {
+  for (const baseCardName of SUPPORTED_BASE_CARD_TYPES) {
+    if (cardsMap.has(baseCardName)) continue;
+    cardsMap.set(baseCardName, { cardName: baseCardName, disabled: true });
+  }
+}
 
 /**
  * Checks if a card type supports pie variation.
@@ -121,79 +144,116 @@ function computeBorderRadius(
 }
 
 /**
+ * Computes effective showPiePercentages value from incoming and previous values.
+ * @source
+ */
+function computeShowPiePercentages(
+  incoming: StoredCardConfig,
+  previous: StoredCardConfig | undefined,
+): boolean | undefined {
+  const shouldSave =
+    supportsPieVariation(incoming.cardName) &&
+    (incoming.variation === "pie" || incoming.variation === "donut");
+
+  if (!shouldSave) return undefined;
+
+  if (typeof incoming.showPiePercentages === "boolean") {
+    return incoming.showPiePercentages;
+  }
+  if (typeof previous?.showPiePercentages === "boolean") {
+    return previous.showPiePercentages;
+  }
+  return false;
+}
+
+/**
+ * Computes effective showFavorites value from incoming and previous values.
+ * @source
+ */
+function computeShowFavorites(
+  incoming: StoredCardConfig,
+  previous: StoredCardConfig | undefined,
+): boolean | undefined {
+  if (!CARD_TYPES_WITH_FAVORITES.has(incoming.cardName)) return undefined;
+
+  if (typeof incoming.showFavorites === "boolean") {
+    return incoming.showFavorites;
+  }
+  if (typeof previous?.showFavorites === "boolean") {
+    return previous.showFavorites;
+  }
+  return false;
+}
+
+/**
+ * Clamps a grid dimension value to valid range (1-5).
+ * @source
+ */
+function clampGridDim(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  const n = Math.trunc(value);
+  if (n < 1) return 1;
+  if (n > 5) return 5;
+  return n;
+}
+
+/**
  * Builds a StoredCardConfig from incoming card data, merging with previous if needed.
  * Only saves individual colors when colorPreset is "custom" or not set.
+ * If the card is disabled, only stores minimal data (cardName and disabled flag).
+ * If useCustomSettings is false, skips colorPreset and color fields (card references globalSettings).
  * @source
  */
 function buildCardConfig(
   incoming: StoredCardConfig,
   previous: StoredCardConfig | undefined,
+  globalBorderEnabled?: boolean,
 ): StoredCardConfig {
-  const normalizedBorderRadius = computeBorderRadius(incoming, previous);
-  const shouldSaveColors =
-    !incoming.colorPreset || incoming.colorPreset === "custom";
-
-  // Only save showPiePercentages for card types that support pie variation
-  const shouldSavePiePercentages =
-    supportsPieVariation(incoming.cardName) &&
-    (incoming.variation === "pie" || incoming.variation === "donut");
-
-  const incomingPieDefined = typeof incoming.showPiePercentages === "boolean";
-  const previousPie = previous?.showPiePercentages;
-  // Merge incoming value -> previous -> explicit default false for pie variations
-  let effectiveShowPiePercentages: boolean | undefined = undefined;
-  if (shouldSavePiePercentages) {
-    if (incomingPieDefined) {
-      effectiveShowPiePercentages = incoming.showPiePercentages;
-    } else if (typeof previousPie === "boolean") {
-      effectiveShowPiePercentages = previousPie;
-    } else {
-      effectiveShowPiePercentages = false;
-    }
+  // If card is disabled, store only minimal data
+  if (incoming.disabled === true) {
+    return {
+      cardName: incoming.cardName,
+      disabled: true,
+    };
   }
 
-  const favoritesRelevant = CARD_TYPES_WITH_FAVORITES.has(incoming.cardName);
-  const incomingFavDefined = typeof incoming.showFavorites === "boolean";
-  const previousFav = previous?.showFavorites;
-  let effectiveShowFavorites: boolean | undefined = undefined;
-  if (favoritesRelevant) {
-    if (incomingFavDefined) {
-      effectiveShowFavorites = incoming.showFavorites;
-    } else if (typeof previousFav === "boolean") {
-      effectiveShowFavorites = previousFav;
-    } else {
-      effectiveShowFavorites = false;
-    }
-  }
+  const normalizedBorderRadius = globalBorderEnabled
+    ? computeBorderRadius(incoming, previous)
+    : undefined;
 
-  const clampGridDim = (value: unknown): number | undefined => {
-    if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
-    const n = Math.trunc(value);
-    if (n < 1) return 1;
-    if (n > 5) return 5;
-    return n;
-  };
+  const useCustomSettings = incoming.useCustomSettings ?? true;
+  const shouldSaveColorData = useCustomSettings;
+  const shouldSaveIndividualColors =
+    shouldSaveColorData &&
+    (!incoming.colorPreset || incoming.colorPreset === "custom");
 
   const resolvedGridCols =
     clampGridDim(incoming.gridCols) ?? clampGridDim(previous?.gridCols);
   const resolvedGridRows =
     clampGridDim(incoming.gridRows) ?? clampGridDim(previous?.gridRows);
 
+  const effectiveBorderColor = globalBorderEnabled
+    ? incoming.borderColor
+    : undefined;
+
   return {
     cardName: incoming.cardName,
     variation: incoming.variation,
-    colorPreset: incoming.colorPreset,
-    titleColor: shouldSaveColors ? incoming.titleColor : undefined,
-    backgroundColor: shouldSaveColors ? incoming.backgroundColor : undefined,
-    textColor: shouldSaveColors ? incoming.textColor : undefined,
-    circleColor: shouldSaveColors ? incoming.circleColor : undefined,
-    borderColor: incoming.borderColor,
+    colorPreset: shouldSaveColorData ? incoming.colorPreset : undefined,
+    titleColor: shouldSaveIndividualColors ? incoming.titleColor : undefined,
+    backgroundColor: shouldSaveIndividualColors
+      ? incoming.backgroundColor
+      : undefined,
+    textColor: shouldSaveIndividualColors ? incoming.textColor : undefined,
+    circleColor: shouldSaveIndividualColors ? incoming.circleColor : undefined,
+    borderColor: effectiveBorderColor,
     borderRadius: normalizedBorderRadius,
-    showFavorites: effectiveShowFavorites,
+    showFavorites: computeShowFavorites(incoming, previous),
     useStatusColors: incoming.useStatusColors,
-    showPiePercentages: effectiveShowPiePercentages,
+    showPiePercentages: computeShowPiePercentages(incoming, previous),
     gridCols: resolvedGridCols,
     gridRows: resolvedGridRows,
+    useCustomSettings: incoming.useCustomSettings,
   };
 }
 
@@ -215,7 +275,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   try {
     const body = await request.json();
-    const { statsData, userId, cards: incomingCards } = body;
+    const { statsData, userId, cards: incomingCards, globalSettings } = body;
     console.log(
       `📝 [${endpoint}] Processing user ${userId} with ${incomingCards?.length || 0} cards`,
     );
@@ -268,15 +328,86 @@ export async function POST(request: Request): Promise<NextResponse> {
       existingCards.map((card) => [card.cardName, card]),
     );
 
+    // Determine effective borderEnabled early for use in card config building
+    // We need to check globalSettings or fallback to parsing existing data
+    let globalBorderEnabled: boolean | undefined;
+    try {
+      const existingGlobalSettingsForBorder = (
+        typeof existingData === "string"
+          ? safeParse<CardsRecord>(existingData, `${endpoint}:globalSettings`)
+          : (existingData as CardsRecord | null)
+      )?.globalSettings;
+      globalBorderEnabled =
+        globalSettings?.borderEnabled ??
+        existingGlobalSettingsForBorder?.borderEnabled;
+    } catch {
+      globalBorderEnabled = globalSettings?.borderEnabled;
+    }
+
     // Process incoming cards: update existing or add new ones
     for (const card of incomingCards as StoredCardConfig[]) {
       const previous = existingCardsMap.get(card.cardName);
-      existingCardsMap.set(card.cardName, buildCardConfig(card, previous));
+      existingCardsMap.set(
+        card.cardName,
+        buildCardConfig(card, previous, globalBorderEnabled),
+      );
     }
+
+    ensureAllSupportedCardTypesPresent(existingCardsMap);
+
+    // Process global settings: merge with existing or use new
+    let existingGlobalSettings: GlobalCardSettings | undefined;
+    try {
+      existingGlobalSettings = (
+        typeof existingData === "string"
+          ? safeParse<CardsRecord>(existingData, `${endpoint}:globalSettings`)
+          : (existingData as CardsRecord | null)
+      )?.globalSettings;
+    } catch {
+      // If parsing fails, we just don't have existing global settings
+      existingGlobalSettings = undefined;
+    }
+
+    // Determine effective borderEnabled for global settings
+    const effectiveBorderEnabled =
+      globalSettings?.borderEnabled ?? existingGlobalSettings?.borderEnabled;
+
+    // Compute borderRadius only when border is enabled
+    let effectiveBorderRadius: number | undefined;
+    if (effectiveBorderEnabled) {
+      effectiveBorderRadius =
+        typeof globalSettings?.borderRadius === "number"
+          ? clampBorderRadius(globalSettings.borderRadius)
+          : existingGlobalSettings?.borderRadius;
+    }
+
+    const effectiveBorderColor = effectiveBorderEnabled
+      ? (globalSettings.borderColor ?? existingGlobalSettings?.borderColor)
+      : undefined;
+
+    const mergedGlobalSettings: GlobalCardSettings | undefined = globalSettings
+      ? {
+          colorPreset:
+            globalSettings.colorPreset ?? existingGlobalSettings?.colorPreset,
+          titleColor:
+            globalSettings.titleColor ?? existingGlobalSettings?.titleColor,
+          backgroundColor:
+            globalSettings.backgroundColor ??
+            existingGlobalSettings?.backgroundColor,
+          textColor:
+            globalSettings.textColor ?? existingGlobalSettings?.textColor,
+          circleColor:
+            globalSettings.circleColor ?? existingGlobalSettings?.circleColor,
+          borderEnabled: effectiveBorderEnabled,
+          borderColor: effectiveBorderColor,
+          borderRadius: effectiveBorderRadius,
+        }
+      : existingGlobalSettings;
 
     const cardData: CardsRecord = {
       userId,
       cards: Array.from(existingCardsMap.values()),
+      globalSettings: mergedGlobalSettings,
       updatedAt: new Date().toISOString(),
     };
 

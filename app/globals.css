@@ -1,3 +1,5 @@
+@import "katex/dist/katex.min.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -181,4 +183,62 @@ body {
 .dark .custom-scrollbar-thumb:hover,
 .dark .custom-scrollbar-thumb.dragging {
   background: hsl(var(--muted-foreground) / 0.6);
+}
+
+/* Re-enable visible scrollbars for specific scroll containers (e.g., modal content). */
+.show-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.55) transparent;
+}
+
+.show-scrollbar::-webkit-scrollbar {
+  display: block;
+  width: 12px;
+}
+
+.show-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.show-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.35);
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+.show-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.55);
+  background-clip: content-box;
+}
+
+.overlay-scrollbar {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-gutter: auto;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.55) transparent;
+}
+
+.overlay-scrollbar::-webkit-scrollbar {
+  display: block;
+  width: 8px;
+  position: absolute;
+}
+
+.overlay-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.overlay-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.35);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.overlay-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.55);
+  background-clip: content-box;
 }

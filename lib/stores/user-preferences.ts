@@ -9,8 +9,6 @@ import { createBackwardCompatibleStorage } from "@/lib/stores/storage-adapter";
 export interface UserPreferencesState {
   /** Whether the sidebar should default to open */
   sidebarDefaultOpen: boolean;
-  /** Pre-filled username for card generation */
-  defaultUsername: string;
 }
 
 /**
@@ -20,10 +18,6 @@ export interface UserPreferencesState {
 export interface UserPreferencesActions {
   /** Update sidebar default open preference */
   setSidebarDefaultOpen: (value: boolean) => void;
-  /** Update default username */
-  setDefaultUsername: (value: string) => void;
-  /** Reset all user preferences to defaults */
-  resetUserPreferences: () => void;
 }
 
 /** Combined store type for user preferences */
@@ -37,7 +31,6 @@ const APP_PREFIX = "anicards-";
  */
 const defaultState: UserPreferencesState = {
   sidebarDefaultOpen: false,
-  defaultUsername: "",
 };
 
 const customStorage = createJSONStorage<UserPreferencesStore>(() =>
@@ -101,14 +94,6 @@ export const useUserPreferences = create<UserPreferencesStore>()(
 
         setSidebarDefaultOpen: (value: boolean) => {
           set({ sidebarDefaultOpen: value }, false, "setSidebarDefaultOpen");
-        },
-
-        setDefaultUsername: (value: string) => {
-          set({ defaultUsername: value }, false, "setDefaultUsername");
-        },
-
-        resetUserPreferences: () => {
-          set(defaultState, false, "resetUserPreferences");
         },
       }),
       {

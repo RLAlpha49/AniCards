@@ -442,7 +442,7 @@ export type ReconstructedUserRecord = UserRecord & {
 /** Stored card configuration shape persisted in user-card records. @source */
 export interface StoredCardConfig {
   cardName: string;
-  variation: string;
+  variation?: string;
   colorPreset?: string;
   titleColor?: string;
   backgroundColor?: string;
@@ -455,11 +455,26 @@ export interface StoredCardConfig {
   showPiePercentages?: boolean;
   gridCols?: number;
   gridRows?: number;
+  useCustomSettings?: boolean;
+  disabled?: boolean;
+}
+
+/** Global settings for user card configurations. @source */
+export interface GlobalCardSettings {
+  colorPreset?: string;
+  titleColor?: string;
+  backgroundColor?: string;
+  textColor?: string;
+  circleColor?: string;
+  borderEnabled?: boolean;
+  borderColor?: string;
+  borderRadius?: number;
 }
 
 /** Cards record in storage containing a userId, a list of stored card configs and update timestamp. @source */
 export interface CardsRecord {
   userId: number;
   cards: StoredCardConfig[];
+  globalSettings?: GlobalCardSettings;
   updatedAt: string;
 }

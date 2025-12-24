@@ -1,13 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
+import { useRouter } from "next/navigation";
 import PageShell from "@/components/PageShell";
-import { StatCardGenerator } from "@/components/StatCardGenerator";
-import {
-  trackButtonClick,
-  trackDialogOpen,
-  safeTrack,
-} from "@/lib/utils/google-analytics";
+import { trackButtonClick, safeTrack } from "@/lib/utils/google-analytics";
 import { HeroSection } from "@/components/home/HeroSection";
 import { PreviewShowcase } from "@/components/home/PreviewShowcase";
 import { FeaturesSection } from "@/components/home/FeaturesSection";
@@ -18,18 +14,16 @@ import { motion } from "framer-motion";
 
 /**
  * Renders the AniCards landing page with hero, preview showcase, features,
- * and final call-to-action sections. Exposes the stat card generator modal.
+ * and final call-to-action sections. Directs users to the search page to get started.
  * @source
  */
 export default function HomePage() {
-  const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
+  const router = useRouter();
 
   const handleGetStartedClick = useCallback(() => {
-    setIsGeneratorOpen(true);
-
     safeTrack(() => trackButtonClick("get_started", "homepage"));
-    safeTrack(() => trackDialogOpen("stat_card_generator"));
-  }, []);
+    router.push("/search");
+  }, [router]);
 
   const handleSeeExamplesClick = useCallback(() => {
     document.getElementById("preview-showcase")?.scrollIntoView({
@@ -40,10 +34,7 @@ export default function HomePage() {
   }, []);
 
   return (
-    <ErrorBoundary
-      resetKeys={[isGeneratorOpen ? "generator_open" : "generator_closed"]}
-      onReset={() => setIsGeneratorOpen(false)}
-    >
+    <ErrorBoundary>
       <PageShell
         heroContent={
           <HeroSection
@@ -118,14 +109,6 @@ export default function HomePage() {
             </motion.div>
           </div>
         </section>
-
-        <StatCardGenerator
-          isOpen={isGeneratorOpen}
-          onOpenChange={(open) => setIsGeneratorOpen(open)}
-          className={`transition-opacity duration-300 ${
-            isGeneratorOpen ? "opacity-100" : "opacity-0"
-          }`}
-        />
       </PageShell>
     </ErrorBoundary>
   );

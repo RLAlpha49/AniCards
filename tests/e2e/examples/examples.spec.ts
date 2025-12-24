@@ -1,5 +1,4 @@
 import { test, expect } from "@playwright/test";
-import { GeneratorPage } from "../fixtures/test-utils";
 
 test.describe("Examples gallery", () => {
   test.beforeEach(async ({ page }) => {
@@ -36,17 +35,14 @@ test.describe("Examples gallery", () => {
     expect(filteredCount).toBeGreaterThan(0);
   });
 
-  test("opens generator from examples CTA", async ({ page }) => {
-    const generator = new GeneratorPage(page);
-
-    await test.step("Open generator from CTA", async () => {
-      await page.getByRole("button", { name: /create your cards/i }).click();
-      await generator.waitForGeneratorOpen();
-    });
-
-    await test.step("Dismiss generator", async () => {
-      await page.keyboard.press("Escape");
-      await expect(generator.getDialog()).not.toBeVisible();
+  test("navigates to search from examples CTA", async ({ page }) => {
+    await test.step("Navigate to search from CTA", async () => {
+      await page
+        .getByRole("button", { name: /create your cards/i })
+        .first()
+        .click();
+      await expect(page).toHaveURL(/\/search(?:\?|$)/);
+      await expect(page.getByLabel(/anilist username/i)).toBeVisible();
     });
   });
 });

@@ -37,7 +37,7 @@ interface CardType {
 interface CategorySectionProps {
   category: string;
   cardTypes: CardType[];
-  onOpenGenerator: () => void;
+  onStartCreating: () => void;
   isFirstCategory: boolean;
 }
 
@@ -111,7 +111,7 @@ const getCategoryStyles = (category: string) => {
 export function CategorySection({
   category,
   cardTypes,
-  onOpenGenerator,
+  onStartCreating,
   isFirstCategory,
 }: Readonly<CategorySectionProps>) {
   if (cardTypes.length === 0) return null;
@@ -187,7 +187,7 @@ export function CategorySection({
                   variant={variant}
                   cardTypeTitle={cardType.title}
                   gradient={cardType.gradient}
-                  onOpenGenerator={onOpenGenerator}
+                  onStartCreating={onStartCreating}
                   index={variantIndex}
                 />
               ))}

@@ -6,9 +6,24 @@ import { CardDataError, getFavoritesForCardType } from "./validation";
 
 /**
  * Determines if we need to fetch card config from DB or can build from URL params.
- * Returns true if colorPreset is "custom" (needs DB for gradient colors) or missing
+ * Returns true if the URL does not provide enough information to build a complete
+ * card config (including colors and any relevant flags) without consulting the DB.
  * @source
  */
+function hasAllRequiredColorParams(params: {
+  titleColorParam?: string | null;
+  backgroundColorParam?: string | null;
+  textColorParam?: string | null;
+  circleColorParam?: string | null;
+}): boolean {
+  return (
+    !!params.titleColorParam &&
+    !!params.backgroundColorParam &&
+    !!params.textColorParam &&
+    !!params.circleColorParam
+  );
+}
+
 export function needsCardConfigFromDb(params: {
   colorPresetParam: string | null;
   titleColorParam?: string | null;
@@ -25,20 +40,17 @@ export function needsCardConfigFromDb(params: {
   gridColsParam?: string | null;
   gridRowsParam?: string | null;
 }): boolean {
-  if (params.colorPresetParam === "custom") {
-    return true;
-  }
   // Determine whether the URL provides enough information to build
   // a complete card config without consulting the DB.
   // Color resolution is satisfied when either:
   //  - a named preset (non-custom) is present in the URL, or
   //  - every individual color param is provided in the URL.
-  const hasNamedPreset = !!params.colorPresetParam;
-  const hasIndividualColors =
-    !!params.titleColorParam &&
-    !!params.backgroundColorParam &&
-    !!params.textColorParam &&
-    !!params.circleColorParam;
+  // NOTE: `colorPreset=custom` does not itself provide colors; it only indicates
+  // "no preset". If the URL also includes all required individual color params,
+  // we treat colors as fully resolved from the URL and can skip DB for colors.
+  const hasNamedPreset =
+    !!params.colorPresetParam && params.colorPresetParam !== "custom";
+  const hasIndividualColors = hasAllRequiredColorParams(params);
 
   const colorsResolved = hasNamedPreset || hasIndividualColors;
   if (!colorsResolved) return true;
@@ -187,8 +199,14 @@ function applyColorOverrides(
     config.colorPreset,
   );
 
-  // If colorPreset is "custom", keep database colors (supports gradients)
+  // If colorPreset is "custom", prefer database colors.
+  // However, if the URL explicitly provides all required individual color params,
+  // the URL has everything needed and should be allowed to override even for
+  // custom preset links.
   if (isCustomPreset(effectivePreset)) {
+    if (hasAllRequiredColorParams(params)) {
+      applyUrlColorParams(config, params);
+    }
     return;
   }
 

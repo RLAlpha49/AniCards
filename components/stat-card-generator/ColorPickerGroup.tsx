@@ -235,44 +235,47 @@ function GradientStopEditor({
   stops: GradientStop[];
   onStopsChange: (stops: GradientStop[]) => void;
 }>) {
+  const [localStops, setLocalStops] = useState<GradientStop[]>(() =>
+    stops.map((s) => ({ ...s, id: s.id ?? generateStopId() })),
+  );
+
+  useEffect(() => {
+    setLocalStops(stops.map((s) => ({ ...s, id: s.id ?? generateStopId() })));
+  }, [stops]);
+
   const handleStopChange = useCallback(
     (index: number, field: keyof GradientStop, value: string | number) => {
-      const newStops = [...stops];
-      newStops[index] = { ...newStops[index], [field]: value };
+      const newStops = localStops.map((s, i) =>
+        i === index ? { ...s, [field]: value } : s,
+      );
+      setLocalStops(newStops);
       onStopsChange(newStops);
     },
-    [stops, onStopsChange],
+    [localStops, onStopsChange],
   );
 
   const addStop = useCallback(() => {
-    if (stops.length >= 5) return;
-    const lastStop = stops.at(-1);
+    if (localStops.length >= 5) return;
+    const lastStop = localStops.at(-1);
     const newOffset = Math.min(100, (lastStop?.offset ?? 50) + 25);
-    onStopsChange([
-      ...stops,
-      {
-        id: generateStopId("add"),
-        color: lastStop?.color ?? "#888888",
-        offset: newOffset,
-      },
-    ]);
-  }, [stops, onStopsChange]);
-
-  // Ensure all stops have IDs so we can use them as stable React keys.
-  useEffect(() => {
-    const missingId = stops.some((s) => s.id === undefined);
-    if (!missingId) return;
-    const updated = stops.map((s) => ({ ...s, id: s.id ?? generateStopId() }));
+    const newStop: GradientStop = {
+      id: generateStopId("add"),
+      color: lastStop?.color ?? "#888888",
+      offset: newOffset,
+    };
+    const updated = [...localStops, newStop];
+    setLocalStops(updated);
     onStopsChange(updated);
-  }, [stops, onStopsChange]);
+  }, [localStops, onStopsChange]);
 
   const removeStop = useCallback(
     (index: number) => {
-      if (stops.length <= 2) return;
-      const newStops = stops.filter((_, i) => i !== index);
+      if (localStops.length <= 2) return;
+      const newStops = localStops.filter((_, i) => i !== index);
+      setLocalStops(newStops);
       onStopsChange(newStops);
     },
-    [stops, onStopsChange],
+    [localStops, onStopsChange],
   );
 
   return (
@@ -326,7 +329,7 @@ function GradientStopEditor({
 
         {/* Stops List */}
         <div className="space-y-2">
-          {stops.map((stop, index) => (
+          {localStops.map((stop, index) => (
             <motion.div
               key={stop.id ?? `gradient-stop-${index}`}
               initial={{ opacity: 0, x: -10 }}

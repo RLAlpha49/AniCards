@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/Button";
@@ -21,6 +21,16 @@ const itemVariants = {
   hidden: { opacity: 0, y: 20 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
 };
+
+function scheduleAfterPaint(callback: () => void) {
+  if (typeof requestAnimationFrame === "function") {
+    requestAnimationFrame(() => callback());
+    return;
+  }
+
+  // Fallback for environments without requestAnimationFrame (e.g., some tests).
+  setTimeout(callback, 0);
+}
 
 /**
  * Props for the SearchForm component.
@@ -49,40 +59,50 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
    * @param e - The form submission event.
    * @source
    */
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     performSearch(searchValue);
   };
 
   /**
-   * Validates input, tracks analytics, and routes to the targeted user page.
+   * Validates input, tracks analytics, and routes to the user page.
+   * The user page is responsible for handling "not found" and setup flows.
    * @param value - The entered username or AniList user ID.
    * @source
    */
-  const performSearch = (value: string) => {
-    if (!value.trim()) {
-      setError(
-        `Please enter a ${searchMethod === "username" ? "username" : "user ID"}`,
-      );
-      safeTrack(() => trackFormSubmission("user_search", false));
-      return;
-    }
+  const performSearch = useCallback(
+    (value: string) => {
+      const trimmedValue = value.trim();
 
-    setLoading(true);
-    onLoadingChange?.(true);
-    safeTrack(() => trackFormSubmission("user_search", true));
+      if (!trimmedValue) {
+        setError(
+          `Please enter a ${searchMethod === "username" ? "username" : "user ID"}`,
+        );
+        safeTrack(() => trackFormSubmission("user_search", false));
+        return;
+      }
 
-    const params = new URLSearchParams();
+      setError("");
+      setLoading(true);
+      onLoadingChange?.(true);
 
-    if (searchMethod === "username") {
-      params.set("username", value.trim());
-    } else {
-      params.set("userId", value.trim());
-    }
+      safeTrack(() => trackFormSubmission("user_search", true));
+      safeTrack(() => trackNavigation("user_page", "search_form"));
 
-    safeTrack(() => trackNavigation("user_page", "search_form"));
-    router.push(`/user?${params.toString()}`);
-  };
+      const params = new URLSearchParams();
+      if (searchMethod === "username") {
+        params.set("username", trimmedValue);
+      } else {
+        params.set("userId", trimmedValue);
+      }
+
+      // Ensure the loading overlay has a chance to render before navigation.
+      scheduleAfterPaint(() => {
+        router.push(`/user?${params.toString()}`);
+      });
+    },
+    [searchMethod, onLoadingChange, router],
+  );
 
   return (
     <motion.div
@@ -206,7 +226,7 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Searching...
+                Opening user page...
               </>
             ) : (
               <>
@@ -220,8 +240,7 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
 
         {/* Helper text */}
         <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
-          Search AniList profiles that already have generated cards (your own or
-          a friend's) to view their statistics.
+          Search for any AniList username to view and customize your stat cards.
         </p>
       </div>
     </motion.div>

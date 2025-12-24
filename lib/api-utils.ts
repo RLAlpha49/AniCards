@@ -588,7 +588,9 @@ function validateCardRequiredFields(
     return null;
   }
 
-  const reqStrErr = validateRequiredStringFields(card, requiredStringFields);
+  const isDisabled = card["disabled"] === true;
+  const fieldsToValidate = isDisabled ? ["cardName"] : requiredStringFields;
+  const reqStrErr = validateRequiredStringFields(card, fieldsToValidate);
   if (reqStrErr) return reqStrErr;
 
   // Ensure the cardName points to a supported card type (base type validation)
@@ -605,15 +607,21 @@ function validateCardRequiredFields(
     );
   }
 
-  const rawPreset = card["colorPreset"];
-  const preset =
-    typeof rawPreset === "string" && rawPreset.trim().length > 0
-      ? rawPreset
-      : undefined;
-  const requireColorFields = preset === undefined || preset === "custom";
-  if (requireColorFields) {
-    const reqColorErr = validateRequiredColorFields(card, requiredColorFields);
-    if (reqColorErr) return reqColorErr;
+  // Only validate color requirements when not disabled (disabled cards store minimal data)
+  if (!isDisabled) {
+    const rawPreset = card["colorPreset"];
+    const preset =
+      typeof rawPreset === "string" && rawPreset.trim().length > 0
+        ? rawPreset
+        : undefined;
+    const requireColorFields = preset === undefined || preset === "custom";
+    if (requireColorFields) {
+      const reqColorErr = validateRequiredColorFields(
+        card,
+        requiredColorFields,
+      );
+      if (reqColorErr) return reqColorErr;
+    }
   }
 
   return null;
@@ -636,6 +644,7 @@ function validateCardOptionalFields(
 ): NextResponse<ApiError> | null {
   // Validate optional boolean fields
   const optionalBooleanFields = [
+    "disabled",
     "showFavorites",
     "useStatusColors",
     "showPiePercentages",

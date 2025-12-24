@@ -471,7 +471,18 @@ export function isValidGradient(value: unknown): boolean {
  */
 export function validateColorValue(value: unknown): boolean {
   if (typeof value === "string") {
-    return isValidHexColor(value);
+    const trimmed = value.trim();
+    if (trimmed.length === 0) return false;
+    // Support JSON-encoded gradient definitions (stored/transported as strings).
+    if (trimmed.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (isValidGradient(parsed)) return true;
+      } catch {
+        // Fall through to hex validation
+      }
+    }
+    return isValidHexColor(trimmed);
   }
   return isValidGradient(value);
 }
@@ -479,7 +490,18 @@ export function validateColorValue(value: unknown): boolean {
 /** Provide a human-readable reason when a color value is invalid. */
 export function getColorInvalidReason(value: unknown): string {
   if (typeof value === "string") {
-    if (isValidHexColor(value))
+    const trimmed = value.trim();
+    if (trimmed.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (isValidGradient(parsed)) return "gradient JSON string is valid";
+        return "invalid gradient JSON definition";
+      } catch {
+        return "invalid gradient JSON (parse error)";
+      }
+    }
+
+    if (isValidHexColor(trimmed))
       return "hex string passed regex but failed shared validation";
     return "invalid hex string";
   }
