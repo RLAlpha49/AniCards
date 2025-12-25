@@ -202,6 +202,8 @@ function clampGridDim(value: unknown): number | undefined {
  * Only saves individual colors when colorPreset is "custom" or not set.
  * If the card is disabled, only stores minimal data (cardName and disabled flag).
  * If useCustomSettings is false, skips colorPreset and color fields (card references globalSettings).
+ * Per-card `borderColor` is only stored when borders are enabled globally and `useCustomSettings` is true;
+ * when omitted it will preserve the previous per-card value if present.
  * @source
  */
 function buildCardConfig(
@@ -232,9 +234,10 @@ function buildCardConfig(
   const resolvedGridRows =
     clampGridDim(incoming.gridRows) ?? clampGridDim(previous?.gridRows);
 
-  const effectiveBorderColor = globalBorderEnabled
-    ? incoming.borderColor
-    : undefined;
+  const effectiveBorderColor =
+    globalBorderEnabled && useCustomSettings
+      ? incoming.borderColor ?? previous?.borderColor
+      : undefined;
 
   return {
     cardName: incoming.cardName,
@@ -328,34 +331,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       existingCards.map((card) => [card.cardName, card]),
     );
 
-    // Determine effective borderEnabled early for use in card config building
-    // We need to check globalSettings or fallback to parsing existing data
-    let globalBorderEnabled: boolean | undefined;
-    try {
-      const existingGlobalSettingsForBorder = (
-        typeof existingData === "string"
-          ? safeParse<CardsRecord>(existingData, `${endpoint}:globalSettings`)
-          : (existingData as CardsRecord | null)
-      )?.globalSettings;
-      globalBorderEnabled =
-        globalSettings?.borderEnabled ??
-        existingGlobalSettingsForBorder?.borderEnabled;
-    } catch {
-      globalBorderEnabled = globalSettings?.borderEnabled;
-    }
-
-    // Process incoming cards: update existing or add new ones
-    for (const card of incomingCards as StoredCardConfig[]) {
-      const previous = existingCardsMap.get(card.cardName);
-      existingCardsMap.set(
-        card.cardName,
-        buildCardConfig(card, previous, globalBorderEnabled),
-      );
-    }
-
-    ensureAllSupportedCardTypesPresent(existingCardsMap);
-
-    // Process global settings: merge with existing or use new
+    // Parse existing global settings (if any) to allow proper merging and determine
+    // whether we should persist per-card border colors. If parsing fails, treat it as undefined.
     let existingGlobalSettings: GlobalCardSettings | undefined;
     try {
       existingGlobalSettings = (
@@ -364,21 +341,36 @@ export async function POST(request: Request): Promise<NextResponse> {
           : (existingData as CardsRecord | null)
       )?.globalSettings;
     } catch {
-      // If parsing fails, we just don't have existing global settings
       existingGlobalSettings = undefined;
     }
 
-    // Determine effective borderEnabled for global settings
+    // Determine effective borderEnabled early for use in card config building
     const effectiveBorderEnabled =
       globalSettings?.borderEnabled ?? existingGlobalSettings?.borderEnabled;
 
-    // Compute borderRadius only when border is enabled
+    // Process incoming cards: update existing or add new ones
+    for (const card of incomingCards as StoredCardConfig[]) {
+      const previous = existingCardsMap.get(card.cardName);
+      existingCardsMap.set(
+        card.cardName,
+        buildCardConfig(card, previous, effectiveBorderEnabled),
+      );
+    }
+
+    ensureAllSupportedCardTypesPresent(existingCardsMap);
+
+    // Compute borderRadius only when border is enabled and clamp any existing values
     let effectiveBorderRadius: number | undefined;
     if (effectiveBorderEnabled) {
-      effectiveBorderRadius =
-        typeof globalSettings?.borderRadius === "number"
-          ? clampBorderRadius(globalSettings.borderRadius)
-          : existingGlobalSettings?.borderRadius;
+      if (typeof globalSettings?.borderRadius === "number") {
+        effectiveBorderRadius = clampBorderRadius(globalSettings.borderRadius);
+      } else if (typeof existingGlobalSettings?.borderRadius === "number") {
+        effectiveBorderRadius = clampBorderRadius(
+          existingGlobalSettings.borderRadius,
+        );
+      } else {
+        effectiveBorderRadius = undefined;
+      }
     }
 
     const effectiveBorderColor = effectiveBorderEnabled
@@ -387,17 +379,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const mergedGlobalSettings: GlobalCardSettings | undefined = globalSettings
       ? {
-          colorPreset:
-            globalSettings.colorPreset ?? existingGlobalSettings?.colorPreset,
-          titleColor:
-            globalSettings.titleColor ?? existingGlobalSettings?.titleColor,
-          backgroundColor:
-            globalSettings.backgroundColor ??
-            existingGlobalSettings?.backgroundColor,
-          textColor:
-            globalSettings.textColor ?? existingGlobalSettings?.textColor,
-          circleColor:
-            globalSettings.circleColor ?? existingGlobalSettings?.circleColor,
+          ...globalSettings,
           borderEnabled: effectiveBorderEnabled,
           borderColor: effectiveBorderColor,
           borderRadius: effectiveBorderRadius,

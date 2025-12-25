@@ -904,6 +904,41 @@ describe("Store Cards API POST Endpoint", () => {
       expect(stored.globalSettings.borderColor).toBeUndefined();
     });
 
+    it("should clear existing global borderColor when incoming globalSettings disables border without providing a color", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      // Simulate existing record with border set
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId: 600,
+          cards: [],
+          globalSettings: {
+            colorPreset: "default",
+            borderEnabled: true,
+            borderColor: "#ff0000",
+          },
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+
+      const req = createRequest({
+        userId: 600,
+        statsData: {},
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: false,
+          // borderColor omitted intentionally
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.borderEnabled).toBe(false);
+      expect(stored.globalSettings.borderColor).toBeUndefined();
+    });
+
     it("should save borderColor in globalSettings when borderEnabled is true", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
@@ -993,6 +1028,131 @@ describe("Store Cards API POST Endpoint", () => {
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(stored.cards[0].borderColor).toBe("#00ff00");
+    });
+
+    it("should preserve per-card borderColor from previous config when omitted and border is enabled globally", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      // Simulate existing record with per-card borderColor and borders enabled
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId: 600,
+          cards: [
+            {
+              cardName: "animeStats",
+              borderColor: "#00abcd",
+            },
+          ],
+          globalSettings: {
+            colorPreset: "default",
+            borderEnabled: true,
+          },
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+
+      const req = createRequest({
+        userId: 600,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            titleColor: "#111",
+            backgroundColor: "#222",
+            textColor: "#333",
+            circleColor: "#444",
+            // borderColor omitted intentionally
+          },
+        ],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: true,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.cards[0].borderColor).toBe("#00abcd");
+    });
+
+    it("should not save borderColor in card config when useCustomSettings is false", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      // Simulate existing record with per-card borderColor
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId: 601,
+          cards: [
+            {
+              cardName: "animeStats",
+              borderColor: "#FF00FF",
+            },
+          ],
+          globalSettings: {
+            colorPreset: "default",
+            borderEnabled: true,
+          },
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+
+      const req = createRequest({
+        userId: 601,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            useCustomSettings: false,
+            colorPreset: "default",
+          },
+        ],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: true,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.cards[0].borderColor).toBeUndefined();
+    });
+
+    it("should clamp existing global borderRadius when merging", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      // Simulate existing globalSettings with out-of-range borderRadius
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId: 900,
+          cards: [],
+          globalSettings: {
+            colorPreset: "default",
+            borderEnabled: true,
+            borderRadius: 150,
+          },
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+
+      const req = createRequest({
+        userId: 900,
+        statsData: {},
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: true,
+          // borderRadius omitted, should preserve (but clamped) from existing
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.borderRadius).toBe(100);
     });
   });
 
