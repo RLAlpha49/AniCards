@@ -157,7 +157,7 @@ function computeBorderRadius(
   return typeof effectiveRadius === "number"
     ? clampBorderRadius(effectiveRadius)
     : undefined;
-} 
+}
 
 /**
  * Computes effective showPiePercentages value from incoming and previous values.
@@ -245,7 +245,13 @@ function mergeGlobalAdvancedSettings(
   const gridRows =
     clampGridDim(incoming?.gridRows) ?? clampGridDim(previous?.gridRows);
 
-  return { useStatusColors, showPiePercentages, showFavorites, gridCols, gridRows };
+  return {
+    useStatusColors,
+    showPiePercentages,
+    showFavorites,
+    gridCols,
+    gridRows,
+  };
 }
 
 /**
@@ -269,7 +275,7 @@ function buildCardConfig(
     incoming.useCustomSettings ?? previous?.useCustomSettings ?? true;
   const shouldSaveColorData = useCustomSettings;
   const effectiveColorPreset = shouldSaveColorData
-    ? incoming.colorPreset ?? previous?.colorPreset
+    ? (incoming.colorPreset ?? previous?.colorPreset)
     : undefined;
   const shouldSaveIndividualColors =
     shouldSaveColorData &&
@@ -280,8 +286,9 @@ function buildCardConfig(
   const resolvedGridRows =
     clampGridDim(incoming.gridRows) ?? clampGridDim(previous?.gridRows);
 
-  const effectiveBorderColor =
-    useCustomSettings ? incoming.borderColor ?? previous?.borderColor : undefined;
+  const effectiveBorderColor = useCustomSettings
+    ? (incoming.borderColor ?? previous?.borderColor)
+    : undefined;
 
   return {
     cardName: incoming.cardName,
@@ -290,16 +297,16 @@ function buildCardConfig(
     variation: incoming.variation ?? previous?.variation,
     colorPreset: effectiveColorPreset,
     titleColor: shouldSaveIndividualColors
-      ? incoming.titleColor ?? previous?.titleColor
+      ? (incoming.titleColor ?? previous?.titleColor)
       : undefined,
     backgroundColor: shouldSaveIndividualColors
-      ? incoming.backgroundColor ?? previous?.backgroundColor
+      ? (incoming.backgroundColor ?? previous?.backgroundColor)
       : undefined,
     textColor: shouldSaveIndividualColors
-      ? incoming.textColor ?? previous?.textColor
+      ? (incoming.textColor ?? previous?.textColor)
       : undefined,
     circleColor: shouldSaveIndividualColors
-      ? incoming.circleColor ?? previous?.circleColor
+      ? (incoming.circleColor ?? previous?.circleColor)
       : undefined,
     borderColor: effectiveBorderColor,
     borderRadius: normalizedBorderRadius,
@@ -412,7 +419,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       existingCards.map((card) => [card.cardName, card]),
     );
 
-    const existingGlobalSettings = parseExistingGlobalSettings(existingData, endpoint);
+    const existingGlobalSettings = parseExistingGlobalSettings(
+      existingData,
+      endpoint,
+    );
 
     // Determine effective borderEnabled early for use in card config building
     const effectiveBorderEnabled =

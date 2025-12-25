@@ -21,7 +21,9 @@ test.describe("User page", () => {
 
       await expect(page.getByText(/no user specified/i)).toBeVisible();
 
-      const searchForUser = page.getByRole("link", { name: /search for user/i });
+      const searchForUser = page.getByRole("link", {
+        name: /search for user/i,
+      });
       await expect(searchForUser).toHaveAttribute("href", "/search");
     });
   });
@@ -66,20 +68,26 @@ test.describe("User page", () => {
       ).toBeVisible();
 
       // Wait for the cards section to be visible then assert preview images exist
-      await expect(page.getByRole("heading", { name: /your cards/i })).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: /your cards/i }),
+      ).toBeVisible();
       const cards = page.getByRole("img", { name: /stats/i });
       await expect(cards).toHaveCount(mockCardsRecord.cards.length);
     });
 
     await test.step("Inspect export controls", async () => {
       // Select the rendered cards so the bulk actions toolbar appears
-      await page.getByRole("checkbox", { name: /select anime stats card/i }).check();
-      await page.getByRole("checkbox", { name: /select social stats card/i }).check();
+      await page
+        .getByRole("checkbox", { name: /select anime stats card/i })
+        .check();
+      await page
+        .getByRole("checkbox", { name: /select social stats card/i })
+        .check();
 
       const toolbar = page.locator('[data-testid="bulk-actions-toolbar"]');
       await expect(toolbar).toBeVisible();
 
-      const buttons = toolbar.locator('button');
+      const buttons = toolbar.locator("button");
       // Confirm button order and labels (Select all enabled will appear first)
       await expect(buttons.nth(0)).toContainText(/select all enabled/i);
       await expect(buttons.nth(1)).toContainText(/copy/i);
@@ -117,14 +125,18 @@ test.describe("User page", () => {
     await test.step("Show error UI with recovery", async () => {
       await expect(page.getByText(/something went wrong/i)).toBeVisible();
       // Server errors are surfaced directly (e.g. "Server error")
-      await expect(page.getByText(/server error|an unexpected error occurred/i)).toBeVisible();
+      await expect(
+        page.getByText(/server error|an unexpected error occurred/i),
+      ).toBeVisible();
       await expect(
         page.getByRole("link", { name: /search for user/i }),
       ).toBeVisible();
     });
   });
 
-  test("falls back to initial enabled snapshot when get-cards returns empty for new user", async ({ page }) => {
+  test("falls back to initial enabled snapshot when get-cards returns empty for new user", async ({
+    page,
+  }) => {
     await test.step("Mock 404 get-user and subsequent endpoints", async () => {
       await page.route("**/api/get-user**", async (route) => {
         await route.fulfill({
@@ -139,7 +151,11 @@ test.describe("User page", () => {
           status: 200,
           contentType: "application/json",
           body: JSON.stringify({
-            User: { id: 999, name: "NewUser", avatar: { medium: "https://example.test/avatar.png" } },
+            User: {
+              id: 999,
+              name: "NewUser",
+              avatar: { medium: "https://example.test/avatar.png" },
+            },
           }),
         });
       });

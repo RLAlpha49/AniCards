@@ -444,10 +444,12 @@ export function processCardConfig(
   // Favorites grid layout params (only meaningful for favoritesGrid)
   if (params.baseCardType === "favoritesGrid") {
     // URL grid params always take precedence when present
-    effectiveCardConfig.gridCols = clampGridDim(params.gridColsParam,
+    effectiveCardConfig.gridCols = clampGridDim(
+      params.gridColsParam,
       effectiveCardConfig.gridCols ?? 3,
     );
-    effectiveCardConfig.gridRows = clampGridDim(params.gridRowsParam,
+    effectiveCardConfig.gridRows = clampGridDim(
+      params.gridRowsParam,
       effectiveCardConfig.gridRows ?? 3,
     );
   }
@@ -581,7 +583,10 @@ function mergeGlobalSettingsIntoConfig(
     setIfMissing("borderColor", globalSettings.borderColor);
   }
   if (typeof globalSettings.borderRadius === "number") {
-    setIfMissing("borderRadius", clampBorderRadius(globalSettings.borderRadius));
+    setIfMissing(
+      "borderRadius",
+      clampBorderRadius(globalSettings.borderRadius),
+    );
   }
 
   // Advanced boolean flags

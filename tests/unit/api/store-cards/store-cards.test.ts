@@ -313,7 +313,10 @@ describe("Store Cards API POST Endpoint", () => {
       const animeStats = (stored.cards as Array<Record<string, unknown>>).find(
         (c) => c.cardName === "animeStats",
       );
-      expect(animeStats).toMatchObject({ cardName: "animeStats", disabled: true });
+      expect(animeStats).toMatchObject({
+        cardName: "animeStats",
+        disabled: true,
+      });
     });
 
     it("should preserve previous settings when a card is disabled", async () => {

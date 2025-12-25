@@ -35,7 +35,11 @@ test.describe("Home page", () => {
 
     const viewportState = await showcase.evaluate((element) => {
       const rect = element.getBoundingClientRect();
-      return { top: rect.top, bottom: rect.bottom, viewportHeight: window.innerHeight };
+      return {
+        top: rect.top,
+        bottom: rect.bottom,
+        viewportHeight: window.innerHeight,
+      };
     });
 
     // Ensure the showcase is at least partially visible in the viewport
