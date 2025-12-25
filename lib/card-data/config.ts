@@ -433,13 +433,23 @@ export function processCardConfig(
   const effectiveVariation =
     params.variationParam || effectiveCardConfig.variation || "default";
 
+  // Merge global settings into the effective card config *before* applying
+  // any URL overrides. This ensures that cards saved without per-card
+  // colors/borders/flags will inherit values from `cardDoc.globalSettings`.
+  mergeGlobalSettingsIntoConfig(effectiveCardConfig, cardDoc.globalSettings);
+
   applyColorOverrides(effectiveCardConfig, params);
   applyBorderOverrides(effectiveCardConfig, params);
 
   // Favorites grid layout params (only meaningful for favoritesGrid)
   if (params.baseCardType === "favoritesGrid") {
-    effectiveCardConfig.gridCols = clampGridDim(params.gridColsParam, 3);
-    effectiveCardConfig.gridRows = clampGridDim(params.gridRowsParam, 3);
+    // URL grid params always take precedence when present
+    effectiveCardConfig.gridCols = clampGridDim(params.gridColsParam,
+      effectiveCardConfig.gridCols ?? 3,
+    );
+    effectiveCardConfig.gridRows = clampGridDim(params.gridRowsParam,
+      effectiveCardConfig.gridRows ?? 3,
+    );
   }
 
   // Apply boolean-like overrides and compute favorites list
@@ -536,4 +546,60 @@ function applyDefaultShowFavoritesFlag(
 ): void {
   if (!favoritesRelevant) return;
   effectiveCardConfig.showFavorites ??= false;
+}
+
+/**
+ * Merge global user settings into a per-card configuration **without**
+ * clobbering explicit per-card overrides. This fills missing color/preset,
+ * border and advanced flag values from `globalSettings` so that cards that
+ * rely on globals render correctly even when per-card values are absent.
+ */
+function mergeGlobalSettingsIntoConfig(
+  config: StoredCardConfig,
+  globalSettings?: CardsRecord["globalSettings"],
+): void {
+  if (!globalSettings) return;
+
+  // Helper to set config fields only when they are missing.
+  const setIfMissing = <K extends keyof StoredCardConfig>(
+    key: K,
+    value: StoredCardConfig[K] | undefined,
+  ) => {
+    if (config[key] === undefined && value !== undefined) {
+      config[key] = value;
+    }
+  };
+
+  setIfMissing("colorPreset", globalSettings.colorPreset);
+  setIfMissing("titleColor", globalSettings.titleColor);
+  setIfMissing("backgroundColor", globalSettings.backgroundColor);
+  setIfMissing("textColor", globalSettings.textColor);
+  setIfMissing("circleColor", globalSettings.circleColor);
+
+  // Border: only apply when global border is explicitly enabled.
+  if (globalSettings.borderEnabled) {
+    setIfMissing("borderColor", globalSettings.borderColor);
+  }
+  if (typeof globalSettings.borderRadius === "number") {
+    setIfMissing("borderRadius", clampBorderRadius(globalSettings.borderRadius));
+  }
+
+  // Advanced boolean flags
+  setIfMissing("useStatusColors", globalSettings.useStatusColors);
+  setIfMissing("showPiePercentages", globalSettings.showPiePercentages);
+  setIfMissing("showFavorites", globalSettings.showFavorites);
+
+  // Grid dimensions
+  if (typeof globalSettings.gridCols === "number") {
+    setIfMissing(
+      "gridCols",
+      Math.max(1, Math.min(5, Math.floor(globalSettings.gridCols))),
+    );
+  }
+  if (typeof globalSettings.gridRows === "number") {
+    setIfMissing(
+      "gridRows",
+      Math.max(1, Math.min(5, Math.floor(globalSettings.gridRows))),
+    );
+  }
 }
