@@ -123,6 +123,22 @@ function parseStoredCardsRecord(
   return [];
 }
 
+/** Helper to safely parse existing global settings from stored data */
+function parseExistingGlobalSettings(
+  existingData: unknown,
+  endpoint: string,
+): GlobalCardSettings | undefined {
+  try {
+    return (
+      typeof existingData === "string"
+        ? safeParse<CardsRecord>(existingData, `${endpoint}:globalSettings`)
+        : (existingData as CardsRecord | null)
+    )?.globalSettings;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Computes the effective border radius from incoming and previous values.
  * @source
@@ -141,7 +157,7 @@ function computeBorderRadius(
   return typeof effectiveRadius === "number"
     ? clampBorderRadius(effectiveRadius)
     : undefined;
-}
+} 
 
 /**
  * Computes effective showPiePercentages value from incoming and previous values.
@@ -195,6 +211,38 @@ function clampGridDim(value: unknown): number | undefined {
   if (n < 1) return 1;
   if (n > 5) return 5;
   return n;
+}
+
+/**
+ * Merge advanced global settings (useStatusColors, showPiePercentages,
+ * showFavorites, gridCols, gridRows) by preferring incoming values and
+ * falling back to previous values when omitted. Grid dims are clamped.
+ */
+function mergeGlobalAdvancedSettings(
+  incoming?: Partial<GlobalCardSettings>,
+  previous?: GlobalCardSettings,
+) {
+  const useStatusColors =
+    typeof incoming?.useStatusColors === "boolean"
+      ? incoming.useStatusColors
+      : previous?.useStatusColors;
+
+  const showPiePercentages =
+    typeof incoming?.showPiePercentages === "boolean"
+      ? incoming.showPiePercentages
+      : previous?.showPiePercentages;
+
+  const showFavorites =
+    typeof incoming?.showFavorites === "boolean"
+      ? incoming.showFavorites
+      : previous?.showFavorites;
+
+  const gridCols =
+    clampGridDim(incoming?.gridCols) ?? clampGridDim(previous?.gridCols);
+  const gridRows =
+    clampGridDim(incoming?.gridRows) ?? clampGridDim(previous?.gridRows);
+
+  return { useStatusColors, showPiePercentages, showFavorites, gridCols, gridRows };
 }
 
 /**
@@ -255,6 +303,39 @@ function buildCardConfig(
     gridRows: resolvedGridRows,
     useCustomSettings: incoming.useCustomSettings,
   };
+}
+
+/**
+ * Apply incoming cards into the existing cards map by merging values and
+ * preserving previous values when appropriate.
+ */
+function applyIncomingCards(
+  existingCardsMap: Map<string, StoredCardConfig>,
+  incomingCards: StoredCardConfig[],
+  effectiveBorderEnabled?: boolean,
+) {
+  for (const card of incomingCards) {
+    const previous = existingCardsMap.get(card.cardName);
+    existingCardsMap.set(
+      card.cardName,
+      buildCardConfig(card, previous, effectiveBorderEnabled),
+    );
+  }
+}
+
+function computeEffectiveBorderRadius(
+  effectiveBorderEnabled: boolean | undefined,
+  incoming?: Partial<GlobalCardSettings>,
+  existing?: GlobalCardSettings,
+): number | undefined {
+  if (!effectiveBorderEnabled) return undefined;
+  if (typeof incoming?.borderRadius === "number") {
+    return clampBorderRadius(incoming.borderRadius);
+  }
+  if (typeof existing?.borderRadius === "number") {
+    return clampBorderRadius(existing.borderRadius);
+  }
+  return undefined;
 }
 
 /**
@@ -328,51 +409,35 @@ export async function POST(request: Request): Promise<NextResponse> {
       existingCards.map((card) => [card.cardName, card]),
     );
 
-    // Parse existing global settings (if any) to allow proper merging and determine
-    // whether we should persist per-card border colors. If parsing fails, treat it as undefined.
-    let existingGlobalSettings: GlobalCardSettings | undefined;
-    try {
-      existingGlobalSettings = (
-        typeof existingData === "string"
-          ? safeParse<CardsRecord>(existingData, `${endpoint}:globalSettings`)
-          : (existingData as CardsRecord | null)
-      )?.globalSettings;
-    } catch {
-      existingGlobalSettings = undefined;
-    }
+    const existingGlobalSettings = parseExistingGlobalSettings(existingData, endpoint);
 
     // Determine effective borderEnabled early for use in card config building
     const effectiveBorderEnabled =
       globalSettings?.borderEnabled ?? existingGlobalSettings?.borderEnabled;
 
     // Process incoming cards: update existing or add new ones
-    for (const card of incomingCards as StoredCardConfig[]) {
-      const previous = existingCardsMap.get(card.cardName);
-      existingCardsMap.set(
-        card.cardName,
-        buildCardConfig(card, previous, effectiveBorderEnabled),
-      );
-    }
+    applyIncomingCards(existingCardsMap, incomingCards as StoredCardConfig[], effectiveBorderEnabled);
 
     ensureAllSupportedCardTypesPresent(existingCardsMap);
 
-    // Compute borderRadius only when border is enabled and clamp any existing values
-    let effectiveBorderRadius: number | undefined;
-    if (effectiveBorderEnabled) {
-      if (typeof globalSettings?.borderRadius === "number") {
-        effectiveBorderRadius = clampBorderRadius(globalSettings.borderRadius);
-      } else if (typeof existingGlobalSettings?.borderRadius === "number") {
-        effectiveBorderRadius = clampBorderRadius(
-          existingGlobalSettings.borderRadius,
-        );
-      } else {
-        effectiveBorderRadius = undefined;
-      }
-    }
+    // Compute borderRadius using helper (clamped when applicable)
+    const effectiveBorderRadius = computeEffectiveBorderRadius(
+      effectiveBorderEnabled,
+      globalSettings,
+      existingGlobalSettings,
+    );
 
     const effectiveBorderColor = effectiveBorderEnabled
       ? (globalSettings.borderColor ?? existingGlobalSettings?.borderColor)
       : undefined;
+
+    const {
+      useStatusColors: effectiveUseStatusColors,
+      showPiePercentages: effectiveShowPiePercentages,
+      showFavorites: effectiveShowFavorites,
+      gridCols: effectiveGridCols,
+      gridRows: effectiveGridRows,
+    } = mergeGlobalAdvancedSettings(globalSettings, existingGlobalSettings);
 
     const mergedGlobalSettings: GlobalCardSettings | undefined = globalSettings
       ? {
@@ -380,6 +445,11 @@ export async function POST(request: Request): Promise<NextResponse> {
           borderEnabled: effectiveBorderEnabled,
           borderColor: effectiveBorderColor,
           borderRadius: effectiveBorderRadius,
+          useStatusColors: effectiveUseStatusColors,
+          showPiePercentages: effectiveShowPiePercentages,
+          showFavorites: effectiveShowFavorites,
+          gridCols: effectiveGridCols,
+          gridRows: effectiveGridRows,
         }
       : existingGlobalSettings;
 

@@ -27,6 +27,11 @@ interface GlobalSettingsPayload {
   borderEnabled: boolean;
   borderColor: string;
   borderRadius?: number;
+  useStatusColors?: boolean;
+  showPiePercentages?: boolean;
+  showFavorites?: boolean;
+  gridCols?: number;
+  gridRows?: number;
 }
 
 /**
@@ -82,6 +87,7 @@ function buildCardsFromState(): {
     globalBorderEnabled,
     globalBorderColor,
     globalBorderRadius,
+    globalAdvancedSettings,
   } = state;
 
   // Build global settings payload
@@ -96,6 +102,11 @@ function buildCardsFromState(): {
     borderEnabled: globalBorderEnabled,
     borderColor: globalBorderColor,
     borderRadius: globalBorderEnabled ? globalBorderRadius : undefined,
+    useStatusColors: globalAdvancedSettings.useStatusColors,
+    showPiePercentages: globalAdvancedSettings.showPiePercentages,
+    showFavorites: globalAdvancedSettings.showFavorites,
+    gridCols: globalAdvancedSettings.gridCols,
+    gridRows: globalAdvancedSettings.gridRows,
   };
 
   const configsArray = Object.values(cardConfigs);

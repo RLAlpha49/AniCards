@@ -471,6 +471,11 @@ export interface GlobalCardSettings {
   borderEnabled?: boolean;
   borderColor?: string;
   borderRadius?: number;
+  useStatusColors?: boolean;
+  showPiePercentages?: boolean;
+  showFavorites?: boolean;
+  gridCols?: number;
+  gridRows?: number;
 }
 
 /** Cards record in storage containing a userId, a list of stored card configs and update timestamp. @source */

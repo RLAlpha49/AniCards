@@ -1206,6 +1206,139 @@ describe("Store Cards API POST Endpoint", () => {
     });
   });
 
+  describe("Global Advanced Settings", () => {
+    it("should persist global advanced settings when provided", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 700;
+      const req = createRequest({
+        userId,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            titleColor: "#111",
+            backgroundColor: "#222",
+            textColor: "#333",
+            circleColor: "#444",
+          },
+        ],
+        globalSettings: {
+          colorPreset: "default",
+          useStatusColors: false,
+          showPiePercentages: false,
+          showFavorites: false,
+          gridCols: 2,
+          gridRows: 4,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.useStatusColors).toBe(false);
+      expect(stored.globalSettings.showPiePercentages).toBe(false);
+      expect(stored.globalSettings.showFavorites).toBe(false);
+      expect(stored.globalSettings.gridCols).toBe(2);
+      expect(stored.globalSettings.gridRows).toBe(4);
+    });
+
+    it("should preserve existing global advanced settings when incoming omits them", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 701;
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [],
+          globalSettings: {
+            colorPreset: "default",
+            useStatusColors: false,
+            showPiePercentages: true,
+            showFavorites: true,
+            gridCols: 4,
+            gridRows: 1,
+          },
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.useStatusColors).toBe(false);
+      expect(stored.globalSettings.showPiePercentages).toBe(true);
+      expect(stored.globalSettings.showFavorites).toBe(true);
+      expect(stored.globalSettings.gridCols).toBe(4);
+      expect(stored.globalSettings.gridRows).toBe(1);
+    });
+
+    it("should clamp existing global grid dims when merging", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 702;
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [],
+          globalSettings: {
+            colorPreset: "default",
+            gridCols: 999,
+            gridRows: -10,
+          },
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.gridCols).toBe(5);
+      expect(stored.globalSettings.gridRows).toBe(1);
+    });
+
+    it("should clamp incoming global grid dims when provided", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 703;
+      const req = createRequest({
+        userId,
+        statsData: {},
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+          gridCols: 999,
+          gridRows: -10,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.gridCols).toBe(5);
+      expect(stored.globalSettings.gridRows).toBe(1);
+    });
+  });
+
   describe("Card Merging Logic", () => {
     it("should merge new cards with existing cards", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
