@@ -114,4 +114,67 @@ test.describe("User page", () => {
       ).toBeVisible();
     });
   });
+
+  test("falls back to initial enabled snapshot when get-cards returns empty for new user", async ({ page }) => {
+    await test.step("Mock 404 get-user and subsequent endpoints", async () => {
+      await page.route("**/api/get-user**", async (route) => {
+        await route.fulfill({
+          status: 404,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "User not found" }),
+        });
+      });
+
+      await page.route("**/api/anilist**", async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            User: { id: 999, name: "NewUser", avatar: { medium: "https://example.test/avatar.png" } },
+          }),
+        });
+      });
+
+      await page.route("**/api/store-users**", async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ success: true }),
+        });
+      });
+
+      await page.route("**/api/store-cards**", async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ success: true }),
+        });
+      });
+
+      await page.route("**/api/get-cards**", async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ cards: [] }),
+        });
+      });
+
+      await page.route("**/api/card**", async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "image/svg+xml",
+          body: mockSvgCard,
+        });
+      });
+    });
+
+    await page.goto("/user?userId=999");
+
+    await expect(page.getByText(/welcome to anicards/i)).toBeVisible();
+
+    const images = page.locator("main").locator("img");
+    const imageCount = await images.count();
+    // We expect at least one preview image (cards were initialized and enabled)
+    expect(imageCount).toBeGreaterThan(0);
+  });
 });

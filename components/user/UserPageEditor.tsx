@@ -251,6 +251,19 @@ async function saveUserToDatabase(
 }
 
 /**
+ * Builds the initial enabled cards snapshot used for new users.
+ * @returns Server-like card objects with every supported card enabled.
+ */
+function buildInitialCardsSnapshot() {
+  return statCardTypes.map((t) => ({
+    cardName: t.id,
+    disabled: false,
+    variation: t.variations[0].id,
+    colorPreset: "default",
+  }));
+}
+
+/**
  * Saves initial card configuration to the database.
  * @source
  */
@@ -259,14 +272,7 @@ async function saveInitialCards(
   stats: AniListStatsResponse,
 ): Promise<{ success: boolean } | { error: string }> {
   try {
-    // Initialize with a full enabled snapshot so the Redis `cards:{userId}`
-    // record always contains every supported card type.
-    const initialCards = statCardTypes.map((t) => ({
-      cardName: t.id,
-      disabled: false,
-      variation: t.variations[0].id,
-      colorPreset: "default",
-    }));
+    const initialCards = buildInitialCardsSnapshot();
 
     const res = await fetch("/api/store-cards", {
       method: "POST",
@@ -712,15 +718,66 @@ export function UserPageEditor() {
           setupResult.avatarUrl,
         );
 
-        // Initialize with empty cards since this is a new user
-        initializeFromServerData(
+        // Fetch the cards we just persisted so the client view matches the server.
+        const persistedCardsResult = await fetchUserCards(
           setupResult.userId.toString(),
-          setupResult.username,
-          setupResult.avatarUrl,
-          [],
-          undefined,
-          statCardTypes.map((t) => t.id),
         );
+
+        // If fetching fails or returns an empty array (possible eventual consistency),
+        // fall back to the initial enabled snapshot we persisted server-side.
+        if (
+          "error" in persistedCardsResult ||
+          (Array.isArray(persistedCardsResult.cards) &&
+            persistedCardsResult.cards.length === 0)
+        ) {
+          // Track and warn about missing persisted cards so we can monitor for
+          // race conditions or storage issues.
+          if ("error" in persistedCardsResult) {
+            const errorDetails = getErrorDetails(persistedCardsResult.error);
+            trackUserActionError(
+              "new_user_setup_fetch_cards",
+              new Error(persistedCardsResult.error),
+              errorDetails.category,
+              {
+                userId: setupResult.userId.toString(),
+                username: setupResult.username ?? undefined,
+              },
+            );
+          } else {
+            const msg = "No persisted cards were returned after initial save";
+            const details = getErrorDetails(msg);
+            trackUserActionError(
+              "new_user_setup_fetch_cards",
+              new Error(msg),
+              details.category,
+              {
+                userId: setupResult.userId.toString(),
+                username: setupResult.username ?? undefined,
+              },
+            );
+            console.warn(msg, { userId: setupResult.userId });
+          }
+
+          const initialCards = buildInitialCardsSnapshot();
+
+          initializeFromServerData(
+            setupResult.userId.toString(),
+            setupResult.username,
+            setupResult.avatarUrl,
+            initialCards,
+            { colorPreset: "default", borderEnabled: false },
+            statCardTypes.map((t) => t.id),
+          );
+        } else {
+          initializeFromServerData(
+            setupResult.userId.toString(),
+            setupResult.username,
+            setupResult.avatarUrl,
+            persistedCardsResult.cards,
+            persistedCardsResult.globalSettings,
+            statCardTypes.map((t) => t.id),
+          );
+        }
 
         setLoadingPhase("complete");
         return;
