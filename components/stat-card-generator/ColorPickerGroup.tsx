@@ -337,8 +337,8 @@ function GradientStopEditor({
             variant="outline"
             size="sm"
             onClick={addStop}
-            disabled={stops.length >= 5}
-            aria-label={`Add gradient color stop ${stops.length + 1} of 5`}
+            disabled={localStops.length >= 5}
+            aria-label={`Add gradient color stop ${localStops.length + 1} of 5`}
             title="Add up to 5 color stops"
             className="h-7 gap-1.5 rounded-lg border-slate-200/50 bg-white px-2.5 text-xs font-medium text-slate-600 shadow-sm transition-all hover:bg-slate-50 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-50 dark:border-slate-700/50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
           >
@@ -432,7 +432,7 @@ function GradientStopEditor({
                 variant="ghost"
                 size="sm"
                 onClick={() => removeStop(index)}
-                disabled={stops.length <= 2}
+                disabled={localStops.length <= 2}
                 aria-label={`Remove gradient stop ${index + 1}`}
                 title="Remove this color stop"
                 className="h-7 w-7 rounded-lg p-0 text-slate-400 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-0 group-hover:opacity-100 dark:hover:bg-red-900/20 dark:hover:text-red-400"
