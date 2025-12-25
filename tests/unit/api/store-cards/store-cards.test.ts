@@ -290,7 +290,7 @@ describe("Store Cards API POST Endpoint", () => {
       expect(storedData.updatedAt).toBeDefined();
     });
 
-    it("should accept and store disabled cards with minimal data", async () => {
+    it("should accept and store disabled cards (sets disabled flag)", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const userId = 321;
       const req = createRequest({
@@ -313,7 +313,71 @@ describe("Store Cards API POST Endpoint", () => {
       const animeStats = (stored.cards as Array<Record<string, unknown>>).find(
         (c) => c.cardName === "animeStats",
       );
-      expect(animeStats).toEqual({ cardName: "animeStats", disabled: true });
+      expect(animeStats).toMatchObject({ cardName: "animeStats", disabled: true });
+    });
+
+    it("should preserve previous settings when a card is disabled", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 400;
+      // Simulate existing record with full config
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [
+            {
+              cardName: "animeGenres",
+              variation: "pie",
+              colorPreset: "custom",
+              titleColor: "#111",
+              backgroundColor: "#222",
+              textColor: "#333",
+              circleColor: "#444",
+              borderColor: "#00ff00",
+              borderRadius: 7,
+              useCustomSettings: true,
+              showPiePercentages: true,
+            },
+          ],
+          globalSettings: {
+            colorPreset: "default",
+            borderEnabled: true,
+          },
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeGenres",
+            disabled: true,
+          },
+        ],
+      });
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      const animeGenres = (stored.cards as Array<Record<string, unknown>>).find(
+        (c) => c.cardName === "animeGenres",
+      );
+
+      expect(animeGenres).toMatchObject({
+        cardName: "animeGenres",
+        disabled: true,
+        variation: "pie",
+        colorPreset: "custom",
+        titleColor: "#111",
+        backgroundColor: "#222",
+        textColor: "#333",
+        circleColor: "#444",
+        borderColor: "#00ff00",
+        borderRadius: 7,
+        useCustomSettings: true,
+        showPiePercentages: true,
+      });
     });
 
     it("should backfill all supported cards when incoming cards is empty", async () => {

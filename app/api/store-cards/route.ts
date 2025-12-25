@@ -167,9 +167,12 @@ function computeShowPiePercentages(
   incoming: StoredCardConfig,
   previous: StoredCardConfig | undefined,
 ): boolean | undefined {
+  // Consider incoming variation first, fall back to previous variation so
+  // disabling a card (which may omit variation) still preserves pie settings.
+  const variation = incoming.variation ?? previous?.variation;
   const shouldSave =
     supportsPieVariation(incoming.cardName) &&
-    (incoming.variation === "pie" || incoming.variation === "donut");
+    (variation === "pie" || variation === "donut");
 
   if (!shouldSave) return undefined;
 
@@ -248,7 +251,7 @@ function mergeGlobalAdvancedSettings(
 /**
  * Builds a StoredCardConfig from incoming card data, merging with previous if needed.
  * Only saves individual colors when colorPreset is "custom" or not set.
- * If the card is disabled, only stores minimal data (cardName and disabled flag).
+ * Disabled cards preserve per-card settings so toggling visibility does not drop customizations.
  * If useCustomSettings is false, skips colorPreset and color fields (card references globalSettings).
  * Per-card `borderColor` and `borderRadius` are preserved from previous config when omitted,
  * even if global borders are disabled. Per-card border values are only omitted when
@@ -258,23 +261,19 @@ function mergeGlobalAdvancedSettings(
 function buildCardConfig(
   incoming: StoredCardConfig,
   previous: StoredCardConfig | undefined,
-  globalBorderEnabled?: boolean,
 ): StoredCardConfig {
-  // If card is disabled, store only minimal data
-  if (incoming.disabled === true) {
-    return {
-      cardName: incoming.cardName,
-      disabled: true,
-    };
-  }
-
   const normalizedBorderRadius = computeBorderRadius(incoming, previous);
 
-  const useCustomSettings = incoming.useCustomSettings ?? true;
+  // Prefer incoming explicit flag, fall back to previous, and default to true
+  const useCustomSettings =
+    incoming.useCustomSettings ?? previous?.useCustomSettings ?? true;
   const shouldSaveColorData = useCustomSettings;
+  const effectiveColorPreset = shouldSaveColorData
+    ? incoming.colorPreset ?? previous?.colorPreset
+    : undefined;
   const shouldSaveIndividualColors =
     shouldSaveColorData &&
-    (!incoming.colorPreset || incoming.colorPreset === "custom");
+    (!effectiveColorPreset || effectiveColorPreset === "custom");
 
   const resolvedGridCols =
     clampGridDim(incoming.gridCols) ?? clampGridDim(previous?.gridCols);
@@ -286,22 +285,30 @@ function buildCardConfig(
 
   return {
     cardName: incoming.cardName,
-    variation: incoming.variation,
-    colorPreset: shouldSaveColorData ? incoming.colorPreset : undefined,
-    titleColor: shouldSaveIndividualColors ? incoming.titleColor : undefined,
-    backgroundColor: shouldSaveIndividualColors
-      ? incoming.backgroundColor
+    // Preserve disabled flag when provided
+    disabled: incoming.disabled === true ? true : undefined,
+    variation: incoming.variation ?? previous?.variation,
+    colorPreset: effectiveColorPreset,
+    titleColor: shouldSaveIndividualColors
+      ? incoming.titleColor ?? previous?.titleColor
       : undefined,
-    textColor: shouldSaveIndividualColors ? incoming.textColor : undefined,
-    circleColor: shouldSaveIndividualColors ? incoming.circleColor : undefined,
+    backgroundColor: shouldSaveIndividualColors
+      ? incoming.backgroundColor ?? previous?.backgroundColor
+      : undefined,
+    textColor: shouldSaveIndividualColors
+      ? incoming.textColor ?? previous?.textColor
+      : undefined,
+    circleColor: shouldSaveIndividualColors
+      ? incoming.circleColor ?? previous?.circleColor
+      : undefined,
     borderColor: effectiveBorderColor,
     borderRadius: normalizedBorderRadius,
     showFavorites: computeShowFavorites(incoming, previous),
-    useStatusColors: incoming.useStatusColors,
+    useStatusColors: incoming.useStatusColors ?? previous?.useStatusColors,
     showPiePercentages: computeShowPiePercentages(incoming, previous),
     gridCols: resolvedGridCols,
     gridRows: resolvedGridRows,
-    useCustomSettings: incoming.useCustomSettings,
+    useCustomSettings,
   };
 }
 
@@ -312,14 +319,10 @@ function buildCardConfig(
 function applyIncomingCards(
   existingCardsMap: Map<string, StoredCardConfig>,
   incomingCards: StoredCardConfig[],
-  effectiveBorderEnabled?: boolean,
 ) {
   for (const card of incomingCards) {
     const previous = existingCardsMap.get(card.cardName);
-    existingCardsMap.set(
-      card.cardName,
-      buildCardConfig(card, previous, effectiveBorderEnabled),
-    );
+    existingCardsMap.set(card.cardName, buildCardConfig(card, previous));
   }
 }
 
@@ -416,7 +419,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       globalSettings?.borderEnabled ?? existingGlobalSettings?.borderEnabled;
 
     // Process incoming cards: update existing or add new ones
-    applyIncomingCards(existingCardsMap, incomingCards as StoredCardConfig[], effectiveBorderEnabled);
+    applyIncomingCards(existingCardsMap, incomingCards as StoredCardConfig[]);
 
     ensureAllSupportedCardTypesPresent(existingCardsMap);
 
@@ -428,7 +431,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
 
     const effectiveBorderColor = effectiveBorderEnabled
-      ? (globalSettings.borderColor ?? existingGlobalSettings?.borderColor)
+      ? (globalSettings?.borderColor ?? existingGlobalSettings?.borderColor)
       : undefined;
 
     const {

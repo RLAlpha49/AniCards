@@ -111,53 +111,43 @@ function buildCardsFromState(): {
 
   const configsArray = Object.values(cardConfigs);
 
-  // Build enabled cards with full configuration
-  const enabledCards: ServerCardData[] = configsArray
-    .filter((c) => c.enabled)
-    .map((config) => {
-      const useCustomSettings = config.colorOverride.useCustomSettings;
+  // Build cards for all configs, preserving full per-card configuration even when disabled.
+  const cards: ServerCardData[] = configsArray.map((config) => {
+    const useCustomSettings = config.colorOverride.useCustomSettings;
 
-      const effectivePreset = useCustomSettings
-        ? config.colorOverride.colorPreset || "custom"
-        : globalColorPreset;
+    const effectivePreset = useCustomSettings
+      ? config.colorOverride.colorPreset || "custom"
+      : globalColorPreset;
 
-      const shouldSendColors = !effectivePreset || effectivePreset === "custom";
+    const shouldSendColors = !effectivePreset || effectivePreset === "custom";
 
-      const effectiveColors: ColorValue[] =
-        useCustomSettings &&
-        Array.isArray(config.colorOverride.colors) &&
-        config.colorOverride.colors.length >= 4
-          ? config.colorOverride.colors
-          : globalColors;
+    const effectiveColors: ColorValue[] =
+      useCustomSettings &&
+      Array.isArray(config.colorOverride.colors) &&
+      config.colorOverride.colors.length >= 4
+        ? config.colorOverride.colors
+        : globalColors;
 
-      return {
-        cardName: config.cardId,
-        variation: config.variant,
-        colorPreset: effectivePreset,
-        titleColor: shouldSendColors ? effectiveColors[0] : undefined,
-        backgroundColor: shouldSendColors ? effectiveColors[1] : undefined,
-        textColor: shouldSendColors ? effectiveColors[2] : undefined,
-        circleColor: shouldSendColors ? effectiveColors[3] : undefined,
-        borderColor: config.borderColor,
-        borderRadius: config.borderRadius,
-        useStatusColors: config.advancedSettings.useStatusColors,
-        showPiePercentages: config.advancedSettings.showPiePercentages,
-        showFavorites: config.advancedSettings.showFavorites,
-        gridCols: config.advancedSettings.gridCols,
-        gridRows: config.advancedSettings.gridRows,
-        useCustomSettings,
-      };
-    });
-
-  // Build disabled cards with minimal data (just cardName and disabled flag)
-  const disabledCards: ServerCardData[] = configsArray
-    .filter((c) => !c.enabled)
-    .map((config) => ({
+    const cardData: ServerCardData = {
       cardName: config.cardId,
-      disabled: true,
-    }));
+      variation: config.variant,
+      colorPreset: effectivePreset,
+      titleColor: shouldSendColors ? effectiveColors[0] : undefined,
+      backgroundColor: shouldSendColors ? effectiveColors[1] : undefined,
+      textColor: shouldSendColors ? effectiveColors[2] : undefined,
+      circleColor: shouldSendColors ? effectiveColors[3] : undefined,
+      borderColor: config.borderColor,
+      borderRadius: config.borderRadius,
+      useStatusColors: config.advancedSettings.useStatusColors,
+      showPiePercentages: config.advancedSettings.showPiePercentages,
+      showFavorites: config.advancedSettings.showFavorites,
+      gridCols: config.advancedSettings.gridCols,
+      gridRows: config.advancedSettings.gridRows,
+      useCustomSettings,
+    };
 
-  const cards = [...enabledCards, ...disabledCards];
+    return config.enabled ? cardData : { ...cardData, disabled: true };
+  });
 
   return { userId, cards, globalSettings };
 }
