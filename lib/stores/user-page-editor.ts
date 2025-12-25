@@ -980,6 +980,7 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
                 colorOverride: { useCustomSettings: false },
                 borderColor: undefined,
                 borderRadius: undefined,
+                advancedSettings: {},
               },
             },
             isDirty: true,
@@ -998,6 +999,7 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
             colorOverride: { useCustomSettings: false },
             borderColor: undefined,
             borderRadius: undefined,
+            advancedSettings: {},
           };
         }
         set(
@@ -1006,7 +1008,6 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
           "resetAllCardsToGlobal",
         );
       },
-
       // Save actions
       markDirty: () => {
         set({ isDirty: true }, false, "markDirty");
