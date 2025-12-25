@@ -126,6 +126,20 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(400);
     });
 
+    it("should reject non-object card entries in array", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 1,
+        statsData: {},
+        cards: [null], // invalid entry
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid data");
+    });
+
     it("should reject missing userId", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
@@ -169,6 +183,13 @@ describe("Store Cards API POST Endpoint", () => {
 
       const res = await POST(req);
       expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid 'disabled' field type");
+
+      // Analytics metric should be incremented for failed validation
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:store_cards:failed_requests",
+      );
     });
 
     it("should reject invalid card types", async () => {

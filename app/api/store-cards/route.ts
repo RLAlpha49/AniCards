@@ -349,6 +349,44 @@ function computeEffectiveBorderRadius(
 }
 
 /**
+ * Validates that every provided `disabled` field (if present) is a boolean.
+ * Returns a 400 response via `jsonWithCors` when an invalid value is found and
+ * increments analytics to track failed requests.
+ */
+async function validateDisabledBooleanField(
+  incomingCards: unknown,
+  endpoint: string,
+  endpointKey: string,
+  request?: Request,
+): Promise<NextResponse | null> {
+  if (!Array.isArray(incomingCards)) return null;
+
+  for (let i = 0; i < incomingCards.length; i++) {
+    const card = incomingCards[i];
+
+    // Skip non-object entries -- they will be rejected by validateCardData later.
+    if (typeof card !== "object" || card === null) continue;
+
+    const cardObj = card as Record<string, unknown>;
+    if (
+      Object.prototype.hasOwnProperty.call(cardObj, "disabled") &&
+      typeof cardObj.disabled !== "boolean"
+    ) {
+      console.warn(
+        `⚠️ [${endpoint}] Card ${i} has non-boolean disabled field: ${String(
+          cardObj.disabled,
+        )}`,
+      );
+      await incrementAnalytics(
+        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+      );
+      return jsonWithCors({ error: "Invalid 'disabled' field type" }, request, 400);
+    }
+  }
+  return null;
+}
+
+/**
  * Validates, persists, and reports analytics for the user card configuration payload.
  * @param request - Incoming request containing the user ID, stats, and card array.
  * @returns A NextResponse that signals success or propagates a validation/error response.
@@ -370,6 +408,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     console.log(
       `📝 [${endpoint}] Processing user ${userId} with ${incomingCards?.length || 0} cards`,
     );
+
+    const disabledError = await validateDisabledBooleanField(
+      incomingCards,
+      endpoint,
+      endpointKey,
+      request,
+    );
+    if (disabledError) return disabledError;
 
     // Validate incoming data
     const validationError = validateCardData(
@@ -398,6 +444,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         400,
       );
     }
+
 
     // Use a Redis key to store the user's card configurations
     const cardsKey = `cards:${userId}`;
