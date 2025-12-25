@@ -170,13 +170,16 @@ export function BulkActionsToolbar({
         return format === "anilist" ? `img200(${resolvedUrl})` : resolvedUrl;
       });
 
-      await navigator.clipboard.writeText(urls.join("\n"));
-      setCopiedFormat(format);
-      setTimeout(() => setCopiedFormat(null), 2000);
+      try {
+        await navigator.clipboard.writeText(urls.join("\n"));
+        setCopiedFormat(format);
+        setTimeout(() => setCopiedFormat(null), 2000);
+      } catch (err) {
+        console.error("Failed to copy to clipboard:", err);
+      }
     },
     [selectedCards],
   );
-
   const handleDownloadAll = useCallback(
     async (format: ConversionFormat = "png") => {
       if (selectedCards.length === 0 || isDownloading) return;
