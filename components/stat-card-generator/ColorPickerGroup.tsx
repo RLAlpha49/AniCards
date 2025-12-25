@@ -240,8 +240,28 @@ function GradientStopEditor({
   );
 
   useEffect(() => {
-    setLocalStops(stops.map((s) => ({ ...s, id: s.id ?? generateStopId() })));
-  }, [stops]);
+    const next = stops.map((s, i) => {
+      const id = s.id ?? localStops[i]?.id ?? generateStopId();
+      return { ...s, id };
+    });
+
+    const equals =
+      next.length === localStops.length &&
+      next.every((s, i) => {
+        const cur = localStops[i];
+        return (
+          cur &&
+          s.id === cur.id &&
+          s.color === cur.color &&
+          s.offset === cur.offset &&
+          (s.opacity ?? 1) === (cur.opacity ?? 1)
+        );
+      });
+
+    if (!equals) {
+      setLocalStops(next);
+    }
+  }, [stops, localStops]);
 
   const handleStopChange = useCallback(
     (index: number, field: keyof GradientStop, value: string | number) => {
