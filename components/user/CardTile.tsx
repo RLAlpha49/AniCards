@@ -216,9 +216,13 @@ export function CardTile({
       ).toString();
       const textToCopy =
         format === "anilist" ? `img200(${resolvedUrl})` : resolvedUrl;
-      await navigator.clipboard.writeText(textToCopy);
-      setCopiedFormat(format);
-      setTimeout(() => setCopiedFormat(null), 2000);
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        setCopiedFormat(format);
+        setTimeout(() => setCopiedFormat(null), 2000);
+      } catch (error) {
+        console.error("Failed to copy to clipboard:", error);
+      }
     },
     [previewUrl],
   );
