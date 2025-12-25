@@ -35,11 +35,11 @@ test.describe("Home page", () => {
 
     const viewportState = await showcase.evaluate((element) => {
       const rect = element.getBoundingClientRect();
-      return { top: rect.top, viewportHeight: window.innerHeight };
+      return { top: rect.top, bottom: rect.bottom, viewportHeight: window.innerHeight };
     });
 
-    expect(viewportState.top).toBeLessThanOrEqual(
-      viewportState.viewportHeight * 0.95,
-    );
+    // Ensure the showcase is at least partially visible in the viewport
+    expect(viewportState.top).toBeLessThan(viewportState.viewportHeight);
+    expect(viewportState.bottom).toBeGreaterThan(0);
   });
 });

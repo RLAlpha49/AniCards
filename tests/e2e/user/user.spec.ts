@@ -16,11 +16,13 @@ test.describe("User page", () => {
 
     await test.step("Render not found state", async () => {
       await expect(
-        page.getByRole("heading", { name: /user not found/i }),
+        page.getByRole("heading", { name: /something went wrong/i }),
       ).toBeVisible();
 
-      const returnHome = page.getByRole("link", { name: /return home/i });
-      await expect(returnHome).toHaveAttribute("href", "/");
+      await expect(page.getByText(/no user specified/i)).toBeVisible();
+
+      const searchForUser = page.getByRole("link", { name: /search for user/i });
+      await expect(searchForUser).toHaveAttribute("href", "/search");
     });
   });
 
@@ -58,36 +60,42 @@ test.describe("User page", () => {
     });
 
     await test.step("Verify hero heading and rendered cards", async () => {
+      // Page now shows a welcome heading for returning users
       await expect(
-        page.getByRole("heading", {
-          level: 1,
-          name: /testuser.*stat cards/i,
-        }),
+        page.getByRole("heading", { level: 1, name: /testuser/i }),
       ).toBeVisible();
 
+      // Wait for the cards section to be visible then assert preview images exist
+      await expect(page.getByRole("heading", { name: /your cards/i })).toBeVisible();
       const cards = page.getByRole("img", { name: /stats/i });
       await expect(cards).toHaveCount(mockCardsRecord.cards.length);
     });
 
     await test.step("Inspect export controls", async () => {
-      await expect(
-        page.getByRole("heading", { name: /export your cards/i }),
-      ).toBeVisible();
+      // Select the rendered cards so the bulk actions toolbar appears
+      await page.getByRole("checkbox", { name: /select anime stats card/i }).check();
+      await page.getByRole("checkbox", { name: /select social stats card/i }).check();
 
-      const copyButton = page.getByRole("button", {
-        name: /copy all card links/i,
-      });
-      const downloadButton = page.getByRole("button", {
-        name: /download all cards/i,
-      });
+      const toolbar = page.locator('[data-testid="bulk-actions-toolbar"]');
+      await expect(toolbar).toBeVisible();
 
-      await expect(copyButton).toBeVisible();
-      await expect(downloadButton).toBeVisible();
+      const buttons = toolbar.locator('button');
+      // Confirm button order and labels (Select all enabled will appear first)
+      await expect(buttons.nth(0)).toContainText(/select all enabled/i);
+      await expect(buttons.nth(1)).toContainText(/copy/i);
+      await expect(buttons.nth(2)).toContainText(/download/i);
 
-      await copyButton.click();
-      await expect(
-        page.getByRole("button", { name: /copy svg links/i }),
-      ).toBeVisible();
+      // Copy popover trigger (second button in the toolbar - first is "Select all enabled")
+      const copyTrigger = buttons.nth(1);
+      await expect(copyTrigger).toBeVisible();
+      await copyTrigger.click({ force: true });
+      await expect(page.getByText(/raw urls/i)).toBeVisible({ timeout: 10000 });
+
+      // Download popover trigger (third button in the toolbar)
+      const downloadTrigger = buttons.nth(2);
+      await expect(downloadTrigger).toBeVisible();
+      await downloadTrigger.click({ force: true });
+      await expect(page.getByText(/png/i)).toBeVisible({ timeout: 10000 });
     });
   });
 
@@ -108,9 +116,10 @@ test.describe("User page", () => {
 
     await test.step("Show error UI with recovery", async () => {
       await expect(page.getByText(/something went wrong/i)).toBeVisible();
-      await expect(page.getByText(/failed to load user/i)).toBeVisible();
+      // Server errors are surfaced directly (e.g. "Server error")
+      await expect(page.getByText(/server error|an unexpected error occurred/i)).toBeVisible();
       await expect(
-        page.getByRole("link", { name: /return home/i }),
+        page.getByRole("link", { name: /search for user/i }),
       ).toBeVisible();
     });
   });
@@ -173,6 +182,8 @@ test.describe("User page", () => {
     await expect(page.getByText(/welcome to anicards/i)).toBeVisible();
 
     const images = page.locator("main").locator("img");
+    // Wait for at least one preview image to appear (initial cards snapshot should enable previews)
+    await expect(images.first()).toBeVisible();
     const imageCount = await images.count();
     // We expect at least one preview image (cards were initialized and enabled)
     expect(imageCount).toBeGreaterThan(0);
