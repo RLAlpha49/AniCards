@@ -126,6 +126,20 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(400);
     });
 
+    it("should reject non-object card entries in array", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 1,
+        statsData: {},
+        cards: [null], // invalid entry
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid data");
+    });
+
     it("should reject missing userId", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
@@ -152,6 +166,30 @@ describe("Store Cards API POST Endpoint", () => {
 
       const res = await POST(req);
       expect(res.status).toBe(500);
+    });
+
+    it("should reject non-boolean disabled field", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 1,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            disabled: "yes", // invalid type
+          },
+        ],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid 'disabled' field type");
+
+      // Analytics metric should be incremented for failed validation
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:store_cards:failed_requests",
+      );
     });
 
     it("should reject invalid card types", async () => {
@@ -247,8 +285,140 @@ describe("Store Cards API POST Endpoint", () => {
 
       const storedData = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(storedData.userId).toBe(userId);
-      expect(storedData.cards).toHaveLength(1);
+      expect(storedData.cards).toHaveLength(Object.keys(displayNames).length);
+
+      const storedNames = new Set(
+        (storedData.cards as Array<{ cardName: string }>).map(
+          (c) => c.cardName,
+        ),
+      );
+      for (const name of Object.keys(displayNames)) {
+        expect(storedNames.has(name)).toBe(true);
+      }
+
+      const animeStats = (
+        storedData.cards as Array<Record<string, unknown>>
+      ).find((c) => c.cardName === "animeStats");
+      expect(animeStats).toBeDefined();
+      expect(animeStats).toMatchObject({
+        cardName: "animeStats",
+        variation: "default",
+        titleColor: "#000",
+        backgroundColor: "#fff",
+        textColor: "#333",
+        circleColor: "#f00",
+      });
       expect(storedData.updatedAt).toBeDefined();
+    });
+
+    it("should accept and store disabled cards (sets disabled flag)", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 321;
+      const req = createRequest({
+        userId,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            disabled: true,
+          },
+        ],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.cards).toHaveLength(Object.keys(displayNames).length);
+
+      const animeStats = (stored.cards as Array<Record<string, unknown>>).find(
+        (c) => c.cardName === "animeStats",
+      );
+      expect(animeStats).toMatchObject({
+        cardName: "animeStats",
+        disabled: true,
+      });
+    });
+
+    it("should preserve previous settings when a card is disabled", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 400;
+      // Simulate existing record with full config
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [
+            {
+              cardName: "animeGenres",
+              variation: "pie",
+              colorPreset: "custom",
+              titleColor: "#111",
+              backgroundColor: "#222",
+              textColor: "#333",
+              circleColor: "#444",
+              borderColor: "#00ff00",
+              borderRadius: 7,
+              useCustomSettings: true,
+              showPiePercentages: true,
+            },
+          ],
+          globalSettings: {
+            colorPreset: "default",
+            borderEnabled: true,
+          },
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeGenres",
+            disabled: true,
+          },
+        ],
+      });
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      const animeGenres = (stored.cards as Array<Record<string, unknown>>).find(
+        (c) => c.cardName === "animeGenres",
+      );
+
+      expect(animeGenres).toMatchObject({
+        cardName: "animeGenres",
+        disabled: true,
+        variation: "pie",
+        colorPreset: "custom",
+        titleColor: "#111",
+        backgroundColor: "#222",
+        textColor: "#333",
+        circleColor: "#444",
+        borderColor: "#00ff00",
+        borderRadius: 7,
+        useCustomSettings: true,
+        showPiePercentages: true,
+      });
+    });
+
+    it("should backfill all supported cards when incoming cards is empty", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 987;
+      const req = createRequest({ userId, statsData: {}, cards: [] });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.cards).toHaveLength(Object.keys(displayNames).length);
+
+      const disabledCount = (
+        stored.cards as Array<{ disabled?: boolean }>
+      ).filter((c) => c.disabled === true).length;
+      expect(disabledCount).toBe(Object.keys(displayNames).length);
     });
 
     it("should accept up to the allowed number of card types", async () => {
@@ -301,7 +471,14 @@ describe("Store Cards API POST Endpoint", () => {
       );
 
       const storedData = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(storedData.cards).toHaveLength(0);
+      expect(storedData.cards).toHaveLength(Object.keys(displayNames).length);
+
+      const storedNames = new Set(
+        (storedData.cards as Array<{ cardName: string }>).map(
+          (c) => c.cardName,
+        ),
+      );
+      expect(storedNames.has("invalidCardType")).toBe(false);
     });
 
     it("should accept duplicate entries that don't increase unique types", async () => {
@@ -731,6 +908,523 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
       expect(sharedRedisMockSet).toHaveBeenCalled();
     });
+
+    it("should not save colorPreset when useCustomSettings is false", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 500,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            colorPreset: "dark",
+            titleColor: "#111",
+            backgroundColor: "#222",
+            textColor: "#333",
+            circleColor: "#444",
+            useCustomSettings: false,
+          },
+        ],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.cards[0].colorPreset).toBeUndefined();
+      expect(stored.cards[0].titleColor).toBeUndefined();
+      expect(stored.cards[0].backgroundColor).toBeUndefined();
+      expect(stored.cards[0].textColor).toBeUndefined();
+      expect(stored.cards[0].circleColor).toBeUndefined();
+      expect(stored.cards[0].useCustomSettings).toBe(false);
+    });
+
+    it("should save colorPreset when useCustomSettings is true", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 500,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            colorPreset: "dark",
+            useCustomSettings: true,
+          },
+        ],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.cards[0].colorPreset).toBe("dark");
+      expect(stored.cards[0].useCustomSettings).toBe(true);
+    });
+  });
+
+  describe("Border Settings Optimization", () => {
+    it("should not save borderColor in globalSettings when borderEnabled is false", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 600,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            colorPreset: "dark",
+          },
+        ],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: false,
+          borderColor: "#ff0000",
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.borderEnabled).toBe(false);
+      expect(stored.globalSettings.borderColor).toBeUndefined();
+    });
+
+    it("should clear existing global borderColor when incoming globalSettings disables border without providing a color", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      // Simulate existing record with border set
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId: 600,
+          cards: [],
+          globalSettings: {
+            colorPreset: "default",
+            borderEnabled: true,
+            borderColor: "#ff0000",
+          },
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+
+      const req = createRequest({
+        userId: 600,
+        statsData: {},
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: false,
+          // borderColor omitted intentionally
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.borderEnabled).toBe(false);
+      expect(stored.globalSettings.borderColor).toBeUndefined();
+    });
+
+    it("should save borderColor in globalSettings when borderEnabled is true", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 600,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            colorPreset: "dark",
+          },
+        ],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: true,
+          borderColor: "#ff0000",
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.borderEnabled).toBe(true);
+      expect(stored.globalSettings.borderColor).toBe("#ff0000");
+    });
+
+    it("should preserve per-card borderColor and borderRadius even when borders are disabled globally", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 600,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            borderColor: "#00ff00",
+            borderRadius: 8,
+            useCustomSettings: true,
+            colorPreset: "custom",
+            titleColor: "#111",
+            backgroundColor: "#222",
+            textColor: "#333",
+            circleColor: "#444",
+          },
+        ],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: false,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.cards[0].borderColor).toBe("#00ff00");
+      expect(stored.cards[0].borderRadius).toBe(8);
+    });
+
+    it("should preserve existing per-card border values when global border is disabled and incoming omits them", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      // Simulate existing record with per-card borderColor and borderRadius
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId: 601,
+          cards: [
+            {
+              cardName: "animeStats",
+              borderColor: "#AAEEFF",
+              borderRadius: 12,
+            },
+          ],
+          globalSettings: {
+            colorPreset: "default",
+            borderEnabled: true,
+          },
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+
+      const req = createRequest({
+        userId: 601,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            titleColor: "#111",
+            backgroundColor: "#222",
+            textColor: "#333",
+            circleColor: "#444",
+            // borderColor and borderRadius omitted intentionally
+          },
+        ],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: false,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored2 = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored2.cards[0].borderColor).toBe("#AAEEFF");
+      expect(stored2.cards[0].borderRadius).toBe(12);
+    });
+
+    it("should save borderColor in card config when border is enabled globally", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 600,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            borderColor: "#00ff00",
+            borderRadius: 8,
+            useCustomSettings: true,
+            colorPreset: "custom",
+            titleColor: "#111",
+            backgroundColor: "#222",
+            textColor: "#333",
+            circleColor: "#444",
+          },
+        ],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: true,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.cards[0].borderColor).toBe("#00ff00");
+    });
+
+    it("should preserve per-card borderColor from previous config when omitted and border is enabled globally", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      // Simulate existing record with per-card borderColor and borders enabled
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId: 600,
+          cards: [
+            {
+              cardName: "animeStats",
+              borderColor: "#00abcd",
+            },
+          ],
+          globalSettings: {
+            colorPreset: "default",
+            borderEnabled: true,
+          },
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+
+      const req = createRequest({
+        userId: 600,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            titleColor: "#111",
+            backgroundColor: "#222",
+            textColor: "#333",
+            circleColor: "#444",
+            // borderColor omitted intentionally
+          },
+        ],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: true,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.cards[0].borderColor).toBe("#00abcd");
+    });
+
+    it("should not save borderColor in card config when useCustomSettings is false", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      // Simulate existing record with per-card borderColor
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId: 601,
+          cards: [
+            {
+              cardName: "animeStats",
+              borderColor: "#FF00FF",
+            },
+          ],
+          globalSettings: {
+            colorPreset: "default",
+            borderEnabled: true,
+          },
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+
+      const req = createRequest({
+        userId: 601,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            useCustomSettings: false,
+            colorPreset: "default",
+          },
+        ],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: true,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.cards[0].borderColor).toBeUndefined();
+    });
+
+    it("should clamp existing global borderRadius when merging", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      // Simulate existing globalSettings with out-of-range borderRadius
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId: 900,
+          cards: [],
+          globalSettings: {
+            colorPreset: "default",
+            borderEnabled: true,
+            borderRadius: 150,
+          },
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+
+      const req = createRequest({
+        userId: 900,
+        statsData: {},
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: true,
+          // borderRadius omitted, should preserve (but clamped) from existing
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.borderRadius).toBe(100);
+    });
+  });
+
+  describe("Global Advanced Settings", () => {
+    it("should persist global advanced settings when provided", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 700;
+      const req = createRequest({
+        userId,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            titleColor: "#111",
+            backgroundColor: "#222",
+            textColor: "#333",
+            circleColor: "#444",
+          },
+        ],
+        globalSettings: {
+          colorPreset: "default",
+          useStatusColors: false,
+          showPiePercentages: false,
+          showFavorites: false,
+          gridCols: 2,
+          gridRows: 4,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.useStatusColors).toBe(false);
+      expect(stored.globalSettings.showPiePercentages).toBe(false);
+      expect(stored.globalSettings.showFavorites).toBe(false);
+      expect(stored.globalSettings.gridCols).toBe(2);
+      expect(stored.globalSettings.gridRows).toBe(4);
+    });
+
+    it("should preserve existing global advanced settings when incoming omits them", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 701;
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [],
+          globalSettings: {
+            colorPreset: "default",
+            useStatusColors: false,
+            showPiePercentages: true,
+            showFavorites: true,
+            gridCols: 4,
+            gridRows: 1,
+          },
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.useStatusColors).toBe(false);
+      expect(stored.globalSettings.showPiePercentages).toBe(true);
+      expect(stored.globalSettings.showFavorites).toBe(true);
+      expect(stored.globalSettings.gridCols).toBe(4);
+      expect(stored.globalSettings.gridRows).toBe(1);
+    });
+
+    it("should clamp existing global grid dims when merging", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 702;
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [],
+          globalSettings: {
+            colorPreset: "default",
+            gridCols: 999,
+            gridRows: -10,
+          },
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.gridCols).toBe(5);
+      expect(stored.globalSettings.gridRows).toBe(1);
+    });
+
+    it("should clamp incoming global grid dims when provided", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 703;
+      const req = createRequest({
+        userId,
+        statsData: {},
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+          gridCols: 999,
+          gridRows: -10,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.gridCols).toBe(5);
+      expect(stored.globalSettings.gridRows).toBe(1);
+    });
   });
 
   describe("Card Merging Logic", () => {
@@ -1014,7 +1708,14 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards).toHaveLength(3);
+      expect(stored.cards).toHaveLength(Object.keys(displayNames).length);
+
+      const storedNames = new Set(
+        (stored.cards as Array<{ cardName: string }>).map((c) => c.cardName),
+      );
+      expect(storedNames.has("animeStats")).toBe(true);
+      expect(storedNames.has("animeGenres")).toBe(true);
+      expect(storedNames.has("animeStaff")).toBe(true);
     });
   });
 

@@ -1535,6 +1535,95 @@ describe("Card SVG Route", () => {
       expect(callArgs.styles.titleColor).toBe("#111111");
     });
 
+    it("should skip cards DB lookup when colorPreset is custom and full color params are provided", async () => {
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      // URL-built config path: only user record is needed.
+      sharedRedisMockGet.mockResolvedValueOnce(userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+          colorPreset: "custom",
+          titleColor: "#ff0000",
+          backgroundColor: "#000000",
+          textColor: "#ffffff",
+          circleColor: "#00ff00",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      // Ensure we did not fetch the cards record (only user record should be loaded)
+      expect(sharedRedisMockGet).toHaveBeenCalledTimes(1);
+
+      expect(mediaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (
+        mediaStatsTemplate as MockFunction<typeof mediaStatsTemplate>
+      ).mock.calls[0][0];
+      expect(callArgs.styles.titleColor).toBe("#ff0000");
+      expect(callArgs.styles.backgroundColor).toBe("#000000");
+      expect(callArgs.styles.textColor).toBe("#ffffff");
+      expect(callArgs.styles.circleColor).toBe("#00ff00");
+    });
+
+    it("should allow full URL colors to override DB colors when custom preset is used but DB config is still required", async () => {
+      // Force DB config path by using a card type that requires DB flags when not provided in the URL.
+      // `animeStaff` is favorites-relevant and requires showFavoritesParam to be present to skip DB.
+      const cardsData = createMockCardData("animeStaff", "default", {
+        titleColor: "#111111",
+        backgroundColor: "#222222",
+        textColor: "#333333",
+        circleColor: "#444444",
+        colorPreset: "custom",
+      });
+      const userData = createMockUserData(542244, "testUser", {
+        User: {
+          statistics: {
+            anime: {
+              staff: [{ staff: { name: { full: "Some Staff" } }, count: 1 }],
+            },
+            manga: {},
+          },
+          stats: { activityHistory: [{ date: 1, amount: 1 }] },
+        },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStaff",
+          colorPreset: "custom",
+          // Provide all required colors so the URL has everything needed for colors.
+          titleColor: "#aaaaaa",
+          backgroundColor: "#bbbbbb",
+          textColor: "#cccccc",
+          circleColor: "#dddddd",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (
+        extraAnimeMangaStatsTemplate as unknown as {
+          mock: { calls: Array<[unknown]> };
+        }
+      ).mock.calls.at(-1)?.[0];
+
+      const styles =
+        (callArgs as { styles?: Record<string, unknown> } | null | undefined)
+          ?.styles ?? {};
+
+      expect(styles["titleColor"]).toBe("#aaaaaa");
+      expect(styles["backgroundColor"]).toBe("#bbbbbb");
+      expect(styles["textColor"]).toBe("#cccccc");
+      expect(styles["circleColor"]).toBe("#dddddd");
+    });
+
     it("should allow URL color params to override named preset from URL", async () => {
       const userData = createMockUserData(542244, "testUser", {
         User: { statistics: { anime: {} } },

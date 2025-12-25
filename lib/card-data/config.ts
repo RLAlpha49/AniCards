@@ -6,9 +6,24 @@ import { CardDataError, getFavoritesForCardType } from "./validation";
 
 /**
  * Determines if we need to fetch card config from DB or can build from URL params.
- * Returns true if colorPreset is "custom" (needs DB for gradient colors) or missing
+ * Returns true if the URL does not provide enough information to build a complete
+ * card config (including colors and any relevant flags) without consulting the DB.
  * @source
  */
+function hasAllRequiredColorParams(params: {
+  titleColorParam?: string | null;
+  backgroundColorParam?: string | null;
+  textColorParam?: string | null;
+  circleColorParam?: string | null;
+}): boolean {
+  return (
+    !!params.titleColorParam &&
+    !!params.backgroundColorParam &&
+    !!params.textColorParam &&
+    !!params.circleColorParam
+  );
+}
+
 export function needsCardConfigFromDb(params: {
   colorPresetParam: string | null;
   titleColorParam?: string | null;
@@ -25,20 +40,17 @@ export function needsCardConfigFromDb(params: {
   gridColsParam?: string | null;
   gridRowsParam?: string | null;
 }): boolean {
-  if (params.colorPresetParam === "custom") {
-    return true;
-  }
   // Determine whether the URL provides enough information to build
   // a complete card config without consulting the DB.
   // Color resolution is satisfied when either:
   //  - a named preset (non-custom) is present in the URL, or
   //  - every individual color param is provided in the URL.
-  const hasNamedPreset = !!params.colorPresetParam;
-  const hasIndividualColors =
-    !!params.titleColorParam &&
-    !!params.backgroundColorParam &&
-    !!params.textColorParam &&
-    !!params.circleColorParam;
+  // NOTE: `colorPreset=custom` does not itself provide colors; it only indicates
+  // "no preset". If the URL also includes all required individual color params,
+  // we treat colors as fully resolved from the URL and can skip DB for colors.
+  const hasNamedPreset =
+    !!params.colorPresetParam && params.colorPresetParam !== "custom";
+  const hasIndividualColors = hasAllRequiredColorParams(params);
 
   const colorsResolved = hasNamedPreset || hasIndividualColors;
   if (!colorsResolved) return true;
@@ -86,14 +98,6 @@ export function needsCardConfigFromDb(params: {
 }
 
 /**
- * Converts a color value to string format for config storage.
- * @source
- */
-function colorToString(color: ColorValue): string {
-  return typeof color === "string" ? color : JSON.stringify(color);
-}
-
-/**
  * Applies preset colors to a card config.
  * @source
  */
@@ -101,10 +105,10 @@ function applyPresetColorsToConfig(
   config: StoredCardConfig,
   presetColors: ColorValue[],
 ): void {
-  config.titleColor = colorToString(presetColors[0]);
-  config.backgroundColor = colorToString(presetColors[1]);
-  config.textColor = colorToString(presetColors[2]);
-  config.circleColor = colorToString(presetColors[3]);
+  config.titleColor = presetColors[0];
+  config.backgroundColor = presetColors[1];
+  config.textColor = presetColors[2];
+  config.circleColor = presetColors[3];
 }
 
 /**
@@ -187,8 +191,14 @@ function applyColorOverrides(
     config.colorPreset,
   );
 
-  // If colorPreset is "custom", keep database colors (supports gradients)
+  // If colorPreset is "custom", prefer database colors.
+  // However, if the URL explicitly provides all required individual color params,
+  // the URL has everything needed and should be allowed to override even for
+  // custom preset links.
   if (isCustomPreset(effectivePreset)) {
+    if (hasAllRequiredColorParams(params)) {
+      applyUrlColorParams(config, params);
+    }
     return;
   }
 
@@ -423,13 +433,25 @@ export function processCardConfig(
   const effectiveVariation =
     params.variationParam || effectiveCardConfig.variation || "default";
 
+  // Merge global settings into the effective card config *before* applying
+  // any URL overrides. This ensures that cards saved without per-card
+  // colors/borders/flags will inherit values from `cardDoc.globalSettings`.
+  mergeGlobalSettingsIntoConfig(effectiveCardConfig, cardDoc.globalSettings);
+
   applyColorOverrides(effectiveCardConfig, params);
   applyBorderOverrides(effectiveCardConfig, params);
 
   // Favorites grid layout params (only meaningful for favoritesGrid)
   if (params.baseCardType === "favoritesGrid") {
-    effectiveCardConfig.gridCols = clampGridDim(params.gridColsParam, 3);
-    effectiveCardConfig.gridRows = clampGridDim(params.gridRowsParam, 3);
+    // URL grid params always take precedence when present
+    effectiveCardConfig.gridCols = clampGridDim(
+      params.gridColsParam,
+      effectiveCardConfig.gridCols ?? 3,
+    );
+    effectiveCardConfig.gridRows = clampGridDim(
+      params.gridRowsParam,
+      effectiveCardConfig.gridRows ?? 3,
+    );
   }
 
   // Apply boolean-like overrides and compute favorites list
@@ -526,4 +548,63 @@ function applyDefaultShowFavoritesFlag(
 ): void {
   if (!favoritesRelevant) return;
   effectiveCardConfig.showFavorites ??= false;
+}
+
+/**
+ * Merge global user settings into a per-card configuration **without**
+ * clobbering explicit per-card overrides. This fills missing color/preset,
+ * border and advanced flag values from `globalSettings` so that cards that
+ * rely on globals render correctly even when per-card values are absent.
+ */
+function mergeGlobalSettingsIntoConfig(
+  config: StoredCardConfig,
+  globalSettings?: CardsRecord["globalSettings"],
+): void {
+  if (!globalSettings) return;
+
+  // Helper to set config fields only when they are missing.
+  const setIfMissing = <K extends keyof StoredCardConfig>(
+    key: K,
+    value: StoredCardConfig[K] | undefined,
+  ) => {
+    if (config[key] === undefined && value !== undefined) {
+      config[key] = value;
+    }
+  };
+
+  setIfMissing("colorPreset", globalSettings.colorPreset);
+  setIfMissing("titleColor", globalSettings.titleColor);
+  setIfMissing("backgroundColor", globalSettings.backgroundColor);
+  setIfMissing("textColor", globalSettings.textColor);
+  setIfMissing("circleColor", globalSettings.circleColor);
+
+  // Border: only apply when global border is explicitly enabled.
+  if (globalSettings.borderEnabled) {
+    setIfMissing("borderColor", globalSettings.borderColor);
+  }
+  if (typeof globalSettings.borderRadius === "number") {
+    setIfMissing(
+      "borderRadius",
+      clampBorderRadius(globalSettings.borderRadius),
+    );
+  }
+
+  // Advanced boolean flags
+  setIfMissing("useStatusColors", globalSettings.useStatusColors);
+  setIfMissing("showPiePercentages", globalSettings.showPiePercentages);
+  setIfMissing("showFavorites", globalSettings.showFavorites);
+
+  // Grid dimensions
+  if (typeof globalSettings.gridCols === "number") {
+    setIfMissing(
+      "gridCols",
+      Math.max(1, Math.min(5, Math.floor(globalSettings.gridCols))),
+    );
+  }
+  if (typeof globalSettings.gridRows === "number") {
+    setIfMissing(
+      "gridRows",
+      Math.max(1, Math.min(5, Math.floor(globalSettings.gridRows))),
+    );
+  }
 }

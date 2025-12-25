@@ -1,15 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Home,
-  Mail,
-  Settings,
-  File,
-  Search,
-  Folder,
-  Grid3X3,
-} from "lucide-react";
+import { Home, Mail, Search, Folder, Grid3X3 } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -39,20 +31,20 @@ const navItems = [
     textColor: "text-blue-600 dark:text-blue-400",
   },
   {
+    title: "Search User",
+    icon: Search,
+    href: "/search",
+    gradient: "from-green-500 to-emerald-500",
+    bgLight: "bg-green-100 dark:bg-green-900/30",
+    textColor: "text-green-600 dark:text-green-400",
+  },
+  {
     title: "Examples",
     icon: Grid3X3,
     href: "/examples",
     gradient: "from-purple-500 to-violet-500",
     bgLight: "bg-purple-100 dark:bg-purple-900/30",
     textColor: "text-purple-600 dark:text-purple-400",
-  },
-  {
-    title: "Search",
-    icon: Search,
-    href: "/search",
-    gradient: "from-green-500 to-emerald-500",
-    bgLight: "bg-green-100 dark:bg-green-900/30",
-    textColor: "text-green-600 dark:text-green-400",
   },
   {
     title: "Contact",
@@ -63,28 +55,12 @@ const navItems = [
     textColor: "text-pink-600 dark:text-pink-400",
   },
   {
-    title: "Settings",
-    icon: Settings,
-    href: "/settings",
-    gradient: "from-orange-500 to-amber-500",
-    bgLight: "bg-orange-100 dark:bg-orange-900/30",
-    textColor: "text-orange-600 dark:text-orange-400",
-  },
-  {
     title: "Projects",
     icon: Folder,
     href: "/projects",
     gradient: "from-indigo-500 to-blue-500",
     bgLight: "bg-indigo-100 dark:bg-indigo-900/30",
     textColor: "text-indigo-600 dark:text-indigo-400",
-  },
-  {
-    title: "License",
-    icon: File,
-    href: "/license",
-    gradient: "from-slate-500 to-gray-500",
-    bgLight: "bg-slate-100 dark:bg-slate-800/50",
-    textColor: "text-slate-600 dark:text-slate-400",
   },
 ];
 

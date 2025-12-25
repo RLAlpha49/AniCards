@@ -1,3 +1,5 @@
+import { ColorValue } from "./card";
+
 /** Genre bucket in anime statistics with a count of items. @source */
 export interface AnimeStatGenre {
   genre: string;
@@ -442,17 +444,36 @@ export type ReconstructedUserRecord = UserRecord & {
 /** Stored card configuration shape persisted in user-card records. @source */
 export interface StoredCardConfig {
   cardName: string;
-  variation: string;
+  variation?: string;
   colorPreset?: string;
-  titleColor?: string;
-  backgroundColor?: string;
-  textColor?: string;
-  circleColor?: string;
+  titleColor?: ColorValue;
+  backgroundColor?: ColorValue;
+  textColor?: ColorValue;
+  circleColor?: ColorValue;
   borderColor?: string;
   borderRadius?: number;
   showFavorites?: boolean;
   useStatusColors?: boolean;
   showPiePercentages?: boolean;
+  gridCols?: number;
+  gridRows?: number;
+  useCustomSettings?: boolean;
+  disabled?: boolean;
+}
+
+/** Global settings for user card configurations. @source */
+export interface GlobalCardSettings {
+  colorPreset?: string;
+  titleColor?: ColorValue;
+  backgroundColor?: ColorValue;
+  textColor?: ColorValue;
+  circleColor?: ColorValue;
+  borderEnabled?: boolean;
+  borderColor?: string;
+  borderRadius?: number;
+  useStatusColors?: boolean;
+  showPiePercentages?: boolean;
+  showFavorites?: boolean;
   gridCols?: number;
   gridRows?: number;
 }
@@ -461,5 +482,6 @@ export interface StoredCardConfig {
 export interface CardsRecord {
   userId: number;
   cards: StoredCardConfig[];
+  globalSettings?: GlobalCardSettings;
   updatedAt: string;
 }

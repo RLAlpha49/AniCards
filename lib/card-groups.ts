@@ -1,9 +1,20 @@
 import { buildApiUrl } from "@/lib/utils";
+import type { ColorValue } from "@/lib/types/card";
 
 /** Default card generation endpoint used for example previews. @source */
 export const DEFAULT_BASE_CARD_URL = buildApiUrl("/card.svg");
 /** Default example user id used for generating demo card previews. @source */
 export const DEFAULT_EXAMPLE_USER_ID = "542244";
+
+/**
+ * Converts a color value to string format for URL parameters.
+ * Gradients are serialized as JSON strings.
+ * @source
+ */
+function colorToString(color: ColorValue | undefined): string | undefined {
+  if (color === undefined) return undefined;
+  return typeof color === "string" ? color : JSON.stringify(color);
+}
 
 /** Human-friendly labels for card variations used in the UI. @source */
 export const VARIATION_LABEL_MAP: Record<string, string> = {
@@ -446,9 +457,16 @@ function addPiePercentagesParamIfRelevant(
 
 export function mapStoredConfigToCardUrlParams(
   candidate: Partial<
-    import("@/lib/types/records").StoredCardConfig & {
+    Omit<
+      import("@/lib/types/records").StoredCardConfig,
+      "titleColor" | "backgroundColor" | "textColor" | "circleColor"
+    > & {
       cardName?: string;
       cardType?: string;
+      titleColor?: ColorValue;
+      backgroundColor?: ColorValue;
+      textColor?: ColorValue;
+      circleColor?: ColorValue;
     }
   >,
   opts?: {
@@ -456,6 +474,7 @@ export function mapStoredConfigToCardUrlParams(
     userName?: string;
     includeColors?: boolean;
     defaultToCustomPreset?: boolean;
+    allowPresetColorOverrides?: boolean;
   },
 ): CardUrlParams {
   const cardType = candidate.cardName || candidate.cardType || "";
@@ -463,11 +482,19 @@ export function mapStoredConfigToCardUrlParams(
   const baseCardType = (cardType || "").split("-")[0] || "";
   const includeColors = !!opts?.includeColors;
   const defaultToCustom = opts?.defaultToCustomPreset !== false;
+  const allowPresetColorOverrides = opts?.allowPresetColorOverrides !== false;
 
   const colorPreset = resolveColorPreset(
     candidate.colorPreset,
     defaultToCustom,
   );
+
+  const borderColor = candidate.borderColor;
+  const borderRadiusCandidate =
+    typeof candidate.borderRadius === "number"
+      ? candidate.borderRadius
+      : undefined;
+  const borderRadius = borderColor ? borderRadiusCandidate : undefined;
 
   const params: CardUrlParams = {
     cardType,
@@ -475,19 +502,23 @@ export function mapStoredConfigToCardUrlParams(
     userName: opts?.userName,
     variation,
     colorPreset,
-    borderColor: candidate.borderColor,
-    borderRadius:
-      typeof candidate.borderRadius === "number"
-        ? candidate.borderRadius
-        : undefined,
+    borderColor,
+    borderRadius,
   };
 
-  if (includeColors) {
-    if (candidate.titleColor) params.titleColor = candidate.titleColor;
+  const hasNamedPreset = !!colorPreset && colorPreset !== "custom";
+  const shouldIncludeColors =
+    includeColors && (allowPresetColorOverrides || !hasNamedPreset);
+
+  if (shouldIncludeColors) {
+    if (candidate.titleColor)
+      params.titleColor = colorToString(candidate.titleColor);
     if (candidate.backgroundColor)
-      params.backgroundColor = candidate.backgroundColor;
-    if (candidate.textColor) params.textColor = candidate.textColor;
-    if (candidate.circleColor) params.circleColor = candidate.circleColor;
+      params.backgroundColor = colorToString(candidate.backgroundColor);
+    if (candidate.textColor)
+      params.textColor = colorToString(candidate.textColor);
+    if (candidate.circleColor)
+      params.circleColor = colorToString(candidate.circleColor);
   }
 
   addFavoritesParamIfRelevant(params, baseCardType, candidate.showFavorites);

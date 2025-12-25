@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import PageShell from "@/components/PageShell";
-import { StatCardGenerator } from "@/components/StatCardGenerator";
 import {
   BarChart2,
   Users,
@@ -484,12 +484,13 @@ const USER_ID = DEFAULT_EXAMPLE_USER_ID;
  */
 export default function ExamplesPage() {
   usePageSEO("examples");
-  const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const handleOpenGenerator = useCallback(() => {
-    setIsGeneratorOpen(true);
-  }, []);
+  const router = useRouter();
+
+  const handleStartCreating = useCallback(() => {
+    router.push("/search");
+  }, [router]);
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value);
@@ -625,12 +626,8 @@ export default function ExamplesPage() {
 
   return (
     <ErrorBoundary
-      resetKeys={[
-        isGeneratorOpen ? "generator_open" : "generator_closed",
-        searchQuery,
-      ]}
+      resetKeys={[searchQuery]}
       onReset={() => {
-        setIsGeneratorOpen(false);
         setSearchQuery("");
       }}
     >
@@ -657,7 +654,7 @@ export default function ExamplesPage() {
                     key={category}
                     category={category}
                     cardTypes={categoryCardTypes}
-                    onOpenGenerator={handleOpenGenerator}
+                    onStartCreating={handleStartCreating}
                     isFirstCategory={categoryIndex === 0}
                   />
                 );
@@ -667,12 +664,7 @@ export default function ExamplesPage() {
         </section>
 
         {/* Call to Action */}
-        <CTASection onOpenGenerator={handleOpenGenerator} />
-
-        <StatCardGenerator
-          isOpen={isGeneratorOpen}
-          onOpenChange={(open) => setIsGeneratorOpen(open)}
-        />
+        <CTASection onStartCreating={handleStartCreating} />
       </PageShell>
     </ErrorBoundary>
   );

@@ -28,11 +28,6 @@ const pages = [
     changefreq: "weekly" as const,
   },
   {
-    path: "/settings",
-    priority: 0.7,
-    changefreq: "weekly" as const,
-  },
-  {
     path: "/projects",
     priority: 0.6,
     changefreq: "monthly" as const,
@@ -40,11 +35,6 @@ const pages = [
   {
     path: "/contact",
     priority: 0.6,
-    changefreq: "yearly" as const,
-  },
-  {
-    path: "/license",
-    priority: 0.4,
     changefreq: "yearly" as const,
   },
 ];

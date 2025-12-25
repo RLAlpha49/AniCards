@@ -235,44 +235,67 @@ function GradientStopEditor({
   stops: GradientStop[];
   onStopsChange: (stops: GradientStop[]) => void;
 }>) {
+  const [localStops, setLocalStops] = useState<GradientStop[]>(() =>
+    stops.map((s) => ({ ...s, id: s.id ?? generateStopId() })),
+  );
+
+  useEffect(() => {
+    const next = stops.map((s, i) => {
+      const id = s.id ?? localStops[i]?.id ?? generateStopId();
+      return { ...s, id };
+    });
+
+    const equals =
+      next.length === localStops.length &&
+      next.every((s, i) => {
+        const cur = localStops[i];
+        return (
+          cur &&
+          s.id === cur.id &&
+          s.color === cur.color &&
+          s.offset === cur.offset &&
+          (s.opacity ?? 1) === (cur.opacity ?? 1)
+        );
+      });
+
+    if (!equals) {
+      setLocalStops(next);
+    }
+  }, [stops, localStops]);
+
   const handleStopChange = useCallback(
     (index: number, field: keyof GradientStop, value: string | number) => {
-      const newStops = [...stops];
-      newStops[index] = { ...newStops[index], [field]: value };
+      const newStops = localStops.map((s, i) =>
+        i === index ? { ...s, [field]: value } : s,
+      );
+      setLocalStops(newStops);
       onStopsChange(newStops);
     },
-    [stops, onStopsChange],
+    [localStops, onStopsChange],
   );
 
   const addStop = useCallback(() => {
-    if (stops.length >= 5) return;
-    const lastStop = stops.at(-1);
+    if (localStops.length >= 5) return;
+    const lastStop = localStops.at(-1);
     const newOffset = Math.min(100, (lastStop?.offset ?? 50) + 25);
-    onStopsChange([
-      ...stops,
-      {
-        id: generateStopId("add"),
-        color: lastStop?.color ?? "#888888",
-        offset: newOffset,
-      },
-    ]);
-  }, [stops, onStopsChange]);
-
-  // Ensure all stops have IDs so we can use them as stable React keys.
-  useEffect(() => {
-    const missingId = stops.some((s) => s.id === undefined);
-    if (!missingId) return;
-    const updated = stops.map((s) => ({ ...s, id: s.id ?? generateStopId() }));
+    const newStop: GradientStop = {
+      id: generateStopId("add"),
+      color: lastStop?.color ?? "#888888",
+      offset: newOffset,
+    };
+    const updated = [...localStops, newStop];
+    setLocalStops(updated);
     onStopsChange(updated);
-  }, [stops, onStopsChange]);
+  }, [localStops, onStopsChange]);
 
   const removeStop = useCallback(
     (index: number) => {
-      if (stops.length <= 2) return;
-      const newStops = stops.filter((_, i) => i !== index);
+      if (localStops.length <= 2) return;
+      const newStops = localStops.filter((_, i) => i !== index);
+      setLocalStops(newStops);
       onStopsChange(newStops);
     },
-    [stops, onStopsChange],
+    [localStops, onStopsChange],
   );
 
   return (
@@ -314,8 +337,8 @@ function GradientStopEditor({
             variant="outline"
             size="sm"
             onClick={addStop}
-            disabled={stops.length >= 5}
-            aria-label={`Add gradient color stop ${stops.length + 1} of 5`}
+            disabled={localStops.length >= 5}
+            aria-label={`Add gradient color stop ${localStops.length + 1} of 5`}
             title="Add up to 5 color stops"
             className="h-7 gap-1.5 rounded-lg border-slate-200/50 bg-white px-2.5 text-xs font-medium text-slate-600 shadow-sm transition-all hover:bg-slate-50 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-50 dark:border-slate-700/50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
           >
@@ -326,7 +349,7 @@ function GradientStopEditor({
 
         {/* Stops List */}
         <div className="space-y-2">
-          {stops.map((stop, index) => (
+          {localStops.map((stop, index) => (
             <motion.div
               key={stop.id ?? `gradient-stop-${index}`}
               initial={{ opacity: 0, x: -10 }}
@@ -409,7 +432,7 @@ function GradientStopEditor({
                 variant="ghost"
                 size="sm"
                 onClick={() => removeStop(index)}
-                disabled={stops.length <= 2}
+                disabled={localStops.length <= 2}
                 aria-label={`Remove gradient stop ${index + 1}`}
                 title="Remove this color stop"
                 className="h-7 w-7 rounded-lg p-0 text-slate-400 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-0 group-hover:opacity-100 dark:hover:bg-red-900/20 dark:hover:text-red-400"

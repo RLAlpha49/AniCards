@@ -667,6 +667,9 @@ components:
           type: string
         borderRadius:
           type: number
+        disabled:
+          type: boolean
+          description: "Whether the card is disabled/hidden by the user"
         showFavorites:
           type: boolean
         useStatusColors:

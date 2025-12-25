@@ -5,10 +5,10 @@ import UiCtaSection from "@/components/CTASection";
 import HeroBadge from "@/components/HeroBadge";
 
 interface CTASectionProps {
-  onOpenGenerator: () => void;
+  onStartCreating: () => void;
 }
 
-export function CTASection({ onOpenGenerator }: Readonly<CTASectionProps>) {
+export function CTASection({ onStartCreating }: Readonly<CTASectionProps>) {
   return (
     <UiCtaSection
       badge={
@@ -39,7 +39,7 @@ export function CTASection({ onOpenGenerator }: Readonly<CTASectionProps>) {
             <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
           </>
         ),
-        onClick: onOpenGenerator,
+        onClick: onStartCreating,
         className:
           "group h-14 min-w-[220px] rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-lg font-semibold shadow-lg shadow-purple-500/25 transition-all hover:scale-105 hover:shadow-xl hover:shadow-purple-500/30",
       }}

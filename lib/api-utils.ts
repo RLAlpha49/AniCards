@@ -9,6 +9,7 @@ import {
   getColorInvalidReason,
 } from "@/lib/utils";
 import { displayNames, isValidCardType } from "@/lib/card-data/validation";
+import type { StoredCardConfig } from "@/lib/types/records";
 
 /**
  * Optional keep-alive HTTP(S) agent used only in Node runtimes to improve
@@ -615,7 +616,9 @@ function validateCardRequiredFields(
     return null;
   }
 
-  const reqStrErr = validateRequiredStringFields(card, requiredStringFields);
+  const isDisabled = card["disabled"] === true;
+  const fieldsToValidate = isDisabled ? ["cardName"] : requiredStringFields;
+  const reqStrErr = validateRequiredStringFields(card, fieldsToValidate);
   if (reqStrErr) return reqStrErr;
 
   // Ensure the cardName points to a supported card type (base type validation)
@@ -632,15 +635,21 @@ function validateCardRequiredFields(
     );
   }
 
-  const rawPreset = card["colorPreset"];
-  const preset =
-    typeof rawPreset === "string" && rawPreset.trim().length > 0
-      ? rawPreset
-      : undefined;
-  const requireColorFields = preset === undefined || preset === "custom";
-  if (requireColorFields) {
-    const reqColorErr = validateRequiredColorFields(card, requiredColorFields);
-    if (reqColorErr) return reqColorErr;
+  // Only validate color requirements when not disabled (disabled cards store minimal data)
+  if (!isDisabled) {
+    const rawPreset = card["colorPreset"];
+    const preset =
+      typeof rawPreset === "string" && rawPreset.trim().length > 0
+        ? rawPreset
+        : undefined;
+    const requireColorFields = preset === undefined || preset === "custom";
+    if (requireColorFields) {
+      const reqColorErr = validateRequiredColorFields(
+        card,
+        requiredColorFields,
+      );
+      if (reqColorErr) return reqColorErr;
+    }
   }
 
   return null;
@@ -663,6 +672,7 @@ function validateCardOptionalFields(
 ): NextResponse<ApiError> | null {
   // Validate optional boolean fields
   const optionalBooleanFields = [
+    "disabled",
     "showFavorites",
     "useStatusColors",
     "showPiePercentages",
@@ -998,10 +1008,15 @@ function validateCardsItems(
 /**
  * Validates an array of cards provided in the store-cards endpoint, ensuring
  * userId is valid and that each card's required and optional fields are valid.
+ * On success this now returns a normalized and typed array of
+ * `StoredCardConfig` objects derived from the incoming payload so callers can
+ * safely use typed values without an assertion. On failure it returns a
+ * `NextResponse` containing an `ApiError`.
  * @param cards - Payload expected to be an array of card objects.
  * @param userId - User identifier associated with the cards.
  * @param endpoint - Logical endpoint name for logging/analytics.
- * @returns A NextResponse with an ApiError when invalid, or null otherwise.
+ * @returns A NextResponse with an ApiError when invalid, or the typed cards
+ *          array when validation succeeds.
  * @source
  */
 export function validateCardData(
@@ -1009,7 +1024,7 @@ export function validateCardData(
   userId: unknown,
   endpoint: string,
   request?: Request,
-): NextResponse<ApiError> | null {
+): NextResponse<ApiError> | StoredCardConfig[] {
   // Validate userId
   const userIdError = validateUserIdField(userId, endpoint, request);
   if (userIdError) return userIdError;
@@ -1028,7 +1043,52 @@ export function validateCardData(
   const itemsErr = validateCardsItems(cardsArr, endpoint, request);
   if (itemsErr) return itemsErr;
 
-  return null;
+  const typedCards: StoredCardConfig[] = cardsArr.map((card) => {
+    const r = card as Record<string, unknown>;
+
+    const coerceNum = (v: unknown): number | undefined => {
+      if (v === undefined || v === null) return undefined;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : undefined;
+    };
+
+    return {
+      cardName: String(r.cardName),
+      variation:
+        typeof r.variation === "string" && r.variation.length > 0
+          ? r.variation
+          : undefined,
+      colorPreset:
+        typeof r.colorPreset === "string" && r.colorPreset.length > 0
+          ? r.colorPreset
+          : undefined,
+      // Colours may be string or gradient objects; keep as-is and trust validation
+      titleColor: r.titleColor as StoredCardConfig["titleColor"],
+      backgroundColor: r.backgroundColor as StoredCardConfig["backgroundColor"],
+      textColor: r.textColor as StoredCardConfig["textColor"],
+      circleColor: r.circleColor as StoredCardConfig["circleColor"],
+      borderColor:
+        typeof r.borderColor === "string" ? r.borderColor : undefined,
+      borderRadius: coerceNum(r.borderRadius),
+      showFavorites:
+        typeof r.showFavorites === "boolean" ? r.showFavorites : undefined,
+      useStatusColors:
+        typeof r.useStatusColors === "boolean" ? r.useStatusColors : undefined,
+      showPiePercentages:
+        typeof r.showPiePercentages === "boolean"
+          ? r.showPiePercentages
+          : undefined,
+      gridCols: coerceNum(r.gridCols),
+      gridRows: coerceNum(r.gridRows),
+      useCustomSettings:
+        typeof r.useCustomSettings === "boolean"
+          ? r.useCustomSettings
+          : undefined,
+      disabled: typeof r.disabled === "boolean" ? r.disabled : undefined,
+    } as StoredCardConfig;
+  });
+
+  return typedCards;
 }
 
 /**

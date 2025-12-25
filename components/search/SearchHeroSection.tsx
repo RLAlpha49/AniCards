@@ -64,9 +64,9 @@ export function SearchHeroSection() {
         variants={itemVariants}
         className="mt-6 max-w-2xl text-lg text-slate-600 dark:text-slate-300 sm:text-xl"
       >
-        Search by username or ID to explore detailed anime and manga statistics
-        for AniList users who already have generated cards. Generate beautiful
-        stat cards for those profiles in seconds.
+        Enter an AniList username or user ID to jump straight to the profile. If
+        you haven&apos;t used AniCards yet, we&apos;ll fetch the stats and set
+        everything up automatically.
       </motion.p>
     </motion.div>
   );
