@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
 import {
-  sharedRedisMockKeys,
+  sharedRedisMockScan,
   sharedRedisMockGet,
   sharedRedisMockSet,
   sharedRedisMockDel,
@@ -164,7 +164,7 @@ describe("Cron API POST Endpoint", () => {
     sharedRedisMockGet.mockReset();
     sharedRedisMockSet.mockReset();
     sharedRedisMockDel.mockReset();
-    sharedRedisMockKeys.mockReset();
+    sharedRedisMockScan.mockReset();
     sharedRedisMockMget.mockReset();
     sharedRedisMockPipelineExec.mockReset();
 
@@ -201,7 +201,7 @@ describe("Cron API POST Endpoint", () => {
 
     it("should skip authorization check when CRON_SECRET env is not set", async () => {
       delete process.env.CRON_SECRET;
-      sharedRedisMockKeys.mockResolvedValueOnce([]);
+      sharedRedisMockScan.mockResolvedValueOnce([0, []]);
 
       const req = new Request("http://localhost/api/cron", {
         headers: {},
@@ -216,7 +216,7 @@ describe("Cron API POST Endpoint", () => {
       const prev = process.env.NEXT_PUBLIC_APP_URL;
       delete process.env.NEXT_PUBLIC_APP_URL;
       try {
-        sharedRedisMockKeys.mockResolvedValueOnce([]);
+        sharedRedisMockScan.mockResolvedValueOnce([0, []]);
         const headers = new Headers();
         headers.set("x-cron-secret", CRON_SECRET);
         headers.set("origin", "http://example.dev");
@@ -237,7 +237,7 @@ describe("Cron API POST Endpoint", () => {
     });
 
     it("should set Content-Type to text/plain in response", async () => {
-      sharedRedisMockKeys.mockResolvedValueOnce([]);
+      sharedRedisMockScan.mockResolvedValueOnce([0, []]);
       const req = new Request("http://localhost/api/cron", {
         headers: { "x-cron-secret": CRON_SECRET },
       });
@@ -248,7 +248,7 @@ describe("Cron API POST Endpoint", () => {
 
   describe("User Processing", () => {
     it("should process with zero users if no keys are found", async () => {
-      sharedRedisMockKeys.mockResolvedValueOnce([]);
+      sharedRedisMockScan.mockResolvedValueOnce([0, []]);
       const req = new Request("http://localhost/api/cron", {
         headers: { "x-cron-secret": CRON_SECRET },
       });
@@ -262,12 +262,15 @@ describe("Cron API POST Endpoint", () => {
       expect(text).toContain(
         `Recommended schedules to refresh all 0 users at least once per 24 hours:`,
       );
-      expect(sharedRedisMockKeys).toHaveBeenCalledWith("user:*");
+      expect(sharedRedisMockScan).toHaveBeenCalledWith(
+        0,
+        expect.objectContaining({ match: "user:*" }),
+      );
     });
 
     it("should successfully update all users when all are valid and AniList responds with 200", async () => {
       const userKeys = ["user:1", "user:2", "user:3", "user:4", "user:5"];
-      sharedRedisMockKeys.mockResolvedValueOnce(userKeys);
+      sharedRedisMockScan.mockResolvedValueOnce([0, userKeys]);
 
       sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
@@ -297,7 +300,7 @@ describe("Cron API POST Endpoint", () => {
 
     it("should process only the 5 oldest users when more than ANILIST_RATE_LIMIT users exist", async () => {
       const userKeys = Array.from({ length: 15 }, (_, i) => `user:${i + 1}`);
-      sharedRedisMockKeys.mockResolvedValueOnce(userKeys);
+      sharedRedisMockScan.mockResolvedValueOnce([0, userKeys]);
 
       sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
@@ -330,7 +333,10 @@ describe("Cron API POST Endpoint", () => {
     });
 
     it("should sort users by updatedAt (oldest first) before selecting batch", async () => {
-      sharedRedisMockKeys.mockResolvedValueOnce(["user:1", "user:2", "user:3"]);
+      sharedRedisMockScan.mockResolvedValueOnce([
+        0,
+        ["user:1", "user:2", "user:3"],
+      ]);
 
       const oldDate = new Date("2024-01-01").toISOString();
       const newDate = new Date("2024-12-01").toISOString();
@@ -384,7 +390,7 @@ describe("Cron API POST Endpoint", () => {
 
   describe("404 Failure Handling and User Removal", () => {
     it("should increment failure counter on 404 error (first attempt)", async () => {
-      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
 
       sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
@@ -409,7 +415,7 @@ describe("Cron API POST Endpoint", () => {
     });
 
     it("should increment failure counter on 404 error (second attempt)", async () => {
-      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
 
       sharedRedisMockGet.mockImplementation((key: string) => {
         if (key === "failed_updates:123") {
@@ -432,7 +438,7 @@ describe("Cron API POST Endpoint", () => {
     });
 
     it("should remove user after 3 consecutive 404 failures", async () => {
-      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
 
       sharedRedisMockGet.mockImplementation((key: string) => {
         if (key === "failed_updates:123") {
@@ -474,7 +480,7 @@ describe("Cron API POST Endpoint", () => {
 
   describe("Retry Logic and Network Errors", () => {
     it("should retry on network errors and eventually succeed", async () => {
-      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
 
       sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
@@ -498,7 +504,7 @@ describe("Cron API POST Endpoint", () => {
     });
 
     it("should fail after 3 retry attempts on persistent network error", async () => {
-      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
 
       sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
@@ -523,7 +529,7 @@ describe("Cron API POST Endpoint", () => {
     });
 
     it("should handle non-404 HTTP errors without tracking as failure", async () => {
-      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
 
       sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
@@ -552,7 +558,7 @@ describe("Cron API POST Endpoint", () => {
 
   describe("Data Persistence", () => {
     it("should update user stats in Redis with fetched data", async () => {
-      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
 
       sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
@@ -587,7 +593,7 @@ describe("Cron API POST Endpoint", () => {
     });
 
     it("should update user's updatedAt timestamp after successful fetch", async () => {
-      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
 
       sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
@@ -634,7 +640,7 @@ describe("Cron API POST Endpoint", () => {
     });
 
     it("should clear failure tracking after successful update", async () => {
-      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
 
       sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
@@ -666,9 +672,9 @@ describe("Cron API POST Endpoint", () => {
 
   describe("Invalid Data Handling", () => {
     it("should skip users with invalid/unparseable data", async () => {
-      sharedRedisMockKeys.mockResolvedValueOnce([
-        "user:123:meta",
-        "user:456:meta",
+      sharedRedisMockScan.mockResolvedValueOnce([
+        0,
+        ["user:123:meta", "user:456:meta"],
       ]);
 
       sharedRedisMockGet.mockImplementation((key: string) => {
@@ -694,7 +700,7 @@ describe("Cron API POST Endpoint", () => {
       expect(text).toContain("Updated 1/1");
     });
     it("should handle users with missing optional fields (empty username)", async () => {
-      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
 
       sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
@@ -726,7 +732,7 @@ describe("Cron API POST Endpoint", () => {
     });
 
     it("should handle null user data from Redis gracefully", async () => {
-      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
 
       sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
@@ -751,7 +757,7 @@ describe("Cron API POST Endpoint", () => {
 
   describe("Error Handling", () => {
     it("should return 500 and error message if Redis keys retrieval fails", async () => {
-      sharedRedisMockKeys.mockRejectedValueOnce(
+      sharedRedisMockScan.mockRejectedValueOnce(
         new Error("Redis connection error"),
       );
       const req = new Request("http://localhost/api/cron", {
@@ -764,9 +770,9 @@ describe("Cron API POST Endpoint", () => {
     });
 
     it("should handle individual user processing errors gracefully", async () => {
-      sharedRedisMockKeys.mockResolvedValueOnce([
-        "user:123:meta",
-        "user:456:meta",
+      sharedRedisMockScan.mockResolvedValueOnce([
+        0,
+        ["user:123:meta", "user:456:meta"],
       ]);
 
       sharedRedisMockGet.mockImplementation((key: string) => {
@@ -793,7 +799,7 @@ describe("Cron API POST Endpoint", () => {
     });
 
     it("should return 500 status when critical error occurs during batch processing", async () => {
-      sharedRedisMockKeys.mockResolvedValueOnce(["user:123"]);
+      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
       sharedRedisMockGet.mockRejectedValueOnce(new Error("Redis error"));
 
       const req = new Request("http://localhost/api/cron", {
@@ -808,7 +814,10 @@ describe("Cron API POST Endpoint", () => {
 
   describe("Mixed Scenarios", () => {
     it("should handle mix of successful and failed updates in same batch", async () => {
-      sharedRedisMockKeys.mockResolvedValueOnce(["user:1", "user:2", "user:3"]);
+      sharedRedisMockScan.mockResolvedValueOnce([
+        0,
+        ["user:1", "user:2", "user:3"],
+      ]);
 
       sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
@@ -846,7 +855,7 @@ describe("Cron API POST Endpoint", () => {
 
     it("should handle processing 5 users (at rate limit) with mixed outcomes", async () => {
       const userKeys = Array.from({ length: 5 }, (_, i) => `user:${i + 1}`);
-      sharedRedisMockKeys.mockResolvedValueOnce(userKeys);
+      sharedRedisMockScan.mockResolvedValueOnce([0, userKeys]);
 
       sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {

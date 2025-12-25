@@ -1,7 +1,7 @@
 import { USER_STATS_QUERY } from "@/lib/anilist/queries";
 import { UserRecord } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
-import { redisClient, apiJsonHeaders } from "@/lib/api-utils";
+import { redisClient, apiJsonHeaders, scanAllKeys } from "@/lib/api-utils";
 import type { Redis as UpstashRedis } from "@upstash/redis";
 import { validateAndNormalizeUserRecord } from "@/lib/card-data/validation";
 import {
@@ -277,7 +277,7 @@ export async function POST(request: Request) {
       "🛠️ [Cron Job] QStash authorized, starting background update...",
     );
 
-    const allKeys = await redisClient.keys("user:*");
+    const allKeys = await scanAllKeys("user:*");
     // Filter to only include numeric user IDs and avoid analytics or other keys
     const userIds = Array.from(
       new Set(

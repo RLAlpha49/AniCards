@@ -11,7 +11,7 @@ console.error = mock(() => {});
  * Shared Redis mock client that will be used by all test files.
  * Each test file will reset these mocks in their setup functions.
  */
-export const sharedRedisMockKeys = mock();
+export const sharedRedisMockScan = mock();
 export const sharedRedisMockGet = mock();
 export const sharedRedisMockSet = mock();
 export const sharedRedisMockDel = mock();
@@ -41,7 +41,7 @@ const sharedRedisPipelineMock = {
 };
 
 const sharedRedisFakeClient = {
-  keys: sharedRedisMockKeys,
+  scan: sharedRedisMockScan,
   get: sharedRedisMockGet,
   set: sharedRedisMockSet,
   del: sharedRedisMockDel,
