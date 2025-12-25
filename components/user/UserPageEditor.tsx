@@ -621,7 +621,7 @@ export function UserPageEditor() {
   // Loading phase state for descriptive loading messages
   const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>("idle");
   const [isNewUser, setIsNewUser] = useState(false);
-  const loadingStarted = useRef(false);
+  const lastLoadedUserRef = useRef<string | null>(null);
 
   const [query, setQuery] = useState("");
   const [visibility, setVisibility] = useState<"all" | "enabled" | "disabled">(
@@ -642,22 +642,30 @@ export function UserPageEditor() {
     },
   );
 
-  // Load user data on mount
+  // Load user data on mount (re-runs when `searchParams` change)
   useEffect(() => {
-    // Prevent double-loading in strict mode
-    if (loadingStarted.current) return;
-    loadingStarted.current = true;
+    const rawUserIdParam = searchParams.get("userId");
+    const rawUsernameParam = searchParams.get("username");
+
+    let userIdParam = rawUserIdParam?.trim() ?? null;
+    let usernameParam = rawUsernameParam?.trim() ?? null;
+
+    if (!isValidUserId(userIdParam)) userIdParam = null;
+    if (!isValidUsername(usernameParam)) usernameParam = null;
+
+    const requestedId = `${userIdParam ?? ""}|${usernameParam ?? ""}`;
+
+    // If we've already loaded this exact user, no-op.
+    if (lastLoadedUserRef.current === requestedId) return;
+
+    // Mark this identifier as being loaded to avoid duplicate runs (StrictMode)
+    lastLoadedUserRef.current = requestedId;
+
+    // Reset transient UI state for a fresh load
+    setLoadError(null);
+    setIsNewUser(false);
 
     const loadData = async () => {
-      const rawUserIdParam = searchParams.get("userId");
-      const rawUsernameParam = searchParams.get("username");
-
-      let userIdParam = rawUserIdParam?.trim() ?? null;
-      let usernameParam = rawUsernameParam?.trim() ?? null;
-
-      if (!isValidUserId(userIdParam)) userIdParam = null;
-      if (!isValidUsername(usernameParam)) usernameParam = null;
-
       if (!userIdParam && !usernameParam) {
         if (rawUserIdParam || rawUsernameParam) {
           setLoadError(
@@ -667,6 +675,8 @@ export function UserPageEditor() {
           setLoadError("No user specified. Please search for a user first.");
         }
         setLoadingPhase("error");
+        // Clear the marker so future attempts can retry
+        lastLoadedUserRef.current = null;
         return;
       }
 
@@ -689,6 +699,8 @@ export function UserPageEditor() {
         if ("error" in setupResult) {
           setLoadError(setupResult.error);
           setLoadingPhase("error");
+          // allow retry
+          lastLoadedUserRef.current = null;
           return;
         }
 
@@ -724,6 +736,8 @@ export function UserPageEditor() {
         );
         setLoadError(userResult.error);
         setLoadingPhase("error");
+        // allow retry
+        lastLoadedUserRef.current = null;
         return;
       }
 
@@ -758,7 +772,15 @@ export function UserPageEditor() {
       setLoadingPhase("complete");
     };
 
-    loadData();
+    loadData().catch((err) => {
+      console.error("Error loading user data:", err);
+      // Clear marker so future attempts can retry
+      lastLoadedUserRef.current = null;
+      setLoadError(
+        "Failed to fetch user data. Please check your connection and try again.",
+      );
+      setLoadingPhase("error");
+    });
   }, [
     searchParams,
     setLoading,
