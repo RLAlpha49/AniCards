@@ -966,7 +966,7 @@ describe("Store Cards API POST Endpoint", () => {
       expect(stored.globalSettings.borderColor).toBe("#ff0000");
     });
 
-    it("should not save borderColor in card config when border is disabled globally", async () => {
+    it("should preserve per-card borderColor and borderRadius even when borders are disabled globally", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 600,
@@ -995,7 +995,57 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].borderColor).toBeUndefined();
+      expect(stored.cards[0].borderColor).toBe("#00ff00");
+      expect(stored.cards[0].borderRadius).toBe(8);
+    });
+
+    it("should preserve existing per-card border values when global border is disabled and incoming omits them", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      // Simulate existing record with per-card borderColor and borderRadius
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId: 601,
+          cards: [
+            {
+              cardName: "animeStats",
+              borderColor: "#AAEEFF",
+              borderRadius: 12,
+            },
+          ],
+          globalSettings: {
+            colorPreset: "default",
+            borderEnabled: true,
+          },
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+
+      const req = createRequest({
+        userId: 601,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStats",
+            variation: "default",
+            titleColor: "#111",
+            backgroundColor: "#222",
+            textColor: "#333",
+            circleColor: "#444",
+            // borderColor and borderRadius omitted intentionally
+          },
+        ],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: false,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored2 = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored2.cards[0].borderColor).toBe("#AAEEFF");
+      expect(stored2.cards[0].borderRadius).toBe(12);
     });
 
     it("should save borderColor in card config when border is enabled globally", async () => {

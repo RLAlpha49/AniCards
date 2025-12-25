@@ -128,7 +128,7 @@ function buildCardsFromState(): {
         textColor: shouldSendColors ? effectiveColors[2] : undefined,
         circleColor: shouldSendColors ? effectiveColors[3] : undefined,
         borderColor: config.borderColor,
-        borderRadius: globalBorderEnabled ? config.borderRadius : undefined,
+        borderRadius: config.borderRadius,
         useStatusColors: config.advancedSettings.useStatusColors,
         showPiePercentages: config.advancedSettings.showPiePercentages,
         showFavorites: config.advancedSettings.showFavorites,

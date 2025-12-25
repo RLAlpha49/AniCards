@@ -202,8 +202,9 @@ function clampGridDim(value: unknown): number | undefined {
  * Only saves individual colors when colorPreset is "custom" or not set.
  * If the card is disabled, only stores minimal data (cardName and disabled flag).
  * If useCustomSettings is false, skips colorPreset and color fields (card references globalSettings).
- * Per-card `borderColor` is only stored when borders are enabled globally and `useCustomSettings` is true;
- * when omitted it will preserve the previous per-card value if present.
+ * Per-card `borderColor` and `borderRadius` are preserved from previous config when omitted,
+ * even if global borders are disabled. Per-card border values are only omitted when
+ * `useCustomSettings` is false.
  * @source
  */
 function buildCardConfig(
@@ -219,9 +220,7 @@ function buildCardConfig(
     };
   }
 
-  const normalizedBorderRadius = globalBorderEnabled
-    ? computeBorderRadius(incoming, previous)
-    : undefined;
+  const normalizedBorderRadius = computeBorderRadius(incoming, previous);
 
   const useCustomSettings = incoming.useCustomSettings ?? true;
   const shouldSaveColorData = useCustomSettings;
@@ -235,9 +234,7 @@ function buildCardConfig(
     clampGridDim(incoming.gridRows) ?? clampGridDim(previous?.gridRows);
 
   const effectiveBorderColor =
-    globalBorderEnabled && useCustomSettings
-      ? incoming.borderColor ?? previous?.borderColor
-      : undefined;
+    useCustomSettings ? incoming.borderColor ?? previous?.borderColor : undefined;
 
   return {
     cardName: incoming.cardName,
