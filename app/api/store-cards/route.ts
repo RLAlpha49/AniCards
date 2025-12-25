@@ -380,7 +380,11 @@ async function validateDisabledBooleanField(
       await incrementAnalytics(
         buildAnalyticsMetricKey(endpointKey, "failed_requests"),
       );
-      return jsonWithCors({ error: "Invalid 'disabled' field type" }, request, 400);
+      return jsonWithCors(
+        { error: "Invalid 'disabled' field type" },
+        request,
+        400,
+      );
     }
   }
   return null;
@@ -417,19 +421,20 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
     if (disabledError) return disabledError;
 
-    // Validate incoming data
-    const validationError = validateCardData(
+    // Validate incoming data and obtain typed cards on success
+    const validated = validateCardData(
       incomingCards,
       userId,
       endpoint,
       request,
     );
-    if (validationError) {
+    if (!Array.isArray(validated)) {
       await incrementAnalytics(
         buildAnalyticsMetricKey(endpointKey, "failed_requests"),
       );
-      return validationError;
+      return validated;
     }
+    const incomingCardsTyped = validated;
 
     if (statsData?.error) {
       console.warn(
@@ -444,7 +449,6 @@ export async function POST(request: Request): Promise<NextResponse> {
         400,
       );
     }
-
 
     // Use a Redis key to store the user's card configurations
     const cardsKey = `cards:${userId}`;
@@ -476,7 +480,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       globalSettings?.borderEnabled ?? existingGlobalSettings?.borderEnabled;
 
     // Process incoming cards: update existing or add new ones
-    applyIncomingCards(existingCardsMap, incomingCards as StoredCardConfig[]);
+    // Apply incoming typed cards (validated above)
+    applyIncomingCards(existingCardsMap, incomingCardsTyped);
 
     ensureAllSupportedCardTypesPresent(existingCardsMap);
 
