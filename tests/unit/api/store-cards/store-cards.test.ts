@@ -330,7 +330,7 @@ describe("Store Cards API POST Endpoint", () => {
       const disabledCount = (
         stored.cards as Array<{ disabled?: boolean }>
       ).filter((c) => c.disabled === true).length;
-      expect(disabledCount).toBe(0);
+      expect(disabledCount).toBe(Object.keys(displayNames).length);
     });
 
     it("should accept up to the allowed number of card types", async () => {
