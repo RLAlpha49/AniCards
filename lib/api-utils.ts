@@ -1070,8 +1070,9 @@ export function validateCardData(
       textColor: r.textColor as StoredCardConfig["textColor"],
       circleColor: r.circleColor as StoredCardConfig["circleColor"],
       borderColor:
-        typeof r.borderColor === "string" ? r.borderColor : undefined,
-      borderRadius: coerceNum(r.borderRadius),
+        r.borderColor !== undefined && r.borderColor !== null
+          ? (r.borderColor as StoredCardConfig["borderColor"])
+          : undefined,      borderRadius: coerceNum(r.borderRadius),
       showFavorites:
         typeof r.showFavorites === "boolean" ? r.showFavorites : undefined,
       useStatusColors:
