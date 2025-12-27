@@ -852,11 +852,6 @@ export function UserPageEditor() {
   // Auto-save hook
   const { saveNow } = useCardAutoSave({ debounceMs: 1500 });
 
-  // Handle manual save (uses saveNow from auto-save hook)
-  const handleSave = useCallback(async () => {
-    await saveNow();
-  }, [saveNow]);
-
   const normalizedQuery = query.trim().toLowerCase();
 
   const isCardEnabled = useCallback(
@@ -1175,7 +1170,7 @@ export function UserPageEditor() {
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="overlay-scrollbar max-h-[85vh] max-w-4xl overflow-y-auto">
-                    <GlobalSettingsPanel onSave={handleSave} />
+                    <GlobalSettingsPanel onSave={saveNow} />
                   </DialogContent>
                 </Dialog>
               </div>

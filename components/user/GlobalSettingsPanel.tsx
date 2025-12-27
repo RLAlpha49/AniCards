@@ -15,9 +15,9 @@ import type { ColorValue } from "@/lib/types/card";
  * @source
  */
 interface GlobalSettingsPanelProps {
-  /** Handler to save all cards */
-  onSave?: () => void;
-}
+  /** Handler to save all cards (may be async) */
+  onSave?: () => void | Promise<void>;
+} 
 
 /**
  * Panel for configuring global color and border settings.

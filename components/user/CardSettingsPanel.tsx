@@ -32,7 +32,7 @@ interface BasePanelProps {
 interface GlobalPanelProps extends BasePanelProps {
   mode: "global";
   /** Optional handler for saving all changes. When omitted, no save button is shown. */
-  onSaveAll?: () => void;
+  onSaveAll?: () => void | Promise<void>;
   /** When true, the Save All button is disabled (e.g., no changes). */
   saveAllDisabled?: boolean;
   /** When true, shows a spinner in the Save All button. */
