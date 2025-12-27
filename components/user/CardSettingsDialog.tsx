@@ -182,10 +182,10 @@ export function CardSettingsDialog({
   };
 
   const handleAdvancedSettingChange = useCallback(
-    function handleAdvancedSettingChange<K extends keyof CardAdvancedSettings>(
+    <K extends keyof CardAdvancedSettings>(
       key: K,
       value: CardAdvancedSettings[K],
-    ) {
+    ) => {
       setCardAdvancedSetting(cardId, key, value);
     },
     [cardId, setCardAdvancedSetting],
