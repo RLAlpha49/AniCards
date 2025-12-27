@@ -43,7 +43,8 @@ import {
   containsMath,
 } from "@/components/MathTooltipContent";
 import { getCardInfoTooltip } from "@/lib/card-info-tooltips";
-import { useUserPageEditor } from "@/lib/stores/user-page-editor";
+import { CardEditorConfig,
+useUserPageEditor } from "@/lib/stores/user-page-editor";
 import {
   cn,
   getCardBorderRadius,
@@ -133,14 +134,15 @@ export function CardTile({
   const isSelected = selectedCardIds.has(cardId);
 
   // Get or create card config
-  const config = cardConfigs[cardId] || {
-    cardId,
+  const DEFAULT_CARD_CONFIG: CardEditorConfig = {
+    cardId: "",
     enabled: false,
     variant: "default",
     colorOverride: { useCustomSettings: false },
     advancedSettings: {},
   };
 
+  const config = cardConfigs[cardId] ?? { ...DEFAULT_CARD_CONFIG, cardId };
   const effectiveColors = getEffectiveColors(cardId);
   const effectiveBorderColor = getEffectiveBorderColor(cardId);
   const effectiveBorderRadius = getEffectiveBorderRadius(cardId);
