@@ -7,20 +7,38 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { cn } from "@/lib/utils";
 
 /**
- * Animation variants used across page hero sections. Exported in case we
- * want to reuse them in other components later.
+ * Base animation variants used across page hero sections.
+ * These contain the shared shape (opacity/visibility) and are intended to be
+ * composed/extended by components that need different timing or transforms.
+ */
+export const baseContainerVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1 },
+};
+
+export const baseItemVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1 },
+};
+
+/**
+ * Default page-level variants that apply the PageShell timings and values.
  */
 export const containerVariants = {
-  hidden: { opacity: 0 },
+  ...baseContainerVariants,
   visible: {
-    opacity: 1,
+    ...baseContainerVariants.visible,
     transition: { staggerChildren: 0.1, delayChildren: 0.1 },
   },
 };
 
 export const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
+  hidden: { ...baseItemVariants.hidden, y: 20 },
+  visible: {
+    ...baseItemVariants.visible,
+    y: 0,
+    transition: { duration: 0.5 },
+  },
 };
 
 export type PageShellVariant = "default" | "home" | "compact" | "none";
