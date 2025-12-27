@@ -134,7 +134,12 @@ function parseExistingGlobalSettings(
         ? safeParse<CardsRecord>(existingData, `${endpoint}:globalSettings`)
         : (existingData as CardsRecord | null)
     )?.globalSettings;
-  } catch {
+  } catch (error) {
+    console.warn(
+      `⚠️ [${endpoint}] Failed to parse existing global settings: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
     return undefined;
   }
 }
