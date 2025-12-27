@@ -100,7 +100,12 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
 
       // Ensure the loading overlay has a chance to render before navigation.
       scheduleAfterPaint(() => {
-        router.push(`/user?${params.toString()}`);
+        try {
+          router.push(`/user?${params.toString()}`);
+        } catch {
+          setLoading(false);
+          onLoadingChange?.(false);
+        }
       });
     },
     [searchMethod, onLoadingChange, router],

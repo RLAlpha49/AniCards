@@ -71,6 +71,17 @@ function getTimeSince(lastSavedAt: number | null): string {
 }
 
 /**
+ * Build an AniList profile URL from a username or userId.
+ * Accepts username (string|null|undefined) or userId (string|number|null|undefined).
+ * Returns the profile URL string or null if neither identifier is provided.
+ */
+function getAnilistUrl(username?: string | null, userId?: string | number | null): string | null {
+  if (username) return `https://anilist.co/user/${username}`;
+  if (userId) return `https://anilist.co/user/${userId}`;
+  return null;
+}
+
+/**
  * Header section for the user page with user info, stats.
  * @param props - Component props.
  * @returns JSX element.
@@ -82,12 +93,7 @@ export function UserPageHeader({
   avatarUrl,
   saveState,
 }: Readonly<UserPageHeaderProps>) {
-  const getAnilistUrl = (): string | null => {
-    if (username) return `https://anilist.co/user/${username}`;
-    if (userId) return `https://anilist.co/user/${userId}`;
-    return null;
-  };
-  const anilistUrl = getAnilistUrl();
+  const anilistUrl = getAnilistUrl(username, userId);
 
   return (
     <motion.header
