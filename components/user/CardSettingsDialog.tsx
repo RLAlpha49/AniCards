@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -103,9 +103,6 @@ export function CardSettingsDialog({
   const cardBorderRadius = config.borderRadius ?? globalBorderRadius;
   const hasBorder = Boolean(cardBorderColor);
 
-  // Track local border enabled state for the toggle
-  const [localBorderEnabled, setLocalBorderEnabled] = useState(hasBorder);
-
   // Check if current variation supports pie percentages
   const isPieVariation = currentVariant === "pie" || currentVariant === "donut";
 
@@ -152,7 +149,6 @@ export function CardSettingsDialog({
 
   const handleToggleBorder = useCallback(
     (enabled: boolean) => {
-      setLocalBorderEnabled(enabled);
       if (enabled) {
         // Enable border with default color if not set
         setCardBorderColor(
@@ -169,8 +165,7 @@ export function CardSettingsDialog({
 
   const handleResetToGlobal = useCallback(() => {
     resetCardToGlobal(cardId);
-    setLocalBorderEnabled(globalBorderEnabled);
-  }, [cardId, resetCardToGlobal, globalBorderEnabled]);
+  }, [cardId, resetCardToGlobal]);
 
   // Build advanced settings for SettingsContent
   const advancedSettings = {
@@ -226,7 +221,7 @@ export function CardSettingsDialog({
             colorPreset: cardColorPreset,
             onColorChange: handleColorChange,
             onPresetChange: handlePresetChange,
-            borderEnabled: localBorderEnabled,
+            borderEnabled: hasBorder,
             onBorderEnabledChange: handleToggleBorder,
             borderColor: cardBorderColor || "#e4e2e2",
             onBorderColorChange: handleBorderColorChange,
