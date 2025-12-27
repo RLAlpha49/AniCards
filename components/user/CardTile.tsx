@@ -237,24 +237,24 @@ export function CardTile({
     async (format: ConversionFormat = "png") => {
       if (!previewUrl || isDownloading) return;
       setIsDownloading(true);
+      let link: HTMLAnchorElement | null = null;
       try {
         const absoluteUrl = getAbsoluteUrl(previewUrl);
         const dataUrl = await svgToPng(absoluteUrl, format);
-        const link = document.createElement("a");
+        link = document.createElement("a");
         link.href = dataUrl;
         link.download = `${cardId}-${config.variant}.${format}`;
         document.body.appendChild(link);
         link.click();
-        link.remove();
       } catch (error) {
         console.error("Failed to download card:", error);
       } finally {
+        link?.remove();
         setIsDownloading(false);
       }
     },
     [previewUrl, cardId, config.variant, isDownloading],
   );
-
   const borderRadiusValue = getCardBorderRadius(effectiveBorderRadius);
 
   return (
