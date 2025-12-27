@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
-import { cn, isGradient } from "@/lib/utils";
+import { cn, isGradient, DEFAULT_CARD_BORDER_RADIUS } from "@/lib/utils";
 import { gradientToCss } from "@/lib/colorUtils";
 import type { ColorValue } from "@/lib/types/card";
 import { animeStatsTemplate } from "@/lib/svg-templates/media-stats/anime-stats-template";
-import { stripTrustedSvgMarker } from "@/lib/types/svg";
+import { stripTrustedSvgMarker, type TrustedSVG } from "@/lib/types/svg";
 
 /**
  * Sample anime stats data used for the preview card.
@@ -72,12 +72,12 @@ export function ColorPreviewCard({
   textColor,
   circleColor,
   borderColor,
-  borderRadius = 8,
+  borderRadius = DEFAULT_CARD_BORDER_RADIUS,
   className,
 }: Readonly<ColorPreviewCardProps>) {
   // Generate the actual anime stats card SVG with current colors
-  const previewSvg = useMemo(() => {
-    const svg = animeStatsTemplate({
+  const previewSvg = useMemo<string>(() => {
+    const svg: TrustedSVG = animeStatsTemplate({
       username: "Preview",
       variant: "default",
       styles: {
