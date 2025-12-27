@@ -829,15 +829,21 @@ export function UserPageEditor() {
       setLoadingPhase("complete");
     };
 
-    loadData().catch((err) => {
-      console.error("Error loading user data:", err);
-      // Clear marker so future attempts can retry
-      lastLoadedUserRef.current = null;
-      setLoadError(
-        "Failed to fetch user data. Please check your connection and try again.",
-      );
-      setLoadingPhase("error");
-    });
+    void (async () => {
+      try {
+        await loadData();
+      } catch (err) {
+        console.error("Error loading user data:", err);
+        // Clear marker so future attempts can retry
+        lastLoadedUserRef.current = null;
+        setLoadError(
+          "Failed to fetch user data. Please check your connection and try again.",
+        );
+        setLoadingPhase("error");
+        // Re-throw so unexpected errors are not silently swallowed
+        throw err;
+      }
+    })();
   }, [
     searchParams,
     setLoading,
