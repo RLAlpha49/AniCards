@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from "@/components/ui/Dialog";
 import { CardSettingsPanel } from "@/components/user/CardSettingsPanel";
-import { useUserPageEditor } from "@/lib/stores/user-page-editor";
+import { useUserPageEditor, DEFAULT_GLOBAL_SETTINGS } from "@/lib/stores/user-page-editor";
 import type { ColorValue } from "@/lib/types/card";
 
 /**
@@ -48,21 +48,37 @@ export function GlobalSettingsPanel({
 
   // Handler for resetting global settings to defaults
   const handleResetToDefaults = useCallback(() => {
-    setGlobalColorPreset("default");
-    setGlobalBorderEnabled(false);
-    setGlobalBorderColor("#e4e2e2");
-    setGlobalBorderRadius(5);
-    setGlobalAdvancedSetting("useStatusColors", true);
-    setGlobalAdvancedSetting("showPiePercentages", true);
-    setGlobalAdvancedSetting("showFavorites", true);
-    setGlobalAdvancedSetting("gridCols", 3);
-    setGlobalAdvancedSetting("gridRows", 3);
+    setGlobalColorPreset(DEFAULT_GLOBAL_SETTINGS.colorPreset);
+    setGlobalBorderEnabled(DEFAULT_GLOBAL_SETTINGS.borderEnabled);
+    setGlobalBorderColor(DEFAULT_GLOBAL_SETTINGS.borderColor);
+    setGlobalBorderRadius(DEFAULT_GLOBAL_SETTINGS.borderRadius);
+    setGlobalAdvancedSetting(
+      "useStatusColors",
+      DEFAULT_GLOBAL_SETTINGS.advancedSettings.useStatusColors,
+    );
+    setGlobalAdvancedSetting(
+      "showPiePercentages",
+      DEFAULT_GLOBAL_SETTINGS.advancedSettings.showPiePercentages,
+    );
+    setGlobalAdvancedSetting(
+      "showFavorites",
+      DEFAULT_GLOBAL_SETTINGS.advancedSettings.showFavorites,
+    );
+    setGlobalAdvancedSetting(
+      "gridCols",
+      DEFAULT_GLOBAL_SETTINGS.advancedSettings.gridCols,
+    );
+    setGlobalAdvancedSetting(
+      "gridRows",
+      DEFAULT_GLOBAL_SETTINGS.advancedSettings.gridRows,
+    );
   }, [
     setGlobalColorPreset,
     setGlobalBorderEnabled,
     setGlobalBorderColor,
     setGlobalBorderRadius,
     setGlobalAdvancedSetting,
+    DEFAULT_GLOBAL_SETTINGS,
   ]);
 
   const handleColorChange = useCallback(

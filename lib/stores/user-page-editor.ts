@@ -570,6 +570,15 @@ const DEFAULT_GLOBAL_ADVANCED_SETTINGS: CardAdvancedSettings = {
   gridRows: 3,
 };
 
+/** Default combined global settings. */
+export const DEFAULT_GLOBAL_SETTINGS = {
+  colorPreset: "default",
+  borderEnabled: false,
+  borderColor: DEFAULT_BORDER_COLOR,
+  borderRadius: 5,
+  advancedSettings: DEFAULT_GLOBAL_ADVANCED_SETTINGS,
+} as const;
+
 const initialState: UserPageEditorState = {
   userId: null,
   username: null,
