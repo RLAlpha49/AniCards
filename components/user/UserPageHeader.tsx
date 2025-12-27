@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
+import type { LucideIcon } from "lucide-react";
 import {
   ExternalLink,
   User as UserIcon,
@@ -72,6 +73,72 @@ function getTimeSince(lastSavedAt: number | null): string {
 }
 
 /**
+ * Simplifies save-state derivation for rendering the UI.
+ * Returns the icon component, text, and contextual className.
+ */
+type SaveStateInfo = {
+  Icon: LucideIcon;
+  text: string;
+  className: string;
+  spinner?: boolean;
+};
+
+function getSaveStateInfo(saveState?: SaveState): SaveStateInfo {
+  if (!saveState) {
+    return {
+      Icon: Clock,
+      text: "No changes",
+      className:
+        "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+    };
+  }
+
+  if (saveState.isSaving) {
+    return {
+      Icon: Loader2,
+      text: "Saving...",
+      className:
+        "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+      spinner: true,
+    };
+  }
+
+  if (saveState.saveError) {
+    return {
+      Icon: AlertCircle,
+      text: "Save failed",
+      className:
+        "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+    };
+  }
+
+  if (saveState.isDirty) {
+    return {
+      Icon: Save,
+      text: "Unsaved",
+      className:
+        "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+    };
+  }
+
+  if (saveState.lastSavedAt) {
+    return {
+      Icon: Check,
+      text: getTimeSince(saveState.lastSavedAt),
+      className:
+        "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+    };
+  }
+
+  return {
+    Icon: Clock,
+    text: "No changes",
+    className:
+      "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+  };
+} 
+
+/**
  * Build an AniList profile URL from a username or userId.
  * Accepts username (string|null|undefined) or userId (string|number|null|undefined).
  * Returns the profile URL string or null if neither identifier is provided.
@@ -102,6 +169,8 @@ export function UserPageHeader({
     const id = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(id);
   }, [saveState?.lastSavedAt]);
+
+  const saveInfo = saveState ? getSaveStateInfo(saveState) : undefined; 
 
   return (
     <motion.header
@@ -183,70 +252,21 @@ export function UserPageHeader({
             </div>
 
             {/* Save status indicator */}
-            {saveState && (
+            {saveInfo && (
               <motion.div variants={itemVariants} className="shrink-0">
                 <div
                   data-tick={tick}
                   className={cn(
                     "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all",
-                    saveState.isSaving &&
-                      "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-                    saveState.saveError &&
-                      "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-                    !saveState.isSaving &&
-                      !saveState.saveError &&
-                      saveState.isDirty &&
-                      "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-                    !saveState.isSaving &&
-                      !saveState.saveError &&
-                      !saveState.isDirty &&
-                      saveState.lastSavedAt &&
-                      "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-                    !saveState.isSaving &&
-                      !saveState.saveError &&
-                      !saveState.isDirty &&
-                      !saveState.lastSavedAt &&
-                      "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+                    saveInfo.className
                   )}
                 >
-                  {saveState.isSaving && (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Saving...</span>
-                    </>
+                  {saveInfo.spinner ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <saveInfo.Icon className="h-4 w-4" />
                   )}
-                  {saveState.saveError && (
-                    <>
-                      <AlertCircle className="h-4 w-4" />
-                      <span>Save failed</span>
-                    </>
-                  )}
-                  {!saveState.isSaving &&
-                    !saveState.saveError &&
-                    saveState.isDirty && (
-                      <>
-                        <Save className="h-4 w-4" />
-                        <span>Unsaved</span>
-                      </>
-                    )}
-                  {!saveState.isSaving &&
-                    !saveState.saveError &&
-                    !saveState.isDirty &&
-                    saveState.lastSavedAt && (
-                      <>
-                        <Check className="h-4 w-4" />
-                        <span>{getTimeSince(saveState.lastSavedAt)}</span>
-                      </>
-                    )}
-                  {!saveState.isSaving &&
-                    !saveState.saveError &&
-                    !saveState.isDirty &&
-                    !saveState.lastSavedAt && (
-                      <>
-                        <Clock className="h-4 w-4" />
-                        <span>No changes</span>
-                      </>
-                    )}
+                  <span>{saveInfo.text}</span>
                 </div>
               </motion.div>
             )}
