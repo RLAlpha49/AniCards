@@ -202,6 +202,12 @@ function GradientStopEditor({
     stops.map((s) => ({ ...s, id: s.id ?? generateStopId() })),
   );
   const prevStopsRef = useRef(stops);
+  const localStopsRef = useRef(localStops);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    localStopsRef.current = localStops;
+  });
 
   useEffect(() => {
     // Only sync when the incoming stops prop actually changes
@@ -210,7 +216,7 @@ function GradientStopEditor({
 
     // Build a map of existing IDs by color+offset for stable matching
     const idMap = new Map(
-      localStops.map((s) => [`${s.color}-${s.offset}`, s.id]),
+      localStopsRef.current.map((s) => [`${s.color}-${s.offset}`, s.id]),
     );
     const next = stops.map((s) => {
       const id =
