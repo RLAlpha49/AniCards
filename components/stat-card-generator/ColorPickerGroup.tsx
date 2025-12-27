@@ -8,7 +8,7 @@ import type {
   GradientDefinition,
   GradientStop,
 } from "@/lib/types/card";
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import {
   Plus,
   Minus,
@@ -238,30 +238,25 @@ function GradientStopEditor({
   const [localStops, setLocalStops] = useState<GradientStop[]>(() =>
     stops.map((s) => ({ ...s, id: s.id ?? generateStopId() })),
   );
+  const prevStopsRef = useRef(stops);
 
   useEffect(() => {
-    const next = stops.map((s, i) => {
-      const id = s.id ?? localStops[i]?.id ?? generateStopId();
+    // Only sync when the incoming stops prop actually changes
+    if (prevStopsRef.current === stops) return;
+    prevStopsRef.current = stops;
+
+    // Build a map of existing IDs by color+offset for stable matching
+    const idMap = new Map(
+      localStops.map((s) => [`${s.color}-${s.offset}`, s.id]),
+    );
+    const next = stops.map((s) => {
+      const id =
+        s.id ?? idMap.get(`${s.color}-${s.offset}`) ?? generateStopId();
       return { ...s, id };
     });
 
-    const equals =
-      next.length === localStops.length &&
-      next.every((s, i) => {
-        const cur = localStops[i];
-        return (
-          cur &&
-          s.id === cur.id &&
-          s.color === cur.color &&
-          s.offset === cur.offset &&
-          (s.opacity ?? 1) === (cur.opacity ?? 1)
-        );
-      });
-
-    if (!equals) {
-      setLocalStops(next);
-    }
-  }, [stops, localStops]);
+    setLocalStops(next);
+  }, [stops]);
 
   const handleStopChange = useCallback(
     (index: number, field: keyof GradientStop, value: string | number) => {
