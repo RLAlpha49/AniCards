@@ -491,6 +491,10 @@ export function validateColorValue(value: unknown): boolean {
 export function getColorInvalidReason(value: unknown): string {
   if (typeof value === "string") {
     const trimmed = value.trim();
+    // Treat empty or whitespace-only strings as a distinct failure mode so callers
+    // can surface a clearer diagnostic message instead of a generic hex error.
+    if (trimmed.length === 0) return "empty color value";
+
     if (trimmed.startsWith("{")) {
       try {
         const parsed = JSON.parse(trimmed);
@@ -1050,6 +1054,7 @@ export interface BatchExportSummary {
   total: number;
   exported: number;
   failed: number;
+  failedCards?: { type: string; rawType: string; error?: string }[];
 }
 
 /** Max number of concurrent conversions during batch processing. @source */
@@ -1211,9 +1216,21 @@ export async function batchConvertAndZip(
     .replaceAll(".", "-");
   downloadBlob(zipBlob, `anicards-export-${timestamp}.zip`);
 
+  // Collect details about failed conversions to provide actionable feedback to the caller.
+  const failedResults = conversionResults.filter(
+    (result): result is BatchConversionFailure => !result.success,
+  );
+
+  const failedCards = failedResults.map((f) => ({
+    type: f.card.type,
+    rawType: f.card.rawType,
+    error: f.error,
+  }));
+
   return {
     total: cards.length,
     exported: successful.length,
     failed: conversionResults.length - successful.length,
+    failedCards: failedCards.length > 0 ? failedCards : undefined,
   };
 }

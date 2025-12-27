@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -13,8 +13,10 @@ import {
   Link,
   ImageIcon,
   Check,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/Alert";
 import {
   Popover,
   PopoverContent,
@@ -62,12 +64,43 @@ export function BulkActionsToolbar({
     current: 0,
     total: 0,
   });
+
+  // Local UI state for surfaced download results or errors
+  const [downloadSummary, setDownloadSummary] = useState<
+    | { total: number; exported: number; failed: number; failedCardRawTypes?: string[] }
+    | null
+  >(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const downloadSummaryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Track if component is mounted for SSR-safe portal rendering
   const [isMounted, setIsMounted] = useState(false);
 
   // Set mounted state after hydration to enable portal rendering
   useEffect(() => {
     setIsMounted(true);
+
+    return () => {
+      if (downloadSummaryTimerRef.current) {
+        clearTimeout(downloadSummaryTimerRef.current as unknown as number);
+        downloadSummaryTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  // Cleanup timers on unmount to avoid state updates after the component unmounts
+  useEffect(() => {
+    return () => {
+      if (downloadSummaryTimerRef.current) {
+        clearTimeout(downloadSummaryTimerRef.current);
+        downloadSummaryTimerRef.current = null;
+      }
+      if (copyTimerRef.current) {
+        clearTimeout(copyTimerRef.current);
+        copyTimerRef.current = null;
+      }
+    };
   }, []);
   const {
     userId,
@@ -173,7 +206,14 @@ export function BulkActionsToolbar({
       try {
         await navigator.clipboard.writeText(urls.join("\n"));
         setCopiedFormat(format);
-        setTimeout(() => setCopiedFormat(null), 2000);
+        if (copyTimerRef.current) {
+          clearTimeout(copyTimerRef.current);
+          copyTimerRef.current = null;
+        }
+        copyTimerRef.current = globalThis.setTimeout(() => {
+          setCopiedFormat(null);
+          copyTimerRef.current = null;
+        }, 2000);
       } catch (err) {
         console.error("Failed to copy to clipboard:", err);
       }
@@ -195,6 +235,14 @@ export function BulkActionsToolbar({
           svgUrl: card.url,
         }));
 
+        // Clear any prior results or timers
+        if (downloadSummaryTimerRef.current) {
+          clearTimeout(downloadSummaryTimerRef.current);
+          downloadSummaryTimerRef.current = null;
+        }
+        setDownloadSummary(null);
+        setDownloadError(null);
+
         const result = await batchConvertAndZip(
           batchCards,
           format,
@@ -206,13 +254,39 @@ export function BulkActionsToolbar({
           },
         );
 
+        // Surface partial failures to the user with details (if available)
         if (result.failed > 0) {
+          const failedRawTypes = result.failedCards?.map((c) => c.rawType || c.type) ?? [];
+          setDownloadSummary({
+            total: result.total,
+            exported: result.exported,
+            failed: result.failed,
+            failedCardRawTypes: failedRawTypes,
+          });
+
+          // Keep partial-failure visible until user dismisses it
           console.warn(
             `Batch download completed with ${result.failed} failed card(s) out of ${result.total}`,
+            failedRawTypes,
           );
+        } else {
+          // Successful export; show a brief success notice
+          setDownloadSummary({
+            total: result.total,
+            exported: result.exported,
+            failed: 0,
+          });
+
+          // Auto-dismiss success notice after a short delay
+          downloadSummaryTimerRef.current = globalThis.setTimeout(() => {
+            setDownloadSummary(null);
+            downloadSummaryTimerRef.current = null;
+          }, 3000);
         }
       } catch (err) {
         console.error("Failed to download cards as zip:", err);
+        const message = err instanceof Error ? err.message : String(err);
+        setDownloadError(`Failed to download cards: ${message}`);
       } finally {
         setIsDownloading(false);
         setDownloadProgress({ current: 0, total: 0 });
@@ -404,6 +478,100 @@ export function BulkActionsToolbar({
                 </div>
               </PopoverContent>
             </Popover>
+
+            {/* Download status / alerts */}
+            <AnimatePresence>
+              {downloadError && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, height: 0 }}
+                  animate={{ opacity: 1, scale: 1, height: "auto" }}
+                  exit={{ opacity: 0, scale: 0.95, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="w-full sm:w-auto"
+                >
+                  <Alert
+                    variant="destructive"
+                    aria-live="assertive"
+                    className="border-red-200/50 bg-red-50/80 dark:border-red-800/50 dark:bg-red-950/30"
+                  >
+                    <Info className="h-4 w-4" aria-hidden="true" />
+                    <AlertTitle className="text-red-800 dark:text-red-200">
+                      Download Error
+                    </AlertTitle>
+                    <AlertDescription className="text-red-700 dark:text-red-300">
+                      {downloadError}
+                    </AlertDescription>
+                    <div className="ml-auto flex items-center gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => setDownloadError(null)}>
+                        Close
+                      </Button>
+                    </div>
+                  </Alert>
+                </motion.div>
+              )}
+
+              {downloadSummary && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, height: 0 }}
+                  animate={{ opacity: 1, scale: 1, height: "auto" }}
+                  exit={{ opacity: 0, scale: 0.95, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="w-full sm:w-auto"
+                >
+                  <Alert
+                    variant={downloadSummary.failed > 0 ? "destructive" : "default"}
+                    aria-live={downloadSummary.failed > 0 ? "assertive" : "polite"}
+                    className={cn(
+                      downloadSummary.failed > 0
+                        ? "border-red-200/50 bg-red-50/80 dark:border-red-800/50 dark:bg-red-950/30"
+                        : "border-slate-200/50 bg-white/80 dark:border-slate-700/50 dark:bg-slate-800/80",
+                      "mt-2 sm:mt-0",
+                    )}
+                  >
+                    <Info className="h-4 w-4" aria-hidden="true" />
+                    <AlertTitle className={
+                      downloadSummary.failed > 0 ? "text-red-800 dark:text-red-200" : "text-slate-900 dark:text-white"
+                    }>
+                      {downloadSummary.failed > 0
+                        ? `Export completed with ${downloadSummary.failed} failed`
+                        : `Exported ${downloadSummary.exported}/${downloadSummary.total}`}
+                    </AlertTitle>
+
+                    {downloadSummary.failedCardRawTypes && downloadSummary.failedCardRawTypes.length > 0 && (
+                      <AlertDescription className={
+                        downloadSummary.failed > 0 ? "text-red-700 dark:text-red-300" : "text-slate-600 dark:text-slate-400"
+                      }>
+                        {downloadSummary.failedCardRawTypes.slice(0, 5).join(", ")}
+                        {downloadSummary.failedCardRawTypes.length > 5 ? ", ..." : ""}
+                      </AlertDescription>
+                    )}
+
+                    <div className="ml-auto flex items-center gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => setDownloadSummary(null)}>
+                        Close
+                      </Button>
+
+                      {downloadSummary.failed > 0 && downloadSummary.failedCardRawTypes && downloadSummary.failedCardRawTypes.length > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          aria-label="Copy failed card list"
+                          onClick={() => {
+                            const list = downloadSummary.failedCardRawTypes ?? [];
+                            void navigator.clipboard.writeText(list.join("\n")).catch((err) => {
+                              const msg = err instanceof Error ? err.message : String(err);
+                              setDownloadError(`Failed to copy failed list: ${msg}`);
+                            });
+                          }}
+                        >
+                          Copy list
+                        </Button>
+                      )}
+                    </div>
+                  </Alert>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Clear selection button */}
             <Button
