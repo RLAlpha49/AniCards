@@ -548,13 +548,15 @@ async function fetchUserData(
 
 /**
  * Fetches cards for a user.
+ * Returns either `{ cards, globalSettings }` or `{ error, notFound?: boolean }`.
+ * `notFound: true` is set when the server returns 404 (no cards yet).
  * @source
  */
 async function fetchUserCards(
   userId: string,
 ): Promise<
   | { cards: ServerCardData[]; globalSettings?: ServerGlobalSettings }
-  | { error: string }
+  | { error: string; notFound?: boolean }
 > {
   try {
     const res = await fetch(`/api/get-cards?userId=${userId}`);
@@ -562,6 +564,10 @@ async function fetchUserCards(
 
     if (!res.ok) {
       const msg = getResponseErrorMessage(res, payload);
+      // Treat 404 as "no cards yet" so callers can handle it explicitly.
+      if (res.status === 404) {
+        return { error: msg, notFound: true };
+      }
       return { error: msg };
     }
 
@@ -635,6 +641,7 @@ export function UserPageEditor() {
   );
   const [selectedGroup, setSelectedGroup] = useState<string>("All");
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [cardsWarning, setCardsWarning] = useState<string | null>(null);
 
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
     () => {
@@ -670,6 +677,7 @@ export function UserPageEditor() {
     // Reset transient UI state for a fresh load
     setLoadError(null);
     setIsNewUser(false);
+    setCardsWarning(null);
 
     const loadData = async () => {
       if (!userIdParam && !usernameParam) {
@@ -723,16 +731,22 @@ export function UserPageEditor() {
           setupResult.userId.toString(),
         );
 
-        // If fetching fails or returns an empty array (possible eventual consistency),
-        // fall back to the initial enabled snapshot we persisted server-side.
-        if (
-          "error" in persistedCardsResult ||
-          (Array.isArray(persistedCardsResult.cards) &&
-            persistedCardsResult.cards.length === 0)
-        ) {
-          // Track and warn about missing persisted cards so we can monitor for
-          // race conditions or storage issues.
-          if ("error" in persistedCardsResult) {
+        // Handle 404 (no cards yet) specially; surface other errors with a
+        // non-fatal warning so operational problems aren't silently hidden.
+        if ("error" in persistedCardsResult) {
+          if (persistedCardsResult.notFound) {
+            // No cards persisted yet — fall back to initial snapshot (expected).
+            const initialCards = buildInitialCardsSnapshot();
+            initializeFromServerData(
+              setupResult.userId.toString(),
+              setupResult.username,
+              setupResult.avatarUrl,
+              initialCards,
+              { colorPreset: "default", borderEnabled: false },
+              statCardTypes.map((t) => t.id),
+            );
+          } else {
+            // Unexpected error — track and show a non-fatal warning to the user.
             const errorDetails = getErrorDetails(persistedCardsResult.error);
             trackUserActionError(
               "new_user_setup_fetch_cards",
@@ -743,23 +757,33 @@ export function UserPageEditor() {
                 username: setupResult.username ?? undefined,
               },
             );
-          } else {
-            const msg = "No persisted cards were returned after initial save";
-            const details = getErrorDetails(msg);
-            trackUserActionError(
-              "new_user_setup_fetch_cards",
-              new Error(msg),
-              details.category,
-              {
-                userId: setupResult.userId.toString(),
-                username: setupResult.username ?? undefined,
-              },
+            setCardsWarning(
+              "We couldn't load your saved cards due to a server error. Default cards are displayed for now.",
             );
-            console.warn(msg, { userId: setupResult.userId });
+            const initialCards = buildInitialCardsSnapshot();
+            initializeFromServerData(
+              setupResult.userId.toString(),
+              setupResult.username,
+              setupResult.avatarUrl,
+              initialCards,
+              { colorPreset: "default", borderEnabled: false },
+              statCardTypes.map((t) => t.id),
+            );
           }
-
+        } else if (Array.isArray(persistedCardsResult.cards) && persistedCardsResult.cards.length === 0) {
+          const msg = "No persisted cards were returned after initial save";
+          const details = getErrorDetails(msg);
+          trackUserActionError(
+            "new_user_setup_fetch_cards",
+            new Error(msg),
+            details.category,
+            {
+              userId: setupResult.userId.toString(),
+              username: setupResult.username ?? undefined,
+            },
+          );
+          console.warn(msg, { userId: setupResult.userId });
           const initialCards = buildInitialCardsSnapshot();
-
           initializeFromServerData(
             setupResult.userId.toString(),
             setupResult.username,
@@ -777,6 +801,8 @@ export function UserPageEditor() {
             persistedCardsResult.globalSettings,
             statCardTypes.map((t) => t.id),
           );
+          // Clear any previous warning if load now succeeded
+          setCardsWarning(null);
         }
 
         setLoadingPhase("complete");
@@ -805,18 +831,48 @@ export function UserPageEditor() {
       // Fetch existing cards
       const cardsResult = await fetchUserCards(userResult.userId);
       if ("error" in cardsResult) {
-        // Not a fatal error - user just has no cards yet
-        initializeFromServerData(
-          userResult.userId,
-          userResult.username,
-          userResult.avatarUrl,
-          [],
-          undefined,
-          statCardTypes.map((t) => t.id),
-        );
-        setLoadingPhase("complete");
-        return;
+        if (cardsResult.notFound) {
+          // No cards yet — initialize with empty array
+          initializeFromServerData(
+            userResult.userId,
+            userResult.username,
+            userResult.avatarUrl,
+            [],
+            undefined,
+            statCardTypes.map((t) => t.id),
+          );
+          setLoadingPhase("complete");
+          return;
+        } else {
+          // Unexpected server or network error — track and show a non-fatal warning
+          const errorDetails = getErrorDetails(cardsResult.error);
+          trackUserActionError(
+            "user_page_load_fetch_cards",
+            new Error(cardsResult.error),
+            errorDetails.category,
+            {
+              userId: userResult.userId,
+              username: userResult.username ?? undefined,
+            },
+          );
+          setCardsWarning(
+            "Failed to load saved cards due to a server error. Default cards are shown for now.",
+          );
+          initializeFromServerData(
+            userResult.userId,
+            userResult.username,
+            userResult.avatarUrl,
+            [],
+            undefined,
+            statCardTypes.map((t) => t.id),
+          );
+          setLoadingPhase("complete");
+          return;
+        }
       }
+
+      // If successful, clear any previous warning
+      setCardsWarning(null);
 
       initializeFromServerData(
         userResult.userId,
@@ -1082,6 +1138,38 @@ export function UserPageEditor() {
                     onClick={() => setIsNewUser(false)}
                     className="h-6 w-6 shrink-0 rounded-full p-0 text-green-600 hover:bg-green-100 hover:text-green-800 dark:text-green-400 dark:hover:bg-green-900/50 dark:hover:text-green-200"
                     aria-label="Dismiss welcome notice"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+
+          {cardsWarning && (
+            <div className="flex justify-center">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 }}
+                className="w-full max-w-[700px] rounded-xl border border-yellow-200/60 bg-gradient-to-r from-yellow-50/80 to-amber-50/80 px-4 py-3 backdrop-blur-sm dark:border-yellow-800/40 dark:from-yellow-950/30 dark:to-amber-950/30"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-yellow-100 dark:bg-yellow-900/50">
+                    <AlertTriangle className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-amber-800 dark:text-amber-200">
+                      <span className="font-medium">Problem loading saved cards:</span>{" "}
+                      {cardsWarning}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setCardsWarning(null)}
+                    className="h-6 w-6 shrink-0 rounded-full p-0 text-yellow-700 hover:bg-yellow-100 hover:text-yellow-900 dark:text-yellow-300 dark:hover:bg-yellow-900/50 dark:hover:text-yellow-100"
+                    aria-label="Dismiss card loading warning"
                   >
                     <X className="h-4 w-4" />
                   </Button>
