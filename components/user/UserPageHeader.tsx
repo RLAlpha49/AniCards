@@ -153,6 +153,45 @@ function getAnilistUrl(
 }
 
 /**
+ * Presentational Avatar component that renders the image or fallback icon.
+ * Accepts className variants for image and fallback to allow adding hover/group classes.
+ */
+function Avatar({
+  avatarUrl,
+  username,
+  imageClassName = "",
+  fallbackClassName = "",
+}: {
+  avatarUrl?: string;
+  username?: string | null;
+  imageClassName?: string;
+  fallbackClassName?: string;
+}) {
+  return avatarUrl ? (
+    <Image
+      src={avatarUrl}
+      alt={username || "User avatar"}
+      width={100}
+      height={100}
+      className={cn(
+        "relative h-20 w-20 rounded-full border-4 border-white object-cover shadow-lg dark:border-slate-800 sm:h-24 sm:w-24",
+        imageClassName,
+      )}
+      unoptimized
+    />
+  ) : (
+    <div
+      className={cn(
+        "relative flex h-20 w-20 items-center justify-center rounded-full border-4 border-white bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg dark:border-slate-800 sm:h-24 sm:w-24",
+        fallbackClassName,
+      )}
+    >
+      <UserIcon className="h-10 w-10 text-white sm:h-12 sm:w-12" />
+    </div>
+  );
+}
+
+/**
  * Header section for the user page with user info, stats.
  * @param props - Component props.
  * @returns JSX element.
@@ -198,40 +237,19 @@ export function UserPageHeader({
                   className="group relative block transition-transform hover:scale-105 active:scale-95"
                   aria-label={`View ${username || "user"}'s AniList profile`}
                 >
-                  {avatarUrl ? (
-                    <Image
-                      src={avatarUrl}
-                      alt={username || "User avatar"}
-                      width={100}
-                      height={100}
-                      className="relative h-20 w-20 rounded-full border-4 border-white object-cover shadow-lg transition-all group-hover:border-blue-400 dark:border-slate-800 dark:group-hover:border-blue-500 sm:h-24 sm:w-24"
-                      unoptimized
-                    />
-                  ) : (
-                    <div className="relative flex h-20 w-20 items-center justify-center rounded-full border-4 border-white bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg transition-all group-hover:border-blue-400 dark:border-slate-800 dark:group-hover:border-blue-500 sm:h-24 sm:w-24">
-                      <UserIcon className="h-10 w-10 text-white sm:h-12 sm:w-12" />
-                    </div>
-                  )}
+                  <Avatar
+                    avatarUrl={avatarUrl}
+                    username={username}
+                    imageClassName="transition-all group-hover:border-blue-400 dark:group-hover:border-blue-500"
+                    fallbackClassName="transition-all group-hover:border-blue-400 dark:group-hover:border-blue-500"
+                  />
                   <div className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-white shadow-md sm:h-8 sm:w-8">
                     <ExternalLink className="h-3 w-3 sm:h-4 sm:w-4" />
                   </div>
                 </a>
               ) : (
                 <div className="relative">
-                  {avatarUrl ? (
-                    <Image
-                      src={avatarUrl}
-                      alt={username || "User avatar"}
-                      width={100}
-                      height={100}
-                      className="relative h-20 w-20 rounded-full border-4 border-white object-cover shadow-lg dark:border-slate-800 sm:h-24 sm:w-24"
-                      unoptimized
-                    />
-                  ) : (
-                    <div className="relative flex h-20 w-20 items-center justify-center rounded-full border-4 border-white bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg dark:border-slate-800 sm:h-24 sm:w-24">
-                      <UserIcon className="h-10 w-10 text-white sm:h-12 sm:w-12" />
-                    </div>
-                  )}
+                  <Avatar avatarUrl={avatarUrl} username={username} />
                 </div>
               )}
             </motion.div>
