@@ -48,7 +48,7 @@ export function MathTooltipContent({
 function renderMathContent(content: string): string {
   // First, process display math ($$...$$)
   const withDisplayMath = content.replaceAll(
-    /\$\$([^$]+)\$\$/g,
+    /\$\$([\s\S]*?)\$\$/g,
     (_, formula: string) => {
       try {
         return katex.renderToString(formula.trim(), {
