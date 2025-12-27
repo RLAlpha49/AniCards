@@ -11,12 +11,15 @@ import type { GradientDefinition } from "@/lib/types/card";
  */
 export function hexToRgba(hex: string, alpha: number): string {
   const cleanHex = hex.replace("#", "");
+  // Ensure we have at least 6 hex characters; fallback to black if invalid
+  if (cleanHex.length < 6 || !/^[A-Fa-f0-9]+$/.test(cleanHex)) {
+    return `rgba(0, 0, 0, ${alpha})`;
+  }
   const r = Number.parseInt(cleanHex.substring(0, 2), 16);
   const g = Number.parseInt(cleanHex.substring(2, 4), 16);
   const b = Number.parseInt(cleanHex.substring(4, 6), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
-
 /**
  * Convert a GradientDefinition into a CSS gradient string.
  * Supports linear and radial gradients and respects stop opacity.
