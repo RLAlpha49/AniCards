@@ -196,6 +196,7 @@ export function UserPageHeader({
                   target="_blank"
                   rel="noopener noreferrer"
                   className="group relative block transition-transform hover:scale-105 active:scale-95"
+                  aria-label={`View ${username || "user"}'s AniList profile`}
                 >
                   {avatarUrl ? (
                     <Image
