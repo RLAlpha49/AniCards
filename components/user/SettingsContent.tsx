@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Grid,
   Heart,
@@ -248,60 +248,63 @@ export function SettingsContent({
           </div>
 
           {/* Border Settings - Only shown when border is enabled */}
-          {borderEnabled && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="space-y-4"
-            >
-              {/* Border Color */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Border Color
-                </Label>
-                <div className="flex items-center gap-3">
-                  <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border-2 border-slate-200 shadow-inner dark:border-slate-700">
+          <AnimatePresence mode="wait" initial={false}>
+            {borderEnabled && (
+              <motion.div
+                key="border-settings"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="space-y-4"
+              >
+                {/* Border Color */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Border Color
+                  </Label>
+                  <div className="flex items-center gap-3">
+                    <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border-2 border-slate-200 shadow-inner dark:border-slate-700">
+                      <Input
+                        type="color"
+                        value={borderColor}
+                        onChange={(e) => onBorderColorChange(e.target.value)}
+                        className="absolute -left-1/2 -top-1/2 h-[200%] w-[200%] cursor-pointer border-0 p-0"
+                      />
+                    </div>
                     <Input
-                      type="color"
+                      type="text"
                       value={borderColor}
                       onChange={(e) => onBorderColorChange(e.target.value)}
-                      className="absolute -left-1/2 -top-1/2 h-[200%] w-[200%] cursor-pointer border-0 p-0"
+                      className="h-10 flex-1 font-mono text-sm uppercase"
+                      placeholder="#e4e2e2"
                     />
                   </div>
+                </div>
+
+                {/* Border Radius */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Border Radius
+                    </Label>
+                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-sm font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                      {borderRadius}px
+                    </span>
+                  </div>
                   <Input
-                    type="text"
-                    value={borderColor}
-                    onChange={(e) => onBorderColorChange(e.target.value)}
-                    className="h-10 flex-1 font-mono text-sm uppercase"
-                    placeholder="#e4e2e2"
+                    type="range"
+                    min={0}
+                    max={20}
+                    value={borderRadius}
+                    onChange={(e) =>
+                      onBorderRadiusChange(Number.parseInt(e.target.value))
+                    }
+                    className="h-2 w-full cursor-pointer appearance-none rounded-full bg-gradient-to-r from-slate-200 to-slate-300 px-0 dark:from-slate-700 dark:to-slate-600"
                   />
                 </div>
-              </div>
-
-              {/* Border Radius */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Border Radius
-                  </Label>
-                  <span className="rounded-md bg-slate-100 px-2 py-0.5 text-sm font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                    {borderRadius}px
-                  </span>
-                </div>
-                <Input
-                  type="range"
-                  min={0}
-                  max={20}
-                  value={borderRadius}
-                  onChange={(e) =>
-                    onBorderRadiusChange(Number.parseInt(e.target.value))
-                  }
-                  className="h-2 w-full cursor-pointer appearance-none rounded-full bg-gradient-to-r from-slate-200 to-slate-300 px-0 dark:from-slate-700 dark:to-slate-600"
-                />
-              </div>
-            </motion.div>
-          )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </TabsContent>
 
         {/* Advanced Tab */}
