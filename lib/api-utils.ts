@@ -604,8 +604,9 @@ function validateCardRequiredFields(
       }
       if (!validateColorValue(value)) {
         const reason = getColorInvalidReason(value);
+        const reasonSuffix = reason ? ` (${reason})` : "";
         console.warn(
-          `⚠️ [${endpoint}] Card ${cardIndex} invalid color or gradient format for ${field} (${reason})`,
+          `⚠️ [${endpoint}] Card ${cardIndex} invalid color or gradient format for ${field}${reasonSuffix}`,
         );
         return NextResponse.json(
           { error: "Invalid data" },
@@ -697,8 +698,9 @@ function validateCardOptionalFields(
   if (hasBorder) {
     if (!validateColorValue(borderColorValue)) {
       const reason = getColorInvalidReason(borderColorValue);
+      const reasonSuffix = reason ? ` (${reason})` : "";
       console.warn(
-        `⚠️ [${endpoint}] Card ${cardIndex} invalid borderColor format (${reason})`,
+        `⚠️ [${endpoint}] Card ${cardIndex} invalid borderColor format${reasonSuffix}`,
       );
       return NextResponse.json(
         { error: "Invalid data" },

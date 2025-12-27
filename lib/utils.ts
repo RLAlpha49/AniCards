@@ -487,14 +487,14 @@ export function validateColorValue(value: unknown): boolean {
   return isValidGradient(value);
 }
 
-/** Provide a human-readable reason when a color value is invalid. */
+/** Provide a human-readable reason when a color value is invalid. Returns an empty string when the value is valid. */
 export function getColorInvalidReason(value: unknown): string {
   if (typeof value === "string") {
     const trimmed = value.trim();
     if (trimmed.startsWith("{")) {
       try {
         const parsed = JSON.parse(trimmed);
-        if (isValidGradient(parsed)) return "gradient JSON string is valid";
+        if (isValidGradient(parsed)) return "";
         return "invalid gradient JSON definition";
       } catch {
         return "invalid gradient JSON (parse error)";
@@ -502,11 +502,11 @@ export function getColorInvalidReason(value: unknown): string {
     }
 
     if (isValidHexColor(trimmed))
-      return "hex string passed regex but failed shared validation";
+      return "";
     return "invalid hex string";
   }
   if (isValidGradient(value))
-    return "gradient passed validation but failed shared validation";
+    return "";
   return "invalid gradient definition";
 }
 
