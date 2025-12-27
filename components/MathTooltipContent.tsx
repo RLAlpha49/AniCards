@@ -86,5 +86,5 @@ function renderMathContent(content: string): string {
  * @returns True if content contains math delimiters
  */
 export function containsMath(content: string): boolean {
-  return /(?<!\d)\$[^$\n]+?\$(?!\d)/.test(content);
+  return /\$\$[\s\S]+?\$\$|\$[^$\n]+\$/.test(content);
 }
