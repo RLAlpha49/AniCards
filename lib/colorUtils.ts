@@ -39,5 +39,6 @@ export function gradientToCss(gradient: GradientDefinition): string {
 
   const cx = gradient.cx ?? 50;
   const cy = gradient.cy ?? 50;
-  return `radial-gradient(circle at ${cx}% ${cy}%, ${stops})`;
+  const r = gradient.r ?? 50;
+  return `radial-gradient(circle ${r}% at ${cx}% ${cy}%, ${stops})`;
 }
