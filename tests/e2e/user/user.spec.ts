@@ -87,22 +87,21 @@ test.describe("User page", () => {
       const toolbar = page.locator('[data-testid="bulk-actions-toolbar"]');
       await expect(toolbar).toBeVisible();
 
-      const buttons = toolbar.locator("button");
-      // Confirm button order and labels (Select all enabled will appear first)
-      await expect(buttons.nth(0)).toContainText(/select all enabled/i);
-      await expect(buttons.nth(1)).toContainText(/copy/i);
-      await expect(buttons.nth(2)).toContainText(/download/i);
+      // Use role-based selectors scoped to the toolbar so the test doesn't rely on button order
+      const selectAllButton = toolbar.getByRole("button", { name: /select all enabled/i, includeHidden: true });
+      const copyButton = toolbar.getByRole("button", { name: /copy/i, includeHidden: true });
+      const downloadButton = toolbar.getByRole("button", { name: /download/i, includeHidden: true });
 
-      // Copy popover trigger (second button in the toolbar - first is "Select all enabled")
-      const copyTrigger = buttons.nth(1);
-      await expect(copyTrigger).toBeVisible();
-      await copyTrigger.click({ force: true });
+      await expect(selectAllButton).toBeVisible();
+      await expect(copyButton).toBeVisible();
+      await expect(downloadButton).toBeVisible();
+
+      // Open the copy popover and verify its contents
+      await copyButton.click({ force: true });
       await expect(page.getByText(/raw urls/i)).toBeVisible({ timeout: 10000 });
 
-      // Download popover trigger (third button in the toolbar)
-      const downloadTrigger = buttons.nth(2);
-      await expect(downloadTrigger).toBeVisible();
-      await downloadTrigger.click({ force: true });
+      // Open the download popover and verify its contents
+      await downloadButton.click({ force: true });
       await expect(page.getByText(/png/i)).toBeVisible({ timeout: 10000 });
     });
   });
