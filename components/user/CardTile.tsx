@@ -210,13 +210,13 @@ export function CardTile({
   const handleCopyUrl = useCallback(
     async (format: "url" | "anilist" = "url") => {
       if (!previewUrl) return;
-      const resolvedUrl = new URL(
-        previewUrl,
-        globalThis.location.origin,
-      ).toString();
-      const textToCopy =
-        format === "anilist" ? `img200(${resolvedUrl})` : resolvedUrl;
       try {
+        const resolvedUrl = new URL(
+          previewUrl,
+          globalThis.location.origin,
+        ).toString();
+        const textToCopy =
+          format === "anilist" ? `img200(${resolvedUrl})` : resolvedUrl;
         await navigator.clipboard.writeText(textToCopy);
         setCopiedFormat(format);
         setTimeout(() => setCopiedFormat(null), 2000);
