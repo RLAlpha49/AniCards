@@ -299,6 +299,10 @@ export function SettingsContent({
                     onChange={(e) =>
                       onBorderRadiusChange(Number.parseInt(e.target.value))
                     }
+                    aria-label={`Border radius (${borderRadius}px)`}
+                    aria-valuemin={0}
+                    aria-valuemax={20}
+                    aria-valuenow={borderRadius}
                     className="h-2 w-full cursor-pointer appearance-none rounded-full bg-gradient-to-r from-slate-200 to-slate-300 px-0 dark:from-slate-700 dark:to-slate-600"
                   />
                 </div>
