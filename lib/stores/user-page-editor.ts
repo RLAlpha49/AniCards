@@ -341,7 +341,7 @@ function extractGlobalSettings(firstCard: ServerCardData): {
     ];
   }
 
-  const borderEnabled = Boolean(firstCard.borderColor);
+  const borderEnabled = typeof firstCard.borderColor === 'string' && firstCard.borderColor.length > 0;
   const borderColor = firstCard.borderColor || DEFAULT_BORDER_COLOR;
   const borderRadius =
     typeof firstCard.borderRadius === "number"
@@ -350,7 +350,6 @@ function extractGlobalSettings(firstCard: ServerCardData): {
 
   return { preset, colors, borderEnabled, borderColor, borderRadius };
 }
-
 /**
  * Converts a server card to an editor config.
  * @source
@@ -682,7 +681,8 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
       },
 
       setGlobalBorderRadius: (radius) => {
-        const clamped = Math.max(0, Math.min(20, radius));
+        const MAX_BORDER_RADIUS = 20;
+        const clamped = Math.max(0, Math.min(MAX_BORDER_RADIUS, radius));
         set(
           { globalBorderRadius: clamped, isDirty: true },
           false,
