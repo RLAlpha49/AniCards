@@ -78,7 +78,6 @@ export function GlobalSettingsPanel({
     setGlobalBorderColor,
     setGlobalBorderRadius,
     setGlobalAdvancedSetting,
-    DEFAULT_GLOBAL_SETTINGS,
   ]);
 
   const handleColorChange = useCallback(
