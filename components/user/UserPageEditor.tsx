@@ -961,6 +961,11 @@ export function UserPageEditor() {
     return <LayoutGrid className="h-5 w-5" />;
   }, []);
 
+  const saveState = useMemo(
+    () => ({ isSaving, isDirty, saveError, lastSavedAt }),
+    [isSaving, isDirty, saveError, lastSavedAt]
+  );
+
   // Loading state - show descriptive messages based on loading phase
   if (isLoading) {
     const loadingMessage = LOADING_PHASE_MESSAGES[loadingPhase] || "Loading...";
@@ -1037,8 +1042,6 @@ export function UserPageEditor() {
       </div>
     );
   }
-
-  const saveState = { isSaving, isDirty, saveError, lastSavedAt };
 
   return (
     <div className="relative w-full overflow-hidden">
