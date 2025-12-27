@@ -63,17 +63,20 @@ function renderMathContent(content: string): string {
   );
 
   // Then, process inline math ($...$)
-  return withDisplayMath.replaceAll(/(?<!\d)\$([^$\n]+?)\$(?!\d)/g, (_, formula: string) => {
-    try {
-      return katex.renderToString(formula.trim(), {
-        displayMode: false,
-        throwOnError: false,
-        output: "html",
-      });
-    } catch {
-      return `$${formula}$`;
-    }
-  });
+  return withDisplayMath.replaceAll(
+    /(?<!\d)\$([^$\n]+?)\$(?!\d)/g,
+    (_, formula: string) => {
+      try {
+        return katex.renderToString(formula.trim(), {
+          displayMode: false,
+          throwOnError: false,
+          output: "html",
+        });
+      } catch {
+        return `$${formula}$`;
+      }
+    },
+  );
 }
 
 /**

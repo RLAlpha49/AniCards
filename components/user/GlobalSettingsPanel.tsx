@@ -7,7 +7,10 @@ import {
   DialogTitle,
 } from "@/components/ui/Dialog";
 import { CardSettingsPanel } from "@/components/user/CardSettingsPanel";
-import { useUserPageEditor, DEFAULT_GLOBAL_SETTINGS } from "@/lib/stores/user-page-editor";
+import {
+  useUserPageEditor,
+  DEFAULT_GLOBAL_SETTINGS,
+} from "@/lib/stores/user-page-editor";
 import type { ColorValue } from "@/lib/types/card";
 
 /**
@@ -17,7 +20,7 @@ import type { ColorValue } from "@/lib/types/card";
 interface GlobalSettingsPanelProps {
   /** Handler to save all cards (may be async) */
   onSave?: () => void | Promise<void>;
-} 
+}
 
 /**
  * Panel for configuring global color and border settings.

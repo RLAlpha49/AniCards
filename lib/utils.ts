@@ -501,12 +501,10 @@ export function getColorInvalidReason(value: unknown): string {
       }
     }
 
-    if (isValidHexColor(trimmed))
-      return "";
+    if (isValidHexColor(trimmed)) return "";
     return "invalid hex string";
   }
-  if (isValidGradient(value))
-    return "";
+  if (isValidGradient(value)) return "";
   return "invalid gradient definition";
 }
 

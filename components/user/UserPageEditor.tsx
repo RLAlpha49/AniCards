@@ -964,7 +964,7 @@ export function UserPageEditor() {
 
   const saveState = useMemo(
     () => ({ isSaving, isDirty, saveError, lastSavedAt }),
-    [isSaving, isDirty, saveError, lastSavedAt]
+    [isSaving, isDirty, saveError, lastSavedAt],
   );
 
   // Loading state - show descriptive messages based on loading phase

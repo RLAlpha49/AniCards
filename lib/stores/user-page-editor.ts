@@ -1,7 +1,10 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import type { ColorValue } from "@/lib/types/card";
-import { colorPresets, statCardTypes } from "@/components/stat-card-generator/constants";
+import {
+  colorPresets,
+  statCardTypes,
+} from "@/components/stat-card-generator/constants";
 import { DEFAULT_CARD_BORDER_RADIUS } from "@/lib/utils";
 
 /**
@@ -341,7 +344,9 @@ function extractGlobalSettings(firstCard: ServerCardData): {
     ];
   }
 
-  const borderEnabled = typeof firstCard.borderColor === 'string' && firstCard.borderColor.length > 0;
+  const borderEnabled =
+    typeof firstCard.borderColor === "string" &&
+    firstCard.borderColor.length > 0;
   const borderColor = firstCard.borderColor || DEFAULT_BORDER_COLOR;
   const borderRadius =
     typeof firstCard.borderRadius === "number"
@@ -349,7 +354,7 @@ function extractGlobalSettings(firstCard: ServerCardData): {
       : DEFAULT_CARD_BORDER_RADIUS;
 
   return { preset, colors, borderEnabled, borderColor, borderRadius };
-}/**
+} /**
  * Converts a server card to an editor config.
  * @source
  */

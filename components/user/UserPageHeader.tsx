@@ -107,8 +107,7 @@ function getSaveStateInfo(saveState?: SaveState): SaveStateInfo {
     return {
       Icon: AlertCircle,
       text: "Save failed",
-      className:
-        "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+      className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
     };
   }
 
@@ -136,14 +135,17 @@ function getSaveStateInfo(saveState?: SaveState): SaveStateInfo {
     className:
       "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
   };
-} 
+}
 
 /**
  * Build an AniList profile URL from a username or userId.
  * Accepts username (string|null|undefined) or userId (string|number|null|undefined).
  * Returns the profile URL string or null if neither identifier is provided.
  */
-function getAnilistUrl(username?: string | null, userId?: string | number | null): string | null {
+function getAnilistUrl(
+  username?: string | null,
+  userId?: string | number | null,
+): string | null {
   if (username) return `https://anilist.co/user/${username}`;
   if (userId) return `https://anilist.co/user/${userId}`;
   return null;
@@ -170,7 +172,7 @@ export function UserPageHeader({
     return () => clearInterval(id);
   }, [saveState?.lastSavedAt]);
 
-  const saveInfo = saveState ? getSaveStateInfo(saveState) : undefined; 
+  const saveInfo = saveState ? getSaveStateInfo(saveState) : undefined;
 
   return (
     <motion.header
@@ -258,7 +260,7 @@ export function UserPageHeader({
                   data-tick={tick}
                   className={cn(
                     "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all",
-                    saveInfo.className
+                    saveInfo.className,
                   )}
                 >
                   {saveInfo.spinner ? (

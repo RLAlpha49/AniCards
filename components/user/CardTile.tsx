@@ -43,8 +43,10 @@ import {
   containsMath,
 } from "@/components/MathTooltipContent";
 import { getCardInfoTooltip } from "@/lib/card-info-tooltips";
-import { CardEditorConfig,
-useUserPageEditor } from "@/lib/stores/user-page-editor";
+import {
+  CardEditorConfig,
+  useUserPageEditor,
+} from "@/lib/stores/user-page-editor";
 import {
   cn,
   getCardBorderRadius,

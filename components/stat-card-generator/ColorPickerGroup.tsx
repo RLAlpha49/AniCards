@@ -9,7 +9,13 @@ import type {
   GradientDefinition,
   GradientStop,
 } from "@/lib/types/card";
-import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import React, {
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+  useRef,
+} from "react";
 import {
   Plus,
   Minus,
@@ -185,7 +191,6 @@ function adjustColor(hex: string, amount: number): string {
   const b = Math.min(255, Math.max(0, (num & 0x0000ff) + amount));
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 }
-
 
 /**
  * Component for editing gradient stops.

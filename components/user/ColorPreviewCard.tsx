@@ -45,7 +45,6 @@ interface ColorPreviewCardProps {
   className?: string;
 }
 
-
 /**
  * Converts a ColorValue to a CSS-compatible color or gradient string.
  * @param value - The color value.
