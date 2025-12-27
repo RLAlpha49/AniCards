@@ -63,7 +63,7 @@ function renderMathContent(content: string): string {
   );
 
   // Then, process inline math ($...$)
-  return withDisplayMath.replaceAll(/\$([^$\n]+)\$/g, (_, formula: string) => {
+  return withDisplayMath.replaceAll(/(?<!\d)\$([^$\n]+?)\$(?!\d)/g, (_, formula: string) => {
     try {
       return katex.renderToString(formula.trim(), {
         displayMode: false,
@@ -83,5 +83,5 @@ function renderMathContent(content: string): string {
  * @returns True if content contains math delimiters
  */
 export function containsMath(content: string): boolean {
-  return /\$[^$]+\$/.test(content);
+  return /(?<!\d)\$[^$\n]+?\$(?!\d)/.test(content);
 }
