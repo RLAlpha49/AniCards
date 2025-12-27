@@ -349,8 +349,7 @@ function extractGlobalSettings(firstCard: ServerCardData): {
       : DEFAULT_CARD_BORDER_RADIUS;
 
   return { preset, colors, borderEnabled, borderColor, borderRadius };
-}
-/**
+}/**
  * Converts a server card to an editor config.
  * @source
  */
@@ -1153,20 +1152,17 @@ export const selectIsCardSelected = (
 /**
  * Selector to get card configs grouped by their group from statCardTypes.
  * Falls back to "All" when a mapping for a card ID is not found.
- * If the store provides a `statCardTypes` mapping (e.g., in tests or SSR), it will be used
- * in preference to the canonical constants mapping.
+ * Optionally accepts an override `statCardTypes` array (useful for tests or SSR).
  * @source
  */
 export const selectCardConfigsByGroup = (
   state: UserPageEditorStore,
+  overrideStatCardTypes?: ReadonlyArray<{ id: string; group: string }>,
 ): Record<string, CardEditorConfig[]> => {
   const result: Record<string, CardEditorConfig[]> = {};
 
-  // Prefer a mapping on the store if present, otherwise use the canonical statCardTypes
-  const cardTypeList:
-    | { id: string; group: string }[]
-    | undefined = (state as unknown as { statCardTypes?: { id: string; group: string }[] })
-    .statCardTypes ?? statCardTypes;
+  // Use the provided override when present, otherwise fall back to the canonical statCardTypes
+  const cardTypeList = overrideStatCardTypes ?? statCardTypes;
 
   const groupById = new Map<string, string>(
     cardTypeList.map((t) => [t.id, t.group]),
