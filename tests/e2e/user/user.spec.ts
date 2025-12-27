@@ -197,7 +197,7 @@ test.describe("User page", () => {
 
     await expect(page.getByText(/welcome to anicards/i)).toBeVisible();
 
-    const images = page.locator('[data-testid="card-preview"] img');
+    const images = page.locator('[role="img"]');
     // Wait for at least one preview image to appear (initial cards snapshot should enable previews)
     await expect(images.first()).toBeVisible();
     const imageCount = await images.count();
