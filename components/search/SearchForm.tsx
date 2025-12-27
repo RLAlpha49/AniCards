@@ -24,7 +24,9 @@ const itemVariants = {
 
 function scheduleAfterPaint(callback: () => void) {
   if (typeof requestAnimationFrame === "function") {
-    requestAnimationFrame(() => callback());
+    requestAnimationFrame(() => {
+      requestAnimationFrame(callback);
+    });
     return;
   }
 
