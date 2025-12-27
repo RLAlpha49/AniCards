@@ -1,4 +1,4 @@
-import { buildApiUrl } from "@/lib/utils";
+import { buildApiUrl, clampBorderRadius } from "@/lib/utils";
 import type { ColorValue } from "@/lib/types/card";
 
 /** Default card generation endpoint used for example previews. @source */
@@ -492,7 +492,7 @@ export function mapStoredConfigToCardUrlParams(
   const borderColor = candidate.borderColor;
   const borderRadiusCandidate =
     typeof candidate.borderRadius === "number"
-      ? candidate.borderRadius
+      ? clampBorderRadius(candidate.borderRadius)
       : undefined;
   const borderRadius = borderColor ? borderRadiusCandidate : undefined;
 

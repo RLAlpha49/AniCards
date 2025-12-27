@@ -5,7 +5,7 @@ import {
   colorPresets,
   statCardTypes,
 } from "@/components/stat-card-generator/constants";
-import { DEFAULT_CARD_BORDER_RADIUS } from "@/lib/utils";
+import { DEFAULT_CARD_BORDER_RADIUS, clampBorderRadius } from "@/lib/utils";
 
 /**
  * Per-card color override configuration.
@@ -350,7 +350,7 @@ function extractGlobalSettings(firstCard: ServerCardData): {
   const borderColor = firstCard.borderColor || DEFAULT_BORDER_COLOR;
   const borderRadius =
     typeof firstCard.borderRadius === "number"
-      ? firstCard.borderRadius
+      ? clampBorderRadius(firstCard.borderRadius)
       : DEFAULT_CARD_BORDER_RADIUS;
 
   return { preset, colors, borderEnabled, borderColor, borderRadius };
@@ -428,6 +428,12 @@ function serverCardToEditorConfig(
   // If card is explicitly disabled, mark as not enabled
   const enabled = card.disabled !== true;
 
+  // Normalize incoming per-card radius and omit it when it matches global radius
+  const cardBorderRadiusValue =
+    typeof card.borderRadius === "number"
+      ? clampBorderRadius(card.borderRadius)
+      : undefined;
+
   return {
     cardId: card.cardName,
     enabled,
@@ -443,7 +449,9 @@ function serverCardToEditorConfig(
     borderColor:
       card.borderColor === globalBorderColor ? undefined : card.borderColor,
     borderRadius:
-      card.borderRadius === globalBorderRadius ? undefined : card.borderRadius,
+      cardBorderRadiusValue === globalBorderRadius
+        ? undefined
+        : cardBorderRadiusValue,
   };
 }
 
@@ -500,7 +508,7 @@ function processServerCards(
       serverGlobalSettings.borderColor || DEFAULT_BORDER_COLOR;
     globalBorderRadius =
       typeof serverGlobalSettings.borderRadius === "number"
-        ? serverGlobalSettings.borderRadius
+        ? clampBorderRadius(serverGlobalSettings.borderRadius)
         : DEFAULT_CARD_BORDER_RADIUS;
   } else if (cards.length > 0) {
     // Legacy: extract from first card
@@ -578,7 +586,7 @@ export const DEFAULT_GLOBAL_SETTINGS = {
   colorPreset: "default",
   borderEnabled: false,
   borderColor: DEFAULT_BORDER_COLOR,
-  borderRadius: 5,
+  borderRadius: DEFAULT_CARD_BORDER_RADIUS,
   advancedSettings: DEFAULT_GLOBAL_ADVANCED_SETTINGS,
 } as const;
 
@@ -685,8 +693,7 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
       },
 
       setGlobalBorderRadius: (radius) => {
-        const MAX_BORDER_RADIUS = 20;
-        const clamped = Math.max(0, Math.min(MAX_BORDER_RADIUS, radius));
+        const clamped = clampBorderRadius(radius);
         set(
           { globalBorderRadius: clamped, isDirty: true },
           false,
@@ -891,11 +898,12 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
       setCardBorderRadius: (cardId, radius) => {
         const { cardConfigs } = get();
         const existing = ensureCardConfig(get(), cardId);
+        const newRadius = typeof radius === "number" ? clampBorderRadius(radius) : undefined;
         set(
           {
             cardConfigs: {
               ...cardConfigs,
-              [cardId]: { ...existing, borderRadius: radius },
+              [cardId]: { ...existing, borderRadius: newRadius },
             },
             isDirty: true,
           },
@@ -1113,9 +1121,9 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
         const { cardConfigs, globalBorderRadius } = get();
         const config = cardConfigs[cardId];
         if (config?.borderRadius !== undefined) {
-          return config.borderRadius;
+          return clampBorderRadius(config.borderRadius);
         }
-        return globalBorderRadius;
+        return clampBorderRadius(globalBorderRadius);
       },
     }),
     { name: "UserPageEditor" },

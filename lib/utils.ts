@@ -908,7 +908,7 @@ export function getCardBorderRadius(
   if (typeof borderRadius === "number") {
     return clampBorderRadius(borderRadius);
   }
-  return defaultRadius;
+  return clampBorderRadius(defaultRadius);
 }
 
 /**
