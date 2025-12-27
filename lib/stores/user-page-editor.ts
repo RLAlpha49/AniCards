@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import type { ColorValue } from "@/lib/types/card";
-import { colorPresets } from "@/components/stat-card-generator/constants";
+import { colorPresets, statCardTypes } from "@/components/stat-card-generator/constants";
 import { DEFAULT_CARD_BORDER_RADIUS } from "@/lib/utils";
 
 /**
@@ -1151,20 +1151,32 @@ export const selectIsCardSelected = (
 ): boolean => state.selectedCardIds.has(cardId);
 
 /**
- * Selector to get card configs grouped by their group from constants.
+ * Selector to get card configs grouped by their group from statCardTypes.
+ * Falls back to "All" when a mapping for a card ID is not found.
+ * If the store provides a `statCardTypes` mapping (e.g., in tests or SSR), it will be used
+ * in preference to the canonical constants mapping.
  * @source
  */
 export const selectCardConfigsByGroup = (
   state: UserPageEditorStore,
 ): Record<string, CardEditorConfig[]> => {
-  // This will be populated by the component using statCardTypes from constants
   const result: Record<string, CardEditorConfig[]> = {};
+
+  // Prefer a mapping on the store if present, otherwise use the canonical statCardTypes
+  const cardTypeList:
+    | { id: string; group: string }[]
+    | undefined = (state as unknown as { statCardTypes?: { id: string; group: string }[] })
+    .statCardTypes ?? statCardTypes;
+
+  const groupById = new Map<string, string>(
+    cardTypeList.map((t) => [t.id, t.group]),
+  );
+
   for (const config of Object.values(state.cardConfigs)) {
-    // Group info comes from statCardTypes, not stored here
-    // Component will handle grouping
-    const group = "All";
+    const group = groupById.get(config.cardId) ?? "All";
     if (!result[group]) result[group] = [];
     result[group].push(config);
   }
+
   return result;
 };
