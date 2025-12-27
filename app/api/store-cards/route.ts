@@ -433,13 +433,13 @@ export async function POST(request: Request): Promise<NextResponse> {
       endpoint,
       request,
     );
-    if (!Array.isArray(validated)) {
+    if (!validated.success) {
       await incrementAnalytics(
         buildAnalyticsMetricKey(endpointKey, "failed_requests"),
       );
-      return validated;
+      return validated.error;
     }
-    const incomingCardsTyped = validated;
+    const incomingCardsTyped = validated.cards;
 
     if (statsData?.error) {
       console.warn(

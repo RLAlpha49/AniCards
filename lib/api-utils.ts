@@ -1010,40 +1010,42 @@ function validateCardsItems(
 /**
  * Validates an array of cards provided in the store-cards endpoint, ensuring
  * userId is valid and that each card's required and optional fields are valid.
- * On success this now returns a normalized and typed array of
- * `StoredCardConfig` objects derived from the incoming payload so callers can
- * safely use typed values without an assertion. On failure it returns a
- * `NextResponse` containing an `ApiError`.
+ * On success this returns a discriminated result with typed cards so callers
+ * can safely use normalized `StoredCardConfig` objects. On failure it returns
+ * an API error response wrapped in the failure branch of the result.
  * @param cards - Payload expected to be an array of card objects.
  * @param userId - User identifier associated with the cards.
  * @param endpoint - Logical endpoint name for logging/analytics.
- * @returns A NextResponse with an ApiError when invalid, or the typed cards
- *          array when validation succeeds.
+ * @returns A discriminated union: success with typed cards or failure with an API error response.
  * @source
  */
+export type ValidateCardDataResult =
+  | { success: true; cards: StoredCardConfig[] }
+  | { success: false; error: NextResponse<ApiError> };
+
 export function validateCardData(
   cards: unknown,
   userId: unknown,
   endpoint: string,
   request?: Request,
-): NextResponse<ApiError> | StoredCardConfig[] {
+): ValidateCardDataResult {
   // Validate userId
   const userIdError = validateUserIdField(userId, endpoint, request);
-  if (userIdError) return userIdError;
+  if (userIdError) return { success: false, error: userIdError };
 
   // Validate that cards is an array
   const cardsArrayError = validateCardsArrayField(cards, endpoint, request);
-  if (cardsArrayError) return cardsArrayError;
+  if (cardsArrayError) return { success: false, error: cardsArrayError };
 
   const cardsArr = cards as unknown[];
 
   // Validate unique card types limit
   const uniqueErr = validateUniqueCardTypes(cardsArr, endpoint, request);
-  if (uniqueErr) return uniqueErr;
+  if (uniqueErr) return { success: false, error: uniqueErr };
 
   // Validate each card's structure and fields
   const itemsErr = validateCardsItems(cardsArr, endpoint, request);
-  if (itemsErr) return itemsErr;
+  if (itemsErr) return { success: false, error: itemsErr };
 
   const typedCards: StoredCardConfig[] = cardsArr.map((card) => {
     const r = card as Record<string, unknown>;
@@ -1092,7 +1094,7 @@ export function validateCardData(
     } as StoredCardConfig;
   });
 
-  return typedCards;
+  return { success: true, cards: typedCards };
 }
 
 /**
