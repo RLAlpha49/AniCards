@@ -898,7 +898,8 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
       setCardBorderRadius: (cardId, radius) => {
         const { cardConfigs } = get();
         const existing = ensureCardConfig(get(), cardId);
-        const newRadius = typeof radius === "number" ? clampBorderRadius(radius) : undefined;
+        const newRadius =
+          typeof radius === "number" ? clampBorderRadius(radius) : undefined;
         set(
           {
             cardConfigs: {

@@ -171,11 +171,14 @@ export function CardSettingsDialog({
   // Build effective advanced settings by inheriting from global when undefined
   const advancedSettings = {
     useStatusColors:
-      config.advancedSettings.useStatusColors ?? globalAdvancedSettings.useStatusColors,
+      config.advancedSettings.useStatusColors ??
+      globalAdvancedSettings.useStatusColors,
     showPiePercentages:
-      config.advancedSettings.showPiePercentages ?? globalAdvancedSettings.showPiePercentages,
+      config.advancedSettings.showPiePercentages ??
+      globalAdvancedSettings.showPiePercentages,
     showFavorites:
-      config.advancedSettings.showFavorites ?? globalAdvancedSettings.showFavorites,
+      config.advancedSettings.showFavorites ??
+      globalAdvancedSettings.showFavorites,
     gridCols:
       config.advancedSettings.gridCols ?? globalAdvancedSettings.gridCols ?? 3,
     gridRows:

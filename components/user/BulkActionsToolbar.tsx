@@ -66,12 +66,16 @@ export function BulkActionsToolbar({
   });
 
   // Local UI state for surfaced download results or errors
-  const [downloadSummary, setDownloadSummary] = useState<
-    | { total: number; exported: number; failed: number; failedCardRawTypes?: string[] }
-    | null
-  >(null);
+  const [downloadSummary, setDownloadSummary] = useState<{
+    total: number;
+    exported: number;
+    failed: number;
+    failedCardRawTypes?: string[];
+  } | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
-  const downloadSummaryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const downloadSummaryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Track if component is mounted for SSR-safe portal rendering
@@ -256,7 +260,8 @@ export function BulkActionsToolbar({
 
         // Surface partial failures to the user with details (if available)
         if (result.failed > 0) {
-          const failedRawTypes = result.failedCards?.map((c) => c.rawType || c.type) ?? [];
+          const failedRawTypes =
+            result.failedCards?.map((c) => c.rawType || c.type) ?? [];
           setDownloadSummary({
             total: result.total,
             exported: result.exported,
@@ -502,7 +507,11 @@ export function BulkActionsToolbar({
                       {downloadError}
                     </AlertDescription>
                     <div className="ml-auto flex items-center gap-2">
-                      <Button size="sm" variant="ghost" onClick={() => setDownloadError(null)}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setDownloadError(null)}
+                      >
                         Close
                       </Button>
                     </div>
@@ -519,8 +528,12 @@ export function BulkActionsToolbar({
                   className="w-full sm:w-auto"
                 >
                   <Alert
-                    variant={downloadSummary.failed > 0 ? "destructive" : "default"}
-                    aria-live={downloadSummary.failed > 0 ? "assertive" : "polite"}
+                    variant={
+                      downloadSummary.failed > 0 ? "destructive" : "default"
+                    }
+                    aria-live={
+                      downloadSummary.failed > 0 ? "assertive" : "polite"
+                    }
                     className={cn(
                       downloadSummary.failed > 0
                         ? "border-red-200/50 bg-red-50/80 dark:border-red-800/50 dark:bg-red-950/30"
@@ -529,44 +542,71 @@ export function BulkActionsToolbar({
                     )}
                   >
                     <Info className="h-4 w-4" aria-hidden="true" />
-                    <AlertTitle className={
-                      downloadSummary.failed > 0 ? "text-red-800 dark:text-red-200" : "text-slate-900 dark:text-white"
-                    }>
+                    <AlertTitle
+                      className={
+                        downloadSummary.failed > 0
+                          ? "text-red-800 dark:text-red-200"
+                          : "text-slate-900 dark:text-white"
+                      }
+                    >
                       {downloadSummary.failed > 0
                         ? `Export completed with ${downloadSummary.failed} failed`
                         : `Exported ${downloadSummary.exported}/${downloadSummary.total}`}
                     </AlertTitle>
 
-                    {downloadSummary.failedCardRawTypes && downloadSummary.failedCardRawTypes.length > 0 && (
-                      <AlertDescription className={
-                        downloadSummary.failed > 0 ? "text-red-700 dark:text-red-300" : "text-slate-600 dark:text-slate-400"
-                      }>
-                        {downloadSummary.failedCardRawTypes.slice(0, 5).join(", ")}
-                        {downloadSummary.failedCardRawTypes.length > 5 ? ", ..." : ""}
-                      </AlertDescription>
-                    )}
+                    {downloadSummary.failedCardRawTypes &&
+                      downloadSummary.failedCardRawTypes.length > 0 && (
+                        <AlertDescription
+                          className={
+                            downloadSummary.failed > 0
+                              ? "text-red-700 dark:text-red-300"
+                              : "text-slate-600 dark:text-slate-400"
+                          }
+                        >
+                          {downloadSummary.failedCardRawTypes
+                            .slice(0, 5)
+                            .join(", ")}
+                          {downloadSummary.failedCardRawTypes.length > 5
+                            ? ", ..."
+                            : ""}
+                        </AlertDescription>
+                      )}
 
                     <div className="ml-auto flex items-center gap-2">
-                      <Button size="sm" variant="ghost" onClick={() => setDownloadSummary(null)}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setDownloadSummary(null)}
+                      >
                         Close
                       </Button>
 
-                      {downloadSummary.failed > 0 && downloadSummary.failedCardRawTypes && downloadSummary.failedCardRawTypes.length > 0 && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          aria-label="Copy failed card list"
-                          onClick={() => {
-                            const list = downloadSummary.failedCardRawTypes ?? [];
-                            void navigator.clipboard.writeText(list.join("\n")).catch((err) => {
-                              const msg = err instanceof Error ? err.message : String(err);
-                              setDownloadError(`Failed to copy failed list: ${msg}`);
-                            });
-                          }}
-                        >
-                          Copy list
-                        </Button>
-                      )}
+                      {downloadSummary.failed > 0 &&
+                        downloadSummary.failedCardRawTypes &&
+                        downloadSummary.failedCardRawTypes.length > 0 && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            aria-label="Copy failed card list"
+                            onClick={() => {
+                              const list =
+                                downloadSummary.failedCardRawTypes ?? [];
+                              void navigator.clipboard
+                                .writeText(list.join("\n"))
+                                .catch((err) => {
+                                  const msg =
+                                    err instanceof Error
+                                      ? err.message
+                                      : String(err);
+                                  setDownloadError(
+                                    `Failed to copy failed list: ${msg}`,
+                                  );
+                                });
+                            }}
+                          >
+                            Copy list
+                          </Button>
+                        )}
                     </div>
                   </Alert>
                 </motion.div>

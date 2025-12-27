@@ -88,9 +88,18 @@ test.describe("User page", () => {
       await expect(toolbar).toBeVisible();
 
       // Use role-based selectors scoped to the toolbar so the test doesn't rely on button order
-      const selectAllButton = toolbar.getByRole("button", { name: /select all enabled/i, includeHidden: true });
-      const copyButton = toolbar.getByRole("button", { name: /copy/i, includeHidden: true });
-      const downloadButton = toolbar.getByRole("button", { name: /download/i, includeHidden: true });
+      const selectAllButton = toolbar.getByRole("button", {
+        name: /select all enabled/i,
+        includeHidden: true,
+      });
+      const copyButton = toolbar.getByRole("button", {
+        name: /copy/i,
+        includeHidden: true,
+      });
+      const downloadButton = toolbar.getByRole("button", {
+        name: /download/i,
+        includeHidden: true,
+      });
 
       await expect(selectAllButton).toBeVisible();
       await expect(copyButton).toBeVisible();

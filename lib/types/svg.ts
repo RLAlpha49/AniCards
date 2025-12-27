@@ -31,4 +31,4 @@ export function stripTrustedSvgMarker(svg: TrustedSVG): string {
  */
 export function toCleanSvgResponse(svg: TrustedSVG): string {
   return stripTrustedSvgMarker(svg);
-} 
+}

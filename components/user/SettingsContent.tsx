@@ -134,10 +134,15 @@ export function SettingsContent({
 
   // Determine if advanced tab should be shown (respect merged/effective settings passed in)
   const hasAdvancedOptions =
-    (visibility.showStatusColors && advancedSettings.useStatusColors !== undefined) ||
-    (visibility.showPiePercentages && advancedSettings.showPiePercentages !== undefined) ||
-    (visibility.showFavorites && advancedSettings.showFavorites !== undefined) ||
-    (visibility.showGridSize && (advancedSettings.gridCols !== undefined || advancedSettings.gridRows !== undefined));
+    (visibility.showStatusColors &&
+      advancedSettings.useStatusColors !== undefined) ||
+    (visibility.showPiePercentages &&
+      advancedSettings.showPiePercentages !== undefined) ||
+    (visibility.showFavorites &&
+      advancedSettings.showFavorites !== undefined) ||
+    (visibility.showGridSize &&
+      (advancedSettings.gridCols !== undefined ||
+        advancedSettings.gridRows !== undefined));
 
   // Color pickers configuration
   const colorPickers = useMemo<ColorPickerItem[]>(

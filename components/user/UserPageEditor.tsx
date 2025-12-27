@@ -770,7 +770,10 @@ export function UserPageEditor() {
               statCardTypes.map((t) => t.id),
             );
           }
-        } else if (Array.isArray(persistedCardsResult.cards) && persistedCardsResult.cards.length === 0) {
+        } else if (
+          Array.isArray(persistedCardsResult.cards) &&
+          persistedCardsResult.cards.length === 0
+        ) {
           const msg = "No persisted cards were returned after initial save";
           const details = getErrorDetails(msg);
           trackUserActionError(
@@ -1160,7 +1163,9 @@ export function UserPageEditor() {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm text-amber-800 dark:text-amber-200">
-                      <span className="font-medium">Problem loading saved cards:</span>{" "}
+                      <span className="font-medium">
+                        Problem loading saved cards:
+                      </span>{" "}
                       {cardsWarning}
                     </p>
                   </div>
