@@ -132,12 +132,12 @@ export function SettingsContent({
     showGridSize: mode === "global",
   };
 
-  // Determine if advanced tab should be shown
+  // Determine if advanced tab should be shown (respect merged/effective settings passed in)
   const hasAdvancedOptions =
-    visibility.showStatusColors ||
-    visibility.showPiePercentages ||
-    visibility.showFavorites ||
-    visibility.showGridSize;
+    (visibility.showStatusColors && advancedSettings.useStatusColors !== undefined) ||
+    (visibility.showPiePercentages && advancedSettings.showPiePercentages !== undefined) ||
+    (visibility.showFavorites && advancedSettings.showFavorites !== undefined) ||
+    (visibility.showGridSize && (advancedSettings.gridCols !== undefined || advancedSettings.gridRows !== undefined));
 
   // Color pickers configuration
   const colorPickers = useMemo<ColorPickerItem[]>(
@@ -332,7 +332,7 @@ export function SettingsContent({
                   </div>
                 </div>
                 <Switch
-                  checked={advancedSettings.useStatusColors ?? true}
+                  checked={advancedSettings.useStatusColors ?? false}
                   onCheckedChange={(checked) =>
                     onAdvancedSettingChange("useStatusColors", checked)
                   }
@@ -358,7 +358,7 @@ export function SettingsContent({
                   </div>
                 </div>
                 <Switch
-                  checked={advancedSettings.showPiePercentages ?? true}
+                  checked={advancedSettings.showPiePercentages ?? false}
                   onCheckedChange={(checked) =>
                     onAdvancedSettingChange("showPiePercentages", checked)
                   }
@@ -384,7 +384,7 @@ export function SettingsContent({
                   </div>
                 </div>
                 <Switch
-                  checked={advancedSettings.showFavorites ?? true}
+                  checked={advancedSettings.showFavorites ?? false}
                   onCheckedChange={(checked) =>
                     onAdvancedSettingChange("showFavorites", checked)
                   }

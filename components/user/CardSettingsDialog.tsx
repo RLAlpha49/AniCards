@@ -71,6 +71,7 @@ export function CardSettingsDialog({
     setCardAdvancedSetting,
     resetCardToGlobal,
     toggleCardCustomColors,
+    globalAdvancedSettings,
   } = useUserPageEditor();
 
   const config = cardConfigs[cardId] || {
@@ -167,13 +168,18 @@ export function CardSettingsDialog({
     resetCardToGlobal(cardId);
   }, [cardId, resetCardToGlobal]);
 
-  // Build advanced settings for SettingsContent
+  // Build effective advanced settings by inheriting from global when undefined
   const advancedSettings = {
-    useStatusColors: config.advancedSettings.useStatusColors ?? false,
-    showPiePercentages: config.advancedSettings.showPiePercentages ?? false,
-    showFavorites: config.advancedSettings.showFavorites ?? false,
-    gridCols: config.advancedSettings.gridCols ?? 3,
-    gridRows: config.advancedSettings.gridRows ?? 3,
+    useStatusColors:
+      config.advancedSettings.useStatusColors ?? globalAdvancedSettings.useStatusColors,
+    showPiePercentages:
+      config.advancedSettings.showPiePercentages ?? globalAdvancedSettings.showPiePercentages,
+    showFavorites:
+      config.advancedSettings.showFavorites ?? globalAdvancedSettings.showFavorites,
+    gridCols:
+      config.advancedSettings.gridCols ?? globalAdvancedSettings.gridCols ?? 3,
+    gridRows:
+      config.advancedSettings.gridRows ?? globalAdvancedSettings.gridRows ?? 3,
   };
 
   const handleAdvancedSettingChange = useCallback(
