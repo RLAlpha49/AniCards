@@ -101,7 +101,10 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
       // Ensure the loading overlay has a chance to render before navigation.
       scheduleAfterPaint(() => {
         try {
-          router.push(`/user?${params.toString()}`);
+          Promise.resolve(router.push(`/user?${params.toString()}`)).catch(() => {
+            setLoading(false);
+            onLoadingChange?.(false);
+          });
         } catch {
           setLoading(false);
           onLoadingChange?.(false);
