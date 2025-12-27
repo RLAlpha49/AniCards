@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
 import { cn, isGradient, validateColorValue } from "@/lib/utils";
+import { gradientToCss } from "@/lib/colorUtils";
 import type {
   ColorValue,
   GradientDefinition,
@@ -185,44 +186,6 @@ function adjustColor(hex: string, amount: number): string {
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 }
 
-/**
- * Generates a CSS gradient string for preview purposes.
- * @param gradient - The gradient definition.
- * @returns CSS gradient string.
- * @source
- */
-function gradientToCss(gradient: GradientDefinition): string {
-  const stops = gradient.stops
-    .map((stop) => {
-      const opacity = stop.opacity ?? 1;
-      const color = opacity < 1 ? hexToRgba(stop.color, opacity) : stop.color;
-      return `${color} ${stop.offset}%`;
-    })
-    .join(", ");
-
-  if (gradient.type === "linear") {
-    return `linear-gradient(${gradient.angle ?? 90}deg, ${stops})`;
-  } else {
-    const cx = gradient.cx ?? 50;
-    const cy = gradient.cy ?? 50;
-    return `radial-gradient(circle at ${cx}% ${cy}%, ${stops})`;
-  }
-}
-
-/**
- * Converts hex color to rgba string.
- * @param hex - Hex color string.
- * @param alpha - Alpha value (0-1).
- * @returns RGBA string.
- * @source
- */
-function hexToRgba(hex: string, alpha: number): string {
-  const cleanHex = hex.replace("#", "");
-  const r = Number.parseInt(cleanHex.substring(0, 2), 16);
-  const g = Number.parseInt(cleanHex.substring(2, 4), 16);
-  const b = Number.parseInt(cleanHex.substring(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
 
 /**
  * Component for editing gradient stops.

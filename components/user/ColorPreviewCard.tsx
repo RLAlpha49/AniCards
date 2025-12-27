@@ -2,7 +2,8 @@
 
 import { useMemo } from "react";
 import { cn, isGradient } from "@/lib/utils";
-import type { ColorValue, GradientDefinition } from "@/lib/types/card";
+import { gradientToCss } from "@/lib/colorUtils";
+import type { ColorValue } from "@/lib/types/card";
 import { animeStatsTemplate } from "@/lib/svg-templates/media-stats/anime-stats-template";
 import { stripTrustedSvgMarker } from "@/lib/types/svg";
 
@@ -44,35 +45,6 @@ interface ColorPreviewCardProps {
   className?: string;
 }
 
-/**
- * Converts a gradient definition to a CSS gradient string.
- * @param gradient - The gradient definition.
- * @returns CSS gradient string.
- * @source
- */
-function gradientToCss(gradient: GradientDefinition): string {
-  const stops = gradient.stops
-    .map((stop) => {
-      const opacity = stop.opacity ?? 1;
-      if (opacity < 1) {
-        // Convert hex to rgba
-        const hex = stop.color.replace("#", "");
-        const r = Number.parseInt(hex.substring(0, 2), 16);
-        const g = Number.parseInt(hex.substring(2, 4), 16);
-        const b = Number.parseInt(hex.substring(4, 6), 16);
-        return `rgba(${r}, ${g}, ${b}, ${opacity}) ${stop.offset}%`;
-      }
-      return `${stop.color} ${stop.offset}%`;
-    })
-    .join(", ");
-
-  if (gradient.type === "linear") {
-    return `linear-gradient(${gradient.angle ?? 90}deg, ${stops})`;
-  }
-  const cx = gradient.cx ?? 50;
-  const cy = gradient.cy ?? 50;
-  return `radial-gradient(circle at ${cx}% ${cy}%, ${stops})`;
-}
 
 /**
  * Converts a ColorValue to a CSS-compatible color or gradient string.
