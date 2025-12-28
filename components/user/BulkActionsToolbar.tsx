@@ -310,13 +310,27 @@ export function BulkActionsToolbar({
   );
 
   const copyFailedListToClipboard = useCallback(
-    (list: string[]) => {
-      void navigator.clipboard.writeText(list.join("\n")).catch((err) => {
+    async (list: string[]) => {
+      if (list.length === 0) return;
+
+      try {
+        await navigator.clipboard.writeText(list.join("\n"));
+
+        setCopiedFormat("url");
+        if (copyTimerRef.current) {
+          clearTimeout(copyTimerRef.current);
+          copyTimerRef.current = null;
+        }
+        copyTimerRef.current = globalThis.setTimeout(() => {
+          setCopiedFormat(null);
+          copyTimerRef.current = null;
+        }, 2000);
+      } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         setDownloadError(`Failed to copy failed list: ${msg}`);
-      });
+      }
     },
-    [setDownloadError],
+    [setDownloadError, setCopiedFormat],
   );
 
   // Don't render portal during SSR or before hydration
