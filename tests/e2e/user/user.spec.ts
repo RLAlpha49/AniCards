@@ -90,15 +90,12 @@ test.describe("User page", () => {
       // Use role-based selectors scoped to the toolbar so the test doesn't rely on button order
       const selectAllButton = toolbar.getByRole("button", {
         name: /select all enabled/i,
-        includeHidden: true,
       });
       const copyButton = toolbar.getByRole("button", {
         name: /copy/i,
-        includeHidden: true,
       });
       const downloadButton = toolbar.getByRole("button", {
         name: /download/i,
-        includeHidden: true,
       });
 
       await expect(selectAllButton).toBeVisible();
@@ -106,12 +103,12 @@ test.describe("User page", () => {
       await expect(downloadButton).toBeVisible();
 
       // Open the copy popover and verify its contents
-      await copyButton.click({ force: true });
-      await expect(page.getByText(/raw urls/i)).toBeVisible({ timeout: 10000 });
+      await copyButton.click();
+      await expect(page.getByText(/raw urls/i)).toBeVisible();
 
       // Open the download popover and verify its contents
-      await downloadButton.click({ force: true });
-      await expect(page.getByText(/png/i)).toBeVisible({ timeout: 10000 });
+      await downloadButton.click();
+      await expect(page.getByText(/png/i)).toBeVisible();
     });
   });
 
@@ -205,11 +202,8 @@ test.describe("User page", () => {
 
     await expect(page.getByText(/welcome to anicards/i)).toBeVisible();
 
-    const images = page.locator("main").locator("img");
     // Wait for at least one preview image to appear (initial cards snapshot should enable previews)
+    const images = page.locator("main").getByRole("img");
     await expect(images.first()).toBeVisible();
-    const imageCount = await images.count();
-    // We expect at least one preview image (cards were initialized and enabled)
-    expect(imageCount).toBeGreaterThan(0);
   });
 });
