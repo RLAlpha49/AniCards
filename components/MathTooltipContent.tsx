@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import DOMPurify from "dompurify";
 import katex from "katex";
 
 /**
@@ -27,7 +28,9 @@ export function MathTooltipContent({
   className,
 }: Readonly<MathTooltipContentProps>) {
   const renderedContent = useMemo(() => {
-    return renderMathContent(content);
+    const html = renderMathContent(content);
+    // Sanitize to prevent XSS from any malicious content
+    return DOMPurify.sanitize(html);
   }, [content]);
 
   return (
