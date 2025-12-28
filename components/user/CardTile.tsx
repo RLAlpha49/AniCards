@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import Image from "next/image";
 import {
   Eye,
@@ -221,6 +221,18 @@ export function CardTile({
     [cardId, setCardVariant],
   );
 
+  // Ref to hold the copy success timeout for cleanup
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up copy timer on unmount
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) {
+        clearTimeout(copyTimerRef.current);
+      }
+    };
+  }, []);
+
   const handleCopyUrl = useCallback(
     async (format: "url" | "anilist" = "url") => {
       if (!previewUrl) return;
@@ -233,7 +245,11 @@ export function CardTile({
           format === "anilist" ? `img200(${resolvedUrl})` : resolvedUrl;
         await navigator.clipboard.writeText(textToCopy);
         setCopiedFormat(format);
-        setTimeout(() => setCopiedFormat(null), 2000);
+        // Clear any existing timeout before setting a new one
+        if (copyTimerRef.current) {
+          clearTimeout(copyTimerRef.current);
+        }
+        copyTimerRef.current = setTimeout(() => setCopiedFormat(null), 2000);
       } catch (error) {
         console.error("Failed to copy to clipboard:", error);
       }
