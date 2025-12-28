@@ -1172,6 +1172,47 @@ describe("Store Cards API POST Endpoint", () => {
       expect(stored.globalSettings).toBeUndefined();
     });
 
+    it("should reject invalid color strings in globalSettings", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 810,
+        statsData: {},
+        cards: [],
+        globalSettings: { titleColor: "not-a-color" },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid data");
+      // Ensure nothing was persisted
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+      // Increment analytics for failed validation
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:store_cards:failed_requests",
+      );
+    });
+
+    it("should persist only validated color fields in globalSettings when mixed invalid gradient present", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const badGradient = {
+        type: "linear",
+        stops: [{ color: "#fff", offset: 0 }],
+      };
+      const req = createRequest({
+        userId: 811,
+        statsData: {},
+        cards: [],
+        globalSettings: { titleColor: "#abcdef", backgroundColor: badGradient },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.titleColor).toBe("#abcdef");
+      expect(stored.globalSettings.backgroundColor).toBeUndefined();
+    });
+
     it("should clamp incoming global borderRadius when provided", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({

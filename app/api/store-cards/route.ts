@@ -15,7 +15,7 @@ import {
   buildAnalyticsMetricKey,
   jsonWithCors,
 } from "@/lib/api-utils";
-import { clampBorderRadius, safeParse } from "@/lib/utils";
+import { clampBorderRadius, safeParse, validateColorValue } from "@/lib/utils";
 import { displayNames, isValidCardType } from "@/lib/card-data/validation";
 
 /**
@@ -260,36 +260,15 @@ function mergeGlobalAdvancedSettings(
 }
 
 /**
- * Lightweight validation for a ColorValue (solid hex color string or a
- * minimal gradient object). Defensive checks only — not a full schema.
- */
-function isValidColorValue(value: unknown): boolean {
-  if (typeof value === "string") return true;
-  if (typeof value !== "object" || value === null) return false;
-  const obj = value as Record<string, unknown>;
-  const stops = obj.stops as unknown;
-  if (!Array.isArray(stops) || stops.length < 2) return false;
-  for (const stop of stops as unknown[]) {
-    if (typeof stop !== "object" || stop === null) return false;
-    const stopObj = stop as Record<string, unknown>;
-    if (typeof stopObj.color !== "string" || typeof stopObj.offset !== "number")
-      return false;
-    if ("opacity" in stopObj && typeof stopObj.opacity !== "number")
-      return false;
-  }
-  if ("type" in obj && obj.type !== "linear" && obj.type !== "radial")
-    return false;
-  return true;
-}
-
-/**
  * Sanitize incoming partial GlobalCardSettings by picking only known keys
- * and validating/coercing where appropriate. Implements grouped checks to
- * remain concise.
+ * and validating/coercing where appropriate. Uses strict validateColorValue
+ * for string color inputs to avoid accepting arbitrary strings.
  */
 function sanitizeIncomingGlobalSettings(
   incoming?: Partial<GlobalCardSettings>,
-): Partial<GlobalCardSettings> | undefined {
+):
+  | { sanitized?: Partial<GlobalCardSettings>; invalidColorStringKey?: string }
+  | undefined {
   if (!incoming || typeof incoming !== "object") return undefined;
   const sanitized: Partial<GlobalCardSettings> = {};
 
@@ -300,18 +279,40 @@ function sanitizeIncomingGlobalSettings(
     sanitized.colorPreset = incoming.colorPreset;
   }
 
-  // Color fields (solid or basic gradient)
+  /**
+   * Process a single global color field into `sanitized`. Returns the key
+   * (string) when the value is a string and invalid; otherwise returns undefined.
+   */
+  function processGlobalColorField(
+    sanitized: Partial<GlobalCardSettings>,
+    key: keyof GlobalCardSettings,
+    value: unknown,
+  ): string | undefined {
+    if (value === undefined) return undefined;
+    if (typeof value === "string") {
+      if (!validateColorValue(value)) return key as string;
+      (sanitized as Record<string, unknown>)[key as string] = value;
+      return undefined;
+    }
+    // Only accept non-string (object) values when they validate
+    if (validateColorValue(value)) {
+      (sanitized as Record<string, unknown>)[key as string] = value;
+    }
+    return undefined;
+  }
+
+  // Color fields (solid or gradient). Use helper to reduce complexity.
   const colorKeys: Array<keyof GlobalCardSettings> = [
     "titleColor",
     "backgroundColor",
     "textColor",
     "circleColor",
   ];
+
   for (const key of colorKeys) {
     const val = (incoming as Record<string, unknown>)[key as string];
-    if (isValidColorValue(val)) {
-      (sanitized as Record<string, unknown>)[key as string] = val;
-    }
+    const invalidKey = processGlobalColorField(sanitized, key, val);
+    if (invalidKey) return { invalidColorStringKey: invalidKey };
   }
 
   // Boolean flags
@@ -341,7 +342,7 @@ function sanitizeIncomingGlobalSettings(
   const rows = clampGridDim(incoming.gridRows);
   if (typeof rows === "number") sanitized.gridRows = rows;
 
-  return Object.keys(sanitized).length ? sanitized : undefined;
+  return Object.keys(sanitized).length ? { sanitized } : undefined;
 }
 
 /**
@@ -516,9 +517,17 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
 
     // Sanitize incoming globalSettings to only include known keys and valid types.
-    const sanitizedGlobalSettings =
-      sanitizeIncomingGlobalSettings(globalSettings);
-
+    const sanitizeResult = sanitizeIncomingGlobalSettings(globalSettings);
+    if (sanitizeResult?.invalidColorStringKey) {
+      console.warn(
+        `⚠️ [${endpoint}] Invalid globalSettings color string for ${sanitizeResult.invalidColorStringKey}`,
+      );
+      await incrementAnalytics(
+        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+      ).catch(() => {});
+      return jsonWithCors({ error: "Invalid data" }, request, 400);
+    }
+    const sanitizedGlobalSettings = sanitizeResult?.sanitized;
     // Determine effective borderEnabled early for use in card config building
     const effectiveBorderEnabled =
       sanitizedGlobalSettings?.borderEnabled ??
