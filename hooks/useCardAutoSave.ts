@@ -238,7 +238,7 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
 
     // Set new timeout for debounced save
     timeoutRef.current = setTimeout(() => {
-      void performSave();
+      performSave();
     }, debounceMs);
 
     // Cleanup on effect re-run
