@@ -101,7 +101,10 @@ export function CardTile({
 
   const isSelected = selectedCardIds.has(cardId);
 
-  const config = cardConfigs[cardId] ?? { ...DEFAULT_CARD_CONFIG, cardId };
+  const config = useMemo(
+    () => cardConfigs[cardId] ?? { ...DEFAULT_CARD_CONFIG, cardId },
+    [cardConfigs, cardId],
+  );
 
   const handleToggleSelection = useCallback(
     (checked: boolean | "indeterminate") => {
