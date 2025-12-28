@@ -53,7 +53,8 @@ export function CardCategorySection({
     useState(defaultExpanded);
 
   const isExpanded = isControlled ? expanded : uncontrolledExpanded;
-  const isFullyEnabled = enabledCount === cardCount && cardCount > 0;
+  const clampedEnabledCount = Math.min(enabledCount, cardCount);
+  const isFullyEnabled = clampedEnabledCount === cardCount && cardCount > 0;
 
   const setExpanded = (next: boolean) => {
     if (!isControlled) {
@@ -106,7 +107,7 @@ export function CardCategorySection({
             </h3>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               <span className="font-medium text-slate-700 dark:text-slate-300">
-                {enabledCount}
+                {clampedEnabledCount}
               </span>{" "}
               of{" "}
               <span className="font-medium text-slate-700 dark:text-slate-300">
