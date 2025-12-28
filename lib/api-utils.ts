@@ -500,14 +500,18 @@ export function validateUserData(
   // Validate userId is a number
   const userId = Number(data.userId);
   if (!Number.isInteger(userId) || userId <= 0) {
-    console.warn(`⚠️ [${endpoint}] Invalid userId format: ${safeStringifyValue(data.userId)}`);
+    console.warn(
+      `⚠️ [${endpoint}] Invalid userId format: ${safeStringifyValue(data.userId)}`,
+    );
     return jsonWithCors({ error: "Invalid data" }, request, 400);
   }
 
   // Validate username if provided
   if (data.username !== undefined && data.username !== null) {
     if (!isValidUsername(data.username)) {
-      console.warn(`⚠️ [${endpoint}] Username invalid: ${safeStringifyValue(data.username)}`);
+      console.warn(
+        `⚠️ [${endpoint}] Username invalid: ${safeStringifyValue(data.username)}`,
+      );
       return jsonWithCors({ error: "Invalid data" }, request, 400);
     }
   }
@@ -755,13 +759,23 @@ function validateCardOptionalFields(
   request?: Request,
 ): NextResponse<ApiError> | null {
   // Validate optional boolean fields
-  const optBoolErr = validateOptionalBooleanFields(card, cardIndex, endpoint, request);
+  const optBoolErr = validateOptionalBooleanFields(
+    card,
+    cardIndex,
+    endpoint,
+    request,
+  );
   if (optBoolErr) return optBoolErr;
 
   // Validate borderColor if present (optional, can be hex string or gradient)
   const borderColorValue = card.borderColor;
   const hasBorder = borderColorValue !== undefined && borderColorValue !== null;
-  const borderColorErr = validateOptionalBorderColorField(card, cardIndex, endpoint, request);
+  const borderColorErr = validateOptionalBorderColorField(
+    card,
+    cardIndex,
+    endpoint,
+    request,
+  );
   if (borderColorErr) return borderColorErr;
 
   // Validate borderRadius (uses helper which can require value when border exists)
@@ -776,10 +790,22 @@ function validateCardOptionalFields(
   if (borderRadiusError) return borderRadiusError;
 
   // Grid numeric validations
-  const gridColsError = validateGridNumericField(card.gridCols, cardIndex, "gridCols", endpoint, request);
+  const gridColsError = validateGridNumericField(
+    card.gridCols,
+    cardIndex,
+    "gridCols",
+    endpoint,
+    request,
+  );
   if (gridColsError) return gridColsError;
 
-  const gridRowsError = validateGridNumericField(card.gridRows, cardIndex, "gridRows", endpoint, request);
+  const gridRowsError = validateGridNumericField(
+    card.gridRows,
+    cardIndex,
+    "gridRows",
+    endpoint,
+    request,
+  );
   if (gridRowsError) return gridRowsError;
 
   return null;
@@ -847,7 +873,9 @@ function validateUserIdField(
 
   const userIdNum = Number(userId);
   if (!Number.isInteger(userIdNum) || userIdNum <= 0) {
-    console.warn(`⚠️ [${endpoint}] Invalid userId format: ${safeStringifyValue(userId)}`);
+    console.warn(
+      `⚠️ [${endpoint}] Invalid userId format: ${safeStringifyValue(userId)}`,
+    );
     return NextResponse.json(
       { error: "Invalid data" },
       { status: 400, headers: apiJsonHeaders(request) },
@@ -865,7 +893,8 @@ function safeStringifyValue(value: unknown): string {
   if (value === undefined) return "undefined";
   if (value === null) return "null";
   if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (typeof value === "number" || typeof value === "boolean")
+    return String(value);
   try {
     return JSON.stringify(value);
   } catch {

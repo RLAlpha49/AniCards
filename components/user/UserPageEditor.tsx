@@ -678,7 +678,14 @@ export function UserPageEditor() {
     ) => void,
   ) {
     const initialCards = buildInitialCardsSnapshot();
-    initializeFn(String(uid), uname, aUrl, initialCards, DEFAULT_GLOBAL_SETTINGS, statCardTypes.map((t) => t.id));
+    initializeFn(
+      String(uid),
+      uname,
+      aUrl,
+      initialCards,
+      DEFAULT_GLOBAL_SETTINGS,
+      statCardTypes.map((t) => t.id),
+    );
   }
 
   /**
@@ -695,7 +702,12 @@ export function UserPageEditor() {
     if ("error" in persistedCardsResult) {
       if (persistedCardsResult.notFound) {
         // No cards persisted yet — fall back to initial snapshot (expected).
-        initializeEditorWithInitialCards(uid, uname, aUrl, initializeFromServerData);
+        initializeEditorWithInitialCards(
+          uid,
+          uname,
+          aUrl,
+          initializeFromServerData,
+        );
       } else {
         const errorDetails = getErrorDetails(persistedCardsResult.error);
         trackUserActionError(
@@ -710,12 +722,20 @@ export function UserPageEditor() {
         setCardsWarning(
           "We couldn't load your saved cards due to a server error. Default cards are displayed for now.",
         );
-        initializeEditorWithInitialCards(uid, uname, aUrl, initializeFromServerData);
+        initializeEditorWithInitialCards(
+          uid,
+          uname,
+          aUrl,
+          initializeFromServerData,
+        );
       }
       return;
     }
 
-    if (Array.isArray(persistedCardsResult.cards) && persistedCardsResult.cards.length === 0) {
+    if (
+      Array.isArray(persistedCardsResult.cards) &&
+      persistedCardsResult.cards.length === 0
+    ) {
       const msg = "No persisted cards were returned after initial save";
       const details = getErrorDetails(msg);
       trackUserActionError(
@@ -728,7 +748,12 @@ export function UserPageEditor() {
         },
       );
       console.warn(msg, { userId: uid });
-      initializeEditorWithInitialCards(uid, uname, aUrl, initializeFromServerData);
+      initializeEditorWithInitialCards(
+        uid,
+        uname,
+        aUrl,
+        initializeFromServerData,
+      );
       return;
     }
 
