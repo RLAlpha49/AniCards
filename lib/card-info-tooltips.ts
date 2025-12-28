@@ -10,7 +10,7 @@ export const CARD_INFO_TOOLTIPS: Record<string, string> = {
 
   genreDiversity: String.raw`Diversity is calculated using normalized Shannon entropy: $$H' = \frac{-\sum_{i=1}^{k} p_i \ln p_i}{\ln k}$$ where $p_i = c_i / T$ is the proportion of titles in genre $i$, $c_i$ is the count for that genre, $T$ is the total count, and $k$ is the number of genres. 100% means perfectly even distribution across all genres.`,
 
-  tagDiversity: String.raw`Diversity is calculated using normalized Shannon entropy: $$H' = \frac{-\sum_{i=1}^{k} p_i \ln p_i}{\ln k}$$ where $p_i$ is the proportion of media with tag $i$, and $k$ is the number of tags. 100% means perfectly even distribution across all tags.`,
+  tagDiversity: String.raw`Diversity is calculated using normalized Shannon entropy: $$H' = \frac{-\sum_{i=1}^{k} p_i \ln p_i}{\ln k}$$ where $p_i = c_i / T$ is the proportion of titles with tag $i$, $c_i$ is the count for that tag, $T$ is the total count, and $k$ is the number of tags. 100% means perfectly even distribution across all tags.`,
 
   // Score distribution cards
   animeScoreDistribution:
