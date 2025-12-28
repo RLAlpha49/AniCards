@@ -18,6 +18,13 @@ import {
 import { clampBorderRadius, safeParse, validateColorValue } from "@/lib/utils";
 import { displayNames, isValidCardType } from "@/lib/card-data/validation";
 
+function sanitizeStoredBorderColor(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  return validateColorValue(trimmed) ? trimmed : undefined;
+}
+
 /**
  * Card types that support pie variation and thus can use showPiePercentages.
  * @source
@@ -187,7 +194,7 @@ function computeShowPiePercentages(
   if (typeof previous?.showPiePercentages === "boolean") {
     return previous.showPiePercentages;
   }
-  return false;
+  return undefined;
 }
 
 /**
@@ -206,7 +213,7 @@ function computeShowFavorites(
   if (typeof previous?.showFavorites === "boolean") {
     return previous.showFavorites;
   }
-  return false;
+  return undefined;
 }
 
 /**
@@ -259,6 +266,99 @@ function mergeGlobalAdvancedSettings(
   };
 }
 
+function shouldPersistIndividualColorsForPreset(preset: string | undefined) {
+  return !preset || preset === "custom";
+}
+
+/**
+ * Process a single global color field into `sanitized`.
+ * Returns the key (string) when the value is a string and invalid.
+ */
+function processGlobalColorField(
+  sanitized: Partial<GlobalCardSettings>,
+  key: keyof GlobalCardSettings,
+  value: unknown,
+): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === "string") {
+    if (!validateColorValue(value)) return key as string;
+    (sanitized as Record<string, unknown>)[key as string] = value;
+    return undefined;
+  }
+  // Only accept non-string (object) values when they validate.
+  if (validateColorValue(value)) {
+    (sanitized as Record<string, unknown>)[key as string] = value;
+  }
+  return undefined;
+}
+
+function sanitizeGlobalColorFields(
+  incoming: Partial<GlobalCardSettings>,
+  sanitized: Partial<GlobalCardSettings>,
+): string | undefined {
+  const colorKeys: Array<keyof GlobalCardSettings> = [
+    "titleColor",
+    "backgroundColor",
+    "textColor",
+    "circleColor",
+  ];
+
+  for (const key of colorKeys) {
+    const val = (incoming as Record<string, unknown>)[key as string];
+    const invalidKey = processGlobalColorField(sanitized, key, val);
+    if (invalidKey) return invalidKey;
+  }
+
+  return undefined;
+}
+
+function sanitizeGlobalBooleanFields(
+  incoming: Partial<GlobalCardSettings>,
+  sanitized: Partial<GlobalCardSettings>,
+): void {
+  const booleanKeys: Array<keyof GlobalCardSettings> = [
+    "borderEnabled",
+    "useStatusColors",
+    "showPiePercentages",
+    "showFavorites",
+  ];
+  for (const key of booleanKeys) {
+    const val = (incoming as Record<string, unknown>)[key as string];
+    if (typeof val === "boolean") {
+      (sanitized as Record<string, unknown>)[key as string] = val;
+    }
+  }
+}
+
+function sanitizeGlobalBorderFields(
+  incoming: Partial<GlobalCardSettings>,
+  sanitized: Partial<GlobalCardSettings>,
+): string | undefined {
+  if (typeof incoming.borderColor === "string") {
+    const borderColor = sanitizeStoredBorderColor(incoming.borderColor);
+    if (!borderColor) return "borderColor";
+    sanitized.borderColor = borderColor;
+  }
+  if (
+    typeof incoming.borderRadius === "number" &&
+    Number.isFinite(incoming.borderRadius)
+  ) {
+    sanitized.borderRadius = clampBorderRadius(incoming.borderRadius);
+  }
+
+  return undefined;
+}
+
+function sanitizeGlobalGridFields(
+  incoming: Partial<GlobalCardSettings>,
+  sanitized: Partial<GlobalCardSettings>,
+): void {
+  const cols = clampGridDim(incoming.gridCols);
+  if (typeof cols === "number") sanitized.gridCols = cols;
+  const rows = clampGridDim(incoming.gridRows);
+  if (typeof rows === "number") sanitized.gridRows = rows;
+}
+
 /**
  * Sanitize incoming partial GlobalCardSettings by picking only known keys
  * and validating/coercing where appropriate. Uses strict validateColorValue
@@ -272,75 +372,26 @@ function sanitizeIncomingGlobalSettings(
   if (!incoming || typeof incoming !== "object") return undefined;
   const sanitized: Partial<GlobalCardSettings> = {};
 
-  if (
-    typeof incoming.colorPreset === "string" &&
-    incoming.colorPreset.trim() !== ""
-  ) {
-    sanitized.colorPreset = incoming.colorPreset;
+  const preset =
+    typeof incoming.colorPreset === "string"
+      ? incoming.colorPreset.trim()
+      : undefined;
+  const shouldAcceptIndividualColors =
+    shouldPersistIndividualColorsForPreset(preset);
+
+  if (preset) {
+    sanitized.colorPreset = preset;
   }
 
-  /**
-   * Process a single global color field into `sanitized`. Returns the key
-   * (string) when the value is a string and invalid; otherwise returns undefined.
-   */
-  function processGlobalColorField(
-    sanitized: Partial<GlobalCardSettings>,
-    key: keyof GlobalCardSettings,
-    value: unknown,
-  ): string | undefined {
-    if (value === undefined) return undefined;
-    if (typeof value === "string") {
-      if (!validateColorValue(value)) return key as string;
-      (sanitized as Record<string, unknown>)[key as string] = value;
-      return undefined;
-    }
-    // Only accept non-string (object) values when they validate
-    if (validateColorValue(value)) {
-      (sanitized as Record<string, unknown>)[key as string] = value;
-    }
-    return undefined;
-  }
-
-  // Color fields (solid or gradient). Use helper to reduce complexity.
-  const colorKeys: Array<keyof GlobalCardSettings> = [
-    "titleColor",
-    "backgroundColor",
-    "textColor",
-    "circleColor",
-  ];
-
-  for (const key of colorKeys) {
-    const val = (incoming as Record<string, unknown>)[key as string];
-    const invalidKey = processGlobalColorField(sanitized, key, val);
+  if (shouldAcceptIndividualColors) {
+    const invalidKey = sanitizeGlobalColorFields(incoming, sanitized);
     if (invalidKey) return { invalidColorStringKey: invalidKey };
   }
 
-  // Boolean flags
-  const booleanKeys: Array<keyof GlobalCardSettings> = [
-    "borderEnabled",
-    "useStatusColors",
-    "showPiePercentages",
-    "showFavorites",
-  ];
-  for (const key of booleanKeys) {
-    const val = (incoming as Record<string, unknown>)[key as string];
-    if (typeof val === "boolean") {
-      (sanitized as Record<string, unknown>)[key as string] = val;
-    }
-  }
-
-  if (typeof incoming.borderColor === "string")
-    sanitized.borderColor = incoming.borderColor;
-  if (
-    typeof incoming.borderRadius === "number" &&
-    Number.isFinite(incoming.borderRadius)
-  )
-    sanitized.borderRadius = clampBorderRadius(incoming.borderRadius);
-
-  const cols = clampGridDim(incoming.gridCols);
-  if (typeof cols === "number") sanitized.gridCols = cols;
-  const rows = clampGridDim(incoming.gridRows);
-  if (typeof rows === "number") sanitized.gridRows = rows;
+  sanitizeGlobalBooleanFields(incoming, sanitized);
+  const borderInvalidKey = sanitizeGlobalBorderFields(incoming, sanitized);
+  if (borderInvalidKey) return { invalidColorStringKey: borderInvalidKey };
+  sanitizeGlobalGridFields(incoming, sanitized);
 
   return Object.keys(sanitized).length ? { sanitized } : undefined;
 }
@@ -359,11 +410,15 @@ function buildCardConfig(
   incoming: StoredCardConfig,
   previous: StoredCardConfig | undefined,
 ): StoredCardConfig {
-  const normalizedBorderRadius = computeBorderRadius(incoming, previous);
-
   // Prefer incoming explicit flag, fall back to previous, and default to true
   const useCustomSettings =
     incoming.useCustomSettings ?? previous?.useCustomSettings ?? true;
+
+  const normalizedBorderRadius = useCustomSettings
+    ? computeBorderRadius(incoming, previous)
+    : undefined;
+
+  const baseCardType = (incoming.cardName || "").split("-")[0] || "";
   const shouldSaveColorData = useCustomSettings;
   const effectiveColorPreset = shouldSaveColorData
     ? (incoming.colorPreset ?? previous?.colorPreset)
@@ -372,13 +427,30 @@ function buildCardConfig(
     shouldSaveColorData &&
     (!effectiveColorPreset || effectiveColorPreset === "custom");
 
-  const resolvedGridCols =
-    clampGridDim(incoming.gridCols) ?? clampGridDim(previous?.gridCols);
-  const resolvedGridRows =
-    clampGridDim(incoming.gridRows) ?? clampGridDim(previous?.gridRows);
+  const shouldPersistFavoritesGridDims =
+    useCustomSettings && baseCardType === "favoritesGrid";
+  const resolvedGridCols = shouldPersistFavoritesGridDims
+    ? clampGridDim(incoming.gridCols) ?? clampGridDim(previous?.gridCols)
+    : undefined;
+  const resolvedGridRows = shouldPersistFavoritesGridDims
+    ? clampGridDim(incoming.gridRows) ?? clampGridDim(previous?.gridRows)
+    : undefined;
 
   const effectiveBorderColor = useCustomSettings
-    ? (incoming.borderColor ?? previous?.borderColor)
+    ? sanitizeStoredBorderColor(incoming.borderColor) ??
+      sanitizeStoredBorderColor(previous?.borderColor)
+    : undefined;
+
+  const resolvedUseStatusColors = useCustomSettings
+    ? (incoming.useStatusColors ?? previous?.useStatusColors)
+    : undefined;
+
+  const resolvedShowFavorites = useCustomSettings
+    ? computeShowFavorites(incoming, previous)
+    : undefined;
+
+  const resolvedShowPiePercentages = useCustomSettings
+    ? computeShowPiePercentages(incoming, previous)
     : undefined;
 
   return {
@@ -401,9 +473,9 @@ function buildCardConfig(
       : undefined,
     borderColor: effectiveBorderColor,
     borderRadius: normalizedBorderRadius,
-    showFavorites: computeShowFavorites(incoming, previous),
-    useStatusColors: incoming.useStatusColors ?? previous?.useStatusColors,
-    showPiePercentages: computeShowPiePercentages(incoming, previous),
+    showFavorites: resolvedShowFavorites,
+    useStatusColors: resolvedUseStatusColors,
+    showPiePercentages: resolvedShowPiePercentages,
     gridCols: resolvedGridCols,
     gridRows: resolvedGridRows,
     useCustomSettings,
@@ -547,8 +619,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
 
     const effectiveBorderColor = effectiveBorderEnabled
-      ? (sanitizedGlobalSettings?.borderColor ??
-        existingGlobalSettings?.borderColor)
+      ? sanitizeStoredBorderColor(sanitizedGlobalSettings?.borderColor) ??
+        sanitizeStoredBorderColor(existingGlobalSettings?.borderColor)
       : undefined;
 
     const {
@@ -562,24 +634,54 @@ export async function POST(request: Request): Promise<NextResponse> {
       existingGlobalSettings,
     );
 
+    const normalizeGlobalColorsForPreset = (
+      settings: GlobalCardSettings | undefined,
+    ): GlobalCardSettings | undefined => {
+      if (!settings) return settings;
+      const preset =
+        typeof settings.colorPreset === "string"
+          ? settings.colorPreset.trim()
+          : undefined;
+      if (preset && preset !== "custom") {
+        return {
+          ...settings,
+          colorPreset: preset,
+          titleColor: undefined,
+          backgroundColor: undefined,
+          textColor: undefined,
+          circleColor: undefined,
+        };
+      }
+      return preset ? { ...settings, colorPreset: preset } : settings;
+    };
+
+    const mergedColorPresetRaw =
+      sanitizedGlobalSettings?.colorPreset ?? existingGlobalSettings?.colorPreset;
+    const mergedColorPreset =
+      typeof mergedColorPresetRaw === "string" ? mergedColorPresetRaw.trim() : undefined;
+    const shouldPersistGlobalColors =
+      !mergedColorPreset || mergedColorPreset === "custom";
+
     const mergedGlobalSettings: GlobalCardSettings | undefined =
       sanitizedGlobalSettings
-        ? {
-            colorPreset:
-              sanitizedGlobalSettings.colorPreset ??
-              existingGlobalSettings?.colorPreset,
-            titleColor:
-              sanitizedGlobalSettings.titleColor ??
-              existingGlobalSettings?.titleColor,
-            backgroundColor:
-              sanitizedGlobalSettings.backgroundColor ??
-              existingGlobalSettings?.backgroundColor,
-            textColor:
-              sanitizedGlobalSettings.textColor ??
-              existingGlobalSettings?.textColor,
-            circleColor:
-              sanitizedGlobalSettings.circleColor ??
-              existingGlobalSettings?.circleColor,
+        ? normalizeGlobalColorsForPreset({
+            colorPreset: mergedColorPreset,
+            titleColor: shouldPersistGlobalColors
+              ? (sanitizedGlobalSettings.titleColor ??
+                existingGlobalSettings?.titleColor)
+              : undefined,
+            backgroundColor: shouldPersistGlobalColors
+              ? (sanitizedGlobalSettings.backgroundColor ??
+                existingGlobalSettings?.backgroundColor)
+              : undefined,
+            textColor: shouldPersistGlobalColors
+              ? (sanitizedGlobalSettings.textColor ??
+                existingGlobalSettings?.textColor)
+              : undefined,
+            circleColor: shouldPersistGlobalColors
+              ? (sanitizedGlobalSettings.circleColor ??
+                existingGlobalSettings?.circleColor)
+              : undefined,
             borderEnabled: effectiveBorderEnabled,
             borderColor: effectiveBorderColor,
             borderRadius: effectiveBorderRadius,
@@ -588,8 +690,8 @@ export async function POST(request: Request): Promise<NextResponse> {
             showFavorites: effectiveShowFavorites,
             gridCols: effectiveGridCols,
             gridRows: effectiveGridRows,
-          }
-        : existingGlobalSettings;
+          })
+        : normalizeGlobalColorsForPreset(existingGlobalSettings);
 
     const cardData: CardsRecord = {
       userId,

@@ -49,6 +49,29 @@ function createRequest(
   });
 }
 
+function getStoredCard(
+  stored: unknown,
+  cardName: string,
+): Record<string, unknown> {
+  if (!stored || typeof stored !== "object") {
+    throw new TypeError("Expected stored payload to be an object");
+  }
+
+  const cards = (stored as Record<string, unknown>)["cards"];
+  if (!Array.isArray(cards)) {
+    throw new TypeError("Expected stored payload to contain a cards array");
+  }
+
+  const found = (cards as Array<Record<string, unknown>>).find(
+    (c) => c["cardName"] === cardName,
+  );
+  if (!found) {
+    throw new TypeError(`Expected stored cards to include ${cardName}`);
+  }
+
+  return found;
+}
+
 describe("Store Cards API POST Endpoint", () => {
   afterEach(() => {
     mock.clearAllMocks();
@@ -592,7 +615,7 @@ describe("Store Cards API POST Endpoint", () => {
   });
 
   describe("Pie Variation Handling", () => {
-    it("should persist showPiePercentages=false when pie card omits it", async () => {
+    it("should not persist showPiePercentages when pie card omits it", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 999,
@@ -613,10 +636,12 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].showPiePercentages).toBe(false);
+      expect(
+        getStoredCard(stored, "animeStatusDistribution").showPiePercentages,
+      ).toBeUndefined();
     });
 
-    it("should persist showPiePercentages=false when donut card omits it", async () => {
+    it("should not persist showPiePercentages when donut card omits it", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 999,
@@ -637,7 +662,9 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].showPiePercentages).toBe(false);
+      expect(
+        getStoredCard(stored, "animeStatusDistribution").showPiePercentages,
+      ).toBeUndefined();
     });
 
     it("should preserve showPiePercentages=true when explicitly set", async () => {
@@ -662,7 +689,9 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].showPiePercentages).toBe(true);
+      expect(getStoredCard(stored, "animeGenres").showPiePercentages).toBe(
+        true,
+      );
     });
 
     it("should not save showPiePercentages for non-pie variations", async () => {
@@ -687,7 +716,9 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].showPiePercentages).toBeUndefined();
+      expect(
+        getStoredCard(stored, "animeStatusDistribution").showPiePercentages,
+      ).toBeUndefined();
     });
 
     it("should merge pie percentages from previous config", async () => {
@@ -726,12 +757,14 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].showPiePercentages).toBe(true);
+      expect(getStoredCard(stored, "animeGenres").showPiePercentages).toBe(
+        true,
+      );
     });
   });
 
   describe("Favorites Handling", () => {
-    it("should persist showFavorites=false for favorite cards when omitted", async () => {
+    it("should not persist showFavorites for favorite cards when omitted", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
         userId: 1001,
@@ -752,7 +785,7 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].showFavorites).toBe(false);
+      expect(getStoredCard(stored, "animeStaff").showFavorites).toBeUndefined();
     });
 
     it("should preserve showFavorites=true when explicitly set", async () => {
@@ -777,7 +810,7 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].showFavorites).toBe(true);
+      expect(getStoredCard(stored, "animeStudios").showFavorites).toBe(true);
     });
 
     it("should not save showFavorites for cards that don't support it", async () => {
@@ -802,7 +835,7 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].showFavorites).toBeUndefined();
+      expect(getStoredCard(stored, "animeStats").showFavorites).toBeUndefined();
     });
 
     it("should merge favorites from previous config", async () => {
@@ -840,7 +873,9 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].showFavorites).toBe(true);
+      expect(getStoredCard(stored, "animeVoiceActors").showFavorites).toBe(
+        true,
+      );
     });
   });
 
@@ -932,12 +967,13 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].colorPreset).toBeUndefined();
-      expect(stored.cards[0].titleColor).toBeUndefined();
-      expect(stored.cards[0].backgroundColor).toBeUndefined();
-      expect(stored.cards[0].textColor).toBeUndefined();
-      expect(stored.cards[0].circleColor).toBeUndefined();
-      expect(stored.cards[0].useCustomSettings).toBe(false);
+      const animeStats = getStoredCard(stored, "animeStats");
+      expect(animeStats.colorPreset).toBeUndefined();
+      expect(animeStats.titleColor).toBeUndefined();
+      expect(animeStats.backgroundColor).toBeUndefined();
+      expect(animeStats.textColor).toBeUndefined();
+      expect(animeStats.circleColor).toBeUndefined();
+      expect(animeStats.useCustomSettings).toBe(false);
     });
 
     it("should save colorPreset when useCustomSettings is true", async () => {
@@ -959,8 +995,184 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].colorPreset).toBe("dark");
-      expect(stored.cards[0].useCustomSettings).toBe(true);
+      const animeStats = getStoredCard(stored, "animeStats");
+      expect(animeStats.colorPreset).toBe("dark");
+      expect(animeStats.useCustomSettings).toBe(true);
+    });
+  });
+
+  describe("Global Settings Color Field Cleanup", () => {
+    it("should clear existing individual global colors when global preset switches away from custom", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 901;
+
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [],
+          globalSettings: {
+            colorPreset: "custom",
+            titleColor: "#111111",
+            backgroundColor: "#222222",
+            textColor: "#333333",
+            circleColor: "#444444",
+            borderEnabled: false,
+          },
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: false,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.colorPreset).toBe("default");
+      expect(stored.globalSettings.titleColor).toBeUndefined();
+      expect(stored.globalSettings.backgroundColor).toBeUndefined();
+      expect(stored.globalSettings.textColor).toBeUndefined();
+      expect(stored.globalSettings.circleColor).toBeUndefined();
+    });
+
+    it("should ignore invalid individual global color fields when preset is non-custom", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const req = createRequest({
+        userId: 902,
+        statsData: {},
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+          // Invalid, but should be ignored because preset is non-custom.
+          titleColor: "not-a-color",
+          borderEnabled: false,
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.colorPreset).toBe("default");
+      expect(stored.globalSettings.titleColor).toBeUndefined();
+    });
+  });
+
+  describe("Per-card Override Cleanup", () => {
+    it("should clear per-card border/advanced overrides when useCustomSettings=false and only persist grid dims for favoritesGrid", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 903;
+
+      // Simulate an existing record containing stale per-card overrides.
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [
+            {
+              cardName: "animeStaff",
+              variation: "default",
+              useCustomSettings: true,
+              borderRadius: 24,
+              showFavorites: true,
+              useStatusColors: true,
+            },
+            {
+              cardName: "animeGenres",
+              variation: "pie",
+              useCustomSettings: true,
+              borderRadius: 10,
+              showPiePercentages: true,
+            },
+            {
+              // Irrelevant/stale grid dims on a non-favoritesGrid card.
+              cardName: "animeStats",
+              variation: "default",
+              useCustomSettings: true,
+              gridCols: 5,
+              gridRows: 5,
+            },
+            {
+              cardName: "favoritesGrid",
+              variation: "default",
+              useCustomSettings: true,
+              gridCols: 4,
+              gridRows: 2,
+            },
+          ],
+          globalSettings: {
+            colorPreset: "default",
+            borderEnabled: false,
+          },
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        cards: [
+          {
+            cardName: "animeStaff",
+            variation: "default",
+            colorPreset: "default",
+            useCustomSettings: false,
+          },
+          {
+            cardName: "animeGenres",
+            variation: "pie",
+            colorPreset: "default",
+            useCustomSettings: false,
+          },
+          {
+            cardName: "animeStats",
+            variation: "default",
+            colorPreset: "default",
+            useCustomSettings: true,
+          },
+          {
+            cardName: "favoritesGrid",
+            variation: "default",
+            colorPreset: "default",
+            useCustomSettings: true,
+            gridCols: 3,
+            gridRows: 3,
+          },
+        ],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      const animeStaff = getStoredCard(stored, "animeStaff");
+      expect(animeStaff.useCustomSettings).toBe(false);
+      expect(animeStaff.borderRadius).toBeUndefined();
+      expect(animeStaff.showFavorites).toBeUndefined();
+      expect(animeStaff.useStatusColors).toBeUndefined();
+
+      const animeGenres = getStoredCard(stored, "animeGenres");
+      expect(animeGenres.useCustomSettings).toBe(false);
+      expect(animeGenres.borderRadius).toBeUndefined();
+      expect(animeGenres.showPiePercentages).toBeUndefined();
+
+      const animeStats = getStoredCard(stored, "animeStats");
+      expect(animeStats.useCustomSettings).toBe(true);
+      expect(animeStats.gridCols).toBeUndefined();
+      expect(animeStats.gridRows).toBeUndefined();
+
+      const favoritesGrid = getStoredCard(stored, "favoritesGrid");
+      expect(favoritesGrid.useCustomSettings).toBe(true);
+      expect(favoritesGrid.gridCols).toBe(3);
+      expect(favoritesGrid.gridRows).toBe(3);
     });
   });
 
@@ -1193,6 +1405,29 @@ describe("Store Cards API POST Endpoint", () => {
       );
     });
 
+    it("should reject invalid borderColor strings in globalSettings", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 812,
+        statsData: {},
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: true,
+          borderColor: "not-a-color",
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid data");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:store_cards:failed_requests",
+      );
+    });
+
     it("should persist only validated color fields in globalSettings when mixed invalid gradient present", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const badGradient = {
@@ -1261,8 +1496,9 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].borderColor).toBe("#00ff00");
-      expect(stored.cards[0].borderRadius).toBe(8);
+      const animeStats = getStoredCard(stored, "animeStats");
+      expect(animeStats.borderColor).toBe("#00ff00");
+      expect(animeStats.borderRadius).toBe(8);
     });
 
     it("should preserve existing per-card border values when global border is disabled and incoming omits them", async () => {
@@ -1310,8 +1546,9 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored2 = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored2.cards[0].borderColor).toBe("#AAEEFF");
-      expect(stored2.cards[0].borderRadius).toBe(12);
+      const animeStats = getStoredCard(stored2, "animeStats");
+      expect(animeStats.borderColor).toBe("#AAEEFF");
+      expect(animeStats.borderRadius).toBe(12);
     });
 
     it("should save borderColor in card config when border is enabled globally", async () => {
@@ -1343,7 +1580,7 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].borderColor).toBe("#00ff00");
+      expect(getStoredCard(stored, "animeStats").borderColor).toBe("#00ff00");
     });
 
     it("should preserve per-card borderColor from previous config when omitted and border is enabled globally", async () => {
@@ -1390,7 +1627,7 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].borderColor).toBe("#00abcd");
+      expect(getStoredCard(stored, "animeStats").borderColor).toBe("#00abcd");
     });
 
     it("should not save borderColor in card config when useCustomSettings is false", async () => {
@@ -1434,7 +1671,7 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(200);
 
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
-      expect(stored.cards[0].borderColor).toBeUndefined();
+      expect(getStoredCard(stored, "animeStats").borderColor).toBeUndefined();
     });
 
     it("should clamp existing global borderRadius when merging", async () => {

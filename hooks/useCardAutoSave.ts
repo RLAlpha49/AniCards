@@ -115,6 +115,9 @@ function buildCardsFromState(): {
   const cards: ServerCardData[] = configsArray.map((config) => {
     const useCustomSettings = config.colorOverride.useCustomSettings;
 
+    const baseCardId = (config.cardId || "").split("-")[0] || "";
+    const isFavoritesGrid = baseCardId === "favoritesGrid";
+
     const effectivePreset = useCustomSettings
       ? config.colorOverride.colorPreset || "custom"
       : globalColorPreset;
@@ -141,8 +144,8 @@ function buildCardsFromState(): {
       useStatusColors: config.advancedSettings.useStatusColors,
       showPiePercentages: config.advancedSettings.showPiePercentages,
       showFavorites: config.advancedSettings.showFavorites,
-      gridCols: config.advancedSettings.gridCols,
-      gridRows: config.advancedSettings.gridRows,
+      gridCols: isFavoritesGrid ? config.advancedSettings.gridCols : undefined,
+      gridRows: isFavoritesGrid ? config.advancedSettings.gridRows : undefined,
       useCustomSettings,
     };
 

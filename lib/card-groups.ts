@@ -455,6 +455,53 @@ function addPiePercentagesParamIfRelevant(
   }
 }
 
+function computeShouldIncludeColors(opts: {
+  includeColors: boolean;
+  allowPresetColorOverrides: boolean;
+  colorPreset: string | undefined;
+}): boolean {
+  const hasNamedPreset = !!opts.colorPreset && opts.colorPreset !== "custom";
+  return opts.includeColors && (opts.allowPresetColorOverrides || !hasNamedPreset);
+}
+
+function addColorParamsIfIncluded(
+  params: CardUrlParams,
+  candidate: {
+    titleColor?: ColorValue;
+    backgroundColor?: ColorValue;
+    textColor?: ColorValue;
+    circleColor?: ColorValue;
+  },
+  shouldIncludeColors: boolean,
+): void {
+  if (!shouldIncludeColors) return;
+
+  if (candidate.titleColor) params.titleColor = colorToString(candidate.titleColor);
+  if (candidate.backgroundColor) {
+    params.backgroundColor = colorToString(candidate.backgroundColor);
+  }
+  if (candidate.textColor) params.textColor = colorToString(candidate.textColor);
+  if (candidate.circleColor) params.circleColor = colorToString(candidate.circleColor);
+}
+
+function addFavoritesGridDimsParamIfRelevant(
+  params: CardUrlParams,
+  baseCardType: string,
+  candidate: { gridCols?: number; gridRows?: number },
+): void {
+  // Favorites grid layout is only meaningful for the favoritesGrid card.
+  if (baseCardType !== "favoritesGrid") return;
+
+  if (typeof candidate.gridCols === "number") {
+    const n = Math.trunc(candidate.gridCols);
+    params.gridCols = Math.max(1, Math.min(5, n));
+  }
+  if (typeof candidate.gridRows === "number") {
+    const n = Math.trunc(candidate.gridRows);
+    params.gridRows = Math.max(1, Math.min(5, n));
+  }
+}
+
 export function mapStoredConfigToCardUrlParams(
   candidate: Partial<
     Omit<
@@ -506,20 +553,13 @@ export function mapStoredConfigToCardUrlParams(
     borderRadius,
   };
 
-  const hasNamedPreset = !!colorPreset && colorPreset !== "custom";
-  const shouldIncludeColors =
-    includeColors && (allowPresetColorOverrides || !hasNamedPreset);
+  const shouldIncludeColors = computeShouldIncludeColors({
+    includeColors,
+    allowPresetColorOverrides,
+    colorPreset,
+  });
 
-  if (shouldIncludeColors) {
-    if (candidate.titleColor)
-      params.titleColor = colorToString(candidate.titleColor);
-    if (candidate.backgroundColor)
-      params.backgroundColor = colorToString(candidate.backgroundColor);
-    if (candidate.textColor)
-      params.textColor = colorToString(candidate.textColor);
-    if (candidate.circleColor)
-      params.circleColor = colorToString(candidate.circleColor);
-  }
+  addColorParamsIfIncluded(params, candidate, shouldIncludeColors);
 
   addFavoritesParamIfRelevant(params, baseCardType, candidate.showFavorites);
   addStatusColorsParamIfRelevant(
@@ -533,14 +573,7 @@ export function mapStoredConfigToCardUrlParams(
     candidate.showPiePercentages,
   );
 
-  if (typeof candidate.gridCols === "number") {
-    const n = Math.trunc(candidate.gridCols);
-    params.gridCols = Math.max(1, Math.min(5, n));
-  }
-  if (typeof candidate.gridRows === "number") {
-    const n = Math.trunc(candidate.gridRows);
-    params.gridRows = Math.max(1, Math.min(5, n));
-  }
+  addFavoritesGridDimsParamIfRelevant(params, baseCardType, candidate);
 
   return params;
 }
