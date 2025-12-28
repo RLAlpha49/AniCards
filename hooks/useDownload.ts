@@ -8,7 +8,7 @@ export function useDownload(
   opts: { cardId: string; variant: string },
 ) {
   const [isDownloading, setIsDownloading] = useState(false);
-  const isDownloadingRef = useRef(isDownloading);
+  const isDownloadingRef = useRef(false);
 
   const handleDownload = useCallback(
     async (format: ConversionFormat = "png") => {
