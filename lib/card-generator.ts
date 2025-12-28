@@ -255,7 +255,7 @@ function normalizeVariant(
     mangaScoreDistribution: scoreDistributionVariants,
     animeYearDistribution: distributionVariants,
     mangaYearDistribution: distributionVariants,
-    profileOverview: socialVariants,
+    profileOverview: new Set<CardGenVariant>(["default"]),
     favoritesSummary: socialVariants,
     activityHeatmap: new Set<CardGenVariant>(["default", "github", "fire"]),
     recentActivitySummary: new Set<CardGenVariant>(["default"]),

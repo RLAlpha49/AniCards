@@ -525,8 +525,9 @@ export function mapStoredConfigToCardUrlParams(
   },
 ): CardUrlParams {
   const cardType = candidate.cardName || candidate.cardType || "";
-  const variation = candidate.variation || "default";
   const baseCardType = (cardType || "").split("-")[0] || "";
+  const rawVariation = candidate.variation || "default";
+  const variation = baseCardType === "profileOverview" ? "default" : rawVariation;
   const includeColors = !!opts?.includeColors;
   const defaultToCustom = opts?.defaultToCustomPreset !== false;
   const allowPresetColorOverrides = opts?.allowPresetColorOverrides !== false;

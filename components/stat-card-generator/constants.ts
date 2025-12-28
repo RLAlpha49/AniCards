@@ -264,7 +264,7 @@ export const statCardTypes = [
     "profileOverview",
     "Core Stats",
     "Profile Overview",
-    profileMainVariations,
+    defaultOnlyVariations,
   ),
   createCardType(
     "animeMangaOverview",

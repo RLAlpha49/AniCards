@@ -559,7 +559,10 @@ export async function GET(request: Request) {
     await trackFailedRequest(undefined, paramsResult.status);
     return paramsResult;
   }
-  const params = paramsResult;
+  let params = paramsResult;
+  if (params.baseCardType === "profileOverview") {
+    params = { ...params, variationParam: "default" };
+  }
 
   const userIdResult = await resolveEffectiveUserId(params, request);
   if ("error" in userIdResult) {
@@ -702,10 +705,14 @@ async function loadUserAndCardConfig(
     userDoc = validationResult.normalized;
 
     const processed = processCardConfig(cardDoc, params, userDoc);
+    const normalizedEffectiveVariation =
+      params.baseCardType === "profileOverview"
+        ? "default"
+        : processed.effectiveVariation;
     return {
       userDoc,
       cardConfig: processed.cardConfig,
-      effectiveVariation: processed.effectiveVariation,
+      effectiveVariation: normalizedEffectiveVariation,
       favorites: processed.favorites,
     };
   }
@@ -725,8 +732,10 @@ async function loadUserAndCardConfig(
 
   const normalized = validationResult.normalized;
   const cardConfig = buildCardConfigFromParams(params);
-  const effectiveVariation =
+  const effectiveVariationRaw =
     params.variationParam || cardConfig.variation || "default";
+  const effectiveVariation =
+    params.baseCardType === "profileOverview" ? "default" : effectiveVariationRaw;
   const favorites = processFavorites(
     params.baseCardType,
     params.showFavoritesParam,
