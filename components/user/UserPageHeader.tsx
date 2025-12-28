@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { baseVariants } from "@/components/PageShell";
-import { siDwavesystems } from "simple-icons";
 
 /**
  * Save state for displaying save status.
