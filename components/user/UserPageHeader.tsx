@@ -14,10 +14,7 @@ import {
   Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  baseContainerVariants,
-  baseItemVariants,
-} from "@/components/PageShell";
+import { baseVariants } from "@/components/PageShell";
 
 /**
  * Save state for displaying save status.
@@ -46,17 +43,17 @@ interface UserPageHeaderProps {
 }
 
 const containerVariants = {
-  ...baseContainerVariants,
+  ...baseVariants,
   visible: {
-    ...baseContainerVariants.visible,
+    ...baseVariants.visible,
     transition: { staggerChildren: 0.08, delayChildren: 0.05 },
   },
 };
 
 const itemVariants = {
-  hidden: { ...baseItemVariants.hidden, y: 16 },
+  hidden: { ...baseVariants.hidden, y: 16 },
   visible: {
-    ...baseItemVariants.visible,
+    ...baseVariants.visible,
     y: 0,
     transition: { duration: 0.4, ease: "easeOut" as const },
   },
