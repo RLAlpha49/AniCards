@@ -29,6 +29,7 @@ export function SelectionCounter({
           type="button"
           onClick={selectAllEnabled}
           className="text-left text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+          aria-label="Select all enabled cards"
         >
           Select all enabled
         </button>
