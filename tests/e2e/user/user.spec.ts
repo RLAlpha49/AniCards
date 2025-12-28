@@ -82,11 +82,13 @@ test.describe("User page", () => {
         await page.getByRole("heading", { name: /your cards/i }).hover();
 
         const tile = page.getByTestId("card-tile-animeStats");
+        const openLink = tile.getByRole("link", { name: /^open/i });
         const copyTrigger = tile.getByRole("button", { name: /copy url/i });
         const downloadTrigger = tile.getByRole("button", {
           name: /^download$/i,
         });
 
+        await expect(openLink).toBeHidden();
         await expect(copyTrigger).toBeHidden();
         await expect(downloadTrigger).toBeHidden();
 
@@ -94,12 +96,21 @@ test.describe("User page", () => {
         await tile
           .getByRole("checkbox", { name: /select anime stats card/i })
           .focus();
+        await expect(openLink).toBeVisible();
         await expect(copyTrigger).toBeVisible();
         await expect(downloadTrigger).toBeVisible();
+
+        await expect(openLink).toHaveAttribute("target", "_blank");
+        await expect(openLink).toHaveAttribute(
+          "rel",
+          /\bnoopener\b.*\bnoreferrer\b|\bnoreferrer\b.*\bnoopener\b/i,
+        );
+        await expect(openLink).toHaveAttribute("href", /\/api\/card/i);
 
         // And mouse users via hover.
         await page.getByRole("heading", { name: /your cards/i }).hover();
         await tile.hover();
+        await expect(openLink).toBeVisible();
         await expect(copyTrigger).toBeVisible();
         await expect(downloadTrigger).toBeVisible();
       },
