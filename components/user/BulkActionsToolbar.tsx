@@ -84,13 +84,6 @@ export function BulkActionsToolbar({
   // Set mounted state after hydration to enable portal rendering
   useEffect(() => {
     setIsMounted(true);
-
-    return () => {
-      if (downloadSummaryTimerRef.current) {
-        clearTimeout(downloadSummaryTimerRef.current as unknown as number);
-        downloadSummaryTimerRef.current = null;
-      }
-    };
   }, []);
 
   // Cleanup timers on unmount to avoid state updates after the component unmounts
