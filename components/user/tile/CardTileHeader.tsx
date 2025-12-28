@@ -7,7 +7,6 @@ import { Info, Settings } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/Tooltip";
 import {
@@ -19,10 +18,10 @@ import { cn } from "@/lib/utils";
 interface CardTileHeaderProps {
   label: string;
   enabled: boolean;
-  onToggleEnabled: () => void;
+  onToggleEnabled: (checked: boolean) => void;
   tooltipContent?: string;
   isSelected: boolean;
-  onToggleSelection: () => void;
+  onToggleSelection: (checked: boolean | "indeterminate") => void;
   onOpenSettings: () => void;
 }
 
@@ -56,34 +55,32 @@ export function CardTileHeader({
             {label}
           </h4>
           {tooltipContent && (
-            <TooltipProvider delayDuration={200}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    className={cn(
-                      "flex-shrink-0 rounded-full p-0.5 transition-colors",
-                      "text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300",
-                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1",
-                    )}
-                    aria-label={`Info about ${label}`}
-                  >
-                    <Info className="h-3.5 w-3.5" aria-hidden="true" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent
-                  side="top"
-                  className="max-w-xs text-xs leading-relaxed"
-                  sideOffset={8}
-                >
-                  {containsMath(tooltipContent) ? (
-                    <MathTooltipContent content={tooltipContent} />
-                  ) : (
-                    <p>{tooltipContent}</p>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    "flex-shrink-0 rounded-full p-0.5 transition-colors",
+                    "text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300",
+                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1",
                   )}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+                  aria-label={`Info about ${label}`}
+                >
+                  <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent
+                side="top"
+                className="max-w-xs text-xs leading-relaxed"
+                sideOffset={8}
+              >
+                {containsMath(tooltipContent) ? (
+                  <MathTooltipContent content={tooltipContent} />
+                ) : (
+                  <p>{tooltipContent}</p>
+                )}
+              </TooltipContent>
+            </Tooltip>
           )}
         </div>
       </div>

@@ -91,6 +91,8 @@ export function CardTile({
     setCardEnabled,
     setCardVariant,
     toggleCardSelection,
+    selectCard,
+    deselectCard,
     getEffectiveColors,
     getEffectiveBorderColor,
     getEffectiveBorderRadius,
@@ -100,6 +102,20 @@ export function CardTile({
   const isSelected = selectedCardIds.has(cardId);
 
   const config = cardConfigs[cardId] ?? { ...DEFAULT_CARD_CONFIG, cardId };
+
+  const handleToggleSelection = useCallback(
+    (checked: boolean | "indeterminate") => {
+      if (checked === "indeterminate") {
+        // Indeterminate: fall back to toggling selection
+        toggleCardSelection(cardId);
+      } else if (checked) {
+        selectCard(cardId);
+      } else {
+        deselectCard(cardId);
+      }
+    },
+    [cardId, toggleCardSelection, selectCard, deselectCard],
+  );
   const effectiveColors = getEffectiveColors(cardId);
   const effectiveBorderColor = getEffectiveBorderColor(cardId);
   const effectiveBorderRadius = getEffectiveBorderRadius(cardId);
@@ -136,13 +152,12 @@ export function CardTile({
     ],
   );
 
-  const handleToggleEnabled = useCallback(() => {
-    setCardEnabled(cardId, !config.enabled);
-  }, [cardId, config.enabled, setCardEnabled]);
-
-  const handleToggleSelection = useCallback(() => {
-    toggleCardSelection(cardId);
-  }, [cardId, toggleCardSelection]);
+  const handleToggleEnabled = useCallback(
+    (checked: boolean) => {
+      setCardEnabled(cardId, checked);
+    },
+    [cardId, setCardEnabled],
+  );
 
   const handleVariantChange = useCallback(
     (variant: string) => {
