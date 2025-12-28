@@ -22,7 +22,7 @@ export interface GradientDefinition {
   type: "linear" | "radial";
   /** Array of gradient stops (minimum 2 required) */
   stops: GradientStop[];
-  /** Angle in degrees for linear gradients (0-360, default 0 = left to right) */
+  /** Angle in degrees for linear gradients (0-360, default 90 = left to right) */
   angle?: number;
   /** Center X position for radial gradients (0-100%, default 50) */
   cx?: number;
