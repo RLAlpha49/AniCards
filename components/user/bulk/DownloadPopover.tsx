@@ -71,7 +71,9 @@ export function DownloadPopover({
             variant="ghost"
             size="sm"
             className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
-            onClick={() => void handleDownloadAll("png")}
+            onClick={() => {
+              handleDownloadAll("png");
+            }}
           >
             <span className="font-medium text-slate-700 dark:text-slate-200">
               PNG
@@ -83,7 +85,9 @@ export function DownloadPopover({
             variant="ghost"
             size="sm"
             className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
-            onClick={() => void handleDownloadAll("webp")}
+            onClick={() => {
+              handleDownloadAll("webp");
+            }}
           >
             <span className="font-medium text-slate-700 dark:text-slate-200">
               WebP

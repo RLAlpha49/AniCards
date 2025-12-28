@@ -58,7 +58,9 @@ export function CopyUrlsPopover({
             variant="ghost"
             size="sm"
             className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-blue-50 dark:hover:bg-blue-950/50"
-            onClick={() => void handleCopyUrls("url")}
+            onClick={() => {
+              handleCopyUrls("url");
+            }}
           >
             <Link
               className="h-4 w-4 text-blue-600 dark:text-blue-400"
@@ -77,7 +79,9 @@ export function CopyUrlsPopover({
             variant="ghost"
             size="sm"
             className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-purple-50 dark:hover:bg-purple-950/50"
-            onClick={() => void handleCopyUrls("anilist")}
+            onClick={() => {
+              handleCopyUrls("anilist");
+            }}
           >
             <ImageIcon
               className="h-4 w-4 text-purple-600 dark:text-purple-400"
