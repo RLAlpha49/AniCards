@@ -22,7 +22,6 @@ export function CopyUrlsPopover({
   copiedFormat,
   handleCopyUrls,
 }: Readonly<CopyUrlsPopoverProps>) {
-
   return (
     <Popover>
       <PopoverTrigger asChild>
