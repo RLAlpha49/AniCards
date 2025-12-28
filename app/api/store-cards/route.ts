@@ -260,6 +260,81 @@ function mergeGlobalAdvancedSettings(
 }
 
 /**
+ * Lightweight validation for a ColorValue (solid hex color string or a
+ * minimal gradient object). Defensive checks only — not a full schema.
+ */
+function isValidColorValue(value: unknown): boolean {
+  if (typeof value === "string") return true;
+  if (typeof value !== "object" || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const stops = obj.stops as unknown;
+  if (!Array.isArray(stops) || stops.length < 2) return false;
+  for (const stop of stops as unknown[]) {
+    if (typeof stop !== "object" || stop === null) return false;
+    const stopObj = stop as Record<string, unknown>;
+    if (typeof stopObj.color !== "string" || typeof stopObj.offset !== "number") return false;
+    if ("opacity" in stopObj && typeof stopObj.opacity !== "number") return false;
+  }
+  if ("type" in obj && obj.type !== "linear" && obj.type !== "radial") return false;
+  return true;
+}
+
+/**
+ * Sanitize incoming partial GlobalCardSettings by picking only known keys
+ * and validating/coercing where appropriate. Implements grouped checks to
+ * remain concise.
+ */
+function sanitizeIncomingGlobalSettings(
+  incoming?: Partial<GlobalCardSettings>,
+): Partial<GlobalCardSettings> | undefined {
+  if (!incoming || typeof incoming !== "object") return undefined;
+  const sanitized: Partial<GlobalCardSettings> = {};
+
+  if (typeof incoming.colorPreset === "string" && incoming.colorPreset.trim() !== "") {
+    sanitized.colorPreset = incoming.colorPreset;
+  }
+
+  // Color fields (solid or basic gradient)
+  const colorKeys: Array<keyof GlobalCardSettings> = [
+    "titleColor",
+    "backgroundColor",
+    "textColor",
+    "circleColor",
+  ];
+  for (const key of colorKeys) {
+    const val = (incoming as Record<string, unknown>)[key as string];
+    if (isValidColorValue(val)) {
+      (sanitized as Record<string, unknown>)[key as string] = val;
+    }
+  }
+
+  // Boolean flags
+  const booleanKeys: Array<keyof GlobalCardSettings> = [
+    "borderEnabled",
+    "useStatusColors",
+    "showPiePercentages",
+    "showFavorites",
+  ];
+  for (const key of booleanKeys) {
+    const val = (incoming as Record<string, unknown>)[key as string];
+    if (typeof val === "boolean") {
+      (sanitized as Record<string, unknown>)[key as string] = val;
+    }
+  }
+
+  if (typeof incoming.borderColor === "string") sanitized.borderColor = incoming.borderColor;
+  if (typeof incoming.borderRadius === "number" && Number.isFinite(incoming.borderRadius))
+    sanitized.borderRadius = clampBorderRadius(incoming.borderRadius);
+
+  const cols = clampGridDim(incoming.gridCols);
+  if (typeof cols === "number") sanitized.gridCols = cols;
+  const rows = clampGridDim(incoming.gridRows);
+  if (typeof rows === "number") sanitized.gridRows = rows;
+
+  return Object.keys(sanitized).length ? sanitized : undefined;
+}
+
+/**
  * Builds a StoredCardConfig from incoming card data, merging with previous if needed.
  * Only saves individual colors when colorPreset is "custom" or not set.
  * Disabled cards preserve per-card settings so toggling visibility does not drop customizations.
@@ -353,47 +428,6 @@ function computeEffectiveBorderRadius(
   return undefined;
 }
 
-/**
- * Validates that every provided `disabled` field (if present) is a boolean.
- * Returns a 400 response via `jsonWithCors` when an invalid value is found and
- * increments analytics to track failed requests.
- */
-async function validateDisabledBooleanField(
-  incomingCards: unknown,
-  endpoint: string,
-  endpointKey: string,
-  request?: Request,
-): Promise<NextResponse | null> {
-  if (!Array.isArray(incomingCards)) return null;
-
-  for (let i = 0; i < incomingCards.length; i++) {
-    const card = incomingCards[i];
-
-    // Skip non-object entries -- they will be rejected by validateCardData later.
-    if (typeof card !== "object" || card === null) continue;
-
-    const cardObj = card as Record<string, unknown>;
-    if (
-      Object.prototype.hasOwnProperty.call(cardObj, "disabled") &&
-      typeof cardObj.disabled !== "boolean"
-    ) {
-      console.warn(
-        `⚠️ [${endpoint}] Card ${i} has non-boolean disabled field: ${String(
-          cardObj.disabled,
-        )}`,
-      );
-      await incrementAnalytics(
-        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-      );
-      return jsonWithCors(
-        { error: "Invalid 'disabled' field type" },
-        request,
-        400,
-      );
-    }
-  }
-  return null;
-}
 
 /**
  * Validates, persists, and reports analytics for the user card configuration payload.
@@ -417,14 +451,6 @@ export async function POST(request: Request): Promise<NextResponse> {
     console.log(
       `📝 [${endpoint}] Processing user ${userId} with ${incomingCards?.length || 0} cards`,
     );
-
-    const disabledError = await validateDisabledBooleanField(
-      incomingCards,
-      endpoint,
-      endpointKey,
-      request,
-    );
-    if (disabledError) return disabledError;
 
     // Validate incoming data and obtain typed cards on success
     const validated = validateCardData(
@@ -480,9 +506,12 @@ export async function POST(request: Request): Promise<NextResponse> {
       endpoint,
     );
 
+    // Sanitize incoming globalSettings to only include known keys and valid types.
+    const sanitizedGlobalSettings = sanitizeIncomingGlobalSettings(globalSettings);
+
     // Determine effective borderEnabled early for use in card config building
     const effectiveBorderEnabled =
-      globalSettings?.borderEnabled ?? existingGlobalSettings?.borderEnabled;
+      sanitizedGlobalSettings?.borderEnabled ?? existingGlobalSettings?.borderEnabled;
 
     // Process incoming cards: update existing or add new ones
     // Apply incoming typed cards (validated above)
@@ -493,12 +522,12 @@ export async function POST(request: Request): Promise<NextResponse> {
     // Compute borderRadius using helper (clamped when applicable)
     const effectiveBorderRadius = computeEffectiveBorderRadius(
       effectiveBorderEnabled,
-      globalSettings,
+      sanitizedGlobalSettings,
       existingGlobalSettings,
     );
 
     const effectiveBorderColor = effectiveBorderEnabled
-      ? (globalSettings?.borderColor ?? existingGlobalSettings?.borderColor)
+      ? (sanitizedGlobalSettings?.borderColor ?? existingGlobalSettings?.borderColor)
       : undefined;
 
     const {
@@ -507,11 +536,20 @@ export async function POST(request: Request): Promise<NextResponse> {
       showFavorites: effectiveShowFavorites,
       gridCols: effectiveGridCols,
       gridRows: effectiveGridRows,
-    } = mergeGlobalAdvancedSettings(globalSettings, existingGlobalSettings);
+    } = mergeGlobalAdvancedSettings(sanitizedGlobalSettings, existingGlobalSettings);
 
-    const mergedGlobalSettings: GlobalCardSettings | undefined = globalSettings
+    const mergedGlobalSettings: GlobalCardSettings | undefined = sanitizedGlobalSettings
       ? {
-          ...globalSettings,
+          colorPreset:
+            sanitizedGlobalSettings.colorPreset ?? existingGlobalSettings?.colorPreset,
+          titleColor:
+            sanitizedGlobalSettings.titleColor ?? existingGlobalSettings?.titleColor,
+          backgroundColor:
+            sanitizedGlobalSettings.backgroundColor ?? existingGlobalSettings?.backgroundColor,
+          textColor:
+            sanitizedGlobalSettings.textColor ?? existingGlobalSettings?.textColor,
+          circleColor:
+            sanitizedGlobalSettings.circleColor ?? existingGlobalSettings?.circleColor,
           borderEnabled: effectiveBorderEnabled,
           borderColor: effectiveBorderColor,
           borderRadius: effectiveBorderRadius,

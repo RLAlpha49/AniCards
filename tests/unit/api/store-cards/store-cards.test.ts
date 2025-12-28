@@ -184,7 +184,7 @@ describe("Store Cards API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(400);
       const data = await res.json();
-      expect(data.error).toBe("Invalid 'disabled' field type");
+      expect(data.error).toBe("Invalid data");
 
       // Analytics metric should be incremented for failed validation
       expect(sharedRedisMockIncr).toHaveBeenCalledWith(
@@ -1052,6 +1052,50 @@ describe("Store Cards API POST Endpoint", () => {
       const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(stored.globalSettings.borderEnabled).toBe(true);
       expect(stored.globalSettings.borderColor).toBe("#ff0000");
+    });
+
+    it("should not persist unexpected fields in globalSettings", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 700,
+        statsData: {},
+        cards: [],
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: true,
+          borderColor: "#ff0000",
+          unexpectedField: "malicious",
+          nested: { foo: "bar" },
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.unexpectedField).toBeUndefined();
+      expect(stored.globalSettings.nested).toBeUndefined();
+      expect(stored.globalSettings.borderEnabled).toBe(true);
+      expect(stored.globalSettings.borderColor).toBe("#ff0000");
+    });
+
+    it("should not persist globalSettings when incoming contains only unknown fields", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 710,
+        statsData: {},
+        cards: [],
+        globalSettings: {
+          unexpectedField: "malicious",
+          nested: { foo: "bar" },
+        },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings).toBeUndefined();
     });
 
     it("should preserve per-card borderColor and borderRadius even when borders are disabled globally", async () => {
