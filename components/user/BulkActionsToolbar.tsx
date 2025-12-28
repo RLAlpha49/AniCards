@@ -203,15 +203,20 @@ export function BulkActionsToolbar({
   const handleCopyUrls = useCallback(
     async (format: "url" | "anilist" = "url") => {
       if (selectedCards.length === 0) return;
-
-      const urls = selectedCards.map((card) => {
-        const resolvedUrl = new URL(
-          card.url,
-          globalThis.location.origin,
-        ).toString();
-        return format === "anilist" ? `img200(${resolvedUrl})` : resolvedUrl;
-      });
-
+      const urls = selectedCards
+        .map((card) => {
+          try {
+            const resolvedUrl = new URL(
+              card.url,
+              globalThis.location.origin,
+            ).toString();
+            return format === "anilist" ? `img200(${resolvedUrl})` : resolvedUrl;
+          } catch (err) {
+            console.error(`Failed to construct URL for card ${card.cardId}:`, err);
+            return null;
+          }
+        })
+        .filter((url): url is string => url !== null);
       try {
         await navigator.clipboard.writeText(urls.join("\n"));
         setCopiedFormat(format);
@@ -229,6 +234,7 @@ export function BulkActionsToolbar({
     },
     [selectedCards],
   );
+
   const handleDownloadAll = useCallback(
     async (format: ConversionFormat = "png") => {
       if (selectedCards.length === 0 || isDownloading) return;
