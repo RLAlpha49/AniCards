@@ -500,14 +500,14 @@ export function validateUserData(
   // Validate userId is a number
   const userId = Number(data.userId);
   if (!Number.isInteger(userId) || userId <= 0) {
-    console.warn(`⚠️ [${endpoint}] Invalid userId format: ${data.userId}`);
+    console.warn(`⚠️ [${endpoint}] Invalid userId format: ${safeStringifyValue(data.userId)}`);
     return jsonWithCors({ error: "Invalid data" }, request, 400);
   }
 
   // Validate username if provided
   if (data.username !== undefined && data.username !== null) {
     if (!isValidUsername(data.username)) {
-      console.warn(`⚠️ [${endpoint}] Username invalid: ${data.username}`);
+      console.warn(`⚠️ [${endpoint}] Username invalid: ${safeStringifyValue(data.username)}`);
       return jsonWithCors({ error: "Invalid data" }, request, 400);
     }
   }
@@ -626,7 +626,7 @@ function validateCardRequiredFields(
   const cardNameRaw = card["cardName"];
   if (typeof cardNameRaw !== "string" || !isValidCardType(cardNameRaw)) {
     console.warn(
-      `⚠️ [${endpoint}] Card ${cardIndex} has an invalid cardName: ${String(
+      `⚠️ [${endpoint}] Card ${cardIndex} has an invalid cardName: ${safeStringifyValue(
         cardNameRaw,
       )}`,
     );
@@ -657,21 +657,14 @@ function validateCardRequiredFields(
 }
 
 /**
- * Validates optional fields for a card such as booleans and optional
- * borderColor (hex or gradient format).
- * @param card - Card object to validate.
- * @param cardIndex - Index of the card in the array for error messages.
- * @param endpoint - Endpoint name used for logging/analytics context.
- * @returns A NextResponse with an ApiError when invalid, or null otherwise.
- * @source
+ * Helper: validate optional boolean fields existed and are booleans.
  */
-function validateCardOptionalFields(
+function validateOptionalBooleanFields(
   card: Record<string, unknown>,
   cardIndex: number,
   endpoint: string,
   request?: Request,
 ): NextResponse<ApiError> | null {
-  // Validate optional boolean fields
   const optionalBooleanFields = [
     "disabled",
     "showFavorites",
@@ -691,8 +684,18 @@ function validateCardOptionalFields(
       );
     }
   }
+  return null;
+}
 
-  // Validate borderColor if present (optional, can be hex string or gradient)
+/**
+ * Helper: validate optional border color field when present.
+ */
+function validateOptionalBorderColorField(
+  card: Record<string, unknown>,
+  cardIndex: number,
+  endpoint: string,
+  request?: Request,
+): NextResponse<ApiError> | null {
   const borderColorValue = card.borderColor;
   const hasBorder = borderColorValue !== undefined && borderColorValue !== null;
   if (hasBorder) {
@@ -708,7 +711,60 @@ function validateCardOptionalFields(
       );
     }
   }
+  return null;
+}
 
+/**
+ * Helper: validate a grid numeric field (cols/rows) ensuring integer between 1 and 5.
+ */
+function validateGridNumericField(
+  value: unknown,
+  cardIndex: number,
+  fieldName: string,
+  endpoint: string,
+  request?: Request,
+): NextResponse<ApiError> | null {
+  if (value !== undefined) {
+    const n = Number(value);
+    if (!Number.isInteger(n) || n < 1 || n > 5) {
+      console.warn(
+        `⚠️ [${endpoint}] Card ${cardIndex} ${fieldName} must be an integer between 1 and 5`,
+      );
+      return NextResponse.json(
+        { error: "Invalid data" },
+        { status: 400, headers: apiJsonHeaders(request) },
+      );
+    }
+  }
+  return null;
+}
+
+/**
+ * Validates optional fields for a card such as booleans and optional
+ * borderColor (hex or gradient format).
+ * @param card - Card object to validate.
+ * @param cardIndex - Index of the card in the array for error messages.
+ * @param endpoint - Endpoint name used for logging/analytics context.
+ * @returns A NextResponse with an ApiError when invalid, or null otherwise.
+ * @source
+ */
+function validateCardOptionalFields(
+  card: Record<string, unknown>,
+  cardIndex: number,
+  endpoint: string,
+  request?: Request,
+): NextResponse<ApiError> | null {
+  // Validate optional boolean fields
+  const optBoolErr = validateOptionalBooleanFields(card, cardIndex, endpoint, request);
+  if (optBoolErr) return optBoolErr;
+
+  // Validate borderColor if present (optional, can be hex string or gradient)
+  const borderColorValue = card.borderColor;
+  const hasBorder = borderColorValue !== undefined && borderColorValue !== null;
+  const borderColorErr = validateOptionalBorderColorField(card, cardIndex, endpoint, request);
+  if (borderColorErr) return borderColorErr;
+
+  // Validate borderRadius (uses helper which can require value when border exists)
   const borderRadiusValue = card.borderRadius;
   const borderRadiusError = validateBorderRadiusField(
     borderRadiusValue,
@@ -719,33 +775,12 @@ function validateCardOptionalFields(
   );
   if (borderRadiusError) return borderRadiusError;
 
-  const gridColsValue = card.gridCols;
-  if (gridColsValue !== undefined) {
-    const n = Number(gridColsValue);
-    if (!Number.isInteger(n) || n < 1 || n > 5) {
-      console.warn(
-        `⚠️ [${endpoint}] Card ${cardIndex} gridCols must be an integer between 1 and 5`,
-      );
-      return NextResponse.json(
-        { error: "Invalid data" },
-        { status: 400, headers: apiJsonHeaders(request) },
-      );
-    }
-  }
+  // Grid numeric validations
+  const gridColsError = validateGridNumericField(card.gridCols, cardIndex, "gridCols", endpoint, request);
+  if (gridColsError) return gridColsError;
 
-  const gridRowsValue = card.gridRows;
-  if (gridRowsValue !== undefined) {
-    const n = Number(gridRowsValue);
-    if (!Number.isInteger(n) || n < 1 || n > 5) {
-      console.warn(
-        `⚠️ [${endpoint}] Card ${cardIndex} gridRows must be an integer between 1 and 5`,
-      );
-      return NextResponse.json(
-        { error: "Invalid data" },
-        { status: 400, headers: apiJsonHeaders(request) },
-      );
-    }
-  }
+  const gridRowsError = validateGridNumericField(card.gridRows, cardIndex, "gridRows", endpoint, request);
+  if (gridRowsError) return gridRowsError;
 
   return null;
 }
@@ -812,7 +847,7 @@ function validateUserIdField(
 
   const userIdNum = Number(userId);
   if (!Number.isInteger(userIdNum) || userIdNum <= 0) {
-    console.warn(`⚠️ [${endpoint}] Invalid userId format: ${userId}`);
+    console.warn(`⚠️ [${endpoint}] Invalid userId format: ${safeStringifyValue(userId)}`);
     return NextResponse.json(
       { error: "Invalid data" },
       { status: 400, headers: apiJsonHeaders(request) },
@@ -820,6 +855,27 @@ function validateUserIdField(
   }
 
   return null;
+}
+
+/**
+ * Utility to safely stringify unknown values for logs.
+ * Uses JSON.stringify for objects when possible and falls back to String().
+ */
+function safeStringifyValue(value: unknown): string {
+  if (value === undefined) return "undefined";
+  if (value === null) return "null";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+/** Coerce to a plain string: prefer original string when possible. */
+function coerceToString(value: unknown): string {
+  return typeof value === "string" ? value : safeStringifyValue(value);
 }
 
 /**
@@ -1057,7 +1113,7 @@ export function validateCardData(
     };
 
     return {
-      cardName: String(r.cardName),
+      cardName: coerceToString(r.cardName),
       variation:
         typeof r.variation === "string" && r.variation.length > 0
           ? r.variation
