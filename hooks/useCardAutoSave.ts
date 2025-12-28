@@ -139,15 +139,28 @@ function buildCardsFromState(): {
       backgroundColor: shouldSendColors ? effectiveColors[1] : undefined,
       textColor: shouldSendColors ? effectiveColors[2] : undefined,
       circleColor: shouldSendColors ? effectiveColors[3] : undefined,
-      borderColor: config.borderColor,
-      borderRadius: config.borderRadius,
-      useStatusColors: config.advancedSettings.useStatusColors,
-      showPiePercentages: config.advancedSettings.showPiePercentages,
-      showFavorites: config.advancedSettings.showFavorites,
-      gridCols: isFavoritesGrid ? config.advancedSettings.gridCols : undefined,
-      gridRows: isFavoritesGrid ? config.advancedSettings.gridRows : undefined,
+      borderColor: undefined,
+      borderRadius: undefined,
+      useStatusColors: undefined,
+      showPiePercentages: undefined,
+      showFavorites: undefined,
+      gridCols: undefined,
+      gridRows: undefined,
       useCustomSettings,
     };
+
+    if (useCustomSettings) {
+      cardData.borderColor = config.borderColor;
+      cardData.borderRadius = config.borderRadius;
+      cardData.useStatusColors = config.advancedSettings.useStatusColors;
+      cardData.showPiePercentages = config.advancedSettings.showPiePercentages;
+      cardData.showFavorites = config.advancedSettings.showFavorites;
+
+      if (isFavoritesGrid) {
+        cardData.gridCols = config.advancedSettings.gridCols;
+        cardData.gridRows = config.advancedSettings.gridRows;
+      }
+    }
 
     return config.enabled ? cardData : { ...cardData, disabled: true };
   });
@@ -190,6 +203,7 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
       isMountedRef.current = false;
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
     };
   }, []);
@@ -237,6 +251,7 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
     // Clear any existing timeout
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
 
     // Set new timeout for debounced save
@@ -248,6 +263,7 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
     };
   }, [enabled, userId, isDirty, isSaving, debounceMs, performSave]);

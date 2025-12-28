@@ -452,13 +452,18 @@ function serverCardToEditorConfig(
     enabled,
     variant: card.variation || "default",
     colorOverride,
-    advancedSettings: {
-      useStatusColors: card.useStatusColors,
-      showPiePercentages: card.showPiePercentages,
-      showFavorites: card.showFavorites,
-      gridCols: card.gridCols,
-      gridRows: card.gridRows,
-    },
+    // Only hydrate per-card advanced settings when the card explicitly uses
+    // custom settings. Otherwise, these should inherit from the global
+    // advanced settings and not "lock in" stale values.
+    advancedSettings: colorOverride.useCustomSettings
+      ? {
+          useStatusColors: card.useStatusColors,
+          showPiePercentages: card.showPiePercentages,
+          showFavorites: card.showFavorites,
+          gridCols: card.gridCols,
+          gridRows: card.gridRows,
+        }
+      : {},
     borderColor:
       card.borderColor === globalBorderColor ? undefined : card.borderColor,
     borderRadius:

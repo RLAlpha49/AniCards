@@ -31,6 +31,18 @@ export function buildPreviewUrl({
 }: Readonly<BuildPreviewUrlArgs>): string | null {
   if (!userId) return null;
 
+  // Advanced settings should only be read from per-card overrides when the
+  // card is explicitly using custom settings. Otherwise, cards inherit the
+  // global advanced settings.
+  const useCardAdvancedOverrides = config.colorOverride.useCustomSettings;
+
+  const resolveAdvancedSetting = <K extends keyof CardAdvancedSettings>(
+    key: K,
+  ): CardAdvancedSettings[K] =>
+    useCardAdvancedOverrides
+      ? (config.advancedSettings[key] ?? globalAdvancedSettings[key])
+      : globalAdvancedSettings[key];
+
   const urlParams = mapStoredConfigToCardUrlParams(
     {
       cardName: cardId,
@@ -42,19 +54,11 @@ export function buildPreviewUrl({
       circleColor: effectiveColors[3],
       borderColor: effectiveBorderColor,
       borderRadius: effectiveBorderRadius,
-      useStatusColors:
-        config.advancedSettings.useStatusColors ??
-        globalAdvancedSettings.useStatusColors,
-      showPiePercentages:
-        config.advancedSettings.showPiePercentages ??
-        globalAdvancedSettings.showPiePercentages,
-      showFavorites:
-        config.advancedSettings.showFavorites ??
-        globalAdvancedSettings.showFavorites,
-      gridCols:
-        config.advancedSettings.gridCols ?? globalAdvancedSettings.gridCols,
-      gridRows:
-        config.advancedSettings.gridRows ?? globalAdvancedSettings.gridRows,
+      useStatusColors: resolveAdvancedSetting("useStatusColors"),
+      showPiePercentages: resolveAdvancedSetting("showPiePercentages"),
+      showFavorites: resolveAdvancedSetting("showFavorites"),
+      gridCols: resolveAdvancedSetting("gridCols"),
+      gridRows: resolveAdvancedSetting("gridRows"),
     },
     {
       userId,
