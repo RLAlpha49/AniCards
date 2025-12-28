@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useReducer } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ExternalLink,
@@ -205,10 +205,10 @@ export function UserPageHeader({
 }: Readonly<UserPageHeaderProps>) {
   const anilistUrl = getAnilistUrl(username, userId);
 
-  const [tick, setTick] = useState(0);
+  const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
   useEffect(() => {
     if (!saveState?.lastSavedAt) return;
-    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    const id = setInterval(forceUpdate, 1000);
     return () => clearInterval(id);
   }, [saveState?.lastSavedAt]);
 
@@ -277,7 +277,6 @@ export function UserPageHeader({
             {saveInfo && (
               <motion.div variants={itemVariants} className="shrink-0">
                 <div
-                  data-tick={tick}
                   className={cn(
                     "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all",
                     saveInfo.className,
