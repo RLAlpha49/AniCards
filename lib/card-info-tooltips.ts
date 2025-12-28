@@ -88,5 +88,8 @@ export function getCardInfoTooltip(cardId: string): string | undefined {
  * @source
  */
 export function hasCardInfoTooltip(cardId: string): boolean {
+  if (!cardId || typeof cardId !== "string") {
+    return false;
+  }
   return cardId in CARD_INFO_TOOLTIPS;
 }
