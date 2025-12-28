@@ -59,6 +59,12 @@ export function DownloadPopover({
         </Button>
       </PopoverTrigger>
 
+      {isDownloading && (
+        <span className="sr-only" aria-live="polite" aria-atomic="true">
+          Downloading {downloadProgress.current} of {downloadProgress.total}
+        </span>
+      )}
+
       <PopoverContent className="w-40 p-1.5" align="center" side="top">
         <div className="flex flex-col gap-0.5">
           <Button
