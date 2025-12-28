@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { useEffect, useReducer } from "react";
+import { useEffect, useReducer,useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ExternalLink,
@@ -67,6 +67,7 @@ const itemVariants = {
 function getTimeSince(lastSavedAt: number | null): string {
   if (!lastSavedAt) return "";
   const seconds = Math.floor((Date.now() - lastSavedAt) / 1000);
+  if (seconds < 0) return "Just now";
   if (seconds < 5) return "Just now";
   if (seconds < 60) return `${seconds}s ago`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
@@ -167,7 +168,8 @@ function Avatar({
   imageClassName?: string;
   fallbackClassName?: string;
 }) {
-  return avatarUrl ? (
+  const [imageError, setImageError] = useState(false);
+  return avatarUrl && !imageError ? (
     <Image
       src={avatarUrl}
       alt={username || "User avatar"}
@@ -178,6 +180,7 @@ function Avatar({
         imageClassName,
       )}
       unoptimized
+      onError={() => setImageError(true)}
     />
   ) : (
     <div
