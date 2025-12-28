@@ -12,9 +12,7 @@ import { cn } from "@/lib/utils";
 
 interface CopyUrlsPopoverProps {
   copiedFormat: "url" | "anilist" | null;
-  setCopiedFormat: Dispatch<SetStateAction<"url" | "anilist" | null>>;
   handleCopyUrls: (format?: "url" | "anilist") => Promise<void> | void;
-  copyTimerRef: MutableRefObject<ReturnType<typeof setTimeout> | null>;
 }
 
 /**
@@ -22,12 +20,8 @@ interface CopyUrlsPopoverProps {
  */
 export function CopyUrlsPopover({
   copiedFormat,
-  setCopiedFormat: _setCopiedFormat,
   handleCopyUrls,
-  copyTimerRef: _copyTimerRef,
 }: Readonly<CopyUrlsPopoverProps>) {
-  // These are intentionally not used in this pure UI component. They are accepted
-  // so the parent can keep state and timers where the logic belongs.
 
   return (
     <Popover>

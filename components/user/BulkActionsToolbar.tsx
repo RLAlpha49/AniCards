@@ -357,9 +357,7 @@ export function BulkActionsToolbar({
 
             <CopyUrlsPopover
               copiedFormat={copiedFormat}
-              setCopiedFormat={setCopiedFormat}
               handleCopyUrls={handleCopyUrls}
-              copyTimerRef={copyTimerRef}
             />
 
             <DownloadPopover
