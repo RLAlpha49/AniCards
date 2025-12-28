@@ -184,8 +184,19 @@ function generateStopId(prefix = "s") {
  * @source
  */
 function adjustColor(hex: string, amount: number): string {
-  const cleanHex = hex.replace("#", "");
-  const num = Number.parseInt(cleanHex, 16);
+  // Normalize: strip leading '#' and expand 3-digit hex if necessary
+  let cleanHex = hex.trim().replace(/^#/, "").toLowerCase();
+
+  if (/^[a-f0-9]{3}$/.test(cleanHex)) {
+    cleanHex = cleanHex.split("").map((c) => c + c).join("");
+  }
+
+  // Accept 6 or 8 hex digits; use only the first 6 characters
+  if (!/^[a-f0-9]{6}(?:[a-f0-9]{2})?$/.test(cleanHex)) {
+    return "#000000";
+  }
+
+  const num = Number.parseInt(cleanHex.substring(0, 6), 16);
   const r = Math.min(255, Math.max(0, (num >> 16) + amount));
   const g = Math.min(255, Math.max(0, ((num >> 8) & 0x00ff) + amount));
   const b = Math.min(255, Math.max(0, (num & 0x0000ff) + amount));
