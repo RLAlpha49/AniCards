@@ -159,7 +159,7 @@ test.describe("User page", () => {
             User: {
               id: 999,
               name: "NewUser",
-              avatar: { medium: "https://example.test/avatar.png" },
+              avatar: { medium: "https://s1.anilist.co/avatar.png" },
             },
           }),
         });
