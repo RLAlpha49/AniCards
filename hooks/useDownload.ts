@@ -9,6 +9,7 @@ export function useDownload(
 ) {
   const { cardId, variant } = opts;
   const [isDownloading, setIsDownloading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
   const isDownloadingRef = useRef(false);
 
   const handleDownload = useCallback(
@@ -16,6 +17,7 @@ export function useDownload(
       if (!previewUrl || isDownloadingRef.current) return;
       isDownloadingRef.current = true;
       setIsDownloading(true);
+      setError(null);
       let link: HTMLAnchorElement | null = null;
       try {
         const absoluteUrl = getAbsoluteUrl(previewUrl);
@@ -27,6 +29,7 @@ export function useDownload(
         link.click();
       } catch (error) {
         console.error("Failed to download card:", error);
+        setError(error instanceof Error ? error : new Error(String(error)));
       } finally {
         link?.remove();
         isDownloadingRef.current = false;
@@ -36,5 +39,5 @@ export function useDownload(
     [previewUrl, cardId, variant],
   );
 
-  return { isDownloading, handleDownload } as const;
+  return { isDownloading, error, handleDownload } as const;
 }
