@@ -228,11 +228,11 @@ function GradientStopEditor({
 
     // Build a map of existing IDs by color+offset for stable matching
     const idMap = new Map(
-      localStopsRef.current.map((s) => [`${s.color}-${s.offset}`, s.id]),
+      localStopsRef.current.map((s, idx) => [`${s.color}-${s.offset}-${idx}`, s.id]),
     );
     const next = stops.map((s) => {
       const id =
-        s.id ?? idMap.get(`${s.color}-${s.offset}`) ?? generateStopId();
+        s.id ?? idMap.get(`${s.color}-${s.offset}-${stops.indexOf(s)}`) ?? generateStopId();
       return { ...s, id };
     });
 
