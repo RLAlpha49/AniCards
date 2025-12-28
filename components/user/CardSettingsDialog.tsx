@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/Dialog";
 import { CardSettingsPanel } from "@/components/user/CardSettingsPanel";
 import {
+  DEFAULT_BORDER_COLOR,
   useUserPageEditor,
   type CardAdvancedSettings,
 } from "@/lib/stores/user-page-editor";
@@ -154,7 +155,7 @@ export function CardSettingsDialog({
         // Enable border with default color if not set
         setCardBorderColor(
           cardId,
-          cardBorderColor || globalBorderColor || "#e4e2e2",
+          cardBorderColor || globalBorderColor || DEFAULT_BORDER_COLOR,
         );
       } else {
         // Disable border
@@ -218,7 +219,7 @@ export function CardSettingsDialog({
             onPresetChange: handlePresetChange,
             borderEnabled: hasBorder,
             onBorderEnabledChange: handleToggleBorder,
-            borderColor: cardBorderColor || "#e4e2e2",
+            borderColor: cardBorderColor || DEFAULT_BORDER_COLOR,
             onBorderColorChange: handleBorderColorChange,
             borderRadius: cardBorderRadius,
             onBorderRadiusChange: handleBorderRadiusChange,

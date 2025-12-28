@@ -232,7 +232,7 @@ export interface ServerGlobalSettings {
 /** Combined store type */
 export type UserPageEditorStore = UserPageEditorState & UserPageEditorActions;
 
-const DEFAULT_BORDER_COLOR = "#e4e2e2";
+export const DEFAULT_BORDER_COLOR = "#e4e2e2";
 
 /**
  * Get colors from a preset name.
