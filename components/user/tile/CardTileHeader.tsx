@@ -40,7 +40,7 @@ export function CardTileHeader({
       <div className="flex items-center gap-3">
         <Switch
           checked={enabled}
-          onCheckedChange={() => onToggleEnabled()}
+          onCheckedChange={onToggleEnabled}
           className="data-[state=checked]:bg-blue-500"
           aria-label={`Toggle ${label} card`}
         />
@@ -106,7 +106,7 @@ export function CardTileHeader({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onOpenSettings()}
+              onClick={onOpenSettings}
               className="h-8 w-8 p-0 transition-colors hover:bg-blue-100 dark:hover:bg-blue-900/30"
               title="Card settings"
               aria-label={`Open settings for ${label}`}
