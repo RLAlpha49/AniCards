@@ -184,22 +184,15 @@ function generateStopId(prefix = "s") {
  * @source
  */
 function adjustColor(hex: string, amount: number): string {
-  // Normalize: strip leading '#' and expand 3-digit hex if necessary
-  let cleanHex = hex.trim().replace(/^#/, "").toLowerCase();
-
-  if (/^[a-f0-9]{3}$/.test(cleanHex)) {
-    cleanHex = cleanHex
-      .split("")
-      .map((c) => c + c)
-      .join("");
-  }
-
-  // Accept 6 or 8 hex digits; use only the first 6 characters
-  if (!/^[a-f0-9]{6}(?:[a-f0-9]{2})?$/.test(cleanHex)) {
+  const normalized = normalizeHexString(hex);
+  if (!normalized) {
     return "#000000";
   }
 
-  const num = Number.parseInt(cleanHex.substring(0, 6), 16);
+  // Use only the first 6 hex digits (ignoring alpha if present)
+  const cleanHex = normalized.slice(1, 7).toLowerCase();
+
+  const num = Number.parseInt(cleanHex, 16);
   const r = Math.min(255, Math.max(0, (num >> 16) + amount));
   const g = Math.min(255, Math.max(0, ((num >> 8) & 0x00ff) + amount));
   const b = Math.min(255, Math.max(0, (num & 0x0000ff) + amount));
@@ -226,7 +219,7 @@ function GradientStopEditor({
   // Keep ref in sync with state
   useEffect(() => {
     localStopsRef.current = localStops;
-  });
+  }, [localStops]);
 
   useEffect(() => {
     // Only sync when the incoming stops prop actually changes
