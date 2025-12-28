@@ -899,8 +899,6 @@ export function UserPageEditor() {
           "Failed to fetch user data. Please check your connection and try again.",
         );
         setLoadingPhase("error");
-        // Re-throw so unexpected errors are not silently swallowed
-        throw err;
       }
     })();
   }, [
