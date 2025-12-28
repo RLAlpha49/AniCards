@@ -655,6 +655,159 @@ export function UserPageEditor() {
     },
   );
 
+  // Default global settings used when initializing new users' cards
+  const DEFAULT_GLOBAL_SETTINGS: ServerGlobalSettings = {
+    colorPreset: "default",
+    borderEnabled: false,
+  };
+
+  /**
+   * Initialize editor with the initial cards snapshot and default global settings.
+   */
+  function initializeEditorWithInitialCards(
+    uid: number | string,
+    uname: string | null,
+    aUrl: string | null,
+    initializeFn: (
+      userId: string,
+      username: string | null,
+      avatarUrl: string | null,
+      cards: ServerCardData[],
+      globalSettings?: ServerGlobalSettings,
+      enabledIds?: string[],
+    ) => void,
+  ) {
+    const initialCards = buildInitialCardsSnapshot();
+    initializeFn(String(uid), uname, aUrl, initialCards, DEFAULT_GLOBAL_SETTINGS, statCardTypes.map((t) => t.id));
+  }
+
+  /**
+   * Handles obtaining persisted cards after a newly-created user is set up.
+   * This mirrors the previous inline logic and preserves error tracking and warnings.
+   */
+  async function handlePersistedCardsAfterNewUserSetup(
+    uid: number,
+    uname: string | null,
+    aUrl: string | null,
+  ) {
+    const persistedCardsResult = await fetchUserCards(String(uid));
+
+    if ("error" in persistedCardsResult) {
+      if (persistedCardsResult.notFound) {
+        // No cards persisted yet — fall back to initial snapshot (expected).
+        initializeEditorWithInitialCards(uid, uname, aUrl, initializeFromServerData);
+      } else {
+        const errorDetails = getErrorDetails(persistedCardsResult.error);
+        trackUserActionError(
+          "new_user_setup_fetch_cards",
+          new Error(persistedCardsResult.error),
+          errorDetails.category,
+          {
+            userId: String(uid),
+            username: uname ?? undefined,
+          },
+        );
+        setCardsWarning(
+          "We couldn't load your saved cards due to a server error. Default cards are displayed for now.",
+        );
+        initializeEditorWithInitialCards(uid, uname, aUrl, initializeFromServerData);
+      }
+      return;
+    }
+
+    if (Array.isArray(persistedCardsResult.cards) && persistedCardsResult.cards.length === 0) {
+      const msg = "No persisted cards were returned after initial save";
+      const details = getErrorDetails(msg);
+      trackUserActionError(
+        "new_user_setup_fetch_cards",
+        new Error(msg),
+        details.category,
+        {
+          userId: String(uid),
+          username: uname ?? undefined,
+        },
+      );
+      console.warn(msg, { userId: uid });
+      initializeEditorWithInitialCards(uid, uname, aUrl, initializeFromServerData);
+      return;
+    }
+
+    // Successful persisted cards load — initialize with the persisted data.
+    initializeFromServerData(
+      String(uid),
+      uname,
+      aUrl,
+      persistedCardsResult.cards,
+      persistedCardsResult.globalSettings,
+      statCardTypes.map((t) => t.id),
+    );
+    // Clear any previous warning if load now succeeded
+    setCardsWarning(null);
+  }
+
+  /**
+   * Handles cards load for an existing user.
+   * Mirrors previous logic in `loadData` for the existing-user branch.
+   */
+  async function handleCardsForExistingUser(
+    userIdStr: string,
+    uname: string | null,
+    aUrl: string | null,
+  ) {
+    const cardsResult = await fetchUserCards(userIdStr);
+
+    if ("error" in cardsResult) {
+      if (cardsResult.notFound) {
+        // No cards yet — initialize with empty array
+        initializeFromServerData(
+          userIdStr,
+          uname,
+          aUrl,
+          [],
+          undefined,
+          statCardTypes.map((t) => t.id),
+        );
+        setLoadingPhase("complete");
+        return;
+      } else {
+        const errorDetails = getErrorDetails(cardsResult.error);
+        trackUserActionError(
+          "user_page_load_fetch_cards",
+          new Error(cardsResult.error),
+          errorDetails.category,
+          {
+            userId: userIdStr,
+            username: uname ?? undefined,
+          },
+        );
+        setCardsWarning(
+          "Failed to load saved cards due to a server error. Default cards are shown for now.",
+        );
+        initializeFromServerData(
+          userIdStr,
+          uname,
+          aUrl,
+          [],
+          undefined,
+          statCardTypes.map((t) => t.id),
+        );
+        setLoadingPhase("complete");
+        return;
+      }
+    }
+
+    // Success
+    setCardsWarning(null);
+    initializeFromServerData(
+      userIdStr,
+      uname,
+      aUrl,
+      cardsResult.cards,
+      cardsResult.globalSettings,
+      statCardTypes.map((t) => t.id),
+    );
+  }
+
   // Load user data on mount (re-runs when `searchParams` change)
   useEffect(() => {
     const rawUserIdParam = searchParams.get("userId");
@@ -700,7 +853,7 @@ export function UserPageEditor() {
       // Step 1: Check if user exists in the database
       const userResult = await fetchUserData(userIdParam, usernameParam);
 
-      // Step 2: If user not found (404), set up new user profile
+      // New user flow (404) — delegate to helper
       if ("error" in userResult && userResult.notFound) {
         setIsNewUser(true);
 
@@ -718,7 +871,7 @@ export function UserPageEditor() {
           return;
         }
 
-        // Initialize the editor with the new user data
+        // Initialize the editor with the new user data and fetch persisted cards
         setLoadingPhase("loading_cards");
         setUserData(
           setupResult.userId.toString(),
@@ -726,87 +879,11 @@ export function UserPageEditor() {
           setupResult.avatarUrl,
         );
 
-        // Fetch the cards we just persisted so the client view matches the server.
-        const persistedCardsResult = await fetchUserCards(
-          setupResult.userId.toString(),
+        await handlePersistedCardsAfterNewUserSetup(
+          setupResult.userId,
+          setupResult.username,
+          setupResult.avatarUrl,
         );
-
-        // Handle 404 (no cards yet) specially; surface other errors with a
-        // non-fatal warning so operational problems aren't silently hidden.
-        if ("error" in persistedCardsResult) {
-          if (persistedCardsResult.notFound) {
-            // No cards persisted yet — fall back to initial snapshot (expected).
-            const initialCards = buildInitialCardsSnapshot();
-            initializeFromServerData(
-              setupResult.userId.toString(),
-              setupResult.username,
-              setupResult.avatarUrl,
-              initialCards,
-              { colorPreset: "default", borderEnabled: false },
-              statCardTypes.map((t) => t.id),
-            );
-          } else {
-            // Unexpected error — track and show a non-fatal warning to the user.
-            const errorDetails = getErrorDetails(persistedCardsResult.error);
-            trackUserActionError(
-              "new_user_setup_fetch_cards",
-              new Error(persistedCardsResult.error),
-              errorDetails.category,
-              {
-                userId: setupResult.userId.toString(),
-                username: setupResult.username ?? undefined,
-              },
-            );
-            setCardsWarning(
-              "We couldn't load your saved cards due to a server error. Default cards are displayed for now.",
-            );
-            const initialCards = buildInitialCardsSnapshot();
-            initializeFromServerData(
-              setupResult.userId.toString(),
-              setupResult.username,
-              setupResult.avatarUrl,
-              initialCards,
-              { colorPreset: "default", borderEnabled: false },
-              statCardTypes.map((t) => t.id),
-            );
-          }
-        } else if (
-          Array.isArray(persistedCardsResult.cards) &&
-          persistedCardsResult.cards.length === 0
-        ) {
-          const msg = "No persisted cards were returned after initial save";
-          const details = getErrorDetails(msg);
-          trackUserActionError(
-            "new_user_setup_fetch_cards",
-            new Error(msg),
-            details.category,
-            {
-              userId: setupResult.userId.toString(),
-              username: setupResult.username ?? undefined,
-            },
-          );
-          console.warn(msg, { userId: setupResult.userId });
-          const initialCards = buildInitialCardsSnapshot();
-          initializeFromServerData(
-            setupResult.userId.toString(),
-            setupResult.username,
-            setupResult.avatarUrl,
-            initialCards,
-            { colorPreset: "default", borderEnabled: false },
-            statCardTypes.map((t) => t.id),
-          );
-        } else {
-          initializeFromServerData(
-            setupResult.userId.toString(),
-            setupResult.username,
-            setupResult.avatarUrl,
-            persistedCardsResult.cards,
-            persistedCardsResult.globalSettings,
-            statCardTypes.map((t) => t.id),
-          );
-          // Clear any previous warning if load now succeeded
-          setCardsWarning(null);
-        }
 
         setLoadingPhase("complete");
         return;
@@ -831,60 +908,13 @@ export function UserPageEditor() {
       setLoadingPhase("loading_cards");
       setUserData(userResult.userId, userResult.username, userResult.avatarUrl);
 
-      // Fetch existing cards
-      const cardsResult = await fetchUserCards(userResult.userId);
-      if ("error" in cardsResult) {
-        if (cardsResult.notFound) {
-          // No cards yet — initialize with empty array
-          initializeFromServerData(
-            userResult.userId,
-            userResult.username,
-            userResult.avatarUrl,
-            [],
-            undefined,
-            statCardTypes.map((t) => t.id),
-          );
-          setLoadingPhase("complete");
-          return;
-        } else {
-          // Unexpected server or network error — track and show a non-fatal warning
-          const errorDetails = getErrorDetails(cardsResult.error);
-          trackUserActionError(
-            "user_page_load_fetch_cards",
-            new Error(cardsResult.error),
-            errorDetails.category,
-            {
-              userId: userResult.userId,
-              username: userResult.username ?? undefined,
-            },
-          );
-          setCardsWarning(
-            "Failed to load saved cards due to a server error. Default cards are shown for now.",
-          );
-          initializeFromServerData(
-            userResult.userId,
-            userResult.username,
-            userResult.avatarUrl,
-            [],
-            undefined,
-            statCardTypes.map((t) => t.id),
-          );
-          setLoadingPhase("complete");
-          return;
-        }
-      }
-
-      // If successful, clear any previous warning
-      setCardsWarning(null);
-
-      initializeFromServerData(
+      // Delegate cards loading to helper
+      await handleCardsForExistingUser(
         userResult.userId,
         userResult.username,
         userResult.avatarUrl,
-        cardsResult.cards,
-        cardsResult.globalSettings,
-        statCardTypes.map((t) => t.id),
       );
+
       setLoadingPhase("complete");
     };
 
