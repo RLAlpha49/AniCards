@@ -365,7 +365,9 @@ function extractGlobalSettings(firstCard: ServerCardData): {
       : DEFAULT_CARD_BORDER_RADIUS;
 
   return { preset, colors, borderEnabled, borderColor, borderRadius };
-} /**
+}
+
+/**
  * Converts a server card to an editor config.
  * @source
  */
