@@ -91,6 +91,14 @@ interface CardTileProps {
   infoTooltip?: string;
 }
 
+const DEFAULT_CARD_CONFIG: CardEditorConfig = {
+  cardId: "",
+  enabled: false,
+  variant: "default",
+  colorOverride: { useCustomSettings: false },
+  advancedSettings: {},
+};
+
 /**
  * Individual card tile with preview, variant selector, and settings.
  * @param props - Component props.
@@ -135,15 +143,6 @@ export function CardTile({
   } = useUserPageEditor();
 
   const isSelected = selectedCardIds.has(cardId);
-
-  // Get or create card config
-  const DEFAULT_CARD_CONFIG: CardEditorConfig = {
-    cardId: "",
-    enabled: false,
-    variant: "default",
-    colorOverride: { useCustomSettings: false },
-    advancedSettings: {},
-  };
 
   const config = cardConfigs[cardId] ?? { ...DEFAULT_CARD_CONFIG, cardId };
   const effectiveColors = getEffectiveColors(cardId);
