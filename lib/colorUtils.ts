@@ -10,6 +10,11 @@ import type { GradientDefinition } from "@/lib/types/card";
  * the behavior used in existing local helpers.
  */
 export function hexToRgba(hex: string, alpha: number): string {
+  // Normalize alpha: clamp to [0, 1], default to 0 if invalid
+  const normalizedAlpha = Number.isFinite(alpha)
+    ? Math.max(0, Math.min(1, alpha))
+    : 0;
+
   // Normalize: strip leading '#' and whitespace
   let cleanHex = hex.trim().replace(/^#/, "").toLowerCase();
 
@@ -23,14 +28,13 @@ export function hexToRgba(hex: string, alpha: number): string {
 
   // Accept 6 or 8 hex digits; use only the first 6 characters for r/g/b
   if (!/^[a-f0-9]{6}(?:[a-f0-9]{2})?$/.test(cleanHex)) {
-    return `rgba(0, 0, 0, ${alpha})`;
+    return `rgba(0, 0, 0, ${normalizedAlpha})`;
   }
 
   const r = Number.parseInt(cleanHex.substring(0, 2), 16);
   const g = Number.parseInt(cleanHex.substring(2, 4), 16);
   const b = Number.parseInt(cleanHex.substring(4, 6), 16);
-  const a = Number.isFinite(alpha) ? Math.max(0, Math.min(1, alpha)) : alpha;
-  return `rgba(${r}, ${g}, ${b}, ${a})`;
+  return `rgba(${r}, ${g}, ${b}, ${normalizedAlpha})`;
 }
 /**
  * Convert a GradientDefinition into a CSS gradient string.
