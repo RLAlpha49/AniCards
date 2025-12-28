@@ -198,6 +198,7 @@ export function CardTile({
 
   return (
     <div
+      data-testid={`card-tile-${cardId}`}
       className={cn(
         "group relative overflow-hidden rounded-xl border transition-all duration-200",
         config.enabled

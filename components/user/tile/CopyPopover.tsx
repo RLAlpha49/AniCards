@@ -17,7 +17,6 @@ interface CopyPopoverProps {
   onCopyUrl: () => Promise<void> | void;
   onCopyAniList: () => Promise<void> | void;
   previewUnavailableId?: string;
-  isAnyPopoverOpen?: boolean;
 }
 
 export function CopyPopover({
@@ -28,7 +27,6 @@ export function CopyPopover({
   onCopyUrl,
   onCopyAniList,
   previewUnavailableId,
-  isAnyPopoverOpen = false,
 }: Readonly<CopyPopoverProps>) {
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
@@ -45,7 +43,6 @@ export function CopyPopover({
             copiedFormat
               ? "bg-green-500 text-white shadow-green-500/25 hover:bg-green-600"
               : "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-purple-500/25 hover:scale-105 hover:shadow-xl hover:shadow-purple-500/30",
-            isAnyPopoverOpen && "opacity-100",
             !previewUrl && "cursor-not-allowed opacity-80",
           )}
         >

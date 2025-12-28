@@ -4,7 +4,7 @@ import Image from "next/image";
 import { Eye } from "lucide-react";
 import { CopyPopover } from "@/components/user/tile/CopyPopover";
 import { DownloadPopover } from "@/components/user/tile/DownloadPopover";
-import type { ConversionFormat } from "@/lib/utils";
+import { cn, type ConversionFormat } from "@/lib/utils";
 
 interface CardPreviewProps {
   previewUrl: string | null;
@@ -82,9 +82,12 @@ export function CardPreview({
         </span>
       )}
       <div
-        className={
-          "absolute inset-0 flex items-center justify-center gap-2 transition-all"
-        }
+        className={cn(
+          "absolute inset-0 flex items-center justify-center gap-2 transition-opacity",
+          isAnyPopoverOpen
+            ? "visible opacity-100"
+            : "invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100",
+        )}
       >
         <CopyPopover
           open={copyPopoverOpen}
@@ -94,7 +97,6 @@ export function CardPreview({
           onCopyUrl={onCopyUrl}
           onCopyAniList={onCopyAniList}
           previewUnavailableId={previewUnavailableId}
-          isAnyPopoverOpen={isAnyPopoverOpen}
         />
         <DownloadPopover
           open={downloadPopoverOpen}
@@ -104,7 +106,6 @@ export function CardPreview({
           onDownload={onDownload}
           downloadDescrId={downloadDescrId}
           downloadTitle={downloadTitle}
-          isAnyPopoverOpen={isAnyPopoverOpen}
         />
       </div>
     </div>

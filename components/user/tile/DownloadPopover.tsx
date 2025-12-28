@@ -18,7 +18,6 @@ interface DownloadPopoverProps {
   onDownload: (format: ConversionFormat) => Promise<void> | void;
   downloadDescrId?: string;
   downloadTitle?: string;
-  isAnyPopoverOpen?: boolean;
 }
 
 export function DownloadPopover({
@@ -29,7 +28,6 @@ export function DownloadPopover({
   onDownload,
   downloadDescrId,
   downloadTitle,
-  isAnyPopoverOpen = false,
 }: Readonly<DownloadPopoverProps>) {
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
@@ -46,7 +44,6 @@ export function DownloadPopover({
             "border-2 border-white/80 bg-white/20 text-white backdrop-blur-sm",
             "hover:border-white hover:bg-white/30",
             "disabled:opacity-70",
-            isAnyPopoverOpen && "opacity-100",
             !previewUrl && "cursor-not-allowed",
           )}
         >

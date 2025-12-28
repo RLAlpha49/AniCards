@@ -75,6 +75,36 @@ test.describe("User page", () => {
       await expect(cards).toHaveCount(mockCardsRecord.cards.length);
     });
 
+    await test.step(
+      "Per-card quick actions are hidden by default and appear on hover/focus",
+      async () => {
+        // Ensure we are not accidentally hovering a card tile before asserting hidden state.
+        await page.getByRole("heading", { name: /your cards/i }).hover();
+
+        const tile = page.getByTestId("card-tile-animeStats");
+        const copyTrigger = tile.getByRole("button", { name: /copy url/i });
+        const downloadTrigger = tile.getByRole("button", {
+          name: /^download$/i,
+        });
+
+        await expect(copyTrigger).toBeHidden();
+        await expect(downloadTrigger).toBeHidden();
+
+        // Keyboard users should also get quick actions via focus-within.
+        await tile
+          .getByRole("checkbox", { name: /select anime stats card/i })
+          .focus();
+        await expect(copyTrigger).toBeVisible();
+        await expect(downloadTrigger).toBeVisible();
+
+        // And mouse users via hover.
+        await page.getByRole("heading", { name: /your cards/i }).hover();
+        await tile.hover();
+        await expect(copyTrigger).toBeVisible();
+        await expect(downloadTrigger).toBeVisible();
+      },
+    );
+
     await test.step("Inspect export controls", async () => {
       // Select the rendered cards so the bulk actions toolbar appears
       await page
