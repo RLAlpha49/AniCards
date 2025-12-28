@@ -290,7 +290,9 @@ export function UserPageHeader({
             {/* Save status indicator */}
             {saveInfo && (
               <motion.div variants={itemVariants} className="shrink-0">
-                <div
+                <output
+                  aria-live="polite"
+                  aria-atomic="true"
                   className={cn(
                     "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all",
                     saveInfo.className,
@@ -302,7 +304,7 @@ export function UserPageHeader({
                     <saveInfo.Icon className="h-4 w-4" />
                   )}
                   <span>{saveInfo.text}</span>
-                </div>
+                </output>
               </motion.div>
             )}
           </div>
