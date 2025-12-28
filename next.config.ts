@@ -49,6 +49,31 @@ const nextConfig: NextConfig = {
         protocol: "http",
         port: "3000",
       },
+      // AniList hosts
+      {
+        hostname: "anilist.co",
+        protocol: "https",
+      },
+      {
+        hostname: "cdn.anilist.co",
+        protocol: "https",
+      },
+      {
+        hostname: "s1.anilist.co",
+        protocol: "https",
+      },
+      {
+        hostname: "s2.anilist.co",
+        protocol: "https",
+      },
+      {
+        hostname: "s3.anilist.co",
+        protocol: "https",
+      },
+      {
+        hostname: "s4.anilist.co",
+        protocol: "https",
+      },
     ],
     qualities: [100, 75],
   },

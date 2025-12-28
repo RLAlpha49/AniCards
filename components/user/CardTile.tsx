@@ -425,7 +425,6 @@ export function CardTile({
                 src={previewUrl}
                 alt={`${label} preview`}
                 fill
-                unoptimized
                 className="object-contain p-2"
                 style={{ borderRadius: borderRadiusValue }}
               />

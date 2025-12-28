@@ -179,7 +179,6 @@ function Avatar({
         "relative h-20 w-20 rounded-full border-4 border-white object-cover shadow-lg dark:border-slate-800 sm:h-24 sm:w-24",
         imageClassName,
       )}
-      unoptimized
       onError={() => setImageError(true)}
     />
   ) : (
