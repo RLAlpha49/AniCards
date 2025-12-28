@@ -1098,6 +1098,86 @@ describe("Store Cards API POST Endpoint", () => {
       expect(stored.globalSettings).toBeUndefined();
     });
 
+    it("should preserve existing globalSettings when incoming contains only unknown fields", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const userId = 801;
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [],
+          globalSettings: {
+            colorPreset: "default",
+            borderEnabled: true,
+            borderColor: "#00ff00",
+            gridCols: 3,
+          },
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        cards: [],
+        globalSettings: { unexpectedField: "malicious" },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.borderEnabled).toBe(true);
+      expect(stored.globalSettings.borderColor).toBe("#00ff00");
+      expect(stored.globalSettings.gridCols).toBe(3);
+    });
+
+    it("should accept valid gradient color in globalSettings", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const gradient = { type: "linear", stops: [{ color: "#fff", offset: 0 }, { color: "#000", offset: 100 }] };
+      const req = createRequest({
+        userId: 802,
+        statsData: {},
+        cards: [],
+        globalSettings: { titleColor: gradient },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.titleColor).toEqual(gradient);
+    });
+
+    it("should omit invalid gradient value in globalSettings", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const badGradient = { type: "linear", stops: [{ color: "#fff", offset: 0 }] };
+      const req = createRequest({
+        userId: 803,
+        statsData: {},
+        cards: [],
+        globalSettings: { titleColor: badGradient },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings).toBeUndefined();
+    });
+
+    it("should clamp incoming global borderRadius when provided", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const req = createRequest({
+        userId: 900,
+        statsData: {},
+        cards: [],
+        globalSettings: { colorPreset: "default", borderEnabled: true, borderRadius: 1000 },
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const stored = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
+      expect(stored.globalSettings.borderRadius).toBe(100);
+    });
+
     it("should preserve per-card borderColor and borderRadius even when borders are disabled globally", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({
