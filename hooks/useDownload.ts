@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { getAbsoluteUrl, svgToPng, type ConversionFormat } from "@/lib/utils";
 
 export function useDownload(
@@ -8,10 +8,12 @@ export function useDownload(
   opts: { cardId: string; variant: string },
 ) {
   const [isDownloading, setIsDownloading] = useState(false);
+  const isDownloadingRef = useRef(isDownloading);
 
   const handleDownload = useCallback(
     async (format: ConversionFormat = "png") => {
-      if (!previewUrl || isDownloading) return;
+      if (!previewUrl || isDownloadingRef.current) return;
+      isDownloadingRef.current = true;
       setIsDownloading(true);
       let link: HTMLAnchorElement | null = null;
       try {
@@ -26,10 +28,11 @@ export function useDownload(
         console.error("Failed to download card:", error);
       } finally {
         link?.remove();
+        isDownloadingRef.current = false;
         setIsDownloading(false);
       }
     },
-    [previewUrl, opts, isDownloading],
+    [previewUrl, opts],
   );
 
   return { isDownloading, handleDownload } as const;
