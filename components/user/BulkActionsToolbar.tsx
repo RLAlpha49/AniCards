@@ -3,29 +3,16 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  X,
-  Copy,
-  Download,
-  CheckSquare,
-  ChevronDown,
-  Loader2,
-  Link,
-  ImageIcon,
-  Check,
-  Info,
-} from "lucide-react";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/Alert";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/Popover";
 import {
   useUserPageEditor,
   type CardEditorConfig,
 } from "@/lib/stores/user-page-editor";
+import { SelectionCounter } from "./bulk/SelectionCounter";
+import { CopyUrlsPopover } from "./bulk/CopyUrlsPopover";
+import { DownloadPopover } from "./bulk/DownloadPopover";
+import { DownloadStatusAlerts } from "./bulk/DownloadStatusAlerts";
 import {
   cn,
   batchConvertAndZip,
@@ -210,13 +197,24 @@ export function BulkActionsToolbar({
               card.url,
               globalThis.location.origin,
             ).toString();
-            return format === "anilist" ? `img200(${resolvedUrl})` : resolvedUrl;
+            return format === "anilist"
+              ? `img200(${resolvedUrl})`
+              : resolvedUrl;
           } catch (err) {
-            console.error(`Failed to construct URL for card ${card.cardId}:`, err);
+            console.error(
+              `Failed to construct URL for card ${card.cardId}:`,
+              err,
+            );
             return null;
           }
         })
         .filter((url): url is string => url !== null);
+
+      if (urls.length === 0) {
+        console.error("No valid URLs to copy");
+        return;
+      }
+
       try {
         await navigator.clipboard.writeText(urls.join("\n"));
         setCopiedFormat(format);
@@ -311,6 +309,13 @@ export function BulkActionsToolbar({
     [selectedCards, isDownloading],
   );
 
+  const copyFailedListToClipboard = useCallback((list: string[]) => {
+    void navigator.clipboard.writeText(list.join("\n")).catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      setDownloadError(`Failed to copy failed list: ${msg}`);
+    });
+  }, [setDownloadError]);
+
   // Don't render portal during SSR or before hydration
   if (!isMounted) return null;
 
@@ -342,287 +347,31 @@ export function BulkActionsToolbar({
               className,
             )}
           >
-            {/* Selection count */}
-            <div className="flex items-center gap-2 sm:border-r sm:border-slate-200 sm:pr-3 dark:sm:border-slate-700">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/40">
-                <CheckSquare className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-semibold text-slate-900 dark:text-white">
-                  {selectedCount} selected
-                </span>
-                <button
-                  type="button"
-                  onClick={selectAllEnabled}
-                  className="text-left text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                >
-                  Select all enabled
-                </button>
-              </div>
-            </div>
+            <SelectionCounter
+              selectedCount={selectedCount}
+              selectAllEnabled={selectAllEnabled}
+            />
 
-            {/* Copy actions */}
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    "h-9 gap-1.5 rounded-lg px-3 font-medium shadow-md transition-all",
-                    copiedFormat
-                      ? "bg-green-500 text-white shadow-green-500/25 hover:bg-green-600"
-                      : "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-purple-500/25 hover:scale-[1.02] hover:shadow-lg hover:shadow-purple-500/30",
-                  )}
-                >
-                  {copiedFormat ? (
-                    <>
-                      <Check className="h-4 w-4" aria-hidden="true" />
-                      <span>Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-4 w-4" aria-hidden="true" />
-                      <span className="hidden sm:inline">Copy URLs</span>
-                      <ChevronDown className="h-3 w-3" aria-hidden="true" />
-                    </>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-48 p-1.5" align="center" side="top">
-                <div className="flex flex-col gap-0.5">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-blue-50 dark:hover:bg-blue-950/50"
-                    onClick={() => void handleCopyUrls("url")}
-                  >
-                    <Link
-                      className="h-4 w-4 text-blue-600 dark:text-blue-400"
-                      aria-hidden="true"
-                    />
-                    <span>Raw URLs</span>
-                    {copiedFormat === "url" && (
-                      <Check
-                        className="ml-auto h-4 w-4 text-green-600"
-                        aria-hidden="true"
-                      />
-                    )}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-purple-50 dark:hover:bg-purple-950/50"
-                    onClick={() => void handleCopyUrls("anilist")}
-                  >
-                    <ImageIcon
-                      className="h-4 w-4 text-purple-600 dark:text-purple-400"
-                      aria-hidden="true"
-                    />
-                    <span>AniList Format</span>
-                    {copiedFormat === "anilist" && (
-                      <Check
-                        className="ml-auto h-4 w-4 text-green-600"
-                        aria-hidden="true"
-                      />
-                    )}
-                  </Button>
-                </div>
-              </PopoverContent>
-            </Popover>
+            <CopyUrlsPopover
+              copiedFormat={copiedFormat}
+              setCopiedFormat={setCopiedFormat}
+              handleCopyUrls={handleCopyUrls}
+              copyTimerRef={copyTimerRef}
+            />
 
-            {/* Download actions */}
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={isDownloading}
-                  className={cn(
-                    "h-9 gap-1.5 rounded-lg border-2 px-3 font-medium transition-all",
-                    "border-blue-200 bg-blue-50/50 text-blue-700 hover:border-blue-300 hover:bg-blue-100",
-                    "dark:border-blue-700/50 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:border-blue-600 dark:hover:bg-blue-950/50",
-                    "disabled:opacity-70",
-                  )}
-                >
-                  {isDownloading ? (
-                    <>
-                      <Loader2
-                        className="h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
-                      <span className="hidden sm:inline">
-                        {downloadProgress.current}/{downloadProgress.total}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <Download className="h-4 w-4" aria-hidden="true" />
-                      <span className="hidden sm:inline">Download</span>
-                      <ChevronDown className="h-3 w-3" aria-hidden="true" />
-                    </>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-40 p-1.5" align="center" side="top">
-                <div className="flex flex-col gap-0.5">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
-                    onClick={() => void handleDownloadAll("png")}
-                  >
-                    <span className="font-medium text-slate-700 dark:text-slate-200">
-                      PNG
-                    </span>
-                    <span className="ml-auto text-xs text-slate-500">
-                      Lossless
-                    </span>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
-                    onClick={() => void handleDownloadAll("webp")}
-                  >
-                    <span className="font-medium text-slate-700 dark:text-slate-200">
-                      WebP
-                    </span>
-                    <span className="ml-auto text-xs text-slate-500">
-                      Smaller
-                    </span>
-                  </Button>
-                </div>
-              </PopoverContent>
-            </Popover>
+            <DownloadPopover
+              isDownloading={isDownloading}
+              downloadProgress={downloadProgress}
+              handleDownloadAll={handleDownloadAll}
+            />
 
-            {/* Download status / alerts */}
-            <AnimatePresence>
-              {downloadError && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95, height: 0 }}
-                  animate={{ opacity: 1, scale: 1, height: "auto" }}
-                  exit={{ opacity: 0, scale: 0.95, height: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="w-full sm:w-auto"
-                >
-                  <Alert
-                    variant="destructive"
-                    aria-live="assertive"
-                    className="border-red-200/50 bg-red-50/80 dark:border-red-800/50 dark:bg-red-950/30"
-                  >
-                    <Info className="h-4 w-4" aria-hidden="true" />
-                    <AlertTitle className="text-red-800 dark:text-red-200">
-                      Download Error
-                    </AlertTitle>
-                    <AlertDescription className="text-red-700 dark:text-red-300">
-                      {downloadError}
-                    </AlertDescription>
-                    <div className="ml-auto flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setDownloadError(null)}
-                      >
-                        Close
-                      </Button>
-                    </div>
-                  </Alert>
-                </motion.div>
-              )}
-
-              {downloadSummary && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95, height: 0 }}
-                  animate={{ opacity: 1, scale: 1, height: "auto" }}
-                  exit={{ opacity: 0, scale: 0.95, height: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="w-full sm:w-auto"
-                >
-                  <Alert
-                    variant={
-                      downloadSummary.failed > 0 ? "destructive" : "default"
-                    }
-                    aria-live={
-                      downloadSummary.failed > 0 ? "assertive" : "polite"
-                    }
-                    className={cn(
-                      downloadSummary.failed > 0
-                        ? "border-red-200/50 bg-red-50/80 dark:border-red-800/50 dark:bg-red-950/30"
-                        : "border-slate-200/50 bg-white/80 dark:border-slate-700/50 dark:bg-slate-800/80",
-                      "mt-2 sm:mt-0",
-                    )}
-                  >
-                    <Info className="h-4 w-4" aria-hidden="true" />
-                    <AlertTitle
-                      className={
-                        downloadSummary.failed > 0
-                          ? "text-red-800 dark:text-red-200"
-                          : "text-slate-900 dark:text-white"
-                      }
-                    >
-                      {downloadSummary.failed > 0
-                        ? `Export completed with ${downloadSummary.failed} failed`
-                        : `Exported ${downloadSummary.exported}/${downloadSummary.total}`}
-                    </AlertTitle>
-
-                    {downloadSummary.failedCardRawTypes &&
-                      downloadSummary.failedCardRawTypes.length > 0 && (
-                        <AlertDescription
-                          className={
-                            downloadSummary.failed > 0
-                              ? "text-red-700 dark:text-red-300"
-                              : "text-slate-600 dark:text-slate-400"
-                          }
-                        >
-                          {downloadSummary.failedCardRawTypes
-                            .slice(0, 5)
-                            .join(", ")}
-                          {downloadSummary.failedCardRawTypes.length > 5
-                            ? ", ..."
-                            : ""}
-                        </AlertDescription>
-                      )}
-
-                    <div className="ml-auto flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setDownloadSummary(null)}
-                      >
-                        Close
-                      </Button>
-
-                      {downloadSummary.failed > 0 &&
-                        downloadSummary.failedCardRawTypes &&
-                        downloadSummary.failedCardRawTypes.length > 0 && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            aria-label="Copy failed card list"
-                            onClick={() => {
-                              const list =
-                                downloadSummary.failedCardRawTypes ?? [];
-                              void navigator.clipboard
-                                .writeText(list.join("\n"))
-                                .catch((err) => {
-                                  const msg =
-                                    err instanceof Error
-                                      ? err.message
-                                      : String(err);
-                                  setDownloadError(
-                                    `Failed to copy failed list: ${msg}`,
-                                  );
-                                });
-                            }}
-                          >
-                            Copy list
-                          </Button>
-                        )}
-                    </div>
-                  </Alert>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <DownloadStatusAlerts
+              downloadSummary={downloadSummary}
+              downloadError={downloadError}
+              setDownloadSummary={setDownloadSummary}
+              setDownloadError={setDownloadError}
+              copyToClipboard={copyFailedListToClipboard}
+            />
 
             {/* Clear selection button */}
             <Button
