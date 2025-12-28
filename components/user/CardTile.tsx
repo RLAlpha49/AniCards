@@ -203,6 +203,7 @@ export function CardTile({
     effectiveColors,
     effectiveBorderColor,
     effectiveBorderRadius,
+    globalAdvancedSettings,
   ]);
 
   const handleToggleEnabled = useCallback(() => {
