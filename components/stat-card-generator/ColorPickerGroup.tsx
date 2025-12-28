@@ -188,7 +188,10 @@ function adjustColor(hex: string, amount: number): string {
   let cleanHex = hex.trim().replace(/^#/, "").toLowerCase();
 
   if (/^[a-f0-9]{3}$/.test(cleanHex)) {
-    cleanHex = cleanHex.split("").map((c) => c + c).join("");
+    cleanHex = cleanHex
+      .split("")
+      .map((c) => c + c)
+      .join("");
   }
 
   // Accept 6 or 8 hex digits; use only the first 6 characters

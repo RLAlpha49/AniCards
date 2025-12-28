@@ -169,7 +169,7 @@ export function CardSettingsDialog({
   }, [cardId, resetCardToGlobal]);
 
   // Pass raw per-card overrides and let `SettingsContent` merge with globals
-  const rawAdvancedSettings = config.advancedSettings; 
+  const rawAdvancedSettings = config.advancedSettings;
 
   const handleAdvancedSettingChange = useCallback(
     <K extends keyof CardAdvancedSettings>(

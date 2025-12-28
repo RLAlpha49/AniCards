@@ -1133,7 +1133,13 @@ describe("Store Cards API POST Endpoint", () => {
 
     it("should accept valid gradient color in globalSettings", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      const gradient = { type: "linear", stops: [{ color: "#fff", offset: 0 }, { color: "#000", offset: 100 }] };
+      const gradient = {
+        type: "linear",
+        stops: [
+          { color: "#fff", offset: 0 },
+          { color: "#000", offset: 100 },
+        ],
+      };
       const req = createRequest({
         userId: 802,
         statsData: {},
@@ -1149,7 +1155,10 @@ describe("Store Cards API POST Endpoint", () => {
 
     it("should omit invalid gradient value in globalSettings", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      const badGradient = { type: "linear", stops: [{ color: "#fff", offset: 0 }] };
+      const badGradient = {
+        type: "linear",
+        stops: [{ color: "#fff", offset: 0 }],
+      };
       const req = createRequest({
         userId: 803,
         statsData: {},
@@ -1169,7 +1178,11 @@ describe("Store Cards API POST Endpoint", () => {
         userId: 900,
         statsData: {},
         cards: [],
-        globalSettings: { colorPreset: "default", borderEnabled: true, borderRadius: 1000 },
+        globalSettings: {
+          colorPreset: "default",
+          borderEnabled: true,
+          borderRadius: 1000,
+        },
       });
 
       const res = await POST(req);

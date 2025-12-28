@@ -139,11 +139,14 @@ export function SettingsContent({
   // undefined means "inherit" and the UI reflects the resolved behavior.
   const effectiveAdvancedSettings = {
     useStatusColors:
-      advancedSettings.useStatusColors ?? inheritedAdvancedSettings?.useStatusColors,
+      advancedSettings.useStatusColors ??
+      inheritedAdvancedSettings?.useStatusColors,
     showPiePercentages:
-      advancedSettings.showPiePercentages ?? inheritedAdvancedSettings?.showPiePercentages,
+      advancedSettings.showPiePercentages ??
+      inheritedAdvancedSettings?.showPiePercentages,
     showFavorites:
-      advancedSettings.showFavorites ?? inheritedAdvancedSettings?.showFavorites,
+      advancedSettings.showFavorites ??
+      inheritedAdvancedSettings?.showFavorites,
     gridCols:
       advancedSettings.gridCols ?? inheritedAdvancedSettings?.gridCols ?? 3,
     gridRows:
@@ -381,7 +384,9 @@ export function SettingsContent({
                   </div>
                 </div>
                 <Switch
-                  checked={effectiveAdvancedSettings.showPiePercentages ?? false}
+                  checked={
+                    effectiveAdvancedSettings.showPiePercentages ?? false
+                  }
                   onCheckedChange={(checked) =>
                     onAdvancedSettingChange("showPiePercentages", checked)
                   }

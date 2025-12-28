@@ -272,10 +272,13 @@ function isValidColorValue(value: unknown): boolean {
   for (const stop of stops as unknown[]) {
     if (typeof stop !== "object" || stop === null) return false;
     const stopObj = stop as Record<string, unknown>;
-    if (typeof stopObj.color !== "string" || typeof stopObj.offset !== "number") return false;
-    if ("opacity" in stopObj && typeof stopObj.opacity !== "number") return false;
+    if (typeof stopObj.color !== "string" || typeof stopObj.offset !== "number")
+      return false;
+    if ("opacity" in stopObj && typeof stopObj.opacity !== "number")
+      return false;
   }
-  if ("type" in obj && obj.type !== "linear" && obj.type !== "radial") return false;
+  if ("type" in obj && obj.type !== "linear" && obj.type !== "radial")
+    return false;
   return true;
 }
 
@@ -290,7 +293,10 @@ function sanitizeIncomingGlobalSettings(
   if (!incoming || typeof incoming !== "object") return undefined;
   const sanitized: Partial<GlobalCardSettings> = {};
 
-  if (typeof incoming.colorPreset === "string" && incoming.colorPreset.trim() !== "") {
+  if (
+    typeof incoming.colorPreset === "string" &&
+    incoming.colorPreset.trim() !== ""
+  ) {
     sanitized.colorPreset = incoming.colorPreset;
   }
 
@@ -322,8 +328,12 @@ function sanitizeIncomingGlobalSettings(
     }
   }
 
-  if (typeof incoming.borderColor === "string") sanitized.borderColor = incoming.borderColor;
-  if (typeof incoming.borderRadius === "number" && Number.isFinite(incoming.borderRadius))
+  if (typeof incoming.borderColor === "string")
+    sanitized.borderColor = incoming.borderColor;
+  if (
+    typeof incoming.borderRadius === "number" &&
+    Number.isFinite(incoming.borderRadius)
+  )
     sanitized.borderRadius = clampBorderRadius(incoming.borderRadius);
 
   const cols = clampGridDim(incoming.gridCols);
@@ -428,7 +438,6 @@ function computeEffectiveBorderRadius(
   return undefined;
 }
 
-
 /**
  * Validates, persists, and reports analytics for the user card configuration payload.
  * @param request - Incoming request containing the user ID, stats, and card array.
@@ -507,11 +516,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
 
     // Sanitize incoming globalSettings to only include known keys and valid types.
-    const sanitizedGlobalSettings = sanitizeIncomingGlobalSettings(globalSettings);
+    const sanitizedGlobalSettings =
+      sanitizeIncomingGlobalSettings(globalSettings);
 
     // Determine effective borderEnabled early for use in card config building
     const effectiveBorderEnabled =
-      sanitizedGlobalSettings?.borderEnabled ?? existingGlobalSettings?.borderEnabled;
+      sanitizedGlobalSettings?.borderEnabled ??
+      existingGlobalSettings?.borderEnabled;
 
     // Process incoming cards: update existing or add new ones
     // Apply incoming typed cards (validated above)
@@ -527,7 +538,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
 
     const effectiveBorderColor = effectiveBorderEnabled
-      ? (sanitizedGlobalSettings?.borderColor ?? existingGlobalSettings?.borderColor)
+      ? (sanitizedGlobalSettings?.borderColor ??
+        existingGlobalSettings?.borderColor)
       : undefined;
 
     const {
@@ -536,30 +548,39 @@ export async function POST(request: Request): Promise<NextResponse> {
       showFavorites: effectiveShowFavorites,
       gridCols: effectiveGridCols,
       gridRows: effectiveGridRows,
-    } = mergeGlobalAdvancedSettings(sanitizedGlobalSettings, existingGlobalSettings);
+    } = mergeGlobalAdvancedSettings(
+      sanitizedGlobalSettings,
+      existingGlobalSettings,
+    );
 
-    const mergedGlobalSettings: GlobalCardSettings | undefined = sanitizedGlobalSettings
-      ? {
-          colorPreset:
-            sanitizedGlobalSettings.colorPreset ?? existingGlobalSettings?.colorPreset,
-          titleColor:
-            sanitizedGlobalSettings.titleColor ?? existingGlobalSettings?.titleColor,
-          backgroundColor:
-            sanitizedGlobalSettings.backgroundColor ?? existingGlobalSettings?.backgroundColor,
-          textColor:
-            sanitizedGlobalSettings.textColor ?? existingGlobalSettings?.textColor,
-          circleColor:
-            sanitizedGlobalSettings.circleColor ?? existingGlobalSettings?.circleColor,
-          borderEnabled: effectiveBorderEnabled,
-          borderColor: effectiveBorderColor,
-          borderRadius: effectiveBorderRadius,
-          useStatusColors: effectiveUseStatusColors,
-          showPiePercentages: effectiveShowPiePercentages,
-          showFavorites: effectiveShowFavorites,
-          gridCols: effectiveGridCols,
-          gridRows: effectiveGridRows,
-        }
-      : existingGlobalSettings;
+    const mergedGlobalSettings: GlobalCardSettings | undefined =
+      sanitizedGlobalSettings
+        ? {
+            colorPreset:
+              sanitizedGlobalSettings.colorPreset ??
+              existingGlobalSettings?.colorPreset,
+            titleColor:
+              sanitizedGlobalSettings.titleColor ??
+              existingGlobalSettings?.titleColor,
+            backgroundColor:
+              sanitizedGlobalSettings.backgroundColor ??
+              existingGlobalSettings?.backgroundColor,
+            textColor:
+              sanitizedGlobalSettings.textColor ??
+              existingGlobalSettings?.textColor,
+            circleColor:
+              sanitizedGlobalSettings.circleColor ??
+              existingGlobalSettings?.circleColor,
+            borderEnabled: effectiveBorderEnabled,
+            borderColor: effectiveBorderColor,
+            borderRadius: effectiveBorderRadius,
+            useStatusColors: effectiveUseStatusColors,
+            showPiePercentages: effectiveShowPiePercentages,
+            showFavorites: effectiveShowFavorites,
+            gridCols: effectiveGridCols,
+            gridRows: effectiveGridRows,
+          }
+        : existingGlobalSettings;
 
     const cardData: CardsRecord = {
       userId,

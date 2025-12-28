@@ -172,11 +172,19 @@ export function CardTile({
         circleColor: effectiveColors[3],
         borderColor: effectiveBorderColor,
         borderRadius: effectiveBorderRadius,
-        useStatusColors: config.advancedSettings.useStatusColors ?? globalAdvancedSettings.useStatusColors,
-        showPiePercentages: config.advancedSettings.showPiePercentages ?? globalAdvancedSettings.showPiePercentages,
-        showFavorites: config.advancedSettings.showFavorites ?? globalAdvancedSettings.showFavorites,
-        gridCols: config.advancedSettings.gridCols ?? globalAdvancedSettings.gridCols,
-        gridRows: config.advancedSettings.gridRows ?? globalAdvancedSettings.gridRows,
+        useStatusColors:
+          config.advancedSettings.useStatusColors ??
+          globalAdvancedSettings.useStatusColors,
+        showPiePercentages:
+          config.advancedSettings.showPiePercentages ??
+          globalAdvancedSettings.showPiePercentages,
+        showFavorites:
+          config.advancedSettings.showFavorites ??
+          globalAdvancedSettings.showFavorites,
+        gridCols:
+          config.advancedSettings.gridCols ?? globalAdvancedSettings.gridCols,
+        gridRows:
+          config.advancedSettings.gridRows ?? globalAdvancedSettings.gridRows,
       },
       {
         userId,
@@ -436,7 +444,9 @@ export function CardTile({
                     size="sm"
                     disabled={!previewUrl}
                     aria-disabled={!previewUrl}
-                    aria-describedby={previewUrl ? undefined : previewUnavailableId}
+                    aria-describedby={
+                      previewUrl ? undefined : previewUnavailableId
+                    }
                     title={previewUrl ? undefined : "Preview not available"}
                     className={cn(
                       "h-8 gap-1.5 rounded-full px-3 text-sm font-medium shadow-lg transition-all",
@@ -444,7 +454,7 @@ export function CardTile({
                         ? "bg-green-500 text-white shadow-green-500/25 hover:bg-green-600"
                         : "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-purple-500/25 hover:scale-105 hover:shadow-xl hover:shadow-purple-500/30",
                       isAnyPopoverOpen && "opacity-100",
-                      !previewUrl && "opacity-80 cursor-not-allowed",
+                      !previewUrl && "cursor-not-allowed opacity-80",
                     )}
                   >
                     {copiedFormat ? (
@@ -466,11 +476,13 @@ export function CardTile({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-blue-50 dark:hover:bg-blue-950/50 disabled:opacity-70 disabled:cursor-not-allowed"
+                      className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-70 dark:hover:bg-blue-950/50"
                       onClick={() => void handleCopyUrl("url")}
                       disabled={!previewUrl}
                       aria-disabled={!previewUrl}
-                      aria-describedby={previewUrl ? undefined : previewUnavailableId}
+                      aria-describedby={
+                        previewUrl ? undefined : previewUnavailableId
+                      }
                       title={previewUrl ? undefined : "Preview not available"}
                     >
                       <Link
@@ -488,11 +500,13 @@ export function CardTile({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-purple-50 dark:hover:bg-purple-950/50 disabled:opacity-70 disabled:cursor-not-allowed"
+                      className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-70 dark:hover:bg-purple-950/50"
                       onClick={() => void handleCopyUrl("anilist")}
                       disabled={!previewUrl}
                       aria-disabled={!previewUrl}
-                      aria-describedby={previewUrl ? undefined : previewUnavailableId}
+                      aria-describedby={
+                        previewUrl ? undefined : previewUnavailableId
+                      }
                       title={previewUrl ? undefined : "Preview not available"}
                     >
                       <ImageIcon
@@ -510,7 +524,9 @@ export function CardTile({
                     {/* Announce copy result to screen readers */}
                     {copiedFormat && (
                       <span aria-live="polite" className="sr-only">
-                        {copiedFormat === "url" ? "Copied URL to clipboard" : "Copied AniList format to clipboard"}
+                        {copiedFormat === "url"
+                          ? "Copied URL to clipboard"
+                          : "Copied AniList format to clipboard"}
                       </span>
                     )}
                   </div>
@@ -559,7 +575,7 @@ export function CardTile({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-70 disabled:cursor-not-allowed"
+                      className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70 dark:hover:bg-slate-800"
                       onClick={() => void handleDownload("png")}
                       disabled={!previewUrl || isDownloading}
                       aria-disabled={!previewUrl || isDownloading}
@@ -576,7 +592,7 @@ export function CardTile({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-70 disabled:cursor-not-allowed"
+                      className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70 dark:hover:bg-slate-800"
                       onClick={() => void handleDownload("webp")}
                       disabled={!previewUrl || isDownloading}
                       aria-disabled={!previewUrl || isDownloading}

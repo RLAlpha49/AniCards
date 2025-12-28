@@ -163,11 +163,21 @@ export function BulkActionsToolbar({
             circleColor: effectiveColors[3],
             borderColor: effectiveBorderColor,
             borderRadius: effectiveBorderRadius,
-            useStatusColors: config.advancedSettings.useStatusColors ?? globalAdvancedSettings.useStatusColors,
-            showPiePercentages: config.advancedSettings.showPiePercentages ?? globalAdvancedSettings.showPiePercentages,
-            showFavorites: config.advancedSettings.showFavorites ?? globalAdvancedSettings.showFavorites,
-            gridCols: config.advancedSettings.gridCols ?? globalAdvancedSettings.gridCols,
-            gridRows: config.advancedSettings.gridRows ?? globalAdvancedSettings.gridRows,
+            useStatusColors:
+              config.advancedSettings.useStatusColors ??
+              globalAdvancedSettings.useStatusColors,
+            showPiePercentages:
+              config.advancedSettings.showPiePercentages ??
+              globalAdvancedSettings.showPiePercentages,
+            showFavorites:
+              config.advancedSettings.showFavorites ??
+              globalAdvancedSettings.showFavorites,
+            gridCols:
+              config.advancedSettings.gridCols ??
+              globalAdvancedSettings.gridCols,
+            gridRows:
+              config.advancedSettings.gridRows ??
+              globalAdvancedSettings.gridRows,
           },
           {
             userId,
