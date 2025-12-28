@@ -20,7 +20,7 @@ interface CardTileHeaderProps {
   label: string;
   enabled: boolean;
   onToggleEnabled: () => void;
-  tooltipContent?: string | null;
+  tooltipContent?: string;
   isSelected: boolean;
   onToggleSelection: () => void;
   onOpenSettings: () => void;
