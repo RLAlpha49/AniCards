@@ -224,7 +224,6 @@ body {
 .overlay-scrollbar::-webkit-scrollbar {
   display: block;
   width: 8px;
-  position: absolute;
 }
 
 .overlay-scrollbar::-webkit-scrollbar-track {
