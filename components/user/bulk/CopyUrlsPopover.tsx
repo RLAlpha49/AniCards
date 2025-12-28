@@ -1,6 +1,5 @@
 "use client";
 
-import type { Dispatch, SetStateAction, MutableRefObject } from "react";
 import { Copy, Link, ImageIcon, Check, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import {
@@ -28,6 +27,9 @@ export function CopyUrlsPopover({
         <Button
           variant="ghost"
           size="sm"
+          aria-label={
+            copiedFormat ? "URLs copied to clipboard" : "Copy card URLs"
+          }
           className={cn(
             "h-9 gap-1.5 rounded-lg px-3 font-medium shadow-md transition-all",
             copiedFormat
