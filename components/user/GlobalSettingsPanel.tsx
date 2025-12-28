@@ -7,10 +7,7 @@ import {
   DialogTitle,
 } from "@/components/ui/Dialog";
 import { CardSettingsPanel } from "@/components/user/CardSettingsPanel";
-import {
-  useUserPageEditor,
-  DEFAULT_GLOBAL_SETTINGS,
-} from "@/lib/stores/user-page-editor";
+import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 import type { ColorValue } from "@/lib/types/card";
 
 /**
@@ -47,41 +44,13 @@ export function GlobalSettingsPanel({
     setGlobalBorderColor,
     setGlobalBorderRadius,
     setGlobalAdvancedSetting,
+    resetGlobalSettings,
   } = useUserPageEditor();
 
   // Handler for resetting global settings to defaults
   const handleResetToDefaults = useCallback(() => {
-    setGlobalColorPreset(DEFAULT_GLOBAL_SETTINGS.colorPreset);
-    setGlobalBorderEnabled(DEFAULT_GLOBAL_SETTINGS.borderEnabled);
-    setGlobalBorderColor(DEFAULT_GLOBAL_SETTINGS.borderColor);
-    setGlobalBorderRadius(DEFAULT_GLOBAL_SETTINGS.borderRadius);
-    setGlobalAdvancedSetting(
-      "useStatusColors",
-      DEFAULT_GLOBAL_SETTINGS.advancedSettings.useStatusColors,
-    );
-    setGlobalAdvancedSetting(
-      "showPiePercentages",
-      DEFAULT_GLOBAL_SETTINGS.advancedSettings.showPiePercentages,
-    );
-    setGlobalAdvancedSetting(
-      "showFavorites",
-      DEFAULT_GLOBAL_SETTINGS.advancedSettings.showFavorites,
-    );
-    setGlobalAdvancedSetting(
-      "gridCols",
-      DEFAULT_GLOBAL_SETTINGS.advancedSettings.gridCols,
-    );
-    setGlobalAdvancedSetting(
-      "gridRows",
-      DEFAULT_GLOBAL_SETTINGS.advancedSettings.gridRows,
-    );
-  }, [
-    setGlobalColorPreset,
-    setGlobalBorderEnabled,
-    setGlobalBorderColor,
-    setGlobalBorderRadius,
-    setGlobalAdvancedSetting,
-  ]);
+    resetGlobalSettings();
+  }, [resetGlobalSettings]);
 
   const handleColorChange = useCallback(
     (index: number, value: ColorValue) => {

@@ -129,6 +129,17 @@ export interface UserPageEditorActions {
     value: CardAdvancedSettings[K],
   ) => void;
 
+  // Reset/restore global settings (colors, border, advanced) to defaults.
+  // Accepts optional overrides for testing or targeted resets.
+  resetGlobalSettings: (opts?: {
+    colorPreset?: string;
+    colors?: ColorValue[];
+    borderEnabled?: boolean;
+    borderColor?: string;
+    borderRadius?: number;
+    advancedSettings?: Partial<CardAdvancedSettings>;
+  }) => void;
+
   // Card configuration actions
   setCardEnabled: (cardId: string, enabled: boolean) => void;
   setCardVariant: (cardId: string, variant: string) => void;
@@ -455,6 +466,24 @@ function serverCardToEditorConfig(
   };
 }
 
+/** Default global advanced settings. */
+const DEFAULT_GLOBAL_ADVANCED_SETTINGS: CardAdvancedSettings = {
+  useStatusColors: true,
+  showPiePercentages: true,
+  showFavorites: true,
+  gridCols: 3,
+  gridRows: 3,
+};
+
+/** Default combined global settings. */
+export const DEFAULT_GLOBAL_SETTINGS = {
+  colorPreset: "default",
+  borderEnabled: false,
+  borderColor: DEFAULT_BORDER_COLOR,
+  borderRadius: DEFAULT_CARD_BORDER_RADIUS,
+  advancedSettings: DEFAULT_GLOBAL_ADVANCED_SETTINGS,
+} as const;
+
 /**
  * Processes server cards into editor state.
  * If globalSettings is provided from the server, it takes precedence over
@@ -567,28 +596,6 @@ function processServerCards(
     cardConfigs,
   };
 }
-
-/**
- * Default initial state for the editor.
- * @source
- */
-/** Default global advanced settings. */
-const DEFAULT_GLOBAL_ADVANCED_SETTINGS: CardAdvancedSettings = {
-  useStatusColors: true,
-  showPiePercentages: true,
-  showFavorites: true,
-  gridCols: 3,
-  gridRows: 3,
-};
-
-/** Default combined global settings. */
-export const DEFAULT_GLOBAL_SETTINGS = {
-  colorPreset: "default",
-  borderEnabled: false,
-  borderColor: DEFAULT_BORDER_COLOR,
-  borderRadius: DEFAULT_CARD_BORDER_RADIUS,
-  advancedSettings: DEFAULT_GLOBAL_ADVANCED_SETTINGS,
-} as const;
 
 const initialState: UserPageEditorState = {
   userId: null,
@@ -714,6 +721,38 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
           },
           false,
           "setGlobalAdvancedSetting",
+        );
+      },
+
+      // Reset/restore global settings to defaults (shallow merge).
+      resetGlobalSettings: (opts?: {
+        colorPreset?: string;
+        colors?: ColorValue[];
+        borderEnabled?: boolean;
+        borderColor?: string;
+        borderRadius?: number;
+        advancedSettings?: Partial<CardAdvancedSettings>;
+      }) => {
+        const preset = opts?.colorPreset ?? DEFAULT_GLOBAL_SETTINGS.colorPreset;
+        const colors = opts?.colors ?? getPresetColors(preset);
+        set(
+          {
+            globalColorPreset: preset,
+            globalColors: colors,
+            globalBorderEnabled:
+              opts?.borderEnabled ?? DEFAULT_GLOBAL_SETTINGS.borderEnabled,
+            globalBorderColor:
+              opts?.borderColor ?? DEFAULT_GLOBAL_SETTINGS.borderColor,
+            globalBorderRadius:
+              opts?.borderRadius ?? DEFAULT_GLOBAL_SETTINGS.borderRadius,
+            globalAdvancedSettings: {
+              ...DEFAULT_GLOBAL_SETTINGS.advancedSettings,
+              ...opts?.advancedSettings,
+            },
+            isDirty: true,
+          },
+          false,
+          "resetGlobalSettings",
         );
       },
 

@@ -75,7 +75,7 @@ export const DISABLED_CARD_INFO =
  * @source
  */
 export function getCardInfoTooltip(cardId: string): string | undefined {
-  if (!cardId || typeof cardId !== 'string') {
+  if (!cardId || typeof cardId !== "string") {
     return undefined;
   }
   return CARD_INFO_TOOLTIPS[cardId];

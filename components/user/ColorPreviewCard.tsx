@@ -101,7 +101,13 @@ export function ColorPreviewCard({
   ]);
 
   // Memoize CSS values for color swatches
-  const {cssValues, isGradientTitle, isGradientBackground, isGradientText, isGradientCircle} = useMemo(
+  const {
+    cssValues,
+    isGradientTitle,
+    isGradientBackground,
+    isGradientText,
+    isGradientCircle,
+  } = useMemo(
     () => ({
       cssValues: {
         title: colorValueToCss(titleColor),
