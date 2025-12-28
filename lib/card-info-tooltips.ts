@@ -31,10 +31,10 @@ export const CARD_INFO_TOOLTIPS: Record<string, string> = {
     "Counts how often studio pairs appear together on your COMPLETED anime. Each title contributes 1 to each unique studio pair. Shows the top pairs.",
 
   releaseEraPreference:
-    "Analyzes which decades or time periods your anime/manga come from, showing whether you prefer classic or modern titles.",
+    "From AniList release-year counts. 'Avg year' is count-weighted by titles, and 'Top decade' is the decade with the largest share.",
 
   startYearMomentum:
-    "Shows when you started watching/reading titles compared to their release dates, indicating whether you watch new releases or explore older catalogs.",
+    "From AniList start-year counts. 'Peak' is the year you started the most titles, and 'Recent 5y' is the share started in the last 5 calendar years.",
 
   lengthPreference:
     "Analyzes your preference for short vs. long series based on episode counts for anime or chapter counts for manga.",
