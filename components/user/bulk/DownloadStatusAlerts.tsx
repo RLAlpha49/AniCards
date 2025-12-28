@@ -16,7 +16,9 @@ type DownloadSummary = {
 interface DownloadStatusAlertsProps {
   downloadSummary: DownloadSummary | null;
   downloadError: string | null;
-  setDownloadSummary: React.Dispatch<React.SetStateAction<DownloadSummary | null>>;
+  setDownloadSummary: React.Dispatch<
+    React.SetStateAction<DownloadSummary | null>
+  >;
   setDownloadError: React.Dispatch<React.SetStateAction<string | null>>;
   copyToClipboard: (list: string[]) => Promise<void> | void;
 }
@@ -47,12 +49,18 @@ export function DownloadStatusAlerts({
             className="border-red-200/50 bg-red-50/80 dark:border-red-800/50 dark:bg-red-950/30"
           >
             <Info className="h-4 w-4" aria-hidden="true" />
-            <AlertTitle className="text-red-800 dark:text-red-200">Download Error</AlertTitle>
+            <AlertTitle className="text-red-800 dark:text-red-200">
+              Download Error
+            </AlertTitle>
             <AlertDescription className="text-red-700 dark:text-red-300">
               {downloadError}
             </AlertDescription>
             <div className="ml-auto flex items-center gap-2">
-              <Button size="sm" variant="ghost" onClick={() => setDownloadError(null)}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setDownloadError(null)}
+              >
                 Close
               </Button>
             </div>
@@ -106,7 +114,11 @@ export function DownloadStatusAlerts({
               )}
 
             <div className="ml-auto flex items-center gap-2">
-              <Button size="sm" variant="ghost" onClick={() => setDownloadSummary(null)}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setDownloadSummary(null)}
+              >
                 Close
               </Button>
 

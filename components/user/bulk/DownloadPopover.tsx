@@ -2,7 +2,11 @@
 
 import { Download, Loader2, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/Popover";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/Popover";
 import { cn, type ConversionFormat } from "@/lib/utils";
 
 interface DownloadPopoverProps {
@@ -35,10 +39,7 @@ export function DownloadPopover({
         >
           {isDownloading ? (
             <>
-              <Loader2
-                className="h-4 w-4 animate-spin"
-                aria-hidden="true"
-              />
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               <span className="hidden sm:inline">
                 {downloadProgress.current}/{downloadProgress.total}
               </span>
@@ -61,7 +62,9 @@ export function DownloadPopover({
             className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
             onClick={() => void handleDownloadAll("png")}
           >
-            <span className="font-medium text-slate-700 dark:text-slate-200">PNG</span>
+            <span className="font-medium text-slate-700 dark:text-slate-200">
+              PNG
+            </span>
             <span className="ml-auto text-xs text-slate-500">Lossless</span>
           </Button>
 
@@ -71,7 +74,9 @@ export function DownloadPopover({
             className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
             onClick={() => void handleDownloadAll("webp")}
           >
-            <span className="font-medium text-slate-700 dark:text-slate-200">WebP</span>
+            <span className="font-medium text-slate-700 dark:text-slate-200">
+              WebP
+            </span>
             <span className="ml-auto text-xs text-slate-500">Smaller</span>
           </Button>
         </div>

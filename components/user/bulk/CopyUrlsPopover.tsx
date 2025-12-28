@@ -3,7 +3,11 @@
 import type { Dispatch, SetStateAction, MutableRefObject } from "react";
 import { Copy, Link, ImageIcon, Check, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/Popover";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/Popover";
 import { cn } from "@/lib/utils";
 
 interface CopyUrlsPopoverProps {

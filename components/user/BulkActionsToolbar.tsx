@@ -309,12 +309,15 @@ export function BulkActionsToolbar({
     [selectedCards, isDownloading],
   );
 
-  const copyFailedListToClipboard = useCallback((list: string[]) => {
-    void navigator.clipboard.writeText(list.join("\n")).catch((err) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      setDownloadError(`Failed to copy failed list: ${msg}`);
-    });
-  }, [setDownloadError]);
+  const copyFailedListToClipboard = useCallback(
+    (list: string[]) => {
+      void navigator.clipboard.writeText(list.join("\n")).catch((err) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        setDownloadError(`Failed to copy failed list: ${msg}`);
+      });
+    },
+    [setDownloadError],
+  );
 
   // Don't render portal during SSR or before hydration
   if (!isMounted) return null;

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { useEffect, useReducer,useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ExternalLink,
