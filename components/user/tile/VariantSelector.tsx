@@ -15,7 +15,7 @@ interface Variant {
 }
 
 interface VariantSelectorProps {
-  variations: Variant[];
+  variations?: Variant[];
   currentVariant: string;
   onVariantChange: (variant: string) => void;
 }
