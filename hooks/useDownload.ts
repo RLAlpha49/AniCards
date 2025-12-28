@@ -7,6 +7,7 @@ export function useDownload(
   previewUrl: string | null,
   opts: { cardId: string; variant: string },
 ) {
+  const { cardId, variant } = opts;
   const [isDownloading, setIsDownloading] = useState(false);
   const isDownloadingRef = useRef(false);
 
@@ -21,7 +22,7 @@ export function useDownload(
         const dataUrl = await svgToPng(absoluteUrl, format);
         link = document.createElement("a");
         link.href = dataUrl;
-        link.download = `${opts.cardId}-${opts.variant}.${format}`;
+        link.download = `${cardId}-${variant}.${format}`;
         document.body.appendChild(link);
         link.click();
       } catch (error) {
@@ -32,7 +33,7 @@ export function useDownload(
         setIsDownloading(false);
       }
     },
-    [previewUrl, opts],
+    [previewUrl, cardId, variant],
   );
 
   return { isDownloading, handleDownload } as const;
