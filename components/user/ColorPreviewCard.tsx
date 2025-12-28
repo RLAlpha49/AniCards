@@ -101,21 +101,21 @@ export function ColorPreviewCard({
   ]);
 
   // Memoize CSS values for color swatches
-  const cssValues = useMemo(
+  const {cssValues, isGradientTitle, isGradientBackground, isGradientText, isGradientCircle} = useMemo(
     () => ({
-      title: colorValueToCss(titleColor),
-      background: colorValueToCss(backgroundColor),
-      text: colorValueToCss(textColor),
-      circle: colorValueToCss(circleColor),
+      cssValues: {
+        title: colorValueToCss(titleColor),
+        background: colorValueToCss(backgroundColor),
+        text: colorValueToCss(textColor),
+        circle: colorValueToCss(circleColor),
+      },
+      isGradientTitle: isGradient(titleColor),
+      isGradientBackground: isGradient(backgroundColor),
+      isGradientText: isGradient(textColor),
+      isGradientCircle: isGradient(circleColor),
     }),
     [titleColor, backgroundColor, textColor, circleColor],
   );
-
-  // Check if values are gradients for swatch rendering
-  const isGradientTitle = isGradient(titleColor);
-  const isGradientBackground = isGradient(backgroundColor);
-  const isGradientText = isGradient(textColor);
-  const isGradientCircle = isGradient(circleColor);
 
   return (
     <div className={cn("flex flex-col items-center space-y-3", className)}>
