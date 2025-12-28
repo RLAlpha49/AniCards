@@ -204,6 +204,7 @@ export function BulkActionsToolbar({
     getEffectiveColors,
     getEffectiveBorderColor,
     getEffectiveBorderRadius,
+    globalAdvancedSettings,
   ]);
 
   const handleCopyUrls = useCallback(
