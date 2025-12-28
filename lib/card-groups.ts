@@ -104,6 +104,11 @@ export const CARD_GROUPS: CardGroup[] = [
     variations: ["default", "pie", "donut", "bar"],
   },
   {
+    cardType: "studioCollaboration",
+    cardTitle: "Studio Collaboration",
+    variations: ["default"],
+  },
+  {
     cardType: "animeStaff",
     cardTitle: "Anime Staff",
     variations: ["default", "pie", "donut", "bar"],
@@ -219,18 +224,8 @@ export const CARD_GROUPS: CardGroup[] = [
     variations: ["anime", "manga", "characters", "staff", "studios", "mixed"],
   },
   {
-    cardType: "activityHeatmap",
-    cardTitle: "Activity Heatmap",
-    variations: ["default", "github", "fire"],
-  },
-  {
     cardType: "recentActivitySummary",
     cardTitle: "Recent Activity Summary",
-    variations: ["default"],
-  },
-  {
-    cardType: "recentActivityFeed",
-    cardTitle: "Recent Activity Feed",
     variations: ["default"],
   },
   {
@@ -336,11 +331,6 @@ export const CARD_GROUPS: CardGroup[] = [
   {
     cardType: "reviewStats",
     cardTitle: "Review Statistics",
-    variations: ["default"],
-  },
-  {
-    cardType: "studioCollaboration",
-    cardTitle: "Studio Collaboration",
     variations: ["default"],
   },
 ];

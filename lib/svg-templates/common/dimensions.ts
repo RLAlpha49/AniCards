@@ -26,17 +26,11 @@ export const CARD_DIMENSIONS = {
   },
 
   // Activity stats
-  activityHeatmap: {
-    default: { w: 220, h: 160 },
-  },
   activityStreaks: {
     default: { w: 280, h: 160 },
   },
   recentActivitySummary: {
     default: { w: 280, h: 160 },
-  },
-  recentActivityFeed: {
-    default: { w: 280, h: 180 },
   },
   topActivityDays: {
     default: { w: 320, h: 180 },

@@ -1,8 +1,4 @@
 import type { ActivityHistoryItem } from "@/lib/types/records";
-export {
-  getHeatmapColor,
-  type HeatmapPalette,
-} from "@/lib/svg-templates/common";
 
 /**
  * Renders a sparkline SVG path from data points.

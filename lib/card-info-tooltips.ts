@@ -20,9 +20,6 @@ export const CARD_INFO_TOOLTIPS: Record<string, string> = {
     "Shows how you rate your manga across the 1-10 scale. The cumulative view shows the percentage of titles at or below each score.",
 
   // Activity cards
-  activityHeatmap:
-    "Visualizes your daily activity over the past year. Darker colors indicate more activity on that day.",
-
   activityStreaks:
     "Tracks consecutive days of activity on AniList. Current streak shows ongoing activity, while longest streak is your all-time record.",
 

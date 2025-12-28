@@ -63,12 +63,6 @@ const favoritesGridVariations = [
   { id: "mixed", label: "Mixed Favourites" },
 ];
 
-const activityHeatmapVariations = [
-  { id: "default", label: "Default (Theme)" },
-  { id: "github", label: "GitHub Green" },
-  { id: "fire", label: "Fire Red" },
-];
-
 const activityCompactVariations = [{ id: "default", label: "Default" }];
 
 const activityFullVariations = [{ id: "default", label: "Default" }];
@@ -152,19 +146,9 @@ const mangaBreakdownCards = [
 
 const activityCards = [
   {
-    id: "activityHeatmap",
-    label: "Activity Heatmap",
-    variations: activityHeatmapVariations,
-  },
-  {
     id: "recentActivitySummary",
     label: "Recent Activity Summary",
     variations: activityFullVariations,
-  },
-  {
-    id: "recentActivityFeed",
-    label: "Recent Activity Feed",
-    variations: activityCompactVariations,
   },
   {
     id: "activityStreaks",
@@ -281,6 +265,12 @@ export const statCardTypes = [
       card.label,
       getAnimeBreakdownVariations(card.id),
     ),
+  ),
+  createCardType(
+    "studioCollaboration",
+    "Anime Deep Dive",
+    "Studio Collaboration",
+    studioDefaultVariations,
   ),
   createCardType(
     "animeScoreDistribution",
@@ -422,12 +412,6 @@ export const statCardTypes = [
     "Advanced Analytics",
     "Tag Diversity",
     userAnalyticsDefaultVariations,
-  ),
-  createCardType(
-    "studioCollaboration",
-    "Advanced Analytics",
-    "Studio Collaboration",
-    studioDefaultVariations,
   ),
 ];
 

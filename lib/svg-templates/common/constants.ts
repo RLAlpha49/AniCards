@@ -74,15 +74,6 @@ export const POSITIONING = {
   AVATAR_OFFSET_X: 100,
 } as const;
 
-// Heatmap specific constants
-export const HEATMAP = {
-  WEEKS: 13,
-  DAYS_PER_WEEK: 7,
-  BASE_ANIMATION_DELAY: 300,
-  WEEK_DELAY_INCREMENT: 30,
-  DAY_DELAY_INCREMENT: 10,
-} as const;
-
 // Milestone specific constants
 export const MILESTONES = {
   BAR_SPACING: 42,

@@ -134,6 +134,13 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
     color: "teal",
   },
   {
+    title: "Studio Collaboration",
+    description: "Most frequent studio collaborations in your collection",
+    category: "Anime Deep Dive",
+    icon: Building2,
+    color: "cyan",
+  },
+  {
     title: "Anime Staff",
     description: "Most frequent staff members in your anime collection",
     category: "Anime Deep Dive",
@@ -267,25 +274,10 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
 
   // Activity & Engagement
   {
-    title: "Activity Heatmap",
-    description:
-      "GitHub-style activity calendar showing daily activity intensity",
-    category: "Activity & Engagement",
-    icon: Calendar,
-    color: "amber",
-  },
-  {
     title: "Recent Activity Summary",
     description: "Sparkline and stats summarizing recent activity",
     category: "Activity & Engagement",
     icon: Activity,
-    color: "amber",
-  },
-  {
-    title: "Recent Activity Feed",
-    description: "List of recent activity events and counts",
-    category: "Activity & Engagement",
-    icon: Clock,
     color: "amber",
   },
   {
@@ -456,13 +448,6 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
     category: "Advanced Analytics",
     icon: PieChart,
     color: "violet",
-  },
-  {
-    title: "Studio Collaboration",
-    description: "Most frequent studio collaborations in your collection",
-    category: "Advanced Analytics",
-    icon: Building2,
-    color: "cyan",
   },
 ];
 

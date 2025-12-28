@@ -1,13 +1,10 @@
 import type { ColorValue } from "@/lib/types/card";
-import { hexToHsl, hslToHex, isGradient, isValidHexColor } from "@/lib/utils";
+import { hexToHsl, isGradient, isValidHexColor } from "@/lib/utils";
 
 export { hexToHsl, hslToHex, isValidHexColor } from "@/lib/utils";
 
 /** Default stat base color used when a circle color cannot be resolved. @source lib/svg-templates/extra-anime-manga-stats/shared.ts */
 export const DEFAULT_STAT_BASE_COLOR = "#2563eb";
-
-/** Heatmap color palette configuration. @source lib/svg-templates/activity-stats/shared.ts */
-export type HeatmapPalette = "default" | "github" | "fire";
 
 /**
  * Try to parse a JSON-stringified gradient-like object and return a first valid hex stop color.
@@ -156,57 +153,3 @@ export const getStatColor = (
 
   return getColorByIndex(index, baseColor);
 };
-
-/**
- * Gets heatmap color based on activity intensity and palette.
- *
- * @param intensity - Normalized intensity value between 0 and 1.
- * @param palette - Color palette to use.
- * @param baseColor - Base color for default palette.
- * @returns Object with resolved color (hex or provided base) and opacity.
- * @source lib/svg-templates/activity-stats/shared.ts
- */
-export function getHeatmapColor(
-  intensity: number,
-  palette: HeatmapPalette,
-  baseColor: string,
-): { color: string; opacity: number } {
-  const level = Math.min(4, Math.ceil(intensity * 4));
-
-  switch (palette) {
-    case "github": {
-      const githubColors = [
-        "#ebedf0",
-        "#9be9a8",
-        "#40c463",
-        "#30a14e",
-        "#216e39",
-      ];
-      return { color: githubColors[level], opacity: 1 };
-    }
-    case "fire": {
-      const fireColors = [
-        "#ebedf0",
-        "#ffadad",
-        "#ff6b6b",
-        "#ff3838",
-        "#e60000",
-      ];
-      return { color: fireColors[level], opacity: 1 };
-    }
-    default:
-      if (baseColor.startsWith("#")) {
-        const [h, s] = hexToHsl(baseColor);
-        // Vary lightness from light (0.9) to dark (0.1)
-        const lightnesses = [0.9, 0.7, 0.5, 0.3, 0.1];
-        const color = hslToHex(h, s, lightnesses[level]);
-        return { color, opacity: 1 };
-      }
-
-      // For gradients, use varying opacity
-      {
-        const alphas = [0.2, 0.5, 0.7, 0.9, 1];
-        return { color: baseColor, opacity: alphas[level] };
-      }
-  }
-}

@@ -37,6 +37,7 @@ Each card has a `cardType` ID and supports one or more `variation` values.
   - Optional flag: `showFavorites`
 - **Animation Studios** (`animeStudios`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
   - Optional flag: `showFavorites`
+- **Studio Collaboration** (`studioCollaboration`) — Variations: Default
 - **Anime Staff** (`animeStaff`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
   - Optional flag: `showFavorites`
 - **Anime Status Distribution** (`animeStatusDistribution`) — Variations: Default, Pie Chart, Donut Chart, Bar Chart
@@ -65,9 +66,7 @@ Each card has a `cardType` ID and supports one or more `variation` values.
 
 ### Activity & Engagement
 
-- **Activity Heatmap** (`activityHeatmap`) — Variations: Default, GitHub, Fire
 - **Recent Activity Summary** (`recentActivitySummary`) — Variations: Default
-- **Recent Activity Feed** (`recentActivityFeed`) — Variations: Default
 - **Activity Streaks** (`activityStreaks`) — Variations: Default
 - **Top Activity Days** (`topActivityDays`) — Variations: Default
 - **Social Milestones** (`socialMilestones`) — Variations: Default
@@ -98,7 +97,6 @@ Each card has a `cardType` ID and supports one or more `variation` values.
 - **Length Preference** (`lengthPreference`) — Variations: Default
 - **Tag Category Distribution** (`tagCategoryDistribution`) — Variations: Default
 - **Tag Diversity** (`tagDiversity`) — Variations: Default
-- **Studio Collaboration** (`studioCollaboration`) — Variations: Default
 
 ## 🛠️ Customization
 

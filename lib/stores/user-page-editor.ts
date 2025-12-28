@@ -309,6 +309,39 @@ function seedMissingCardConfigs(
 }
 
 /**
+ * Removes unknown card IDs from the editor state when an allowlist is provided.
+ *
+ * This helps handle legacy/removed card types that may still exist in persisted
+ * storage without letting them affect bulk operations or selection state.
+ * @source
+ */
+function pruneUnknownCardConfigs(
+  cardConfigs: Record<string, CardEditorConfig>,
+  allCardIds?: readonly string[],
+): Record<string, CardEditorConfig> {
+  if (!allCardIds || allCardIds.length === 0) return cardConfigs;
+
+  const allowed = new Set(allCardIds);
+
+  let hasUnknown = false;
+  for (const cardId of Object.keys(cardConfigs)) {
+    if (!allowed.has(cardId)) {
+      hasUnknown = true;
+      break;
+    }
+  }
+  if (!hasUnknown) return cardConfigs;
+
+  const next: Record<string, CardEditorConfig> = {};
+  for (const cardId of allCardIds) {
+    const config = cardConfigs[cardId];
+    if (config) next[cardId] = config;
+  }
+
+  return next;
+}
+
+/**
  * Result of processing server cards.
  * @source
  */
@@ -1116,6 +1149,10 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
           result.cardConfigs,
           allCardIds,
         );
+        const prunedCardConfigs = pruneUnknownCardConfigs(
+          seededCardConfigs,
+          allCardIds,
+        );
         set(
           {
             userId,
@@ -1127,7 +1164,7 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
             globalBorderColor: result.globalBorderColor,
             globalBorderRadius: result.globalBorderRadius,
             globalAdvancedSettings: result.globalAdvancedSettings,
-            cardConfigs: seededCardConfigs,
+            cardConfigs: prunedCardConfigs,
             isLoading: false,
             loadError: null,
             isDirty: false,

@@ -12,9 +12,7 @@ import { distributionTemplate } from "@/lib/svg-templates/distribution/shared";
 import { favoritesGridTemplate } from "@/lib/svg-templates/profile-favorite-stats/favorites-grid-template";
 import { favoritesSummaryTemplate } from "@/lib/svg-templates/profile-favorite-stats/favorites-summary-template";
 import { profileOverviewTemplate } from "@/lib/svg-templates/profile-favorite-stats/profile-overview-template";
-import { activityHeatmapTemplate } from "@/lib/svg-templates/activity-stats/activity-heatmap-template";
 import { activityStreaksTemplate } from "@/lib/svg-templates/activity-stats/activity-streaks-template";
-import { recentActivityFeedTemplate } from "@/lib/svg-templates/activity-stats/recent-activity-feed-template";
 import { recentActivitySummaryTemplate } from "@/lib/svg-templates/activity-stats/recent-activity-summary-template";
 import { topActivityDaysTemplate } from "@/lib/svg-templates/activity-stats/top-activity-days-template";
 import { milestonesTemplate } from "@/lib/svg-templates/completion-progress-stats/milestones-template";
@@ -257,9 +255,7 @@ function normalizeVariant(
     mangaYearDistribution: distributionVariants,
     profileOverview: new Set<CardGenVariant>(["default"]),
     favoritesSummary: socialVariants,
-    activityHeatmap: new Set<CardGenVariant>(["default", "github", "fire"]),
     recentActivitySummary: new Set<CardGenVariant>(["default"]),
-    recentActivityFeed: new Set<CardGenVariant>(["default"]),
     activityStreaks: new Set<CardGenVariant>(["default"]),
     topActivityDays: new Set<CardGenVariant>(["default"]),
     statusCompletionOverview: new Set<CardGenVariant>(["combined", "split"]),
@@ -522,12 +518,8 @@ export async function generateCardSvg(
       return generateFavoritesSummaryCard(params);
     case "favoritesGrid":
       return generateFavoritesGridCard(params);
-    case "activityHeatmap":
-      return generateActivityHeatmapCard(params);
     case "recentActivitySummary":
       return generateRecentActivitySummaryCard(params);
-    case "recentActivityFeed":
-      return generateRecentActivityFeedCard(params);
     case "activityStreaks":
       return generateActivityStreaksCard(params);
     case "topActivityDays":
@@ -1212,32 +1204,11 @@ async function generateFavoritesGridCard(
   });
 }
 
-/** Variant type for activity heatmap cards. @source */
-type ActivityHeatmapVariant = "default" | "github" | "fire";
-
 /** Variant type for activity summary/streaks cards. @source */
 type ActivityVariant = "default";
 
 /** Variant type for activity feed/patterns cards. @source */
 type ActivityCompactVariant = "default";
-
-/**
- * Generate an Activity Heatmap card showing a GitHub-style calendar.
- * @param params - Card generation parameters and options.
- * @returns A TrustedSVG with the rendered activity heatmap card.
- * @source
- */
-function generateActivityHeatmapCard(params: CardGenerationParams): TrustedSVG {
-  const { cardConfig, userRecord, variant } = params;
-  const activityHistory = extractActivityHistory(userRecord.stats?.User?.stats);
-
-  return activityHeatmapTemplate({
-    username: userRecord.username ?? userRecord.userId,
-    variant: variant as ActivityHeatmapVariant,
-    styles: extractStyles(cardConfig),
-    activityHistory,
-  });
-}
 
 /**
  * Generate a Recent Activity Summary card with sparkline.
@@ -1254,26 +1225,6 @@ function generateRecentActivitySummaryCard(
   return recentActivitySummaryTemplate({
     username: userRecord.username ?? userRecord.userId,
     variant: variant as ActivityVariant,
-    styles: extractStyles(cardConfig),
-    activityHistory,
-  });
-}
-
-/**
- * Generate a Recent Activity Feed card showing recent activity entries.
- * @param params - Card generation parameters and options.
- * @returns A TrustedSVG with the rendered activity feed card.
- * @source
- */
-function generateRecentActivityFeedCard(
-  params: CardGenerationParams,
-): TrustedSVG {
-  const { cardConfig, userRecord, variant } = params;
-  const activityHistory = extractActivityHistory(userRecord.stats?.User?.stats);
-
-  return recentActivityFeedTemplate({
-    username: userRecord.username ?? userRecord.userId,
-    variant: variant as ActivityCompactVariant,
     styles: extractStyles(cardConfig),
     activityHistory,
   });

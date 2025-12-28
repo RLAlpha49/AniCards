@@ -135,7 +135,7 @@ describe("Cards API GET Endpoint", () => {
         cards: [
           { cardName: "animeStats", titleColor: "#000" },
           { cardName: "mangaStats", titleColor: "#fff" },
-          { cardName: "activityFeed", titleColor: "#f0f" },
+          { cardName: "unsupportedCardType", titleColor: "#f0f" },
         ],
       };
       sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(cardData));
@@ -149,7 +149,7 @@ describe("Cards API GET Endpoint", () => {
       expect(json.cards.map((c: { cardName: string }) => c.cardName)).toEqual([
         "animeStats",
         "mangaStats",
-        "activityFeed",
+        "unsupportedCardType",
       ]);
     });
 
