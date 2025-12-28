@@ -30,6 +30,11 @@ export function DownloadPopover({
           variant="outline"
           size="sm"
           disabled={isDownloading}
+          aria-label={
+            isDownloading
+              ? `Downloading ${downloadProgress.current} of ${downloadProgress.total}`
+              : "Download cards"
+          }
           className={cn(
             "h-9 gap-1.5 rounded-lg border-2 px-3 font-medium transition-all",
             "border-blue-200 bg-blue-50/50 text-blue-700 hover:border-blue-300 hover:bg-blue-100",
@@ -40,7 +45,7 @@ export function DownloadPopover({
           {isDownloading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              <span className="hidden sm:inline">
+              <span className="hidden sm:inline" aria-hidden="true">
                 {downloadProgress.current}/{downloadProgress.total}
               </span>
             </>
