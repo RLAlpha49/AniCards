@@ -10,7 +10,7 @@ export function DisabledState() {
       aria-label="Card disabled"
     >
       <div className="text-center">
-        <EyeOff className="mx-auto mb-2 h-6 w-6 text-slate-300 dark:text-slate-600" />
+        <EyeOff className="mx-auto mb-2 h-6 w-6 text-slate-300 dark:text-slate-600" aria-hidden="true" />
         <p className="text-xs text-slate-400 dark:text-slate-500">
           Card disabled
         </p>
