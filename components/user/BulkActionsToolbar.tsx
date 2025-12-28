@@ -116,6 +116,7 @@ export function BulkActionsToolbar({
     getEffectiveColors,
     getEffectiveBorderColor,
     getEffectiveBorderRadius,
+    globalAdvancedSettings,
   } = useUserPageEditor();
 
   // Mirror the LayoutShell main margin-left behavior so the portaled toolbar
@@ -162,11 +163,11 @@ export function BulkActionsToolbar({
             circleColor: effectiveColors[3],
             borderColor: effectiveBorderColor,
             borderRadius: effectiveBorderRadius,
-            useStatusColors: config.advancedSettings.useStatusColors,
-            showPiePercentages: config.advancedSettings.showPiePercentages,
-            showFavorites: config.advancedSettings.showFavorites,
-            gridCols: config.advancedSettings.gridCols,
-            gridRows: config.advancedSettings.gridRows,
+            useStatusColors: config.advancedSettings.useStatusColors ?? globalAdvancedSettings.useStatusColors,
+            showPiePercentages: config.advancedSettings.showPiePercentages ?? globalAdvancedSettings.showPiePercentages,
+            showFavorites: config.advancedSettings.showFavorites ?? globalAdvancedSettings.showFavorites,
+            gridCols: config.advancedSettings.gridCols ?? globalAdvancedSettings.gridCols,
+            gridRows: config.advancedSettings.gridRows ?? globalAdvancedSettings.gridRows,
           },
           {
             userId,

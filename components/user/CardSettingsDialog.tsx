@@ -168,22 +168,8 @@ export function CardSettingsDialog({
     resetCardToGlobal(cardId);
   }, [cardId, resetCardToGlobal]);
 
-  // Build effective advanced settings by inheriting from global when undefined
-  const advancedSettings = {
-    useStatusColors:
-      config.advancedSettings.useStatusColors ??
-      globalAdvancedSettings.useStatusColors,
-    showPiePercentages:
-      config.advancedSettings.showPiePercentages ??
-      globalAdvancedSettings.showPiePercentages,
-    showFavorites:
-      config.advancedSettings.showFavorites ??
-      globalAdvancedSettings.showFavorites,
-    gridCols:
-      config.advancedSettings.gridCols ?? globalAdvancedSettings.gridCols ?? 3,
-    gridRows:
-      config.advancedSettings.gridRows ?? globalAdvancedSettings.gridRows ?? 3,
-  };
+  // Pass raw per-card overrides and let `SettingsContent` merge with globals
+  const rawAdvancedSettings = config.advancedSettings; 
 
   const handleAdvancedSettingChange = useCallback(
     <K extends keyof CardAdvancedSettings>(
@@ -236,7 +222,8 @@ export function CardSettingsDialog({
             onBorderColorChange: handleBorderColorChange,
             borderRadius: cardBorderRadius,
             onBorderRadiusChange: handleBorderRadiusChange,
-            advancedSettings,
+            advancedSettings: rawAdvancedSettings,
+            inheritedAdvancedSettings: globalAdvancedSettings,
             onAdvancedSettingChange: handleAdvancedSettingChange,
             advancedVisibility,
             onReset: handleResetToGlobal,

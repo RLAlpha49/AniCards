@@ -81,8 +81,10 @@ interface SettingsContentProps {
   onBorderRadiusChange: (radius: number) => void;
 
   // Advanced settings
-  /** Current advanced settings values */
+  /** Current advanced settings values (per-card overrides or global values) */
   advancedSettings: AdvancedSettings;
+  /** Optional inherited/global advanced settings to use when per-card values are undefined */
+  inheritedAdvancedSettings?: AdvancedSettings;
   /** Handler for advanced setting changes */
   onAdvancedSettingChange: <K extends keyof AdvancedSettings>(
     key: K,
@@ -119,6 +121,7 @@ export function SettingsContent({
   borderRadius,
   onBorderRadiusChange,
   advancedSettings,
+  inheritedAdvancedSettings,
   onAdvancedSettingChange,
   advancedVisibility,
   onReset,
@@ -132,17 +135,32 @@ export function SettingsContent({
     showGridSize: mode === "global",
   };
 
-  // Determine if advanced tab should be shown (respect merged/effective settings passed in)
+  // Merge per-card advanced settings with any provided inherited/global values so
+  // undefined means "inherit" and the UI reflects the resolved behavior.
+  const effectiveAdvancedSettings = {
+    useStatusColors:
+      advancedSettings.useStatusColors ?? inheritedAdvancedSettings?.useStatusColors,
+    showPiePercentages:
+      advancedSettings.showPiePercentages ?? inheritedAdvancedSettings?.showPiePercentages,
+    showFavorites:
+      advancedSettings.showFavorites ?? inheritedAdvancedSettings?.showFavorites,
+    gridCols:
+      advancedSettings.gridCols ?? inheritedAdvancedSettings?.gridCols ?? 3,
+    gridRows:
+      advancedSettings.gridRows ?? inheritedAdvancedSettings?.gridRows ?? 3,
+  };
+
+  // Determine if advanced tab should be shown (respect merged/effective settings)
   const hasAdvancedOptions =
     (visibility.showStatusColors &&
-      advancedSettings.useStatusColors !== undefined) ||
+      effectiveAdvancedSettings.useStatusColors !== undefined) ||
     (visibility.showPiePercentages &&
-      advancedSettings.showPiePercentages !== undefined) ||
+      effectiveAdvancedSettings.showPiePercentages !== undefined) ||
     (visibility.showFavorites &&
-      advancedSettings.showFavorites !== undefined) ||
+      effectiveAdvancedSettings.showFavorites !== undefined) ||
     (visibility.showGridSize &&
-      (advancedSettings.gridCols !== undefined ||
-        advancedSettings.gridRows !== undefined));
+      (effectiveAdvancedSettings.gridCols !== undefined ||
+        effectiveAdvancedSettings.gridRows !== undefined));
 
   // Color pickers configuration
   const colorPickers = useMemo<ColorPickerItem[]>(
@@ -337,7 +355,7 @@ export function SettingsContent({
                   </div>
                 </div>
                 <Switch
-                  checked={advancedSettings.useStatusColors ?? false}
+                  checked={effectiveAdvancedSettings.useStatusColors ?? false}
                   onCheckedChange={(checked) =>
                     onAdvancedSettingChange("useStatusColors", checked)
                   }
@@ -363,7 +381,7 @@ export function SettingsContent({
                   </div>
                 </div>
                 <Switch
-                  checked={advancedSettings.showPiePercentages ?? false}
+                  checked={effectiveAdvancedSettings.showPiePercentages ?? false}
                   onCheckedChange={(checked) =>
                     onAdvancedSettingChange("showPiePercentages", checked)
                   }
@@ -389,7 +407,7 @@ export function SettingsContent({
                   </div>
                 </div>
                 <Switch
-                  checked={advancedSettings.showFavorites ?? false}
+                  checked={effectiveAdvancedSettings.showFavorites ?? false}
                   onCheckedChange={(checked) =>
                     onAdvancedSettingChange("showFavorites", checked)
                   }
@@ -416,7 +434,7 @@ export function SettingsContent({
                       type="number"
                       min={1}
                       max={5}
-                      value={advancedSettings.gridCols ?? 3}
+                      value={effectiveAdvancedSettings.gridCols}
                       onChange={(e) => {
                         const val = Math.max(
                           1,
@@ -433,7 +451,7 @@ export function SettingsContent({
                       type="number"
                       min={1}
                       max={5}
-                      value={advancedSettings.gridRows ?? 3}
+                      value={effectiveAdvancedSettings.gridRows}
                       onChange={(e) => {
                         const val = Math.max(
                           1,

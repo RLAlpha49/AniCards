@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import Image from "next/image";
 import {
   Eye,
@@ -131,6 +131,7 @@ export function CardTile({
     getEffectiveColors,
     getEffectiveBorderColor,
     getEffectiveBorderRadius,
+    globalAdvancedSettings,
   } = useUserPageEditor();
 
   const isSelected = selectedCardIds.has(cardId);
@@ -171,11 +172,11 @@ export function CardTile({
         circleColor: effectiveColors[3],
         borderColor: effectiveBorderColor,
         borderRadius: effectiveBorderRadius,
-        useStatusColors: config.advancedSettings.useStatusColors,
-        showPiePercentages: config.advancedSettings.showPiePercentages,
-        showFavorites: config.advancedSettings.showFavorites,
-        gridCols: config.advancedSettings.gridCols,
-        gridRows: config.advancedSettings.gridRows,
+        useStatusColors: config.advancedSettings.useStatusColors ?? globalAdvancedSettings.useStatusColors,
+        showPiePercentages: config.advancedSettings.showPiePercentages ?? globalAdvancedSettings.showPiePercentages,
+        showFavorites: config.advancedSettings.showFavorites ?? globalAdvancedSettings.showFavorites,
+        gridCols: config.advancedSettings.gridCols ?? globalAdvancedSettings.gridCols,
+        gridRows: config.advancedSettings.gridRows ?? globalAdvancedSettings.gridRows,
       },
       {
         userId,
@@ -260,6 +261,38 @@ export function CardTile({
     [previewUrl, cardId, config.variant, isDownloading],
   );
   const borderRadiusValue = getCardBorderRadius(effectiveBorderRadius);
+
+  // Accessibility helpers: IDs for sr-only descriptions
+  const previewUnavailableId = `card-${cardId}-preview-unavailable`;
+  const convertingId = `card-${cardId}-converting`;
+
+  // Close popovers if preview becomes unavailable
+  useEffect(() => {
+    if (!previewUrl) {
+      setCopyPopoverOpen(false);
+      setDownloadPopoverOpen(false);
+    }
+  }, [previewUrl]);
+
+  // Close download popover when conversion starts
+  useEffect(() => {
+    if (isDownloading) {
+      setDownloadPopoverOpen(false);
+    }
+  }, [isDownloading]);
+
+  let downloadTitle: string | undefined;
+  let downloadDescrId: string | undefined;
+  if (!previewUrl) {
+    downloadTitle = "Preview not available";
+    downloadDescrId = previewUnavailableId;
+  } else if (isDownloading) {
+    downloadTitle = "Converting...";
+    downloadDescrId = convertingId;
+  } else {
+    downloadTitle = undefined;
+    downloadDescrId = undefined;
+  }
 
   return (
     <div
@@ -378,6 +411,16 @@ export function CardTile({
             )}
 
             {/* Quick Actions Overlay */}
+            {!previewUrl && (
+              <span id={previewUnavailableId} className="sr-only">
+                Preview not available
+              </span>
+            )}
+            {isDownloading && (
+              <span id={convertingId} className="sr-only">
+                Converting...
+              </span>
+            )}
             <div
               className={cn(
                 "absolute inset-0 flex items-center justify-center gap-2 transition-all",
@@ -391,12 +434,17 @@ export function CardTile({
                   <Button
                     variant="ghost"
                     size="sm"
+                    disabled={!previewUrl}
+                    aria-disabled={!previewUrl}
+                    aria-describedby={previewUrl ? undefined : previewUnavailableId}
+                    title={previewUrl ? undefined : "Preview not available"}
                     className={cn(
                       "h-8 gap-1.5 rounded-full px-3 text-sm font-medium shadow-lg transition-all",
                       copiedFormat
                         ? "bg-green-500 text-white shadow-green-500/25 hover:bg-green-600"
                         : "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-purple-500/25 hover:scale-105 hover:shadow-xl hover:shadow-purple-500/30",
                       isAnyPopoverOpen && "opacity-100",
+                      !previewUrl && "opacity-80 cursor-not-allowed",
                     )}
                   >
                     {copiedFormat ? (
@@ -418,8 +466,12 @@ export function CardTile({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-blue-50 dark:hover:bg-blue-950/50"
+                      className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-blue-50 dark:hover:bg-blue-950/50 disabled:opacity-70 disabled:cursor-not-allowed"
                       onClick={() => void handleCopyUrl("url")}
+                      disabled={!previewUrl}
+                      aria-disabled={!previewUrl}
+                      aria-describedby={previewUrl ? undefined : previewUnavailableId}
+                      title={previewUrl ? undefined : "Preview not available"}
                     >
                       <Link
                         className="h-4 w-4 text-blue-600 dark:text-blue-400"
@@ -436,8 +488,12 @@ export function CardTile({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-purple-50 dark:hover:bg-purple-950/50"
+                      className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-purple-50 dark:hover:bg-purple-950/50 disabled:opacity-70 disabled:cursor-not-allowed"
                       onClick={() => void handleCopyUrl("anilist")}
+                      disabled={!previewUrl}
+                      aria-disabled={!previewUrl}
+                      aria-describedby={previewUrl ? undefined : previewUnavailableId}
+                      title={previewUrl ? undefined : "Preview not available"}
                     >
                       <ImageIcon
                         className="h-4 w-4 text-purple-600 dark:text-purple-400"
@@ -451,6 +507,12 @@ export function CardTile({
                         />
                       )}
                     </Button>
+                    {/* Announce copy result to screen readers */}
+                    {copiedFormat && (
+                      <span aria-live="polite" className="sr-only">
+                        {copiedFormat === "url" ? "Copied URL to clipboard" : "Copied AniList format to clipboard"}
+                      </span>
+                    )}
                   </div>
                 </PopoverContent>
               </Popover>
@@ -462,13 +524,17 @@ export function CardTile({
                   <Button
                     variant="ghost"
                     size="sm"
-                    disabled={isDownloading}
+                    disabled={!previewUrl || isDownloading}
+                    aria-disabled={!previewUrl || isDownloading}
+                    aria-describedby={downloadDescrId}
+                    title={downloadTitle}
                     className={cn(
                       "h-8 gap-1.5 rounded-full px-3 text-sm font-medium shadow-lg transition-all",
                       "border-2 border-white/80 bg-white/20 text-white backdrop-blur-sm",
                       "hover:border-white hover:bg-white/30",
                       "disabled:opacity-70",
                       isAnyPopoverOpen && "opacity-100",
+                      !previewUrl && "cursor-not-allowed",
                     )}
                   >
                     {isDownloading ? (
@@ -493,8 +559,12 @@ export function CardTile({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                      className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-70 disabled:cursor-not-allowed"
                       onClick={() => void handleDownload("png")}
+                      disabled={!previewUrl || isDownloading}
+                      aria-disabled={!previewUrl || isDownloading}
+                      aria-describedby={downloadDescrId}
+                      title={downloadTitle}
                     >
                       <span className="font-medium text-slate-700 dark:text-slate-200">
                         PNG
@@ -506,8 +576,12 @@ export function CardTile({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                      className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-70 disabled:cursor-not-allowed"
                       onClick={() => void handleDownload("webp")}
+                      disabled={!previewUrl || isDownloading}
+                      aria-disabled={!previewUrl || isDownloading}
+                      aria-describedby={downloadDescrId}
+                      title={downloadTitle}
                     >
                       <span className="font-medium text-slate-700 dark:text-slate-200">
                         WebP
