@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { baseVariants } from "@/components/PageShell";
+import { siDwavesystems } from "simple-icons";
 
 /**
  * Save state for displaying save status.
@@ -207,10 +208,22 @@ export function UserPageHeader({
 
   const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
   useEffect(() => {
-    if (!saveState?.lastSavedAt) return;
+    if (
+      !saveState?.lastSavedAt ||
+      saveState.isSaving ||
+      saveState.isDirty ||
+      saveState.saveError
+    ) {
+      return;
+    }
     const id = setInterval(forceUpdate, 1000);
     return () => clearInterval(id);
-  }, [saveState?.lastSavedAt]);
+  }, [
+    saveState?.lastSavedAt,
+    saveState?.isSaving,
+    saveState?.isDirty,
+    saveState?.saveError,
+  ]);
 
   const saveInfo = saveState ? getSaveStateInfo(saveState) : undefined;
 
