@@ -5,38 +5,30 @@
  * @source
  */
 export const CARD_INFO_TOOLTIPS: Record<string, string> = {
-  // Diversity cards - explain the Shannon diversity calculation with formulas
-  countryDiversity: String.raw`Diversity is calculated using normalized Shannon entropy: $$H' = \frac{-\sum_{i=1}^{k} p_i \ln p_i}{\ln k}$$ where $p_i = c_i / T$ is the proportion of titles from country $i$, $c_i$ is the count for that country, $T$ is the total count, and $k$ is the number of countries. 100% means perfectly even distribution.`,
+  // Diversity cards - explain the (non-obvious) Shannon diversity calculation.
+  countryDiversity: String.raw`Normalized Shannon entropy (0–100): $$H' = \frac{-\sum_{i=1}^{k} p_i\ln p_i}{\ln k}$$ where $p_i$ is the share of titles in group $i$ and $k$ is the number of groups. Higher = more even country mix.`,
 
-  genreDiversity: String.raw`Diversity is calculated using normalized Shannon entropy: $$H' = \frac{-\sum_{i=1}^{k} p_i \ln p_i}{\ln k}$$ where $p_i = c_i / T$ is the proportion of titles in genre $i$, $c_i$ is the count for that genre, $T$ is the total count, and $k$ is the number of genres. 100% means perfectly even distribution across all genres.`,
+  genreDiversity: String.raw`Normalized Shannon entropy (0–100): $$H' = \frac{-\sum_{i=1}^{k} p_i\ln p_i}{\ln k}$$ where $p_i$ is the share of titles in group $i$ and $k$ is the number of groups. Higher = more even genre spread.`,
 
-  tagDiversity: String.raw`Diversity is calculated using normalized Shannon entropy: $$H' = \frac{-\sum_{i=1}^{k} p_i \ln p_i}{\ln k}$$ where $p_i = c_i / T$ is the proportion of titles with tag $i$, $c_i$ is the count for that tag, $T$ is the total count, and $k$ is the number of tags. 100% means perfectly even distribution across all tags.`,
+  tagDiversity: String.raw`Normalized Shannon entropy (0–100): $$H' = \frac{-\sum_{i=1}^{k} p_i\ln p_i}{\ln k}$$ where $p_i$ is the share of titles in group $i$ and $k$ is the number of groups. Higher = more even tag spread.`,
 
   // Score distribution cards
   animeScoreDistribution:
-    "Shows how you rate your anime across the 1-10 scale. The cumulative view shows the percentage of titles at or below each score.",
+    "Shows how you rate your anime across score buckets. The cumulative view shows the percentage of titles at or below each score bucket.",
 
   mangaScoreDistribution:
-    "Shows how you rate your manga across the 1-10 scale. The cumulative view shows the percentage of titles at or below each score.",
+    "Shows how you rate your manga across score buckets. The cumulative view shows the percentage of titles at or below each score bucket.",
 
   // Activity cards
   activityStreaks:
-    "Tracks consecutive days of activity on AniList. Current streak shows ongoing activity, while longest streak is your all-time record.",
-
-  // Social cards
-  socialMilestones:
-    "Displays follower milestones and social achievements on AniList.",
-
-  // Status distribution cards
-  animeStatusDistribution:
-    "Shows how your anime list is distributed across watching, completed, paused, dropped, and planning statuses.",
-
-  mangaStatusDistribution:
-    "Shows how your manga list is distributed across reading, completed, paused, dropped, and planning statuses.",
+    "Consecutive days with AniList activity. Current = ongoing streak; Longest = your best record.",
 
   // Synergy and preference cards
   animeGenreSynergy:
-    "Identifies genre combinations that frequently appear together in your watched anime, revealing your preferred genre pairings.",
+    "Counts how often genre pairs co-occur in your COMPLETED anime. Each title contributes 1 to each unique pair. Shows the top pairs.",
+
+  studioCollaboration:
+    "Counts how often studio pairs appear together on your COMPLETED anime. Each title contributes 1 to each unique studio pair. Shows the top pairs.",
 
   releaseEraPreference:
     "Analyzes which decades or time periods your anime/manga come from, showing whether you prefer classic or modern titles.",
@@ -48,14 +40,20 @@ export const CARD_INFO_TOOLTIPS: Record<string, string> = {
     "Analyzes your preference for short vs. long series based on episode counts for anime or chapter counts for manga.",
 
   seasonalViewingPatterns:
-    "Shows which seasons (Winter, Spring, Summer, Fall) you tend to start watching new anime, based on your list history.",
+    "Groups your AniList activity history by UTC season (by month). Bars show each season's share of total activity amount.",
+
+  animeSeasonalPreference:
+    "Counts unique anime in CURRENT + COMPLETED by AniList's media season (WINTER/SPRING/SUMMER/FALL). Not your activity season.",
+
+  tagCategoryDistribution:
+    "Groups AniList tags into their categories and sums the tag counts per category. Shows the top categories for Anime vs Manga.",
 
   // Format and source cards
   formatPreferenceOverview:
     "Compares your consumption across different media formats (TV, Movie, OVA, etc. for anime; Manga, Light Novel, etc. for manga).",
 
   animeSourceMaterialDistribution:
-    "Shows the original source material types (manga, light novel, original, game, etc.) of anime in your list.",
+    "Counts unique anime from CURRENT + COMPLETED by source (manga, light novel, original, game, etc.) using AniList metadata.",
 };
 
 /**
@@ -75,7 +73,9 @@ export function getCardInfoTooltip(cardId: string): string | undefined {
   if (!cardId || typeof cardId !== "string") {
     return undefined;
   }
-  return CARD_INFO_TOOLTIPS[cardId];
+  return Object.hasOwn(CARD_INFO_TOOLTIPS, cardId)
+    ? CARD_INFO_TOOLTIPS[cardId]
+    : undefined;
 }
 
 /**
@@ -88,5 +88,5 @@ export function hasCardInfoTooltip(cardId: string): boolean {
   if (!cardId || typeof cardId !== "string") {
     return false;
   }
-  return cardId in CARD_INFO_TOOLTIPS;
+  return Object.hasOwn(CARD_INFO_TOOLTIPS, cardId);
 }
