@@ -59,7 +59,9 @@ export async function fetchUserCards(
   userId: string,
 ): Promise<FetchUserCardsSuccess | FetchUserCardsError> {
   try {
-    const res = await fetch(`/api/get-cards?userId=${userId}`);
+    const res = await fetch(
+      `/api/get-cards?userId=${encodeURIComponent(userId)}`,
+    );
     const payload = await parseResponsePayload(res);
 
     if (!res.ok) {

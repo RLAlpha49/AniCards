@@ -256,7 +256,8 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
 
         {/* Helper text */}
         <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
-          Search for any AniList user by username or ID to view and customize stat cards.
+          Search for any AniList user by username or ID to view and customize
+          stat cards.
         </p>
       </div>
     </motion.div>
