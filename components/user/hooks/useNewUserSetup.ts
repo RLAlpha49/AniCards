@@ -16,15 +16,7 @@ interface AniListStatsResponse {
   [key: string]: unknown;
 }
 
-type LoadingPhase =
-  | "idle"
-  | "checking"
-  | "setting_up"
-  | "fetching_anilist"
-  | "saving"
-  | "loading_cards"
-  | "complete"
-  | "error";
+import type { LoadingPhase } from "@/lib/types/loading";
 
 type NewUserSetupResult =
   | {

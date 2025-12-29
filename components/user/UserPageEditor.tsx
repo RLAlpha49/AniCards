@@ -74,20 +74,7 @@ import { cn } from "@/lib/utils";
 import { useNewUserSetup } from "./hooks/useNewUserSetup";
 import { useCardFiltering } from "./hooks/useCardFiltering";
 import { useUserDataLoader } from "./hooks/useUserDataLoader";
-
-/**
- * Loading phases for the user page setup process.
- * @source
- */
-type LoadingPhase =
-  | "idle"
-  | "checking"
-  | "setting_up"
-  | "fetching_anilist"
-  | "saving"
-  | "loading_cards"
-  | "complete"
-  | "error";
+import type { LoadingPhase } from "@/lib/types/loading";
 
 /**
  * Human-readable messages for each loading phase.

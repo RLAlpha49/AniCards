@@ -10,16 +10,7 @@ import { trackUserActionError } from "@/lib/error-tracking";
 import { parseResponsePayload, getResponseErrorMessage } from "@/lib/utils";
 import { useNewUserSetup } from "./useNewUserSetup";
 import type { ReconstructedUserRecord } from "@/lib/types/records";
-
-type LoadingPhase =
-  | "idle"
-  | "checking"
-  | "setting_up"
-  | "fetching_anilist"
-  | "saving"
-  | "loading_cards"
-  | "complete"
-  | "error";
+import type { LoadingPhase } from "@/lib/types/loading";
 
 async function fetchUserData(
   userId: string | null,
