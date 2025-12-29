@@ -36,7 +36,6 @@ export function DownloadPopover({
           variant="ghost"
           size="sm"
           disabled={!previewUrl || isDownloading}
-          aria-disabled={!previewUrl || isDownloading}
           aria-describedby={downloadDescrId}
           title={downloadTitle}
           className={cn(
