@@ -97,11 +97,13 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
             () => {
               setLoading(false);
               onLoadingChange?.(false);
+              setError("Navigation failed. Please try again.");
             },
           );
         } catch {
           setLoading(false);
           onLoadingChange?.(false);
+          setError("Navigation failed. Please try again.");
         }
       });
     },
