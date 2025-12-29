@@ -76,12 +76,14 @@ export function GlobalSettingsPanel({
         saveAllDisabled={!isDirty}
         isSaving={isSaving}
         settingsContentProps={{
-          colors: globalColors as [
-            ColorValue,
-            ColorValue,
-            ColorValue,
-            ColorValue,
-          ],
+          colors: (globalColors.length === 4
+            ? globalColors
+            : [
+                ...globalColors,
+                ...new Array(4 - globalColors.length).fill(
+                  globalColors[0] || "#000000",
+                ),
+              ]) as [ColorValue, ColorValue, ColorValue, ColorValue],
           colorPreset: globalColorPreset,
           onColorChange: handleColorChange,
           onPresetChange: setGlobalColorPreset,
