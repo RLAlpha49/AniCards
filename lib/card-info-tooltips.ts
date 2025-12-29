@@ -6,11 +6,11 @@
  */
 export const CARD_INFO_TOOLTIPS: Record<string, string> = {
   // Diversity cards - explain the (non-obvious) Shannon diversity calculation.
-  countryDiversity: String.raw`Normalized Shannon entropy (0–100): $$H' = \frac{-\sum_{i=1}^{k} p_i\ln p_i}{\ln k}$$ where $p_i$ is the share of titles in group $i$ and $k$ is the number of groups. Higher = more even country mix.`,
+  countryDiversity: String.raw`Normalized Shannon entropy (0–100): $$H' = \frac{-\sum_{i=1}^{k} p_i \ln p_i}{\ln k}$$ where $p_i$ is the share of titles in country $i$ and $k$ is the number of countries. Higher = more even country mix.`,
 
-  genreDiversity: String.raw`Normalized Shannon entropy (0–100): $$H' = \frac{-\sum_{i=1}^{k} p_i\ln p_i}{\ln k}$$ where $p_i$ is the share of titles in group $i$ and $k$ is the number of groups. Higher = more even genre spread.`,
+  genreDiversity: String.raw`Normalized Shannon entropy (0–100): $$H' = \frac{-\sum_{i=1}^{k} p_i \ln p_i}{\ln k}$$ where $p_i$ is the share of titles in genre $i$ and $k$ is the number of genres. Higher = more even genre spread.`,
 
-  tagDiversity: String.raw`Normalized Shannon entropy (0–100): $$H' = \frac{-\sum_{i=1}^{k} p_i\ln p_i}{\ln k}$$ where $p_i$ is the share of titles in group $i$ and $k$ is the number of groups. Higher = more even tag spread.`,
+  tagDiversity: String.raw`Normalized Shannon entropy (0–100): $$H' = \frac{-\sum_{i=1}^{k} p_i \ln p_i}{\ln k}$$ where $p_i$ is the share of titles with tag $i$ and $k$ is the number of tags. Higher = more even tag spread.`,
 
   // Score distribution cards
   animeScoreDistribution:
