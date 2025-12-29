@@ -84,8 +84,7 @@ export function useCardFiltering({
 
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
     () => {
-      const groups = groupCardsByCategory();
-      const groupNames = Object.keys(groups);
+      const groupNames = Object.keys(cardGroups || {});
       const initial: Record<string, boolean> = {};
       for (const [index, name] of groupNames.entries()) {
         initial[name] = index === 0;
