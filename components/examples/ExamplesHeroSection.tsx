@@ -56,8 +56,15 @@ export function ExamplesHeroSection({
     if (gallery) {
       gallery.scrollIntoView({ behavior: "smooth", block: "start" });
       // Set focus for screen reader accessibility
-      gallery.setAttribute("tabindex", "-1");
+      if (!gallery.hasAttribute("tabindex")) {
+        gallery.setAttribute("tabindex", "-1");
+      }
       gallery.focus();
+      gallery.addEventListener(
+        "blur",
+        () => gallery.removeAttribute("tabindex"),
+        { once: true },
+      );
     }
   };
 
