@@ -32,35 +32,42 @@ const CATEGORY_COLORS: Record<
   string,
   { bg: string; text: string; activeBg: string }
 > = {
+  // NOTE: `activeBg` is an exhaustive, static class string (not fragments).
+  // This avoids runtime interpolation of Tailwind classes which can be purged
+  // by Tailwind's JIT scanner in production builds.
   "Core Stats": {
     bg: "bg-blue-100 dark:bg-blue-900/30",
     text: "text-blue-600 dark:text-blue-400",
-    activeBg: "from-blue-500 to-cyan-500",
+    activeBg: "bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg",
   },
   "Anime Deep Dive": {
     bg: "bg-purple-100 dark:bg-purple-900/30",
     text: "text-purple-600 dark:text-purple-400",
-    activeBg: "from-purple-500 to-violet-500",
+    activeBg:
+      "bg-gradient-to-r from-purple-500 to-violet-500 text-white shadow-lg",
   },
   "Manga Deep Dive": {
     bg: "bg-pink-100 dark:bg-pink-900/30",
     text: "text-pink-600 dark:text-pink-400",
-    activeBg: "from-pink-500 to-rose-500",
+    activeBg: "bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-lg",
   },
   "Activity & Engagement": {
     bg: "bg-amber-100 dark:bg-amber-900/30",
     text: "text-amber-600 dark:text-amber-400",
-    activeBg: "from-amber-500 to-orange-500",
+    activeBg:
+      "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg",
   },
   "Library & Progress": {
     bg: "bg-emerald-100 dark:bg-emerald-900/30",
     text: "text-emerald-600 dark:text-emerald-400",
-    activeBg: "from-emerald-500 to-green-500",
+    activeBg:
+      "bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-lg",
   },
   "Advanced Analytics": {
     bg: "bg-indigo-100 dark:bg-indigo-900/30",
     text: "text-indigo-600 dark:text-indigo-400",
-    activeBg: "from-indigo-500 to-blue-500",
+    activeBg:
+      "bg-gradient-to-r from-indigo-500 to-blue-500 text-white shadow-lg",
   },
 };
 
@@ -124,7 +131,7 @@ export function CategoryNavigation({
               className={cn(
                 "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-all",
                 isActive
-                  ? `bg-gradient-to-r ${colors.activeBg} text-white shadow-lg`
+                  ? colors.activeBg
                   : "bg-white/80 text-slate-700 hover:bg-slate-100 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700/80",
               )}
             >
