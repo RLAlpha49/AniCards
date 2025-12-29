@@ -77,16 +77,3 @@ export function getCardInfoTooltip(cardId: string): string | undefined {
     ? CARD_INFO_TOOLTIPS[cardId]
     : undefined;
 }
-
-/**
- * Check if a card type has info tooltip content.
- * @param cardId - The card type identifier
- * @returns True if the card has tooltip content
- * @source
- */
-export function hasCardInfoTooltip(cardId: string): boolean {
-  if (!cardId || typeof cardId !== "string") {
-    return false;
-  }
-  return Object.hasOwn(CARD_INFO_TOOLTIPS, cardId);
-}
