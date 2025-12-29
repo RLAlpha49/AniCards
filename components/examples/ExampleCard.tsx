@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/Card";
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
@@ -33,6 +33,13 @@ export function ExampleCard({
 }: Readonly<ExampleCardProps>) {
   const [copied, setCopied] = useState(false);
 
+  useEffect(() => {
+    if (copied) {
+      const timer = setTimeout(() => setCopied(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [copied]);
+
   const handleCopy = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -43,8 +50,6 @@ export function ExampleCard({
       try {
         await navigator.clipboard.writeText(variant.url);
         setCopied(true);
-        const timer = setTimeout(() => setCopied(false), 2000);
-        return () => clearTimeout(timer);
       } catch (error) {
         console.error("Failed to copy:", error);
       }
