@@ -1,13 +1,11 @@
 "use client";
 
 import { useEffect, useCallback, useRef } from "react";
-import {
-  useUserPageEditor,
-  type ServerCardData,
-} from "@/lib/stores/user-page-editor";
+import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 import { getResponseErrorMessage, parseResponsePayload } from "@/lib/utils";
 import { colorPresets } from "@/components/stat-card-generator/constants";
 import type { ColorValue } from "@/lib/types/card";
+import { ServerCardData } from "@/lib/api/cards";
 
 /**
  * Default debounce delay for auto-save in milliseconds.

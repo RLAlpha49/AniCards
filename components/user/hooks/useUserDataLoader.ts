@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import {
-  useUserPageEditor,
-  type ServerCardData,
-  type ServerGlobalSettings,
-} from "@/lib/stores/user-page-editor";
+import { useUserPageEditor } from "@/lib/stores/user-page-editor";
+import { fetchUserCards } from "@/lib/api/cards";
 import { getErrorDetails } from "@/lib/error-messages";
 import { trackUserActionError } from "@/lib/error-tracking";
 import { parseResponsePayload, getResponseErrorMessage } from "@/lib/utils";
@@ -52,33 +49,6 @@ async function fetchUserData(
       error:
         "Failed to fetch user data. Please check your connection and try again.",
     };
-  }
-}
-
-async function fetchUserCards(
-  userId: string,
-): Promise<
-  | { cards: ServerCardData[]; globalSettings?: ServerGlobalSettings }
-  | { error: string; notFound?: boolean }
-> {
-  try {
-    const res = await fetch(`/api/get-cards?userId=${userId}`);
-    const payload = await parseResponsePayload(res);
-
-    if (!res.ok) {
-      const msg = getResponseErrorMessage(res, payload);
-      if (res.status === 404) return { error: msg, notFound: true };
-      return { error: msg };
-    }
-
-    const data = payload as {
-      cards?: ServerCardData[];
-      globalSettings?: ServerGlobalSettings;
-    };
-    return { cards: data.cards || [], globalSettings: data.globalSettings };
-  } catch (err) {
-    console.error("Error fetching cards:", err);
-    return { error: "Failed to fetch cards" };
   }
 }
 

@@ -7,6 +7,7 @@ import {
   statCardTypes,
 } from "@/components/stat-card-generator/constants";
 import { DEFAULT_CARD_BORDER_RADIUS, clampBorderRadius } from "@/lib/utils";
+import { ServerCardData, ServerGlobalSettings } from "../api/cards";
 
 /**
  * Per-card color override configuration.
@@ -196,49 +197,6 @@ export interface UserPageEditorActions {
   getEffectiveColors: (cardId: string) => ColorValue[];
   getEffectiveBorderColor: (cardId: string) => string | undefined;
   getEffectiveBorderRadius: (cardId: string) => number;
-}
-
-/**
- * Shape of card data received from the server.
- * @source
- */
-export interface ServerCardData {
-  cardName: string;
-  variation?: string;
-  colorPreset?: string;
-  titleColor?: ColorValue;
-  backgroundColor?: ColorValue;
-  textColor?: ColorValue;
-  circleColor?: ColorValue;
-  borderColor?: string;
-  borderRadius?: number;
-  useStatusColors?: boolean;
-  showPiePercentages?: boolean;
-  showFavorites?: boolean;
-  gridCols?: number;
-  gridRows?: number;
-  useCustomSettings?: boolean;
-  disabled?: boolean;
-}
-
-/**
- * Shape of global settings received from the server.
- * @source
- */
-export interface ServerGlobalSettings {
-  colorPreset?: string;
-  titleColor?: ColorValue;
-  backgroundColor?: ColorValue;
-  textColor?: ColorValue;
-  circleColor?: ColorValue;
-  borderEnabled?: boolean;
-  borderColor?: string;
-  borderRadius?: number;
-  useStatusColors?: boolean;
-  showPiePercentages?: boolean;
-  showFavorites?: boolean;
-  gridCols?: number;
-  gridRows?: number;
 }
 
 /** Combined store type */

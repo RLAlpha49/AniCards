@@ -28,5 +28,4 @@ export {
   type UserPageEditorState,
   type UserPageEditorActions,
   type UserPageEditorStore,
-  type ServerCardData,
 } from "./user-page-editor";

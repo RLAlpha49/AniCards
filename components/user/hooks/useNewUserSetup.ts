@@ -1,9 +1,6 @@
 import { useCallback, useState } from "react";
-import {
-  useUserPageEditor,
-  type ServerCardData,
-  type ServerGlobalSettings,
-} from "@/lib/stores/user-page-editor";
+import { useUserPageEditor } from "@/lib/stores/user-page-editor";
+import { fetchUserCards } from "@/lib/api/cards";
 import { statCardTypes } from "@/components/stat-card-generator/constants";
 import { parseResponsePayload, getResponseErrorMessage } from "@/lib/utils";
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
@@ -164,28 +161,6 @@ async function saveInitialCards(userId: number, stats: unknown) {
   } catch (err) {
     console.error("Error saving initial cards:", err);
     return { error: "Failed to initialize cards. Please try again." };
-  }
-}
-
-async function fetchUserCards(userId: string) {
-  try {
-    const res = await fetch(`/api/get-cards?userId=${userId}`);
-    const payload = await parseResponsePayload(res);
-
-    if (!res.ok) {
-      const msg = getResponseErrorMessage(res, payload);
-      if (res.status === 404) return { error: msg, notFound: true };
-      return { error: msg };
-    }
-
-    const data = payload as {
-      cards?: ServerCardData[];
-      globalSettings?: ServerGlobalSettings;
-    };
-    return { cards: data.cards || [], globalSettings: data.globalSettings };
-  } catch (err) {
-    console.error("Error fetching cards:", err);
-    return { error: "Failed to fetch cards" };
   }
 }
 
