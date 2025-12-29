@@ -10,6 +10,7 @@ export function useDownload(
   const { cardId, variant } = opts;
   const [isDownloading, setIsDownloading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [status, setStatus] = useState<"idle" | "downloading" | "success" | "error">("idle");
   const isDownloadingRef = useRef(false);
   const isMountedRef = useRef(true);
 
@@ -26,6 +27,7 @@ export function useDownload(
       if (isMountedRef.current) {
         setIsDownloading(true);
         setError(null);
+        setStatus("downloading");
       }
       let link: HTMLAnchorElement | null = null;
       let dataUrl: string | null = null;
@@ -38,10 +40,14 @@ export function useDownload(
         link.download = `${cardId}-${variant}.${format}`;
         document.body.appendChild(link);
         link.click();
+        if (isMountedRef.current) {
+          setStatus("success");
+        }
       } catch (error) {
         console.error("Failed to download card:", error);
         if (isMountedRef.current) {
           setError(error instanceof Error ? error : new Error(String(error)));
+          setStatus("error");
         }
       } finally {
         if (dataUrl?.startsWith("blob:")) {
@@ -57,5 +63,5 @@ export function useDownload(
     [previewUrl, cardId, variant],
   );
 
-  return { isDownloading, error, handleDownload } as const;
+  return { isDownloading, error, handleDownload, status } as const;
 }
