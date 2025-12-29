@@ -22,6 +22,7 @@ export function useDownload(
       try {
         const absoluteUrl = getAbsoluteUrl(previewUrl);
         const dataUrl = await svgToPng(absoluteUrl, format);
+        if (!dataUrl) throw new Error("Failed to convert SVG to image");
         link = document.createElement("a");
         link.href = dataUrl;
         link.download = `${cardId}-${variant}.${format}`;
