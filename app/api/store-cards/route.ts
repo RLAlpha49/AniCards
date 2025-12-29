@@ -503,7 +503,7 @@ function computeEffectiveBorderRadius(
 ): number | undefined {
   if (!effectiveBorderEnabled) return undefined;
   if (typeof incoming?.borderRadius === "number") {
-    return clampBorderRadius(incoming.borderRadius);
+    return incoming.borderRadius;
   }
   if (typeof existing?.borderRadius === "number") {
     return clampBorderRadius(existing.borderRadius);
