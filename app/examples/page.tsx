@@ -704,6 +704,7 @@ export default function ExamplesPage() {
                     No cards found matching your search.
                   </p>
                   <button
+                    type="button"
                     onClick={handleClearFilters}
                     className="mt-4 font-medium text-purple-600 hover:underline dark:text-purple-400"
                   >

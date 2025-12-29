@@ -103,6 +103,7 @@ export function ExampleCard({
                 {variant.name}
               </h4>
               <button
+                type="button"
                 onClick={handleCopy}
                 className={cn(
                   "shrink-0 rounded-full p-1.5 transition-all",

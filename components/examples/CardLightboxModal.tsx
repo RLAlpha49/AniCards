@@ -105,6 +105,7 @@ export function CardLightboxModal({
             >
               {/* Custom Close Button */}
               <button
+                type="button"
                 onClick={onClose}
                 className={cn(
                   "absolute right-4 top-4 z-50 flex h-10 w-10 items-center justify-center rounded-full",
