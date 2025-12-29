@@ -62,6 +62,7 @@ import {
 
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { UserPageHeader } from "./UserPageHeader";
+import { UserHelpDialog } from "./UserHelpDialog";
 import { GlobalSettingsPanel } from "./GlobalSettingsPanel";
 import { CardCategorySection } from "./CardCategorySection";
 import { CardTile } from "./CardTile";
@@ -633,6 +634,7 @@ export function UserPageEditor() {
   // Loading phase state for descriptive loading messages
   const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>("idle");
   const [isNewUser, setIsNewUser] = useState(false);
+  const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false);
   const lastLoadedUserRef = useRef<string | null>(null);
 
   const [query, setQuery] = useState("");
@@ -856,6 +858,7 @@ export function UserPageEditor() {
     setLoadError(null);
     setIsNewUser(false);
     setCardsWarning(null);
+    setIsHelpDialogOpen(false);
 
     const loadData = async () => {
       if (!userIdParam && !usernameParam) {
@@ -1166,6 +1169,11 @@ export function UserPageEditor() {
           saveState={saveState}
         />
 
+        <UserHelpDialog
+          open={isHelpDialogOpen}
+          onOpenChange={setIsHelpDialogOpen}
+        />
+
         {/* Notices Section */}
         <div className="mx-auto mt-6 flex max-w-[80vw] flex-col gap-4">
           {/* Welcome Notice for New Users */}
@@ -1197,6 +1205,57 @@ export function UserPageEditor() {
                   >
                     <X className="h-4 w-4" />
                   </Button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+
+          {/* Quick Start Callout (shown for new users) */}
+          {isNewUser && (
+            <div className="flex justify-center">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.12 }}
+                className="w-full max-w-[700px] rounded-xl border border-slate-200/60 bg-white/70 px-4 py-4 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/40"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/50">
+                    <Info
+                      className="h-4 w-4 text-blue-700 dark:text-blue-300"
+                      aria-hidden="true"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                      Quick start
+                    </h3>
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700 dark:text-slate-300">
+                      <li>
+                        Enable the cards you want below (you can always change
+                        this later).
+                      </li>
+                      <li>
+                        Open <strong>Global Settings</strong> to set your
+                        default style.
+                      </li>
+                      <li>
+                        Use each card’s actions to copy links/text or download.
+                      </li>
+                    </ul>
+
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="w-full rounded-xl sm:w-auto"
+                        onClick={() => setIsHelpDialogOpen(true)}
+                        aria-haspopup="dialog"
+                      >
+                        Learn more
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </motion.div>
             </div>
@@ -1309,22 +1368,35 @@ export function UserPageEditor() {
                   </div>
                 </div>
 
-                {/* Global Settings Button */}
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button
-                      type="button"
-                      size="default"
-                      className="shrink-0 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/25 transition-all hover:shadow-xl hover:shadow-purple-500/30"
-                    >
-                      <SlidersHorizontal className="mr-2 h-4 w-4" />
-                      Global Settings
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="overlay-scrollbar max-h-[85vh] max-w-4xl overflow-y-auto">
-                    <GlobalSettingsPanel onSave={saveNow} />
-                  </DialogContent>
-                </Dialog>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full shrink-0 rounded-xl sm:w-auto"
+                    onClick={() => setIsHelpDialogOpen(true)}
+                    aria-haspopup="dialog"
+                  >
+                    <Info className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Help
+                  </Button>
+
+                  {/* Global Settings Button */}
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button
+                        type="button"
+                        size="default"
+                        className="w-full shrink-0 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/25 transition-all hover:shadow-xl hover:shadow-purple-500/30 sm:w-auto"
+                      >
+                        <SlidersHorizontal className="mr-2 h-4 w-4" />
+                        Global Settings
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="overlay-scrollbar max-h-[85vh] max-w-4xl overflow-y-auto">
+                      <GlobalSettingsPanel onSave={saveNow} />
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </div>
 
               {/* Filters toolbar */}
