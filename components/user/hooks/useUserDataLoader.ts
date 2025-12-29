@@ -214,7 +214,7 @@ export function useUserDataLoader() {
 
   const reload = useCallback(() => {
     lastLoadedUserRef.current = null;
-    load();
+    return load();
   }, [load]);
 
   return { isLoading, loadError, loadingPhase, reload } as const;
