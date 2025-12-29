@@ -1205,9 +1205,9 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
         const { cardConfigs, globalBorderRadius } = get();
         const config = cardConfigs[cardId];
         if (config?.borderRadius !== undefined) {
-          return clampBorderRadius(config.borderRadius);
+          return config.borderRadius;
         }
-        return clampBorderRadius(globalBorderRadius);
+        return globalBorderRadius;
       },
     }),
     { name: "UserPageEditor" },
