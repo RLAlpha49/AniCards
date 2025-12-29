@@ -6,11 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { ArrowLeft, ArrowDown, Play, Sparkles, Layers } from "lucide-react";
 import { SearchFilterBar } from "./SearchFilterBar";
 import { CategoryNavigation } from "./CategoryNavigation";
-
-interface CategoryInfo {
-  name: string;
-  count: number;
-}
+import type { CategoryInfo } from "./types";
 
 interface HeroSectionProps {
   searchQuery: string;
@@ -136,8 +132,7 @@ export function ExamplesHeroSection({
               className="font-semibold text-blue-600 transition-colors hover:text-blue-700 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
             >
               @Alpha49
-            </a>
-            .
+            </a>.
           </motion.p>
 
           {/* CTA buttons */}

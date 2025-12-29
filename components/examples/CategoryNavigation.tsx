@@ -12,11 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-interface CategoryInfo {
-  name: string;
-  count: number;
-}
+import type { CategoryInfo } from "./types";
 
 interface CategoryNavigationProps {
   categories: CategoryInfo[];
