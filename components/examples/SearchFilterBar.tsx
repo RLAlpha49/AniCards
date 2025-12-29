@@ -49,6 +49,7 @@ export function SearchFilterBar({
         <AnimatePresence>
           {searchQuery.length > 0 && (
             <motion.button
+              type="button"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
