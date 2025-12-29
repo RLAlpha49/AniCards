@@ -39,7 +39,7 @@ export function VariantSelector({
       </Label>
       <Select value={effectiveVariant} onValueChange={onVariantChange}>
         <SelectTrigger className="h-9 w-full text-sm">
-          <SelectValue placeholder="Select variant" />
+          <SelectValue />
         </SelectTrigger>
         <SelectContent>
           {variations.map((variation) => (
