@@ -71,6 +71,7 @@ export function DownloadPopover({
             variant="ghost"
             size="sm"
             className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+            disabled={isDownloading}
             onClick={() => {
               handleDownloadAll("png");
             }}
@@ -85,6 +86,7 @@ export function DownloadPopover({
             variant="ghost"
             size="sm"
             className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+            disabled={isDownloading}
             onClick={() => {
               handleDownloadAll("webp");
             }}
