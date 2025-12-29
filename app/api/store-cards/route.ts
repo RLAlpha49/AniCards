@@ -512,6 +512,119 @@ function computeEffectiveBorderRadius(
 }
 
 /**
+ * Normalize a GlobalCardSettings object according to color preset rules.
+ * If a non-custom preset is set, the individual color fields are cleared to
+ * avoid persisting them for known presets.
+ */
+function normalizeGlobalColorsForPreset(
+  settings: GlobalCardSettings | undefined,
+): GlobalCardSettings | undefined {
+  if (!settings) return settings;
+  const preset =
+    typeof settings.colorPreset === "string"
+      ? settings.colorPreset.trim()
+      : undefined;
+  if (preset && preset !== "custom") {
+    return {
+      ...settings,
+      colorPreset: preset,
+      titleColor: undefined,
+      backgroundColor: undefined,
+      textColor: undefined,
+      circleColor: undefined,
+    };
+  }
+  return preset ? { ...settings, colorPreset: preset } : settings;
+}
+
+/**
+ * Validate `validated` (result of `validateCardData`) and `statsData`. Returns
+ * a `NextResponse` when validation fails; otherwise `undefined`.
+ * Extracted from `POST` to reduce cognitive complexity.
+ */
+async function validateIncomingPayload(
+  validated: ReturnType<typeof validateCardData>,
+  statsData: unknown,
+  endpoint: string,
+  endpointKey: string,
+  request: Request,
+  userId: string,
+): Promise<NextResponse | undefined> {
+  if (!validated.success) {
+    await incrementAnalytics(
+      buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+    );
+    return validated.error;
+  }
+  const statsError =
+    statsData && typeof statsData === "object"
+      ? (statsData as Record<string, unknown>).error
+      : undefined;
+  if (statsError !== undefined) {
+    const errMsg = String(statsError);
+    console.warn(`⚠️ [${endpoint}] Invalid data for user ${userId}: ${errMsg}`);
+    await incrementAnalytics(
+      buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+    );
+    return jsonWithCors({ error: "Invalid data: " + errMsg }, request, 400);
+  }
+  return undefined;
+}
+
+/**
+ * Build merged global settings from sanitized incoming and existing settings.
+ * Encapsulates color preset normalization and conditional persistence rules.
+ */
+function buildMergedGlobalSettings(
+  sanitized?: Partial<GlobalCardSettings>,
+  existing?: GlobalCardSettings,
+  effective?: {
+    borderEnabled?: boolean;
+    borderColor?: string;
+    borderRadius?: number;
+    useStatusColors?: boolean;
+    showPiePercentages?: boolean;
+    showFavorites?: boolean;
+    gridCols?: number;
+    gridRows?: number;
+  },
+): GlobalCardSettings | undefined {
+  const mergedColorPresetRaw = sanitized?.colorPreset ?? existing?.colorPreset;
+  const mergedColorPreset =
+    typeof mergedColorPresetRaw === "string"
+      ? mergedColorPresetRaw.trim()
+      : undefined;
+  const shouldPersistGlobalColors =
+    !mergedColorPreset || mergedColorPreset === "custom";
+
+  if (!sanitized) return normalizeGlobalColorsForPreset(existing);
+
+  return normalizeGlobalColorsForPreset({
+    colorPreset: mergedColorPreset,
+    titleColor: shouldPersistGlobalColors
+      ? (sanitized.titleColor ?? existing?.titleColor)
+      : undefined,
+    backgroundColor: shouldPersistGlobalColors
+      ? (sanitized.backgroundColor ?? existing?.backgroundColor)
+      : undefined,
+    textColor: shouldPersistGlobalColors
+      ? (sanitized.textColor ?? existing?.textColor)
+      : undefined,
+    circleColor: shouldPersistGlobalColors
+      ? (sanitized.circleColor ?? existing?.circleColor)
+      : undefined,
+    borderEnabled: effective?.borderEnabled,
+    borderColor: effective?.borderColor,
+    borderRadius: effective?.borderRadius,
+    useStatusColors: effective?.useStatusColors,
+    showPiePercentages: effective?.showPiePercentages,
+    showFavorites: effective?.showFavorites,
+    gridCols: effective?.gridCols,
+    gridRows: effective?.gridRows,
+  });
+}
+
+/**
  * Validates, persists, and reports analytics for the user card configuration payload.
  * @param request - Incoming request containing the user ID, stats, and card array.
  * @returns A NextResponse that signals success or propagates a validation/error response.
@@ -541,27 +654,18 @@ export async function POST(request: Request): Promise<NextResponse> {
       endpoint,
       request,
     );
-    if (!validated.success) {
-      await incrementAnalytics(
-        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-      );
-      return validated.error;
-    }
-    const incomingCardsTyped = validated.cards;
 
-    if (statsData?.error) {
-      console.warn(
-        `⚠️ [${endpoint}] Invalid data for user ${userId}: ${statsData.error}`,
-      );
-      await incrementAnalytics(
-        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-      );
-      return jsonWithCors(
-        { error: "Invalid data: " + statsData.error },
-        request,
-        400,
-      );
-    }
+    const validateErrorResponse = await validateIncomingPayload(
+      validated,
+      statsData,
+      endpoint,
+      endpointKey,
+      request,
+      userId,
+    );
+    if (validateErrorResponse) return validateErrorResponse;
+
+    const incomingCardsTyped = validated.success ? validated.cards : [];
 
     // Use a Redis key to store the user's card configurations
     const cardsKey = `cards:${userId}`;
@@ -634,67 +738,21 @@ export async function POST(request: Request): Promise<NextResponse> {
       existingGlobalSettings,
     );
 
-    const normalizeGlobalColorsForPreset = (
-      settings: GlobalCardSettings | undefined,
-    ): GlobalCardSettings | undefined => {
-      if (!settings) return settings;
-      const preset =
-        typeof settings.colorPreset === "string"
-          ? settings.colorPreset.trim()
-          : undefined;
-      if (preset && preset !== "custom") {
-        return {
-          ...settings,
-          colorPreset: preset,
-          titleColor: undefined,
-          backgroundColor: undefined,
-          textColor: undefined,
-          circleColor: undefined,
-        };
-      }
-      return preset ? { ...settings, colorPreset: preset } : settings;
-    };
-
-    const mergedColorPresetRaw =
-      sanitizedGlobalSettings?.colorPreset ??
-      existingGlobalSettings?.colorPreset;
-    const mergedColorPreset =
-      typeof mergedColorPresetRaw === "string"
-        ? mergedColorPresetRaw.trim()
-        : undefined;
-    const shouldPersistGlobalColors =
-      !mergedColorPreset || mergedColorPreset === "custom";
-
     const mergedGlobalSettings: GlobalCardSettings | undefined =
-      sanitizedGlobalSettings
-        ? normalizeGlobalColorsForPreset({
-            colorPreset: mergedColorPreset,
-            titleColor: shouldPersistGlobalColors
-              ? (sanitizedGlobalSettings.titleColor ??
-                existingGlobalSettings?.titleColor)
-              : undefined,
-            backgroundColor: shouldPersistGlobalColors
-              ? (sanitizedGlobalSettings.backgroundColor ??
-                existingGlobalSettings?.backgroundColor)
-              : undefined,
-            textColor: shouldPersistGlobalColors
-              ? (sanitizedGlobalSettings.textColor ??
-                existingGlobalSettings?.textColor)
-              : undefined,
-            circleColor: shouldPersistGlobalColors
-              ? (sanitizedGlobalSettings.circleColor ??
-                existingGlobalSettings?.circleColor)
-              : undefined,
-            borderEnabled: effectiveBorderEnabled,
-            borderColor: effectiveBorderColor,
-            borderRadius: effectiveBorderRadius,
-            useStatusColors: effectiveUseStatusColors,
-            showPiePercentages: effectiveShowPiePercentages,
-            showFavorites: effectiveShowFavorites,
-            gridCols: effectiveGridCols,
-            gridRows: effectiveGridRows,
-          })
-        : normalizeGlobalColorsForPreset(existingGlobalSettings);
+      buildMergedGlobalSettings(
+        sanitizedGlobalSettings,
+        existingGlobalSettings,
+        {
+          borderEnabled: effectiveBorderEnabled,
+          borderColor: effectiveBorderColor,
+          borderRadius: effectiveBorderRadius,
+          useStatusColors: effectiveUseStatusColors,
+          showPiePercentages: effectiveShowPiePercentages,
+          showFavorites: effectiveShowFavorites,
+          gridCols: effectiveGridCols,
+          gridRows: effectiveGridRows,
+        },
+      );
 
     const cardData: CardsRecord = {
       userId,
