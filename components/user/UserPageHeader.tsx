@@ -149,8 +149,10 @@ function getAnilistUrl(
   username?: string | null,
   userId?: string | number | null,
 ): string | null {
-  if (username) return `https://anilist.co/user/${encodeURIComponent(username)}`;
-  if (userId) return `https://anilist.co/user/${encodeURIComponent(String(userId))}`;
+  if (username)
+    return `https://anilist.co/user/${encodeURIComponent(username)}`;
+  if (userId)
+    return `https://anilist.co/user/${encodeURIComponent(String(userId))}`;
   return null;
 }
 

@@ -27,7 +27,10 @@ export function VariantSelector({
 }: Readonly<VariantSelectorProps>) {
   if (!variations || variations.length <= 1) return null;
 
-  const effectiveVariant = currentVariant && variations.some(v => v.id === currentVariant) ? currentVariant : variations[0].id;
+  const effectiveVariant =
+    currentVariant && variations.some((v) => v.id === currentVariant)
+      ? currentVariant
+      : variations[0].id;
 
   return (
     <div className="border-t border-slate-200/50 px-4 py-3 dark:border-slate-700/50">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useCallback, useState, useRef } from "react";
+import { useEffect, useMemo, useCallback, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -68,18 +68,12 @@ import { CardCategorySection } from "./CardCategorySection";
 import { CardTile } from "./CardTile";
 import { BulkActionsToolbar } from "./BulkActionsToolbar";
 import { DISABLED_CARD_INFO } from "@/lib/card-info-tooltips";
-import {
-  useUserPageEditor,
-  type ServerCardData,
-  type ServerGlobalSettings,
-} from "@/lib/stores/user-page-editor";
-import type { ReconstructedUserRecord } from "@/lib/types/records";
+import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 import { useCardAutoSave } from "@/hooks/useCardAutoSave";
-import { statCardTypes } from "@/components/stat-card-generator/constants";
-import { cn, getResponseErrorMessage, parseResponsePayload } from "@/lib/utils";
-import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
-import { getErrorDetails } from "@/lib/error-messages";
-import { trackUserActionError } from "@/lib/error-tracking";
+import { cn } from "@/lib/utils";
+import { useNewUserSetup } from "./hooks/useNewUserSetup";
+import { useCardFiltering } from "./hooks/useCardFiltering";
+import { useUserDataLoader } from "./hooks/useUserDataLoader";
 
 /**
  * Loading phases for the user page setup process.
@@ -109,199 +103,6 @@ const LOADING_PHASE_MESSAGES: Record<LoadingPhase, string> = {
   complete: "Ready!",
   error: "Something went wrong",
 };
-
-/**
- * Response from AniList API for user ID lookup.
- * @source
- */
-interface AniListUserIdResponse {
-  User?: {
-    id: number;
-  };
-  error?: string;
-}
-
-/**
- * Response from AniList API for user stats.
- * @source
- */
-interface AniListStatsResponse {
-  User?: Record<string, unknown>;
-  [key: string]: unknown;
-}
-
-/**
- * Fetches user ID from AniList by username.
- * @source
- */
-async function fetchUserIdFromAniList(
-  username: string,
-): Promise<{ userId: number } | { error: string }> {
-  try {
-    const res = await fetch("/api/anilist", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query: USER_ID_QUERY,
-        variables: { userName: username },
-      }),
-    });
-
-    const payload = await parseResponsePayload(res);
-
-    if (!res.ok) {
-      if (res.status === 404) {
-        return {
-          error: `User "${username}" not found on AniList. Please check the username and try again.`,
-        };
-      }
-      if (res.status === 429) {
-        return {
-          error:
-            "AniList rate limit reached. Please wait a moment and try again.",
-        };
-      }
-      const msg = getResponseErrorMessage(res, payload);
-      return { error: msg };
-    }
-
-    const data = payload as AniListUserIdResponse;
-    if (!data.User?.id) {
-      return { error: `User "${username}" not found on AniList.` };
-    }
-
-    return { userId: data.User.id };
-  } catch (err) {
-    console.error("Error fetching user ID from AniList:", err);
-    return {
-      error:
-        "Failed to connect to AniList. Please check your connection and try again.",
-    };
-  }
-}
-
-/**
- * Fetches full user stats from AniList.
- * @source
- */
-async function fetchUserStatsFromAniList(
-  userId: number,
-): Promise<{ stats: AniListStatsResponse } | { error: string }> {
-  try {
-    const res = await fetch("/api/anilist", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query: USER_STATS_QUERY,
-        variables: { userId },
-      }),
-    });
-
-    const payload = await parseResponsePayload(res);
-
-    if (!res.ok) {
-      if (res.status === 429) {
-        return {
-          error:
-            "AniList rate limit reached. Please wait a moment and try again.",
-        };
-      }
-      const msg = getResponseErrorMessage(res, payload);
-      return { error: msg };
-    }
-
-    return { stats: payload as AniListStatsResponse };
-  } catch (err) {
-    console.error("Error fetching user stats from AniList:", err);
-    return { error: "Failed to fetch stats from AniList. Please try again." };
-  }
-}
-
-/**
- * Saves user data to the database.
- * @source
- */
-async function saveUserToDatabase(
-  userId: number,
-  username: string,
-  stats: AniListStatsResponse,
-): Promise<{ success: boolean } | { error: string }> {
-  try {
-    const res = await fetch("/api/store-users", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId,
-        username,
-        stats,
-      }),
-    });
-
-    const payload = await parseResponsePayload(res);
-
-    if (!res.ok) {
-      const msg = getResponseErrorMessage(res, payload);
-      return { error: msg };
-    }
-
-    return { success: true };
-  } catch (err) {
-    console.error("Error saving user to database:", err);
-    return { error: "Failed to save your profile. Please try again." };
-  }
-}
-
-/**
- * Builds the initial enabled cards snapshot used for new users.
- * @returns Server-like card objects with every supported card enabled.
- */
-function buildInitialCardsSnapshot() {
-  return statCardTypes.map((t) => ({
-    cardName: t.id,
-    disabled: false,
-    variation: t.variations[0].id,
-    colorPreset: "default",
-  }));
-}
-
-/**
- * Saves initial card configuration to the database.
- * @source
- */
-async function saveInitialCards(
-  userId: number,
-  stats: AniListStatsResponse,
-): Promise<{ success: boolean } | { error: string }> {
-  try {
-    const initialCards = buildInitialCardsSnapshot();
-
-    const res = await fetch("/api/store-cards", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId,
-        cards: initialCards,
-        statsData: stats,
-        globalSettings: {
-          colorPreset: "default",
-          borderEnabled: false,
-        },
-      }),
-    });
-
-    const payload = await parseResponsePayload(res);
-
-    if (!res.ok) {
-      const msg = getResponseErrorMessage(res, payload);
-      return { error: msg };
-    }
-
-    return { success: true };
-  } catch (err) {
-    console.error("Error saving initial cards:", err);
-    return { error: "Failed to initialize cards. Please try again." };
-  }
-}
 
 /**
  * Card types that support status colors.
@@ -347,295 +148,6 @@ const FAVORITES_CARDS = new Set([
 ]);
 
 /**
- * Validation helpers.
- * @source
- */
-const isValidUserId = (userId: string | null): userId is string => {
-  if (!userId) return false;
-  return /^\d+$/.test(userId);
-};
-
-const isValidUsername = (username: string | null): username is string => {
-  if (!username) return false;
-  return /^[a-zA-Z0-9_.-]{2,}$/.test(username);
-};
-
-/**
- * Result of new user setup process.
- * @source
- */
-type NewUserSetupResult =
-  | {
-      success: true;
-      userId: number;
-      username: string | null;
-      avatarUrl: string | null;
-      stats: AniListStatsResponse;
-    }
-  | { error: string };
-
-/**
- * Handles the complete new user setup flow:
- * 1. Resolves userId from username if needed
- * 2. Fetches user stats from AniList
- * 3. Saves user to database
- * 4. Saves initial card configuration
- * @source
- */
-async function setupNewUser(
-  userIdParam: string | null,
-  usernameParam: string | null,
-  setLoadingPhase: (phase: LoadingPhase) => void,
-): Promise<NewUserSetupResult> {
-  setLoadingPhase("setting_up");
-
-  // Resolve userId - we need it for all subsequent operations
-  let resolvedUserId: number | null = null;
-  let resolvedUsername: string | null = usernameParam;
-
-  if (userIdParam) {
-    resolvedUserId = Number.parseInt(userIdParam, 10);
-  } else if (usernameParam) {
-    setLoadingPhase("fetching_anilist");
-    const anilistIdResult = await fetchUserIdFromAniList(usernameParam);
-
-    if ("error" in anilistIdResult) {
-      const errorDetails = getErrorDetails(anilistIdResult.error);
-      trackUserActionError(
-        "new_user_setup_fetch_id",
-        new Error(anilistIdResult.error),
-        errorDetails.category,
-        { username: usernameParam },
-      );
-      return { error: anilistIdResult.error };
-    }
-
-    resolvedUserId = anilistIdResult.userId;
-  }
-
-  if (!resolvedUserId) {
-    return { error: "Could not determine user ID. Please try again." };
-  }
-
-  // Fetch user stats from AniList
-  setLoadingPhase("fetching_anilist");
-  const statsResult = await fetchUserStatsFromAniList(resolvedUserId);
-
-  if ("error" in statsResult) {
-    const errorDetails = getErrorDetails(statsResult.error);
-    trackUserActionError(
-      "new_user_setup_fetch_stats",
-      new Error(statsResult.error),
-      errorDetails.category,
-      {
-        userId: resolvedUserId.toString(),
-        username: resolvedUsername ?? undefined,
-      },
-    );
-    return { error: statsResult.error };
-  }
-
-  // Extract username from stats if we didn't have it
-  const statsUsername = (statsResult.stats.User as Record<string, unknown>)
-    ?.name as string | undefined;
-  if (!resolvedUsername && statsUsername) {
-    resolvedUsername = statsUsername;
-  }
-
-  // Save user to database
-  setLoadingPhase("saving");
-  const saveUserResult = await saveUserToDatabase(
-    resolvedUserId,
-    resolvedUsername || "",
-    statsResult.stats,
-  );
-
-  if ("error" in saveUserResult) {
-    const errorDetails = getErrorDetails(saveUserResult.error);
-    trackUserActionError(
-      "new_user_setup_save_user",
-      new Error(saveUserResult.error),
-      errorDetails.category,
-      {
-        userId: resolvedUserId.toString(),
-        username: resolvedUsername ?? undefined,
-      },
-    );
-    return { error: saveUserResult.error };
-  }
-
-  // Save initial card configuration (non-fatal if it fails)
-  const saveCardsResult = await saveInitialCards(
-    resolvedUserId,
-    statsResult.stats,
-  );
-  if ("error" in saveCardsResult) {
-    const errorDetails = getErrorDetails(saveCardsResult.error);
-    trackUserActionError(
-      "new_user_setup_save_cards",
-      new Error(saveCardsResult.error),
-      errorDetails.category,
-      {
-        userId: resolvedUserId.toString(),
-        username: resolvedUsername ?? undefined,
-      },
-    );
-  }
-
-  // Extract avatar URL from stats
-  const userStats = statsResult.stats.User;
-  const avatar = userStats?.avatar as Record<string, string> | undefined;
-  const resolvedAvatarUrl = avatar?.medium || avatar?.large || null;
-
-  return {
-    success: true,
-    userId: resolvedUserId,
-    username: resolvedUsername,
-    avatarUrl: resolvedAvatarUrl,
-    stats: statsResult.stats,
-  };
-}
-
-/**
- * Fetches user data from the API.
- * Returns additional info about whether the user was not found (404).
- * @source
- */
-async function fetchUserData(
-  userId: string | null,
-  username: string | null,
-): Promise<
-  | { userId: string; username: string | null; avatarUrl: string | null }
-  | { error: string; notFound?: boolean }
-> {
-  const params = new URLSearchParams();
-  if (userId) params.set("userId", userId);
-  else if (username) params.set("username", username);
-
-  try {
-    const res = await fetch(`/api/get-user?${params.toString()}`);
-    const payload = await parseResponsePayload(res);
-
-    if (!res.ok) {
-      const msg = getResponseErrorMessage(res, payload);
-      // Return notFound flag for 404 responses
-      if (res.status === 404) {
-        return { error: msg, notFound: true };
-      }
-      return { error: msg };
-    }
-
-    const data = payload as ReconstructedUserRecord;
-    if (!data.userId) {
-      return { error: "Invalid user data received" };
-    }
-
-    return {
-      userId: String(data.userId),
-      username: data.username || null,
-      avatarUrl:
-        data.stats?.User?.avatar?.medium ||
-        data.stats?.User?.avatar?.large ||
-        null,
-    };
-  } catch (err) {
-    console.error("Error fetching user:", err);
-    return {
-      error:
-        "Failed to fetch user data. Please check your connection and try again.",
-    };
-  }
-}
-
-/**
- * Fetches cards for a user.
- * Returns either `{ cards, globalSettings }` or `{ error, notFound?: boolean }`.
- * `notFound: true` is set when the server returns 404 (no cards yet).
- * @source
- */
-async function fetchUserCards(
-  userId: string,
-): Promise<
-  | { cards: ServerCardData[]; globalSettings?: ServerGlobalSettings }
-  | { error: string; notFound?: boolean }
-> {
-  try {
-    const res = await fetch(`/api/get-cards?userId=${userId}`);
-    const payload = await parseResponsePayload(res);
-
-    if (!res.ok) {
-      const msg = getResponseErrorMessage(res, payload);
-      // Treat 404 as "no cards yet" so callers can handle it explicitly.
-      if (res.status === 404) {
-        return { error: msg, notFound: true };
-      }
-      return { error: msg };
-    }
-
-    const data = payload as {
-      cards?: ServerCardData[];
-      globalSettings?: ServerGlobalSettings;
-    };
-    return {
-      cards: data.cards || [],
-      globalSettings: data.globalSettings,
-    };
-  } catch (err) {
-    console.error("Error fetching cards:", err);
-    return { error: "Failed to fetch cards" };
-  }
-}
-
-/**
- * Groups card types by their group property.
- * @source
- */
-function groupCardsByCategory() {
-  const groups: Record<string, Array<(typeof statCardTypes)[0]>> = {};
-
-  for (const cardType of statCardTypes) {
-    if (!groups[cardType.group]) {
-      groups[cardType.group] = [];
-    }
-    groups[cardType.group].push(cardType);
-  }
-
-  return groups;
-}
-
-const DEFAULT_GLOBAL_SETTINGS: ServerGlobalSettings = {
-  colorPreset: "default",
-  borderEnabled: false,
-};
-
-/**
- * Initialize editor with the initial cards snapshot and default global settings.
- */
-function initializeEditorWithInitialCards(
-  uid: number | string,
-  uname: string | null,
-  aUrl: string | null,
-  initializeFn: (
-    userId: string,
-    username: string | null,
-    avatarUrl: string | null,
-    cards: ServerCardData[],
-    globalSettings?: ServerGlobalSettings,
-    enabledIds?: string[],
-  ) => void,
-) {
-  const initialCards = buildInitialCardsSnapshot();
-  initializeFn(
-    String(uid),
-    uname,
-    aUrl,
-    initialCards,
-    DEFAULT_GLOBAL_SETTINGS,
-    statCardTypes.map((t) => t.id),
-  );
-}
-
-/**
  * Main user page editor component.
  * Handles loading user data, displaying cards, and saving changes.
  * @returns JSX element.
@@ -654,20 +166,14 @@ export function UserPageEditor() {
     isSaving,
     saveError,
     lastSavedAt,
-    setUserData,
-    setLoading,
-    setLoadError,
-    initializeFromServerData,
+    // store actions moved to hooks
+    // setUserData, setLoading, setLoadError, initializeFromServerData,
     enableAllCards,
     disableAllCards,
     resetAllCardsToGlobal,
   } = useUserPageEditor();
 
-  // Loading phase state for descriptive loading messages
-  const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>("idle");
-  const [isNewUser, setIsNewUser] = useState(false);
   const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false);
-  const lastLoadedUserRef = useRef<string | null>(null);
 
   const [query, setQuery] = useState("");
   const [visibility, setVisibility] = useState<"all" | "enabled" | "disabled">(
@@ -675,391 +181,42 @@ export function UserPageEditor() {
   );
   const [selectedGroup, setSelectedGroup] = useState<string>("All");
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
-  const [cardsWarning, setCardsWarning] = useState<string | null>(null);
 
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
-    () => {
-      const groups = groupCardsByCategory();
-      const groupNames = Object.keys(groups);
-      const initial: Record<string, boolean> = {};
-      for (const [index, name] of groupNames.entries()) {
-        initial[name] = index === 0;
-      }
-      return initial;
-    },
-  );
+  // New-user setup hook
+  const { isNewUser, setIsNewUser, cardsWarning, setCardsWarning } =
+    useNewUserSetup();
 
-  /**
-   * Handles obtaining persisted cards after a newly-created user is set up.
-   * This mirrors the previous inline logic and preserves error tracking and warnings.
-   */
-  async function handlePersistedCardsAfterNewUserSetup(
-    uid: number,
-    uname: string | null,
-    aUrl: string | null,
-  ) {
-    const persistedCardsResult = await fetchUserCards(String(uid));
+  // Card filtering hook (manages grouping, filtering, visibility, expand/collapse)
+  const {
+    filteredGroups,
+    cardGroups,
+    groupTotals,
+    visibleGroupNames,
+    isCardEnabled,
+    expandAll,
+    collapseAll,
+    expandedGroups,
+    setGroupExpanded,
+  } = useCardFiltering({
+    cardConfigs,
+    query,
+    setQuery,
+    visibility,
+    setVisibility,
+    selectedGroup,
+    setSelectedGroup,
+  });
 
-    if ("error" in persistedCardsResult) {
-      if (persistedCardsResult.notFound) {
-        // No cards persisted yet — fall back to initial snapshot (expected).
-        initializeEditorWithInitialCards(
-          uid,
-          uname,
-          aUrl,
-          initializeFromServerData,
-        );
-      } else {
-        const errorDetails = getErrorDetails(persistedCardsResult.error);
-        trackUserActionError(
-          "new_user_setup_fetch_cards",
-          new Error(persistedCardsResult.error),
-          errorDetails.category,
-          {
-            userId: String(uid),
-            username: uname ?? undefined,
-          },
-        );
-        setCardsWarning(
-          "We couldn't load your saved cards due to a server error. Default cards are displayed for now.",
-        );
-        initializeEditorWithInitialCards(
-          uid,
-          uname,
-          aUrl,
-          initializeFromServerData,
-        );
-      }
-      return;
-    }
-
-    if (
-      Array.isArray(persistedCardsResult.cards) &&
-      persistedCardsResult.cards.length === 0
-    ) {
-      const msg = "No persisted cards were returned after initial save";
-      const details = getErrorDetails(msg);
-      trackUserActionError(
-        "new_user_setup_fetch_cards",
-        new Error(msg),
-        details.category,
-        {
-          userId: String(uid),
-          username: uname ?? undefined,
-        },
-      );
-      console.warn(msg, { userId: uid });
-      initializeEditorWithInitialCards(
-        uid,
-        uname,
-        aUrl,
-        initializeFromServerData,
-      );
-      return;
-    }
-
-    // Successful persisted cards load — initialize with the persisted data.
-    initializeFromServerData(
-      String(uid),
-      uname,
-      aUrl,
-      persistedCardsResult.cards,
-      persistedCardsResult.globalSettings,
-      statCardTypes.map((t) => t.id),
-    );
-    // Clear any previous warning if load now succeeded
-    setCardsWarning(null);
-  }
-
-  /**
-   * Handles cards load for an existing user.
-   * Mirrors previous logic in `loadData` for the existing-user branch.
-   */
-  async function handleCardsForExistingUser(
-    userIdStr: string,
-    uname: string | null,
-    aUrl: string | null,
-  ) {
-    const cardsResult = await fetchUserCards(userIdStr);
-
-    if ("error" in cardsResult) {
-      if (cardsResult.notFound) {
-        // No cards yet — initialize with empty array
-        initializeFromServerData(
-          userIdStr,
-          uname,
-          aUrl,
-          [],
-          undefined,
-          statCardTypes.map((t) => t.id),
-        );
-        setLoadingPhase("complete");
-        return;
-      } else {
-        const errorDetails = getErrorDetails(cardsResult.error);
-        trackUserActionError(
-          "user_page_load_fetch_cards",
-          new Error(cardsResult.error),
-          errorDetails.category,
-          {
-            userId: userIdStr,
-            username: uname ?? undefined,
-          },
-        );
-        setCardsWarning(
-          "Failed to load saved cards due to a server error. Default cards are shown for now.",
-        );
-        initializeFromServerData(
-          userIdStr,
-          uname,
-          aUrl,
-          [],
-          undefined,
-          statCardTypes.map((t) => t.id),
-        );
-        setLoadingPhase("complete");
-        return;
-      }
-    }
-
-    // Success
-    setCardsWarning(null);
-    initializeFromServerData(
-      userIdStr,
-      uname,
-      aUrl,
-      cardsResult.cards,
-      cardsResult.globalSettings,
-      statCardTypes.map((t) => t.id),
-    );
-  }
-
-  // Load user data on mount (re-runs when `searchParams` change)
-  useEffect(() => {
-    const rawUserIdParam = searchParams.get("userId");
-    const rawUsernameParam = searchParams.get("username");
-
-    let userIdParam = rawUserIdParam?.trim() ?? null;
-    let usernameParam = rawUsernameParam?.trim() ?? null;
-
-    if (!isValidUserId(userIdParam)) userIdParam = null;
-    if (!isValidUsername(usernameParam)) usernameParam = null;
-
-    const requestedId = `${userIdParam ?? ""}|${usernameParam ?? ""}`;
-
-    // If we've already loaded this exact user, no-op.
-    if (lastLoadedUserRef.current === requestedId) return;
-
-    // Mark this identifier as being loaded to avoid duplicate runs (StrictMode)
-    lastLoadedUserRef.current = requestedId;
-
-    // Reset transient UI state for a fresh load
-    setLoadError(null);
-    setIsNewUser(false);
-    setCardsWarning(null);
-    setIsHelpDialogOpen(false);
-
-    const loadData = async () => {
-      if (!userIdParam && !usernameParam) {
-        if (rawUserIdParam || rawUsernameParam) {
-          setLoadError(
-            "Invalid user specified. Please check the username/user ID and try again.",
-          );
-        } else {
-          setLoadError("No user specified. Please search for a user first.");
-        }
-        setLoadingPhase("error");
-        // Clear the marker so future attempts can retry
-        lastLoadedUserRef.current = null;
-        return;
-      }
-
-      setLoading(true);
-      setLoadingPhase("checking");
-
-      // Step 1: Check if user exists in the database
-      const userResult = await fetchUserData(userIdParam, usernameParam);
-
-      // New user flow (404) — delegate to helper
-      if ("error" in userResult && userResult.notFound) {
-        setIsNewUser(true);
-
-        const setupResult = await setupNewUser(
-          userIdParam,
-          usernameParam,
-          setLoadingPhase,
-        );
-
-        if ("error" in setupResult) {
-          setLoadError(setupResult.error);
-          setLoadingPhase("error");
-          // allow retry
-          lastLoadedUserRef.current = null;
-          return;
-        }
-
-        // Initialize the editor with the new user data and fetch persisted cards
-        setLoadingPhase("loading_cards");
-        setUserData(
-          setupResult.userId.toString(),
-          setupResult.username,
-          setupResult.avatarUrl,
-        );
-
-        await handlePersistedCardsAfterNewUserSetup(
-          setupResult.userId,
-          setupResult.username,
-          setupResult.avatarUrl,
-        );
-
-        setLoadingPhase("complete");
-        return;
-      }
-
-      // If there was a different error (not 404), show error
-      if ("error" in userResult) {
-        const errorDetails = getErrorDetails(userResult.error);
-        trackUserActionError(
-          "user_page_load",
-          new Error(userResult.error),
-          errorDetails.category,
-        );
-        setLoadError(userResult.error);
-        setLoadingPhase("error");
-        // allow retry
-        lastLoadedUserRef.current = null;
-        return;
-      }
-
-      // User exists - load their data normally
-      setLoadingPhase("loading_cards");
-      setUserData(userResult.userId, userResult.username, userResult.avatarUrl);
-
-      // Delegate cards loading to helper
-      await handleCardsForExistingUser(
-        userResult.userId,
-        userResult.username,
-        userResult.avatarUrl,
-      );
-
-      setLoadingPhase("complete");
-    };
-
-    void (async () => {
-      try {
-        await loadData();
-      } catch (err) {
-        console.error("Error loading user data:", err);
-        // Clear marker so future attempts can retry
-        lastLoadedUserRef.current = null;
-        setLoadError(
-          "Failed to fetch user data. Please check your connection and try again.",
-        );
-        setLoadingPhase("error");
-      }
-    })();
-  }, [
-    searchParams,
-    setLoading,
-    setLoadError,
-    setUserData,
-    initializeFromServerData,
-  ]);
-
-  // Group cards by category
-  const cardGroups = useMemo(() => groupCardsByCategory(), []);
+  // Data loader hook manages the main load flow and loading phases
+  const { loadingPhase } = useUserDataLoader();
 
   // Auto-save hook
   const { saveNow } = useCardAutoSave({ debounceMs: 1500 });
 
-  const normalizedQuery = query.trim().toLowerCase();
-
-  const isCardEnabled = useCallback(
-    (cardId: string) => Boolean(cardConfigs[cardId]?.enabled),
-    [cardConfigs],
-  );
-
-  const groupTotals = useMemo(() => {
-    const map: Record<string, { total: number; enabled: number }> = {};
-    for (const [groupName, cards] of Object.entries(cardGroups)) {
-      const enabledCount = cards.reduce(
-        (acc, c) => acc + (cardConfigs[c.id]?.enabled ? 1 : 0),
-        0,
-      );
-      map[groupName] = { total: cards.length, enabled: enabledCount };
-    }
-    return map;
-  }, [cardConfigs, cardGroups]);
-
-  const filteredGroups = useMemo(() => {
-    const result: Record<string, Array<(typeof statCardTypes)[0]>> = {};
-
-    const matchesVisibility = (cardId: string) => {
-      const enabled = Boolean(cardConfigs[cardId]?.enabled);
-      if (visibility === "enabled") return enabled;
-      if (visibility === "disabled") return !enabled;
-      return true;
-    };
-
-    const matchesQuery = (cardType: (typeof statCardTypes)[0]) => {
-      if (!normalizedQuery) return true;
-      const haystack = `${cardType.label} ${cardType.id}`.toLowerCase();
-      return haystack.includes(normalizedQuery);
-    };
-
-    for (const [groupName, cards] of Object.entries(cardGroups)) {
-      if (selectedGroup !== "All" && selectedGroup !== groupName) continue;
-      const filtered = cards.filter(
-        (cardType) => matchesVisibility(cardType.id) && matchesQuery(cardType),
-      );
-      if (filtered.length > 0) {
-        result[groupName] = filtered;
-      }
-    }
-
-    return result;
-  }, [cardGroups, cardConfigs, normalizedQuery, selectedGroup, visibility]);
-
-  const visibleGroupNames = useMemo(
-    () => Object.keys(filteredGroups),
-    [filteredGroups],
-  );
-
+  // Keep resetting help dialog when search params change
   useEffect(() => {
-    if (selectedGroup === "All") return;
-    setExpandedGroups((prev) => ({ ...prev, [selectedGroup]: true }));
-  }, [selectedGroup]);
-
-  useEffect(() => {
-    if (!normalizedQuery) return;
-    setExpandedGroups((prev) => {
-      const next = { ...prev };
-      for (const groupName of visibleGroupNames) {
-        next[groupName] = true;
-      }
-      return next;
-    });
-  }, [normalizedQuery, visibleGroupNames]);
-
-  const expandAll = useCallback(() => {
-    setExpandedGroups((prev) => {
-      const next: Record<string, boolean> = { ...prev };
-      for (const groupName of Object.keys(cardGroups)) {
-        next[groupName] = true;
-      }
-      return next;
-    });
-  }, [cardGroups]);
-
-  const collapseAll = useCallback(() => {
-    setExpandedGroups((prev) => {
-      const next: Record<string, boolean> = { ...prev };
-      for (const groupName of Object.keys(cardGroups)) {
-        next[groupName] = false;
-      }
-      return next;
-    });
-  }, [cardGroups]);
+    setIsHelpDialogOpen(false);
+  }, [searchParams]);
 
   const groupIcon = useCallback((groupName: string) => {
     if (groupName === "Core Stats") return <Layers className="h-5 w-5" />;
@@ -1721,10 +878,7 @@ export function UserPageEditor() {
                           enabledCount={stats.enabled}
                           expanded={expandedGroups[groupName] ?? true}
                           onExpandedChange={(next) =>
-                            setExpandedGroups((prev) => ({
-                              ...prev,
-                              [groupName]: next,
-                            }))
+                            setGroupExpanded(groupName, next)
                           }
                           defaultExpanded={index === 0}
                         >
