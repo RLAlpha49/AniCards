@@ -170,6 +170,11 @@ function Avatar({
   fallbackClassName?: string;
 }) {
   const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    setImageError(false);
+  }, [avatarUrl]);
+
   return avatarUrl && !imageError ? (
     <Image
       src={avatarUrl}
