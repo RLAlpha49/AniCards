@@ -100,7 +100,7 @@ interface SettingsContentProps {
   resetLabel?: string;
   /** Optional callback that's called when the validity of the settings changes (true = valid) */
   onValidityChange?: (isValid: boolean) => void;
-} 
+}
 
 /**
  * Shared settings content component with Colors, Border, and Advanced tabs.
@@ -198,10 +198,14 @@ export function SettingsContent({
     mode === "global" ? "Reset to Defaults" : "Reset to Global Settings";
 
   // Client-side validation state for the border color input
-  const [inputBorderColor, setInputBorderColor] = useState<string>(borderColor ?? "");
+  const [inputBorderColor, setInputBorderColor] = useState<string>(
+    borderColor ?? "",
+  );
   const [isBorderColorValid, setIsBorderColorValid] = useState<boolean>(true);
 
-  const borderColorAriaDescribedBy = isBorderColorValid ? undefined : `${idPrefix}-borderColor-error`; 
+  const borderColorAriaDescribedBy = isBorderColorValid
+    ? undefined
+    : `${idPrefix}-borderColor-error`;
 
   const hexRegex = /^#(?:[0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})$/i;
   const hexOrNoHashRegex = /^(?:#)?(?:[0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})$/i;
@@ -238,7 +242,14 @@ export function SettingsContent({
     const trimmed = val.trim();
     const m3 = /^#([0-9A-F]{3})$/i.exec(trimmed);
     if (m3) {
-      return "#" + m3[1].split("").map((c) => c + c).join("").toLowerCase();
+      return (
+        "#" +
+        m3[1]
+          .split("")
+          .map((c) => c + c)
+          .join("")
+          .toLowerCase()
+      );
     }
     if (/^#([0-9A-F]{6})$/i.test(trimmed)) {
       return trimmed.toLowerCase();
@@ -251,7 +262,14 @@ export function SettingsContent({
     if (mn) {
       const s = mn[1];
       if (s.length === 3) {
-        return "#" + s.split("").map((c) => c + c).join("").toLowerCase();
+        return (
+          "#" +
+          s
+            .split("")
+            .map((c) => c + c)
+            .join("")
+            .toLowerCase()
+        );
       }
       return ("#" + s.slice(0, 6)).toLowerCase();
     }
@@ -306,13 +324,23 @@ export function SettingsContent({
     if (noHashMatch) {
       const s = noHashMatch[1];
       if (s.length === 3) {
-        normalized = "#" + s.split("").map((c) => c + c).join("");
+        normalized =
+          "#" +
+          s
+            .split("")
+            .map((c) => c + c)
+            .join("");
       } else {
         normalized = "#" + s;
       }
     } else if (/^#([0-9A-F]{3})$/i.test(v)) {
       const m = /^#([0-9A-F]{3})$/i.exec(v);
-      normalized = "#" + m![1].split("").map((c) => c + c).join("");
+      normalized =
+        "#" +
+        m![1]
+          .split("")
+          .map((c) => c + c)
+          .join("");
     } else if (/^#([0-9A-F]{6,8})$/i.test(v)) {
       normalized = ("#" + v.replace(/^#/, "").slice(0, 8)).toLowerCase();
     } else if (isCssNamedColor(v)) {
@@ -425,8 +453,14 @@ export function SettingsContent({
                     <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border-2 border-slate-200 shadow-inner dark:border-slate-700">
                       <Input
                         type="color"
-                        value={getColorPickerHex(inputBorderColor) ?? getColorPickerHex(borderColor) ?? "#000000"}
-                        onChange={(e) => handleColorPickerChange(e.target.value)}
+                        value={
+                          getColorPickerHex(inputBorderColor) ??
+                          getColorPickerHex(borderColor) ??
+                          "#000000"
+                        }
+                        onChange={(e) =>
+                          handleColorPickerChange(e.target.value)
+                        }
                         className="absolute -left-1/2 -top-1/2 h-[200%] w-[200%] cursor-pointer border-0 p-0"
                         aria-label="Border color picker"
                       />
@@ -435,7 +469,9 @@ export function SettingsContent({
                       id={`${idPrefix}-borderColor-input`}
                       type="text"
                       value={inputBorderColor}
-                      onChange={(e) => handleBorderColorTextChange(e.target.value)}
+                      onChange={(e) =>
+                        handleBorderColorTextChange(e.target.value)
+                      }
                       onBlur={handleBorderColorBlur}
                       aria-invalid={!isBorderColorValid}
                       aria-describedby={borderColorAriaDescribedBy}
@@ -457,7 +493,11 @@ export function SettingsContent({
                           aria-live="polite"
                           className="text-xs text-red-600"
                         >
-                          Invalid color — use <span className="font-mono">#RGB</span>, <span className="font-mono">#RRGGBB</span>, <span className="font-mono">#RRGGBBAA</span> or a CSS color name.
+                          Invalid color — use{" "}
+                          <span className="font-mono">#RGB</span>,{" "}
+                          <span className="font-mono">#RRGGBB</span>,{" "}
+                          <span className="font-mono">#RRGGBBAA</span> or a CSS
+                          color name.
                         </p>
                       </motion.div>
                     )}

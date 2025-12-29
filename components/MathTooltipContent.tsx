@@ -75,20 +75,17 @@ function renderMathContent(content: string): string {
   );
 
   // Then, process inline math ($...$)
-  return withDisplayMath.replaceAll(
-    MATH_INLINE_REGEX,
-    (_, formula: string) => {
-      try {
-        return katex.renderToString(formula.trim(), {
-          displayMode: false,
-          throwOnError: false,
-          output: "html",
-        });
-      } catch {
-        return `$${formula}$`;
-      }
-    },
-  );
+  return withDisplayMath.replaceAll(MATH_INLINE_REGEX, (_, formula: string) => {
+    try {
+      return katex.renderToString(formula.trim(), {
+        displayMode: false,
+        throwOnError: false,
+        output: "html",
+      });
+    } catch {
+      return `$${formula}$`;
+    }
+  });
 }
 
 /**

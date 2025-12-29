@@ -10,7 +10,9 @@ export function useDownload(
   const { cardId, variant } = opts;
   const [isDownloading, setIsDownloading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const [status, setStatus] = useState<"idle" | "downloading" | "success" | "error">("idle");
+  const [status, setStatus] = useState<
+    "idle" | "downloading" | "success" | "error"
+  >("idle");
   const isDownloadingRef = useRef(false);
   const isMountedRef = useRef(true);
 

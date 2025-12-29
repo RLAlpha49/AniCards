@@ -121,7 +121,9 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
           <Button
             onClick={globalProps.onSaveAll}
             disabled={
-              Boolean(globalProps.saveAllDisabled) || globalProps.isSaving || !isSettingsValid
+              Boolean(globalProps.saveAllDisabled) ||
+              globalProps.isSaving ||
+              !isSettingsValid
             }
             size="sm"
             className={cn(
