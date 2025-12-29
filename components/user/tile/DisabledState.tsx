@@ -4,9 +4,8 @@ import { EyeOff } from "lucide-react";
 
 export function DisabledState() {
   return (
-    <div
+    <output
       className="flex items-center justify-center py-6"
-      role="status"
       aria-label="Card disabled"
     >
       <div className="text-center">
@@ -18,6 +17,6 @@ export function DisabledState() {
           Card disabled
         </p>
       </div>
-    </div>
+    </output>
   );
 }
