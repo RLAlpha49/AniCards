@@ -91,7 +91,6 @@ export function UserHelpDialog({
             <Button
               variant="outline"
               className="w-full rounded-xl sm:w-auto"
-              onClick={() => onOpenChange(false)}
               asChild
             >
               <Link href="/examples">View examples</Link>
