@@ -210,7 +210,7 @@ export function useUserDataLoader() {
         setLoadingPhase("error");
       }
     })();
-  }, [searchParams, load]);
+  }, [load]);
 
   const reload = useCallback(() => {
     lastLoadedUserRef.current = null;
