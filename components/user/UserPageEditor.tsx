@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useCallback, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -134,6 +134,16 @@ const FAVORITES_CARDS = new Set([
   "mangaStaff",
 ]);
 
+const GROUP_ICONS: Record<string, React.ReactNode> = {
+  "Core Stats": <Layers className="h-5 w-5" />,
+  "Anime Deep Dive": <Clapperboard className="h-5 w-5" />,
+  "Manga Deep Dive": <BookOpen className="h-5 w-5" />,
+  "Activity & Engagement": <Activity className="h-5 w-5" />,
+  "Library & Progress": <Library className="h-5 w-5" />,
+  "Advanced Analytics": <BarChart3 className="h-5 w-5" />,
+};
+const DEFAULT_GROUP_ICON = <LayoutGrid className="h-5 w-5" />;
+
 /**
  * Main user page editor component.
  * Handles loading user data, displaying cards, and saving changes.
@@ -202,20 +212,8 @@ export function UserPageEditor() {
     setIsHelpDialogOpen(false);
   }, [searchParams]);
 
-  const groupIcon = useCallback((groupName: string) => {
-    if (groupName === "Core Stats") return <Layers className="h-5 w-5" />;
-    if (groupName === "Anime Deep Dive")
-      return <Clapperboard className="h-5 w-5" />;
-    if (groupName === "Manga Deep Dive")
-      return <BookOpen className="h-5 w-5" />;
-    if (groupName === "Activity & Engagement")
-      return <Activity className="h-5 w-5" />;
-    if (groupName === "Library & Progress")
-      return <Library className="h-5 w-5" />;
-    if (groupName === "Advanced Analytics")
-      return <BarChart3 className="h-5 w-5" />;
-    return <LayoutGrid className="h-5 w-5" />;
-  }, []);
+  const groupIcon = (groupName: string) =>
+    GROUP_ICONS[groupName] ?? DEFAULT_GROUP_ICON;
 
   const saveState = useMemo(
     () => ({ isSaving, isDirty, saveError, lastSavedAt }),
