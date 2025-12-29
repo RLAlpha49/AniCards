@@ -57,16 +57,6 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
   const [loading, setLoading] = useState(false);
 
   /**
-   * Handles form submission.
-   * @param e - The form submission event.
-   * @source
-   */
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    performSearch(searchValue);
-  };
-
-  /**
    * Validates input, tracks analytics, and routes to the user page.
    * The user page is responsible for handling "not found" and setup flows.
    * @param value - The entered username or AniList user ID.
@@ -117,6 +107,16 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
     },
     [searchMethod, onLoadingChange, router],
   );
+
+  /**
+   * Handles form submission.
+   * @param e - The form submission event.
+   * @source
+   */
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    performSearch(searchValue);
+  };
 
   return (
     <motion.div
