@@ -69,7 +69,6 @@ export function DownloadPopover({
             className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70 dark:hover:bg-slate-800"
             onClick={() => onDownload("png")}
             disabled={!previewUrl || isDownloading}
-            aria-disabled={!previewUrl || isDownloading}
             aria-describedby={downloadDescrId}
             title={downloadTitle}
           >
@@ -85,7 +84,6 @@ export function DownloadPopover({
             className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70 dark:hover:bg-slate-800"
             onClick={() => onDownload("webp")}
             disabled={!previewUrl || isDownloading}
-            aria-disabled={!previewUrl || isDownloading}
             aria-describedby={downloadDescrId}
             title={downloadTitle}
           >
