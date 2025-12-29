@@ -216,7 +216,7 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
       globalSettings,
     } = buildCardsFromState();
 
-    if (!currentUserId || !isMountedRef.current) return;
+    if (currentUserId == null || !isMountedRef.current) return;
 
     setSaving(true);
 
@@ -244,7 +244,7 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
 
   // Auto-save effect - watches isDirty and triggers debounced save
   useEffect(() => {
-    if (!enabled || !userId || !isDirty || isSaving) {
+    if (!enabled || userId == null || !isDirty || isSaving) {
       return;
     }
 
