@@ -1174,6 +1174,7 @@ async function generateFavoritesGridCard(
         const dataUrl = await fetchImageAsDataUrl(url);
         if (!dataUrl) {
           // Fallback to a tiny transparent PNG to ensure the template receives a data URL.
+          console.warn(`Failed to fetch staff image for embedding: ${url}`);
           return {
             ...n,
             image: {
