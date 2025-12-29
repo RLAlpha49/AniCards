@@ -118,7 +118,8 @@ export function useUserDataLoader() {
     let usernameParam = rawUsernameParam?.trim() ?? null;
 
     if (!/^\d+$/.test(userIdParam ?? "")) userIdParam = null;
-    if (usernameParam === null || !isValidUsername(usernameParam)) usernameParam = null;
+    if (usernameParam === null || !isValidUsername(usernameParam))
+      usernameParam = null;
 
     const requestedId = `${userIdParam ?? ""}|${usernameParam ?? ""}`;
 
@@ -199,18 +200,14 @@ export function useUserDataLoader() {
   ]);
 
   useEffect(() => {
-    void (async () => {
-      try {
-        await load();
-      } catch (err) {
-        console.error("Error loading user data:", err);
-        lastLoadedUserRef.current = null;
-        setLoadError(
-          "Failed to fetch user data. Please check your connection and try again.",
-        );
-        setLoadingPhase("error");
-      }
-    })();
+    load().catch((err) => {
+      console.error("Error loading user data:", err);
+      lastLoadedUserRef.current = null;
+      setLoadError(
+        "Failed to fetch user data. Please check your connection and try again.",
+      );
+      setLoadingPhase("error");
+    });
   }, [load]);
 
   const reload = useCallback(() => {
