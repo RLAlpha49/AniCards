@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 
 interface CopyUrlsPopoverProps {
   copiedFormat: "url" | "anilist" | null;
-  handleCopyUrls: (format?: "url" | "anilist") => Promise<void> | void;
+  handleCopyUrls: (format: "url" | "anilist") => Promise<void> | void;
 }
 
 /**
