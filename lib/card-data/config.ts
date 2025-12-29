@@ -596,9 +596,9 @@ function mergeGlobalSettingsIntoConfig(
 
   // Grid dimensions
   if (typeof globalSettings.gridCols === "number") {
-    setIfMissing("gridCols", Math.max(1, Math.min(5, globalSettings.gridCols)));
+    setIfMissing("gridCols", clampGridDim(String(globalSettings.gridCols), 3));
   }
   if (typeof globalSettings.gridRows === "number") {
-    setIfMissing("gridRows", Math.max(1, Math.min(5, globalSettings.gridRows)));
+    setIfMissing("gridRows", clampGridDim(String(globalSettings.gridRows), 3));
   }
 }
