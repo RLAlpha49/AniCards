@@ -25,6 +25,8 @@ type NewUserSetupResult =
     }
   | { error: string };
 
+const ALL_CARD_IDS = statCardTypes.map((t) => t.id);
+
 async function fetchUserIdFromAniList(
   username: string,
 ): Promise<{ userId: number } | { error: string }> {
@@ -296,7 +298,7 @@ export function useNewUserSetup() {
             aUrl,
             initialCards,
             undefined,
-            statCardTypes.map((t) => t.id),
+            ALL_CARD_IDS,
           );
         } else {
           const errorDetails = getErrorDetails(
@@ -318,7 +320,7 @@ export function useNewUserSetup() {
             aUrl,
             initialCards,
             undefined,
-            statCardTypes.map((t) => t.id),
+            ALL_CARD_IDS,
           );
         }
         return;
@@ -344,7 +346,7 @@ export function useNewUserSetup() {
           aUrl,
           initialCards,
           undefined,
-          statCardTypes.map((t) => t.id),
+          ALL_CARD_IDS,
         );
         return;
       }
@@ -355,7 +357,7 @@ export function useNewUserSetup() {
         aUrl,
         persistedCardsResult.cards,
         persistedCardsResult.globalSettings,
-        statCardTypes.map((t) => t.id),
+        ALL_CARD_IDS,
       );
       setCardsWarning(null);
     },
