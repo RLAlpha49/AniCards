@@ -9,6 +9,7 @@ import {
 import { CardSettingsPanel } from "@/components/user/CardSettingsPanel";
 import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 import type { ColorValue } from "@/lib/types/card";
+import { colorPresets } from "../stat-card-generator/constants";
 
 /**
  * Props for GlobalSettingsPanel component.
@@ -80,9 +81,7 @@ export function GlobalSettingsPanel({
             ? globalColors
             : [
                 ...globalColors,
-                ...new Array(4 - globalColors.length).fill(
-                  globalColors[0] || "#000000",
-                ),
+                ...colorPresets.default.colors.slice(globalColors.length, 4),
               ]) as [ColorValue, ColorValue, ColorValue, ColorValue],
           colorPreset: globalColorPreset,
           onColorChange: handleColorChange,
