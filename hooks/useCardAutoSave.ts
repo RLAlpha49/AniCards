@@ -60,7 +60,7 @@ async function saveCardsToApi(
   userId: string,
   cards: ServerCardData[],
   globalSettings: GlobalSettingsPayload,
-): Promise<{ success: boolean } | { error: string }> {
+): Promise<{ success: true } | { error: string }> {
   try {
     const res = await fetch("/api/store-cards", {
       method: "POST",
