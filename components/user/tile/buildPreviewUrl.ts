@@ -14,10 +14,7 @@ interface BuildPreviewUrlArgs {
   cardId: string;
   config: CardEditorConfig;
   urlColorPreset?: string;
-  effectiveColors:
-    | ColorValue[]
-    | [ColorValue, ColorValue, ColorValue, ColorValue];
-  effectiveBorderColor?: string;
+  effectiveColors: ColorValue[];  effectiveBorderColor?: string;
   effectiveBorderRadius?: number;
   globalAdvancedSettings: CardAdvancedSettings;
 }
