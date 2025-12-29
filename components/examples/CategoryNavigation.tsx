@@ -125,6 +125,7 @@ export function CategoryNavigation({
             <motion.button
               type="button"
               key={category.name}
+              aria-current={isActive ? "true" : undefined}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => onCategoryClick(category.name)}
