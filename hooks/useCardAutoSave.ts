@@ -83,6 +83,8 @@ async function saveCardsToApi(
 
 /**
  * Builds the cards array and global settings from the current store state.
+ * Note: This reads from the store synchronously via getState(), capturing
+ * a snapshot at the moment of invocation. It does not subscribe to changes.
  * @returns Object with userId, cards array, and global settings.
  * @source
  */
