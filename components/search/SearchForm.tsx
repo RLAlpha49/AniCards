@@ -101,6 +101,8 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
       // Ensure the loading overlay has a chance to render before navigation.
       scheduleAfterPaint(() => {
         try {
+          // router.push may return void (older Next.js) or a Promise (newer versions).
+          // Wrap the return in Promise.resolve so we can attach a catch handler if it's a Promise.
           Promise.resolve(router.push(`/user?${params.toString()}`)).catch(
             () => {
               setLoading(false);
