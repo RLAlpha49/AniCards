@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Grid,
@@ -98,7 +98,9 @@ interface SettingsContentProps {
   onReset: () => void;
   /** Label for reset button (e.g., "Reset to Defaults" or "Reset to Global Settings") */
   resetLabel?: string;
-}
+  /** Optional callback that's called when the validity of the settings changes (true = valid) */
+  onValidityChange?: (isValid: boolean) => void;
+} 
 
 /**
  * Shared settings content component with Colors, Border, and Advanced tabs.
@@ -124,6 +126,7 @@ export function SettingsContent({
   inheritedAdvancedSettings,
   onAdvancedSettingChange,
   advancedVisibility,
+  onValidityChange,
   onReset,
   resetLabel,
 }: Readonly<SettingsContentProps>) {
@@ -193,6 +196,138 @@ export function SettingsContent({
 
   const defaultResetLabel =
     mode === "global" ? "Reset to Defaults" : "Reset to Global Settings";
+
+  // Client-side validation state for the border color input
+  const [inputBorderColor, setInputBorderColor] = useState<string>(borderColor ?? "");
+  const [isBorderColorValid, setIsBorderColorValid] = useState<boolean>(true);
+
+  const borderColorAriaDescribedBy = isBorderColorValid ? undefined : `${idPrefix}-borderColor-error`; 
+
+  const hexRegex = /^#(?:[0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})$/i;
+  const hexOrNoHashRegex = /^(?:#)?(?:[0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})$/i;
+
+  const isCssNamedColor = (val: string) => {
+    try {
+      const s = new Option().style;
+      s.color = val;
+      return s.color !== "";
+    } catch {
+      return false;
+    }
+  };
+
+  const isLikelyValidColorInput = (val?: string) => {
+    if (!borderEnabled) return true;
+    if (!val) return false;
+    const trimmed = val.trim();
+    if (hexRegex.test(trimmed)) return true;
+    if (hexOrNoHashRegex.test(trimmed)) return true;
+    if (isCssNamedColor(trimmed)) return true;
+    return false;
+  };
+
+  useEffect(() => {
+    setInputBorderColor(borderColor ?? "");
+    const initialValid = isLikelyValidColorInput(borderColor);
+    setIsBorderColorValid(initialValid);
+    onValidityChange?.(initialValid);
+  }, [borderColor, borderEnabled, onValidityChange]);
+
+  const getColorPickerHex = (val?: string) => {
+    if (!val) return undefined;
+    const trimmed = val.trim();
+    const m3 = /^#([0-9A-F]{3})$/i.exec(trimmed);
+    if (m3) {
+      return "#" + m3[1].split("").map((c) => c + c).join("").toLowerCase();
+    }
+    if (/^#([0-9A-F]{6})$/i.test(trimmed)) {
+      return trimmed.toLowerCase();
+    }
+    const m8 = /^#([0-9A-F]{8})$/i.exec(trimmed);
+    if (m8) {
+      return ("#" + m8[1].slice(0, 6)).toLowerCase();
+    }
+    const mn = /^([0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})$/i.exec(trimmed);
+    if (mn) {
+      const s = mn[1];
+      if (s.length === 3) {
+        return "#" + s.split("").map((c) => c + c).join("").toLowerCase();
+      }
+      return ("#" + s.slice(0, 6)).toLowerCase();
+    }
+    try {
+      const ctx = document.createElement("canvas").getContext("2d");
+      if (ctx) {
+        ctx.fillStyle = trimmed;
+        const result = ctx.fillStyle;
+        if (/^#([0-9a-f]{6})$/i.test(result)) {
+          return result.toLowerCase();
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return undefined;
+  };
+
+  const handleColorPickerChange = (value: string) => {
+    const normalized = value.toLowerCase();
+    setInputBorderColor(normalized);
+    setIsBorderColorValid(true);
+    onBorderColorChange(normalized);
+    onValidityChange?.(true);
+  };
+
+  const handleBorderColorTextChange = (value: string) => {
+    setInputBorderColor(value);
+    const valid = isLikelyValidColorInput(value);
+    setIsBorderColorValid(valid);
+    onValidityChange?.(valid);
+  };
+
+  const handleBorderColorBlur = () => {
+    const v = inputBorderColor.trim();
+    if (!v) {
+      setInputBorderColor(borderColor ?? "");
+      const valid = isLikelyValidColorInput(borderColor);
+      setIsBorderColorValid(valid);
+      onValidityChange?.(valid);
+      return;
+    }
+
+    if (!isLikelyValidColorInput(v)) {
+      setIsBorderColorValid(false);
+      onValidityChange?.(false);
+      return;
+    }
+
+    let normalized: string;
+    const noHashMatch = /^([0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})$/i.exec(v);
+    if (noHashMatch) {
+      const s = noHashMatch[1];
+      if (s.length === 3) {
+        normalized = "#" + s.split("").map((c) => c + c).join("");
+      } else {
+        normalized = "#" + s;
+      }
+    } else if (/^#([0-9A-F]{3})$/i.test(v)) {
+      const m = /^#([0-9A-F]{3})$/i.exec(v);
+      normalized = "#" + m![1].split("").map((c) => c + c).join("");
+    } else if (/^#([0-9A-F]{6,8})$/i.test(v)) {
+      normalized = ("#" + v.replace(/^#/, "").slice(0, 8)).toLowerCase();
+    } else if (isCssNamedColor(v)) {
+      normalized = v.toLowerCase();
+    } else {
+      normalized = v.toLowerCase();
+    }
+
+    if (normalized !== borderColor) {
+      onBorderColorChange(normalized);
+    }
+    setInputBorderColor(normalized);
+    setIsBorderColorValid(true);
+    onValidityChange?.(true);
+  };
 
   return (
     <div className="space-y-4">
@@ -280,26 +415,53 @@ export function SettingsContent({
               >
                 {/* Border Color */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  <Label
+                    htmlFor={`${idPrefix}-borderColor-input`}
+                    className="text-sm font-medium text-slate-700 dark:text-slate-300"
+                  >
                     Border Color
                   </Label>
                   <div className="flex items-center gap-3">
                     <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border-2 border-slate-200 shadow-inner dark:border-slate-700">
                       <Input
                         type="color"
-                        value={borderColor}
-                        onChange={(e) => onBorderColorChange(e.target.value)}
+                        value={getColorPickerHex(inputBorderColor) ?? getColorPickerHex(borderColor) ?? "#000000"}
+                        onChange={(e) => handleColorPickerChange(e.target.value)}
                         className="absolute -left-1/2 -top-1/2 h-[200%] w-[200%] cursor-pointer border-0 p-0"
+                        aria-label="Border color picker"
                       />
                     </div>
                     <Input
+                      id={`${idPrefix}-borderColor-input`}
                       type="text"
-                      value={borderColor}
-                      onChange={(e) => onBorderColorChange(e.target.value)}
-                      className="h-10 flex-1 font-mono text-sm uppercase"
+                      value={inputBorderColor}
+                      onChange={(e) => handleBorderColorTextChange(e.target.value)}
+                      onBlur={handleBorderColorBlur}
+                      aria-invalid={!isBorderColorValid}
+                      aria-describedby={borderColorAriaDescribedBy}
+                      className={`h-10 flex-1 font-mono text-sm lowercase ${isBorderColorValid ? "" : "border-red-500 focus-visible:ring-1 focus-visible:ring-red-500"}`}
                       placeholder="#e4e2e2"
                     />
                   </div>
+                  <AnimatePresence>
+                    {!isBorderColorValid && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mt-1"
+                      >
+                        <p
+                          id={`${idPrefix}-borderColor-error`}
+                          role="alert"
+                          aria-live="polite"
+                          className="text-xs text-red-600"
+                        >
+                          Invalid color — use <span className="font-mono">#RGB</span>, <span className="font-mono">#RRGGBB</span>, <span className="font-mono">#RRGGBBAA</span> or a CSS color name.
+                        </p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
 
                 {/* Border Radius */}

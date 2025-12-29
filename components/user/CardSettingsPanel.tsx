@@ -1,6 +1,7 @@
 "use client";
 
 import type React from "react";
+import { useState } from "react";
 import {
   Loader2,
   Save,
@@ -66,6 +67,7 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
 
   const globalProps = props.mode === "global" ? props : null;
   const cardProps = props.mode === "card" ? props : null;
+  const [isSettingsValid, setIsSettingsValid] = useState(true);
 
   let settingsBody: React.ReactNode;
   if (globalProps) {
@@ -74,6 +76,7 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
         idPrefix="global"
         mode="global"
         {...settingsContentProps}
+        onValidityChange={setIsSettingsValid}
       />
     );
   } else if (cardProps?.useCustomSettings) {
@@ -82,6 +85,7 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
         idPrefix={cardProps.idPrefix}
         mode="card"
         {...settingsContentProps}
+        onValidityChange={setIsSettingsValid}
       />
     );
   } else {
@@ -117,12 +121,12 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
           <Button
             onClick={globalProps.onSaveAll}
             disabled={
-              Boolean(globalProps.saveAllDisabled) || globalProps.isSaving
+              Boolean(globalProps.saveAllDisabled) || globalProps.isSaving || !isSettingsValid
             }
             size="sm"
             className={cn(
               "shrink-0 rounded-lg transition-all",
-              globalProps.saveAllDisabled
+              globalProps.saveAllDisabled || !isSettingsValid
                 ? "bg-slate-100 text-slate-400 dark:bg-slate-700"
                 : "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg",
             )}
