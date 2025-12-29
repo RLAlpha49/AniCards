@@ -73,10 +73,6 @@ export function CategoryNavigation({
   activeCategory,
   onCategoryClick,
 }: Readonly<CategoryNavigationProps>) {
-  const handleClick = (category: string | null) => {
-    onCategoryClick(category);
-  };
-
   const totalCount = categories.reduce((sum, c) => sum + c.count, 0);
 
   return (
@@ -90,7 +86,7 @@ export function CategoryNavigation({
           type="button"
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          onClick={() => handleClick(null)}
+          onClick={() => onCategoryClick(null)}
           className={cn(
             "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-all",
             activeCategory === null
@@ -124,7 +120,7 @@ export function CategoryNavigation({
               key={category.name}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => handleClick(category.name)}
+              onClick={() => onCategoryClick(category.name)}
               className={cn(
                 "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-all",
                 isActive
