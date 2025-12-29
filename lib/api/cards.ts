@@ -74,7 +74,8 @@ export async function fetchUserCards(
       cards?: ServerCardData[];
       globalSettings?: ServerGlobalSettings;
     };
-    return { cards: data.cards || [], globalSettings: data.globalSettings };
+    const cards = Array.isArray(data.cards) ? data.cards : [];
+    return { cards, globalSettings: data.globalSettings };
   } catch (err) {
     console.error("Error fetching cards:", err);
     return { error: "Failed to fetch cards" };
