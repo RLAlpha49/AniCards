@@ -603,6 +603,38 @@ function groupCardsByCategory() {
   return groups;
 }
 
+const DEFAULT_GLOBAL_SETTINGS: ServerGlobalSettings = {
+  colorPreset: "default",
+  borderEnabled: false,
+};
+
+/**
+ * Initialize editor with the initial cards snapshot and default global settings.
+ */
+function initializeEditorWithInitialCards(
+  uid: number | string,
+  uname: string | null,
+  aUrl: string | null,
+  initializeFn: (
+    userId: string,
+    username: string | null,
+    avatarUrl: string | null,
+    cards: ServerCardData[],
+    globalSettings?: ServerGlobalSettings,
+    enabledIds?: string[],
+  ) => void,
+) {
+  const initialCards = buildInitialCardsSnapshot();
+  initializeFn(
+    String(uid),
+    uname,
+    aUrl,
+    initialCards,
+    DEFAULT_GLOBAL_SETTINGS,
+    statCardTypes.map((t) => t.id),
+  );
+}
+
 /**
  * Main user page editor component.
  * Handles loading user data, displaying cards, and saving changes.
@@ -656,39 +688,6 @@ export function UserPageEditor() {
       return initial;
     },
   );
-
-  // Default global settings used when initializing new users' cards
-  const DEFAULT_GLOBAL_SETTINGS: ServerGlobalSettings = {
-    colorPreset: "default",
-    borderEnabled: false,
-  };
-
-  /**
-   * Initialize editor with the initial cards snapshot and default global settings.
-   */
-  function initializeEditorWithInitialCards(
-    uid: number | string,
-    uname: string | null,
-    aUrl: string | null,
-    initializeFn: (
-      userId: string,
-      username: string | null,
-      avatarUrl: string | null,
-      cards: ServerCardData[],
-      globalSettings?: ServerGlobalSettings,
-      enabledIds?: string[],
-    ) => void,
-  ) {
-    const initialCards = buildInitialCardsSnapshot();
-    initializeFn(
-      String(uid),
-      uname,
-      aUrl,
-      initialCards,
-      DEFAULT_GLOBAL_SETTINGS,
-      statCardTypes.map((t) => t.id),
-    );
-  }
 
   /**
    * Handles obtaining persisted cards after a newly-created user is set up.
