@@ -220,6 +220,9 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
 
   // Perform the actual save operation
   const performSave = useCallback(async () => {
+    const { isSaving: alreadySaving } = useUserPageEditor.getState();
+    if (alreadySaving) return;
+
     const {
       userId: currentUserId,
       cards,
