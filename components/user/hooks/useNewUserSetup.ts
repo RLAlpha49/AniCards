@@ -286,6 +286,7 @@ export function useNewUserSetup() {
         statsResult.stats,
       );
       if ("error" in saveCardsResult) {
+        // Non-fatal: user account is created; cards will use defaults and can be re-saved later
         const errorDetails = getErrorDetails(
           saveCardsResult.error ?? "Unknown error",
         );
