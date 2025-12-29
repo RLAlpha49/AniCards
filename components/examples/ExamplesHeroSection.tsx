@@ -55,6 +55,9 @@ export function ExamplesHeroSection({
     const gallery = document.getElementById("card-gallery");
     if (gallery) {
       gallery.scrollIntoView({ behavior: "smooth", block: "start" });
+      // Set focus for screen reader accessibility
+      gallery.setAttribute("tabindex", "-1");
+      gallery.focus();
     }
   };
 
