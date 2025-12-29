@@ -313,7 +313,7 @@ export function useNewUserSetup() {
         stats: statsResult.stats,
       };
     },
-    [setUserData, initializeFromServerData],
+    [],
   );
 
   const handlePersistedCardsAfterNewUserSetup = useCallback(
