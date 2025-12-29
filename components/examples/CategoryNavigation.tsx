@@ -94,6 +94,7 @@ export function CategoryNavigation({
       <div className="flex flex-wrap items-center justify-center gap-2 gap-y-3 px-4 pb-2 sm:px-6">
         {/* All categories chip */}
         <motion.button
+          type="button"
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={() => handleClick(null)}
@@ -126,6 +127,7 @@ export function CategoryNavigation({
 
           return (
             <motion.button
+              type="button"
               key={category.name}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
