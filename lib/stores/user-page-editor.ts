@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import type { ColorValue } from "@/lib/types/card";
+import { normalizeForCompare } from "@/lib/colorUtils";
 import {
   colorPresets,
   statCardTypes,
@@ -420,12 +421,6 @@ function serverCardToEditorConfig(
     hasCustomColors = card.useCustomSettings;
   } else {
     // Legacy heuristic: detect custom colors based on color differences
-    const normalizeForCompare = (
-      value: ColorValue | string | undefined,
-    ): string | undefined => {
-      if (value === undefined) return undefined;
-      return typeof value === "string" ? value : JSON.stringify(value);
-    };
 
     const globalTitle = normalizeForCompare(globalColors[0]);
     const globalBackground = normalizeForCompare(globalColors[1]);

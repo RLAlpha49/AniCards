@@ -2,7 +2,7 @@
  * Color utility helpers.
  * Central place for gradient -> CSS conversion and helpers.
  */
-import type { GradientDefinition } from "@/lib/types/card";
+import type { GradientDefinition, ColorValue } from "@/lib/types/card"; 
 
 /**
  * Convert a hex color string to an rgba() CSS string using the provided alpha.
@@ -58,3 +58,17 @@ export function gradientToCss(gradient: GradientDefinition): string {
   const r = gradient.r ?? 50;
   return `radial-gradient(${r}% ${r}% at ${cx}% ${cy}%, ${stops})`;
 }
+
+/**
+ * Normalize a ColorValue (or string/undefined) for comparison.
+ * Returns a string representation when the value is present, or undefined when absent.
+ *
+ * This is used for legacy heuristics that compare gradients/strings by their serialized value.
+ */
+export function normalizeForCompare(
+  value: ColorValue | string | undefined,
+): string | undefined {
+  if (value === undefined) return undefined;
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
+
