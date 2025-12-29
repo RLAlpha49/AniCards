@@ -6,6 +6,7 @@ export type CopyFormat = "url" | "anilist";
 
 export function useCopyFeedback(previewUrl: string | null) {
   const [copiedFormat, setCopiedFormat] = useState<CopyFormat | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -20,6 +21,7 @@ export function useCopyFeedback(previewUrl: string | null) {
     async (format: CopyFormat = "url") => {
       if (!previewUrl) return;
       try {
+        setError(null);
         const resolvedUrl = new URL(
           previewUrl,
           globalThis.location.origin,
@@ -33,11 +35,12 @@ export function useCopyFeedback(previewUrl: string | null) {
         }
         copyTimerRef.current = setTimeout(() => setCopiedFormat(null), 2000);
       } catch (error) {
+        setError("Failed to copy to clipboard");
         console.error("Failed to copy to clipboard:", error);
       }
     },
     [previewUrl],
   );
 
-  return { copiedFormat, handleCopy, setCopiedFormat } as const;
+  return { copiedFormat, handleCopy, setCopiedFormat, error } as const;
 }
