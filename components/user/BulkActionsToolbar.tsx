@@ -366,7 +366,7 @@ export function BulkActionsToolbar({
           >
             <SelectionCounter
               selectedCount={selectedCount}
-              selectAllEnabled={selectAllEnabled}
+              onSelectAllEnabled={selectAllEnabled}
             />
 
             <CopyUrlsPopover

@@ -4,7 +4,7 @@ import { CheckSquare } from "lucide-react";
 
 interface SelectionCounterProps {
   selectedCount: number;
-  selectAllEnabled: () => void;
+  onSelectAllEnabled: () => void;
 }
 
 /**
@@ -13,7 +13,7 @@ interface SelectionCounterProps {
  */
 export function SelectionCounter({
   selectedCount,
-  selectAllEnabled,
+  onSelectAllEnabled,
 }: Readonly<SelectionCounterProps>) {
   return (
     <div className="flex items-center gap-2 sm:border-r sm:border-slate-200 sm:pr-3 dark:sm:border-slate-700">
@@ -27,7 +27,7 @@ export function SelectionCounter({
         </span>
         <button
           type="button"
-          onClick={selectAllEnabled}
+          onClick={onSelectAllEnabled}
           className="text-left text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
           aria-label="Select all enabled cards"
         >
