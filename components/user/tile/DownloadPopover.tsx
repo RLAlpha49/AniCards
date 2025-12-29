@@ -38,6 +38,7 @@ export function DownloadPopover({
           disabled={!previewUrl || isDownloading}
           aria-describedby={downloadDescrId}
           title={downloadTitle}
+          aria-label={isDownloading ? "Converting..." : "Download"}
           className={cn(
             "h-8 gap-1.5 rounded-full px-3 text-sm font-medium shadow-lg transition-all",
             "border-2 border-white/80 bg-white/20 text-white backdrop-blur-sm",
