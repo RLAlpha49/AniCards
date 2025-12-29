@@ -4,6 +4,15 @@ import { useMemo } from "react";
 import DOMPurify from "dompurify";
 import katex from "katex";
 
+/* Regex patterns to detect and render LaTeX math delimiters.
+ * - MATH_BLOCK_REGEX: matches display math ($$...$$) with capture group for the formula (global for replace use).
+ * - MATH_INLINE_REGEX: matches inline math ($...$) with capture group for the formula (global for replace use).
+ * - MATH_DETECT_REGEX: non-global combined regex for use with `test()` to avoid stateful `lastIndex` side effects.
+ */
+const MATH_BLOCK_REGEX = /\$\$([\s\S]*?)\$\$/g;
+const MATH_INLINE_REGEX = /(?<!\d)\$([^$\n]+?)\$(?!\d)/g;
+const MATH_DETECT_REGEX = /\$\$[\s\S]+?\$\$|(?<!\d)\$[^$\n]+\$(?!\d)/;
+
 /**
  * Props for MathTooltipContent component.
  * @source
@@ -51,7 +60,7 @@ export function MathTooltipContent({
 function renderMathContent(content: string): string {
   // First, process display math ($$...$$)
   const withDisplayMath = content.replaceAll(
-    /\$\$([\s\S]*?)\$\$/g,
+    MATH_BLOCK_REGEX,
     (_, formula: string) => {
       try {
         return katex.renderToString(formula.trim(), {
@@ -67,7 +76,7 @@ function renderMathContent(content: string): string {
 
   // Then, process inline math ($...$)
   return withDisplayMath.replaceAll(
-    /(?<!\d)\$([^$\n]+?)\$(?!\d)/g,
+    MATH_INLINE_REGEX,
     (_, formula: string) => {
       try {
         return katex.renderToString(formula.trim(), {
@@ -89,5 +98,5 @@ function renderMathContent(content: string): string {
  * @returns True if content contains math delimiters
  */
 export function containsMath(content: string): boolean {
-  return /\$\$[\s\S]+?\$\$|(?<!\d)\$[^$\n]+\$(?!\d)/.test(content);
+  return MATH_DETECT_REGEX.test(content);
 }
