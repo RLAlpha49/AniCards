@@ -70,6 +70,7 @@ export function CardLightboxModal({
   onCreateYourOwn,
 }: Readonly<CardLightboxModalProps>) {
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
 
   const handleCopyEmbed = useCallback(async () => {
     if (!card) return;
@@ -79,6 +80,10 @@ export function CardLightboxModal({
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
       console.error("Failed to copy:", error);
+      const message =
+        error instanceof Error ? error.message : "Failed to copy to clipboard";
+      setCopyError(message);
+      setTimeout(() => setCopyError(null), 2000);
     }
   }, [card]);
 
@@ -209,6 +214,15 @@ export function CardLightboxModal({
                     Create Your Own
                   </Button>
                 </div>
+
+                {copyError && (
+                  <output
+                    aria-live="polite"
+                    className="mt-3 text-sm text-red-600 dark:text-red-400"
+                  >
+                    {copyError}
+                  </output>
+                )}
               </div>
             </motion.div>
           </DialogContent>
