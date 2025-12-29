@@ -319,14 +319,16 @@ export function SettingsContent({
                     step={0.1}
                     value={borderRadius}
                     onChange={(e) =>
-                      onBorderRadiusChange(Number.parseFloat(e.target.value))
+                      onBorderRadiusChange(
+                        Math.round(Number.parseFloat(e.target.value) * 10) / 10,
+                      )
                     }
                     aria-label={`Border radius (${borderRadius}px)`}
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-valuenow={borderRadius}
                     className="h-2 w-full cursor-pointer appearance-none rounded-full bg-gradient-to-r from-slate-200 to-slate-300 px-0 dark:from-slate-700 dark:to-slate-600"
-                  />
+                  />{" "}
                 </div>
               </motion.div>
             )}
