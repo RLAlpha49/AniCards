@@ -15,19 +15,13 @@ function groupCardsByCategory() {
 export function useCardFiltering({
   cardConfigs,
   query,
-  setQuery,
   visibility,
-  setVisibility,
   selectedGroup,
-  setSelectedGroup,
 }: {
   cardConfigs: Record<string, { enabled?: boolean }>;
   query: string;
-  setQuery: (q: string) => void;
   visibility: "all" | "enabled" | "disabled";
-  setVisibility: (v: "all" | "enabled" | "disabled") => void;
   selectedGroup: string;
-  setSelectedGroup: (g: string) => void;
 }) {
   const cardGroups = useMemo(() => groupCardsByCategory(), []);
 

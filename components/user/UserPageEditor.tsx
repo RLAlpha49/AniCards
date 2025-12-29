@@ -187,11 +187,8 @@ export function UserPageEditor() {
   } = useCardFiltering({
     cardConfigs,
     query,
-    setQuery,
     visibility,
-    setVisibility,
     selectedGroup,
-    setSelectedGroup,
   });
 
   // Data loader hook manages the main load flow and loading phases
