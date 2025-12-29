@@ -43,7 +43,8 @@ export function ExampleCard({
       try {
         await navigator.clipboard.writeText(variant.url);
         setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        const timer = setTimeout(() => setCopied(false), 2000);
+        return () => clearTimeout(timer);
       } catch (error) {
         console.error("Failed to copy:", error);
       }
