@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Grid,
@@ -24,6 +24,9 @@ import {
 import { colorPresets } from "@/components/stat-card-generator/constants";
 import { ColorPreviewCard } from "@/components/user/ColorPreviewCard";
 import type { ColorValue } from "@/lib/types/card";
+
+const hexRegex = /^#(?:[0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})$/i;
+const hexOrNoHashRegex = /^(?:#)?(?:[0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})$/i;
 
 /**
  * Advanced settings configuration for status colors, pie percentages, favorites, and grid size.
@@ -207,10 +210,7 @@ export function SettingsContent({
     ? undefined
     : `${idPrefix}-borderColor-error`;
 
-  const hexRegex = /^#(?:[0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})$/i;
-  const hexOrNoHashRegex = /^(?:#)?(?:[0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})$/i;
-
-  const isCssNamedColor = (val: string) => {
+  const isCssNamedColor = useCallback((val: string) => {
     try {
       const s = new Option().style;
       s.color = val;
@@ -218,24 +218,35 @@ export function SettingsContent({
     } catch {
       return false;
     }
-  };
+  }, []);
 
-  const isLikelyValidColorInput = (val?: string) => {
-    if (!borderEnabled) return true;
-    if (!val) return false;
-    const trimmed = val.trim();
-    if (hexRegex.test(trimmed)) return true;
-    if (hexOrNoHashRegex.test(trimmed)) return true;
-    if (isCssNamedColor(trimmed)) return true;
-    return false;
-  };
+  const isLikelyValidColorInput = useCallback(
+    (val?: string) => {
+      if (!borderEnabled) return true;
+      if (!val) return false;
+      const trimmed = val.trim();
+      if (hexRegex.test(trimmed)) return true;
+      if (hexOrNoHashRegex.test(trimmed)) return true;
+      if (isCssNamedColor(trimmed)) return true;
+      return false;
+    },
+    [borderEnabled, isCssNamedColor],
+  );
+
+  // Keep a ref to the latest onValidityChange so we can call it without causing
+  // this effect to re-run whenever the parent provides a new function identity.
+  const onValidityChangeRef =
+    useRef<SettingsContentProps["onValidityChange"]>(onValidityChange);
+  useEffect(() => {
+    onValidityChangeRef.current = onValidityChange;
+  }, [onValidityChange]);
 
   useEffect(() => {
     setInputBorderColor(borderColor ?? "");
     const initialValid = isLikelyValidColorInput(borderColor);
     setIsBorderColorValid(initialValid);
-    onValidityChange?.(initialValid);
-  }, [borderColor, borderEnabled, onValidityChange]);
+    onValidityChangeRef.current?.(initialValid);
+  }, [borderColor, isLikelyValidColorInput]);
 
   const getColorPickerHex = (val?: string) => {
     if (!val) return undefined;
@@ -293,14 +304,14 @@ export function SettingsContent({
     setInputBorderColor(normalized);
     setIsBorderColorValid(true);
     onBorderColorChange(normalized);
-    onValidityChange?.(true);
+    onValidityChangeRef.current?.(true);
   };
 
   const handleBorderColorTextChange = (value: string) => {
     setInputBorderColor(value);
     const valid = isLikelyValidColorInput(value);
     setIsBorderColorValid(valid);
-    onValidityChange?.(valid);
+    onValidityChangeRef.current?.(valid);
   };
 
   const handleBorderColorBlur = () => {
@@ -309,13 +320,13 @@ export function SettingsContent({
       setInputBorderColor(borderColor ?? "");
       const valid = isLikelyValidColorInput(borderColor);
       setIsBorderColorValid(valid);
-      onValidityChange?.(valid);
+      onValidityChangeRef.current?.(valid);
       return;
     }
 
     if (!isLikelyValidColorInput(v)) {
       setIsBorderColorValid(false);
-      onValidityChange?.(false);
+      onValidityChangeRef.current?.(false);
       return;
     }
 
@@ -354,7 +365,7 @@ export function SettingsContent({
     }
     setInputBorderColor(normalized);
     setIsBorderColorValid(true);
-    onValidityChange?.(true);
+    onValidityChangeRef.current?.(true);
   };
 
   return (
