@@ -557,10 +557,7 @@ export async function GET(request: Request) {
     await trackFailedRequest(undefined, paramsResult.status);
     return paramsResult;
   }
-  let params = paramsResult;
-  if (params.baseCardType === "profileOverview") {
-    params = { ...params, variationParam: "default" };
-  }
+  const params = paramsResult;
 
   const userIdResult = await resolveEffectiveUserId(params, request);
   if ("error" in userIdResult) {
