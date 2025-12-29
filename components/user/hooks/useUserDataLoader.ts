@@ -5,6 +5,7 @@ import { fetchUserCards } from "@/lib/api/cards";
 import { getErrorDetails } from "@/lib/error-messages";
 import { trackUserActionError } from "@/lib/error-tracking";
 import { parseResponsePayload, getResponseErrorMessage } from "@/lib/utils";
+import { isValidUsername } from "@/lib/api-utils";
 import { useNewUserSetup } from "./useNewUserSetup";
 import type { ReconstructedUserRecord } from "@/lib/types/records";
 import type { LoadingPhase } from "@/lib/types/loading";
@@ -117,7 +118,7 @@ export function useUserDataLoader() {
     let usernameParam = rawUsernameParam?.trim() ?? null;
 
     if (!/^\d+$/.test(userIdParam ?? "")) userIdParam = null;
-    if (!/^[a-zA-Z0-9_.-]{2,}$/.test(usernameParam ?? "")) usernameParam = null;
+    if (usernameParam === null || !isValidUsername(usernameParam)) usernameParam = null;
 
     const requestedId = `${userIdParam ?? ""}|${usernameParam ?? ""}`;
 
