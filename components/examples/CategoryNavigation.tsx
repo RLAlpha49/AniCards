@@ -1,6 +1,5 @@
 "use client";
 
-import { useCallback } from "react";
 import { motion } from "framer-motion";
 import {
   BarChart2,
@@ -74,15 +73,9 @@ export function CategoryNavigation({
   activeCategory,
   onCategoryClick,
 }: Readonly<CategoryNavigationProps>) {
-  const handleClick = useCallback(
-    (category: string | null) => {
-      onCategoryClick(category);
-
-      // Intentionally do not auto-scroll to the category section when a chip is clicked.
-      // This prevents unexpected navigation or jumping while browsing the examples.
-    },
-    [onCategoryClick],
-  );
+  const handleClick = (category: string | null) => {
+    onCategoryClick(category);
+  };
 
   const totalCount = categories.reduce((sum, c) => sum + c.count, 0);
 
