@@ -54,8 +54,8 @@ export function UserHelpDialog({
                 preset and border style.
               </li>
               <li>
-                Open a card’s actions to copy a URL, copy AniList-formatted text,
-                or download an image.
+                Open a card’s actions to copy a URL, copy AniList-formatted
+                text, or download an image.
               </li>
             </ul>
           </section>

@@ -14,7 +14,9 @@ interface BuildPreviewUrlArgs {
   cardId: string;
   config: CardEditorConfig;
   urlColorPreset?: string;
-  effectiveColors: ColorValue[] | [ColorValue, ColorValue, ColorValue, ColorValue];
+  effectiveColors:
+    | ColorValue[]
+    | [ColorValue, ColorValue, ColorValue, ColorValue];
   effectiveBorderColor?: string;
   effectiveBorderRadius?: number;
   globalAdvancedSettings: CardAdvancedSettings;
@@ -45,10 +47,17 @@ export function buildPreviewUrl({
       : globalAdvancedSettings[key];
 
   // effectiveColors order: [titleColor, backgroundColor, textColor, circleColor]
-  const defaultColors = colorPresets.default.colors as [ColorValue, ColorValue, ColorValue, ColorValue];
+  const defaultColors = colorPresets.default.colors as [
+    ColorValue,
+    ColorValue,
+    ColorValue,
+    ColorValue,
+  ];
   const [titleColor, backgroundColor, textColor, circleColor] = (() => {
     if (!Array.isArray(effectiveColors)) {
-      console.warn("[buildPreviewUrl] expected effectiveColors to be an array; using default colors");
+      console.warn(
+        "[buildPreviewUrl] expected effectiveColors to be an array; using default colors",
+      );
       return defaultColors;
     }
 

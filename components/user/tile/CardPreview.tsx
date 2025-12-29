@@ -102,7 +102,7 @@ export function CardPreview({
           "absolute inset-0 flex items-center justify-center gap-2 transition-opacity",
           isAnyPopoverOpen
             ? "visible opacity-100"
-            : "invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100",
+            : "invisible opacity-0 group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100",
         )}
       >
         {openHref ? (

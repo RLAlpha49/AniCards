@@ -126,7 +126,7 @@ export function buildCardsFromState(): {
     showFavorites: globalAdvancedSettings.showFavorites,
     gridCols: globalAdvancedSettings.gridCols,
     gridRows: globalAdvancedSettings.gridRows,
-  }; 
+  };
 
   const configsArray = Object.values(cardConfigs);
 
@@ -147,7 +147,8 @@ export function buildCardsFromState(): {
       useCustomSettings && Array.isArray(config.colorOverride.colors)
         ? ensureFourColors(config.colorOverride.colors)
         : undefined;
-    const effectiveColors: ColorValue[] = overrideColors ?? normalizedGlobalColors;
+    const effectiveColors: ColorValue[] =
+      overrideColors ?? normalizedGlobalColors;
 
     const cardData: ServerCardData = {
       cardName: config.cardId,

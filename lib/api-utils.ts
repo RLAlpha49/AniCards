@@ -703,7 +703,10 @@ function validateOptionalBorderColorField(
   const borderColorValue = card.borderColor;
   const hasBorder = borderColorValue !== undefined && borderColorValue !== null;
   if (hasBorder) {
-    if (typeof borderColorValue !== "string" || !validateColorValue(borderColorValue)) {
+    if (
+      typeof borderColorValue !== "string" ||
+      !validateColorValue(borderColorValue)
+    ) {
       const reason = getColorInvalidReason(borderColorValue);
       const reasonSuffix = reason ? ` (${reason})` : "";
       console.warn(

@@ -733,7 +733,9 @@ async function loadUserAndCardConfig(
   const effectiveVariationRaw =
     params.variationParam || cardConfig.variation || "default";
   const effectiveVariation =
-    params.baseCardType === "profileOverview" ? "default" : effectiveVariationRaw;
+    params.baseCardType === "profileOverview"
+      ? "default"
+      : effectiveVariationRaw;
   const favorites = processFavorites(
     params.baseCardType,
     params.showFavoritesParam,

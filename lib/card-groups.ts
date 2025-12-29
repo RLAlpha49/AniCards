@@ -451,7 +451,9 @@ function computeShouldIncludeColors(opts: {
   colorPreset: string | undefined;
 }): boolean {
   const hasNamedPreset = !!opts.colorPreset && opts.colorPreset !== "custom";
-  return opts.includeColors && (opts.allowPresetColorOverrides || !hasNamedPreset);
+  return (
+    opts.includeColors && (opts.allowPresetColorOverrides || !hasNamedPreset)
+  );
 }
 
 function addColorParamsIfIncluded(
@@ -466,12 +468,15 @@ function addColorParamsIfIncluded(
 ): void {
   if (!shouldIncludeColors) return;
 
-  if (candidate.titleColor) params.titleColor = colorToString(candidate.titleColor);
+  if (candidate.titleColor)
+    params.titleColor = colorToString(candidate.titleColor);
   if (candidate.backgroundColor) {
     params.backgroundColor = colorToString(candidate.backgroundColor);
   }
-  if (candidate.textColor) params.textColor = colorToString(candidate.textColor);
-  if (candidate.circleColor) params.circleColor = colorToString(candidate.circleColor);
+  if (candidate.textColor)
+    params.textColor = colorToString(candidate.textColor);
+  if (candidate.circleColor)
+    params.circleColor = colorToString(candidate.circleColor);
 }
 
 function addFavoritesGridDimsParamIfRelevant(
@@ -517,7 +522,8 @@ export function mapStoredConfigToCardUrlParams(
   const cardType = candidate.cardName || candidate.cardType || "";
   const baseCardType = (cardType || "").split("-")[0] || "";
   const rawVariation = candidate.variation || "default";
-  const variation = baseCardType === "profileOverview" ? "default" : rawVariation;
+  const variation =
+    baseCardType === "profileOverview" ? "default" : rawVariation;
   const includeColors = !!opts?.includeColors;
   const defaultToCustom = opts?.defaultToCustomPreset !== false;
   const allowPresetColorOverrides = opts?.allowPresetColorOverrides !== false;

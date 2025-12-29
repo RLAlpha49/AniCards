@@ -430,15 +430,15 @@ function buildCardConfig(
   const shouldPersistFavoritesGridDims =
     useCustomSettings && baseCardType === "favoritesGrid";
   const resolvedGridCols = shouldPersistFavoritesGridDims
-    ? clampGridDim(incoming.gridCols) ?? clampGridDim(previous?.gridCols)
+    ? (clampGridDim(incoming.gridCols) ?? clampGridDim(previous?.gridCols))
     : undefined;
   const resolvedGridRows = shouldPersistFavoritesGridDims
-    ? clampGridDim(incoming.gridRows) ?? clampGridDim(previous?.gridRows)
+    ? (clampGridDim(incoming.gridRows) ?? clampGridDim(previous?.gridRows))
     : undefined;
 
   const effectiveBorderColor = useCustomSettings
-    ? sanitizeStoredBorderColor(incoming.borderColor) ??
-      sanitizeStoredBorderColor(previous?.borderColor)
+    ? (sanitizeStoredBorderColor(incoming.borderColor) ??
+      sanitizeStoredBorderColor(previous?.borderColor))
     : undefined;
 
   const resolvedUseStatusColors = useCustomSettings
@@ -619,8 +619,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
 
     const effectiveBorderColor = effectiveBorderEnabled
-      ? sanitizeStoredBorderColor(sanitizedGlobalSettings?.borderColor) ??
-        sanitizeStoredBorderColor(existingGlobalSettings?.borderColor)
+      ? (sanitizeStoredBorderColor(sanitizedGlobalSettings?.borderColor) ??
+        sanitizeStoredBorderColor(existingGlobalSettings?.borderColor))
       : undefined;
 
     const {
@@ -656,9 +656,12 @@ export async function POST(request: Request): Promise<NextResponse> {
     };
 
     const mergedColorPresetRaw =
-      sanitizedGlobalSettings?.colorPreset ?? existingGlobalSettings?.colorPreset;
+      sanitizedGlobalSettings?.colorPreset ??
+      existingGlobalSettings?.colorPreset;
     const mergedColorPreset =
-      typeof mergedColorPresetRaw === "string" ? mergedColorPresetRaw.trim() : undefined;
+      typeof mergedColorPresetRaw === "string"
+        ? mergedColorPresetRaw.trim()
+        : undefined;
     const shouldPersistGlobalColors =
       !mergedColorPreset || mergedColorPreset === "custom";
 
