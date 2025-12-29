@@ -43,6 +43,7 @@ export function buildPreviewUrl({
       ? (config.advancedSettings[key] ?? globalAdvancedSettings[key])
       : globalAdvancedSettings[key];
 
+  // effectiveColors order: [titleColor, backgroundColor, textColor, circleColor]
   const urlParams = mapStoredConfigToCardUrlParams(
     {
       cardName: cardId,
