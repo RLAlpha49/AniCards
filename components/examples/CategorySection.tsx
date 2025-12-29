@@ -5,12 +5,13 @@ import {
   BarChart2,
   BookOpen,
   PieChart,
-  LucideIcon,
+  type LucideIcon,
   Users,
   Calendar,
   TrendingUp,
 } from "lucide-react";
 import { ExampleCard } from "./ExampleCard";
+import type { LightboxCardData } from "./CardLightboxModal";
 
 interface CardVariant {
   name: string;
@@ -37,7 +38,7 @@ interface CardType {
 interface CategorySectionProps {
   category: string;
   cardTypes: CardType[];
-  onStartCreating: () => void;
+  onOpenLightbox: (card: LightboxCardData) => void;
   isFirstCategory: boolean;
 }
 
@@ -108,94 +109,104 @@ const getCategoryStyles = (category: string) => {
   }
 };
 
+/**
+ * Redesigned category section with anchor IDs and improved grid layout.
+ */
 export function CategorySection({
   category,
   cardTypes,
-  onStartCreating,
+  onOpenLightbox,
   isFirstCategory,
 }: Readonly<CategorySectionProps>) {
   if (cardTypes.length === 0) return null;
 
   const CategoryIcon = getCategoryIcon(category);
   const styles = getCategoryStyles(category);
+  const categoryId = `category-${category.toLowerCase().replaceAll(/\s+/g, "-")}`;
+
+  // Count total variants in this category
+  const totalVariants = cardTypes.reduce(
+    (sum, ct) => sum + ct.variants.length,
+    0,
+  );
 
   return (
-    <motion.div
+    <motion.section
+      id={categoryId}
       initial={{ opacity: 0, y: 30 }}
       animate={isFirstCategory ? { opacity: 1, y: 0 } : undefined}
       whileInView={isFirstCategory ? undefined : { opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      viewport={isFirstCategory ? undefined : { once: true, margin: "-50px" }}
-      className="space-y-10"
+      viewport={isFirstCategory ? undefined : { once: true, margin: "-100px" }}
+      className="scroll-mt-24 space-y-8"
     >
       {/* Category Header */}
       <div className="flex items-center gap-4">
-        <div className={`rounded-2xl p-4 ${styles.bg}`}>
-          <CategoryIcon className={`h-8 w-8 ${styles.text}`} />
+        <div className={`rounded-2xl p-3 ${styles.bg}`}>
+          <CategoryIcon className={`h-7 w-7 ${styles.text}`} />
         </div>
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">
+        <div className="flex-1">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white sm:text-2xl">
             {category}
           </h2>
-          <p className="text-slate-600 dark:text-slate-400">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
             {cardTypes.length} card type{cardTypes.length === 1 ? "" : "s"} •{" "}
-            {cardTypes.reduce((sum, ct) => sum + ct.variants.length, 0)}{" "}
-            variants
+            {totalVariants} variant{totalVariants === 1 ? "" : "s"}
           </p>
         </div>
       </div>
 
       {/* Card Types */}
-      <div className="space-y-16">
+      <div className="space-y-12">
         {cardTypes.map((cardType) => (
-          <motion.div
-            key={cardType.title}
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="space-y-6"
-          >
+          <div key={cardType.title} className="space-y-4">
             {/* Card Type Header */}
             <div
-              className={`flex items-center gap-3 rounded-2xl border ${styles.border} bg-white/50 p-4 backdrop-blur-sm dark:bg-slate-800/50`}
+              className={`flex items-center gap-3 rounded-xl border ${styles.border} bg-white/60 p-3 backdrop-blur-sm dark:bg-slate-800/60`}
             >
-              <div className={`rounded-xl p-2 ${styles.bg}`}>
-                <cardType.icon className={`h-5 w-5 ${styles.text}`} />
+              <div className={`rounded-lg p-2 ${styles.bg}`}>
+                <cardType.icon className={`h-4 w-4 ${styles.text}`} />
               </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+              <div className="min-w-0 flex-1">
+                <h3 className="truncate text-base font-bold text-slate-900 dark:text-white">
                   {cardType.title}
                 </h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
+                <p className="truncate text-xs text-slate-600 dark:text-slate-400">
                   {cardType.description}
                 </p>
               </div>
               <span
-                className={`rounded-full px-3 py-1 text-xs font-medium ${styles.bg} ${styles.text}`}
+                className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${styles.bg} ${styles.text}`}
               >
-                {cardType.variants.length} variant
-                {cardType.variants.length === 1 ? "" : "s"}
+                {cardType.variants.length}
               </span>
             </div>
 
-            {/* Variants Grid */}
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {/* Variants Grid - Responsive masonry-style */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {cardType.variants.map((variant, variantIndex) => (
                 <ExampleCard
                   key={variant.name}
                   variant={variant}
                   cardTypeTitle={cardType.title}
                   gradient={cardType.gradient}
-                  onStartCreating={onStartCreating}
+                  onOpenLightbox={() =>
+                    onOpenLightbox({
+                      name: variant.name,
+                      url: variant.url,
+                      cardTypeTitle: cardType.title,
+                      category: cardType.category,
+                      description: cardType.description,
+                    })
+                  }
                   index={variantIndex}
                 />
               ))}
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
-    </motion.div>
+    </motion.section>
   );
 }
 

@@ -32,8 +32,13 @@ import {
   ExamplesHeroSection,
   CategorySection,
   CTASection,
+  CardLightboxModal,
 } from "@/components/examples";
-import type { CardType, CardVariant } from "@/components/examples";
+import type {
+  CardType,
+  CardVariant,
+  LightboxCardData,
+} from "@/components/examples";
 import type { StoredCardConfig } from "@/lib/types/records";
 
 /**
@@ -464,12 +469,17 @@ const BASE_URL = DEFAULT_BASE_CARD_URL;
 const USER_ID = DEFAULT_EXAMPLE_USER_ID;
 
 /**
- * Displays the examples gallery with search, statistics, and generator CTA.
+ * Displays the examples gallery with search, filtering, and lightbox.
  * @returns The examples page layout composed of category sections and the generator modal.
  */
 export default function ExamplesPage() {
   usePageSEO("examples");
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [lightboxCard, setLightboxCard] = useState<LightboxCardData | null>(
+    null,
+  );
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
   const router = useRouter();
 
@@ -479,6 +489,24 @@ export default function ExamplesPage() {
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value);
+  }, []);
+
+  const handleCategoryChange = useCallback((category: string | null) => {
+    setActiveCategory(category);
+  }, []);
+
+  const handleClearFilters = useCallback(() => {
+    setSearchQuery("");
+    setActiveCategory(null);
+  }, []);
+
+  const handleOpenLightbox = useCallback((card: LightboxCardData) => {
+    setLightboxCard(card);
+    setIsLightboxOpen(true);
+  }, []);
+
+  const handleCloseLightbox = useCallback(() => {
+    setIsLightboxOpen(false);
   }, []);
 
   const cardTypesWithVariants = useMemo<CardType[]>(() => {
@@ -570,50 +598,50 @@ export default function ExamplesPage() {
     });
   }, []);
 
+  // Filter card types based on search and category
   const filteredCardTypes = useMemo(() => {
-    if (!searchQuery.trim()) return cardTypesWithVariants;
+    let filtered = cardTypesWithVariants;
 
-    const query = searchQuery.toLowerCase();
-    return cardTypesWithVariants.filter(
-      (card) =>
-        card.title.toLowerCase().includes(query) ||
-        card.description.toLowerCase().includes(query),
-    );
-  }, [cardTypesWithVariants, searchQuery]);
+    // Filter by category
+    if (activeCategory) {
+      filtered = filtered.filter((card) => card.category === activeCategory);
+    }
 
-  const stats = useMemo(
-    () => ({
-      coreStats: cardTypesWithVariants.filter(
-        (c) => c.category === "Core Stats",
-      ).length,
-      animeDeepDive: cardTypesWithVariants.filter(
-        (c) => c.category === "Anime Deep Dive",
-      ).length,
-      mangaDeepDive: cardTypesWithVariants.filter(
-        (c) => c.category === "Manga Deep Dive",
-      ).length,
-      activityEngagement: cardTypesWithVariants.filter(
-        (c) => c.category === "Activity & Engagement",
-      ).length,
-      libraryProgress: cardTypesWithVariants.filter(
-        (c) => c.category === "Library & Progress",
-      ).length,
-      advancedAnalytics: cardTypesWithVariants.filter(
-        (c) => c.category === "Advanced Analytics",
-      ).length,
-      totalVariants: cardTypesWithVariants.reduce(
-        (sum, c) => sum + c.variants.length,
-        0,
-      ),
-    }),
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (card) =>
+          card.title.toLowerCase().includes(query) ||
+          card.description.toLowerCase().includes(query),
+      );
+    }
+
+    return filtered;
+  }, [cardTypesWithVariants, searchQuery, activeCategory]);
+
+  // Build category info for navigation
+  const categoryInfo = useMemo(() => {
+    return CATEGORIES.map((category) => ({
+      name: category,
+      count: cardTypesWithVariants.filter((c) => c.category === category)
+        .length,
+    }));
+  }, [cardTypesWithVariants]);
+
+  // Calculate totals
+  const totalCardTypes = cardTypesWithVariants.length;
+  const totalVariants = useMemo(
+    () => cardTypesWithVariants.reduce((sum, c) => sum + c.variants.length, 0),
     [cardTypesWithVariants],
   );
 
   return (
     <ErrorBoundary
-      resetKeys={[searchQuery]}
+      resetKeys={[searchQuery, activeCategory ?? ""]}
       onReset={() => {
         setSearchQuery("");
+        setActiveCategory(null);
       }}
     >
       <PageShell
@@ -621,29 +649,68 @@ export default function ExamplesPage() {
           <ExamplesHeroSection
             searchQuery={searchQuery}
             onSearchChange={handleSearchChange}
-            stats={stats}
+            totalCardTypes={totalCardTypes}
+            totalVariants={totalVariants}
+            categories={categoryInfo}
+            activeCategory={activeCategory}
+            onCategoryChange={handleCategoryChange}
+            filteredCount={filteredCardTypes.length}
+            onStartCreating={handleStartCreating}
+            onClearFilters={handleClearFilters}
           />
         }
         heroContentClassName="w-full"
+        variant="compact"
       >
-        {/* Card Showcase by Category */}
-        <section className="relative w-full overflow-hidden py-20 lg:py-28">
+        {/* Card Gallery */}
+        <section
+          id="card-gallery"
+          className="relative w-full overflow-hidden py-12 lg:py-16"
+        >
           <div className="container relative mx-auto px-4">
-            <div className="mx-auto max-w-7xl space-y-24">
-              {CATEGORIES.map((category, categoryIndex) => {
-                const categoryCardTypes = filteredCardTypes.filter(
-                  (card) => card.category === category,
-                );
-                return (
-                  <CategorySection
-                    key={category}
-                    category={category}
-                    cardTypes={categoryCardTypes}
-                    onStartCreating={handleStartCreating}
-                    isFirstCategory={categoryIndex === 0}
-                  />
-                );
-              })}
+            <div className="mx-auto max-w-7xl space-y-16">
+              {activeCategory ? (
+                // Show only the active category
+                <CategorySection
+                  key={activeCategory}
+                  category={activeCategory}
+                  cardTypes={filteredCardTypes}
+                  onOpenLightbox={handleOpenLightbox}
+                  isFirstCategory={true}
+                />
+              ) : (
+                // Show all categories
+                CATEGORIES.map((category, categoryIndex) => {
+                  const categoryCardTypes = filteredCardTypes.filter(
+                    (card) => card.category === category,
+                  );
+                  if (categoryCardTypes.length === 0) return null;
+                  return (
+                    <CategorySection
+                      key={category}
+                      category={category}
+                      cardTypes={categoryCardTypes}
+                      onOpenLightbox={handleOpenLightbox}
+                      isFirstCategory={categoryIndex === 0}
+                    />
+                  );
+                })
+              )}
+
+              {/* Empty state */}
+              {filteredCardTypes.length === 0 && (
+                <div className="py-20 text-center">
+                  <p className="text-lg text-slate-600 dark:text-slate-400">
+                    No cards found matching your search.
+                  </p>
+                  <button
+                    onClick={handleClearFilters}
+                    className="mt-4 font-medium text-purple-600 hover:underline dark:text-purple-400"
+                  >
+                    Clear filters
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </section>
@@ -651,6 +718,14 @@ export default function ExamplesPage() {
         {/* Call to Action */}
         <CTASection onStartCreating={handleStartCreating} />
       </PageShell>
+
+      {/* Lightbox Modal */}
+      <CardLightboxModal
+        isOpen={isLightboxOpen}
+        onClose={handleCloseLightbox}
+        card={lightboxCard}
+        onCreateYourOwn={handleStartCreating}
+      />
     </ErrorBoundary>
   );
 }

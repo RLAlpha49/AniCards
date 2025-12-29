@@ -107,10 +107,9 @@ export default function PageShell({
   return (
     <ErrorBoundary>
       <div className={cn("relative w-full overflow-hidden", mainClassName)}>
-        {/* Background effects matching home page */}
         <div
           className={cn(
-            "pointer-events-none absolute inset-0",
+            "pointer-events-none fixed inset-0",
             backgroundClassName,
           )}
         >
@@ -125,7 +124,7 @@ export default function PageShell({
         <div className="relative z-10 h-full">
           {/* Hero Section (render only when hero props are present) */}
           {hasHero && (
-            <section className="relative h-full w-full overflow-hidden">
+            <section className="relative h-full w-full overflow-y-hidden overflow-x-visible">
               <div className="container relative z-10 mx-auto px-0">
                 <motion.div
                   variants={containerVariants}

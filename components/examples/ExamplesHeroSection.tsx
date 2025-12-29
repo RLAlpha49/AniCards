@@ -3,36 +3,33 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import {
-  ArrowLeft,
-  BarChart2,
-  BookOpen,
-  PieChart,
-  Search,
-  Sparkles,
-  TrendingUp,
-} from "lucide-react";
+import { ArrowLeft, ArrowDown, Play, Sparkles, Layers } from "lucide-react";
+import { SearchFilterBar } from "./SearchFilterBar";
+import { CategoryNavigation } from "./CategoryNavigation";
+
+interface CategoryInfo {
+  name: string;
+  count: number;
+}
 
 interface HeroSectionProps {
   searchQuery: string;
   onSearchChange: (value: string) => void;
-  stats: {
-    coreStats: number;
-    animeDeepDive: number;
-    mangaDeepDive: number;
-    activityEngagement: number;
-    libraryProgress: number;
-    advancedAnalytics: number;
-    totalVariants: number;
-  };
+  totalCardTypes: number;
+  totalVariants: number;
+  categories: CategoryInfo[];
+  activeCategory: string | null;
+  onCategoryChange: (category: string | null) => void;
+  filteredCount: number;
+  onStartCreating: () => void;
+  onClearFilters: () => void;
 }
 
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.1 },
+    transition: { staggerChildren: 0.08, delayChildren: 0.1 },
   },
 };
 
@@ -41,75 +38,43 @@ const itemVariants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
 };
 
-const STAT_CATEGORIES = [
-  {
-    key: "coreStats",
-    label: "Core Stats",
-    icon: BarChart2,
-    bg: "bg-blue-100 dark:bg-blue-900/30",
-    text: "text-blue-600 dark:text-blue-400",
-  },
-  {
-    key: "animeDeepDive",
-    label: "Anime Deep Dive",
-    icon: PieChart,
-    bg: "bg-purple-100 dark:bg-purple-900/30",
-    text: "text-purple-600 dark:text-purple-400",
-  },
-  {
-    key: "mangaDeepDive",
-    label: "Manga Deep Dive",
-    icon: BookOpen,
-    bg: "bg-pink-100 dark:bg-pink-900/30",
-    text: "text-pink-600 dark:text-pink-400",
-  },
-  {
-    key: "activityEngagement",
-    label: "Activity & Engagement",
-    icon: Sparkles,
-    bg: "bg-amber-100 dark:bg-amber-900/30",
-    text: "text-amber-600 dark:text-amber-400",
-  },
-  {
-    key: "libraryProgress",
-    label: "Library & Progress",
-    icon: Sparkles,
-    bg: "bg-emerald-100 dark:bg-emerald-900/30",
-    text: "text-emerald-600 dark:text-emerald-400",
-  },
-  {
-    key: "advancedAnalytics",
-    label: "Advanced Analytics",
-    icon: TrendingUp,
-    bg: "bg-indigo-100 dark:bg-indigo-900/30",
-    text: "text-indigo-600 dark:text-indigo-400",
-  },
-  {
-    key: "totalVariants",
-    label: "Total Variants",
-    icon: TrendingUp,
-    bg: "bg-green-100 dark:bg-green-900/30",
-    text: "text-green-600 dark:text-green-400",
-  },
-] as const;
-
+/**
+ * Redesigned hero section with cleaner design, prominent search, and category navigation.
+ */
 export function ExamplesHeroSection({
   searchQuery,
   onSearchChange,
-  stats,
+  totalCardTypes,
+  totalVariants,
+  categories,
+  activeCategory,
+  onCategoryChange,
+  filteredCount,
+  onStartCreating,
+  onClearFilters,
 }: Readonly<HeroSectionProps>) {
+  const hasActiveFilters = searchQuery.length > 0 || activeCategory !== null;
+
+  const scrollToGallery = () => {
+    const gallery = document.getElementById("card-gallery");
+    if (gallery) {
+      gallery.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
   return (
-    <section className="relative w-full overflow-hidden">
-      <div className="container relative z-10 mx-auto px-4 py-16 lg:py-24">
+    <section className="relative w-full">
+      <div className="container relative z-10 mx-auto px-4 py-12 lg:py-20">
         <motion.div
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="mx-auto max-w-6xl"
+          className="mx-auto max-w-5xl"
         >
+          {/* Back button */}
           <motion.div
             variants={itemVariants}
-            className="mb-10 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center"
+            className="mb-8 flex w-full justify-start"
           >
             <Link href="/">
               <Button
@@ -121,18 +86,9 @@ export function ExamplesHeroSection({
                 Back to Home
               </Button>
             </Link>
-            <div className="relative w-full sm:w-auto sm:min-w-[300px]">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input
-                type="text"
-                placeholder="Search cards..."
-                value={searchQuery}
-                onChange={(e) => onSearchChange(e.target.value)}
-                className="h-11 rounded-full border-slate-200 bg-white/80 pl-10 dark:border-slate-700 dark:bg-slate-800/80"
-              />
-            </div>
           </motion.div>
 
+          {/* Badge */}
           <motion.div variants={itemVariants} className="mb-6">
             <span className="inline-flex items-center gap-2 rounded-full border border-purple-200/50 bg-purple-50/80 px-4 py-2 text-sm font-medium text-purple-700 shadow-sm backdrop-blur-sm dark:border-purple-700/50 dark:bg-purple-950/50 dark:text-purple-300">
               <Sparkles className="h-4 w-4" />
@@ -140,29 +96,39 @@ export function ExamplesHeroSection({
             </span>
           </motion.div>
 
+          {/* Main heading */}
           <motion.h1
             variants={itemVariants}
-            className="mb-6 text-4xl font-extrabold leading-[1.1] tracking-tight text-slate-900 dark:text-white sm:text-5xl lg:text-6xl"
+            className="mb-4 text-4xl font-extrabold leading-[1.1] tracking-tight text-slate-900 dark:text-white sm:text-5xl lg:text-6xl"
           >
-            Explore All{" "}
-            <span className="relative">
+            Discover{" "}
+            <span className="relative inline-block">
               <span className="relative z-10 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                Card Types
+                Beautiful
               </span>
               <motion.span
                 className="absolute -inset-1 -z-10 block rounded-lg bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 blur-xl"
                 animate={{ opacity: [0.5, 0.8, 0.5] }}
                 transition={{ duration: 3, repeat: Infinity }}
               />
-            </span>
+            </span>{" "}
+            Stat Cards
           </motion.h1>
 
+          {/* Subtitle with stats */}
           <motion.p
             variants={itemVariants}
-            className="mx-auto mb-12 max-w-2xl text-lg text-slate-600 dark:text-slate-300 sm:text-xl"
+            className="mx-auto mb-8 max-w-2xl text-lg text-slate-600 dark:text-slate-300 sm:text-xl"
           >
-            Browse the complete collection of statistical visualizations. All
-            examples are generated in real-time using data from{" "}
+            Explore our complete collection of{" "}
+            <span className="font-semibold text-purple-600 dark:text-purple-400">
+              {totalCardTypes} card types
+            </span>{" "}
+            with{" "}
+            <span className="font-semibold text-blue-600 dark:text-blue-400">
+              {totalVariants}+ variants
+            </span>
+            . All examples use real data from{" "}
             <a
               href="https://anilist.co/user/Alpha49"
               target="_blank"
@@ -171,36 +137,61 @@ export function ExamplesHeroSection({
             >
               @Alpha49
             </a>
-            {""}.
+            .
           </motion.p>
 
+          {/* CTA buttons */}
           <motion.div
             variants={itemVariants}
-            className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6"
+            className="mb-10 flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:justify-center"
           >
-            {STAT_CATEGORIES.map((stat) => {
-              const Icon = stat.icon;
-              const value = stats[stat.key];
-              return (
-                <motion.div
-                  key={stat.key}
-                  whileHover={{ scale: 1.02 }}
-                  className="group rounded-2xl border border-slate-200/50 bg-white/80 p-5 backdrop-blur-sm transition-all hover:border-slate-300/50 hover:shadow-lg dark:border-slate-700/50 dark:bg-slate-800/80 dark:hover:border-slate-600/50"
-                >
-                  <div
-                    className={`mb-3 inline-flex rounded-xl p-2.5 ${stat.bg}`}
-                  >
-                    <Icon className={`h-5 w-5 ${stat.text}`} />
-                  </div>
-                  <div className="text-3xl font-bold text-slate-900 dark:text-white">
-                    {value}
-                  </div>
-                  <div className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                    {stat.label}
-                  </div>
-                </motion.div>
-              );
-            })}
+            <Button
+              onClick={onStartCreating}
+              className="group h-12 gap-2 rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 px-6 font-semibold text-white shadow-lg shadow-purple-500/25 transition-all hover:scale-[1.02] hover:shadow-xl hover:shadow-purple-500/30"
+            >
+              <Play className="h-4 w-4 fill-current" />
+              Create Your Cards
+            </Button>
+            <Button
+              variant="outline"
+              onClick={scrollToGallery}
+              className="h-12 gap-2 rounded-full border-2 border-slate-300 bg-white/50 px-6 font-medium backdrop-blur-sm transition-all hover:border-slate-400 hover:bg-white dark:border-slate-700 dark:bg-slate-900/50 dark:hover:border-slate-600 dark:hover:bg-slate-800/80"
+            >
+              <Layers className="h-4 w-4" />
+              Browse Gallery
+              <ArrowDown className="h-4 w-4" />
+            </Button>
+          </motion.div>
+
+          {/* Search bar */}
+          <motion.div
+            variants={itemVariants}
+            className="mb-6 flex w-full justify-center"
+          >
+            <div className="w-full max-w-3xl">
+              <SearchFilterBar
+                searchQuery={searchQuery}
+                onSearchChange={onSearchChange}
+                resultCount={filteredCount}
+                totalCount={totalCardTypes}
+                hasActiveFilters={hasActiveFilters}
+                onClearFilters={onClearFilters}
+              />
+            </div>
+          </motion.div>
+
+          {/* Category navigation */}
+          <motion.div
+            variants={itemVariants}
+            className="flex w-full justify-center"
+          >
+            <div className="w-full max-w-4xl">
+              <CategoryNavigation
+                categories={categories}
+                activeCategory={activeCategory}
+                onCategoryClick={onCategoryChange}
+              />
+            </div>
           </motion.div>
         </motion.div>
       </div>
