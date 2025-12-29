@@ -253,7 +253,7 @@ export function useUserDataLoader() {
 
   const reload = useCallback(() => {
     lastLoadedUserRef.current = null;
-    void load();
+    load();
   }, [load]);
 
   return { isLoading, loadError, loadingPhase, reload } as const;
