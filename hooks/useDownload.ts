@@ -28,9 +28,10 @@ export function useDownload(
         setError(null);
       }
       let link: HTMLAnchorElement | null = null;
+      let dataUrl: string | null = null;
       try {
         const absoluteUrl = getAbsoluteUrl(previewUrl);
-        const dataUrl = await svgToPng(absoluteUrl, format);
+        dataUrl = await svgToPng(absoluteUrl, format);
         if (!dataUrl) throw new Error("Failed to convert SVG to image");
         link = document.createElement("a");
         link.href = dataUrl;
@@ -43,6 +44,9 @@ export function useDownload(
           setError(error instanceof Error ? error : new Error(String(error)));
         }
       } finally {
+        if (dataUrl?.startsWith("blob:")) {
+          URL.revokeObjectURL(dataUrl);
+        }
         link?.remove();
         isDownloadingRef.current = false;
         if (isMountedRef.current) {
