@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { statCardTypes } from "@/components/stat-card-generator/constants";
 
 function groupCardsByCategory() {
@@ -98,8 +98,11 @@ export function useCardFiltering({
     setExpandedGroups((prev) => ({ ...prev, [selectedGroup]: true }));
   }, [selectedGroup]);
 
+  const prevQueryRef = useRef(normalizedQuery);
+
   useEffect(() => {
-    if (!normalizedQuery) return;
+    if (!normalizedQuery || normalizedQuery === prevQueryRef.current) return;
+    prevQueryRef.current = normalizedQuery;
     setExpandedGroups((prev) => {
       const next = { ...prev };
       for (const groupName of visibleGroupNames) next[groupName] = true;
