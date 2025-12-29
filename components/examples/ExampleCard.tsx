@@ -36,6 +36,10 @@ export function ExampleCard({
   const handleCopy = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation();
+      if (!navigator.clipboard) {
+        console.warn("Clipboard API not available");
+        return;
+      }
       try {
         await navigator.clipboard.writeText(variant.url);
         setCopied(true);
