@@ -1,8 +1,6 @@
 import type { ColorValue } from "@/lib/types/card";
 import { hexToHsl, isGradient, isValidHexColor } from "@/lib/utils";
 
-export { hexToHsl, hslToHex, isValidHexColor } from "@/lib/utils";
-
 /** Default stat base color used when a circle color cannot be resolved. @source lib/svg-templates/extra-anime-manga-stats/shared.ts */
 export const DEFAULT_STAT_BASE_COLOR = "#2563eb";
 
