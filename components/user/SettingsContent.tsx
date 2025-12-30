@@ -105,6 +105,57 @@ interface SettingsContentProps {
   onValidityChange?: (isValid: boolean) => void;
 }
 
+function getColorPickerHex(val?: string) {
+  if (!val) return undefined;
+  const trimmed = val.trim();
+  const m3 = /^#([0-9A-F]{3})$/i.exec(trimmed);
+  if (m3) {
+    return (
+      "#" +
+      m3[1]
+        .split("")
+        .map((c) => c + c)
+        .join("")
+        .toLowerCase()
+    );
+  }
+  if (/^#([0-9A-F]{6})$/i.test(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+  const m8 = /^#([0-9A-F]{8})$/i.exec(trimmed);
+  if (m8) {
+    return ("#" + m8[1].slice(0, 6)).toLowerCase();
+  }
+  const mn = /^([0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})$/i.exec(trimmed);
+  if (mn) {
+    const s = mn[1];
+    if (s.length === 3) {
+      return (
+        "#" +
+        s
+          .split("")
+          .map((c) => c + c)
+          .join("")
+          .toLowerCase()
+      );
+    }
+    return ("#" + s.slice(0, 6)).toLowerCase();
+  }
+  try {
+    const ctx = document.createElement("canvas").getContext("2d");
+    if (ctx) {
+      ctx.fillStyle = trimmed;
+      const result = ctx.fillStyle;
+      if (/^#([0-9a-f]{6})$/i.test(result)) {
+        return result.toLowerCase();
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return undefined;
+}
+
 /**
  * Shared settings content component with Colors, Border, and Advanced tabs.
  * Used by both GlobalSettingsPanel and CardSettingsDialog for consistency.
@@ -247,57 +298,6 @@ export function SettingsContent({
     setIsBorderColorValid(initialValid);
     onValidityChangeRef.current?.(initialValid);
   }, [borderColor, isLikelyValidColorInput]);
-
-  const getColorPickerHex = (val?: string) => {
-    if (!val) return undefined;
-    const trimmed = val.trim();
-    const m3 = /^#([0-9A-F]{3})$/i.exec(trimmed);
-    if (m3) {
-      return (
-        "#" +
-        m3[1]
-          .split("")
-          .map((c) => c + c)
-          .join("")
-          .toLowerCase()
-      );
-    }
-    if (/^#([0-9A-F]{6})$/i.test(trimmed)) {
-      return trimmed.toLowerCase();
-    }
-    const m8 = /^#([0-9A-F]{8})$/i.exec(trimmed);
-    if (m8) {
-      return ("#" + m8[1].slice(0, 6)).toLowerCase();
-    }
-    const mn = /^([0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})$/i.exec(trimmed);
-    if (mn) {
-      const s = mn[1];
-      if (s.length === 3) {
-        return (
-          "#" +
-          s
-            .split("")
-            .map((c) => c + c)
-            .join("")
-            .toLowerCase()
-        );
-      }
-      return ("#" + s.slice(0, 6)).toLowerCase();
-    }
-    try {
-      const ctx = document.createElement("canvas").getContext("2d");
-      if (ctx) {
-        ctx.fillStyle = trimmed;
-        const result = ctx.fillStyle;
-        if (/^#([0-9a-f]{6})$/i.test(result)) {
-          return result.toLowerCase();
-        }
-      }
-    } catch {
-      // ignore
-    }
-    return undefined;
-  };
 
   const handleColorPickerChange = (value: string) => {
     const normalized = value.toLowerCase();
