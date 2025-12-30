@@ -52,9 +52,6 @@ export function useDownload(
           setStatus("error");
         }
       } finally {
-        if (dataUrl?.startsWith("blob:")) {
-          URL.revokeObjectURL(dataUrl);
-        }
         link?.remove();
         isDownloadingRef.current = false;
         if (isMountedRef.current) {
