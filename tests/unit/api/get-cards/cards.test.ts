@@ -3,7 +3,7 @@ import {
   sharedRedisMockGet,
   sharedRedisMockIncr,
   sharedRedisMockSet,
-} from "@/tests/unit/__setup__.test";
+} from "@/tests/unit/__setup__";
 
 const { GET, OPTIONS } = await import("@/app/api/get-cards/route");
 

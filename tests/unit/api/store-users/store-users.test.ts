@@ -15,7 +15,7 @@ import {
   sharedRedisMockMget,
   sharedRedisMockPipelineExec,
   sharedRatelimitMockLimit,
-} from "@/tests/unit/__setup__.test";
+} from "@/tests/unit/__setup__";
 
 // Set the app URL for same-origin validation testing
 const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;

@@ -3,7 +3,7 @@ import {
   sharedRedisMockScan,
   sharedRedisMockGet,
   sharedRedisMockRpush,
-} from "@/tests/unit/__setup__.test";
+} from "@/tests/unit/__setup__";
 
 const { POST } = await import("@/app/api/cron/analytics-reporting/route");
 

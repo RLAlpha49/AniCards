@@ -2,19 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import {
   sharedRedisMockGet,
   sharedRedisMockIncr,
-} from "@/tests/unit/__setup__.test";
+} from "@/tests/unit/__setup__";
 
 import { GET, OPTIONS } from "@/app/api/get-user/route";
 
 /**
  * Extracts the response JSON payload for assertions.
- * @param response - Response to parse.
- * @returns Parsed JSON from the response body.
- * @source
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getResponseJson(response: Response): Promise<any> {
-  return response.json();
+async function getResponseJson<T = unknown>(response: Response): Promise<T> {
+  return response.json() as Promise<T>;
 }
 
 const API_BASE = "http://localhost/api/get-user";
@@ -41,7 +37,7 @@ async function expectError(
 ) {
   const res = await callGet(query);
   expect(res.status).toBe(status);
-  const json = await getResponseJson(res);
+  const json = await getResponseJson<{ error?: string }>(res);
   expect(json?.error).toBe(errorMsg);
 }
 
@@ -51,7 +47,7 @@ async function expectOkJson(
 ) {
   const res = await callGet(query);
   expect(res.status).toBe(200);
-  const json = await getResponseJson(res);
+  const json = await getResponseJson<Record<string, unknown>>(res);
 
   // Check core fields
   expect(String(json.userId)).toBe(String(expected.userId));
@@ -238,6 +234,14 @@ describe("User API GET Endpoint", () => {
     it("should return 404 when username resolves to userId but user record is missing", async () => {
       mockRedisSequence("789", null);
       await expectError("username=orphaned", 404, "User not found");
+    });
+
+    it("should return 404 when username index returns a non-numeric value", async () => {
+      mockRedisSequence("abc");
+      await expectError("username=badindex", 404, "User not found");
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:user_api:failed_requests",
+      );
     });
 
     it("should handle case-insensitive username lookup (normalized)", async () => {

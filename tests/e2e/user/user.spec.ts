@@ -234,11 +234,21 @@ test.describe("User page", () => {
           body: mockSvgCard,
         });
       });
+
+      await page.route("**s1.anilist.co/**", async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "image/png",
+          body: "",
+        });
+      });
     });
 
     await page.goto("/user?userId=999");
 
-    await expect(page.getByText(/welcome to anicards/i)).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 1, name: /newuser/i }),
+    ).toBeVisible({ timeout: 15000 });
 
     // Wait for at least one preview image to appear (initial cards snapshot should enable previews)
     const images = page.locator("main").getByRole("img");

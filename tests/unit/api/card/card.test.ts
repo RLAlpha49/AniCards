@@ -6,7 +6,7 @@ import {
   sharedRedisMockMget,
   sharedRatelimitMockLimit,
   sharedRatelimitMockSlidingWindow,
-} from "@/tests/unit/__setup__.test";
+} from "@/tests/unit/__setup__";
 import { clearSvgCache, clearUserRequestStats } from "@/lib/stores/svg-cache";
 
 mock.module("@/lib/utils/milestones", () => ({
