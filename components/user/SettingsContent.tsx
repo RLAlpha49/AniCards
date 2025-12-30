@@ -202,21 +202,24 @@ export function SettingsContent({
 
   // Merge per-card advanced settings with any provided inherited/global values so
   // undefined means "inherit" and the UI reflects the resolved behavior.
-  const effectiveAdvancedSettings = {
-    useStatusColors:
-      advancedSettings.useStatusColors ??
-      inheritedAdvancedSettings?.useStatusColors,
-    showPiePercentages:
-      advancedSettings.showPiePercentages ??
-      inheritedAdvancedSettings?.showPiePercentages,
-    showFavorites:
-      advancedSettings.showFavorites ??
-      inheritedAdvancedSettings?.showFavorites,
-    gridCols:
-      advancedSettings.gridCols ?? inheritedAdvancedSettings?.gridCols ?? 3,
-    gridRows:
-      advancedSettings.gridRows ?? inheritedAdvancedSettings?.gridRows ?? 3,
-  };
+  const effectiveAdvancedSettings = useMemo(
+    () => ({
+      useStatusColors:
+        advancedSettings.useStatusColors ??
+        inheritedAdvancedSettings?.useStatusColors,
+      showPiePercentages:
+        advancedSettings.showPiePercentages ??
+        inheritedAdvancedSettings?.showPiePercentages,
+      showFavorites:
+        advancedSettings.showFavorites ??
+        inheritedAdvancedSettings?.showFavorites,
+      gridCols:
+        advancedSettings.gridCols ?? inheritedAdvancedSettings?.gridCols ?? 3,
+      gridRows:
+        advancedSettings.gridRows ?? inheritedAdvancedSettings?.gridRows ?? 3,
+    }),
+    [advancedSettings, inheritedAdvancedSettings],
+  );
 
   // Determine if advanced tab should be shown (respect merged/effective settings)
   const hasAdvancedOptions =
