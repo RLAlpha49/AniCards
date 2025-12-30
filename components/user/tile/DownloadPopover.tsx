@@ -43,8 +43,7 @@ export function DownloadPopover({
             "h-8 gap-1.5 rounded-full px-3 text-sm font-medium shadow-lg transition-all",
             "border-2 border-white/80 bg-white/20 text-white backdrop-blur-sm",
             "hover:border-white hover:bg-white/30",
-            "disabled:opacity-70",
-            !previewUrl && "cursor-not-allowed",
+            "disabled:cursor-not-allowed disabled:opacity-70",
           )}
         >
           {isDownloading ? (
