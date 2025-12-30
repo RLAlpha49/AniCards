@@ -28,6 +28,9 @@ import type { ColorValue } from "@/lib/types/card";
 const hexRegex = /^#(?:[0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})$/i;
 const hexOrNoHashRegex = /^(?:#)?(?:[0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})$/i;
 
+// Cached canvas for color validation
+let cachedCanvas: HTMLCanvasElement | null = null;
+
 /**
  * Converts various color input formats to a 6-digit hex color suitable for <input type="color">.
  * Returns undefined if the input cannot be normalized.
@@ -69,7 +72,8 @@ function getColorPickerHex(val?: string) {
     return ("#" + s.slice(0, 6)).toLowerCase();
   }
   try {
-    const ctx = document.createElement("canvas").getContext("2d");
+    cachedCanvas ??= document.createElement("canvas");
+    const ctx = cachedCanvas.getContext("2d");
     if (ctx) {
       ctx.fillStyle = trimmed;
       const result = ctx.fillStyle;
