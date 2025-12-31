@@ -580,7 +580,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                     onChange={(e) => {
                       const f = e.target.files?.[0];
                       if (!f) return;
-                      void handleImportFile(f);
+                      handleImportFile(f);
                       e.target.value = "";
                     }}
                   />
