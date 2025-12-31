@@ -13,6 +13,7 @@ import { SettingsTools } from "@/components/user/SettingsTools";
 import {
   DEFAULT_BORDER_COLOR,
   useUserPageEditor,
+  isCardCustomized,
   type CardAdvancedSettings,
 } from "@/lib/stores/user-page-editor";
 import { clampBorderRadius } from "@/lib/utils";
@@ -105,6 +106,8 @@ export function CardSettingsDialog({
     config.borderColor ?? (globalBorderEnabled ? globalBorderColor : undefined);
   const cardBorderRadius = config.borderRadius ?? globalBorderRadius;
   const hasBorder = Boolean(cardBorderColor);
+
+  const isCustomized = isCardCustomized(config);
 
   // Check if current variation supports pie percentages
   const isPieVariation = currentVariant === "pie" || currentVariant === "donut";
@@ -209,6 +212,7 @@ export function CardSettingsDialog({
           tools={
             <SettingsTools mode="card" cardId={cardId} cardLabel={label} />
           }
+          isCustomized={isCustomized}
           useCustomSettings={useCustomSettings}
           onUseCustomSettingsChange={handleToggleCustomSettings}
           settingsContentProps={{
