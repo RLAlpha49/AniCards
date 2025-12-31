@@ -144,7 +144,10 @@ export function useUserDataLoader() {
 
     const requestedId = `${userIdParam ?? ""}|${usernameParam ?? ""}`;
 
-    if (lastLoadedUserRef.current === requestedId) return;
+    if (lastLoadedUserRef.current === requestedId) {
+      setLoading(false);
+      return;
+    }
     lastLoadedUserRef.current = requestedId;
 
     setLoadError(null);
@@ -158,6 +161,7 @@ export function useUserDataLoader() {
       } else {
         setLoadError("No user specified. Please search for a user first.");
       }
+      setLoading(false);
       setLoadingPhase("error");
       lastLoadedUserRef.current = null;
       return;
@@ -178,6 +182,7 @@ export function useUserDataLoader() {
       );
 
       if ("error" in setupResult) {
+        setLoading(false);
         setLoadError(setupResult.error ?? "Unknown error");
         setLoadingPhase("error");
         lastLoadedUserRef.current = null;
@@ -195,6 +200,7 @@ export function useUserDataLoader() {
         new Error(userResult.error ?? "Unknown error"),
         errorDetails.category,
       );
+      setLoading(false);
       setLoadError(userResult.error ?? "Unknown error");
       setLoadingPhase("error");
       lastLoadedUserRef.current = null;
@@ -210,6 +216,7 @@ export function useUserDataLoader() {
       userResult.avatarUrl,
     );
 
+    setLoading(false);
     setLoadingPhase("complete");
   }, [
     searchParams,
