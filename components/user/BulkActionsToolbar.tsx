@@ -67,9 +67,9 @@ interface BulkActionsToolbarProps {
 export function BulkActionsToolbar({
   className,
 }: Readonly<BulkActionsToolbarProps>) {
-  const [copiedFormat, setCopiedFormat] = useState<"url" | "anilist" | null>(
-    null,
-  );
+  const [copiedFormat, setCopiedFormat] = useState<
+    "url" | "anilist" | "failed-list" | null
+  >(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState({
     current: 0,
@@ -515,7 +515,7 @@ export function BulkActionsToolbar({
       try {
         await navigator.clipboard.writeText(list.join("\n"));
 
-        setCopiedFormat("url");
+        setCopiedFormat("failed-list");
         if (copyTimerRef.current) {
           clearTimeout(copyTimerRef.current);
           copyTimerRef.current = null;

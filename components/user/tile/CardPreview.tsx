@@ -27,7 +27,7 @@ interface CardPreviewProps {
   previewUnavailableId: string;
   convertingId: string;
   isDownloading: boolean;
-  copiedFormat: "url" | "anilist" | null;
+  copiedFormat: "url" | "anilist" | "failed-list" | null;
   copyPopoverOpen: boolean;
   setCopyPopoverOpen: (open: boolean) => void;
   downloadPopoverOpen: boolean;

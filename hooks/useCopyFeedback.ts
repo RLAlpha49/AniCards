@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type CopyFormat = "url" | "anilist";
+export type CopyFormat = "url" | "anilist" | "failed-list";
 
 export function useCopyFeedback(previewUrl: string | null) {
   const [copiedFormat, setCopiedFormat] = useState<CopyFormat | null>(null);

@@ -10,7 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 
 interface CopyUrlsPopoverProps {
-  copiedFormat: "url" | "anilist" | null;
+  copiedFormat: "url" | "anilist" | "failed-list" | null;
   handleCopyUrls: (format: "url" | "anilist") => Promise<void> | void;
 }
 
@@ -21,15 +21,20 @@ export function CopyUrlsPopover({
   copiedFormat,
   handleCopyUrls,
 }: Readonly<CopyUrlsPopoverProps>) {
+  const ariaLabel = (() => {
+    if (copiedFormat === "url") return "URLs copied to clipboard";
+    if (copiedFormat === "anilist") return "AniList format copied to clipboard";
+    if (copiedFormat) return "Copied to clipboard";
+    return "Copy card URLs";
+  })();
+
   return (
     <Popover>
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
           size="sm"
-          aria-label={
-            copiedFormat ? "URLs copied to clipboard" : "Copy card URLs"
-          }
+          aria-label={ariaLabel}
           className={cn(
             "h-9 gap-1.5 rounded-lg px-3 font-medium shadow-md transition-all",
             copiedFormat

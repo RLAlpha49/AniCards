@@ -13,7 +13,7 @@ interface CopyPopoverProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   previewUrl: string | null;
-  copiedFormat: "url" | "anilist" | null;
+  copiedFormat: "url" | "anilist" | "failed-list" | null;
   onCopyUrl: () => Promise<void> | void;
   onCopyAniList: () => Promise<void> | void;
   previewUnavailableId?: string;
@@ -28,6 +28,13 @@ export function CopyPopover({
   onCopyAniList,
   previewUnavailableId,
 }: Readonly<CopyPopoverProps>) {
+  const srCopiedMessage = (() => {
+    if (copiedFormat === "url") return "Copied URL to clipboard";
+    if (copiedFormat === "anilist") return "Copied AniList format to clipboard";
+    if (copiedFormat) return "Copied to clipboard";
+    return "";
+  })();
+
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
@@ -110,9 +117,7 @@ export function CopyPopover({
 
           {copiedFormat && (
             <span aria-live="polite" className="sr-only">
-              {copiedFormat === "url"
-                ? "Copied URL to clipboard"
-                : "Copied AniList format to clipboard"}
+              {srCopiedMessage}
             </span>
           )}
         </div>
