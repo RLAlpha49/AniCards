@@ -1,12 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-const SITEMAP_PATHS = [
-  "/",
-  "/search",
-  "/user",
-  "/projects",
-  "/contact",
-];
+const SITEMAP_PATHS = ["/", "/search", "/user", "/projects", "/contact"];
 const DEFAULT_BASE_URL = "https://anicards.alpha49.com";
 
 async function getSitemap(siteUrl?: string) {

@@ -280,8 +280,6 @@ export function SettingsContent({
   const borderColorAriaDescribedBy = isBorderColorValid
     ? undefined
     : `${idPrefix}-borderColor-error`;
-  
-
 
   const isLikelyValidColorInput = useCallback(
     (val?: string) => {
