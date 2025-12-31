@@ -271,6 +271,16 @@ export function SettingsContent({
   const defaultResetLabel =
     mode === "global" ? "Reset to Defaults" : "Reset to Global Settings";
 
+  const quickColorPresets = useMemo(() => {
+    const candidates = [
+      { id: "default", label: "Default" },
+      { id: "anilistDark", label: "AniList Dark" },
+      { id: "anilistLight", label: "AniList Light" },
+    ];
+
+    return candidates.filter((p) => Boolean(colorPresets[p.id]));
+  }, []);
+
   // Client-side validation state for the border color input
   const [inputBorderColor, setInputBorderColor] = useState<string>(
     borderColor ?? "",
@@ -357,16 +367,16 @@ export function SettingsContent({
           className={`grid w-full gap-1 ${hasAdvancedOptions ? "grid-cols-3" : "grid-cols-2"}`}
         >
           <TabsTrigger value="colors" className="gap-2">
-            <Palette className="h-4 w-4" />
+            <Palette className="h-4 w-4" aria-hidden="true" />
             Colors
           </TabsTrigger>
           <TabsTrigger value="border" className="gap-2">
-            <Square className="h-4 w-4" />
+            <Square className="h-4 w-4" aria-hidden="true" />
             Border
           </TabsTrigger>
           {hasAdvancedOptions && (
             <TabsTrigger value="advanced" className="gap-2">
-              <Sliders className="h-4 w-4" />
+              <Sliders className="h-4 w-4" aria-hidden="true" />
               Advanced
             </TabsTrigger>
           )}
@@ -385,6 +395,29 @@ export function SettingsContent({
               borderRadius={borderRadius}
             />
           </div>
+
+          {/* Quick Apply */}
+          {quickColorPresets.length > 0 ? (
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                Quick apply
+              </Label>
+              <div className="flex flex-wrap gap-2">
+                {quickColorPresets.map((p) => (
+                  <Button
+                    key={p.id}
+                    type="button"
+                    size="sm"
+                    variant={p.id === colorPreset ? "default" : "outline"}
+                    onClick={() => onPresetChange(p.id)}
+                    className="h-8"
+                  >
+                    {p.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {/* Color Preset Selector */}
           <div className="space-y-3">
@@ -409,6 +442,46 @@ export function SettingsContent({
 
         {/* Border Tab */}
         <TabsContent value="border" className="mt-4 space-y-4">
+          {/* Quick Apply */}
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+              Quick apply
+            </Label>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={borderEnabled ? "outline" : "default"}
+                onClick={() => onBorderEnabledChange(false)}
+                className="h-8"
+              >
+                No border
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={
+                  borderEnabled && borderRadius === 0 ? "default" : "outline"
+                }
+                onClick={() => onBorderRadiusChange(0)}
+                className="h-8"
+              >
+                Square
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={
+                  borderEnabled && borderRadius === 16 ? "default" : "outline"
+                }
+                onClick={() => onBorderRadiusChange(16)}
+                className="h-8"
+              >
+                Rounded
+              </Button>
+            </div>
+          </div>
+
           {/* Border Toggle */}
           <div className="flex items-center justify-between rounded-lg border border-slate-200/50 bg-slate-50/50 p-3 dark:border-slate-700/50 dark:bg-slate-900/50">
             <div className="flex items-center gap-2">
@@ -421,6 +494,7 @@ export function SettingsContent({
               checked={borderEnabled}
               onCheckedChange={onBorderEnabledChange}
               className="data-[state=checked]:bg-blue-500"
+              aria-label="Enable border"
             />
           </div>
 
@@ -523,7 +597,7 @@ export function SettingsContent({
                     aria-valuemax={100}
                     aria-valuenow={borderRadius}
                     className="h-2 w-full cursor-pointer appearance-none rounded-full bg-gradient-to-r from-slate-200 to-slate-300 px-0 dark:from-slate-700 dark:to-slate-600"
-                  />{" "}
+                  />
                 </div>
               </motion.div>
             )}
@@ -555,6 +629,7 @@ export function SettingsContent({
                     onAdvancedSettingChange("useStatusColors", checked)
                   }
                   className="data-[state=checked]:bg-green-500"
+                  aria-label="Status colors"
                 />
               </div>
             )}
@@ -583,6 +658,7 @@ export function SettingsContent({
                     onAdvancedSettingChange("showPiePercentages", checked)
                   }
                   className="data-[state=checked]:bg-green-500"
+                  aria-label="Show percentages"
                 />
               </div>
             )}
@@ -609,6 +685,7 @@ export function SettingsContent({
                     onAdvancedSettingChange("showFavorites", checked)
                   }
                   className="data-[state=checked]:bg-green-500"
+                  aria-label="Show favorites"
                 />
               </div>
             )}

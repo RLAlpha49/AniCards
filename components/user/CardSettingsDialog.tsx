@@ -9,6 +9,7 @@ import {
   DialogDescription,
 } from "@/components/ui/Dialog";
 import { CardSettingsPanel } from "@/components/user/CardSettingsPanel";
+import { SettingsTools } from "@/components/user/SettingsTools";
 import {
   DEFAULT_BORDER_COLOR,
   useUserPageEditor,
@@ -205,6 +206,9 @@ export function CardSettingsDialog({
           idPrefix={cardId}
           title={`${label} Settings`}
           description="Customize this card's appearance"
+          tools={
+            <SettingsTools mode="card" cardId={cardId} cardLabel={label} />
+          }
           useCustomSettings={useCustomSettings}
           onUseCustomSettingsChange={handleToggleCustomSettings}
           settingsContentProps={{

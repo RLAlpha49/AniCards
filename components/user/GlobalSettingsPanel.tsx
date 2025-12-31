@@ -7,9 +7,10 @@ import {
   DialogTitle,
 } from "@/components/ui/Dialog";
 import { CardSettingsPanel } from "@/components/user/CardSettingsPanel";
+import { SettingsTools } from "@/components/user/SettingsTools";
 import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 import type { ColorValue } from "@/lib/types/card";
-import { colorPresets } from "../stat-card-generator/constants";
+import { colorPresets } from "@/components/stat-card-generator/constants";
 
 /**
  * Props for GlobalSettingsPanel component.
@@ -76,6 +77,7 @@ export function GlobalSettingsPanel({
         onSaveAll={onSave}
         saveAllDisabled={!isDirty}
         isSaving={isSaving}
+        tools={<SettingsTools mode="global" />}
         settingsContentProps={{
           colors: (globalColors.length === 4
             ? globalColors

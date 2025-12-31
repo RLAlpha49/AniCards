@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 interface CardTileHeaderProps {
   label: string;
   enabled: boolean;
+  isCustomized?: boolean;
   onToggleEnabled: (checked: boolean) => void;
   tooltipContent?: string;
   isSelected: boolean;
@@ -29,6 +30,7 @@ interface CardTileHeaderProps {
 export const CardTileHeader = memo(function CardTileHeader({
   label,
   enabled,
+  isCustomized = false,
   onToggleEnabled,
   tooltipContent,
   isSelected,
@@ -55,6 +57,11 @@ export const CardTileHeader = memo(function CardTileHeader({
           >
             {label}
           </h4>
+          {isCustomized ? (
+            <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
+              Custom <span className="sr-only">settings applied</span>
+            </span>
+          ) : null}
           {tooltipContent && (
             <Tooltip>
               <TooltipTrigger asChild>

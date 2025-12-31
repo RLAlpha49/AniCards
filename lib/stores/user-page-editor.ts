@@ -8,6 +8,12 @@ import {
 } from "@/components/stat-card-generator/constants";
 import { DEFAULT_CARD_BORDER_RADIUS, clampBorderRadius } from "@/lib/utils";
 import { ServerCardData, ServerGlobalSettings } from "../api/cards";
+import type {
+  SettingsSnapshot,
+  SettingsTemplateV1,
+  SettingsExportV1,
+} from "../user-page-settings-io";
+import { parseSettingsExportJson } from "../user-page-settings-io";
 
 /**
  * Per-card color override configuration.
@@ -87,6 +93,9 @@ export interface UserPageEditorState {
 
   // Per-card configurations
   cardConfigs: Record<string, CardEditorConfig>;
+
+  // Local-only user templates (not persisted to the server)
+  settingsTemplates: SettingsTemplateV1[];
 
   // UI state
   expandedCardId: string | null;
@@ -215,6 +224,24 @@ export interface UserPageEditorActions {
   // Reset store
   reset: () => void;
 
+  // Settings snapshots and templates
+  getGlobalSettingsSnapshot: () => SettingsSnapshot;
+  getCardSettingsSnapshot: (cardId: string) => SettingsSnapshot;
+  applySettingsSnapshotToGlobal: (snapshot: SettingsSnapshot) => void;
+  applySettingsSnapshotToCard: (
+    cardId: string,
+    snapshot: SettingsSnapshot,
+  ) => void;
+  copySettingsFromCard: (sourceCardId: string, targetCardId: string) => void;
+
+  createSettingsTemplate: (name: string, snapshot: SettingsSnapshot) => void;
+  renameSettingsTemplate: (templateId: string, name: string) => void;
+  deleteSettingsTemplate: (templateId: string) => void;
+  applySettingsTemplateToGlobal: (templateId: string) => void;
+  applySettingsTemplateToCard: (cardId: string, templateId: string) => void;
+  importSettingsTemplates: (templates: SettingsTemplateV1[]) => void;
+  exportSettingsTemplates: () => SettingsExportV1;
+
   // Get effective colors for a card (considering overrides)
   getEffectiveColors: (cardId: string) => ColorValue[];
   getEffectiveBorderColor: (cardId: string) => string | undefined;
@@ -225,6 +252,15 @@ export interface UserPageEditorActions {
 export type UserPageEditorStore = UserPageEditorState & UserPageEditorActions;
 
 export const DEFAULT_BORDER_COLOR = "#e4e2e2";
+
+export function isCardCustomized(config: CardEditorConfig): boolean {
+  return (
+    config.colorOverride.useCustomSettings ||
+    config.borderColor !== undefined ||
+    config.borderRadius !== undefined ||
+    Object.keys(config.advancedSettings).length > 0
+  );
+}
 
 type CardTypeMeta = {
   id: string;
@@ -246,6 +282,128 @@ const cardTypeMetaById: ReadonlyMap<string, CardTypeMeta> = new Map(
 );
 
 const BULK_HISTORY_LIMIT = 40;
+
+const SETTINGS_TEMPLATES_STORAGE_KEY =
+  "anicards:user-page-settings-templates:v1";
+
+function generateTemplateId(): string {
+  const cryptoObj = globalThis.crypto as Crypto | undefined;
+  if (cryptoObj?.randomUUID) return cryptoObj.randomUUID();
+  return `tpl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function readTemplatesFromStorage(): SettingsTemplateV1[] {
+  if (globalThis.window === undefined) return [];
+
+  try {
+    const raw = globalThis.window.localStorage.getItem(
+      SETTINGS_TEMPLATES_STORAGE_KEY,
+    );
+    if (!raw) return [];
+    const parsed = parseSettingsExportJson(raw);
+    if (!parsed.ok) return [];
+
+    if (parsed.value.kind !== "export") return [];
+    const exp = parsed.value.value;
+    if (exp.scope === "templates") return exp.templates;
+    if (exp.scope === "all") return exp.templates;
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+function writeTemplatesToStorage(templates: SettingsTemplateV1[]): void {
+  if (globalThis.window === undefined) return;
+
+  try {
+    const payload = {
+      schemaVersion: 1 as const,
+      scope: "templates" as const,
+      exportedAt: new Date().toISOString(),
+      templates,
+    };
+    globalThis.window.localStorage.setItem(
+      SETTINGS_TEMPLATES_STORAGE_KEY,
+      JSON.stringify(payload),
+    );
+  } catch {
+    // Ignore persistence errors (private mode/quota/etc)
+  }
+}
+
+function resolveAdvancedSettings(
+  card: CardAdvancedSettings | undefined,
+  global: CardAdvancedSettings,
+): Required<CardAdvancedSettings> {
+  return {
+    useStatusColors: card?.useStatusColors ?? global.useStatusColors ?? true,
+    showPiePercentages:
+      card?.showPiePercentages ?? global.showPiePercentages ?? true,
+    showFavorites: card?.showFavorites ?? global.showFavorites ?? true,
+    gridCols: card?.gridCols ?? global.gridCols ?? 3,
+    gridRows: card?.gridRows ?? global.gridRows ?? 3,
+  };
+}
+
+function buildGlobalSettingsSnapshot(
+  state: UserPageEditorState,
+): SettingsSnapshot {
+  return {
+    colorPreset: state.globalColorPreset,
+    colors: (state.globalColors.length === 4
+      ? state.globalColors
+      : [
+          ...state.globalColors,
+          ...getPresetColors("default").slice(state.globalColors.length, 4),
+        ]) as [ColorValue, ColorValue, ColorValue, ColorValue],
+    borderEnabled: state.globalBorderEnabled,
+    borderColor: state.globalBorderColor,
+    borderRadius: state.globalBorderRadius,
+    advancedSettings: { ...state.globalAdvancedSettings },
+  };
+}
+
+function buildCardSettingsSnapshot(
+  state: UserPageEditorState,
+  cardId: string,
+): SettingsSnapshot {
+  const cfg = ensureCardConfig(state, cardId);
+  const colors =
+    cfg.colorOverride.useCustomSettings && cfg.colorOverride.colors
+      ? cfg.colorOverride.colors
+      : state.globalColors;
+
+  const preset =
+    cfg.colorOverride.useCustomSettings && cfg.colorOverride.colorPreset
+      ? cfg.colorOverride.colorPreset
+      : state.globalColorPreset;
+
+  const effectiveBorderColor =
+    cfg.borderColor ??
+    (state.globalBorderEnabled ? state.globalBorderColor : undefined);
+  const borderEnabled = Boolean(effectiveBorderColor);
+  const borderColor = effectiveBorderColor ?? state.globalBorderColor;
+
+  return {
+    colorPreset: preset,
+    colors: (colors.length === 4
+      ? colors
+      : [...colors, ...getPresetColors("default").slice(colors.length, 4)]) as [
+      ColorValue,
+      ColorValue,
+      ColorValue,
+      ColorValue,
+    ],
+    borderEnabled,
+    borderColor,
+    borderRadius: cfg.borderRadius ?? state.globalBorderRadius,
+    advancedSettings: resolveAdvancedSettings(
+      cfg.advancedSettings,
+      state.globalAdvancedSettings,
+    ),
+  };
+}
 
 export interface BulkHistoryEntry {
   /** Human-friendly summary of the bulk operation, for UI and a11y announcements. */
@@ -678,6 +836,7 @@ const initialState: UserPageEditorState = {
   globalBorderRadius: DEFAULT_CARD_BORDER_RADIUS,
   globalAdvancedSettings: DEFAULT_GLOBAL_ADVANCED_SETTINGS,
   cardConfigs: {},
+  settingsTemplates: readTemplatesFromStorage(),
   expandedCardId: null,
   selectedCardIds: new Set(),
   bulkPast: [],
@@ -1474,6 +1633,192 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
         // Reset store
         reset: () => {
           set(initialState, false, "reset");
+        },
+
+        getGlobalSettingsSnapshot: () => {
+          return buildGlobalSettingsSnapshot(get());
+        },
+
+        getCardSettingsSnapshot: (cardId) => {
+          return buildCardSettingsSnapshot(get(), cardId);
+        },
+
+        applySettingsSnapshotToGlobal: (snapshot) => {
+          const preset = snapshot.colorPreset || "custom";
+          const nextColors =
+            preset === "custom"
+              ? [...snapshot.colors]
+              : getPresetColors(preset);
+
+          const nextAdvanced: CardAdvancedSettings = {
+            ...DEFAULT_GLOBAL_ADVANCED_SETTINGS,
+            ...snapshot.advancedSettings,
+          };
+          if (typeof nextAdvanced.gridCols === "number") {
+            nextAdvanced.gridCols = Math.max(
+              1,
+              Math.min(5, nextAdvanced.gridCols),
+            );
+          }
+          if (typeof nextAdvanced.gridRows === "number") {
+            nextAdvanced.gridRows = Math.max(
+              1,
+              Math.min(5, nextAdvanced.gridRows),
+            );
+          }
+
+          set(
+            {
+              globalColorPreset: preset,
+              globalColors: nextColors,
+              globalBorderEnabled: Boolean(snapshot.borderEnabled),
+              globalBorderColor: snapshot.borderColor || DEFAULT_BORDER_COLOR,
+              globalBorderRadius: clampBorderRadius(snapshot.borderRadius),
+              globalAdvancedSettings: nextAdvanced,
+              isDirty: true,
+            },
+            false,
+            "applySettingsSnapshotToGlobal",
+          );
+        },
+
+        applySettingsSnapshotToCard: (cardId, snapshot) => {
+          const state = get();
+          const { cardConfigs } = state;
+          const existing = ensureCardConfig(state, cardId);
+
+          const preset = snapshot.colorPreset || "custom";
+          const nextColors =
+            preset === "custom"
+              ? [...snapshot.colors]
+              : getPresetColors(preset);
+
+          const nextConfig: CardEditorConfig = {
+            ...existing,
+            colorOverride: {
+              useCustomSettings: true,
+              colorPreset: preset,
+              colors: nextColors,
+            },
+            borderColor: snapshot.borderEnabled
+              ? snapshot.borderColor || DEFAULT_BORDER_COLOR
+              : undefined,
+            borderRadius: clampBorderRadius(snapshot.borderRadius),
+            advancedSettings: { ...snapshot.advancedSettings },
+          };
+
+          set(
+            {
+              cardConfigs: { ...cardConfigs, [cardId]: nextConfig },
+              isDirty: true,
+            },
+            false,
+            "applySettingsSnapshotToCard",
+          );
+        },
+
+        copySettingsFromCard: (sourceCardId, targetCardId) => {
+          const state = get();
+          const { cardConfigs } = state;
+          const source = ensureCardConfig(state, sourceCardId);
+          const target = ensureCardConfig(state, targetCardId);
+
+          const nextTarget: CardEditorConfig = {
+            ...target,
+            colorOverride: {
+              ...source.colorOverride,
+              colors: source.colorOverride.colors
+                ? [...source.colorOverride.colors]
+                : undefined,
+            },
+            borderColor: source.borderColor,
+            borderRadius: source.borderRadius,
+            advancedSettings: { ...source.advancedSettings },
+          };
+
+          set(
+            {
+              cardConfigs: { ...cardConfigs, [targetCardId]: nextTarget },
+              isDirty: true,
+            },
+            false,
+            "copySettingsFromCard",
+          );
+        },
+
+        createSettingsTemplate: (name, snapshot) => {
+          const trimmed = name.trim();
+          if (!trimmed) return;
+
+          const now = Date.now();
+          const template: SettingsTemplateV1 = {
+            id: generateTemplateId(),
+            name: trimmed.slice(0, 80),
+            snapshot,
+            createdAt: now,
+            updatedAt: now,
+          };
+
+          const next = [...get().settingsTemplates, template];
+          writeTemplatesToStorage(next);
+          set({ settingsTemplates: next }, false, "createSettingsTemplate");
+        },
+
+        renameSettingsTemplate: (templateId, name) => {
+          const trimmed = name.trim();
+          if (!trimmed) return;
+
+          const next = get().settingsTemplates.map((t) =>
+            t.id === templateId
+              ? { ...t, name: trimmed.slice(0, 80), updatedAt: Date.now() }
+              : t,
+          );
+          writeTemplatesToStorage(next);
+          set({ settingsTemplates: next }, false, "renameSettingsTemplate");
+        },
+
+        deleteSettingsTemplate: (templateId) => {
+          const next = get().settingsTemplates.filter(
+            (t) => t.id !== templateId,
+          );
+          writeTemplatesToStorage(next);
+          set({ settingsTemplates: next }, false, "deleteSettingsTemplate");
+        },
+
+        applySettingsTemplateToGlobal: (templateId) => {
+          const tpl = get().settingsTemplates.find((t) => t.id === templateId);
+          if (!tpl) return;
+          get().applySettingsSnapshotToGlobal(tpl.snapshot);
+        },
+
+        applySettingsTemplateToCard: (cardId, templateId) => {
+          const tpl = get().settingsTemplates.find((t) => t.id === templateId);
+          if (!tpl) return;
+          get().applySettingsSnapshotToCard(cardId, tpl.snapshot);
+        },
+
+        importSettingsTemplates: (templates) => {
+          const existing = get().settingsTemplates;
+          const usedIds = new Set(existing.map((t) => t.id));
+
+          const merged: SettingsTemplateV1[] = [...existing];
+          for (const t of templates) {
+            const id = usedIds.has(t.id) ? generateTemplateId() : t.id;
+            usedIds.add(id);
+            merged.push({ ...t, id, updatedAt: Date.now() });
+          }
+
+          writeTemplatesToStorage(merged);
+          set({ settingsTemplates: merged }, false, "importSettingsTemplates");
+        },
+
+        exportSettingsTemplates: () => {
+          return {
+            schemaVersion: 1,
+            scope: "templates",
+            exportedAt: new Date().toISOString(),
+            templates: get().settingsTemplates,
+          };
         },
 
         // Get effective colors for a card

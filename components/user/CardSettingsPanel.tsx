@@ -27,6 +27,8 @@ interface BasePanelProps {
   title: string;
   description: string;
   settingsContentProps: SharedSettingsContentProps;
+  /** Optional tools UI rendered above the settings content. */
+  tools?: React.ReactNode;
   className?: string;
 }
 
@@ -63,7 +65,7 @@ export type CardSettingsPanelProps = GlobalPanelProps | CardPanelProps;
  * - Card: a "Use Custom Settings" toggle that gates showing the settings sections.
  */
 export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
-  const { title, description, settingsContentProps, className } = props;
+  const { title, description, settingsContentProps, className, tools } = props;
 
   const globalProps = props.mode === "global" ? props : null;
   const cardProps = props.mode === "card" ? props : null;
@@ -180,6 +182,8 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
             />
           </div>
         )}
+
+        {tools ? <div>{tools}</div> : null}
 
         {settingsBody}
       </div>

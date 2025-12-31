@@ -10,6 +10,7 @@ import { CardSettingsDialog } from "@/components/user/CardSettingsDialog";
 import { getCardInfoTooltip } from "@/lib/card-info-tooltips";
 import {
   CardEditorConfig,
+  isCardCustomized,
   useUserPageEditor,
 } from "@/lib/stores/user-page-editor";
 import { cn, getCardBorderRadius } from "@/lib/utils";
@@ -125,6 +126,8 @@ export const CardTile = memo(function CardTile({
     () => configFromStore ?? { ...DEFAULT_CARD_CONFIG, cardId },
     [configFromStore, cardId],
   );
+
+  const isCustomized = useMemo(() => isCardCustomized(config), [config]);
 
   const handleToggleSelection = useCallback(
     (checked: boolean | "indeterminate") => {
@@ -273,6 +276,7 @@ export const CardTile = memo(function CardTile({
       <CardTileHeader
         label={label}
         enabled={config.enabled}
+        isCustomized={isCustomized}
         onToggleEnabled={handleToggleEnabled}
         tooltipContent={tooltipContent}
         isSelected={isSelected}

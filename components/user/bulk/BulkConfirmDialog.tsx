@@ -112,7 +112,9 @@ export function BulkConfirmDialog({
               </ul>
             ) : (
               <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">
-                {totalAffected > 0 ? "No preview available." : "No cards will be affected."}
+                {totalAffected > 0
+                  ? "No preview available."
+                  : "No cards will be affected."}
               </div>
             )}
 
