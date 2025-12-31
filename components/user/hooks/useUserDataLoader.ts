@@ -37,7 +37,9 @@ async function fetchUserData(
     }
 
     const data = payload as ReconstructedUserRecord;
-    if (!data.userId) return { error: "Invalid user data received" };
+    if (!data?.userId || typeof data.userId !== 'number') {
+      return { error: "Invalid user data received" };
+    }
 
     return {
       userId: String(data.userId),
