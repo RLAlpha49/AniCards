@@ -37,7 +37,7 @@ async function fetchUserData(
     }
 
     const data = payload as ReconstructedUserRecord;
-    if (!data?.userId || typeof data.userId !== 'number') {
+    if (!data?.userId || typeof data.userId !== "number") {
       return { error: "Invalid user data received" };
     }
 
@@ -125,6 +125,8 @@ export function useUserDataLoader() {
         cardsResult.globalSettings,
         ALL_CARD_IDS,
       );
+      setLoading(false);
+      setLoadingPhase("complete");
     },
     [initializeFromServerData, setLoading, setLoadError],
   );
