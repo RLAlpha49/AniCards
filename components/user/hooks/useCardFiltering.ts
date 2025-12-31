@@ -91,8 +91,6 @@ export function useCardFiltering({
     [normalizedQuery, fuzzyMatchIds],
   );
 
-
-
   const { filteredGroups, filteredGroupTotals, visibleGroupNames } =
     useMemo(() => {
       const result: Record<string, Array<(typeof statCardTypes)[0]>> = {};
@@ -106,7 +104,8 @@ export function useCardFiltering({
         let enabledCount = 0;
 
         for (const cardType of cards) {
-          if (!matchesVisibility(cardType.id) || !matchesQuery(cardType)) continue;
+          if (!matchesVisibility(cardType.id) || !matchesQuery(cardType))
+            continue;
           filtered.push(cardType);
           if (cardEnabledById[cardType.id]) enabledCount += 1;
         }

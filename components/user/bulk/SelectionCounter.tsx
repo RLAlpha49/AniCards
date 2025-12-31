@@ -1,10 +1,18 @@
 "use client";
 
 import { CheckSquare } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover";
+import { Button } from "@/components/ui/Button";
 
 interface SelectionCounterProps {
   selectedCount: number;
   onSelectAllEnabled: () => void;
+  groupOptions?: ReadonlyArray<{ value: string; label: string }>;
+  onSelectGroup?: (groupName: string) => void;
 }
 
 /**
@@ -14,6 +22,8 @@ interface SelectionCounterProps {
 export function SelectionCounter({
   selectedCount,
   onSelectAllEnabled,
+  groupOptions,
+  onSelectGroup,
 }: Readonly<SelectionCounterProps>) {
   return (
     <div className="flex items-center gap-2 sm:border-r sm:border-slate-200 sm:pr-3 dark:sm:border-slate-700">
@@ -25,14 +35,45 @@ export function SelectionCounter({
         <span className="text-sm font-semibold text-slate-900 dark:text-white">
           {selectedCount} selected
         </span>
-        <button
-          type="button"
-          onClick={onSelectAllEnabled}
-          className="text-left text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-          aria-label="Select all enabled cards"
-        >
-          Select all enabled
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onSelectAllEnabled}
+            className="text-left text-xs text-blue-600 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 dark:text-blue-400 dark:hover:text-blue-300"
+            aria-label="Select all enabled cards"
+          >
+            Select all enabled
+          </button>
+
+          {groupOptions && groupOptions.length > 0 && onSelectGroup ? (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="text-left text-xs text-blue-600 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 dark:text-blue-400 dark:hover:text-blue-300"
+                  aria-label="Select cards by category"
+                >
+                  Select by category
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-56 p-1.5" align="start" side="top">
+                <div className="flex flex-col gap-0.5">
+                  {groupOptions.map((opt) => (
+                    <Button
+                      key={opt.value}
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 justify-start rounded-md px-2.5 text-sm"
+                      onClick={() => onSelectGroup(opt.value)}
+                    >
+                      {opt.label}
+                    </Button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          ) : null}
+        </div>
       </div>
     </div>
   );

@@ -77,7 +77,14 @@ export function useUserDataLoader() {
 
       if ("error" in cardsResult) {
         if (cardsResult.notFound) {
-          initializeFromServerData(userIdStr, uname, aUrl, [], undefined, ALL_CARD_IDS);
+          initializeFromServerData(
+            userIdStr,
+            uname,
+            aUrl,
+            [],
+            undefined,
+            ALL_CARD_IDS,
+          );
           setLoadingPhase("complete");
           return;
         } else {
@@ -96,7 +103,14 @@ export function useUserDataLoader() {
           setLoadError(
             "Failed to load saved cards due to a server error. Default cards are shown for now.",
           );
-          initializeFromServerData(userIdStr, uname, aUrl, [], undefined, ALL_CARD_IDS);
+          initializeFromServerData(
+            userIdStr,
+            uname,
+            aUrl,
+            [],
+            undefined,
+            ALL_CARD_IDS,
+          );
           return;
         }
       }

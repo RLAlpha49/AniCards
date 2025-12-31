@@ -1,9 +1,16 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import {
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+  useRef,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { X } from "lucide-react";
+import { Redo2, RotateCcw, SlidersHorizontal, Undo2, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import {
   useUserPageEditor,
@@ -13,6 +20,7 @@ import { SelectionCounter } from "./bulk/SelectionCounter";
 import { CopyUrlsPopover } from "./bulk/CopyUrlsPopover";
 import { DownloadPopover } from "./bulk/DownloadPopover";
 import { DownloadStatusAlerts } from "./bulk/DownloadStatusAlerts";
+import { BulkConfirmDialog } from "./bulk/BulkConfirmDialog";
 import {
   cn,
   batchConvertAndZip,
@@ -25,6 +33,22 @@ import {
 } from "@/lib/card-groups";
 import { useSidebar } from "@/components/ui/Sidebar";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/Select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover";
+import {
+  colorPresets,
+  statCardTypes,
+} from "@/components/stat-card-generator/constants";
 
 /**
  * Props for BulkActionsToolbar.
@@ -93,11 +117,109 @@ export function BulkActionsToolbar({
     globalColorPreset,
     clearSelection,
     selectAllEnabled,
+    selectCardsByGroup,
     getEffectiveColors,
     getEffectiveBorderColor,
     getEffectiveBorderRadius,
     globalAdvancedSettings,
+    bulkSetVariant,
+    bulkApplyColorPreset,
+    resetSelectedCardsToGlobal,
+    undoBulk,
+    redoBulk,
+    bulkPast,
+    bulkFuture,
+    bulkLastMessage,
   } = useUserPageEditor();
+
+  const selectedIds = useMemo(
+    () => Array.from(selectedCardIds),
+    [selectedCardIds],
+  );
+
+  const canUndo = bulkPast.length > 0;
+  const canRedo = bulkFuture.length > 0;
+
+  const groupOptions = useMemo(() => {
+    const present = new Set(Object.keys(cardConfigs));
+    const seen = new Set<string>();
+    const options: Array<{ value: string; label: string }> = [];
+
+    for (const t of statCardTypes) {
+      if (!present.has(t.id)) continue;
+      if (seen.has(t.group)) continue;
+      seen.add(t.group);
+      options.push({ value: t.group, label: t.group });
+    }
+
+    return options;
+  }, [cardConfigs]);
+
+  const presetOptions = useMemo(() => {
+    const keys = Object.keys(colorPresets);
+    // Prefer "default" first, then alphabetical for stability.
+    keys.sort((a, b) => {
+      if (a === "default") return -1;
+      if (b === "default") return 1;
+      return a.localeCompare(b);
+    });
+    return keys;
+  }, []);
+
+  const commonVariantOptions = useMemo(() => {
+    if (selectedIds.length === 0) return [];
+
+    const metaById = new Map(statCardTypes.map((t) => [t.id, t] as const));
+
+    const first = metaById.get(selectedIds[0]);
+    if (!first) return [];
+
+    let intersection = new Set(first.variations.map((v) => v.id));
+    for (const cardId of selectedIds.slice(1)) {
+      const meta = metaById.get(cardId);
+      if (!meta) return [];
+      const allowed = new Set(meta.variations.map((v) => v.id));
+      intersection = new Set(
+        Array.from(intersection).filter((id) => allowed.has(id)),
+      );
+      if (intersection.size === 0) return [];
+    }
+
+    return first.variations.filter((v) => intersection.has(v.id));
+  }, [selectedIds]);
+
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  const [confirmState, setConfirmState] = useState<null | {
+    title: string;
+    description: ReactNode;
+    confirmLabel: string;
+    destructive: boolean;
+    affectedCardIds: string[];
+    onConfirm: () => void;
+  }>(null);
+
+  const buildPreviewItems = useCallback(
+    (cardIds: string[]) => {
+      const metaById = new Map(statCardTypes.map((t) => [t.id, t] as const));
+      return cardIds
+        .map((cardId) => {
+          const meta = metaById.get(cardId);
+          return {
+            cardId,
+            label: meta?.label ?? cardId,
+            group: meta?.group,
+            enabled: Boolean(cardConfigs[cardId]?.enabled),
+          };
+        })
+        .sort((a, b) => {
+          const ga = a.group ?? "";
+          const gb = b.group ?? "";
+          if (ga !== gb) return ga.localeCompare(gb);
+          return a.label.localeCompare(b.label);
+        });
+    },
+    [cardConfigs],
+  );
 
   // Mirror the LayoutShell main margin-left behavior so the portaled toolbar
   // remains centered relative to the main content area (not the full viewport).
@@ -186,6 +308,83 @@ export function BulkActionsToolbar({
     getEffectiveBorderRadius,
     globalAdvancedSettings,
   ]);
+
+  const handleApplyVariant = useCallback(
+    (variantId: string) => {
+      if (selectedIds.length === 0) return;
+      bulkSetVariant(selectedIds, variantId);
+      setBulkEditOpen(false);
+    },
+    [bulkSetVariant, selectedIds],
+  );
+
+  const handleApplyPreset = useCallback(
+    (presetName: string) => {
+      if (selectedIds.length === 0) return;
+
+      const overwriteIds = selectedIds.filter((cardId) => {
+        const cfg = cardConfigs[cardId];
+        return Boolean(cfg?.colorOverride.useCustomSettings);
+      });
+
+      const doApply = () => {
+        bulkApplyColorPreset(selectedIds, presetName);
+        setBulkEditOpen(false);
+      };
+
+      if (overwriteIds.length > 0) {
+        setConfirmState({
+          title: `Apply preset "${presetName}" to selected cards?`,
+          description: (
+            <>
+              This will apply the preset to{" "}
+              <strong>{selectedIds.length}</strong> cards.
+              <br />
+              <br />
+              <span className="font-medium text-red-600 dark:text-red-400">
+                {overwriteIds.length} card(s) already have custom colors and
+                will be overwritten.
+              </span>
+              <br />
+              <br />
+              You can undo this afterwards.
+            </>
+          ),
+          confirmLabel: "Apply preset",
+          destructive: true,
+          affectedCardIds: selectedIds,
+          onConfirm: doApply,
+        });
+        return;
+      }
+
+      doApply();
+    },
+    [bulkApplyColorPreset, cardConfigs, selectedIds],
+  );
+
+  const handleResetSelected = useCallback(() => {
+    if (selectedIds.length === 0) return;
+    setConfirmState({
+      title: "Reset selected cards to global settings?",
+      description: (
+        <>
+          This removes custom per-card colors, borders, and advanced settings
+          from the selected cards.
+          <br />
+          <br />
+          You can undo this afterwards.
+        </>
+      ),
+      confirmLabel: "Reset selected",
+      destructive: true,
+      affectedCardIds: selectedIds,
+      onConfirm: () => {
+        resetSelectedCardsToGlobal(selectedIds);
+        setBulkEditOpen(false);
+      },
+    });
+  }, [resetSelectedCardsToGlobal, selectedIds]);
 
   const handleCopyUrls = useCallback(
     async (format: "url" | "anilist" = "url") => {
@@ -333,6 +532,31 @@ export function BulkActionsToolbar({
     [setDownloadError, setCopiedFormat],
   );
 
+  const confirmPreviewItems = useMemo(() => {
+    if (!confirmState) return [];
+    return buildPreviewItems(confirmState.affectedCardIds);
+  }, [buildPreviewItems, confirmState]);
+
+  const confirmDialog = (
+    <BulkConfirmDialog
+      open={confirmState !== null}
+      onOpenChange={(open) => {
+        if (!open) setConfirmState(null);
+      }}
+      title={confirmState?.title ?? "Confirm"}
+      description={confirmState?.description}
+      confirmLabel={confirmState?.confirmLabel ?? "Confirm"}
+      confirmDestructive={confirmState?.destructive ?? false}
+      previewItems={confirmPreviewItems}
+      totalAffected={confirmState?.affectedCardIds.length ?? 0}
+      onConfirm={() => {
+        const action = confirmState?.onConfirm;
+        setConfirmState(null);
+        action?.();
+      }}
+    />
+  );
+
   // Don't render portal during SSR or before hydration
   if (!isMounted) return null;
 
@@ -367,6 +591,8 @@ export function BulkActionsToolbar({
             <SelectionCounter
               selectedCount={selectedCount}
               onSelectAllEnabled={selectAllEnabled}
+              groupOptions={groupOptions}
+              onSelectGroup={selectCardsByGroup}
             />
 
             <CopyUrlsPopover
@@ -380,6 +606,82 @@ export function BulkActionsToolbar({
               handleDownloadAll={handleDownloadAll}
             />
 
+            {/* Bulk edit popover: variant + preset + reset selected */}
+            <Popover open={bulkEditOpen} onOpenChange={setBulkEditOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                  <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+                  <span className="hidden sm:inline">Bulk edit</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-3" align="center" side="top">
+                <div className="space-y-3">
+                  <div>
+                    <div className="mb-1 text-xs font-medium text-slate-600 dark:text-slate-400">
+                      Variant
+                    </div>
+                    <Select
+                      disabled={commonVariantOptions.length === 0}
+                      onValueChange={handleApplyVariant}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue
+                          placeholder={
+                            commonVariantOptions.length === 0
+                              ? "No common variants"
+                              : "Select variant"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {commonVariantOptions.map((v) => (
+                          <SelectItem key={v.id} value={v.id}>
+                            {v.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <div className="mb-1 text-xs font-medium text-slate-600 dark:text-slate-400">
+                      Color preset
+                    </div>
+                    <Select onValueChange={handleApplyPreset}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Select preset" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {presetOptions.map((preset) => (
+                          <SelectItem key={preset} value={preset}>
+                            {preset}
+                            {preset === globalColorPreset ? " (global)" : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      className="h-9 flex-1"
+                      onClick={handleResetSelected}
+                    >
+                      <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                      Reset selected
+                    </Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+
             <DownloadStatusAlerts
               downloadSummary={downloadSummary}
               downloadError={downloadError}
@@ -387,6 +689,30 @@ export function BulkActionsToolbar({
               setDownloadError={setDownloadError}
               copyToClipboard={copyFailedListToClipboard}
             />
+
+            {/* Bulk undo/redo */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={undoBulk}
+              disabled={!canUndo}
+              className="h-9 w-9 rounded-lg p-0 text-slate-500 hover:text-slate-700 disabled:opacity-50 dark:text-slate-400 dark:hover:text-slate-200"
+              title={canUndo ? "Undo last bulk action" : "Nothing to undo"}
+            >
+              <Undo2 className="h-4 w-4" aria-hidden="true" />
+              <span className="sr-only">Undo</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={redoBulk}
+              disabled={!canRedo}
+              className="h-9 w-9 rounded-lg p-0 text-slate-500 hover:text-slate-700 disabled:opacity-50 dark:text-slate-400 dark:hover:text-slate-200"
+              title={canRedo ? "Redo last bulk action" : "Nothing to redo"}
+            >
+              <Redo2 className="h-4 w-4" aria-hidden="true" />
+              <span className="sr-only">Redo</span>
+            </Button>
 
             {/* Clear selection button */}
             <Button
@@ -399,6 +725,12 @@ export function BulkActionsToolbar({
               <X className="h-4 w-4" />
               <span className="sr-only">Clear selection</span>
             </Button>
+
+            {bulkLastMessage ? (
+              <span className="sr-only" aria-live="polite" aria-atomic="true">
+                {bulkLastMessage}
+              </span>
+            ) : null}
           </motion.div>
         )}
       </AnimatePresence>
@@ -406,5 +738,11 @@ export function BulkActionsToolbar({
   );
 
   // Render toolbar at document body level to avoid overflow-hidden container issues
-  return createPortal(toolbarContent, document.body);
+  return createPortal(
+    <>
+      {toolbarContent}
+      {confirmDialog}
+    </>,
+    document.body,
+  );
 }

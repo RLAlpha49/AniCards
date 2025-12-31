@@ -94,6 +94,11 @@ export interface UserPageEditorState {
   // Multi-select state
   selectedCardIds: Set<string>;
 
+  // Bulk undo/redo history (bulk operations only)
+  bulkPast: BulkHistoryEntry[];
+  bulkFuture: BulkHistoryEntry[];
+  bulkLastMessage: string | null;
+
   // Save state
   isDirty: boolean;
   isSaving: boolean;
@@ -167,12 +172,29 @@ export interface UserPageEditorActions {
   deselectCard: (cardId: string) => void;
   clearSelection: () => void;
   selectAllEnabled: () => void;
+  selectCardsByGroup: (groupName: string) => void;
 
   // Bulk operations
   enableAllCards: () => void;
   disableAllCards: () => void;
   resetCardToGlobal: (cardId: string) => void;
+  resetSelectedCardsToGlobal: (cardIds: string[]) => void;
   resetAllCardsToGlobal: () => void;
+
+  // Bulk edit operations
+  bulkSetVariant: (
+    cardIds: string[],
+    variant: string,
+    opts?: { skipUnsupported?: boolean },
+  ) => { applied: string[]; skipped: string[] };
+  bulkApplyColorPreset: (
+    cardIds: string[],
+    presetName: string,
+  ) => { applied: string[] };
+
+  // Bulk undo/redo
+  undoBulk: () => void;
+  redoBulk: () => void;
 
   // Save actions
   markDirty: () => void;
@@ -203,6 +225,59 @@ export interface UserPageEditorActions {
 export type UserPageEditorStore = UserPageEditorState & UserPageEditorActions;
 
 export const DEFAULT_BORDER_COLOR = "#e4e2e2";
+
+type CardTypeMeta = {
+  id: string;
+  group: string;
+  label: string;
+  variations: ReadonlyArray<{ id: string; label: string }>;
+};
+
+const cardTypeMetaById: ReadonlyMap<string, CardTypeMeta> = new Map(
+  statCardTypes.map((t) => [
+    t.id,
+    {
+      id: t.id,
+      group: t.group,
+      label: t.label,
+      variations: t.variations,
+    },
+  ]),
+);
+
+const BULK_HISTORY_LIMIT = 40;
+
+export interface BulkHistoryEntry {
+  /** Human-friendly summary of the bulk operation, for UI and a11y announcements. */
+  label: string;
+  /** Card IDs affected by the bulk operation. */
+  affectedCardIds: string[];
+  /** Snapshot of affected card configs before the bulk operation. */
+  before: Record<string, CardEditorConfig>;
+  /** Snapshot of affected card configs after the bulk operation. */
+  after: Record<string, CardEditorConfig>;
+  /** Timestamp (ms) when the operation was applied. */
+  at: number;
+}
+
+function cloneCardEditorConfig(config: CardEditorConfig): CardEditorConfig {
+  return {
+    ...config,
+    colorOverride: {
+      ...config.colorOverride,
+      colors: config.colorOverride.colors
+        ? [...config.colorOverride.colors]
+        : undefined,
+    },
+    advancedSettings: { ...config.advancedSettings },
+  };
+}
+
+function isVariantSupportedForCard(cardId: string, variantId: string): boolean {
+  const meta = cardTypeMetaById.get(cardId);
+  if (!meta) return true;
+  return meta.variations.some((v) => v.id === variantId);
+}
 
 /**
  * Get colors from a preset name.
@@ -605,6 +680,9 @@ const initialState: UserPageEditorState = {
   cardConfigs: {},
   expandedCardId: null,
   selectedCardIds: new Set(),
+  bulkPast: [],
+  bulkFuture: [],
+  bulkLastMessage: null,
   isDirty: false,
   isSaving: false,
   saveError: null,
@@ -618,551 +696,818 @@ const initialState: UserPageEditorState = {
  */
 export const useUserPageEditor = create<UserPageEditorStore>()(
   devtools(
-    (set, get) => ({
-      ...initialState,
+    (set, get) => {
+      const applyBulkCardConfigTransaction = (opts: {
+        actionName: string;
+        cardIds: readonly string[];
+        update: (
+          existing: CardEditorConfig,
+          cardId: string,
+        ) => CardEditorConfig | null;
+        shouldSkip?: (existing: CardEditorConfig, cardId: string) => boolean;
+        buildLabel: (ctx: {
+          totalRequested: number;
+          changedCount: number;
+          skippedCount: number;
+        }) => string;
+      }): { changedIds: string[]; skippedIds: string[] } => {
+        const snapshot = get();
+        const uniqueCardIds = Array.from(new Set(opts.cardIds));
+        const before: Record<string, CardEditorConfig> = {};
+        const after: Record<string, CardEditorConfig> = {};
+        const changedIds: string[] = [];
+        const skippedIds: string[] = [];
 
-      // User data actions
-      setUserData: (userId, username, avatarUrl) => {
-        set({ userId, username, avatarUrl }, false, "setUserData");
-      },
+        let nextCardConfigs: Record<string, CardEditorConfig> | null = null;
 
-      setLoading: (loading) => {
-        set({ isLoading: loading }, false, "setLoading");
-      },
+        for (const cardId of uniqueCardIds) {
+          const existing = ensureCardConfig(snapshot, cardId);
 
-      setLoadError: (error) => {
-        set({ loadError: error, isLoading: false }, false, "setLoadError");
-      },
+          if (opts.shouldSkip?.(existing, cardId)) {
+            skippedIds.push(cardId);
+            continue;
+          }
 
-      // Global color actions
-      setGlobalColorPreset: (presetName) => {
-        const colors = getPresetColors(presetName);
+          const updated = opts.update(existing, cardId);
+          if (!updated) continue;
+
+          nextCardConfigs ??= { ...snapshot.cardConfigs };
+          before[cardId] = cloneCardEditorConfig(existing);
+          after[cardId] = cloneCardEditorConfig(updated);
+          nextCardConfigs[cardId] = updated;
+          changedIds.push(cardId);
+        }
+
+        if (!nextCardConfigs || changedIds.length === 0) {
+          return { changedIds: [], skippedIds };
+        }
+
+        const label = opts.buildLabel({
+          totalRequested: uniqueCardIds.length,
+          changedCount: changedIds.length,
+          skippedCount: skippedIds.length,
+        });
+
+        const entry: BulkHistoryEntry = {
+          label,
+          affectedCardIds: changedIds,
+          before,
+          after,
+          at: Date.now(),
+        };
+
+        const nextPast = [...snapshot.bulkPast, entry].slice(
+          -BULK_HISTORY_LIMIT,
+        );
+
         set(
           {
-            globalColorPreset: presetName,
-            globalColors: colors,
+            cardConfigs: nextCardConfigs,
             isDirty: true,
+            bulkPast: nextPast,
+            bulkFuture: [],
+            bulkLastMessage: `Applied: ${label}`,
           },
           false,
-          "setGlobalColorPreset",
+          opts.actionName,
         );
-      },
 
-      setGlobalColors: (colors) => {
-        set(
-          {
-            globalColors: colors,
-            globalColorPreset: "custom",
-            isDirty: true,
-          },
-          false,
-          "setGlobalColors",
-        );
-      },
+        return { changedIds, skippedIds };
+      };
 
-      setGlobalColor: (index, color) => {
-        const { globalColors } = get();
-        const newColors = [...globalColors];
-        newColors[index] = color;
-        set(
-          {
-            globalColors: newColors,
-            globalColorPreset: "custom",
-            isDirty: true,
-          },
-          false,
-          "setGlobalColor",
-        );
-      },
+      return {
+        ...initialState,
 
-      // Global border actions
-      setGlobalBorderEnabled: (enabled) => {
-        set(
-          { globalBorderEnabled: enabled, isDirty: true },
-          false,
-          "setGlobalBorderEnabled",
-        );
-      },
+        // User data actions
+        setUserData: (userId, username, avatarUrl) => {
+          set({ userId, username, avatarUrl }, false, "setUserData");
+        },
 
-      setGlobalBorderColor: (color) => {
-        set(
-          { globalBorderColor: color, isDirty: true },
-          false,
-          "setGlobalBorderColor",
-        );
-      },
+        setLoading: (loading) => {
+          set({ isLoading: loading }, false, "setLoading");
+        },
 
-      setGlobalBorderRadius: (radius) => {
-        const clamped = clampBorderRadius(radius);
-        set(
-          { globalBorderRadius: clamped, isDirty: true },
-          false,
-          "setGlobalBorderRadius",
-        );
-      },
+        setLoadError: (error) => {
+          set({ loadError: error, isLoading: false }, false, "setLoadError");
+        },
 
-      // Global advanced settings actions
-      setGlobalAdvancedSetting: (key, value) => {
-        const { globalAdvancedSettings } = get();
-        set(
-          {
-            globalAdvancedSettings: {
-              ...globalAdvancedSettings,
-              [key]: value,
+        // Global color actions
+        setGlobalColorPreset: (presetName) => {
+          const colors = getPresetColors(presetName);
+          set(
+            {
+              globalColorPreset: presetName,
+              globalColors: colors,
+              isDirty: true,
             },
-            isDirty: true,
-          },
-          false,
-          "setGlobalAdvancedSetting",
-        );
-      },
+            false,
+            "setGlobalColorPreset",
+          );
+        },
 
-      // Reset/restore global settings to defaults (shallow merge).
-      resetGlobalSettings: (opts?: {
-        colorPreset?: string;
-        colors?: ColorValue[];
-        borderEnabled?: boolean;
-        borderColor?: string;
-        borderRadius?: number;
-        advancedSettings?: Partial<CardAdvancedSettings>;
-      }) => {
-        const preset = opts?.colorPreset ?? DEFAULT_GLOBAL_SETTINGS.colorPreset;
-        const colors = opts?.colors ?? getPresetColors(preset);
-        set(
-          {
-            globalColorPreset: preset,
-            globalColors: colors,
-            globalBorderEnabled:
-              opts?.borderEnabled ?? DEFAULT_GLOBAL_SETTINGS.borderEnabled,
-            globalBorderColor:
-              opts?.borderColor ?? DEFAULT_GLOBAL_SETTINGS.borderColor,
-            globalBorderRadius:
-              opts?.borderRadius ?? DEFAULT_GLOBAL_SETTINGS.borderRadius,
-            globalAdvancedSettings: {
-              ...DEFAULT_GLOBAL_SETTINGS.advancedSettings,
-              ...opts?.advancedSettings,
+        setGlobalColors: (colors) => {
+          set(
+            {
+              globalColors: colors,
+              globalColorPreset: "custom",
+              isDirty: true,
             },
-            isDirty: true,
-          },
-          false,
-          "resetGlobalSettings",
-        );
-      },
+            false,
+            "setGlobalColors",
+          );
+        },
 
-      // Card configuration actions
-      setCardEnabled: (cardId, enabled) => {
-        const { cardConfigs } = get();
-        const existing = ensureCardConfig(get(), cardId);
-        set(
-          {
-            cardConfigs: {
-              ...cardConfigs,
-              [cardId]: { ...existing, enabled },
+        setGlobalColor: (index, color) => {
+          const { globalColors } = get();
+          const newColors = [...globalColors];
+          newColors[index] = color;
+          set(
+            {
+              globalColors: newColors,
+              globalColorPreset: "custom",
+              isDirty: true,
             },
-            isDirty: true,
-          },
-          false,
-          "setCardEnabled",
-        );
-      },
+            false,
+            "setGlobalColor",
+          );
+        },
 
-      setCardVariant: (cardId, variant) => {
-        const { cardConfigs } = get();
-        const existing = ensureCardConfig(get(), cardId);
-        set(
-          {
-            cardConfigs: {
-              ...cardConfigs,
-              [cardId]: { ...existing, variant },
+        // Global border actions
+        setGlobalBorderEnabled: (enabled) => {
+          set(
+            { globalBorderEnabled: enabled, isDirty: true },
+            false,
+            "setGlobalBorderEnabled",
+          );
+        },
+
+        setGlobalBorderColor: (color) => {
+          set(
+            { globalBorderColor: color, isDirty: true },
+            false,
+            "setGlobalBorderColor",
+          );
+        },
+
+        setGlobalBorderRadius: (radius) => {
+          const clamped = clampBorderRadius(radius);
+          set(
+            { globalBorderRadius: clamped, isDirty: true },
+            false,
+            "setGlobalBorderRadius",
+          );
+        },
+
+        // Global advanced settings actions
+        setGlobalAdvancedSetting: (key, value) => {
+          const { globalAdvancedSettings } = get();
+          set(
+            {
+              globalAdvancedSettings: {
+                ...globalAdvancedSettings,
+                [key]: value,
+              },
+              isDirty: true,
             },
-            isDirty: true,
-          },
-          false,
-          "setCardVariant",
-        );
-      },
+            false,
+            "setGlobalAdvancedSetting",
+          );
+        },
 
-      toggleCardCustomColors: (cardId, useCustom) => {
-        const { cardConfigs, globalColors, globalColorPreset } = get();
-        const existing = ensureCardConfig(get(), cardId);
-        set(
-          {
-            cardConfigs: {
-              ...cardConfigs,
-              [cardId]: {
-                ...existing,
-                colorOverride: {
-                  ...existing.colorOverride,
-                  useCustomSettings: useCustom,
-                  // Initialize with global colors when enabling custom
-                  colors: useCustom
-                    ? existing.colorOverride.colors || [...globalColors]
-                    : existing.colorOverride.colors,
-                  colorPreset: useCustom
-                    ? existing.colorOverride.colorPreset || globalColorPreset
-                    : existing.colorOverride.colorPreset,
+        // Reset/restore global settings to defaults (shallow merge).
+        resetGlobalSettings: (opts?: {
+          colorPreset?: string;
+          colors?: ColorValue[];
+          borderEnabled?: boolean;
+          borderColor?: string;
+          borderRadius?: number;
+          advancedSettings?: Partial<CardAdvancedSettings>;
+        }) => {
+          const preset =
+            opts?.colorPreset ?? DEFAULT_GLOBAL_SETTINGS.colorPreset;
+          const colors = opts?.colors ?? getPresetColors(preset);
+          set(
+            {
+              globalColorPreset: preset,
+              globalColors: colors,
+              globalBorderEnabled:
+                opts?.borderEnabled ?? DEFAULT_GLOBAL_SETTINGS.borderEnabled,
+              globalBorderColor:
+                opts?.borderColor ?? DEFAULT_GLOBAL_SETTINGS.borderColor,
+              globalBorderRadius:
+                opts?.borderRadius ?? DEFAULT_GLOBAL_SETTINGS.borderRadius,
+              globalAdvancedSettings: {
+                ...DEFAULT_GLOBAL_SETTINGS.advancedSettings,
+                ...opts?.advancedSettings,
+              },
+              isDirty: true,
+            },
+            false,
+            "resetGlobalSettings",
+          );
+        },
+
+        // Card configuration actions
+        setCardEnabled: (cardId, enabled) => {
+          const { cardConfigs } = get();
+          const existing = ensureCardConfig(get(), cardId);
+          set(
+            {
+              cardConfigs: {
+                ...cardConfigs,
+                [cardId]: { ...existing, enabled },
+              },
+              isDirty: true,
+            },
+            false,
+            "setCardEnabled",
+          );
+        },
+
+        setCardVariant: (cardId, variant) => {
+          const { cardConfigs } = get();
+          const existing = ensureCardConfig(get(), cardId);
+          set(
+            {
+              cardConfigs: {
+                ...cardConfigs,
+                [cardId]: { ...existing, variant },
+              },
+              isDirty: true,
+            },
+            false,
+            "setCardVariant",
+          );
+        },
+
+        toggleCardCustomColors: (cardId, useCustom) => {
+          const { cardConfigs, globalColors, globalColorPreset } = get();
+          const existing = ensureCardConfig(get(), cardId);
+          set(
+            {
+              cardConfigs: {
+                ...cardConfigs,
+                [cardId]: {
+                  ...existing,
+                  colorOverride: {
+                    ...existing.colorOverride,
+                    useCustomSettings: useCustom,
+                    // Initialize with global colors when enabling custom
+                    colors: useCustom
+                      ? existing.colorOverride.colors || [...globalColors]
+                      : existing.colorOverride.colors,
+                    colorPreset: useCustom
+                      ? existing.colorOverride.colorPreset || globalColorPreset
+                      : existing.colorOverride.colorPreset,
+                  },
                 },
               },
+              isDirty: true,
             },
-            isDirty: true,
-          },
-          false,
-          "toggleCardCustomColors",
-        );
-      },
+            false,
+            "toggleCardCustomColors",
+          );
+        },
 
-      setCardColorPreset: (cardId, presetName) => {
-        const { cardConfigs } = get();
-        const existing = ensureCardConfig(get(), cardId);
-        const colors = getPresetColors(presetName);
-        set(
-          {
-            cardConfigs: {
-              ...cardConfigs,
-              [cardId]: {
-                ...existing,
-                colorOverride: {
-                  ...existing.colorOverride,
-                  useCustomSettings: true,
-                  colorPreset: presetName,
-                  colors,
+        setCardColorPreset: (cardId, presetName) => {
+          const { cardConfigs } = get();
+          const existing = ensureCardConfig(get(), cardId);
+          const colors = getPresetColors(presetName);
+          set(
+            {
+              cardConfigs: {
+                ...cardConfigs,
+                [cardId]: {
+                  ...existing,
+                  colorOverride: {
+                    ...existing.colorOverride,
+                    useCustomSettings: true,
+                    colorPreset: presetName,
+                    colors,
+                  },
                 },
               },
+              isDirty: true,
             },
-            isDirty: true,
-          },
-          false,
-          "setCardColorPreset",
-        );
-      },
+            false,
+            "setCardColorPreset",
+          );
+        },
 
-      setCardColors: (cardId, colors) => {
-        const { cardConfigs } = get();
-        const existing = ensureCardConfig(get(), cardId);
-        set(
-          {
-            cardConfigs: {
-              ...cardConfigs,
-              [cardId]: {
-                ...existing,
-                colorOverride: {
-                  ...existing.colorOverride,
-                  useCustomSettings: true,
-                  colorPreset: "custom",
-                  colors,
+        setCardColors: (cardId, colors) => {
+          const { cardConfigs } = get();
+          const existing = ensureCardConfig(get(), cardId);
+          set(
+            {
+              cardConfigs: {
+                ...cardConfigs,
+                [cardId]: {
+                  ...existing,
+                  colorOverride: {
+                    ...existing.colorOverride,
+                    useCustomSettings: true,
+                    colorPreset: "custom",
+                    colors,
+                  },
                 },
               },
+              isDirty: true,
             },
-            isDirty: true,
-          },
-          false,
-          "setCardColors",
-        );
-      },
+            false,
+            "setCardColors",
+          );
+        },
 
-      setCardColor: (cardId, index, color) => {
-        const { cardConfigs, globalColors } = get();
-        const existing = ensureCardConfig(get(), cardId);
-        const currentColors = existing.colorOverride.colors || [
-          ...globalColors,
-        ];
-        const newColors = [...currentColors];
-        newColors[index] = color;
-        set(
-          {
-            cardConfigs: {
-              ...cardConfigs,
-              [cardId]: {
-                ...existing,
-                colorOverride: {
-                  ...existing.colorOverride,
-                  useCustomSettings: true,
-                  colorPreset: "custom",
-                  colors: newColors,
+        setCardColor: (cardId, index, color) => {
+          const { cardConfigs, globalColors } = get();
+          const existing = ensureCardConfig(get(), cardId);
+          const currentColors = existing.colorOverride.colors || [
+            ...globalColors,
+          ];
+          const newColors = [...currentColors];
+          newColors[index] = color;
+          set(
+            {
+              cardConfigs: {
+                ...cardConfigs,
+                [cardId]: {
+                  ...existing,
+                  colorOverride: {
+                    ...existing.colorOverride,
+                    useCustomSettings: true,
+                    colorPreset: "custom",
+                    colors: newColors,
+                  },
                 },
               },
+              isDirty: true,
             },
-            isDirty: true,
-          },
-          false,
-          "setCardColor",
-        );
-      },
+            false,
+            "setCardColor",
+          );
+        },
 
-      setCardAdvancedSetting: (cardId, key, value) => {
-        const { cardConfigs } = get();
-        const existing = ensureCardConfig(get(), cardId);
-        set(
-          {
-            cardConfigs: {
-              ...cardConfigs,
-              [cardId]: {
-                ...existing,
-                advancedSettings: {
-                  ...existing.advancedSettings,
-                  [key]: value,
+        setCardAdvancedSetting: (cardId, key, value) => {
+          const { cardConfigs } = get();
+          const existing = ensureCardConfig(get(), cardId);
+          set(
+            {
+              cardConfigs: {
+                ...cardConfigs,
+                [cardId]: {
+                  ...existing,
+                  advancedSettings: {
+                    ...existing.advancedSettings,
+                    [key]: value,
+                  },
                 },
               },
+              isDirty: true,
             },
-            isDirty: true,
-          },
-          false,
-          "setCardAdvancedSetting",
-        );
-      },
+            false,
+            "setCardAdvancedSetting",
+          );
+        },
 
-      setCardBorderColor: (cardId, color) => {
-        const { cardConfigs } = get();
-        const existing = ensureCardConfig(get(), cardId);
-        set(
-          {
-            cardConfigs: {
-              ...cardConfigs,
-              [cardId]: { ...existing, borderColor: color },
+        setCardBorderColor: (cardId, color) => {
+          const { cardConfigs } = get();
+          const existing = ensureCardConfig(get(), cardId);
+          set(
+            {
+              cardConfigs: {
+                ...cardConfigs,
+                [cardId]: { ...existing, borderColor: color },
+              },
+              isDirty: true,
             },
-            isDirty: true,
-          },
-          false,
-          "setCardBorderColor",
-        );
-      },
+            false,
+            "setCardBorderColor",
+          );
+        },
 
-      setCardBorderRadius: (cardId, radius) => {
-        const { cardConfigs } = get();
-        const existing = ensureCardConfig(get(), cardId);
-        const newRadius =
-          typeof radius === "number" ? clampBorderRadius(radius) : undefined;
-        set(
-          {
-            cardConfigs: {
-              ...cardConfigs,
-              [cardId]: { ...existing, borderRadius: newRadius },
+        setCardBorderRadius: (cardId, radius) => {
+          const { cardConfigs } = get();
+          const existing = ensureCardConfig(get(), cardId);
+          const newRadius =
+            typeof radius === "number" ? clampBorderRadius(radius) : undefined;
+          set(
+            {
+              cardConfigs: {
+                ...cardConfigs,
+                [cardId]: { ...existing, borderRadius: newRadius },
+              },
+              isDirty: true,
             },
-            isDirty: true,
-          },
-          false,
-          "setCardBorderRadius",
-        );
-      },
+            false,
+            "setCardBorderRadius",
+          );
+        },
 
-      // UI actions
-      setExpandedCard: (cardId) => {
-        set({ expandedCardId: cardId }, false, "setExpandedCard");
-      },
+        // UI actions
+        setExpandedCard: (cardId) => {
+          set({ expandedCardId: cardId }, false, "setExpandedCard");
+        },
 
-      toggleExpandedCard: (cardId) => {
-        const { expandedCardId } = get();
-        set(
-          { expandedCardId: expandedCardId === cardId ? null : cardId },
-          false,
-          "toggleExpandedCard",
-        );
-      },
+        toggleExpandedCard: (cardId) => {
+          const { expandedCardId } = get();
+          set(
+            { expandedCardId: expandedCardId === cardId ? null : cardId },
+            false,
+            "toggleExpandedCard",
+          );
+        },
 
-      // Multi-select actions
-      toggleCardSelection: (cardId) => {
-        const { selectedCardIds } = get();
-        const newSet = new Set(selectedCardIds);
-        if (newSet.has(cardId)) {
-          newSet.delete(cardId);
-        } else {
+        // Multi-select actions
+        toggleCardSelection: (cardId) => {
+          const { selectedCardIds } = get();
+          const newSet = new Set(selectedCardIds);
+          if (newSet.has(cardId)) {
+            newSet.delete(cardId);
+          } else {
+            newSet.add(cardId);
+          }
+          set({ selectedCardIds: newSet }, false, "toggleCardSelection");
+        },
+
+        selectCard: (cardId) => {
+          const { selectedCardIds } = get();
+          if (selectedCardIds.has(cardId)) return;
+          const newSet = new Set(selectedCardIds);
           newSet.add(cardId);
-        }
-        set({ selectedCardIds: newSet }, false, "toggleCardSelection");
-      },
+          set({ selectedCardIds: newSet }, false, "selectCard");
+        },
 
-      selectCard: (cardId) => {
-        const { selectedCardIds } = get();
-        if (selectedCardIds.has(cardId)) return;
-        const newSet = new Set(selectedCardIds);
-        newSet.add(cardId);
-        set({ selectedCardIds: newSet }, false, "selectCard");
-      },
+        deselectCard: (cardId) => {
+          const { selectedCardIds } = get();
+          if (!selectedCardIds.has(cardId)) return;
+          const newSet = new Set(selectedCardIds);
+          newSet.delete(cardId);
+          set({ selectedCardIds: newSet }, false, "deselectCard");
+        },
 
-      deselectCard: (cardId) => {
-        const { selectedCardIds } = get();
-        if (!selectedCardIds.has(cardId)) return;
-        const newSet = new Set(selectedCardIds);
-        newSet.delete(cardId);
-        set({ selectedCardIds: newSet }, false, "deselectCard");
-      },
+        clearSelection: () => {
+          set({ selectedCardIds: new Set() }, false, "clearSelection");
+        },
 
-      clearSelection: () => {
-        set({ selectedCardIds: new Set() }, false, "clearSelection");
-      },
+        selectAllEnabled: () => {
+          const { cardConfigs } = get();
+          const enabledIds = Object.values(cardConfigs)
+            .filter((c) => c.enabled)
+            .map((c) => c.cardId);
+          set(
+            { selectedCardIds: new Set(enabledIds) },
+            false,
+            "selectAllEnabled",
+          );
+        },
 
-      selectAllEnabled: () => {
-        const { cardConfigs } = get();
-        const enabledIds = Object.values(cardConfigs)
-          .filter((c) => c.enabled)
-          .map((c) => c.cardId);
-        set(
-          { selectedCardIds: new Set(enabledIds) },
-          false,
-          "selectAllEnabled",
-        );
-      },
+        selectCardsByGroup: (groupName) => {
+          const { cardConfigs } = get();
+          const ids: string[] = [];
 
-      // Bulk operations
-      enableAllCards: () => {
-        const { cardConfigs } = get();
-        const updated: Record<string, CardEditorConfig> = {};
-        for (const [cardId, config] of Object.entries(cardConfigs)) {
-          updated[cardId] = { ...config, enabled: true };
-        }
-        set({ cardConfigs: updated, isDirty: true }, false, "enableAllCards");
-      },
+          if (groupName === "All") {
+            for (const config of Object.values(cardConfigs)) {
+              ids.push(config.cardId);
+            }
+          } else {
+            for (const config of Object.values(cardConfigs)) {
+              const group = cardTypeMetaById.get(config.cardId)?.group ?? "All";
+              if (group === groupName) ids.push(config.cardId);
+            }
+          }
 
-      disableAllCards: () => {
-        const { cardConfigs } = get();
-        const updated: Record<string, CardEditorConfig> = {};
-        for (const [cardId, config] of Object.entries(cardConfigs)) {
-          updated[cardId] = { ...config, enabled: false };
-        }
-        set({ cardConfigs: updated, isDirty: true }, false, "disableAllCards");
-      },
+          set({ selectedCardIds: new Set(ids) }, false, "selectCardsByGroup");
+        },
 
-      resetCardToGlobal: (cardId) => {
-        const { cardConfigs } = get();
-        const existing = ensureCardConfig(get(), cardId);
-        set(
-          {
-            cardConfigs: {
-              ...cardConfigs,
-              [cardId]: {
+        // Bulk operations
+        enableAllCards: () => {
+          const { cardConfigs } = get();
+          applyBulkCardConfigTransaction({
+            actionName: "enableAllCards",
+            cardIds: Object.keys(cardConfigs),
+            update: (existing) =>
+              existing.enabled ? null : { ...existing, enabled: true },
+            buildLabel: ({ changedCount }) =>
+              changedCount === 0
+                ? "Enable all cards"
+                : `Enabled ${changedCount} cards`,
+          });
+        },
+
+        disableAllCards: () => {
+          const { cardConfigs } = get();
+          applyBulkCardConfigTransaction({
+            actionName: "disableAllCards",
+            cardIds: Object.keys(cardConfigs),
+            update: (existing) =>
+              existing.enabled ? { ...existing, enabled: false } : null,
+            buildLabel: ({ changedCount }) =>
+              changedCount === 0
+                ? "Disable all cards"
+                : `Disabled ${changedCount} cards`,
+          });
+        },
+
+        resetCardToGlobal: (cardId) => {
+          const { cardConfigs } = get();
+          const existing = ensureCardConfig(get(), cardId);
+          set(
+            {
+              cardConfigs: {
+                ...cardConfigs,
+                [cardId]: {
+                  ...existing,
+                  colorOverride: { useCustomSettings: false },
+                  borderColor: undefined,
+                  borderRadius: undefined,
+                  advancedSettings: {},
+                },
+              },
+              isDirty: true,
+            },
+            false,
+            "resetCardToGlobal",
+          );
+        },
+
+        resetSelectedCardsToGlobal: (cardIds) => {
+          applyBulkCardConfigTransaction({
+            actionName: "resetSelectedCardsToGlobal",
+            cardIds,
+            update: (existing) => {
+              const alreadyGlobal =
+                !existing.colorOverride.useCustomSettings &&
+                existing.borderColor === undefined &&
+                existing.borderRadius === undefined &&
+                Object.keys(existing.advancedSettings).length === 0;
+              if (alreadyGlobal) return null;
+
+              return {
                 ...existing,
                 colorOverride: { useCustomSettings: false },
                 borderColor: undefined,
                 borderRadius: undefined,
                 advancedSettings: {},
-              },
+              };
             },
-            isDirty: true,
-          },
-          false,
-          "resetCardToGlobal",
-        );
-      },
+            buildLabel: ({ changedCount }) =>
+              changedCount === 0
+                ? "Reset selected cards to global"
+                : `Reset ${changedCount} cards to global`,
+          });
+        },
 
-      resetAllCardsToGlobal: () => {
-        const { cardConfigs } = get();
-        const updated: Record<string, CardEditorConfig> = {};
-        for (const [cardId, config] of Object.entries(cardConfigs)) {
-          updated[cardId] = {
-            ...config,
-            colorOverride: { useCustomSettings: false },
-            borderColor: undefined,
-            borderRadius: undefined,
-            advancedSettings: {},
+        resetAllCardsToGlobal: () => {
+          const { cardConfigs } = get();
+          applyBulkCardConfigTransaction({
+            actionName: "resetAllCardsToGlobal",
+            cardIds: Object.keys(cardConfigs),
+            update: (existing) => {
+              const alreadyGlobal =
+                !existing.colorOverride.useCustomSettings &&
+                existing.borderColor === undefined &&
+                existing.borderRadius === undefined &&
+                Object.keys(existing.advancedSettings).length === 0;
+              if (alreadyGlobal) return null;
+
+              return {
+                ...existing,
+                colorOverride: { useCustomSettings: false },
+                borderColor: undefined,
+                borderRadius: undefined,
+                advancedSettings: {},
+              };
+            },
+            buildLabel: ({ changedCount }) =>
+              changedCount === 0
+                ? "Reset all cards to global"
+                : `Reset ${changedCount} cards to global`,
+          });
+        },
+
+        bulkSetVariant: (cardIds, variant, opts) => {
+          const skipUnsupported = opts?.skipUnsupported ?? true;
+          const { changedIds, skippedIds } = applyBulkCardConfigTransaction({
+            actionName: "bulkSetVariant",
+            cardIds,
+            shouldSkip: (_existing, cardId) =>
+              skipUnsupported && !isVariantSupportedForCard(cardId, variant),
+            update: (existing) =>
+              existing.variant === variant ? null : { ...existing, variant },
+            buildLabel: ({ changedCount, skippedCount }) => {
+              if (changedCount === 0 && skippedCount > 0) {
+                return `Set variant to "${variant}" (0 changed, ${skippedCount} unsupported)`;
+              }
+              if (skippedCount > 0) {
+                return `Set variant to "${variant}" (${changedCount} changed, ${skippedCount} unsupported)`;
+              }
+              return `Set variant to "${variant}" (${changedCount} cards)`;
+            },
+          });
+
+          return { applied: changedIds, skipped: skippedIds };
+        },
+
+        bulkApplyColorPreset: (cardIds, presetName) => {
+          const presetColors = getPresetColors(presetName);
+
+          const { changedIds } = applyBulkCardConfigTransaction({
+            actionName: "bulkApplyColorPreset",
+            cardIds,
+            update: (existing) => {
+              const current = existing.colorOverride;
+              const already =
+                current.useCustomSettings &&
+                current.colorPreset === presetName &&
+                Array.isArray(current.colors) &&
+                current.colors.length === presetColors.length &&
+                current.colors.every((c, i) => c === presetColors[i]);
+              if (already) return null;
+
+              return {
+                ...existing,
+                colorOverride: {
+                  ...existing.colorOverride,
+                  useCustomSettings: true,
+                  colorPreset: presetName,
+                  colors: [...presetColors],
+                },
+              };
+            },
+            buildLabel: ({ changedCount }) =>
+              changedCount === 0
+                ? `Apply preset "${presetName}"`
+                : `Applied preset "${presetName}" to ${changedCount} cards`,
+          });
+
+          return { applied: changedIds };
+        },
+
+        undoBulk: () => {
+          const snapshot = get();
+          const entry = snapshot.bulkPast.at(-1);
+          if (!entry) return;
+
+          const nextPast = snapshot.bulkPast.slice(0, -1);
+          const nextFuture = [entry, ...snapshot.bulkFuture].slice(
+            0,
+            BULK_HISTORY_LIMIT,
+          );
+
+          const nextCardConfigs: Record<string, CardEditorConfig> = {
+            ...snapshot.cardConfigs,
           };
-        }
-        set(
-          { cardConfigs: updated, isDirty: true },
-          false,
-          "resetAllCardsToGlobal",
-        );
-      },
-      // Save actions
-      markDirty: () => {
-        set({ isDirty: true }, false, "markDirty");
-      },
+          for (const [cardId, cfg] of Object.entries(entry.before)) {
+            nextCardConfigs[cardId] = cloneCardEditorConfig(cfg);
+          }
 
-      setSaving: (saving) => {
-        set({ isSaving: saving }, false, "setSaving");
-      },
+          set(
+            {
+              cardConfigs: nextCardConfigs,
+              isDirty: true,
+              bulkPast: nextPast,
+              bulkFuture: nextFuture,
+              bulkLastMessage: `Undid: ${entry.label}`,
+            },
+            false,
+            "undoBulk",
+          );
+        },
 
-      setSaveError: (error) => {
-        set({ saveError: error, isSaving: false }, false, "setSaveError");
-      },
+        redoBulk: () => {
+          const snapshot = get();
+          const entry = snapshot.bulkFuture[0];
+          if (!entry) return;
 
-      markSaved: () => {
-        set(
-          {
-            isDirty: false,
-            isSaving: false,
-            saveError: null,
-            lastSavedAt: Date.now(),
-          },
-          false,
-          "markSaved",
-        );
-      },
+          const nextFuture = snapshot.bulkFuture.slice(1);
+          const nextPast = [...snapshot.bulkPast, entry].slice(
+            -BULK_HISTORY_LIMIT,
+          );
 
-      // Initialize from server data
-      initializeFromServerData: (
-        userId,
-        username,
-        avatarUrl,
-        cards,
-        globalSettings,
-        allCardIds,
-      ) => {
-        const result = processServerCards(cards, globalSettings);
-        const seededCardConfigs = seedMissingCardConfigs(
-          result.cardConfigs,
+          const nextCardConfigs: Record<string, CardEditorConfig> = {
+            ...snapshot.cardConfigs,
+          };
+          for (const [cardId, cfg] of Object.entries(entry.after)) {
+            nextCardConfigs[cardId] = cloneCardEditorConfig(cfg);
+          }
+
+          set(
+            {
+              cardConfigs: nextCardConfigs,
+              isDirty: true,
+              bulkPast: nextPast,
+              bulkFuture: nextFuture,
+              bulkLastMessage: `Redid: ${entry.label}`,
+            },
+            false,
+            "redoBulk",
+          );
+        },
+        // Save actions
+        markDirty: () => {
+          set({ isDirty: true }, false, "markDirty");
+        },
+
+        setSaving: (saving) => {
+          set({ isSaving: saving }, false, "setSaving");
+        },
+
+        setSaveError: (error) => {
+          set({ saveError: error, isSaving: false }, false, "setSaveError");
+        },
+
+        markSaved: () => {
+          set(
+            {
+              isDirty: false,
+              isSaving: false,
+              saveError: null,
+              lastSavedAt: Date.now(),
+            },
+            false,
+            "markSaved",
+          );
+        },
+
+        // Initialize from server data
+        initializeFromServerData: (
+          userId,
+          username,
+          avatarUrl,
+          cards,
+          globalSettings,
           allCardIds,
-        );
-        const prunedCardConfigs = pruneUnknownCardConfigs(
-          seededCardConfigs,
-          allCardIds,
-        );
-        set(
-          {
-            userId,
-            username,
-            avatarUrl,
-            globalColorPreset: result.globalPreset,
-            globalColors: result.globalColors,
-            globalBorderEnabled: result.globalBorderEnabled,
-            globalBorderColor: result.globalBorderColor,
-            globalBorderRadius: result.globalBorderRadius,
-            globalAdvancedSettings: result.globalAdvancedSettings,
-            cardConfigs: prunedCardConfigs,
-            isLoading: false,
-            loadError: null,
-            isDirty: false,
-          },
-          false,
-          "initializeFromServerData",
-        );
-      },
+        ) => {
+          const result = processServerCards(cards, globalSettings);
+          const seededCardConfigs = seedMissingCardConfigs(
+            result.cardConfigs,
+            allCardIds,
+          );
+          const prunedCardConfigs = pruneUnknownCardConfigs(
+            seededCardConfigs,
+            allCardIds,
+          );
+          set(
+            {
+              userId,
+              username,
+              avatarUrl,
+              globalColorPreset: result.globalPreset,
+              globalColors: result.globalColors,
+              globalBorderEnabled: result.globalBorderEnabled,
+              globalBorderColor: result.globalBorderColor,
+              globalBorderRadius: result.globalBorderRadius,
+              globalAdvancedSettings: result.globalAdvancedSettings,
+              cardConfigs: prunedCardConfigs,
+              isLoading: false,
+              loadError: null,
+              isDirty: false,
+              bulkPast: [],
+              bulkFuture: [],
+              bulkLastMessage: null,
+            },
+            false,
+            "initializeFromServerData",
+          );
+        },
 
-      // Reset store
-      reset: () => {
-        set(initialState, false, "reset");
-      },
+        // Reset store
+        reset: () => {
+          set(initialState, false, "reset");
+        },
 
-      // Get effective colors for a card
-      getEffectiveColors: (cardId) => {
-        const { cardConfigs, globalColors } = get();
-        const config = cardConfigs[cardId];
-        if (
-          config?.colorOverride.useCustomSettings &&
-          config.colorOverride.colors
-        ) {
-          return config.colorOverride.colors;
-        }
-        return globalColors;
-      },
+        // Get effective colors for a card
+        getEffectiveColors: (cardId) => {
+          const { cardConfigs, globalColors } = get();
+          const config = cardConfigs[cardId];
+          if (
+            config?.colorOverride.useCustomSettings &&
+            config.colorOverride.colors
+          ) {
+            return config.colorOverride.colors;
+          }
+          return globalColors;
+        },
 
-      getEffectiveBorderColor: (cardId) => {
-        const { cardConfigs, globalBorderEnabled, globalBorderColor } = get();
-        const config = cardConfigs[cardId];
-        if (config?.borderColor !== undefined) {
-          return config.borderColor;
-        }
-        return globalBorderEnabled ? globalBorderColor : undefined;
-      },
+        getEffectiveBorderColor: (cardId) => {
+          const { cardConfigs, globalBorderEnabled, globalBorderColor } = get();
+          const config = cardConfigs[cardId];
+          if (config?.borderColor !== undefined) {
+            return config.borderColor;
+          }
+          return globalBorderEnabled ? globalBorderColor : undefined;
+        },
 
-      getEffectiveBorderRadius: (cardId) => {
-        const { cardConfigs, globalBorderRadius } = get();
-        const config = cardConfigs[cardId];
-        if (config?.borderRadius !== undefined) {
-          return config.borderRadius;
-        }
-        return globalBorderRadius;
-      },
-    }),
+        getEffectiveBorderRadius: (cardId) => {
+          const { cardConfigs, globalBorderRadius } = get();
+          const config = cardConfigs[cardId];
+          if (config?.borderRadius !== undefined) {
+            return config.borderRadius;
+          }
+          return globalBorderRadius;
+        },
+      };
+    },
     { name: "UserPageEditor" },
   ),
 );
@@ -1226,3 +1571,25 @@ export const selectCardConfigsByGroup = (
 
   return result;
 };
+
+/**
+ * Selector to check whether a bulk undo operation is available.
+ * @source
+ */
+export const selectCanUndoBulk = (state: UserPageEditorStore): boolean =>
+  state.bulkPast.length > 0;
+
+/**
+ * Selector to check whether a bulk redo operation is available.
+ * @source
+ */
+export const selectCanRedoBulk = (state: UserPageEditorStore): boolean =>
+  state.bulkFuture.length > 0;
+
+/**
+ * Selector for the latest bulk-operation announcement message.
+ * @source
+ */
+export const selectBulkLastMessage = (
+  state: UserPageEditorStore,
+): string | null => state.bulkLastMessage;

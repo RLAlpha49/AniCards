@@ -3,7 +3,10 @@
 import { useEffect, useCallback, useRef } from "react";
 import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 import { getResponseErrorMessage, parseResponsePayload } from "@/lib/utils";
-import { colorPresets, statCardTypes } from "@/components/stat-card-generator/constants";
+import {
+  colorPresets,
+  statCardTypes,
+} from "@/components/stat-card-generator/constants";
 import type { ColorValue } from "@/lib/types/card";
 import { ServerCardData } from "@/lib/api/cards";
 

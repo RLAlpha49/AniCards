@@ -19,6 +19,8 @@ import {
   SlidersHorizontal,
   X,
   RotateCcw,
+  Undo2,
+  Redo2,
   AlertTriangle,
   Info,
   RefreshCw,
@@ -31,16 +33,6 @@ import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/Dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/AlertDialog";
 import {
   Select,
   SelectContent,
@@ -67,6 +59,7 @@ import { GlobalSettingsPanel } from "./GlobalSettingsPanel";
 import { CardCategorySection } from "./CardCategorySection";
 import { CardTile } from "./CardTile";
 import { BulkActionsToolbar } from "./BulkActionsToolbar";
+import { BulkConfirmDialog } from "./bulk/BulkConfirmDialog";
 import { DISABLED_CARD_INFO } from "@/lib/card-info-tooltips";
 import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 import { useCardAutoSave } from "@/hooks/useCardAutoSave";
@@ -145,6 +138,8 @@ const GROUP_ICONS: Record<string, React.ReactNode> = {
 };
 const DEFAULT_GROUP_ICON = <LayoutGrid className="h-5 w-5" />;
 
+type VisibilityFilter = "all" | "enabled" | "disabled";
+
 /**
  * Main user page editor component.
  * Handles loading user data, displaying cards, and saving changes.
@@ -166,6 +161,11 @@ export function UserPageEditor() {
     enableAllCards,
     disableAllCards,
     resetAllCardsToGlobal,
+    undoBulk,
+    redoBulk,
+    bulkPastLength,
+    bulkFutureLength,
+    bulkLastMessage,
   } = useUserPageEditor(
     useShallow((s) => ({
       userId: s.userId,
@@ -180,8 +180,15 @@ export function UserPageEditor() {
       enableAllCards: s.enableAllCards,
       disableAllCards: s.disableAllCards,
       resetAllCardsToGlobal: s.resetAllCardsToGlobal,
+      undoBulk: s.undoBulk,
+      redoBulk: s.redoBulk,
+      bulkPastLength: s.bulkPast.length,
+      bulkFutureLength: s.bulkFuture.length,
+      bulkLastMessage: s.bulkLastMessage,
     })),
   );
+  const canUndoBulk = bulkPastLength > 0;
+  const canRedoBulk = bulkFutureLength > 0;
 
   // Enabled-only view of card state.
   // Memoize the derived enabled map and preserve the same object reference
@@ -223,22 +230,20 @@ export function UserPageEditor() {
 
   const VALID_VISIBILITY = new Set(["all", "enabled", "disabled"]);
 
-  const parseVisibility = (v: string | null): "all" | "enabled" | "disabled" =>
-    v && VALID_VISIBILITY.has(v)
-      ? (v as "all" | "enabled" | "disabled")
-      : "all";
+  const parseVisibility = (v: string | null): VisibilityFilter =>
+    v && VALID_VISIBILITY.has(v) ? (v as VisibilityFilter) : "all";
 
   const initialQuery = searchParams?.get("q") ?? "";
   const initialVisibility = parseVisibility(searchParams?.get("visibility"));
   const initialGroup = searchParams?.get("group") ?? "All";
 
   const [query, setQuery] = useState(initialQuery);
-  const [visibility, setVisibility] = useState<"all" | "enabled" | "disabled">(
-    initialVisibility,
-  );
+  const [visibility, setVisibility] =
+    useState<VisibilityFilter>(initialVisibility);
   const [selectedGroup, setSelectedGroup] = useState<string>(initialGroup);
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [isDisableAllDialogOpen, setIsDisableAllDialogOpen] = useState(false);
 
   // New-user setup hook
   const { isNewUser, setIsNewUser, cardsWarning, setCardsWarning } =
@@ -269,6 +274,57 @@ export function UserPageEditor() {
 
   // Auto-save hook
   const { saveNow } = useCardAutoSave({ debounceMs: 1500 });
+
+  const allCardIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const cards of Object.values(cardGroups)) {
+      for (const c of cards) ids.push(c.id);
+    }
+    return ids;
+  }, [cardGroups]);
+
+  const cardMetaById = useMemo(() => {
+    const map = new Map<string, { label: string; group: string }>();
+    for (const [groupName, cards] of Object.entries(cardGroups)) {
+      for (const c of cards) {
+        map.set(c.id, { label: c.label, group: groupName });
+      }
+    }
+    return map;
+  }, [cardGroups]);
+
+  const enabledCardIds = useMemo(
+    () => allCardIds.filter((id) => Boolean(cardEnabledById[id])),
+    [allCardIds, cardEnabledById],
+  );
+
+  const allCardsPreviewItems = useMemo(
+    () =>
+      allCardIds.map((id) => {
+        const meta = cardMetaById.get(id);
+        return {
+          cardId: id,
+          label: meta?.label ?? id,
+          group: meta?.group,
+          enabled: Boolean(cardEnabledById[id]),
+        };
+      }),
+    [allCardIds, cardEnabledById, cardMetaById],
+  );
+
+  const enabledCardsPreviewItems = useMemo(
+    () =>
+      enabledCardIds.map((id) => {
+        const meta = cardMetaById.get(id);
+        return {
+          cardId: id,
+          label: meta?.label ?? id,
+          group: meta?.group,
+          enabled: true,
+        };
+      }),
+    [cardMetaById, enabledCardIds],
+  );
 
   // Keep resetting help dialog when search params change
   useEffect(() => {
@@ -887,6 +943,39 @@ export function UserPageEditor() {
                         type="button"
                         size="sm"
                         variant="outline"
+                        className="h-9 w-9 rounded-xl p-0"
+                        onClick={undoBulk}
+                        disabled={!canUndoBulk}
+                        title={
+                          canUndoBulk
+                            ? "Undo last bulk action"
+                            : "Nothing to undo"
+                        }
+                      >
+                        <Undo2 className="h-4 w-4" />
+                        <span className="sr-only">Undo</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-9 w-9 rounded-xl p-0"
+                        onClick={redoBulk}
+                        disabled={!canRedoBulk}
+                        title={
+                          canRedoBulk
+                            ? "Redo last bulk action"
+                            : "Nothing to redo"
+                        }
+                      >
+                        <Redo2 className="h-4 w-4" />
+                        <span className="sr-only">Redo</span>
+                      </Button>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
                         className="h-9 rounded-xl border-emerald-200 bg-emerald-50/50 px-3 text-xs font-medium text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
                         onClick={enableAllCards}
                       >
@@ -898,7 +987,11 @@ export function UserPageEditor() {
                         size="sm"
                         variant="outline"
                         className="h-9 rounded-xl border-red-200 bg-red-50/50 px-3 text-xs font-medium text-red-700 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40"
-                        onClick={disableAllCards}
+                        onClick={() => {
+                          if (enabledCardIds.length === 0) return;
+                          setIsDisableAllDialogOpen(true);
+                        }}
+                        disabled={enabledCardIds.length === 0}
                       >
                         <EyeOff className="mr-1.5 h-3.5 w-3.5" />
                         Disable All
@@ -934,6 +1027,27 @@ export function UserPageEditor() {
                             <Button
                               variant="ghost"
                               size="sm"
+                              className="justify-start"
+                              onClick={undoBulk}
+                              disabled={!canUndoBulk}
+                            >
+                              <Undo2 className="mr-2 h-4 w-4" />
+                              Undo
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="justify-start"
+                              onClick={redoBulk}
+                              disabled={!canRedoBulk}
+                            >
+                              <Redo2 className="mr-2 h-4 w-4" />
+                              Redo
+                            </Button>
+
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               className="justify-start text-emerald-600 dark:text-emerald-400"
                               onClick={enableAllCards}
                             >
@@ -944,7 +1058,11 @@ export function UserPageEditor() {
                               variant="ghost"
                               size="sm"
                               className="justify-start text-red-600 dark:text-red-400"
-                              onClick={disableAllCards}
+                              onClick={() => {
+                                if (enabledCardIds.length === 0) return;
+                                setIsDisableAllDialogOpen(true);
+                              }}
+                              disabled={enabledCardIds.length === 0}
                             >
                               <EyeOff className="mr-2 h-4 w-4" />
                               Disable All
@@ -967,44 +1085,58 @@ export function UserPageEditor() {
               </div>
 
               {/* Reset All Cards AlertDialog */}
-              <AlertDialog
+              <BulkConfirmDialog
+                open={isDisableAllDialogOpen}
+                onOpenChange={setIsDisableAllDialogOpen}
+                title="Disable all cards?"
+                description={
+                  <>
+                    This will hide all currently enabled cards.
+                    <br />
+                    <br />
+                    You can undo this afterwards.
+                  </>
+                }
+                confirmLabel="Disable all"
+                confirmDestructive
+                previewItems={enabledCardsPreviewItems}
+                totalAffected={enabledCardIds.length}
+                onConfirm={() => {
+                  disableAllCards();
+                  setIsDisableAllDialogOpen(false);
+                }}
+              />
+
+              <BulkConfirmDialog
                 open={isResetDialogOpen}
                 onOpenChange={setIsResetDialogOpen}
-              >
-                <AlertDialogContent className="border-red-200 dark:border-red-800">
-                  <AlertDialogHeader>
-                    <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 sm:mx-0">
-                      <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
-                    </div>
-                    <AlertDialogTitle className="text-red-900 dark:text-red-100">
-                      Reset All Cards to Global Settings?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
-                      This action will reset <strong>all your cards</strong> to
-                      use the global color and border settings. Any custom
-                      per-card colors, borders, and advanced settings will be
-                      removed.
-                      <br />
-                      <br />
-                      <span className="font-medium text-red-600 dark:text-red-400">
-                        This cannot be undone.
-                      </span>
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => {
-                        resetAllCardsToGlobal();
-                        setIsResetDialogOpen(false);
-                      }}
-                      className="bg-red-600 text-white hover:bg-red-700 focus:ring-red-600"
-                    >
-                      Reset All Cards
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                title="Reset all cards to global settings?"
+                description={
+                  <>
+                    This will reset <strong>all your cards</strong> to use the
+                    global color, border, and advanced settings. Any custom
+                    per-card colors, borders, and advanced settings will be
+                    removed.
+                    <br />
+                    <br />
+                    You can undo this afterwards.
+                  </>
+                }
+                confirmLabel="Reset all"
+                confirmDestructive
+                previewItems={allCardsPreviewItems}
+                totalAffected={allCardIds.length}
+                onConfirm={() => {
+                  resetAllCardsToGlobal();
+                  setIsResetDialogOpen(false);
+                }}
+              />
+
+              {bulkLastMessage ? (
+                <span className="sr-only" aria-live="polite" aria-atomic="true">
+                  {bulkLastMessage}
+                </span>
+              ) : null}
             </div>
 
             {visibleGroupNames.length === 0 ? (
