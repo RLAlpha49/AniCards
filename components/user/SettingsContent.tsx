@@ -271,10 +271,14 @@ export function SettingsContent({
   const borderColorAriaDescribedBy = isBorderColorValid
     ? undefined
     : `${idPrefix}-borderColor-error`;
+  
+  // Cached Option element for CSS color validation  
+  const cachedOption = typeof document === "undefined" ? null : new Option(); 
 
   const isCssNamedColor = useCallback((val: string) => {
     try {
-      const s = new Option().style;
+      if (!cachedOption) return false;
+      const s = cachedOption.style;
       s.color = val;
       return s.color !== "";
     } catch {
