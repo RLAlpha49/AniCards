@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   AlertCircle,
@@ -221,11 +221,23 @@ export function UserPageEditor() {
 
   const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false);
 
-  const [query, setQuery] = useState("");
+  const VALID_VISIBILITY = new Set(["all", "enabled", "disabled"]);
+
+  const parseVisibility = (v: string | null): "all" | "enabled" | "disabled" =>
+    v && VALID_VISIBILITY.has(v)
+      ? (v as "all" | "enabled" | "disabled")
+      : "all";
+
+  const initialQuery = searchParams?.get("q") ?? "";
+  const initialVisibility = parseVisibility(searchParams?.get("visibility"));
+  const initialGroup = searchParams?.get("group") ?? "All";
+
+  const [query, setQuery] = useState(initialQuery);
   const [visibility, setVisibility] = useState<"all" | "enabled" | "disabled">(
-    "all",
+    initialVisibility,
   );
-  const [selectedGroup, setSelectedGroup] = useState<string>("All");
+  const [selectedGroup, setSelectedGroup] = useState<string>(initialGroup);
+  const searchRef = useRef<HTMLInputElement | null>(null);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
 
   // New-user setup hook
@@ -262,6 +274,90 @@ export function UserPageEditor() {
   useEffect(() => {
     setIsHelpDialogOpen(false);
   }, [searchParams]);
+
+  // Sync state from URL search params when the URL changes (back/forward etc.)
+  useEffect(() => {
+    const q = searchParams.get("q") ?? "";
+    const v =
+      (searchParams.get("visibility") as "all" | "enabled" | "disabled") ??
+      "all";
+    const g = searchParams.get("group") ?? "All";
+
+    if (q !== query) setQuery(q);
+    if (v !== visibility) setVisibility(v);
+    if (g !== selectedGroup) setSelectedGroup(g);
+  }, [searchParams]);
+
+  // Keyboard shortcuts (Ctrl/Cmd+F -> focus search, Ctrl/Cmd+E -> toggle enabled-only)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+
+      // Ignore shortcuts while typing in inputs/textareas/contenteditable
+      const target = e.target as Element | null;
+      const isTypingTarget =
+        !!target &&
+        (target instanceof HTMLInputElement ||
+          target instanceof HTMLTextAreaElement ||
+          (target as HTMLElement).isContentEditable);
+
+      if ((e.ctrlKey || e.metaKey) && key === "f") {
+        if (isTypingTarget) return;
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+
+      if ((e.ctrlKey || e.metaKey) && key === "e") {
+        if (isTypingTarget) return;
+        e.preventDefault();
+        setVisibility((prev) => (prev === "enabled" ? "all" : "enabled"));
+      }
+    };
+
+    globalThis.addEventListener("keydown", handler);
+    return () => globalThis.removeEventListener("keydown", handler);
+  }, [searchRef]);
+
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Persist filter state to the URL for shareable views (debounced to avoid spam)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams(globalThis.location.search);
+
+      if (query) params.set("q", query);
+      else params.delete("q");
+
+      if (visibility && visibility !== "all")
+        params.set("visibility", visibility);
+      else params.delete("visibility");
+
+      if (selectedGroup && selectedGroup !== "All")
+        params.set("group", selectedGroup);
+      else params.delete("group");
+
+      const search = params.toString();
+      const url = search ? `${pathname}?${search}` : pathname;
+      router.replace(url);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [query, visibility, selectedGroup, router, pathname]);
+
+  const clearAllFilters = useCallback(() => {
+    setQuery("");
+    setVisibility("all");
+    setSelectedGroup("All");
+  }, []);
+
+  const activeFilterCount = useMemo(
+    () =>
+      (query ? 1 : 0) +
+      (visibility === "all" ? 0 : 1) +
+      (selectedGroup === "All" ? 0 : 1),
+    [query, visibility, selectedGroup],
+  );
 
   const groupIcon = useCallback(
     (groupName: string) => GROUP_ICONS[groupName] ?? DEFAULT_GROUP_ICON,
@@ -634,10 +730,12 @@ export function UserPageEditor() {
                       aria-hidden="true"
                     />
                     <Input
+                      ref={searchRef}
                       id="card-search"
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Search cards..."
+                      placeholder="Search cards... (Ctrl+F)"
+                      aria-keyshortcuts="Ctrl+F"
                       className="h-10 rounded-xl border-slate-200/80 bg-white pl-9 text-sm dark:border-slate-600 dark:bg-slate-700/80"
                     />
                   </div>
@@ -737,6 +835,21 @@ export function UserPageEditor() {
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
+                  </div>
+
+                  {/* Clear filters */}
+                  <div className="ml-3 flex items-center gap-2">
+                    {activeFilterCount > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={clearAllFilters}
+                        className="h-8 rounded-lg px-2 text-xs font-medium text-slate-600 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-600 dark:hover:text-white"
+                      >
+                        Clear filters
+                      </Button>
+                    )}
                   </div>
 
                   {/* Quick actions group */}
@@ -910,6 +1023,17 @@ export function UserPageEditor() {
                   >
                     Clear search
                   </Button>
+
+                  {activeFilterCount > 1 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={clearAllFilters}
+                    >
+                      Clear all filters
+                    </Button>
+                  )}
+
                   <Button
                     type="button"
                     variant="outline"

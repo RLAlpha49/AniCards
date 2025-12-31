@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Fuse from "fuse.js";
 import { statCardTypes } from "@/components/stat-card-generator/constants";
 
 function groupCardsByCategory() {
@@ -23,11 +24,13 @@ export function useCardFiltering({
   query,
   visibility,
   selectedGroup,
+  fuzzy = true,
 }: {
   cardEnabledById: Record<string, boolean | undefined>;
   query: string;
   visibility: "all" | "enabled" | "disabled";
   selectedGroup: string;
+  fuzzy?: boolean;
 }) {
   const cardGroups = CARD_GROUPS;
 
@@ -50,24 +53,51 @@ export function useCardFiltering({
     return map;
   }, [cardEnabledById, cardGroups]);
 
+  // Memoize Fuse instance to avoid rebuilding the index on each query.
+  const fuse = useMemo(() => {
+    if (!fuzzy) return null;
+    const items = statCardTypes.map((t) => ({ id: t.id, label: t.label }));
+    return new Fuse<{ id: string; label: string }>(items, {
+      keys: ["label", "id"],
+      threshold: 0.35,
+      ignoreLocation: true,
+    });
+  }, [fuzzy]);
+
+  // Compute fuzzy matches set when query is present and fuse is available
+  const fuzzyMatchIds = useMemo(() => {
+    if (!normalizedQuery || !fuse) return null;
+    const results = fuse.search(normalizedQuery);
+    return new Set(results.map((r) => r.item.id));
+  }, [normalizedQuery, fuse]);
+
+  const matchesVisibility = useCallback(
+    (cardId: string) => {
+      const enabled = Boolean(cardEnabledById[cardId]);
+      if (visibility === "enabled") return enabled;
+      if (visibility === "disabled") return !enabled;
+      return true;
+    },
+    [cardEnabledById, visibility],
+  );
+
+  const matchesQuery = useCallback(
+    (cardType: (typeof statCardTypes)[0]) => {
+      if (!normalizedQuery) return true;
+      if (fuzzyMatchIds) return fuzzyMatchIds.has(cardType.id);
+      const haystack = CARD_SEARCH_TEXT_BY_ID.get(cardType.id);
+      return (haystack ?? "").includes(normalizedQuery);
+    },
+    [normalizedQuery, fuzzyMatchIds],
+  );
+
+
+
   const { filteredGroups, filteredGroupTotals, visibleGroupNames } =
     useMemo(() => {
       const result: Record<string, Array<(typeof statCardTypes)[0]>> = {};
       const totals: Record<string, { total: number; enabled: number }> = {};
       const visibleNames: string[] = [];
-
-      const matchesVisibility = (cardId: string) => {
-        const enabled = Boolean(cardEnabledById[cardId]);
-        if (visibility === "enabled") return enabled;
-        if (visibility === "disabled") return !enabled;
-        return true;
-      };
-
-      const matchesQuery = (cardType: (typeof statCardTypes)[0]) => {
-        if (!normalizedQuery) return true;
-        const haystack = CARD_SEARCH_TEXT_BY_ID.get(cardType.id);
-        return (haystack ?? "").includes(normalizedQuery);
-      };
 
       for (const [groupName, cards] of Object.entries(cardGroups)) {
         if (selectedGroup !== "All" && selectedGroup !== groupName) continue;
@@ -76,8 +106,7 @@ export function useCardFiltering({
         let enabledCount = 0;
 
         for (const cardType of cards) {
-          if (!matchesVisibility(cardType.id) || !matchesQuery(cardType))
-            continue;
+          if (!matchesVisibility(cardType.id) || !matchesQuery(cardType)) continue;
           filtered.push(cardType);
           if (cardEnabledById[cardType.id]) enabledCount += 1;
         }
@@ -100,6 +129,8 @@ export function useCardFiltering({
       normalizedQuery,
       selectedGroup,
       visibility,
+      matchesQuery,
+      matchesVisibility,
     ]);
 
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
