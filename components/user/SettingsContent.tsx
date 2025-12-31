@@ -23,6 +23,7 @@ import {
 } from "@/components/stat-card-generator/ColorPickerGroup";
 import { colorPresets } from "@/components/stat-card-generator/constants";
 import { ColorPreviewCard } from "@/components/user/ColorPreviewCard";
+import { normalizeColorInput, isCssNamedColor } from "@/lib/utils";
 import type { ColorValue } from "@/lib/types/card";
 
 const hexRegex = /^#(?:[0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})$/i;
@@ -30,6 +31,23 @@ const hexOrNoHashRegex = /^(?:#)?(?:[0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})$/i;
 
 // Cached canvas for color validation
 let cachedCanvas: HTMLCanvasElement | null = null;
+
+function tryParseColorWithCanvas(trimmed: string) {
+  if (typeof document === "undefined") return undefined;
+  cachedCanvas ??= document.createElement("canvas");
+  const ctx = cachedCanvas.getContext("2d");
+  if (!ctx) return undefined;
+  try {
+    ctx.fillStyle = trimmed;
+  } catch {
+    return undefined;
+  }
+  const result = ctx.fillStyle;
+  if (typeof result === "string" && /^#([0-9a-f]{6})$/i.test(result)) {
+    return result.toLowerCase();
+  }
+  return undefined;
+}
 
 /**
  * Converts various color input formats to a 6-digit hex color suitable for <input type="color">.
@@ -71,19 +89,10 @@ function getColorPickerHex(val?: string) {
     }
     return ("#" + s.slice(0, 6)).toLowerCase();
   }
-  try {
-    cachedCanvas ??= document.createElement("canvas");
-    const ctx = cachedCanvas.getContext("2d");
-    if (ctx) {
-      ctx.fillStyle = trimmed;
-      const result = ctx.fillStyle;
-      if (/^#([0-9a-f]{6})$/i.test(result)) {
-        return result.toLowerCase();
-      }
-    }
-  } catch {
-    // ignore
-  }
+
+  const canvasResult = tryParseColorWithCanvas(trimmed);
+  if (canvasResult) return canvasResult;
+
   return undefined;
 }
 
@@ -272,19 +281,7 @@ export function SettingsContent({
     ? undefined
     : `${idPrefix}-borderColor-error`;
   
-  // Cached Option element for CSS color validation  
-  const cachedOption = typeof document === "undefined" ? null : new Option(); 
 
-  const isCssNamedColor = useCallback((val: string) => {
-    try {
-      if (!cachedOption) return false;
-      const s = cachedOption.style;
-      s.color = val;
-      return s.color !== "";
-    } catch {
-      return false;
-    }
-  }, []);
 
   const isLikelyValidColorInput = useCallback(
     (val?: string) => {
@@ -345,35 +342,7 @@ export function SettingsContent({
       return;
     }
 
-    let normalized: string;
-    const noHashMatch = /^([0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})$/i.exec(v);
-    if (noHashMatch) {
-      const s = noHashMatch[1];
-      if (s.length === 3) {
-        normalized =
-          "#" +
-          s
-            .split("")
-            .map((c) => c + c)
-            .join("");
-      } else {
-        normalized = "#" + s;
-      }
-    } else if (/^#([0-9A-F]{3})$/i.test(v)) {
-      const m = /^#([0-9A-F]{3})$/i.exec(v);
-      normalized =
-        "#" +
-        m![1]
-          .split("")
-          .map((c) => c + c)
-          .join("");
-    } else if (/^#([0-9A-F]{6,8})$/i.test(v)) {
-      normalized = ("#" + v.replace(/^#/, "").slice(0, 8)).toLowerCase();
-    } else if (isCssNamedColor(v)) {
-      normalized = v.toLowerCase();
-    } else {
-      normalized = v.toLowerCase();
-    }
+    const normalized = normalizeColorInput(v);
 
     if (normalized !== borderColor) {
       onBorderColorChange(normalized);

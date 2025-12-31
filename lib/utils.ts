@@ -298,6 +298,103 @@ function normalizeHexRgb(hex: string): string | null {
 }
 
 /**
+ * Determine whether a string is a recognized CSS named color.
+ * Prefers the DOM Option-based technique when available and falls back to
+ * `CSS.supports('color', value)` when present. Wrapped in try/catch to avoid
+ * throwing in non-browser environments.
+ */
+let cachedColorOption: HTMLOptionElement | null = null;
+
+/**
+ * Determine whether a string is a recognized CSS named color.
+ * Prefers the DOM Option-based technique when available and falls back to
+ * `CSS.supports('color', value)` when present. Avoids unnecessary try/catch
+ * by guarding access to potentially-absent globals.
+ */
+export function isCssNamedColor(val: string): boolean {
+  const input = String(val ?? "").trim();
+  if (!input) return false;
+
+  // Try DOM Option technique first (fast and reliable in browser envs).
+  // Use a cached Option element to avoid repeated allocations.
+  type GlobalWithOption = {
+    Option?: new (...args: unknown[]) => HTMLOptionElement;
+    CSS?: { supports?: (prop: string, value: string) => boolean };
+  };
+  const g = globalThis as unknown as GlobalWithOption;
+  const OptionCtor = g.Option;
+  if (typeof OptionCtor === "function" && typeof document !== "undefined") {
+    cachedColorOption ??= new OptionCtor();
+    const s = cachedColorOption.style;
+    s.color = input;
+    if (s.color !== "") return true;
+  }
+
+  // Fallback to CSS.supports if available
+  const cssSupports = g.CSS?.supports;
+  if (typeof cssSupports === "function") {
+    try {
+      return Boolean(cssSupports("color", input));
+    } catch {
+      // Some host environments might throw for unexpected values; fallthrough.
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Normalize various color input formats to a canonical representation used
+ * by the settings UI. Behavior mirrors the inline logic previously present in
+ * `SettingsContent.tsx`:
+ * - No-hash 3/6/8 character hex -> '#' prefix; 3-char expands to 6 by doubling
+ * - '#rgb' expands to '#rrggbb' (preserves input case)
+ * - '#rrggbb' or '#rrggbbaa' -> lowercased (slice to at most 8 digits)
+ * - CSS named colors -> lowercased
+ * - Fallback -> lowercased input
+ */
+export function normalizeColorInput(input: string): string {
+  const v = String(input ?? "").trim();
+
+  // No-hash hex like `ABC`, `ABCDEF`, or `11223344`
+  const noHashMatch = /^([0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})$/i.exec(v);
+  if (noHashMatch) {
+    const s = noHashMatch[1];
+    if (s.length === 3) {
+      return (
+        "#" +
+        s
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      );
+    }
+    return "#" + s;
+  }
+
+  // '#rgb' expand to '#rrggbb' (preserve case)
+  if (/^#([0-9A-F]{3})$/i.test(v)) {
+    const m = /^#([0-9A-F]{3})$/i.exec(v)!;
+    return (
+      "#" +
+      m[1]
+        .split("")
+        .map((c) => c + c)
+        .join("")
+    );
+  }
+
+  // '#rrggbb' or '#rrggbbaa' -> slice up to 8 chars and lowercase
+  if (/^#([0-9A-F]{6,8})$/i.test(v)) {
+    return ("#" + v.replace(/^#/, "").slice(0, 8)).toLowerCase();
+  }
+
+  // Named colors and fallback: lowercase
+  if (isCssNamedColor(v)) return v.toLowerCase();
+  return v.toLowerCase();
+}
+
+/**
  * Convert a hex RGB color into HSL.
  *
  * @param hex - Color in #rrggbb (or #rgb) format.
