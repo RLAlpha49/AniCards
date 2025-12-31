@@ -7,8 +7,11 @@ import { trackUserActionError } from "@/lib/error-tracking";
 import { parseResponsePayload, getResponseErrorMessage } from "@/lib/utils";
 import { isValidUsername } from "@/lib/api-utils";
 import { useNewUserSetup } from "./useNewUserSetup";
+import { statCardTypes } from "@/components/stat-card-generator/constants";
 import type { ReconstructedUserRecord } from "@/lib/types/records";
 import type { LoadingPhase } from "@/lib/types/loading";
+
+const ALL_CARD_IDS = statCardTypes.map((t) => t.id);
 
 async function fetchUserData(
   userId: string | null,
@@ -74,7 +77,7 @@ export function useUserDataLoader() {
 
       if ("error" in cardsResult) {
         if (cardsResult.notFound) {
-          initializeFromServerData(userIdStr, uname, aUrl, [], undefined, []);
+          initializeFromServerData(userIdStr, uname, aUrl, [], undefined, ALL_CARD_IDS);
           setLoadingPhase("complete");
           return;
         } else {
@@ -93,7 +96,7 @@ export function useUserDataLoader() {
           setLoadError(
             "Failed to load saved cards due to a server error. Default cards are shown for now.",
           );
-          initializeFromServerData(userIdStr, uname, aUrl, [], undefined, []);
+          initializeFromServerData(userIdStr, uname, aUrl, [], undefined, ALL_CARD_IDS);
           return;
         }
       }
@@ -104,7 +107,7 @@ export function useUserDataLoader() {
         aUrl,
         cardsResult.cards,
         cardsResult.globalSettings,
-        [],
+        ALL_CARD_IDS,
       );
     },
     [initializeFromServerData, setLoading, setLoadError],

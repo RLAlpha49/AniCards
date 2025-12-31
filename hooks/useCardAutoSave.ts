@@ -3,7 +3,7 @@
 import { useEffect, useCallback, useRef } from "react";
 import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 import { getResponseErrorMessage, parseResponsePayload } from "@/lib/utils";
-import { colorPresets } from "@/components/stat-card-generator/constants";
+import { colorPresets, statCardTypes } from "@/components/stat-card-generator/constants";
 import type { ColorValue } from "@/lib/types/card";
 import { ServerCardData } from "@/lib/api/cards";
 
@@ -128,7 +128,10 @@ export function buildCardsFromState(): {
     gridRows: globalAdvancedSettings.gridRows,
   };
 
-  const configsArray = Object.values(cardConfigs);
+  const allowedIds = new Set(statCardTypes.map((t) => t.id));
+  const configsArray = Object.values(cardConfigs).filter((c) =>
+    allowedIds.has(c.cardId),
+  );
 
   // Build cards for all configs, preserving full per-card configuration even when disabled.
   const cards: ServerCardData[] = configsArray.map((config) => {
