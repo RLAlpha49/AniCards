@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import Image from "next/image";
 import { Eye, ExternalLink } from "lucide-react";
 import { CopyPopover } from "@/components/user/tile/CopyPopover";
@@ -38,7 +39,7 @@ interface CardPreviewProps {
   borderRadiusValue?: string | number;
 }
 
-export function CardPreview({
+export const CardPreview = memo(function CardPreview({
   previewUrl,
   label,
   previewUnavailableId,
@@ -160,4 +161,6 @@ export function CardPreview({
       </div>
     </div>
   );
-}
+});
+
+CardPreview.displayName = "CardPreview";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -75,6 +75,7 @@ import { useNewUserSetup } from "./hooks/useNewUserSetup";
 import { useCardFiltering } from "./hooks/useCardFiltering";
 import { useUserDataLoader } from "./hooks/useUserDataLoader";
 import type { LoadingPhase } from "@/lib/types/loading";
+import { useShallow } from "zustand/react/shallow";
 
 /**
  * Human-readable messages for each loading phase.
@@ -158,17 +159,65 @@ export function UserPageEditor() {
     avatarUrl,
     isLoading,
     loadError,
-    cardConfigs,
     isDirty,
     isSaving,
     saveError,
     lastSavedAt,
-    // store actions moved to hooks
-    // setUserData, setLoading, setLoadError, initializeFromServerData,
     enableAllCards,
     disableAllCards,
     resetAllCardsToGlobal,
-  } = useUserPageEditor();
+  } = useUserPageEditor(
+    useShallow((s) => ({
+      userId: s.userId,
+      username: s.username,
+      avatarUrl: s.avatarUrl,
+      isLoading: s.isLoading,
+      loadError: s.loadError,
+      isDirty: s.isDirty,
+      isSaving: s.isSaving,
+      saveError: s.saveError,
+      lastSavedAt: s.lastSavedAt,
+      enableAllCards: s.enableAllCards,
+      disableAllCards: s.disableAllCards,
+      resetAllCardsToGlobal: s.resetAllCardsToGlobal,
+    })),
+  );
+
+  // Enabled-only view of card state.
+  // Memoize the derived enabled map and preserve the same object reference
+  // when no enabled values changed. This keeps filtering fast and prevents
+  // unrelated per-card updates (variant/colors) from re-rendering the whole
+  // editor by ensuring referential equality for the selector result.
+  const enabledMapRef = useRef<Record<string, boolean> | null>(null);
+
+  // Selector returns a stable object mapping cardId -> boolean. We annotate
+  // the local variable so it's clear the selector never returns `null`.
+  const cardEnabledById: Record<string, boolean> = useUserPageEditor(
+    useShallow((s) => {
+      const next: Record<string, boolean> = {};
+      for (const [cardId, cfg] of Object.entries(s.cardConfigs)) {
+        next[cardId] = Boolean(cfg.enabled);
+      }
+
+      const prev = enabledMapRef.current;
+      if (prev) {
+        const prevLen = Object.keys(prev).length;
+        const nextLen = Object.keys(next).length;
+        if (prevLen === nextLen) {
+          for (const k in next) {
+            if (prev[k] !== next[k]) {
+              enabledMapRef.current = next;
+              return next;
+            }
+          }
+          return prev;
+        }
+      }
+
+      enabledMapRef.current = next;
+      return next;
+    }),
+  );
 
   const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false);
 
@@ -188,14 +237,16 @@ export function UserPageEditor() {
     filteredGroups,
     cardGroups,
     groupTotals,
+    filteredGroupTotals,
     visibleGroupNames,
     isCardEnabled,
     expandAll,
     collapseAll,
     expandedGroups,
     setGroupExpanded,
+    layoutVersion,
   } = useCardFiltering({
-    cardConfigs,
+    cardEnabledById,
     query,
     visibility,
     selectedGroup,
@@ -212,8 +263,40 @@ export function UserPageEditor() {
     setIsHelpDialogOpen(false);
   }, [searchParams]);
 
-  const groupIcon = (groupName: string) =>
-    GROUP_ICONS[groupName] ?? DEFAULT_GROUP_ICON;
+  const groupIcon = useCallback(
+    (groupName: string) => GROUP_ICONS[groupName] ?? DEFAULT_GROUP_ICON,
+    [],
+  );
+
+  const groupNames = useMemo(() => Object.keys(cardGroups), [cardGroups]);
+
+  const handleExpandedChange = useCallback(
+    (groupName: string, next: boolean) => {
+      setGroupExpanded(groupName, next);
+    },
+    [setGroupExpanded],
+  );
+
+  type RenderableCardType = {
+    id: string;
+    label: string;
+    variations: Array<{ id: string; label: string }>;
+  };
+
+  const renderCardTile = useCallback(
+    (cardType: RenderableCardType) => (
+      <CardTile
+        cardId={cardType.id}
+        label={cardType.label}
+        variations={cardType.variations}
+        supportsStatusColors={STATUS_COLOR_CARDS.has(cardType.id)}
+        supportsPiePercentages={PIE_PERCENTAGE_CARDS.has(cardType.id)}
+        supportsFavorites={FAVORITES_CARDS.has(cardType.id)}
+        isFavoritesGrid={cardType.id === "favoritesGrid"}
+      />
+    ),
+    [],
+  );
 
   const saveState = useMemo(
     () => ({ isSaving, isDirty, saveError, lastSavedAt }),
@@ -567,7 +650,7 @@ export function UserPageEditor() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="All">All categories</SelectItem>
-                      {Object.keys(cardGroups).map((groupName) => (
+                      {groupNames.map((groupName) => (
                         <SelectItem key={groupName} value={groupName}>
                           {groupName}
                         </SelectItem>
@@ -840,11 +923,13 @@ export function UserPageEditor() {
               <div className="space-y-6">
                 {Object.entries(filteredGroups).map(
                   ([groupName, filteredCards], index) => {
-                    const stats = groupTotals[groupName] ?? {
-                      total: filteredCards.length,
-                      enabled: filteredCards.filter((c) => isCardEnabled(c.id))
-                        .length,
-                    };
+                    const stats = filteredGroupTotals[groupName] ??
+                      groupTotals[groupName] ?? {
+                        total: filteredCards.length,
+                        enabled: filteredCards.filter((c) =>
+                          isCardEnabled(c.id),
+                        ).length,
+                      };
 
                     return (
                       <motion.div
@@ -860,29 +945,14 @@ export function UserPageEditor() {
                           enabledCount={stats.enabled}
                           expanded={expandedGroups[groupName] ?? true}
                           onExpandedChange={(next) =>
-                            setGroupExpanded(groupName, next)
+                            handleExpandedChange(groupName, next)
                           }
                           defaultExpanded={index === 0}
-                        >
-                          {filteredCards.map((cardType) => (
-                            <CardTile
-                              key={cardType.id}
-                              cardId={cardType.id}
-                              label={cardType.label}
-                              variations={cardType.variations}
-                              supportsStatusColors={STATUS_COLOR_CARDS.has(
-                                cardType.id,
-                              )}
-                              supportsPiePercentages={PIE_PERCENTAGE_CARDS.has(
-                                cardType.id,
-                              )}
-                              supportsFavorites={FAVORITES_CARDS.has(
-                                cardType.id,
-                              )}
-                              isFavoritesGrid={cardType.id === "favoritesGrid"}
-                            />
-                          ))}
-                        </CardCategorySection>
+                          cards={filteredCards}
+                          renderCard={renderCardTile}
+                          getCardKey={(c) => c.id}
+                          scrollMarginKey={layoutVersion}
+                        />
                       </motion.div>
                     );
                   },

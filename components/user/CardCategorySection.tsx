@@ -1,15 +1,25 @@
 "use client";
 
-import { useId, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useId,
+  useMemo,
+  useState,
+  type ReactElement,
+} from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { VirtualizedCardGrid } from "@/components/user/VirtualizedCardGrid";
 
 /**
  * Props for CardCategorySection component.
  * @source
  */
-interface CardCategorySectionProps {
+export interface CardCategorySectionProps<
+  TCard extends { id: string } = { id: string },
+> {
   /** Category title */
   title: string;
   /** Number of cards in this category */
@@ -28,7 +38,18 @@ interface CardCategorySectionProps {
   /** Callback fired when the expanded state should change. */
   onExpandedChange?: (expanded: boolean) => void;
   /** Section content (card tiles) */
-  children: React.ReactNode;
+  children?: React.ReactNode;
+
+  /** Optional data-driven rendering (enables virtualization). */
+  cards?: readonly TCard[];
+  renderCard?: (card: TCard, index: number) => React.ReactNode;
+  getCardKey?: (card: TCard, index: number) => React.Key;
+
+  /** Force virtualization on/off when `cards` are provided. */
+  virtualize?: boolean;
+
+  /** Used to trigger scroll offset recomputation for window virtualization. */
+  scrollMarginKey?: string | number;
 }
 
 /**
@@ -37,7 +58,7 @@ interface CardCategorySectionProps {
  * @returns JSX element.
  * @source
  */
-export function CardCategorySection({
+function CardCategorySectionInner<TCard extends { id: string }>({
   title,
   cardCount,
   enabledCount,
@@ -46,7 +67,12 @@ export function CardCategorySection({
   expanded,
   onExpandedChange,
   children,
-}: Readonly<CardCategorySectionProps>) {
+  cards,
+  renderCard,
+  getCardKey,
+  virtualize,
+  scrollMarginKey,
+}: Readonly<CardCategorySectionProps<TCard>>) {
   const contentId = useId();
   const isControlled = typeof expanded === "boolean";
   const [uncontrolledExpanded, setUncontrolledExpanded] =
@@ -56,12 +82,65 @@ export function CardCategorySection({
   const clampedEnabledCount = Math.min(enabledCount, cardCount);
   const isFullyEnabled = clampedEnabledCount === cardCount && cardCount > 0;
 
-  const setExpanded = (next: boolean) => {
-    if (!isControlled) {
-      setUncontrolledExpanded(next);
+  const setExpanded = useCallback(
+    (next: boolean) => {
+      if (!isControlled) {
+        setUncontrolledExpanded(next);
+      }
+      onExpandedChange?.(next);
+    },
+    [isControlled, onExpandedChange],
+  );
+
+  const handleToggleExpanded = useCallback(() => {
+    setExpanded(!isExpanded);
+  }, [isExpanded, setExpanded]);
+
+  const hasCards = Boolean(cards && cards.length > 0 && renderCard);
+  const shouldVirtualize = useMemo(() => {
+    if (!hasCards) return false;
+    if (typeof virtualize === "boolean") return virtualize;
+    // Heuristic: once a category has enough items, virtualization pays off.
+    return (cards?.length ?? 0) >= 18;
+  }, [cards?.length, hasCards, virtualize]);
+
+  const grid = useMemo(() => {
+    if (hasCards && cards && renderCard) {
+      if (shouldVirtualize) {
+        return (
+          <VirtualizedCardGrid
+            items={cards}
+            renderItem={renderCard}
+            getItemKey={getCardKey}
+            scrollMarginKey={scrollMarginKey}
+          />
+        );
+      }
+
+      const keyFn = getCardKey ?? ((c: TCard, index: number) => c.id ?? index);
+      return (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {cards.map((card, index) => (
+            <div key={keyFn(card, index)} className="min-w-0">
+              {renderCard(card, index)}
+            </div>
+          ))}
+        </div>
+      );
     }
-    onExpandedChange?.(next);
-  };
+
+    return (
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{children}</div>
+    );
+  }, [
+    cards,
+    children,
+    getCardKey,
+    hasCards,
+    renderCard,
+    scrollMarginKey,
+    shouldVirtualize,
+  ]);
 
   return (
     <div
@@ -75,7 +154,7 @@ export function CardCategorySection({
       {/* Section Header */}
       <button
         type="button"
-        onClick={() => setExpanded(!isExpanded)}
+        onClick={handleToggleExpanded}
         aria-expanded={isExpanded}
         aria-controls={contentId}
         className={cn(
@@ -151,9 +230,7 @@ export function CardCategorySection({
             className="overflow-hidden"
           >
             <div className="border-t border-slate-200/60 bg-slate-50/50 px-5 py-5 dark:border-slate-700/60 dark:bg-slate-900/30 sm:px-6">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {children}
-              </div>
+              {grid}
             </div>
           </motion.div>
         )}
@@ -161,3 +238,11 @@ export function CardCategorySection({
     </div>
   );
 }
+
+export const CardCategorySection = memo(
+  CardCategorySectionInner,
+) as unknown as (<TCard extends { id: string }>(
+  props: Readonly<CardCategorySectionProps<TCard>>,
+) => ReactElement) & { displayName?: string };
+
+CardCategorySection.displayName = "CardCategorySection";

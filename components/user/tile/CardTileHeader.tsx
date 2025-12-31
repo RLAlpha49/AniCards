@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { Button } from "@/components/ui/Button";
 import { Switch } from "@/components/ui/Switch";
 import { Checkbox } from "@/components/ui/Checkbox";
@@ -25,7 +26,7 @@ interface CardTileHeaderProps {
   onOpenSettings: () => void;
 }
 
-export function CardTileHeader({
+export const CardTileHeader = memo(function CardTileHeader({
   label,
   enabled,
   onToggleEnabled,
@@ -115,4 +116,6 @@ export function CardTileHeader({
       </div>
     </div>
   );
-}
+});
+
+CardTileHeader.displayName = "CardTileHeader";

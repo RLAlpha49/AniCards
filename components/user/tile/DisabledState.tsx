@@ -1,8 +1,9 @@
 "use client";
 
+import { memo } from "react";
 import { EyeOff } from "lucide-react";
 
-export function DisabledState() {
+export const DisabledState = memo(function DisabledState() {
   return (
     <output
       className="flex items-center justify-center py-6"
@@ -19,4 +20,6 @@ export function DisabledState() {
       </div>
     </output>
   );
-}
+});
+
+DisabledState.displayName = "DisabledState";

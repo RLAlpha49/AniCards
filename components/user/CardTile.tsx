@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { CardTileHeader } from "@/components/user/tile/CardTileHeader";
 import { DisabledState } from "@/components/user/tile/DisabledState";
 import { VariantSelector } from "@/components/user/tile/VariantSelector";
@@ -16,6 +16,7 @@ import { cn, getCardBorderRadius } from "@/lib/utils";
 import { buildPreviewUrl } from "@/components/user/tile/buildPreviewUrl";
 import { useCopyFeedback } from "@/hooks/useCopyFeedback";
 import { useDownload } from "@/hooks/useDownload";
+import { useShallow } from "zustand/react/shallow";
 
 /**
  * Variation option for a card type.
@@ -63,7 +64,7 @@ const DEFAULT_CARD_CONFIG: CardEditorConfig = {
  * @returns JSX element.
  * @source
  */
-export function CardTile({
+export const CardTile = memo(function CardTile({
   cardId,
   label,
   variations,
@@ -81,29 +82,48 @@ export function CardTile({
   const isAnyPopoverOpen = copyPopoverOpen || downloadPopoverOpen;
 
   // Get info tooltip content - prop overrides default from card-info-tooltips
-  const tooltipContent = infoTooltip ?? getCardInfoTooltip(cardId);
+  const tooltipContent = useMemo(
+    () => infoTooltip ?? getCardInfoTooltip(cardId),
+    [infoTooltip, cardId],
+  );
 
   const {
     userId,
-    cardConfigs,
     globalColorPreset,
-    selectedCardIds,
+    globalColors,
+    globalBorderEnabled,
+    globalBorderColor,
+    globalBorderRadius,
+    globalAdvancedSettings,
+    configFromStore,
+    isSelected,
     setCardEnabled,
     setCardVariant,
     toggleCardSelection,
     selectCard,
     deselectCard,
-    getEffectiveColors,
-    getEffectiveBorderColor,
-    getEffectiveBorderRadius,
-    globalAdvancedSettings,
-  } = useUserPageEditor();
-
-  const isSelected = selectedCardIds.has(cardId);
+  } = useUserPageEditor(
+    useShallow((s) => ({
+      userId: s.userId,
+      globalColorPreset: s.globalColorPreset,
+      globalColors: s.globalColors,
+      globalBorderEnabled: s.globalBorderEnabled,
+      globalBorderColor: s.globalBorderColor,
+      globalBorderRadius: s.globalBorderRadius,
+      globalAdvancedSettings: s.globalAdvancedSettings,
+      configFromStore: s.cardConfigs[cardId],
+      isSelected: s.selectedCardIds.has(cardId),
+      setCardEnabled: s.setCardEnabled,
+      setCardVariant: s.setCardVariant,
+      toggleCardSelection: s.toggleCardSelection,
+      selectCard: s.selectCard,
+      deselectCard: s.deselectCard,
+    })),
+  );
 
   const config = useMemo(
-    () => cardConfigs[cardId] ?? { ...DEFAULT_CARD_CONFIG, cardId },
-    [cardConfigs, cardId],
+    () => configFromStore ?? { ...DEFAULT_CARD_CONFIG, cardId },
+    [configFromStore, cardId],
   );
 
   const handleToggleSelection = useCallback(
@@ -119,9 +139,26 @@ export function CardTile({
     },
     [cardId, toggleCardSelection, selectCard, deselectCard],
   );
-  const effectiveColors = getEffectiveColors(cardId);
-  const effectiveBorderColor = getEffectiveBorderColor(cardId);
-  const effectiveBorderRadius = getEffectiveBorderRadius(cardId);
+  const effectiveColors = useMemo(() => {
+    if (config.colorOverride.useCustomSettings) {
+      return config.colorOverride.colors ?? globalColors;
+    }
+    return globalColors;
+  }, [
+    config.colorOverride.colors,
+    config.colorOverride.useCustomSettings,
+    globalColors,
+  ]);
+
+  const effectiveBorderColor = useMemo(() => {
+    if (config.borderColor !== undefined) return config.borderColor;
+    return globalBorderEnabled ? globalBorderColor : undefined;
+  }, [config.borderColor, globalBorderColor, globalBorderEnabled]);
+
+  const effectiveBorderRadius = useMemo(
+    () => config.borderRadius ?? globalBorderRadius,
+    [config.borderRadius, globalBorderRadius],
+  );
 
   const effectiveColorPreset = config.colorOverride.useCustomSettings
     ? config.colorOverride.colorPreset || "custom"
@@ -169,13 +206,25 @@ export function CardTile({
     [cardId, setCardVariant],
   );
 
+  const openSettings = useCallback(() => setSettingsOpen(true), []);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+
   const { copiedFormat, handleCopy } = useCopyFeedback(previewUrl);
+
+  const handleCopyUrl = useCallback(() => handleCopy("url"), [handleCopy]);
+  const handleCopyAniList = useCallback(
+    () => handleCopy("anilist"),
+    [handleCopy],
+  );
 
   const { isDownloading, handleDownload } = useDownload(previewUrl, {
     cardId,
     variant: config.variant,
   });
-  const borderRadiusValue = getCardBorderRadius(effectiveBorderRadius);
+  const borderRadiusValue = useMemo(
+    () => getCardBorderRadius(effectiveBorderRadius),
+    [effectiveBorderRadius],
+  );
 
   // Accessibility helpers: IDs for sr-only descriptions
   const previewUnavailableId = `card-${cardId}-preview-unavailable`;
@@ -217,7 +266,7 @@ export function CardTile({
         tooltipContent={tooltipContent}
         isSelected={isSelected}
         onToggleSelection={handleToggleSelection}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={openSettings}
       />
 
       {/* Preview and Controls (only when enabled) */}
@@ -235,8 +284,8 @@ export function CardTile({
             setCopyPopoverOpen={setCopyPopoverOpen}
             downloadPopoverOpen={downloadPopoverOpen}
             setDownloadPopoverOpen={setDownloadPopoverOpen}
-            onCopyUrl={() => handleCopy("url")}
-            onCopyAniList={() => handleCopy("anilist")}
+            onCopyUrl={handleCopyUrl}
+            onCopyAniList={handleCopyAniList}
             onDownload={handleDownload}
             isAnyPopoverOpen={isAnyPopoverOpen}
             borderRadiusValue={borderRadiusValue}
@@ -252,7 +301,7 @@ export function CardTile({
           {/* Settings Dialog */}
           <CardSettingsDialog
             isOpen={settingsOpen}
-            onClose={() => setSettingsOpen(false)}
+            onClose={closeSettings}
             cardId={cardId}
             label={label}
             supportsStatusColors={supportsStatusColors}
@@ -268,4 +317,6 @@ export function CardTile({
       {!config.enabled && <DisabledState />}
     </div>
   );
-}
+});
+
+CardTile.displayName = "CardTile";

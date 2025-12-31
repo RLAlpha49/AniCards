@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { Label } from "@/components/ui/Label";
 import {
   Select,
@@ -20,7 +21,7 @@ interface VariantSelectorProps {
   onVariantChange: (variant: string) => void;
 }
 
-export function VariantSelector({
+export const VariantSelector = memo(function VariantSelector({
   variations,
   currentVariant,
   onVariantChange,
@@ -51,4 +52,6 @@ export function VariantSelector({
       </Select>
     </div>
   );
-}
+});
+
+VariantSelector.displayName = "VariantSelector";
