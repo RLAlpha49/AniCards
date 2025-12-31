@@ -160,12 +160,23 @@ export const CardTile = memo(function CardTile({
     [config.borderRadius, globalBorderRadius],
   );
 
-  const effectiveColorPreset = config.colorOverride.useCustomSettings
-    ? config.colorOverride.colorPreset || "custom"
-    : globalColorPreset;
+  const effectiveColorPreset = useMemo(
+    () =>
+      config.colorOverride.useCustomSettings
+        ? config.colorOverride.colorPreset || "custom"
+        : globalColorPreset,
+    [
+      config.colorOverride.useCustomSettings,
+      config.colorOverride.colorPreset,
+      globalColorPreset,
+    ],
+  );
 
-  const urlColorPreset =
-    effectiveColorPreset === "custom" ? undefined : effectiveColorPreset;
+  const urlColorPreset = useMemo(
+    () =>
+      effectiveColorPreset === "custom" ? undefined : effectiveColorPreset,
+    [effectiveColorPreset],
+  );
 
   // Build preview URL
   const previewUrl = useMemo(
