@@ -852,7 +852,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       globalSettings,
       ifMatchUpdatedAt,
       cardOrder,
-    } = bodyParse.parsed as ParsedStoreCardsBody;
+    } = bodyParse.parsed!;
     console.log(
       `📝 [${endpoint}] Processing user ${userId} with ${incomingCardsCount} cards`,
     );
