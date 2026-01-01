@@ -1,8 +1,8 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useEffect, useState } from "react";
 import Image from "next/image";
-import { Eye, ExternalLink } from "lucide-react";
+import { Eye, ExternalLink, MoreHorizontal } from "lucide-react";
 import { CopyPopover } from "@/components/user/tile/CopyPopover";
 import { DownloadPopover } from "@/components/user/tile/DownloadPopover";
 import { cn, type ConversionFormat } from "@/lib/utils";
@@ -71,14 +71,32 @@ export const CardPreview = memo(function CardPreview({
 
   const openHref = previewUrl ? toCardApiHref(previewUrl) : null;
 
+  // Local state to support tapping/focus to reveal quick actions on touch / keyboard
+  const [showActions, setShowActions] = useState(false);
+
+  // Close the actions overlay on Escape when opened via the toggle
+  useEffect(() => {
+    if (!showActions) return;
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setShowActions(false);
+    }
+    globalThis.addEventListener("keydown", handleKey);
+    return () => globalThis.removeEventListener("keydown", handleKey);
+  }, [showActions]);
+
   return (
-    <div className="relative aspect-[2/1] overflow-hidden bg-slate-100 dark:bg-slate-900">
+    <div className="group relative aspect-[2/1] overflow-hidden bg-slate-100 dark:bg-slate-950">
       {previewUrl ? (
         <Image
           src={previewUrl}
           alt={`${label} preview`}
           fill
-          className="object-contain p-2"
+          sizes="(min-width: 1280px) 33vw, (min-width: 640px) 50vw, 100vw"
+          className={cn(
+            "object-contain p-2",
+            "transition-transform duration-300 ease-out will-change-transform",
+            "group-focus-within:scale-[1.04] group-hover:scale-[1.04]",
+          )}
           style={{ borderRadius: borderRadiusValue }}
         />
       ) : (
@@ -86,6 +104,40 @@ export const CardPreview = memo(function CardPreview({
           <Eye className="h-8 w-8" />
         </div>
       )}
+
+      {/* Subtle scrim for better hierarchy when actions appear */}
+      <div
+        aria-hidden="true"
+        className={cn(
+          "pointer-events-none absolute inset-0 bg-gradient-to-t from-black/15 via-black/0 to-black/0",
+          "transition-opacity duration-200",
+          isAnyPopoverOpen || showActions
+            ? "opacity-100"
+            : "opacity-100 group-focus-within:opacity-100 group-hover:opacity-100 sm:opacity-0",
+        )}
+      />
+
+      {/* Touch-friendly toggle for small screens (tap to reveal actions) */}
+      <button
+        type="button"
+        aria-label="Toggle card actions"
+        aria-pressed={showActions}
+        onClick={() => setShowActions((v) => !v)}
+        className="absolute right-2 top-2 z-20 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:hidden"
+      >
+        <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+      </button>
+
+      {/* Keyboard-only toggle for desktop — hidden visually but becomes visible when focused */}
+      <button
+        type="button"
+        aria-label="Toggle card actions"
+        aria-pressed={showActions}
+        onClick={() => setShowActions((v) => !v)}
+        className="absolute right-2 top-2 z-20 hidden h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white opacity-0 hover:bg-white/20 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:inline-flex"
+      >
+        <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+      </button>
 
       {/* Quick Actions Overlay */}
       {!previewUrl && (
@@ -101,9 +153,9 @@ export const CardPreview = memo(function CardPreview({
       <div
         className={cn(
           "absolute inset-0 flex items-center justify-center gap-2 transition-opacity",
-          isAnyPopoverOpen
+          isAnyPopoverOpen || showActions
             ? "visible opacity-100"
-            : "invisible opacity-0 group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100",
+            : "visible opacity-100 group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100 sm:invisible sm:opacity-0",
         )}
       >
         {openHref ? (

@@ -21,18 +21,43 @@ const CARD_SEARCH_TEXT_BY_ID = new Map<string, string>(
 
 export function useCardFiltering({
   cardEnabledById,
+  cardOrder,
   query,
   visibility,
   selectedGroup,
   fuzzy = true,
 }: {
   cardEnabledById: Record<string, boolean | undefined>;
+  cardOrder?: readonly string[];
   query: string;
   visibility: "all" | "enabled" | "disabled";
   selectedGroup: string;
   fuzzy?: boolean;
 }) {
-  const cardGroups = CARD_GROUPS;
+  const orderIndexById = useMemo(() => {
+    const map = new Map<string, number>();
+    const order =
+      Array.isArray(cardOrder) && cardOrder.length > 0
+        ? cardOrder
+        : statCardTypes.map((t) => t.id);
+    for (let i = 0; i < order.length; i++) {
+      map.set(order[i], i);
+    }
+    return map;
+  }, [cardOrder]);
+
+  const cardGroups = useMemo(() => {
+    // Keep the same category grouping, but sort within each category based on cardOrder.
+    const next: Record<string, Array<(typeof statCardTypes)[0]>> = {};
+    for (const [groupName, cards] of Object.entries(CARD_GROUPS)) {
+      next[groupName] = [...cards].sort((a, b) => {
+        const ai = orderIndexById.get(a.id) ?? Number.MAX_SAFE_INTEGER;
+        const bi = orderIndexById.get(b.id) ?? Number.MAX_SAFE_INTEGER;
+        return ai - bi;
+      });
+    }
+    return next;
+  }, [orderIndexById]);
 
   const normalizedQuery = useMemo(() => query.trim().toLowerCase(), [query]);
 

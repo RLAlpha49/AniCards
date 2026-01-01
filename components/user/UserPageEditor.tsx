@@ -28,6 +28,7 @@ import {
   ExternalLink,
   UserPlus,
   MoreHorizontal,
+  GripVertical,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
@@ -56,7 +57,10 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { UserPageHeader } from "./UserPageHeader";
 import { UserHelpDialog } from "./UserHelpDialog";
 import { GlobalSettingsPanel } from "./GlobalSettingsPanel";
-import { CardCategorySection } from "./CardCategorySection";
+import {
+  CardCategorySection,
+  type CardTileDragHandleProps,
+} from "./CardCategorySection";
 import { CardTile } from "./CardTile";
 import { BulkActionsToolbar } from "./BulkActionsToolbar";
 import { BulkConfirmDialog } from "./bulk/BulkConfirmDialog";
@@ -140,6 +144,91 @@ const DEFAULT_GROUP_ICON = <LayoutGrid className="h-5 w-5" />;
 
 type VisibilityFilter = "all" | "enabled" | "disabled";
 
+type ReorderModeToggleProps = {
+  isReorderMode: boolean;
+  canEnterReorderMode: boolean;
+  onToggle: () => void;
+};
+
+function ReorderModeToolbarToggle({
+  isReorderMode,
+  canEnterReorderMode,
+  onToggle,
+}: Readonly<ReorderModeToggleProps>) {
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            aria-pressed={isReorderMode}
+            disabled={!canEnterReorderMode && !isReorderMode}
+            onClick={onToggle}
+            className={cn(
+              "h-9 rounded-xl px-3 text-xs font-medium",
+              isReorderMode
+                ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-200 dark:hover:bg-blue-950/45"
+                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700",
+            )}
+            title={
+              canEnterReorderMode
+                ? "Drag cards by the handle to reorder"
+                : "Clear search and set visibility to All to reorder"
+            }
+          >
+            <GripVertical className="mr-1.5 h-3.5 w-3.5" />
+            {isReorderMode ? "Done" : "Reorder"}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent
+          side="top"
+          sideOffset={8}
+          className="max-w-xs text-xs leading-relaxed"
+        >
+          {canEnterReorderMode ? (
+            <p>
+              Drag cards by the handle to reorder within each category. Changes
+              save automatically.
+            </p>
+          ) : (
+            <p>
+              Clear the search box and set visibility to <strong>All</strong> to
+              reorder cards.
+            </p>
+          )}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+function ReorderModeMenuToggle({
+  isReorderMode,
+  canEnterReorderMode,
+  onToggle,
+}: Readonly<ReorderModeToggleProps>) {
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="justify-start"
+      aria-pressed={isReorderMode}
+      disabled={!canEnterReorderMode && !isReorderMode}
+      onClick={onToggle}
+      title={
+        canEnterReorderMode
+          ? "Drag cards by the handle to reorder"
+          : "Clear search and set visibility to All to reorder"
+      }
+    >
+      <GripVertical className="mr-2 h-4 w-4" />
+      {isReorderMode ? "Done reordering" : "Reorder"}
+    </Button>
+  );
+}
+
 /**
  * Main user page editor component.
  * Handles loading user data, displaying cards, and saving changes.
@@ -158,6 +247,7 @@ export function UserPageEditor() {
     isSaving,
     saveError,
     lastSavedAt,
+    cardOrder,
     enableAllCards,
     disableAllCards,
     resetAllCardsToGlobal,
@@ -166,6 +256,7 @@ export function UserPageEditor() {
     bulkPastLength,
     bulkFutureLength,
     bulkLastMessage,
+    reorderCardsInScope,
   } = useUserPageEditor(
     useShallow((s) => ({
       userId: s.userId,
@@ -177,6 +268,7 @@ export function UserPageEditor() {
       isSaving: s.isSaving,
       saveError: s.saveError,
       lastSavedAt: s.lastSavedAt,
+      cardOrder: s.cardOrder,
       enableAllCards: s.enableAllCards,
       disableAllCards: s.disableAllCards,
       resetAllCardsToGlobal: s.resetAllCardsToGlobal,
@@ -185,6 +277,7 @@ export function UserPageEditor() {
       bulkPastLength: s.bulkPast.length,
       bulkFutureLength: s.bulkFuture.length,
       bulkLastMessage: s.bulkLastMessage,
+      reorderCardsInScope: s.reorderCardsInScope,
     })),
   );
   const canUndoBulk = bulkPastLength > 0;
@@ -244,6 +337,20 @@ export function UserPageEditor() {
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [isDisableAllDialogOpen, setIsDisableAllDialogOpen] = useState(false);
+  const [isReorderMode, setIsReorderMode] = useState(false);
+
+  const canEnterReorderMode = useMemo(
+    () => query.trim().length === 0 && visibility === "all",
+    [query, visibility],
+  );
+
+  // Reordering with active filters is confusing (scope isn't the full category).
+  // Auto-exit when the user applies filters.
+  useEffect(() => {
+    if (isReorderMode && !canEnterReorderMode) {
+      setIsReorderMode(false);
+    }
+  }, [canEnterReorderMode, isReorderMode]);
 
   // New-user setup hook
   const { isNewUser, setIsNewUser, cardsWarning, setCardsWarning } =
@@ -264,6 +371,7 @@ export function UserPageEditor() {
     layoutVersion,
   } = useCardFiltering({
     cardEnabledById,
+    cardOrder,
     query,
     visibility,
     selectedGroup,
@@ -436,7 +544,14 @@ export function UserPageEditor() {
   };
 
   const renderCardTile = useCallback(
-    (cardType: RenderableCardType) => (
+    (
+      cardType: RenderableCardType,
+      _index: number,
+      ctx?: {
+        dragHandleProps?: CardTileDragHandleProps;
+        isDragging?: boolean;
+      },
+    ) => (
       <CardTile
         cardId={cardType.id}
         label={cardType.label}
@@ -445,9 +560,11 @@ export function UserPageEditor() {
         supportsPiePercentages={PIE_PERCENTAGE_CARDS.has(cardType.id)}
         supportsFavorites={FAVORITES_CARDS.has(cardType.id)}
         isFavoritesGrid={cardType.id === "favoritesGrid"}
+        dragHandleProps={isReorderMode ? ctx?.dragHandleProps : undefined}
+        isDragging={isReorderMode ? ctx?.isDragging : false}
       />
     ),
-    [],
+    [isReorderMode],
   );
 
   const saveState = useMemo(
@@ -935,6 +1052,12 @@ export function UserPageEditor() {
                       </Button>
                     </div>
 
+                    <ReorderModeToolbarToggle
+                      isReorderMode={isReorderMode}
+                      canEnterReorderMode={canEnterReorderMode}
+                      onToggle={() => setIsReorderMode((prev) => !prev)}
+                    />
+
                     <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
 
                     {/* Desktop Bulk Actions */}
@@ -1024,6 +1147,12 @@ export function UserPageEditor() {
                         </PopoverTrigger>
                         <PopoverContent className="w-48 p-2" align="end">
                           <div className="flex flex-col gap-1">
+                            <ReorderModeMenuToggle
+                              isReorderMode={isReorderMode}
+                              canEnterReorderMode={canEnterReorderMode}
+                              onToggle={() => setIsReorderMode((prev) => !prev)}
+                            />
+
                             <Button
                               variant="ghost"
                               size="sm"
@@ -1137,6 +1266,13 @@ export function UserPageEditor() {
                   {bulkLastMessage}
                 </span>
               ) : null}
+
+              {isReorderMode ? (
+                <div className="rounded-xl border border-blue-200/60 bg-blue-50/60 px-4 py-2 text-xs text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/25 dark:text-blue-200">
+                  <span className="font-semibold">Reorder mode:</span> drag
+                  cards by the handle (≡) to change their order.
+                </div>
+              ) : null}
             </div>
 
             {visibleGroupNames.length === 0 ? (
@@ -1208,6 +1344,10 @@ export function UserPageEditor() {
                           renderCard={renderCardTile}
                           getCardKey={(c) => c.id}
                           scrollMarginKey={layoutVersion}
+                          reorderable={isReorderMode}
+                          onReorder={({ activeId, overId, scopeIds }) => {
+                            reorderCardsInScope({ activeId, overId, scopeIds });
+                          }}
                         />
                       </motion.div>
                     );

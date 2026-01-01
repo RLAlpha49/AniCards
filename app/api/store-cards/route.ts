@@ -496,6 +496,51 @@ function applyIncomingCards(
   }
 }
 
+/**
+ * Build the final stored cards array in a deterministic order.
+ *
+ * Priority:
+ * 1) Incoming cards order (authoritative when provided)
+ * 2) Existing stored order for any cards omitted by the request
+ * 3) Any newly-supported card types appended in SUPPORTED_BASE_CARD_TYPES order
+ */
+function buildOrderedStoredCards(opts: {
+  incomingCards: StoredCardConfig[];
+  existingCards: StoredCardConfig[];
+  mergedCardsByName: Map<string, StoredCardConfig>;
+}): StoredCardConfig[] {
+  const ordered: StoredCardConfig[] = [];
+  const seen = new Set<string>();
+
+  for (const card of opts.incomingCards) {
+    const name = card.cardName;
+    if (seen.has(name)) continue;
+    const merged = opts.mergedCardsByName.get(name);
+    if (!merged) continue;
+    ordered.push(merged);
+    seen.add(name);
+  }
+
+  for (const card of opts.existingCards) {
+    const name = card.cardName;
+    if (seen.has(name)) continue;
+    const merged = opts.mergedCardsByName.get(name);
+    if (!merged) continue;
+    ordered.push(merged);
+    seen.add(name);
+  }
+
+  for (const baseCardName of SUPPORTED_BASE_CARD_TYPES) {
+    if (seen.has(baseCardName)) continue;
+    const merged = opts.mergedCardsByName.get(baseCardName);
+    if (!merged) continue;
+    ordered.push(merged);
+    seen.add(baseCardName);
+  }
+
+  return ordered;
+}
+
 function computeEffectiveBorderRadius(
   effectiveBorderEnabled: boolean | undefined,
   incoming?: Partial<GlobalCardSettings>,
@@ -715,6 +760,12 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     ensureAllSupportedCardTypesPresent(existingCardsMap);
 
+    const orderedStoredCards = buildOrderedStoredCards({
+      incomingCards: incomingCardsTyped,
+      existingCards,
+      mergedCardsByName: existingCardsMap,
+    });
+
     // Compute borderRadius using helper (clamped when applicable)
     const effectiveBorderRadius = computeEffectiveBorderRadius(
       effectiveBorderEnabled,
@@ -756,7 +807,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const cardData: CardsRecord = {
       userId,
-      cards: Array.from(existingCardsMap.values()),
+      cards: orderedStoredCards,
       globalSettings: mergedGlobalSettings,
       updatedAt: new Date().toISOString(),
     };

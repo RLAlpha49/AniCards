@@ -7,7 +7,7 @@ import {
   statCardTypes,
 } from "@/components/stat-card-generator/constants";
 import { DEFAULT_CARD_BORDER_RADIUS, clampBorderRadius } from "@/lib/utils";
-import { ServerCardData, ServerGlobalSettings } from "../api/cards";
+import type { ServerCardData, ServerGlobalSettings } from "../api/cards";
 import type {
   SettingsSnapshot,
   SettingsTemplateV1,
@@ -94,6 +94,21 @@ export interface UserPageEditorState {
   // Per-card configurations
   cardConfigs: Record<string, CardEditorConfig>;
 
+  /**
+   * Canonical card ordering for the editor UI.
+   *
+   * This is persisted implicitly by saving cards to the server in this order.
+   * It includes all known card IDs (enabled and disabled).
+   */
+  cardOrder: string[];
+
+  /**
+   * Baseline snapshots captured at last successful load/save.
+   * Used to compute per-card "modified/unsaved" indicators.
+   */
+  baselineGlobalSnapshot: SettingsSnapshot | null;
+  baselineCardConfigs: Record<string, CardEditorConfig>;
+
   // Local-only user templates (not persisted to the server)
   settingsTemplates: SettingsTemplateV1[];
 
@@ -170,6 +185,18 @@ export interface UserPageEditorActions {
   ) => void;
   setCardBorderColor: (cardId: string, color: string | undefined) => void;
   setCardBorderRadius: (cardId: string, radius: number | undefined) => void;
+
+  // Card ordering actions
+  setCardOrder: (order: string[]) => void;
+  reorderCardsInScope: (opts: {
+    activeId: string;
+    overId: string;
+    /**
+     * Restrict reorder to this set of card IDs (e.g., the cards in a category).
+     * When provided, only relative ordering within this set changes.
+     */
+    scopeIds?: readonly string[];
+  }) => void;
 
   // UI actions
   setExpandedCard: (cardId: string | null) => void;
@@ -280,6 +307,8 @@ const cardTypeMetaById: ReadonlyMap<string, CardTypeMeta> = new Map(
     },
   ]),
 );
+
+const DEFAULT_CARD_ORDER = statCardTypes.map((t) => t.id);
 
 const BULK_HISTORY_LIMIT = 40;
 
@@ -429,6 +458,129 @@ function cloneCardEditorConfig(config: CardEditorConfig): CardEditorConfig {
     },
     advancedSettings: { ...config.advancedSettings },
   };
+}
+
+function normalizeCardOrder(
+  order: readonly string[] | undefined,
+  allowedIds: readonly string[],
+): string[] {
+  const allowed = new Set(allowedIds);
+  const seen = new Set<string>();
+  const next: string[] = [];
+
+  if (order) {
+    for (const id of order) {
+      if (!allowed.has(id)) continue;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      next.push(id);
+    }
+  }
+
+  for (const id of allowedIds) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    next.push(id);
+  }
+
+  return next;
+}
+
+function areOptionalArraysEqual<T>(
+  a: readonly T[] | undefined,
+  b: readonly T[] | undefined,
+): boolean {
+  if (a === b) return true;
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+function areShallowRecordsEqual(
+  a: Record<string, unknown>,
+  b: Record<string, unknown>,
+): boolean {
+  if (a === b) return true;
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  for (const k of aKeys) {
+    if (a[k] !== b[k]) return false;
+  }
+  return true;
+}
+
+function areCardConfigsEqual(
+  a: CardEditorConfig,
+  b: CardEditorConfig,
+): boolean {
+  if (a.enabled !== b.enabled) return false;
+  if (a.variant !== b.variant) return false;
+
+  if (a.borderColor !== b.borderColor) return false;
+  if (a.borderRadius !== b.borderRadius) return false;
+
+  // Color override
+  if (a.colorOverride.useCustomSettings !== b.colorOverride.useCustomSettings)
+    return false;
+  if (a.colorOverride.colorPreset !== b.colorOverride.colorPreset) return false;
+  if (!areOptionalArraysEqual(a.colorOverride.colors, b.colorOverride.colors)) {
+    return false;
+  }
+
+  // Advanced settings
+  if (
+    !areShallowRecordsEqual(
+      a.advancedSettings as Record<string, unknown>,
+      b.advancedSettings as Record<string, unknown>,
+    )
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function areSettingsSnapshotsEqual(
+  a: SettingsSnapshot,
+  b: SettingsSnapshot,
+): boolean {
+  if (a.colorPreset !== b.colorPreset) return false;
+  if (a.borderEnabled !== b.borderEnabled) return false;
+  if (a.borderColor !== b.borderColor) return false;
+  if (a.borderRadius !== b.borderRadius) return false;
+
+  // Colors
+  for (let i = 0; i < 4; i++) {
+    if (a.colors[i] !== b.colors[i]) return false;
+  }
+
+  // Advanced
+  const aAdv = a.advancedSettings ?? {};
+  const bAdv = b.advancedSettings ?? {};
+  if (
+    !areShallowRecordsEqual(
+      aAdv as Record<string, unknown>,
+      bAdv as Record<string, unknown>,
+    )
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function doesCardInheritGlobalSettings(config: CardEditorConfig): boolean {
+  return (
+    !config.colorOverride.useCustomSettings &&
+    config.borderColor === undefined &&
+    config.borderRadius === undefined &&
+    Object.keys(config.advancedSettings).length === 0
+  );
 }
 
 function isVariantSupportedForCard(cardId: string, variantId: string): boolean {
@@ -836,6 +988,9 @@ const initialState: UserPageEditorState = {
   globalBorderRadius: DEFAULT_CARD_BORDER_RADIUS,
   globalAdvancedSettings: DEFAULT_GLOBAL_ADVANCED_SETTINGS,
   cardConfigs: {},
+  cardOrder: [...DEFAULT_CARD_ORDER],
+  baselineGlobalSnapshot: null,
+  baselineCardConfigs: {},
   settingsTemplates: readTemplatesFromStorage(),
   expandedCardId: null,
   selectedCardIds: new Set(),
@@ -1262,6 +1417,65 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
           );
         },
 
+        setCardOrder: (order) => {
+          const snapshot = get();
+          const allowedIds =
+            Object.keys(snapshot.cardConfigs).length > 0
+              ? Object.keys(snapshot.cardConfigs)
+              : DEFAULT_CARD_ORDER;
+          const nextOrder = normalizeCardOrder(order, allowedIds);
+          set({ cardOrder: nextOrder, isDirty: true }, false, "setCardOrder");
+        },
+
+        reorderCardsInScope: ({ activeId, overId, scopeIds }) => {
+          if (!activeId || !overId || activeId === overId) return;
+
+          const snapshot = get();
+          const allowedIds =
+            Object.keys(snapshot.cardConfigs).length > 0
+              ? Object.keys(snapshot.cardConfigs)
+              : DEFAULT_CARD_ORDER;
+
+          const currentOrder = normalizeCardOrder(
+            snapshot.cardOrder,
+            allowedIds,
+          );
+
+          const scopeSet = scopeIds ? new Set(scopeIds) : null;
+          const scope = scopeSet
+            ? currentOrder.filter((id) => scopeSet.has(id))
+            : currentOrder;
+
+          const fromIndex = scope.indexOf(activeId);
+          const toIndex = scope.indexOf(overId);
+          if (fromIndex < 0 || toIndex < 0) return;
+
+          const nextScope = scope.slice();
+          const [moved] = nextScope.splice(fromIndex, 1);
+          nextScope.splice(toIndex, 0, moved);
+
+          const nextOrder: string[] = [];
+          if (scopeSet) {
+            let i = 0;
+            for (const id of currentOrder) {
+              if (scopeSet.has(id)) {
+                nextOrder.push(nextScope[i] ?? id);
+                i += 1;
+              } else {
+                nextOrder.push(id);
+              }
+            }
+          } else {
+            nextOrder.push(...nextScope);
+          }
+
+          set(
+            { cardOrder: nextOrder, isDirty: true },
+            false,
+            "reorderCardsInScope",
+          );
+        },
+
         // UI actions
         setExpandedCard: (cardId) => {
           set({ expandedCardId: cardId }, false, "setExpandedCard");
@@ -1576,12 +1790,20 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
         },
 
         markSaved: () => {
+          const snapshot = get();
           set(
             {
               isDirty: false,
               isSaving: false,
               saveError: null,
               lastSavedAt: Date.now(),
+              baselineGlobalSnapshot: buildGlobalSettingsSnapshot(snapshot),
+              baselineCardConfigs: Object.fromEntries(
+                Object.entries(snapshot.cardConfigs).map(([id, cfg]) => [
+                  id,
+                  cloneCardEditorConfig(cfg),
+                ]),
+              ),
             },
             false,
             "markSaved",
@@ -1606,6 +1828,25 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
             seededCardConfigs,
             allCardIds,
           );
+
+          const allowedIds =
+            allCardIds && allCardIds.length > 0
+              ? allCardIds
+              : DEFAULT_CARD_ORDER;
+
+          const serverOrder = cards.map((c) => c.cardName);
+          const nextCardOrder = normalizeCardOrder(serverOrder, allowedIds);
+
+          const nextBaselineGlobal = buildGlobalSettingsSnapshot({
+            ...initialState,
+            globalColorPreset: result.globalPreset,
+            globalColors: result.globalColors,
+            globalBorderEnabled: result.globalBorderEnabled,
+            globalBorderColor: result.globalBorderColor,
+            globalBorderRadius: result.globalBorderRadius,
+            globalAdvancedSettings: result.globalAdvancedSettings,
+          });
+
           set(
             {
               userId,
@@ -1618,6 +1859,14 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
               globalBorderRadius: result.globalBorderRadius,
               globalAdvancedSettings: result.globalAdvancedSettings,
               cardConfigs: prunedCardConfigs,
+              cardOrder: nextCardOrder,
+              baselineGlobalSnapshot: nextBaselineGlobal,
+              baselineCardConfigs: Object.fromEntries(
+                Object.entries(prunedCardConfigs).map(([id, cfg]) => [
+                  id,
+                  cloneCardEditorConfig(cfg),
+                ]),
+              ),
               isLoading: false,
               loadError: null,
               isDirty: false,
@@ -1856,6 +2105,40 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
     { name: "UserPageEditor" },
   ),
 );
+
+/**
+ * Selector to get the current canonical card order.
+ * @source
+ */
+export const selectCardOrder = (state: UserPageEditorStore): string[] =>
+  state.cardOrder;
+
+/**
+ * Selector that returns whether a specific card has unsaved modifications.
+ *
+ * Includes:
+ * - per-card config changes relative to the baseline
+ * - global setting changes for cards that fully inherit global settings
+ *
+ * @source
+ */
+export const selectIsCardModified = (
+  state: UserPageEditorStore,
+  cardId: string,
+): boolean => {
+  const current = state.cardConfigs[cardId];
+  const baseline = state.baselineCardConfigs[cardId];
+  if (!current || !baseline) return false;
+
+  if (!areCardConfigsEqual(current, baseline)) return true;
+
+  const baselineGlobal = state.baselineGlobalSnapshot;
+  if (!baselineGlobal) return false;
+  if (!doesCardInheritGlobalSettings(current)) return false;
+
+  const currentGlobal = buildGlobalSettingsSnapshot(state);
+  return !areSettingsSnapshotsEqual(currentGlobal, baselineGlobal);
+};
 
 /**
  * Selector to get all enabled card IDs.

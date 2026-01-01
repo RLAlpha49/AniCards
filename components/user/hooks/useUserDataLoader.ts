@@ -37,12 +37,25 @@ async function fetchUserData(
     }
 
     const data = payload as ReconstructedUserRecord;
-    if (!data?.userId || typeof data.userId !== "number") {
+
+    // Accept numeric userId values even when they're returned as strings
+    // (reconstructed records store many fields as strings). Normalize to a
+    // numeric value and reject only when parsing fails.
+    if (data?.userId === undefined || data?.userId === null) {
+      return { error: "Invalid user data received" };
+    }
+
+    const parsedUserId =
+      typeof data.userId === "number"
+        ? data.userId
+        : Number.parseInt(String(data.userId), 10);
+
+    if (Number.isNaN(parsedUserId)) {
       return { error: "Invalid user data received" };
     }
 
     return {
-      userId: String(data.userId),
+      userId: String(parsedUserId),
       username: data.username || null,
       avatarUrl:
         data.stats?.User?.avatar?.medium ||

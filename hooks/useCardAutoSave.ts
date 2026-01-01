@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useCallback, useRef } from "react";
-import { useUserPageEditor } from "@/lib/stores/user-page-editor";
+import {
+  useUserPageEditor,
+  type CardEditorConfig,
+} from "@/lib/stores/user-page-editor";
 import { getResponseErrorMessage, parseResponsePayload } from "@/lib/utils";
 import {
   colorPresets,
   statCardTypes,
 } from "@/components/stat-card-generator/constants";
 import type { ColorValue } from "@/lib/types/card";
-import { ServerCardData } from "@/lib/api/cards";
+import type { ServerCardData } from "@/lib/api/cards";
 
 /**
  * Default debounce delay for auto-save in milliseconds.
@@ -49,6 +52,134 @@ function ensureFourColors(colors?: ColorValue[]): ColorValue[] {
     out.push(defaultColors[i]);
   }
   return out;
+}
+
+function buildGlobalPayloadAndColorsFromState(state: {
+  globalColorPreset: string;
+  globalColors?: ColorValue[];
+  globalBorderEnabled: boolean;
+  globalBorderColor: string;
+  globalBorderRadius?: number;
+  globalAdvancedSettings: {
+    useStatusColors?: boolean;
+    showPiePercentages?: boolean;
+    showFavorites?: boolean;
+    gridCols?: number;
+    gridRows?: number;
+  };
+}): {
+  globalSettings: GlobalSettingsPayload;
+  normalizedGlobalColors: ColorValue[];
+} {
+  const shouldSendGlobalColors =
+    !state.globalColorPreset || state.globalColorPreset === "custom";
+  const normalizedGlobalColors = ensureFourColors(state.globalColors);
+
+  const globalSettings: GlobalSettingsPayload = {
+    colorPreset: state.globalColorPreset,
+    titleColor: shouldSendGlobalColors ? normalizedGlobalColors[0] : undefined,
+    backgroundColor: shouldSendGlobalColors
+      ? normalizedGlobalColors[1]
+      : undefined,
+    textColor: shouldSendGlobalColors ? normalizedGlobalColors[2] : undefined,
+    circleColor: shouldSendGlobalColors ? normalizedGlobalColors[3] : undefined,
+    borderEnabled: state.globalBorderEnabled,
+    borderColor: state.globalBorderColor,
+    borderRadius: state.globalBorderEnabled
+      ? state.globalBorderRadius
+      : undefined,
+    useStatusColors: state.globalAdvancedSettings.useStatusColors,
+    showPiePercentages: state.globalAdvancedSettings.showPiePercentages,
+    showFavorites: state.globalAdvancedSettings.showFavorites,
+    gridCols: state.globalAdvancedSettings.gridCols,
+    gridRows: state.globalAdvancedSettings.gridRows,
+  };
+
+  return { globalSettings, normalizedGlobalColors };
+}
+
+function getCardConfigsInSaveOrder(opts: {
+  cardConfigs: Record<string, CardEditorConfig>;
+  cardOrder?: readonly string[];
+  allowedIds: ReadonlySet<string>;
+  fallbackOrder: readonly string[];
+}): CardEditorConfig[] {
+  const orderedIds =
+    Array.isArray(opts.cardOrder) && opts.cardOrder.length > 0
+      ? opts.cardOrder
+      : opts.fallbackOrder;
+
+  const configs: CardEditorConfig[] = [];
+  const seen = new Set<string>();
+
+  for (const id of orderedIds) {
+    const cfg = opts.cardConfigs[id];
+    if (!cfg) continue;
+    if (!opts.allowedIds.has(cfg.cardId)) continue;
+    configs.push(cfg);
+    seen.add(cfg.cardId);
+  }
+
+  // Include any remaining allowed configs not present in cardOrder.
+  for (const cfg of Object.values(opts.cardConfigs)) {
+    if (!opts.allowedIds.has(cfg.cardId)) continue;
+    if (seen.has(cfg.cardId)) continue;
+    configs.push(cfg);
+  }
+
+  return configs;
+}
+
+function buildCardPayloadsFromConfigs(opts: {
+  configs: readonly CardEditorConfig[];
+  globalColorPreset: string;
+  normalizedGlobalColors: ColorValue[];
+}): ServerCardData[] {
+  return opts.configs.map((config) => {
+    const useCustomSettings = config.colorOverride.useCustomSettings;
+
+    const baseCardId = (config.cardId || "").split("-")[0] || "";
+    const isFavoritesGrid = baseCardId === "favoritesGrid";
+
+    const effectivePreset = useCustomSettings
+      ? config.colorOverride.colorPreset || "custom"
+      : opts.globalColorPreset;
+
+    const shouldSendColors = !effectivePreset || effectivePreset === "custom";
+
+    const overrideColors =
+      useCustomSettings && Array.isArray(config.colorOverride.colors)
+        ? ensureFourColors(config.colorOverride.colors)
+        : undefined;
+    const effectiveColors: ColorValue[] =
+      overrideColors ?? opts.normalizedGlobalColors;
+
+    const cardData: ServerCardData = {
+      cardName: config.cardId,
+      variation: config.variant,
+      colorPreset: effectivePreset,
+      titleColor: shouldSendColors ? effectiveColors[0] : undefined,
+      backgroundColor: shouldSendColors ? effectiveColors[1] : undefined,
+      textColor: shouldSendColors ? effectiveColors[2] : undefined,
+      circleColor: shouldSendColors ? effectiveColors[3] : undefined,
+      useCustomSettings,
+    };
+
+    if (useCustomSettings) {
+      cardData.borderColor = config.borderColor;
+      cardData.borderRadius = config.borderRadius;
+      cardData.useStatusColors = config.advancedSettings.useStatusColors;
+      cardData.showPiePercentages = config.advancedSettings.showPiePercentages;
+      cardData.showFavorites = config.advancedSettings.showFavorites;
+
+      if (isFavoritesGrid) {
+        cardData.gridCols = config.advancedSettings.gridCols;
+        cardData.gridRows = config.advancedSettings.gridRows;
+      }
+    }
+
+    return config.enabled ? cardData : { ...cardData, disabled: true };
+  });
 }
 
 /**
@@ -101,86 +232,37 @@ export function buildCardsFromState(): {
   const {
     userId,
     cardConfigs,
+    cardOrder,
     globalColorPreset,
-    globalColors,
     globalBorderEnabled,
     globalBorderColor,
     globalBorderRadius,
     globalAdvancedSettings,
   } = state;
 
-  // Build global settings payload
-  const shouldSendGlobalColors =
-    !globalColorPreset || globalColorPreset === "custom";
-  const normalizedGlobalColors = ensureFourColors(globalColors);
-  const globalSettings: GlobalSettingsPayload = {
-    colorPreset: globalColorPreset,
-    titleColor: shouldSendGlobalColors ? normalizedGlobalColors[0] : undefined,
-    backgroundColor: shouldSendGlobalColors
-      ? normalizedGlobalColors[1]
-      : undefined,
-    textColor: shouldSendGlobalColors ? normalizedGlobalColors[2] : undefined,
-    circleColor: shouldSendGlobalColors ? normalizedGlobalColors[3] : undefined,
-    borderEnabled: globalBorderEnabled,
-    borderColor: globalBorderColor,
-    borderRadius: globalBorderEnabled ? globalBorderRadius : undefined,
-    useStatusColors: globalAdvancedSettings.useStatusColors,
-    showPiePercentages: globalAdvancedSettings.showPiePercentages,
-    showFavorites: globalAdvancedSettings.showFavorites,
-    gridCols: globalAdvancedSettings.gridCols,
-    gridRows: globalAdvancedSettings.gridRows,
-  };
+  const { globalSettings, normalizedGlobalColors } =
+    buildGlobalPayloadAndColorsFromState({
+      globalColorPreset,
+      globalColors: state.globalColors,
+      globalBorderEnabled,
+      globalBorderColor,
+      globalBorderRadius,
+      globalAdvancedSettings,
+    });
 
   const allowedIds = new Set(statCardTypes.map((t) => t.id));
-  const configsArray = Object.values(cardConfigs).filter((c) =>
-    allowedIds.has(c.cardId),
-  );
+  const fallbackOrder = statCardTypes.map((t) => t.id);
+  const configsArray = getCardConfigsInSaveOrder({
+    cardConfigs,
+    cardOrder,
+    allowedIds,
+    fallbackOrder,
+  });
 
-  // Build cards for all configs, preserving full per-card configuration even when disabled.
-  const cards: ServerCardData[] = configsArray.map((config) => {
-    const useCustomSettings = config.colorOverride.useCustomSettings;
-
-    const baseCardId = (config.cardId || "").split("-")[0] || "";
-    const isFavoritesGrid = baseCardId === "favoritesGrid";
-
-    const effectivePreset = useCustomSettings
-      ? config.colorOverride.colorPreset || "custom"
-      : globalColorPreset;
-
-    const shouldSendColors = !effectivePreset || effectivePreset === "custom";
-
-    const overrideColors =
-      useCustomSettings && Array.isArray(config.colorOverride.colors)
-        ? ensureFourColors(config.colorOverride.colors)
-        : undefined;
-    const effectiveColors: ColorValue[] =
-      overrideColors ?? normalizedGlobalColors;
-
-    const cardData: ServerCardData = {
-      cardName: config.cardId,
-      variation: config.variant,
-      colorPreset: effectivePreset,
-      titleColor: shouldSendColors ? effectiveColors[0] : undefined,
-      backgroundColor: shouldSendColors ? effectiveColors[1] : undefined,
-      textColor: shouldSendColors ? effectiveColors[2] : undefined,
-      circleColor: shouldSendColors ? effectiveColors[3] : undefined,
-      useCustomSettings,
-    };
-
-    if (useCustomSettings) {
-      cardData.borderColor = config.borderColor;
-      cardData.borderRadius = config.borderRadius;
-      cardData.useStatusColors = config.advancedSettings.useStatusColors;
-      cardData.showPiePercentages = config.advancedSettings.showPiePercentages;
-      cardData.showFavorites = config.advancedSettings.showFavorites;
-
-      if (isFavoritesGrid) {
-        cardData.gridCols = config.advancedSettings.gridCols;
-        cardData.gridRows = config.advancedSettings.gridRows;
-      }
-    }
-
-    return config.enabled ? cardData : { ...cardData, disabled: true };
+  const cards = buildCardPayloadsFromConfigs({
+    configs: configsArray,
+    globalColorPreset,
+    normalizedGlobalColors,
   });
 
   return { userId, cards, globalSettings };

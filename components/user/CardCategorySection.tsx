@@ -10,8 +10,33 @@ import {
 } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, ChevronRight } from "lucide-react";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DraggableAttributes,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  rectSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
 import { VirtualizedCardGrid } from "@/components/user/VirtualizedCardGrid";
+
+export type CardTileDragHandleProps = {
+  attributes: DraggableAttributes;
+  // We intentionally keep this loosely typed to avoid depending on dnd-kit internal types.
+  // It is safe to spread onto a <button> element.
+  listeners?: Record<string, unknown>;
+  setActivatorNodeRef: (element: HTMLElement | null) => void;
+};
 
 /**
  * Props for CardCategorySection component.
@@ -42,14 +67,68 @@ export interface CardCategorySectionProps<
 
   /** Optional data-driven rendering (enables virtualization). */
   cards?: readonly TCard[];
-  renderCard?: (card: TCard, index: number) => React.ReactNode;
+  renderCard?: (
+    card: TCard,
+    index: number,
+    ctx?: {
+      dragHandleProps?: CardTileDragHandleProps;
+      isDragging?: boolean;
+    },
+  ) => React.ReactNode;
   getCardKey?: (card: TCard, index: number) => React.Key;
 
   /** Force virtualization on/off when `cards` are provided. */
   virtualize?: boolean;
 
+  /** Enable drag-and-drop sorting of cards inside this category. */
+  reorderable?: boolean;
+  /** Called when the user reorders cards within this category. */
+  onReorder?: (opts: {
+    activeId: string;
+    overId: string;
+    scopeIds: readonly string[];
+  }) => void;
+
   /** Used to trigger scroll offset recomputation for window virtualization. */
   scrollMarginKey?: string | number;
+}
+
+function SortableCardItem<TCard extends { id: string }>({
+  card,
+  index,
+  renderCard,
+}: Readonly<{
+  card: TCard;
+  index: number;
+  renderCard: NonNullable<CardCategorySectionProps<TCard>["renderCard"]>;
+}>) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: card.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn("min-w-0", isDragging && "z-10 opacity-70")}
+    >
+      {renderCard(card, index, {
+        dragHandleProps: { attributes, listeners, setActivatorNodeRef },
+        isDragging,
+      })}
+    </div>
+  );
 }
 
 /**
@@ -71,6 +150,8 @@ function CardCategorySectionInner<TCard extends { id: string }>({
   renderCard,
   getCardKey,
   virtualize,
+  reorderable = false,
+  onReorder,
   scrollMarginKey,
 }: Readonly<CardCategorySectionProps<TCard>>) {
   const contentId = useId();
@@ -99,13 +180,61 @@ function CardCategorySectionInner<TCard extends { id: string }>({
   const hasCards = Boolean(cards && cards.length > 0 && renderCard);
   const shouldVirtualize = useMemo(() => {
     if (!hasCards) return false;
+    if (reorderable) return false;
     if (typeof virtualize === "boolean") return virtualize;
     // Heuristic: once a category has enough items, virtualization pays off.
     return (cards?.length ?? 0) >= 18;
-  }, [cards?.length, hasCards, virtualize]);
+  }, [cards?.length, hasCards, reorderable, virtualize]);
 
+  const sortableIds = useMemo(
+    () => (cards ? cards.map((c) => c.id) : []),
+    [cards],
+  );
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      if (!reorderable || !onReorder) return;
+      const { active, over } = event;
+      const activeId = String(active.id);
+      // If dropped outside a valid target, `over` is null - treat as cancelled
+      const overId = over ? String(over.id) : "";
+      if (!overId || activeId === overId) return;
+      onReorder({ activeId, overId, scopeIds: sortableIds });
+    },
+    [onReorder, reorderable, sortableIds],
+  );
   const grid = useMemo(() => {
     if (hasCards && cards && renderCard) {
+      if (reorderable) {
+        return (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext items={sortableIds} strategy={rectSortingStrategy}>
+              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {cards.map((card, index) => (
+                  <SortableCardItem
+                    key={card.id}
+                    card={card}
+                    index={index}
+                    renderCard={renderCard}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        );
+      }
+
       if (shouldVirtualize) {
         return (
           <VirtualizedCardGrid
@@ -119,7 +248,7 @@ function CardCategorySectionInner<TCard extends { id: string }>({
 
       const keyFn = getCardKey ?? ((c: TCard, index: number) => c.id ?? index);
       return (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
           {cards.map((card, index) => (
             <div key={keyFn(card, index)} className="min-w-0">
               {renderCard(card, index)}
@@ -130,16 +259,20 @@ function CardCategorySectionInner<TCard extends { id: string }>({
     }
 
     return (
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{children}</div>
+      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{children}</div>
     );
   }, [
     cards,
     children,
     getCardKey,
     hasCards,
+    handleDragEnd,
+    reorderable,
     renderCard,
     scrollMarginKey,
+    sensors,
     shouldVirtualize,
+    sortableIds,
   ]);
 
   return (

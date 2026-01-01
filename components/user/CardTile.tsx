@@ -7,10 +7,12 @@ import { VariantSelector } from "@/components/user/tile/VariantSelector";
 import { CardPreview } from "@/components/user/tile/CardPreview";
 
 import { CardSettingsDialog } from "@/components/user/CardSettingsDialog";
+import type { CardTileDragHandleProps } from "@/components/user/CardCategorySection";
 import { getCardInfoTooltip } from "@/lib/card-info-tooltips";
 import {
-  CardEditorConfig,
+  type CardEditorConfig,
   isCardCustomized,
+  selectIsCardModified,
   useUserPageEditor,
 } from "@/lib/stores/user-page-editor";
 import { cn, getCardBorderRadius } from "@/lib/utils";
@@ -49,6 +51,12 @@ interface CardTileProps {
   isFavoritesGrid?: boolean;
   /** Optional info tooltip content (overrides default from card-info-tooltips) */
   infoTooltip?: string;
+
+  /** Optional drag handle wiring (used for drag-and-drop reordering). */
+  dragHandleProps?: CardTileDragHandleProps;
+
+  /** Whether the tile is currently being dragged. */
+  isDragging?: boolean;
 }
 
 const DEFAULT_CARD_CONFIG: CardEditorConfig = {
@@ -74,6 +82,8 @@ export const CardTile = memo(function CardTile({
   supportsFavorites = false,
   isFavoritesGrid = false,
   infoTooltip,
+  dragHandleProps,
+  isDragging = false,
 }: Readonly<CardTileProps>) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [copyPopoverOpen, setCopyPopoverOpen] = useState(false);
@@ -98,6 +108,7 @@ export const CardTile = memo(function CardTile({
     globalAdvancedSettings,
     configFromStore,
     isSelected,
+    isModified,
     setCardEnabled,
     setCardVariant,
     toggleCardSelection,
@@ -114,6 +125,7 @@ export const CardTile = memo(function CardTile({
       globalAdvancedSettings: s.globalAdvancedSettings,
       configFromStore: s.cardConfigs[cardId],
       isSelected: s.selectedCardIds.has(cardId),
+      isModified: selectIsCardModified(s, cardId),
       setCardEnabled: s.setCardEnabled,
       setCardVariant: s.setCardVariant,
       toggleCardSelection: s.toggleCardSelection,
@@ -128,6 +140,9 @@ export const CardTile = memo(function CardTile({
   );
 
   const isCustomized = useMemo(() => isCardCustomized(config), [config]);
+  const usesCustomSettings = Boolean(
+    (configFromStore ?? DEFAULT_CARD_CONFIG).colorOverride.useCustomSettings,
+  );
 
   const handleToggleSelection = useCallback(
     (checked: boolean | "indeterminate") => {
@@ -263,10 +278,13 @@ export const CardTile = memo(function CardTile({
     <div
       data-testid={`card-tile-${cardId}`}
       className={cn(
-        "group relative overflow-hidden rounded-xl border transition-all duration-200",
+        "group relative overflow-hidden rounded-2xl border transition-all duration-200",
+        "focus-within:ring-2 focus-within:ring-blue-500/70 focus-within:ring-offset-2 dark:focus-within:ring-offset-slate-950",
+        "hover:-translate-y-0.5 hover:shadow-xl",
+        isDragging && "z-10 cursor-grabbing opacity-80",
         config.enabled
-          ? "border-blue-200 bg-white shadow-md dark:border-blue-800/50 dark:bg-slate-800"
-          : "border-slate-200/50 bg-slate-50/50 dark:border-slate-700/50 dark:bg-slate-900/50",
+          ? "border-blue-200/70 bg-white/85 shadow-md backdrop-blur-sm dark:border-blue-800/40 dark:bg-slate-900/55"
+          : "border-slate-200/60 bg-slate-50/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-950/35",
         isSelected &&
           config.enabled &&
           "ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-slate-900",
@@ -277,11 +295,14 @@ export const CardTile = memo(function CardTile({
         label={label}
         enabled={config.enabled}
         isCustomized={isCustomized}
+        usesCustomSettings={usesCustomSettings}
+        isModified={isModified}
         onToggleEnabled={handleToggleEnabled}
         tooltipContent={tooltipContent}
         isSelected={isSelected}
         onToggleSelection={handleToggleSelection}
         onOpenSettings={openSettings}
+        dragHandleProps={dragHandleProps}
       />
 
       {/* Preview and Controls (only when enabled) */}

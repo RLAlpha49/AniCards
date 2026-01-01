@@ -114,7 +114,9 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
   const cardProps = props.mode === "card" ? props : null;
   const [isSettingsValid, setIsSettingsValid] = useState(true);
 
-  const isCustomized = cardProps ? Boolean(cardProps.isCustomized ?? cardProps.useCustomSettings) : false;
+  const isCustomized = cardProps
+    ? Boolean(cardProps.isCustomized ?? cardProps.useCustomSettings)
+    : false;
 
   const iconClass = isCustomized
     ? "bg-gradient-to-br from-blue-500 to-cyan-500 shadow-md shadow-cyan-500/20"
@@ -124,9 +126,13 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
     ? "border-blue-200 bg-gradient-to-r from-blue-50 to-white dark:border-blue-900/40 dark:from-blue-900/10"
     : "border-slate-200/50 bg-gradient-to-r from-slate-50 to-white dark:border-slate-700/50 dark:from-slate-800/50 dark:to-slate-900";
 
-  const useCustomTitleClass = isCustomized ? "text-blue-700 dark:text-blue-200" : "text-slate-900 dark:text-white";
+  const useCustomTitleClass = isCustomized
+    ? "text-blue-700 dark:text-blue-200"
+    : "text-slate-900 dark:text-white";
 
-  const useCustomPClass = isCustomized ? "text-blue-600" : "text-slate-500 dark:text-slate-400";
+  const useCustomPClass = isCustomized
+    ? "text-blue-600"
+    : "text-slate-500 dark:text-slate-400";
 
   // Move settings body rendering to a small helper to keep main function complexity low
   const settingsBody = (
@@ -142,7 +148,12 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
     <div className={cn("space-y-4", className)}>
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
-          <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", iconClass)}>
+          <div
+            className={cn(
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+              iconClass,
+            )}
+          >
             <SlidersHorizontal
               className="h-5 w-5 text-white"
               aria-hidden="true"
@@ -196,7 +207,12 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
 
       <div className="mt-4 space-y-6">
         {cardProps && (
-          <div className={cn("flex items-center justify-between rounded-xl border p-4 shadow-sm", useCustomPanelClass)}>
+          <div
+            className={cn(
+              "flex items-center justify-between rounded-xl border p-4 shadow-sm",
+              useCustomPanelClass,
+            )}
+          >
             <div className="flex items-center gap-3">
               {cardProps.useCustomSettings ? (
                 <ToggleRight
@@ -210,7 +226,9 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
                 />
               )}
               <div>
-                <span className={cn("text-sm font-semibold", useCustomTitleClass)}>
+                <span
+                  className={cn("text-sm font-semibold", useCustomTitleClass)}
+                >
                   Use Custom Settings
                 </span>
                 <p className={cn("text-xs", useCustomPClass)}>
