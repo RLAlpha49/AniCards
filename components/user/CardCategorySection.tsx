@@ -248,7 +248,7 @@ function CardCategorySectionInner<TCard extends { id: string }>({
         );
       }
 
-      const keyFn = getCardKey ?? ((c: TCard, index: number) => c.id ?? index);
+      const keyFn = getCardKey ?? ((c: TCard) => c.id);
       return (
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
           {cards.map((card, index) => (
