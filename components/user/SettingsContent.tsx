@@ -463,7 +463,10 @@ export function SettingsContent({
                 variant={
                   borderEnabled && borderRadius === 0 ? "default" : "outline"
                 }
-                onClick={() => onBorderRadiusChange(0)}
+                onClick={() => {
+                  if (!borderEnabled) onBorderEnabledChange(true);
+                  onBorderRadiusChange(0);
+                }}
                 className="h-8"
               >
                 Square
@@ -474,7 +477,10 @@ export function SettingsContent({
                 variant={
                   borderEnabled && borderRadius === 16 ? "default" : "outline"
                 }
-                onClick={() => onBorderRadiusChange(16)}
+                onClick={() => {
+                  if (!borderEnabled) onBorderEnabledChange(true);
+                  onBorderRadiusChange(16);
+                }}
                 className="h-8"
               >
                 Rounded
