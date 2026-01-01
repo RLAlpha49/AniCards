@@ -301,7 +301,7 @@ export function SettingsContent({
       if (isCssNamedColor(trimmed)) return true;
       return false;
     },
-    [borderEnabled, isCssNamedColor],
+    [borderEnabled],
   );
 
   // Keep a ref to the latest onValidityChange so we can call it without causing
