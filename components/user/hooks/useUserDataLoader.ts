@@ -141,7 +141,7 @@ export function useUserDataLoader() {
       setLoading(false);
       setLoadingPhase("complete");
     },
-    [initializeFromServerData, setLoading, setLoadError],
+    [initializeFromServerData, setLoading, setLoadError, setLoadingPhase],
   );
 
   const load = useCallback(async () => {
