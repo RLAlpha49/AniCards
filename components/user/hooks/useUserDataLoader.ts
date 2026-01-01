@@ -238,6 +238,7 @@ export function useUserDataLoader() {
     setUserData,
     startSetup,
     handleCardsForExistingUser,
+    setLoadingPhase,
   ]);
 
   useEffect(() => {
