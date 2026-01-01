@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 import {
   AlertCircle,
   LayoutGrid,
@@ -29,11 +30,24 @@ import {
   UserPlus,
   MoreHorizontal,
   GripVertical,
+  Save,
+  Trash2,
+  History,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/Dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/AlertDialog";
 import {
   Select,
   SelectContent,
@@ -65,8 +79,16 @@ import { CardTile } from "./CardTile";
 import { BulkActionsToolbar } from "./BulkActionsToolbar";
 import { BulkConfirmDialog } from "./bulk/BulkConfirmDialog";
 import { DISABLED_CARD_INFO } from "@/lib/card-info-tooltips";
-import { useUserPageEditor } from "@/lib/stores/user-page-editor";
+import {
+  buildLocalEditsPatch,
+  useUserPageEditor,
+} from "@/lib/stores/user-page-editor";
 import { useCardAutoSave } from "@/hooks/useCardAutoSave";
+import { useUserPageDraftBackup } from "@/hooks/useUserPageDraftBackup";
+import {
+  clearUserPageDraft,
+  readUserPageDraft,
+} from "@/lib/user-page-editor-draft";
 import { cn } from "@/lib/utils";
 import { useNewUserSetup } from "./hooks/useNewUserSetup";
 import { useCardFiltering } from "./hooks/useCardFiltering";
@@ -120,6 +142,126 @@ const PIE_PERCENTAGE_CARDS = new Set([
   "mangaFormatDistribution",
   "mangaCountry",
 ]);
+
+function SaveConflictNotice({
+  isVisible,
+  onKeepEdits,
+  onReloadLatest,
+}: Readonly<{
+  isVisible: boolean;
+  onKeepEdits: () => void;
+  onReloadLatest: () => void;
+}>) {
+  if (!isVisible) return null;
+
+  return (
+    <div className="flex justify-center">
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.08 }}
+        className="w-full max-w-[700px] rounded-xl border border-red-200/60 bg-gradient-to-r from-red-50/80 to-amber-50/80 px-4 py-3 backdrop-blur-sm dark:border-red-900/50 dark:from-red-950/25 dark:to-amber-950/20"
+      >
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/40">
+            <AlertTriangle className="h-4 w-4 text-red-700 dark:text-red-300" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm text-red-800 dark:text-red-200">
+              <span className="font-medium">Save conflict:</span> another tab
+              saved changes. Reload to sync, then re-apply your edits.
+            </p>
+
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full rounded-xl sm:w-auto"
+                onClick={onKeepEdits}
+              >
+                <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />
+                Reload & keep edits
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full rounded-xl sm:w-auto"
+                onClick={onReloadLatest}
+              >
+                Reload latest
+              </Button>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function DraftRestoreNotice({
+  isVisible,
+  onRestore,
+  onDiscard,
+  onDismiss,
+}: Readonly<{
+  isVisible: boolean;
+  onRestore: () => void;
+  onDiscard: () => void;
+  onDismiss: () => void;
+}>) {
+  if (!isVisible) return null;
+
+  return (
+    <div className="flex justify-center">
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="w-full max-w-[700px] rounded-xl border border-indigo-200/60 bg-gradient-to-r from-indigo-50/80 to-purple-50/80 px-4 py-3 backdrop-blur-sm dark:border-indigo-900/40 dark:from-indigo-950/25 dark:to-purple-950/20"
+      >
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-100 dark:bg-indigo-900/40">
+            <History className="h-4 w-4 text-indigo-700 dark:text-indigo-300" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm text-indigo-900 dark:text-indigo-100">
+              <span className="font-medium">Draft found:</span> we found unsaved
+              changes from a previous session.
+            </p>
+
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full rounded-xl sm:w-auto"
+                onClick={onRestore}
+              >
+                Restore draft
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full rounded-xl sm:w-auto"
+                onClick={onDiscard}
+              >
+                Discard draft
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="justify-start"
+                onClick={onDismiss}
+              >
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
 
 /**
  * Card types that support favorites toggle.
@@ -257,6 +399,8 @@ export function UserPageEditor() {
     bulkFutureLength,
     bulkLastMessage,
     reorderCardsInScope,
+    discardChanges,
+    applyLocalEditsPatch,
   } = useUserPageEditor(
     useShallow((s) => ({
       userId: s.userId,
@@ -278,6 +422,8 @@ export function UserPageEditor() {
       bulkFutureLength: s.bulkFuture.length,
       bulkLastMessage: s.bulkLastMessage,
       reorderCardsInScope: s.reorderCardsInScope,
+      discardChanges: s.discardChanges,
+      applyLocalEditsPatch: s.applyLocalEditsPatch,
     })),
   );
   const canUndoBulk = bulkPastLength > 0;
@@ -320,6 +466,11 @@ export function UserPageEditor() {
   );
 
   const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false);
+  const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
+
+  const [draftRecord, setDraftRecord] =
+    useState<ReturnType<typeof readUserPageDraft>>(null);
+  const [isDraftNoticeDismissed, setIsDraftNoticeDismissed] = useState(false);
 
   const VALID_VISIBILITY = new Set(["all", "enabled", "disabled"]);
 
@@ -378,10 +529,14 @@ export function UserPageEditor() {
   });
 
   // Data loader hook manages the main load flow and loading phases
-  const { loadingPhase } = useUserDataLoader();
+  const { loadingPhase, reload } = useUserDataLoader();
 
   // Auto-save hook
-  const { saveNow } = useCardAutoSave({ debounceMs: 1500 });
+  const { saveNow, saveConflict, clearSaveConflict } = useCardAutoSave({
+    debounceMs: 1500,
+  });
+
+  useUserPageDraftBackup();
 
   const allCardIds = useMemo(() => {
     const ids: string[] = [];
@@ -476,11 +631,80 @@ export function UserPageEditor() {
         e.preventDefault();
         setVisibility((prev) => (prev === "enabled" ? "all" : "enabled"));
       }
+
+      if ((e.ctrlKey || e.metaKey) && key === "s") {
+        e.preventDefault();
+        void saveNow();
+      }
     };
 
     globalThis.addEventListener("keydown", handler);
     return () => globalThis.removeEventListener("keydown", handler);
-  }, [searchRef]);
+  }, [saveNow]);
+
+  useEffect(() => {
+    if (!userId || isLoading) return;
+    if (isDirty) return;
+
+    const next = readUserPageDraft(userId);
+    setDraftRecord(next);
+    setIsDraftNoticeDismissed(false);
+  }, [userId, isLoading, isDirty]);
+
+  const showDraftNotice =
+    !isDraftNoticeDismissed && draftRecord != null && !isDirty;
+  const showConflictNotice = saveConflict != null;
+
+  const canSaveNow =
+    Boolean(userId) && isDirty && !isSaving && !showConflictNotice;
+  const canDiscardNow = isDirty && !isSaving;
+
+  const handleResolveConflictKeepEdits = useCallback(async () => {
+    if (!userId) return;
+
+    const patch = buildLocalEditsPatch(useUserPageEditor.getState());
+
+    try {
+      await reload();
+      clearSaveConflict();
+
+      if (patch) {
+        applyLocalEditsPatch(patch);
+        await saveNow();
+      }
+    } catch (err) {
+      console.error("Failed to resolve conflict:", err);
+      toast.error("Failed to reload latest changes", {
+        description: "Please check your connection and try again.",
+      });
+    }
+  }, [applyLocalEditsPatch, clearSaveConflict, reload, saveNow, userId]);
+
+  const handleResolveConflictDiscardEdits = useCallback(async () => {
+    try {
+      await reload();
+      clearSaveConflict();
+    } catch (err) {
+      console.error("Failed to reload latest changes:", err);
+      toast.error("Failed to reload latest changes", {
+        description: "Please check your connection and try again.",
+      });
+    }
+  }, [clearSaveConflict, reload]);
+
+  const handleRestoreDraft = useCallback(() => {
+    if (!draftRecord) return;
+    applyLocalEditsPatch(draftRecord.patch);
+    setDraftRecord(null);
+    toast.success("Draft restored");
+  }, [applyLocalEditsPatch, draftRecord]);
+
+  const handleDiscardDraft = useCallback(() => {
+    if (!userId) return;
+    clearUserPageDraft(userId);
+    setDraftRecord(null);
+    toast.success("Draft discarded");
+  }, [userId]);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -666,6 +890,19 @@ export function UserPageEditor() {
 
         {/* Notices Section */}
         <div className="mx-auto mt-6 flex max-w-[80vw] flex-col gap-4">
+          <SaveConflictNotice
+            isVisible={showConflictNotice}
+            onKeepEdits={() => void handleResolveConflictKeepEdits()}
+            onReloadLatest={() => void handleResolveConflictDiscardEdits()}
+          />
+
+          <DraftRestoreNotice
+            isVisible={showDraftNotice}
+            onRestore={handleRestoreDraft}
+            onDiscard={handleDiscardDraft}
+            onDismiss={() => setIsDraftNoticeDismissed(true)}
+          />
+
           {/* Welcome Notice for New Users */}
           {isNewUser && (
             <div className="flex justify-center">
@@ -863,13 +1100,35 @@ export function UserPageEditor() {
                     type="button"
                     variant="outline"
                     className="w-full shrink-0 rounded-xl sm:w-auto"
+                    onClick={() => void saveNow()}
+                    disabled={!canSaveNow}
+                    title="Save now (Ctrl/Cmd+S)"
+                    aria-keyshortcuts="Control+S Meta+S"
+                  >
+                    <Save className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Save
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full shrink-0 rounded-xl border-red-200 bg-red-50/40 text-red-700 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40 sm:w-auto"
+                    onClick={() => setIsDiscardDialogOpen(true)}
+                    disabled={!canDiscardNow}
+                    title="Discard unsaved changes"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Discard
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full shrink-0 rounded-xl sm:w-auto"
                     onClick={() => setIsHelpDialogOpen(true)}
                     aria-haspopup="dialog"
                   >
                     <Info className="mr-2 h-4 w-4" aria-hidden="true" />
                     Help
                   </Button>
-
                   {/* Global Settings Button */}
                   <Dialog>
                     <DialogTrigger asChild>
@@ -886,6 +1145,38 @@ export function UserPageEditor() {
                       <GlobalSettingsPanel onSave={saveNow} />
                     </DialogContent>
                   </Dialog>
+                  <AlertDialog
+                    open={isDiscardDialogOpen}
+                    onOpenChange={setIsDiscardDialogOpen}
+                  >
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>
+                          Discard unsaved changes?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will revert your editor to the last loaded/saved
+                          state. This can't be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-red-600 text-white hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700"
+                          onClick={() => {
+                            discardChanges();
+                            clearSaveConflict();
+                            if (userId) clearUserPageDraft(userId);
+                            setDraftRecord(null);
+                            setIsDiscardDialogOpen(false);
+                            toast.success("Changes discarded");
+                          }}
+                        >
+                          Discard changes
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>{" "}
                 </div>
               </div>
 

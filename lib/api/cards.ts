@@ -47,6 +47,7 @@ export interface ServerGlobalSettings {
 export type FetchUserCardsSuccess = {
   cards: ServerCardData[];
   globalSettings?: ServerGlobalSettings;
+  updatedAt?: string;
 };
 
 export type FetchUserCardsError = { error: string; notFound?: true };
@@ -73,9 +74,14 @@ export async function fetchUserCards(
     const data = payload as {
       cards?: ServerCardData[];
       globalSettings?: ServerGlobalSettings;
+      updatedAt?: string;
     };
     const cards = Array.isArray(data.cards) ? data.cards : [];
-    return { cards, globalSettings: data.globalSettings };
+    return {
+      cards,
+      globalSettings: data.globalSettings,
+      updatedAt: data.updatedAt,
+    };
   } catch (err) {
     console.error("Error fetching cards:", err);
     return { error: "Failed to fetch cards" };

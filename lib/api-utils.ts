@@ -590,11 +590,25 @@ function validateCardRequiredFields(
     return null;
   }
 
-  /** Validate required color fields, allowing hex string or gradient defs. */
+  /** Validate required color fields, allowing hex string or gradient defs.
+   *
+   * When the incoming card object contains none of the color fields, treat it as
+   * a partial patch (colors may be provided by the existing stored record). In
+   * that case, skip the strict "all colors present" check here and allow the
+   * merge step to fill missing values; a final merged-state validation will
+   * enforce presence before persisting.
+   */
   function validateRequiredColorFields(
     cardObj: Record<string, unknown>,
     fields: string[],
   ): NextResponse<ApiError> | null {
+    // If the incoming card includes no color fields at all, treat as a partial
+    // patch and skip requiring color fields (they may be merged from existing record).
+    const anyColorPresent = fields.some(
+      (f) => cardObj[f] !== undefined && cardObj[f] !== null,
+    );
+    if (!anyColorPresent) return null;
+
     for (const field of fields) {
       const value = cardObj[field];
       if (value === undefined || value === null) {

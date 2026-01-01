@@ -30,6 +30,8 @@ import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
 import { VirtualizedCardGrid } from "@/components/user/VirtualizedCardGrid";
 
+const VIRTUALIZATION_THRESHOLD = 18;
+
 export type CardTileDragHandleProps = {
   attributes: DraggableAttributes;
   // We intentionally keep this loosely typed to avoid depending on dnd-kit internal types.
@@ -178,7 +180,6 @@ function CardCategorySectionInner<TCard extends { id: string }>({
   }, [isExpanded, setExpanded]);
 
   const hasCards = Boolean(cards && cards.length > 0 && renderCard);
-  const VIRTUALIZATION_THRESHOLD = 18; 
   const shouldVirtualize = useMemo(() => {
     if (!hasCards) return false;
     if (reorderable) return false;

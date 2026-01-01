@@ -15,7 +15,12 @@ import {
   buildAnalyticsMetricKey,
   jsonWithCors,
 } from "@/lib/api-utils";
-import { clampBorderRadius, safeParse, validateColorValue } from "@/lib/utils";
+import {
+  clampBorderRadius,
+  safeParse,
+  validateColorValue,
+  getColorInvalidReason,
+} from "@/lib/utils";
 import { displayNames, isValidCardType } from "@/lib/card-data/validation";
 
 function sanitizeStoredBorderColor(value: unknown): string | undefined {
@@ -508,37 +513,73 @@ function buildOrderedStoredCards(opts: {
   incomingCards: StoredCardConfig[];
   existingCards: StoredCardConfig[];
   mergedCardsByName: Map<string, StoredCardConfig>;
+  cardOrder?: string[];
 }): StoredCardConfig[] {
   const ordered: StoredCardConfig[] = [];
   const seen = new Set<string>();
 
-  for (const card of opts.incomingCards) {
-    const name = card.cardName;
-    if (seen.has(name)) continue;
+  const pushByName = (name: string) => {
+    if (seen.has(name)) return;
     const merged = opts.mergedCardsByName.get(name);
-    if (!merged) continue;
+    if (!merged) return;
     ordered.push(merged);
     seen.add(name);
+  };
+
+  // If the request provides an explicit order, it wins.
+  // Otherwise, only treat incoming order as authoritative when it looks like
+  // a full payload (prevents patch saves from reordering the stored list).
+  const shouldUseIncomingOrder =
+    opts.incomingCards.length > 0 &&
+    (opts.existingCards.length === 0 ||
+      opts.incomingCards.length >= opts.existingCards.length);
+
+  let primaryOrder: string[];
+  if (opts.cardOrder && opts.cardOrder.length > 0) {
+    primaryOrder = opts.cardOrder;
+  } else if (shouldUseIncomingOrder) {
+    primaryOrder = opts.incomingCards.map((c) => c.cardName);
+  } else {
+    primaryOrder = opts.existingCards.map((c) => c.cardName);
   }
 
+  for (const name of primaryOrder) pushByName(name);
+
   for (const card of opts.existingCards) {
-    const name = card.cardName;
-    if (seen.has(name)) continue;
-    const merged = opts.mergedCardsByName.get(name);
-    if (!merged) continue;
-    ordered.push(merged);
-    seen.add(name);
+    pushByName(card.cardName);
   }
 
   for (const baseCardName of SUPPORTED_BASE_CARD_TYPES) {
-    if (seen.has(baseCardName)) continue;
-    const merged = opts.mergedCardsByName.get(baseCardName);
-    if (!merged) continue;
-    ordered.push(merged);
-    seen.add(baseCardName);
+    pushByName(baseCardName);
   }
 
   return ordered;
+}
+
+function normalizeIncomingCardOrder(raw: unknown): {
+  cardOrder?: string[];
+  invalid: boolean;
+} {
+  if (raw === undefined) return { invalid: false };
+  if (!Array.isArray(raw)) return { invalid: true };
+
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+
+  for (const item of raw) {
+    if (typeof item !== "string") return { invalid: true };
+    const trimmed = item.trim();
+    if (!trimmed) continue;
+    if (!isValidCardType(trimmed)) return { invalid: true };
+    if (seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  }
+
+  return {
+    invalid: false,
+    cardOrder: normalized.length > 0 ? normalized : undefined,
+  };
 }
 
 function computeEffectiveBorderRadius(
@@ -593,7 +634,7 @@ async function validateIncomingPayload(
   endpoint: string,
   endpointKey: string,
   request: Request,
-  userId: string,
+  userId: number,
 ): Promise<NextResponse | undefined> {
   if (!validated.success) {
     await incrementAnalytics(
@@ -612,6 +653,121 @@ async function validateIncomingPayload(
       buildAnalyticsMetricKey(endpointKey, "failed_requests"),
     );
     return jsonWithCors({ error: "Invalid data: " + errMsg }, request, 400);
+  }
+  return undefined;
+}
+
+type ParsedStoreCardsBody = {
+  statsData: unknown;
+  userId: number;
+  incomingCards: unknown;
+  incomingCardsCount: number;
+  globalSettings?: Partial<GlobalCardSettings>;
+  ifMatchUpdatedAt?: string;
+  cardOrder?: string[];
+};
+
+async function parseStoreCardsRequestBody(
+  request: Request,
+  endpointKey: string,
+): Promise<{ parsed?: ParsedStoreCardsBody; errorResponse?: NextResponse }> {
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    await incrementAnalytics(
+      buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+    ).catch(() => {});
+    return {
+      errorResponse: jsonWithCors({ error: "Invalid JSON body" }, request, 400),
+    };
+  }
+
+  const statsData = body.statsData;
+  const rawUserId = body.userId;
+  const userId = typeof rawUserId === "number" ? rawUserId : Number(rawUserId);
+  if (!Number.isFinite(userId)) {
+    await incrementAnalytics(
+      buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+    ).catch(() => {});
+    return {
+      errorResponse: jsonWithCors({ error: "Invalid userId" }, request, 400),
+    };
+  }
+
+  const incomingCards = body.cards;
+  const incomingCardsCount = Array.isArray(incomingCards)
+    ? incomingCards.length
+    : 0;
+
+  const globalSettings = body.globalSettings as
+    | Partial<GlobalCardSettings>
+    | undefined;
+
+  const ifMatchUpdatedAt =
+    typeof body.ifMatchUpdatedAt === "string"
+      ? body.ifMatchUpdatedAt
+      : undefined;
+
+  const cardOrderResult = normalizeIncomingCardOrder(body.cardOrder);
+  if (cardOrderResult.invalid) {
+    await incrementAnalytics(
+      buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+    ).catch(() => {});
+    return {
+      errorResponse: jsonWithCors({ error: "Invalid cardOrder" }, request, 400),
+    };
+  }
+  const cardOrder = cardOrderResult.cardOrder;
+
+  return {
+    parsed: {
+      statsData,
+      userId,
+      incomingCards,
+      incomingCardsCount,
+      globalSettings,
+      ifMatchUpdatedAt,
+      cardOrder,
+    },
+  };
+}
+async function enforceIfMatchUpdatedAt(
+  existingData: unknown,
+  ifMatchUpdatedAt: string | undefined,
+  endpoint: string,
+  endpointKey: string,
+  cardsKey: string,
+  request: Request,
+): Promise<NextResponse | undefined> {
+  if (!ifMatchUpdatedAt) return undefined;
+  try {
+    if (typeof existingData !== "string") return undefined;
+    const existingRecord = safeParse<CardsRecord>(
+      existingData,
+      `${endpoint}:existing-record:${cardsKey}`,
+    );
+    if (
+      typeof existingRecord?.updatedAt === "string" &&
+      existingRecord.updatedAt.length > 0 &&
+      existingRecord.updatedAt !== ifMatchUpdatedAt
+    ) {
+      await incrementAnalytics(
+        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+      ).catch(() => {});
+      return jsonWithCors(
+        {
+          error:
+            "Conflict: data was updated elsewhere. Please reload and try again.",
+          currentUpdatedAt: existingRecord.updatedAt,
+        },
+        request,
+        409,
+      );
+    }
+  } catch {
+    // If the existing record is corrupt, ignore version checks and let
+    // downstream parsing handle it.
   }
   return undefined;
 }
@@ -686,10 +842,19 @@ export async function POST(request: Request): Promise<NextResponse> {
   const { startTime, endpoint, endpointKey } = init;
 
   try {
-    const body = await request.json();
-    const { statsData, userId, cards: incomingCards, globalSettings } = body;
+    const bodyParse = await parseStoreCardsRequestBody(request, endpointKey);
+    if (bodyParse.errorResponse) return bodyParse.errorResponse;
+    const {
+      statsData,
+      userId,
+      incomingCards,
+      incomingCardsCount,
+      globalSettings,
+      ifMatchUpdatedAt,
+      cardOrder,
+    } = bodyParse.parsed as ParsedStoreCardsBody;
     console.log(
-      `📝 [${endpoint}] Processing user ${userId} with ${incomingCards?.length || 0} cards`,
+      `📝 [${endpoint}] Processing user ${userId} with ${incomingCardsCount} cards`,
     );
 
     // Validate incoming data and obtain typed cards on success
@@ -720,6 +885,18 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     // Fetch existing cards from Redis to merge with incoming cards
     const existingData = await redisClient.get(cardsKey);
+
+    // Optimistic concurrency: reject when the record has been updated since the
+    // caller's expected version.
+    const conflictResponse = await enforceIfMatchUpdatedAt(
+      existingData,
+      ifMatchUpdatedAt,
+      endpoint,
+      endpointKey,
+      cardsKey,
+      request,
+    );
+    if (conflictResponse) return conflictResponse;
     const existingCards = parseStoredCardsRecord(
       existingData,
       endpoint,
@@ -764,6 +941,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       incomingCards: incomingCardsTyped,
       existingCards,
       mergedCardsByName: existingCardsMap,
+      cardOrder,
     });
 
     // Compute borderRadius using helper (clamped when applicable)
@@ -805,6 +983,55 @@ export async function POST(request: Request): Promise<NextResponse> {
         },
       );
 
+    // Final validation on the merged card data: ensure that any card which
+    // requires individual colors (useCustomSettings true and colorPreset is
+    // undefined or "custom") actually has all four color fields present after
+    // merging with existing data. This guards against both incoming partial
+    // patches and missing stored records.
+    for (let i = 0; i < orderedStoredCards.length; i++) {
+      const card = orderedStoredCards[i];
+      if (card.disabled === true) continue; // disabled cards may omit colors
+
+      // Only validate per-card colors when the card actually uses custom settings
+      // (cards with useCustomSettings=false intentionally inherit globals and should
+      // not be required to include individual per-card colors).
+      if (card.useCustomSettings !== true) continue;
+      const preset = card.colorPreset;
+      const shouldPersistColors = !preset || preset === "custom";
+      if (!shouldPersistColors) continue;
+
+      const requiredColorFields = [
+        "titleColor",
+        "backgroundColor",
+        "textColor",
+        "circleColor",
+      ];
+
+      for (const field of requiredColorFields) {
+        const val = (card as unknown as Record<string, unknown>)[field];
+        if (val === undefined || val === null) {
+          console.warn(
+            `⚠️ [${endpoint}] Card ${i} missing required color field after merge: ${field}`,
+          );
+          await incrementAnalytics(
+            buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+          ).catch(() => {});
+          return jsonWithCors({ error: "Invalid data" }, request, 400);
+        }
+        if (!validateColorValue(val)) {
+          const reason = getColorInvalidReason(val);
+          const reasonSuffix = reason ? ` (${reason})` : "";
+          console.warn(
+            `⚠️ [${endpoint}] Card ${i} invalid color or gradient format for ${field}${reasonSuffix} after merge`,
+          );
+          await incrementAnalytics(
+            buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+          ).catch(() => {});
+          return jsonWithCors({ error: "Invalid data" }, request, 400);
+        }
+      }
+    }
+
     const cardData: CardsRecord = {
       userId,
       cards: orderedStoredCards,
@@ -821,7 +1048,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       buildAnalyticsMetricKey(endpointKey, "successful_requests"),
     );
 
-    return jsonWithCors({ success: true, userId }, request);
+    return jsonWithCors(
+      { success: true, userId, updatedAt: cardData.updatedAt },
+      request,
+    );
   } catch (error) {
     return handleError(
       error as Error,

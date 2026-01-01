@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   useUserPageEditor,
+  buildLocalEditsPatch,
   type CardEditorConfig,
 } from "@/lib/stores/user-page-editor";
 import { getResponseErrorMessage, parseResponsePayload } from "@/lib/utils";
@@ -38,6 +40,15 @@ interface GlobalSettingsPayload {
   gridCols?: number;
   gridRows?: number;
 }
+
+type SaveCardsResponse =
+  | { success: true; updatedAt: string }
+  | { error: string }
+  | { conflict: true; error: string; currentUpdatedAt?: string };
+
+type SaveConflictInfo = {
+  currentUpdatedAt?: string;
+};
 
 /**
  * Normalize a colors array to ensure it contains at least four values.
@@ -135,51 +146,150 @@ function buildCardPayloadsFromConfigs(opts: {
   globalColorPreset: string;
   normalizedGlobalColors: ColorValue[];
 }): ServerCardData[] {
-  return opts.configs.map((config) => {
+  const buildOne = (config: CardEditorConfig): ServerCardData => {
     const useCustomSettings = config.colorOverride.useCustomSettings;
-
     const baseCardId = (config.cardId || "").split("-")[0] || "";
     const isFavoritesGrid = baseCardId === "favoritesGrid";
 
-    const effectivePreset = useCustomSettings
-      ? config.colorOverride.colorPreset || "custom"
-      : opts.globalColorPreset;
-
-    const shouldSendColors = !effectivePreset || effectivePreset === "custom";
-
-    const overrideColors =
-      useCustomSettings && Array.isArray(config.colorOverride.colors)
-        ? ensureFourColors(config.colorOverride.colors)
-        : undefined;
-    const effectiveColors: ColorValue[] =
-      overrideColors ?? opts.normalizedGlobalColors;
-
-    const cardData: ServerCardData = {
+    const base: ServerCardData = {
       cardName: config.cardId,
       variation: config.variant,
-      colorPreset: effectivePreset,
-      titleColor: shouldSendColors ? effectiveColors[0] : undefined,
-      backgroundColor: shouldSendColors ? effectiveColors[1] : undefined,
-      textColor: shouldSendColors ? effectiveColors[2] : undefined,
-      circleColor: shouldSendColors ? effectiveColors[3] : undefined,
       useCustomSettings,
+      ...(config.enabled ? {} : { disabled: true }),
     };
 
-    if (useCustomSettings) {
-      cardData.borderColor = config.borderColor;
-      cardData.borderRadius = config.borderRadius;
-      cardData.useStatusColors = config.advancedSettings.useStatusColors;
-      cardData.showPiePercentages = config.advancedSettings.showPiePercentages;
-      cardData.showFavorites = config.advancedSettings.showFavorites;
-
-      if (isFavoritesGrid) {
-        cardData.gridCols = config.advancedSettings.gridCols;
-        cardData.gridRows = config.advancedSettings.gridRows;
-      }
+    if (!useCustomSettings) {
+      return base;
     }
 
-    return config.enabled ? cardData : { ...cardData, disabled: true };
-  });
+    const preset = config.colorOverride.colorPreset || "custom";
+    base.colorPreset = preset;
+
+    const shouldSendColors = !preset || preset === "custom";
+    if (shouldSendColors) {
+      const colors = Array.isArray(config.colorOverride.colors)
+        ? ensureFourColors(config.colorOverride.colors)
+        : opts.normalizedGlobalColors;
+      base.titleColor = colors[0];
+      base.backgroundColor = colors[1];
+      base.textColor = colors[2];
+      base.circleColor = colors[3];
+    }
+
+    base.borderColor = config.borderColor;
+    base.borderRadius = config.borderRadius;
+    base.useStatusColors = config.advancedSettings.useStatusColors;
+    base.showPiePercentages = config.advancedSettings.showPiePercentages;
+    base.showFavorites = config.advancedSettings.showFavorites;
+
+    if (isFavoritesGrid) {
+      base.gridCols = config.advancedSettings.gridCols;
+      base.gridRows = config.advancedSettings.gridRows;
+    }
+
+    return base;
+  };
+
+  return opts.configs.map(buildOne);
+}
+
+function buildGlobalPayloadFromSnapshot(snapshot: {
+  colorPreset: string;
+  colors: readonly ColorValue[];
+  borderEnabled: boolean;
+  borderColor: string;
+  borderRadius: number;
+  advancedSettings?: {
+    useStatusColors?: boolean;
+    showPiePercentages?: boolean;
+    showFavorites?: boolean;
+    gridCols?: number;
+    gridRows?: number;
+  };
+}): GlobalSettingsPayload {
+  const shouldSendGlobalColors =
+    !snapshot.colorPreset || snapshot.colorPreset === "custom";
+  const normalizedGlobalColors = ensureFourColors(
+    snapshot.colors as ColorValue[],
+  );
+
+  return {
+    colorPreset: snapshot.colorPreset,
+    titleColor: shouldSendGlobalColors ? normalizedGlobalColors[0] : undefined,
+    backgroundColor: shouldSendGlobalColors
+      ? normalizedGlobalColors[1]
+      : undefined,
+    textColor: shouldSendGlobalColors ? normalizedGlobalColors[2] : undefined,
+    circleColor: shouldSendGlobalColors ? normalizedGlobalColors[3] : undefined,
+    borderEnabled: snapshot.borderEnabled,
+    borderColor: snapshot.borderColor,
+    borderRadius: snapshot.borderEnabled ? snapshot.borderRadius : undefined,
+    useStatusColors: snapshot.advancedSettings?.useStatusColors,
+    showPiePercentages: snapshot.advancedSettings?.showPiePercentages,
+    showFavorites: snapshot.advancedSettings?.showFavorites,
+    gridCols: snapshot.advancedSettings?.gridCols,
+    gridRows: snapshot.advancedSettings?.gridRows,
+  };
+}
+
+function diffGlobalSettingsPayload(
+  baseline: GlobalSettingsPayload | undefined,
+  current: GlobalSettingsPayload,
+): Partial<GlobalSettingsPayload> {
+  if (!baseline) return current;
+
+  const normalizeColor = (value: unknown): string | undefined => {
+    if (value === undefined) return undefined;
+    if (typeof value === "string") return value;
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  };
+
+  const colorKeys = new Set([
+    "titleColor",
+    "backgroundColor",
+    "textColor",
+    "circleColor",
+  ] as const);
+
+  const diff: Partial<GlobalSettingsPayload> = {};
+  const keys: Array<keyof GlobalSettingsPayload> = [
+    "colorPreset",
+    "titleColor",
+    "backgroundColor",
+    "textColor",
+    "circleColor",
+    "borderEnabled",
+    "borderColor",
+    "borderRadius",
+    "useStatusColors",
+    "showPiePercentages",
+    "showFavorites",
+    "gridCols",
+    "gridRows",
+  ];
+
+  for (const key of keys) {
+    const a = baseline[key];
+    const b = current[key];
+    if (
+      colorKeys.has(key as typeof colorKeys extends Set<infer T> ? T : never)
+    ) {
+      const an = normalizeColor(a);
+      const bn = normalizeColor(b);
+      if (an !== bn) (diff as Record<string, unknown>)[key] = b as unknown;
+      continue;
+    }
+
+    if (a !== b) {
+      (diff as Record<string, unknown>)[key] = b as unknown;
+    }
+  }
+
+  return diff;
 }
 
 /**
@@ -193,26 +303,128 @@ function buildCardPayloadsFromConfigs(opts: {
 async function saveCardsToApi(
   userId: string,
   cards: ServerCardData[],
-  globalSettings: GlobalSettingsPayload,
-): Promise<{ success: true } | { error: string }> {
+  opts: {
+    globalSettings?: Partial<GlobalSettingsPayload>;
+    cardOrder?: string[];
+    ifMatchUpdatedAt?: string;
+  },
+): Promise<SaveCardsResponse> {
   try {
+    const body: Record<string, unknown> = {
+      userId,
+      cards,
+      ...(opts.globalSettings ? { globalSettings: opts.globalSettings } : {}),
+      ...(Array.isArray(opts.cardOrder) ? { cardOrder: opts.cardOrder } : {}),
+      ...(typeof opts.ifMatchUpdatedAt === "string" &&
+      opts.ifMatchUpdatedAt.length > 0
+        ? { ifMatchUpdatedAt: opts.ifMatchUpdatedAt }
+        : {}),
+    };
+
     const res = await fetch("/api/store-cards", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, cards, globalSettings }),
+      body: JSON.stringify(body),
     });
 
+    const payload = await parseResponsePayload(res);
+
+    if (res.status === 409) {
+      const msg = getResponseErrorMessage(res, payload);
+      const currentUpdatedAt =
+        payload && typeof payload === "object"
+          ? ((payload as Record<string, unknown>).currentUpdatedAt as
+              | string
+              | undefined)
+          : undefined;
+      return { conflict: true, error: msg, currentUpdatedAt };
+    }
+
     if (!res.ok) {
-      const payload = await parseResponsePayload(res);
       const msg = getResponseErrorMessage(res, payload);
       return { error: msg };
     }
 
-    return { success: true };
+    const updatedAt =
+      payload && typeof payload === "object"
+        ? ((payload as Record<string, unknown>).updatedAt as string | undefined)
+        : undefined;
+    if (!updatedAt) {
+      return { error: "Save succeeded but no updatedAt was returned" };
+    }
+
+    return { success: true, updatedAt };
   } catch (err) {
     console.error("Error saving cards:", err);
     return { error: "Failed to save cards" };
   }
+}
+
+function buildSavePayloadFromStoreState(
+  state: ReturnType<typeof useUserPageEditor.getState>,
+): {
+  userId: string;
+  cards: ServerCardData[];
+  globalSettings?: Partial<GlobalSettingsPayload>;
+  cardOrder?: string[];
+  ifMatchUpdatedAt?: string;
+} | null {
+  if (!state.userId) return null;
+  const patch = buildLocalEditsPatch(state);
+  if (!patch) return null;
+
+  const allowedIds = new Set(statCardTypes.map((t) => t.id));
+  const fallbackOrder = statCardTypes.map((t) => t.id);
+  const normalizedGlobalColors = ensureFourColors(state.globalColors);
+
+  const cardsConfigs = patch.cardConfigs ?? {};
+  const configsArray = getCardConfigsInSaveOrder({
+    cardConfigs: cardsConfigs,
+    cardOrder: state.cardOrder,
+    allowedIds,
+    fallbackOrder,
+  });
+
+  const cards = buildCardPayloadsFromConfigs({
+    configs: configsArray,
+    globalColorPreset: state.globalColorPreset,
+    normalizedGlobalColors,
+  });
+
+  let globalSettings: Partial<GlobalSettingsPayload> | undefined;
+  if (patch.globalSnapshot) {
+    const currentGlobal = buildGlobalPayloadFromSnapshot({
+      colorPreset: patch.globalSnapshot.colorPreset,
+      colors: patch.globalSnapshot.colors,
+      borderEnabled: Boolean(patch.globalSnapshot.borderEnabled),
+      borderColor: patch.globalSnapshot.borderColor,
+      borderRadius: patch.globalSnapshot.borderRadius,
+      advancedSettings: patch.globalSnapshot.advancedSettings,
+    });
+    const baselineGlobal = state.baselineGlobalSnapshot
+      ? buildGlobalPayloadFromSnapshot({
+          colorPreset: state.baselineGlobalSnapshot.colorPreset,
+          colors: state.baselineGlobalSnapshot.colors,
+          borderEnabled: Boolean(state.baselineGlobalSnapshot.borderEnabled),
+          borderColor: state.baselineGlobalSnapshot.borderColor,
+          borderRadius: state.baselineGlobalSnapshot.borderRadius,
+          advancedSettings: state.baselineGlobalSnapshot.advancedSettings,
+        })
+      : undefined;
+
+    globalSettings = diffGlobalSettingsPayload(baselineGlobal, currentGlobal);
+    if (Object.keys(globalSettings).length === 0) {
+      globalSettings = undefined;
+    }
+  }
+
+  return {
+    userId: state.userId,
+    cards,
+    globalSettings,
+    cardOrder: patch.cardOrder,
+    ifMatchUpdatedAt: state.serverUpdatedAt ?? undefined,
+  };
 }
 
 /**
@@ -293,6 +505,10 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
   const { userId, isDirty, isSaving, setSaving, setSaveError, markSaved } =
     useUserPageEditor();
 
+  const [saveConflict, setSaveConflict] = useState<SaveConflictInfo | null>(
+    null,
+  );
+
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMountedRef = useRef(true);
 
@@ -309,30 +525,71 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
   }, []);
 
   // Perform the actual save operation
-  const performSave = useCallback(async () => {
-    const { isSaving: alreadySaving } = useUserPageEditor.getState();
-    if (alreadySaving) return;
+  const performSave = useCallback(
+    async (opts?: { reason?: "auto" | "manual" }) => {
+      if (saveConflict) {
+        toast.error("Resolve save conflict", {
+          description:
+            "Reload the latest settings first, then re-apply your edits.",
+        });
+        return;
+      }
 
-    const {
-      userId: currentUserId,
-      cards,
-      globalSettings,
-    } = buildCardsFromState();
+      const { isSaving: alreadySaving } = useUserPageEditor.getState();
+      if (alreadySaving) return;
 
-    if (currentUserId == null || !isMountedRef.current) return;
+      const snapshot = useUserPageEditor.getState();
+      const patch = buildLocalEditsPatch(snapshot);
+      if (!patch || !isMountedRef.current) return;
 
-    setSaving(true);
+      const payload = buildSavePayloadFromStoreState(snapshot);
+      if (!payload || !isMountedRef.current) return;
 
-    const result = await saveCardsToApi(currentUserId, cards, globalSettings);
+      setSaving(true);
 
-    if (!isMountedRef.current) return;
+      const toastId = "user-page-autosave";
+      toast.loading(opts?.reason === "manual" ? "Saving…" : "Auto-saving…", {
+        id: toastId,
+      });
 
-    if ("error" in result) {
-      setSaveError(result.error);
-    } else {
-      markSaved();
+      const result = await saveCardsToApi(payload.userId, payload.cards, {
+        globalSettings: payload.globalSettings,
+        cardOrder: payload.cardOrder,
+        ifMatchUpdatedAt: payload.ifMatchUpdatedAt,
+      });
+
+      if (!isMountedRef.current) return;
+
+      if ("conflict" in result) {
+        setSaveConflict({ currentUpdatedAt: result.currentUpdatedAt });
+        setSaveError(result.error);
+        toast.error("Save conflict", {
+          id: toastId,
+          description:
+            "Changes were saved in another tab. Reload to sync, then re-apply your edits.",
+        });
+      } else if ("error" in result) {
+        setSaveError(result.error);
+        toast.error("Save failed", { id: toastId, description: result.error });
+      } else {
+        setSaveConflict(null);
+        markSaved({ serverUpdatedAt: result.updatedAt, appliedPatch: patch });
+        toast.success("Saved", { id: toastId });
+      }
+    },
+    [markSaved, saveConflict, setSaveError, setSaving],
+  );
+
+  const clearSaveConflict = useCallback(() => {
+    setSaveConflict(null);
+    setSaveError(null);
+  }, [setSaveError]);
+
+  useEffect(() => {
+    if (!isDirty && saveConflict) {
+      setSaveConflict(null);
     }
-  }, [setSaving, setSaveError, markSaved]);
+  }, [isDirty, saveConflict]);
 
   // Manual save function
   const saveNow = useCallback(async () => {
@@ -342,12 +599,12 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
       timeoutRef.current = null;
     }
 
-    await performSave();
+    await performSave({ reason: "manual" });
   }, [performSave]);
 
   // Auto-save effect - watches isDirty and triggers debounced save
   useEffect(() => {
-    if (!enabled || userId == null || !isDirty || isSaving) {
+    if (!enabled || userId == null || !isDirty || isSaving || saveConflict) {
       return;
     }
 
@@ -359,7 +616,7 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
 
     // Set new timeout for debounced save
     timeoutRef.current = setTimeout(() => {
-      performSave();
+      performSave({ reason: "auto" });
     }, debounceMs);
 
     // Cleanup on effect re-run
@@ -369,14 +626,26 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
         timeoutRef.current = null;
       }
     };
-  }, [enabled, userId, isDirty, isSaving, debounceMs, performSave]);
+  }, [
+    enabled,
+    userId,
+    isDirty,
+    isSaving,
+    saveConflict,
+    debounceMs,
+    performSave,
+  ]);
 
   return {
     /** Trigger an immediate save, bypassing debounce */
     saveNow,
+    /** Clear a save-conflict state after reloading latest server data */
+    clearSaveConflict,
     /** Whether a save operation is currently in progress */
     isSaving,
     /** Whether there are unsaved changes */
     isDirty,
+    /** Present when a 409 conflict was detected and needs resolution */
+    saveConflict,
   };
 }

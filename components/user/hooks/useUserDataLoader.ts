@@ -137,6 +137,7 @@ export function useUserDataLoader() {
         cardsResult.cards,
         cardsResult.globalSettings,
         ALL_CARD_IDS,
+        cardsResult.updatedAt ?? null,
       );
       setLoading(false);
       setLoadingPhase("complete");

@@ -3,6 +3,7 @@
 import { ThemeProvider } from "next-themes";
 import type React from "react";
 import { TooltipProvider } from "@/components/ui/Tooltip";
+import { Toaster } from "@/components/ui/Toaster";
 
 /**
  * Provides common app-level providers used throughout the app.
@@ -22,7 +23,10 @@ export function Providers({
       attribute="class" // Use CSS class-based theming (dark/light classes)
       defaultTheme="system" // Default to OS preference
     >
-      <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
+      <TooltipProvider delayDuration={200}>
+        {children}
+        <Toaster />
+      </TooltipProvider>
     </ThemeProvider>
   );
 }

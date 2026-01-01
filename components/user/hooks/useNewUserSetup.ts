@@ -358,6 +358,7 @@ export function useNewUserSetup() {
         persistedCardsResult.cards,
         persistedCardsResult.globalSettings,
         ALL_CARD_IDS,
+        persistedCardsResult.updatedAt ?? null,
       );
       setCardsWarning(null);
     },
