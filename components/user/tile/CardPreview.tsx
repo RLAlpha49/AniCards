@@ -7,9 +7,15 @@ import { CopyPopover } from "@/components/user/tile/CopyPopover";
 import { DownloadPopover } from "@/components/user/tile/DownloadPopover";
 import { cn, type ConversionFormat } from "@/lib/utils";
 
+/**
+ * Maps a preview URL to the internal /api/card endpoint.
+ * Extracts only the query parameters from the preview URL,
+ * allowing the local API to handle card rendering regardless
+ * of the original URL's hostname or path.
+ */
 function toCardApiHref(previewUrl: string): string | null {
   try {
-    const url = new URL(previewUrl, "https://example.local");
+    const url = new URL(previewUrl, "https://example.invalid");
 
     if (url.protocol !== "http:" && url.protocol !== "https:") {
       return null;
