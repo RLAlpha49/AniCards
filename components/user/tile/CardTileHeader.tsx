@@ -21,7 +21,6 @@ interface CardTileHeaderProps {
   label: string;
   enabled: boolean;
   isCustomized?: boolean;
-  usesCustomSettings?: boolean;
   isModified?: boolean;
   onToggleEnabled: (checked: boolean) => void;
   tooltipContent?: string;
@@ -36,7 +35,6 @@ export const CardTileHeader = memo(function CardTileHeader({
   label,
   enabled,
   isCustomized = false,
-  usesCustomSettings = false,
   isModified = false,
   onToggleEnabled,
   tooltipContent,
@@ -83,7 +81,7 @@ export const CardTileHeader = memo(function CardTileHeader({
             </span>
           ) : null}
 
-          {enabled && (usesCustomSettings || isCustomized) ? (
+          {enabled && isCustomized ? (
             <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
               Custom <span className="sr-only">settings applied</span>
             </span>

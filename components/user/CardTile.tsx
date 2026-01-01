@@ -140,9 +140,6 @@ export const CardTile = memo(function CardTile({
   );
 
   const isCustomized = useMemo(() => isCardCustomized(config), [config]);
-  const usesCustomSettings = Boolean(
-    (configFromStore ?? DEFAULT_CARD_CONFIG).colorOverride.useCustomSettings,
-  );
 
   const handleToggleSelection = useCallback(
     (checked: boolean | "indeterminate") => {
@@ -295,7 +292,6 @@ export const CardTile = memo(function CardTile({
         label={label}
         enabled={config.enabled}
         isCustomized={isCustomized}
-        usesCustomSettings={usesCustomSettings}
         isModified={isModified}
         onToggleEnabled={handleToggleEnabled}
         tooltipContent={tooltipContent}
