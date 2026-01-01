@@ -178,12 +178,13 @@ function CardCategorySectionInner<TCard extends { id: string }>({
   }, [isExpanded, setExpanded]);
 
   const hasCards = Boolean(cards && cards.length > 0 && renderCard);
+  const VIRTUALIZATION_THRESHOLD = 18; 
   const shouldVirtualize = useMemo(() => {
     if (!hasCards) return false;
     if (reorderable) return false;
     if (typeof virtualize === "boolean") return virtualize;
     // Heuristic: once a category has enough items, virtualization pays off.
-    return (cards?.length ?? 0) >= 18;
+    return (cards?.length ?? 0) >= VIRTUALIZATION_THRESHOLD;
   }, [cards?.length, hasCards, reorderable, virtualize]);
 
   const sortableIds = useMemo(
