@@ -707,10 +707,14 @@ export function SettingsContent({
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label className="mb-1 text-xs text-slate-500">
+                    <Label
+                      htmlFor={`${idPrefix}-gridCols`}
+                      className="mb-1 text-xs text-slate-500"
+                    >
                       Columns
                     </Label>
                     <Input
+                      id={`${idPrefix}-gridCols`}
                       type="number"
                       min={1}
                       max={5}
@@ -726,8 +730,14 @@ export function SettingsContent({
                     />
                   </div>
                   <div>
-                    <Label className="mb-1 text-xs text-slate-500">Rows</Label>
+                    <Label
+                      htmlFor={`${idPrefix}-gridRows`}
+                      className="mb-1 text-xs text-slate-500"
+                    >
+                      Rows
+                    </Label>
                     <Input
+                      id={`${idPrefix}-gridRows`}
                       type="number"
                       min={1}
                       max={5}
