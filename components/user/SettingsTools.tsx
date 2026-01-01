@@ -156,7 +156,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
         if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
         return a.label.localeCompare(b.label);
       });
-  }, [cardConfigs, props.mode, props.mode === "card" ? props.cardId : null]);
+  }, [cardConfigs, props]);
 
   const feedbackNode = useMemo(() => {
     if (importError) {
