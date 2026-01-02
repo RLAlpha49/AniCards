@@ -75,25 +75,30 @@ test.describe("User page", () => {
       await expect(cards).toHaveCount(mockCardsRecord.cards.length);
     });
 
-    await test.step("Per-card quick actions are hidden by default and appear on hover/focus", async () => {
+    await test.step("Per-card quick actions are hidden by default and appear on preview hover/focus", async () => {
       // Ensure we are not accidentally hovering a card tile before asserting hidden state.
       await page.getByRole("heading", { name: /your cards/i }).hover();
 
       const tile = page.getByTestId("card-tile-animeStats");
-      const openLink = tile.getByRole("link", { name: /^open/i });
-      const copyTrigger = tile.getByRole("button", { name: /copy url/i });
+      const openLink = tile.getByRole("link", { name: /^open/i, includeHidden: true });
+      const copyTrigger = tile.getByRole("button", {
+        name: /copy url/i,
+        includeHidden: true,
+      });
       const downloadTrigger = tile.getByRole("button", {
         name: /^download$/i,
+        includeHidden: true,
       });
 
       await expect(openLink).toBeHidden();
       await expect(copyTrigger).toBeHidden();
       await expect(downloadTrigger).toBeHidden();
 
-      // Keyboard users should also get quick actions via focus-within.
-      await tile
-        .getByRole("checkbox", { name: /select anime stats card/i })
-        .focus();
+      // Keyboard users should get quick actions via focus-within on the preview itself.
+      const previewToggle = tile.getByRole("button", {
+        name: /toggle actions for/i,
+      });
+      await previewToggle.focus();
       await expect(openLink).toBeVisible();
       await expect(copyTrigger).toBeVisible();
       await expect(downloadTrigger).toBeVisible();
@@ -106,11 +111,76 @@ test.describe("User page", () => {
       await expect(openLink).toHaveAttribute("href", /\/api\/card/i);
 
       // And mouse users via hover.
+      // First move focus off the preview so we're only validating hover.
+      await tile
+        .getByRole("checkbox", { name: /select anime stats card/i })
+        .focus();
       await page.getByRole("heading", { name: /your cards/i }).hover();
-      await tile.hover();
+      await expect(openLink).toBeHidden();
+
+      await tile
+        .getByRole("img", { name: /preview/i })
+        .first()
+        .hover({ position: { x: 10, y: 10 } });
       await expect(openLink).toBeVisible();
       await expect(copyTrigger).toBeVisible();
       await expect(downloadTrigger).toBeVisible();
+    });
+
+    await test.step("Variant comparison view can be toggled", async () => {
+      const tile = page.getByTestId("card-tile-animeStats");
+      const expandButton = tile.getByRole("button", { name: /expand/i });
+      await expect(expandButton).toBeVisible();
+      await expandButton.click();
+
+      const dialog = page.getByRole("dialog");
+      await expect(dialog).toBeVisible();
+
+      const compareButton = dialog.getByRole("button", { name: /compare/i });
+      await expect(compareButton).toBeVisible();
+
+      // Default is single preview; after enabling compare it should render two previews.
+      const previews = dialog.getByRole("img", { name: /preview/i });
+      await expect(previews).toHaveCount(1);
+
+      await compareButton.click();
+      await expect(previews).toHaveCount(2);
+
+      // Both previews should have quick actions available (Open + Download, etc.).
+      const openLinks = dialog.getByRole("link", {
+        name: /^open/i,
+        includeHidden: true,
+      });
+      const copyButtons = dialog.getByRole("button", {
+        name: /copy url/i,
+        includeHidden: true,
+      });
+      const downloadButtons = dialog.getByRole("button", {
+        name: /^download$/i,
+        includeHidden: true,
+      });
+      await expect(openLinks).toHaveCount(2);
+      await expect(copyButtons).toHaveCount(2);
+      await expect(downloadButtons).toHaveCount(2);
+
+      // Hovering one preview should only show quick actions for that preview.
+      await dialog.hover({ position: { x: 10, y: 10 } });
+      await previews.nth(0).hover({ position: { x: 10, y: 10 } });
+      await expect(openLinks.nth(0)).toBeVisible();
+      await expect(openLinks.nth(1)).toBeHidden();
+      await expect(downloadButtons.nth(0)).toBeVisible();
+      await expect(downloadButtons.nth(1)).toBeHidden();
+
+      await dialog.hover({ position: { x: 10, y: 10 } });
+      await previews.nth(1).hover({ position: { x: 10, y: 10 } });
+      await expect(openLinks.nth(1)).toBeVisible();
+      await expect(openLinks.nth(0)).toBeHidden();
+      await expect(downloadButtons.nth(1)).toBeVisible();
+      await expect(downloadButtons.nth(0)).toBeHidden();
+
+      // Close the dialog so subsequent steps can interact with the page.
+      await page.keyboard.press("Escape");
+      await expect(dialog).toBeHidden();
     });
 
     await test.step("Inspect export controls", async () => {

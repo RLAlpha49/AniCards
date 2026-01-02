@@ -188,7 +188,15 @@ describe("Store Cards API POST Endpoint", () => {
       });
 
       const res = await POST(req);
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid JSON body");
+
+      // Ensure nothing was persisted and analytics reflects the failed request.
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:store_cards:failed_requests",
+      );
     });
 
     it("should reject non-boolean disabled field", async () => {

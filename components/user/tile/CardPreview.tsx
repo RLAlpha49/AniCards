@@ -1,10 +1,12 @@
 "use client";
 
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
-import { Eye, ExternalLink, MoreHorizontal } from "lucide-react";
+import { Eye, ExternalLink, MoreHorizontal, RotateCw } from "lucide-react";
 import { CopyPopover } from "@/components/user/tile/CopyPopover";
 import { DownloadPopover } from "@/components/user/tile/DownloadPopover";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { useCachedCardPreview } from "@/components/user/tile/useCachedCardPreview";
 import { cn, type ConversionFormat } from "@/lib/utils";
 
 /**
@@ -27,6 +29,137 @@ function toCardApiHref(previewUrl: string): string | null {
   }
 }
 
+function withCacheBust(apiHref: string, cacheBust: string | null): string {
+  if (!cacheBust) return apiHref;
+  try {
+    const url = new URL(apiHref, "https://example.invalid");
+    url.searchParams.set("_t", cacheBust);
+    return `${url.pathname}?${url.searchParams.toString()}`;
+  } catch {
+    return apiHref;
+  }
+}
+
+/**
+ * Returns padding class for preview size.
+ * Smaller previews get more padding to avoid a cramped appearance;
+ * larger previews get less padding to maximize image display area.
+ */
+function getPaddingClass(size: "sm" | "md" | "lg"): string {
+  switch (size) {
+    case "sm":
+      return "p-4";
+    case "lg":
+      return "p-1";
+    case "md":
+    default:
+      return "p-2";
+  }
+}
+
+function getDownloadA11yState(args: {
+  previewUrl: string | null;
+  isDownloading: boolean;
+  previewUnavailableId: string;
+  convertingId: string;
+}): { downloadTitle: string | undefined; downloadDescrId: string | undefined } {
+  if (!args.previewUrl) {
+    return {
+      downloadTitle: "Preview not available",
+      downloadDescrId: args.previewUnavailableId,
+    };
+  }
+  if (args.isDownloading) {
+    return { downloadTitle: "Converting...", downloadDescrId: args.convertingId };
+  }
+  return { downloadTitle: undefined, downloadDescrId: undefined };
+}
+
+function OpenInNewTabButton(
+  args: Readonly<{
+    openHref: string | null;
+    label: string;
+    isPreviewAvailable: boolean;
+    previewUnavailableId: string;
+  }>,
+) {
+  if (args.openHref) {
+    return (
+      <a
+        href={args.openHref}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Preview in new tab"
+        className={cn(
+          "pointer-events-auto",
+          "inline-flex h-8 items-center justify-center gap-1.5 rounded-full px-3 text-sm font-medium text-white shadow-lg transition-all",
+          "border-2 border-white/80 bg-white/20 backdrop-blur-sm",
+          "hover:border-white hover:bg-white/30",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black/30",
+        )}
+      >
+        <ExternalLink className="h-4 w-4" aria-hidden="true" />
+        <span>Open</span>
+        <span className="sr-only"> preview in new tab</span>
+        <span className="sr-only"> {args.label}</span>
+      </a>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      disabled
+      aria-disabled="true"
+      aria-describedby={
+        args.isPreviewAvailable ? undefined : args.previewUnavailableId
+      }
+      title="Preview not available"
+      className={cn(
+        "pointer-events-auto",
+        "inline-flex h-8 cursor-not-allowed items-center justify-center gap-1.5 rounded-full px-3 text-sm font-medium text-white shadow-lg transition-all",
+        "border-2 border-white/80 bg-white/20 opacity-70 backdrop-blur-sm",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black/30",
+      )}
+    >
+      <ExternalLink className="h-4 w-4" aria-hidden="true" />
+      <span>Open</span>
+      <span className="sr-only"> preview in new tab</span>
+      <span className="sr-only"> {args.label}</span>
+    </button>
+  );
+}
+
+function RefreshPreviewButton(
+  args: Readonly<{
+    disabled: boolean;
+    onRefresh: () => void;
+    title: string;
+    ariaLabel: string;
+  }>,
+) {
+  return (
+    <button
+      type="button"
+      onClick={args.onRefresh}
+      disabled={args.disabled}
+      aria-disabled={args.disabled}
+      aria-label={args.ariaLabel}
+      title={args.title}
+      className={cn(
+        "pointer-events-auto",
+        "inline-flex h-8 w-8 items-center justify-center rounded-full text-white shadow-lg transition-all",
+        "border-2 border-white/80 bg-white/20 backdrop-blur-sm",
+        "hover:border-white hover:bg-white/30",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black/30",
+        args.disabled && "cursor-not-allowed opacity-70",
+      )}
+    >
+      <RotateCw className="h-4 w-4" aria-hidden="true" />
+    </button>
+  );
+}
+
 interface CardPreviewProps {
   previewUrl: string | null;
   label: string;
@@ -42,7 +175,12 @@ interface CardPreviewProps {
   onCopyAniList: () => Promise<void> | void;
   onDownload: (format: ConversionFormat) => Promise<void> | void;
   isAnyPopoverOpen: boolean;
+  forceActionsVisible?: boolean;
+  /** Notifies the parent when the pointer is over the preview area. */
+  onHoverChange?: (hovered: boolean) => void;
   borderRadiusValue?: string | number;
+  previewSize?: "sm" | "md" | "lg";
+  hideCopyDownload?: boolean;
 }
 
 export const CardPreview = memo(function CardPreview({
@@ -60,22 +198,41 @@ export const CardPreview = memo(function CardPreview({
   onCopyAniList,
   onDownload,
   isAnyPopoverOpen,
+  forceActionsVisible = false,
+  onHoverChange,
   borderRadiusValue,
+  previewSize = "md",
+  hideCopyDownload = false,
 }: Readonly<CardPreviewProps>) {
-  let downloadTitle: string | undefined;
-  let downloadDescrId: string | undefined;
-  if (!previewUrl) {
-    downloadTitle = "Preview not available";
-    downloadDescrId = previewUnavailableId;
-  } else if (isDownloading) {
-    downloadTitle = "Converting...";
-    downloadDescrId = convertingId;
-  } else {
-    downloadTitle = undefined;
-    downloadDescrId = undefined;
-  }
+  const { downloadTitle, downloadDescrId } = getDownloadA11yState({
+    previewUrl,
+    isDownloading,
+    previewUnavailableId,
+    convertingId,
+  });
 
-  const openHref = previewUrl ? toCardApiHref(previewUrl) : null;
+  const openHrefBase = useMemo(
+    () => (previewUrl ? toCardApiHref(previewUrl) : null),
+    [previewUrl],
+  );
+
+  const { imageSrc, isLoading, error, refresh } = useCachedCardPreview(
+    openHrefBase,
+  );
+
+  const [lastRefreshToken, setLastRefreshToken] = useState<string | null>(
+    null,
+  );
+
+  // Reset refresh token whenever the underlying preview URL changes.
+  useEffect(() => {
+    setLastRefreshToken(null);
+  }, [openHrefBase]);
+
+  const openHref = useMemo(
+    () => (openHrefBase ? withCacheBust(openHrefBase, lastRefreshToken) : null),
+    [openHrefBase, lastRefreshToken],
+  );
 
   // Local state to support tapping/focus to reveal quick actions on touch / keyboard
   const [showActions, setShowActions] = useState(false);
@@ -90,26 +247,56 @@ export const CardPreview = memo(function CardPreview({
     return () => globalThis.removeEventListener("keydown", handleKey);
   }, [showActions]);
 
-  return (
-    <div className="group relative aspect-[2/1] overflow-hidden bg-slate-100 dark:bg-slate-950">
-      {previewUrl ? (
-        <Image
-          src={previewUrl}
-          alt={`${label} preview`}
-          fill
-          sizes="(min-width: 1280px) 33vw, (min-width: 640px) 50vw, 100vw"
-          className={cn(
-            "object-contain p-2",
-            "transition-transform duration-300 ease-out will-change-transform",
-            "group-focus-within:scale-[1.04] group-hover:scale-[1.04]",
-          )}
-          style={{ borderRadius: borderRadiusValue }}
+  const paddingClass = getPaddingClass(previewSize);
+
+  const shouldRenderFallbackSrc = Boolean(previewUrl && error);
+  const resolvedSrc = imageSrc ?? (shouldRenderFallbackSrc ? previewUrl : null);
+
+  let previewNode: ReactNode;
+  if (!previewUrl) {
+    previewNode = (
+      <div className="flex h-full w-full items-center justify-center text-slate-400">
+        <Eye className="h-8 w-8" />
+      </div>
+    );
+  } else if (resolvedSrc) {
+    previewNode = (
+      <Image
+        src={resolvedSrc}
+        alt={`${label} preview`}
+        fill
+        unoptimized
+        sizes="(min-width: 1280px) 33vw, (min-width: 640px) 50vw, 100vw"
+        className={cn(
+          "object-contain",
+          paddingClass,
+          "transition-transform duration-300 ease-out will-change-transform",
+          "group-focus-within/card-preview:scale-[1.04] group-hover/card-preview:scale-[1.04]",
+        )}
+        style={{ borderRadius: borderRadiusValue }}
+      />
+    );
+  } else {
+    previewNode = (
+      <div className="flex h-full w-full items-center justify-center text-slate-500 dark:text-slate-300">
+        <LoadingSpinner
+          size="md"
+          className="text-slate-500 dark:text-slate-300"
+          text={isLoading ? "Loading preview..." : "Preview unavailable"}
         />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center text-slate-400">
-          <Eye className="h-8 w-8" />
-        </div>
-      )}
+      </div>
+    );
+  }
+
+  const overlayPinned = isAnyPopoverOpen || showActions || forceActionsVisible;
+
+  return (
+    <div
+      className="group/card-preview relative aspect-[2/1] overflow-hidden bg-slate-100 dark:bg-slate-950"
+      onPointerEnter={() => onHoverChange?.(true)}
+      onPointerLeave={() => onHoverChange?.(false)}
+    >
+      {previewNode}
 
       {/* Subtle scrim for better hierarchy when actions appear */}
       <div
@@ -117,16 +304,16 @@ export const CardPreview = memo(function CardPreview({
         className={cn(
           "pointer-events-none absolute inset-0 bg-gradient-to-t from-black/15 via-black/0 to-black/0",
           "transition-opacity duration-200",
-          isAnyPopoverOpen || showActions
+          overlayPinned
             ? "opacity-100"
-            : "opacity-100 group-focus-within:opacity-100 group-hover:opacity-100 sm:opacity-0",
+            : "opacity-0 group-focus-within/card-preview:opacity-100 group-hover/card-preview:opacity-100",
         )}
       />
 
       {/* Touch-friendly toggle for small screens (tap to reveal actions) */}
       <button
         type="button"
-        aria-label="Toggle card actions"
+        aria-label={`Toggle actions for ${label}`}
         aria-pressed={showActions}
         onClick={() => setShowActions((v) => !v)}
         className="absolute right-2 top-2 z-20 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:hidden"
@@ -137,10 +324,10 @@ export const CardPreview = memo(function CardPreview({
       {/* Keyboard-only toggle for desktop — hidden visually but becomes visible when focused */}
       <button
         type="button"
-        aria-label="Toggle card actions"
+        aria-label={`Toggle actions for ${label}`}
         aria-pressed={showActions}
         onClick={() => setShowActions((v) => !v)}
-        className="absolute right-2 top-2 z-20 hidden h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white opacity-0 hover:bg-white/20 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:inline-flex"
+        className="absolute right-2 top-2 z-20 hidden h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white opacity-0 pointer-events-none focus-visible:opacity-100 focus-visible:pointer-events-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:inline-flex"
       >
         <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
       </button>
@@ -159,63 +346,61 @@ export const CardPreview = memo(function CardPreview({
       <div
         className={cn(
           "absolute inset-0 flex items-center justify-center gap-2 transition-opacity",
-          isAnyPopoverOpen || showActions
-            ? "visible opacity-100"
-            : "visible opacity-100 group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100 sm:invisible sm:opacity-0",
+          overlayPinned
+            ? "visible opacity-100 pointer-events-none"
+            : "invisible opacity-0 pointer-events-none group-focus-within/card-preview:visible group-focus-within/card-preview:opacity-100 group-hover/card-preview:visible group-hover/card-preview:opacity-100",
         )}
       >
-        {openHref ? (
-          <a
-            href={openHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={cn(
-              "inline-flex h-8 items-center justify-center gap-1.5 rounded-full px-3 text-sm font-medium text-white shadow-lg transition-all",
-              "border-2 border-white/80 bg-white/20 backdrop-blur-sm",
-              "hover:border-white hover:bg-white/30",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black/30",
-            )}
-          >
-            <ExternalLink className="h-4 w-4" aria-hidden="true" />
-            <span>Open</span>
-            <span className="sr-only"> {label}</span>
-          </a>
-        ) : (
-          <button
-            type="button"
-            disabled
-            aria-disabled="true"
-            aria-describedby={previewUnavailableId}
-            title="Preview not available"
-            className={cn(
-              "inline-flex h-8 cursor-not-allowed items-center justify-center gap-1.5 rounded-full px-3 text-sm font-medium text-white shadow-lg transition-all",
-              "border-2 border-white/80 bg-white/20 opacity-70 backdrop-blur-sm",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black/30",
-            )}
-          >
-            <ExternalLink className="h-4 w-4" aria-hidden="true" />
-            <span>Open</span>
-            <span className="sr-only"> {label}</span>
-          </button>
-        )}
-        <CopyPopover
-          open={copyPopoverOpen}
-          onOpenChange={setCopyPopoverOpen}
-          previewUrl={previewUrl}
-          copiedFormat={copiedFormat}
-          onCopyUrl={onCopyUrl}
-          onCopyAniList={onCopyAniList}
+        <OpenInNewTabButton
+          openHref={openHref}
+          label={label}
+          isPreviewAvailable={Boolean(previewUrl)}
           previewUnavailableId={previewUnavailableId}
         />
-        <DownloadPopover
-          open={downloadPopoverOpen}
-          onOpenChange={setDownloadPopoverOpen}
-          previewUrl={previewUrl}
-          isDownloading={isDownloading}
-          onDownload={onDownload}
-          downloadDescrId={downloadDescrId}
-          downloadTitle={downloadTitle}
+
+        <RefreshPreviewButton
+          disabled={!previewUrl || isLoading}
+          title={previewUrl ? "Refresh preview" : "Preview not available"}
+          ariaLabel={`Refresh preview for ${label}`}
+          onRefresh={() => {
+            void (async () => {
+              try {
+                const token = await refresh();
+                if (token) setLastRefreshToken(token);
+              } catch (err) {
+                const error = err instanceof Error ? err : new Error(String(err));
+                console.error("Failed to refresh preview:", error);
+              }
+            })();
+          }}
         />
+
+        {hideCopyDownload ? null : (
+          <>
+            <div className="pointer-events-auto">
+              <CopyPopover
+                open={copyPopoverOpen}
+                onOpenChange={setCopyPopoverOpen}
+                previewUrl={previewUrl}
+                copiedFormat={copiedFormat}
+                onCopyUrl={onCopyUrl}
+                onCopyAniList={onCopyAniList}
+                previewUnavailableId={previewUnavailableId}
+              />
+            </div>
+            <div className="pointer-events-auto">
+              <DownloadPopover
+                open={downloadPopoverOpen}
+                onOpenChange={setDownloadPopoverOpen}
+                previewUrl={previewUrl}
+                isDownloading={isDownloading}
+                onDownload={onDownload}
+                downloadDescrId={downloadDescrId}
+                downloadTitle={downloadTitle}
+              />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
