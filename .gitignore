@@ -7,3 +7,5 @@
 .vscode
 next-env.d.ts
 tsconfig.tsbuildinfo
+.shared
+.github/prompts/ui-ux-pro-max.prompt.md

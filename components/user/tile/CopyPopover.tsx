@@ -41,6 +41,7 @@ export function CopyPopover({
         <Button
           variant="ghost"
           size="sm"
+          data-tour="card-copy"
           disabled={!previewUrl}
           aria-disabled={!previewUrl}
           aria-describedby={previewUrl ? undefined : previewUnavailableId}

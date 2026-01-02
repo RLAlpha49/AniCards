@@ -80,7 +80,10 @@ test.describe("User page", () => {
       await page.getByRole("heading", { name: /your cards/i }).hover();
 
       const tile = page.getByTestId("card-tile-animeStats");
-      const openLink = tile.getByRole("link", { name: /^open/i, includeHidden: true });
+      const openLink = tile.getByRole("link", {
+        name: /^open/i,
+        includeHidden: true,
+      });
       const copyTrigger = tile.getByRole("button", {
         name: /copy url/i,
         includeHidden: true,

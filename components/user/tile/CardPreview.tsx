@@ -70,7 +70,10 @@ function getDownloadA11yState(args: {
     };
   }
   if (args.isDownloading) {
-    return { downloadTitle: "Converting...", downloadDescrId: args.convertingId };
+    return {
+      downloadTitle: "Converting...",
+      downloadDescrId: args.convertingId,
+    };
   }
   return { downloadTitle: undefined, downloadDescrId: undefined };
 }
@@ -216,13 +219,10 @@ export const CardPreview = memo(function CardPreview({
     [previewUrl],
   );
 
-  const { imageSrc, isLoading, error, refresh } = useCachedCardPreview(
-    openHrefBase,
-  );
+  const { imageSrc, isLoading, error, refresh } =
+    useCachedCardPreview(openHrefBase);
 
-  const [lastRefreshToken, setLastRefreshToken] = useState<string | null>(
-    null,
-  );
+  const [lastRefreshToken, setLastRefreshToken] = useState<string | null>(null);
 
   // Reset refresh token whenever the underlying preview URL changes.
   useEffect(() => {
@@ -292,6 +292,7 @@ export const CardPreview = memo(function CardPreview({
 
   return (
     <div
+      data-tour="card-preview"
       className="group/card-preview relative aspect-[2/1] overflow-hidden bg-slate-100 dark:bg-slate-950"
       onPointerEnter={() => onHoverChange?.(true)}
       onPointerLeave={() => onHoverChange?.(false)}
@@ -327,7 +328,7 @@ export const CardPreview = memo(function CardPreview({
         aria-label={`Toggle actions for ${label}`}
         aria-pressed={showActions}
         onClick={() => setShowActions((v) => !v)}
-        className="absolute right-2 top-2 z-20 hidden h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white opacity-0 pointer-events-none focus-visible:opacity-100 focus-visible:pointer-events-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:inline-flex"
+        className="pointer-events-none absolute right-2 top-2 z-20 hidden h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white opacity-0 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:inline-flex"
       >
         <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
       </button>
@@ -347,8 +348,8 @@ export const CardPreview = memo(function CardPreview({
         className={cn(
           "absolute inset-0 flex items-center justify-center gap-2 transition-opacity",
           overlayPinned
-            ? "visible opacity-100 pointer-events-none"
-            : "invisible opacity-0 pointer-events-none group-focus-within/card-preview:visible group-focus-within/card-preview:opacity-100 group-hover/card-preview:visible group-hover/card-preview:opacity-100",
+            ? "pointer-events-none visible opacity-100"
+            : "pointer-events-none invisible opacity-0 group-focus-within/card-preview:visible group-focus-within/card-preview:opacity-100 group-hover/card-preview:visible group-hover/card-preview:opacity-100",
         )}
       >
         <OpenInNewTabButton
@@ -368,7 +369,8 @@ export const CardPreview = memo(function CardPreview({
                 const token = await refresh();
                 if (token) setLastRefreshToken(token);
               } catch (err) {
-                const error = err instanceof Error ? err : new Error(String(err));
+                const error =
+                  err instanceof Error ? err : new Error(String(err));
                 console.error("Failed to refresh preview:", error);
               }
             })();

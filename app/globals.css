@@ -1,4 +1,5 @@
 @import "katex/dist/katex.min.css";
+@import "driver.js/dist/driver.css";
 
 @tailwind base;
 @tailwind components;

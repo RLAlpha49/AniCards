@@ -72,9 +72,7 @@ function withCacheBust(apiHref: string, cacheBust: string | undefined): string {
   return `${url.pathname}?${url.searchParams.toString()}`;
 }
 
-export function getCachedPreviewObjectUrl(
-  apiHref: string,
-): string | null {
+export function getCachedPreviewObjectUrl(apiHref: string): string | null {
   const key = normalizePreviewCacheKey(apiHref);
   const entry = previewCache.get(key);
   if (!entry) return null;
@@ -82,7 +80,11 @@ export function getCachedPreviewObjectUrl(
   return entry.objectUrl;
 }
 
-async function fetchPreviewBlob(apiHref: string, signal?: AbortSignal, forceRefresh?: boolean) {
+async function fetchPreviewBlob(
+  apiHref: string,
+  signal?: AbortSignal,
+  forceRefresh?: boolean,
+) {
   // If a cache-bust param `_t` is present or the caller requested a forced refresh,
   // prefer a no-store cache mode to ensure we get a fresh render from the server.
   const url = parseRelativeUrl(apiHref);

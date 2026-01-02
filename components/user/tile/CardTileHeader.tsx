@@ -54,6 +54,7 @@ export const CardTileHeader = memo(function CardTileHeader({
           checked={enabled}
           onCheckedChange={onToggleEnabled}
           className="data-[state=checked]:bg-blue-500"
+          data-tour="card-enable-toggle"
           aria-label={`Toggle ${label} card`}
         />
         <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -92,6 +93,7 @@ export const CardTileHeader = memo(function CardTileHeader({
               <TooltipTrigger asChild>
                 <button
                   type="button"
+                  data-tour="card-info"
                   className={cn(
                     "flex-shrink-0 rounded-full p-0.5 transition-colors",
                     "text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300",
@@ -123,6 +125,7 @@ export const CardTileHeader = memo(function CardTileHeader({
           <button
             type="button"
             ref={dragHandleProps.setActivatorNodeRef}
+            data-tour="card-drag-handle"
             aria-label={`Reorder ${label}`}
             title="Drag to reorder"
             className={cn(
@@ -144,6 +147,7 @@ export const CardTileHeader = memo(function CardTileHeader({
             <Checkbox
               checked={isSelected}
               onCheckedChange={onToggleSelection}
+              data-tour="card-select"
               className={cn(
                 "h-6 w-6 rounded-lg border-2 transition-all",
                 "data-[state=checked]:border-blue-500 data-[state=checked]:bg-blue-500",
@@ -157,6 +161,7 @@ export const CardTileHeader = memo(function CardTileHeader({
               variant="ghost"
               size="sm"
               onClick={onOpenSettings}
+              data-tour="card-settings"
               className="h-9 w-9 rounded-xl p-0 transition-colors hover:bg-blue-100 dark:hover:bg-blue-900/30"
               title="Card settings"
               aria-label={`Open settings for ${label}`}

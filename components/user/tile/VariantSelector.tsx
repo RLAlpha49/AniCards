@@ -63,13 +63,18 @@ export const VariantSelector = memo(function VariantSelector({
             <TooltipTrigger asChild>
               <button
                 type="button"
+                data-tour="card-variant-info"
                 className="rounded-full p-0.5 text-slate-400 transition-colors hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 dark:text-slate-500 dark:hover:text-slate-300"
                 aria-label={`${label} info`}
               >
                 <Info className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-xs text-xs" sideOffset={8}>
+            <TooltipContent
+              side="top"
+              className="max-w-xs text-xs"
+              sideOffset={8}
+            >
               <p>{selectedTooltip}</p>
             </TooltipContent>
           </Tooltip>
@@ -81,7 +86,11 @@ export const VariantSelector = memo(function VariantSelector({
         onValueChange={onVariantChange}
         onOpenChange={onOpenChange}
       >
-        <SelectTrigger id={triggerId} className="h-9 w-full text-sm">
+        <SelectTrigger
+          id={triggerId}
+          className="h-9 w-full text-sm"
+          data-tour="card-variant"
+        >
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

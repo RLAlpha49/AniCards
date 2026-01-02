@@ -152,10 +152,7 @@ function CompareControls({
           >
             With
           </Label>
-          <Select
-            value={compareVariant}
-            onValueChange={onCompareVariantChange}
-          >
+          <Select value={compareVariant} onValueChange={onCompareVariantChange}>
             <SelectTrigger
               id={compareSelectTriggerId}
               className={cn("h-8 w-[160px] text-xs", selectTriggerClassName)}
@@ -215,6 +212,7 @@ function PreviewControlsBar({
           onClick={onExpand}
           className="h-8"
           title="Expand preview"
+          data-tour="card-expand"
         >
           <Maximize2 className="h-4 w-4" aria-hidden="true" />
           <span className="ml-2">Expand</span>
@@ -280,12 +278,13 @@ function ExpandedPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[min(98vw,96rem)] max-w-none max-h-[90vh] overflow-y-auto p-0">
+      <DialogContent className="max-h-[90vh] w-[min(98vw,96rem)] max-w-none overflow-y-auto p-0">
         <div className="group/card-tile overflow-hidden rounded-2xl">
           <DialogHeader className="border-b border-slate-200/60 bg-white/85 px-6 py-4 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-950/40">
             <DialogTitle className="text-base">{label}</DialogTitle>
             <DialogDescription className="text-xs">
-              Preview{hasVariantOptions ? ` • Variant: ${primaryVariantLabel}` : ""}
+              Preview
+              {hasVariantOptions ? ` • Variant: ${primaryVariantLabel}` : ""}
             </DialogDescription>
           </DialogHeader>
 
@@ -307,7 +306,9 @@ function ExpandedPreviewDialog({
             >
               <CardPreview
                 previewUrl={previewUrl}
-                label={isComparing ? `${label} (${primaryVariantLabel})` : label}
+                label={
+                  isComparing ? `${label} (${primaryVariantLabel})` : label
+                }
                 previewUnavailableId={previewUnavailableId}
                 convertingId={convertingId}
                 borderRadiusValue={borderRadiusValue}
@@ -599,10 +600,8 @@ export const CardTile = memo(function CardTile({
     variant: config.variant,
   });
 
-  const {
-    copiedFormat: compareCopiedFormat,
-    handleCopy: handleCompareCopy,
-  } = useCopyFeedback(comparePreviewUrl);
+  const { copiedFormat: compareCopiedFormat, handleCopy: handleCompareCopy } =
+    useCopyFeedback(comparePreviewUrl);
 
   const handleCompareCopyUrl = useCallback(
     () => handleCompareCopy("url"),
@@ -613,11 +612,13 @@ export const CardTile = memo(function CardTile({
     [handleCompareCopy],
   );
 
-  const { isDownloading: isCompareDownloading, handleDownload: handleCompareDownload } =
-    useDownload(comparePreviewUrl, {
-      cardId,
-      variant: compareVariant,
-    });
+  const {
+    isDownloading: isCompareDownloading,
+    handleDownload: handleCompareDownload,
+  } = useDownload(comparePreviewUrl, {
+    cardId,
+    variant: compareVariant,
+  });
   const borderRadiusValue = useMemo(
     () => getCardBorderRadius(effectiveBorderRadius),
     [effectiveBorderRadius],
@@ -656,29 +657,32 @@ export const CardTile = memo(function CardTile({
     }
   }, [isCompareDownloading]);
 
-  const compareControlsProps: Omit<CompareControlsProps, "wrapperClassName"> = useMemo<
-    Omit<CompareControlsProps, "wrapperClassName">
-  >(() => ({
-    hasVariantOptions,
-    compareEnabled,
-    onToggleCompare: () => setCompareEnabled((v) => !v),
-    compareVariant,
-    onCompareVariantChange: setCompareVariant,
-    primaryVariantId: config.variant,
-    variations,
-    getVariantTooltipForCard,
-  }), [
-    hasVariantOptions,
-    compareEnabled,
-    compareVariant,
-    config.variant,
-    variations,
-    getVariantTooltipForCard,
-  ]);
+  const compareControlsProps: Omit<CompareControlsProps, "wrapperClassName"> =
+    useMemo<Omit<CompareControlsProps, "wrapperClassName">>(
+      () => ({
+        hasVariantOptions,
+        compareEnabled,
+        onToggleCompare: () => setCompareEnabled((v) => !v),
+        compareVariant,
+        onCompareVariantChange: setCompareVariant,
+        primaryVariantId: config.variant,
+        variations,
+        getVariantTooltipForCard,
+      }),
+      [
+        hasVariantOptions,
+        compareEnabled,
+        compareVariant,
+        config.variant,
+        variations,
+        getVariantTooltipForCard,
+      ],
+    );
 
   return (
     <div
       data-testid={`card-tile-${cardId}`}
+      data-tour="card-tile"
       className={cn(
         "group/card-tile relative overflow-hidden rounded-2xl border transition-all duration-200",
         "focus-within:ring-2 focus-within:ring-blue-500/70 focus-within:ring-offset-2 dark:focus-within:ring-offset-slate-950",

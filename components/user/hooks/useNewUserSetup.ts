@@ -6,14 +6,13 @@ import { parseResponsePayload, getResponseErrorMessage } from "@/lib/utils";
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
 import { getErrorDetails } from "@/lib/error-messages";
 import { trackUserActionError } from "@/lib/error-tracking";
+import type { LoadingPhase } from "@/lib/types/loading";
 
 // Local copies of small AniList types used in hook.
 interface AniListStatsResponse {
   User?: Record<string, unknown>;
   [key: string]: unknown;
 }
-
-import type { LoadingPhase } from "@/lib/types/loading";
 
 type NewUserSetupResult =
   | {
@@ -373,33 +372,58 @@ export function useNewUserSetup() {
     ) => {
       setIsNewUser(true);
 
-      const setupResult = await setupNewUserNetwork(
-        userIdParam,
-        usernameParam,
-        setLoadingPhase,
-      );
+      try {
+        const setupResult = await setupNewUserNetwork(
+          userIdParam,
+          usernameParam,
+          setLoadingPhase,
+        );
 
-      if ("error" in setupResult) {
-        return { error: setupResult.error } as const;
+        if ("error" in setupResult) {
+          setIsNewUser(false);
+          return { error: setupResult.error } as const;
+        }
+
+        // Initialize editor and fetch persisted cards
+        setLoadingPhase?.("loading_cards");
+        setUserData(
+          setupResult.userId.toString(),
+          setupResult.username,
+          setupResult.avatarUrl,
+        );
+
+        await handlePersistedCardsAfterNewUserSetup(
+          setupResult.userId,
+          setupResult.username,
+          setupResult.avatarUrl,
+        );
+
+        setLoadingPhase?.("complete");
+
+        return { success: true } as const;
+      } catch (err) {
+        setIsNewUser(false);
+        setLoadingPhase?.("error");
+
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Failed to set up your profile. Please try again.";
+
+        const details = getErrorDetails(message);
+        trackUserActionError(
+          "new_user_setup_unhandled",
+          new Error(message),
+          details.category,
+          {
+            userId: userIdParam ?? undefined,
+            username: usernameParam ?? undefined,
+          },
+        );
+
+        console.error("Unhandled error during new user setup:", err);
+        return { error: message } as const;
       }
-
-      // Initialize editor and fetch persisted cards
-      setLoadingPhase?.("loading_cards");
-      setUserData(
-        setupResult.userId.toString(),
-        setupResult.username,
-        setupResult.avatarUrl,
-      );
-
-      await handlePersistedCardsAfterNewUserSetup(
-        setupResult.userId,
-        setupResult.username,
-        setupResult.avatarUrl,
-      );
-
-      setLoadingPhase?.("complete");
-
-      return { success: true } as const;
     },
     [setupNewUserNetwork, setUserData, handlePersistedCardsAfterNewUserSetup],
   );

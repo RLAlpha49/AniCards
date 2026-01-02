@@ -35,6 +35,7 @@ export function DownloadPopover({
         <Button
           variant="ghost"
           size="sm"
+          data-tour="card-download"
           disabled={!previewUrl || isDownloading}
           aria-describedby={downloadDescrId}
           title={downloadTitle}

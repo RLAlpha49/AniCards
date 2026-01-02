@@ -43,6 +43,16 @@ Notes:
 - Provide the Plan's output verbatim to the implementation subagent.
 - Keep subagent prompts focused and bounded — each `runSubagent` should have a clear deliverable.
 
+## Exploration Tools (Code Discovery)
+
+- **`get_symbols_overview`**: High-level view of top-level symbols in a file
+- **`find_symbol`**: Locate specific symbol by name path with optional depth
+- **`search_for_pattern`**: Regex search when you don't know exact symbol names
+- **`list_dir`**: Understand project structure
+- **`find_file`**: Search files by glob pattern
+
+**Best Practice**: **Always** explore with these tools BEFORE reading files. Saves tokens and time.
+
 ## Libraries & Docs
 
 - AniList: **Always use reference documentation at [https://docs.anilist.co/reference/](https://docs.anilist.co/reference/)**
