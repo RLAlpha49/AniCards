@@ -597,6 +597,10 @@ const VALID_VISIBILITY = new Set(["all", "enabled", "disabled"]);
 
 type VisibilityFilter = "all" | "enabled" | "disabled";
 
+function parseVisibilityParam(v: string | null): VisibilityFilter {
+  return v && VALID_VISIBILITY.has(v) ? (v as VisibilityFilter) : "all";
+}
+
 type ReorderModeToggleProps = {
   isReorderMode: boolean;
   canEnterReorderMode: boolean;
@@ -729,6 +733,29 @@ function useStableCardEnabledById(): Record<string, boolean> {
   );
 }
 
+function BulkLastMessageLiveRegion({
+  message,
+}: Readonly<{ message: string | null }>) {
+  if (!message) return null;
+
+  return (
+    <span className="sr-only" aria-live="polite" aria-atomic="true">
+      {message}
+    </span>
+  );
+}
+
+function ReorderModeHint({ isVisible }: Readonly<{ isVisible: boolean }>) {
+  if (!isVisible) return null;
+
+  return (
+    <div className="rounded-xl border border-blue-200/60 bg-blue-50/60 px-4 py-2 text-xs text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/25 dark:text-blue-200">
+      <span className="font-semibold">Reorder mode:</span> drag cards by the
+      handle (≡) to change their order.
+    </div>
+  );
+}
+
 /**
  * Main user page editor component.
  * Handles loading user data, displaying cards, and saving changes.
@@ -807,12 +834,9 @@ export function UserPageEditor() {
     useState<ReturnType<typeof readUserPageDraft>>(null);
   const [isDraftNoticeDismissed, setIsDraftNoticeDismissed] = useState(false);
 
-  const parseVisibility = (v: string | null): VisibilityFilter =>
-    v && VALID_VISIBILITY.has(v) ? (v as VisibilityFilter) : "all";
-
-  const initialQuery = searchParams?.get("q") ?? "";
-  const initialVisibility = parseVisibility(searchParams?.get("visibility"));
-  const initialGroup = searchParams?.get("group") ?? "All";
+  const initialQuery = searchParams.get("q") ?? "";
+  const initialVisibility = parseVisibilityParam(searchParams.get("visibility"));
+  const initialGroup = searchParams.get("group") ?? "All";
 
   const [query, setQuery] = useState(initialQuery);
   const [visibility, setVisibility] =
@@ -1182,7 +1206,7 @@ export function UserPageEditor() {
   // Sync state from URL search params when the URL changes (back/forward etc.)
   useEffect(() => {
     const q = searchParams.get("q") ?? "";
-    const v = parseVisibility(searchParams.get("visibility"));
+    const v = parseVisibilityParam(searchParams.get("visibility"));
     const g = searchParams.get("group") ?? "All";
 
     if (q !== query) setQuery(q);
@@ -2062,18 +2086,8 @@ export function UserPageEditor() {
                 }}
               />
 
-              {bulkLastMessage ? (
-                <span className="sr-only" aria-live="polite" aria-atomic="true">
-                  {bulkLastMessage}
-                </span>
-              ) : null}
-
-              {isReorderMode ? (
-                <div className="rounded-xl border border-blue-200/60 bg-blue-50/60 px-4 py-2 text-xs text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/25 dark:text-blue-200">
-                  <span className="font-semibold">Reorder mode:</span> drag
-                  cards by the handle (≡) to change their order.
-                </div>
-              ) : null}
+              <BulkLastMessageLiveRegion message={bulkLastMessage} />
+              <ReorderModeHint isVisible={isReorderMode} />
             </div>
 
             {visibleGroupNames.length === 0 ? (
