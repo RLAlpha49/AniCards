@@ -277,7 +277,8 @@ function shouldPersistIndividualColorsForPreset(preset: string | undefined) {
 
 /**
  * Process a single global color field into `sanitized`.
- * Returns the key (string) when the value is a string and invalid.
+ * Returns the key (string) when the value is invalid (string or non-string) so callers
+ * can surface an explicit error instead of silently ignoring invalid inputs.
  */
 function processGlobalColorField(
   sanitized: Partial<GlobalCardSettings>,
@@ -290,11 +291,13 @@ function processGlobalColorField(
     (sanitized as Record<string, unknown>)[key as string] = value;
     return undefined;
   }
-  // Only accept non-string (object) values when they validate.
+  // Validate non-string values (e.g., gradient objects) too — return the field
+  // name when they fail validation so callers can reject the payload.
   if (validateColorValue(value)) {
     (sanitized as Record<string, unknown>)[key as string] = value;
+    return undefined;
   }
-  return undefined;
+  return key as string;
 }
 
 function sanitizeGlobalColorFields(
@@ -863,7 +866,7 @@ async function assembleStoredCardsAndGlobalSettings(params: {
   const sanitizeResult = sanitizeIncomingGlobalSettings(globalSettings);
   if (sanitizeResult?.invalidColorStringKey) {
     console.warn(
-      `⚠️ [${endpoint}] Invalid globalSettings color string for ${sanitizeResult.invalidColorStringKey}`,
+      `⚠️ [${endpoint}] Invalid globalSettings color value for ${sanitizeResult.invalidColorStringKey}`,
     );
     await incrementAnalytics(
       buildAnalyticsMetricKey(endpointKey, "failed_requests"),
