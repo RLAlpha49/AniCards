@@ -835,7 +835,9 @@ export function UserPageEditor() {
   const [isDraftNoticeDismissed, setIsDraftNoticeDismissed] = useState(false);
 
   const initialQuery = searchParams.get("q") ?? "";
-  const initialVisibility = parseVisibilityParam(searchParams.get("visibility"));
+  const initialVisibility = parseVisibilityParam(
+    searchParams.get("visibility"),
+  );
   const initialGroup = searchParams.get("group") ?? "All";
 
   const [query, setQuery] = useState(initialQuery);
@@ -1498,10 +1500,8 @@ export function UserPageEditor() {
 
         <EditorNotices
           showConflictNotice={showConflictNotice}
-          onResolveConflictKeepEdits={() => handleResolveConflictKeepEdits()}
-          onResolveConflictDiscardEdits={() =>
-            handleResolveConflictDiscardEdits()
-          }
+          onResolveConflictKeepEdits={handleResolveConflictKeepEdits}
+          onResolveConflictDiscardEdits={handleResolveConflictDiscardEdits}
           showDraftNotice={showDraftNotice}
           onRestoreDraft={handleRestoreDraft}
           onDiscardDraft={handleDiscardDraft}
