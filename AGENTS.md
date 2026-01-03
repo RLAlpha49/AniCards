@@ -17,7 +17,7 @@
 ## Subagents — Be proactive ⚡
 
 - Use the `Plan` subagent proactively as the first step for tasks. Ask `Plan` for an implementable plan. Run `Plan` before making edits or invoking other subagents whenever practical.
-- When you have multiple distinct tasks, run the `Plan` subagent separately for each task — **DO NOT** create one Plan that attempts to fully plan multiple unrelated tasks at once. Each Plan must be focused and produce an implementable set of steps for that single task.
+- When you have multiple distinct tasks, run the `Plan` subagent separately for each task — **DO NOT** try to cover multiple unrelated tasks in one Plan. Each Plan must be focused and produce an implementable set of steps for that single task.
 - Use `runSubagent` proactively for bounded, self-contained tasks (research, refactor, triage, automation, complex edits) and prefer specialized agents to execute Plan items.
 - Always include: **goal**, **constraints**, and **context** when invoking any subagent.
 - **ALWAYS** run the `Janitor` subagent at the end of every implementation `runSubagent` invocation to perform cleanup and review.
