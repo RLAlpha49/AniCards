@@ -837,7 +837,10 @@ async function assembleStoredCardsAndGlobalSettings(params: {
   endpointKey: string;
   request: Request;
 }): Promise<
-  | { orderedStoredCards: StoredCardConfig[]; mergedGlobalSettings?: GlobalCardSettings }
+  | {
+      orderedStoredCards: StoredCardConfig[];
+      mergedGlobalSettings?: GlobalCardSettings;
+    }
   | { errorResponse: NextResponse }
 > {
   const {
@@ -865,12 +868,15 @@ async function assembleStoredCardsAndGlobalSettings(params: {
     await incrementAnalytics(
       buildAnalyticsMetricKey(endpointKey, "failed_requests"),
     ).catch(() => {});
-    return { errorResponse: jsonWithCors({ error: "Invalid data" }, request, 400) };
+    return {
+      errorResponse: jsonWithCors({ error: "Invalid data" }, request, 400),
+    };
   }
   const sanitizedGlobalSettings = sanitizeResult?.sanitized;
 
   const effectiveBorderEnabled =
-    sanitizedGlobalSettings?.borderEnabled ?? existingGlobalSettings?.borderEnabled;
+    sanitizedGlobalSettings?.borderEnabled ??
+    existingGlobalSettings?.borderEnabled;
 
   // Apply incoming typed cards (validated above)
   applyIncomingCards(existingCardsMap, incomingCards);
@@ -908,20 +914,16 @@ async function assembleStoredCardsAndGlobalSettings(params: {
   );
 
   const mergedGlobalSettings: GlobalCardSettings | undefined =
-    buildMergedGlobalSettings(
-      sanitizedGlobalSettings,
-      existingGlobalSettings,
-      {
-        borderEnabled: effectiveBorderEnabled,
-        borderColor: effectiveBorderColor,
-        borderRadius: effectiveBorderRadius,
-        useStatusColors: effectiveUseStatusColors,
-        showPiePercentages: effectiveShowPiePercentages,
-        showFavorites: effectiveShowFavorites,
-        gridCols: effectiveGridCols,
-        gridRows: effectiveGridRows,
-      },
-    );
+    buildMergedGlobalSettings(sanitizedGlobalSettings, existingGlobalSettings, {
+      borderEnabled: effectiveBorderEnabled,
+      borderColor: effectiveBorderColor,
+      borderRadius: effectiveBorderRadius,
+      useStatusColors: effectiveUseStatusColors,
+      showPiePercentages: effectiveShowPiePercentages,
+      showFavorites: effectiveShowFavorites,
+      gridCols: effectiveGridCols,
+      gridRows: effectiveGridRows,
+    });
 
   return { orderedStoredCards, mergedGlobalSettings };
 }
@@ -1057,8 +1059,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       endpointKey,
       cardsKey,
     );
-
-
 
     const existingGlobalSettings = parseExistingGlobalSettings(
       existingData,

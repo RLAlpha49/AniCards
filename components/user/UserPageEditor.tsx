@@ -1474,9 +1474,7 @@ export function UserPageEditor() {
 
         <EditorNotices
           showConflictNotice={showConflictNotice}
-          onResolveConflictKeepEdits={() =>
-            handleResolveConflictKeepEdits()
-          }
+          onResolveConflictKeepEdits={() => handleResolveConflictKeepEdits()}
           onResolveConflictDiscardEdits={() =>
             handleResolveConflictDiscardEdits()
           }
