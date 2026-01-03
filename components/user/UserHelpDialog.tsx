@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Fuse from "fuse.js";
 
 import {
@@ -132,10 +132,20 @@ export function UserHelpDialog({
     [filteredTopics, selectedTopicId],
   );
 
+  const didResetRef = useRef(false);
+
   useEffect(() => {
-    if (!open) return;
-    // Reset search when dialog opens for a fresh experience
-    setQuery("");
+    if (!open) {
+      didResetRef.current = false;
+      return;
+    }
+
+    // Reset search only when dialog first opens
+    if (!didResetRef.current) {
+      setQuery("");
+      didResetRef.current = true;
+    }
+
     if (
       selectedTopicId &&
       filteredTopics.some((t) => t.id === selectedTopicId)
