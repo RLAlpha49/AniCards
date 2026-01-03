@@ -589,7 +589,7 @@ function computeEffectiveBorderRadius(
 ): number | undefined {
   if (!effectiveBorderEnabled) return undefined;
   if (typeof incoming?.borderRadius === "number") {
-    return incoming.borderRadius;
+    return clampBorderRadius(incoming.borderRadius);
   }
   if (typeof existing?.borderRadius === "number") {
     return clampBorderRadius(existing.borderRadius);
