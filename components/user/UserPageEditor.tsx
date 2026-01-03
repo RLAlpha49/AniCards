@@ -1217,7 +1217,7 @@ export function UserPageEditor() {
 
       if ((e.ctrlKey || e.metaKey) && key === "s") {
         e.preventDefault();
-        void saveNow();
+        saveNow();
       }
     };
 
@@ -1475,10 +1475,10 @@ export function UserPageEditor() {
         <EditorNotices
           showConflictNotice={showConflictNotice}
           onResolveConflictKeepEdits={() =>
-            void handleResolveConflictKeepEdits()
+            handleResolveConflictKeepEdits()
           }
           onResolveConflictDiscardEdits={() =>
-            void handleResolveConflictDiscardEdits()
+            handleResolveConflictDiscardEdits()
           }
           showDraftNotice={showDraftNotice}
           onRestoreDraft={handleRestoreDraft}
@@ -1523,7 +1523,7 @@ export function UserPageEditor() {
                             type="button"
                             variant="outline"
                             className="w-full shrink-0 rounded-xl sm:w-auto"
-                            onClick={() => void saveNow()}
+                            onClick={() => saveNow()}
                             disabled={!canSaveNow}
                             aria-keyshortcuts="Control+S Meta+S"
                             data-tour="save-button"

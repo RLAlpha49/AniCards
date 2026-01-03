@@ -626,7 +626,6 @@ function normalizeGlobalColorsForPreset(
 /**
  * Validate `validated` (result of `validateCardData`) and `statsData`. Returns
  * a `NextResponse` when validation fails; otherwise `undefined`.
- * Extracted from `POST` to reduce cognitive complexity.
  */
 async function validateIncomingPayload(
   validated: ReturnType<typeof validateCardData>,
@@ -826,6 +825,161 @@ function buildMergedGlobalSettings(
 }
 
 /**
+ * Assemble stored cards and merged global settings.
+ */
+async function assembleStoredCardsAndGlobalSettings(params: {
+  incomingCards: StoredCardConfig[];
+  existingCards: StoredCardConfig[];
+  existingGlobalSettings?: GlobalCardSettings;
+  cardOrder?: string[];
+  globalSettings?: Partial<GlobalCardSettings>;
+  endpoint: string;
+  endpointKey: string;
+  request: Request;
+}): Promise<
+  | { orderedStoredCards: StoredCardConfig[]; mergedGlobalSettings?: GlobalCardSettings }
+  | { errorResponse: NextResponse }
+> {
+  const {
+    incomingCards,
+    existingCards,
+    existingGlobalSettings,
+    cardOrder,
+    globalSettings,
+    endpoint,
+    endpointKey,
+    request,
+  } = params;
+
+  // Build a map of existing cards by cardName for efficient merging
+  const existingCardsMap = new Map<string, StoredCardConfig>(
+    existingCards.map((card) => [card.cardName, card]),
+  );
+
+  // Sanitize incoming globalSettings to only include known keys and valid types.
+  const sanitizeResult = sanitizeIncomingGlobalSettings(globalSettings);
+  if (sanitizeResult?.invalidColorStringKey) {
+    console.warn(
+      `⚠️ [${endpoint}] Invalid globalSettings color string for ${sanitizeResult.invalidColorStringKey}`,
+    );
+    await incrementAnalytics(
+      buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+    ).catch(() => {});
+    return { errorResponse: jsonWithCors({ error: "Invalid data" }, request, 400) };
+  }
+  const sanitizedGlobalSettings = sanitizeResult?.sanitized;
+
+  const effectiveBorderEnabled =
+    sanitizedGlobalSettings?.borderEnabled ?? existingGlobalSettings?.borderEnabled;
+
+  // Apply incoming typed cards (validated above)
+  applyIncomingCards(existingCardsMap, incomingCards);
+
+  ensureAllSupportedCardTypesPresent(existingCardsMap);
+
+  const orderedStoredCards = buildOrderedStoredCards({
+    incomingCards,
+    existingCards,
+    mergedCardsByName: existingCardsMap,
+    cardOrder,
+  });
+
+  // Compute borderRadius using helper (clamped when applicable)
+  const effectiveBorderRadius = computeEffectiveBorderRadius(
+    effectiveBorderEnabled,
+    sanitizedGlobalSettings,
+    existingGlobalSettings,
+  );
+
+  const effectiveBorderColor = effectiveBorderEnabled
+    ? (sanitizeStoredBorderColor(sanitizedGlobalSettings?.borderColor) ??
+      sanitizeStoredBorderColor(existingGlobalSettings?.borderColor))
+    : undefined;
+
+  const {
+    useStatusColors: effectiveUseStatusColors,
+    showPiePercentages: effectiveShowPiePercentages,
+    showFavorites: effectiveShowFavorites,
+    gridCols: effectiveGridCols,
+    gridRows: effectiveGridRows,
+  } = mergeGlobalAdvancedSettings(
+    sanitizedGlobalSettings,
+    existingGlobalSettings,
+  );
+
+  const mergedGlobalSettings: GlobalCardSettings | undefined =
+    buildMergedGlobalSettings(
+      sanitizedGlobalSettings,
+      existingGlobalSettings,
+      {
+        borderEnabled: effectiveBorderEnabled,
+        borderColor: effectiveBorderColor,
+        borderRadius: effectiveBorderRadius,
+        useStatusColors: effectiveUseStatusColors,
+        showPiePercentages: effectiveShowPiePercentages,
+        showFavorites: effectiveShowFavorites,
+        gridCols: effectiveGridCols,
+        gridRows: effectiveGridRows,
+      },
+    );
+
+  return { orderedStoredCards, mergedGlobalSettings };
+}
+
+/**
+ * Validate per-card colors on stored cards and return a NextResponse on failure.
+ */
+async function validateCardColors(
+  orderedStoredCards: StoredCardConfig[],
+  endpoint: string,
+  endpointKey: string,
+  request: Request,
+): Promise<NextResponse | undefined> {
+  const requiredColorFields = [
+    "titleColor",
+    "backgroundColor",
+    "textColor",
+    "circleColor",
+  ];
+
+  const cardsToCheck = orderedStoredCards
+    .map((card, idx) => ({ card, idx }))
+    .filter(
+      ({ card }) =>
+        card.disabled !== true &&
+        card.useCustomSettings === true &&
+        (!card.colorPreset || card.colorPreset === "custom"),
+    );
+
+  for (const { card, idx } of cardsToCheck) {
+    for (const field of requiredColorFields) {
+      const val = (card as unknown as Record<string, unknown>)[field];
+      if (val === undefined || val === null) {
+        console.warn(
+          `⚠️ [${endpoint}] Card ${idx} missing required color field after merge: ${field}`,
+        );
+        await incrementAnalytics(
+          buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+        ).catch(() => {});
+        return jsonWithCors({ error: "Invalid data" }, request, 400);
+      }
+      if (!validateColorValue(val)) {
+        const reason = getColorInvalidReason(val);
+        const reasonSuffix = reason ? ` (${reason})` : "";
+        console.warn(
+          `⚠️ [${endpoint}] Card ${idx} invalid color or gradient format for ${field}${reasonSuffix} after merge`,
+        );
+        await incrementAnalytics(
+          buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+        ).catch(() => {});
+        return jsonWithCors({ error: "Invalid data" }, request, 400);
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
  * Validates, persists, and reports analytics for the user card configuration payload.
  * @param request - Incoming request containing the user ID, stats, and card array.
  * @returns A NextResponse that signals success or propagates a validation/error response.
@@ -904,133 +1058,33 @@ export async function POST(request: Request): Promise<NextResponse> {
       cardsKey,
     );
 
-    // Build a map of existing cards by cardName for efficient merging
-    const existingCardsMap = new Map<string, StoredCardConfig>(
-      existingCards.map((card) => [card.cardName, card]),
-    );
+
 
     const existingGlobalSettings = parseExistingGlobalSettings(
       existingData,
       endpoint,
     );
 
-    // Sanitize incoming globalSettings to only include known keys and valid types.
-    const sanitizeResult = sanitizeIncomingGlobalSettings(globalSettings);
-    if (sanitizeResult?.invalidColorStringKey) {
-      console.warn(
-        `⚠️ [${endpoint}] Invalid globalSettings color string for ${sanitizeResult.invalidColorStringKey}`,
-      );
-      await incrementAnalytics(
-        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-      ).catch(() => {});
-      return jsonWithCors({ error: "Invalid data" }, request, 400);
-    }
-    const sanitizedGlobalSettings = sanitizeResult?.sanitized;
-    // Determine effective borderEnabled early for use in card config building
-    const effectiveBorderEnabled =
-      sanitizedGlobalSettings?.borderEnabled ??
-      existingGlobalSettings?.borderEnabled;
-
-    // Process incoming cards: update existing or add new ones
-    // Apply incoming typed cards (validated above)
-    applyIncomingCards(existingCardsMap, incomingCardsTyped);
-
-    ensureAllSupportedCardTypesPresent(existingCardsMap);
-
-    const orderedStoredCards = buildOrderedStoredCards({
+    const assembly = await assembleStoredCardsAndGlobalSettings({
       incomingCards: incomingCardsTyped,
       existingCards,
-      mergedCardsByName: existingCardsMap,
+      existingGlobalSettings,
       cardOrder,
+      globalSettings,
+      endpoint,
+      endpointKey,
+      request,
     });
+    if ("errorResponse" in assembly) return assembly.errorResponse;
+    const { orderedStoredCards, mergedGlobalSettings } = assembly;
 
-    // Compute borderRadius using helper (clamped when applicable)
-    const effectiveBorderRadius = computeEffectiveBorderRadius(
-      effectiveBorderEnabled,
-      sanitizedGlobalSettings,
-      existingGlobalSettings,
+    const colorValidationError = await validateCardColors(
+      orderedStoredCards,
+      endpoint,
+      endpointKey,
+      request,
     );
-
-    const effectiveBorderColor = effectiveBorderEnabled
-      ? (sanitizeStoredBorderColor(sanitizedGlobalSettings?.borderColor) ??
-        sanitizeStoredBorderColor(existingGlobalSettings?.borderColor))
-      : undefined;
-
-    const {
-      useStatusColors: effectiveUseStatusColors,
-      showPiePercentages: effectiveShowPiePercentages,
-      showFavorites: effectiveShowFavorites,
-      gridCols: effectiveGridCols,
-      gridRows: effectiveGridRows,
-    } = mergeGlobalAdvancedSettings(
-      sanitizedGlobalSettings,
-      existingGlobalSettings,
-    );
-
-    const mergedGlobalSettings: GlobalCardSettings | undefined =
-      buildMergedGlobalSettings(
-        sanitizedGlobalSettings,
-        existingGlobalSettings,
-        {
-          borderEnabled: effectiveBorderEnabled,
-          borderColor: effectiveBorderColor,
-          borderRadius: effectiveBorderRadius,
-          useStatusColors: effectiveUseStatusColors,
-          showPiePercentages: effectiveShowPiePercentages,
-          showFavorites: effectiveShowFavorites,
-          gridCols: effectiveGridCols,
-          gridRows: effectiveGridRows,
-        },
-      );
-
-    // Final validation on the merged card data: ensure that any card which
-    // requires individual colors (useCustomSettings true and colorPreset is
-    // undefined or "custom") actually has all four color fields present after
-    // merging with existing data. This guards against both incoming partial
-    // patches and missing stored records.
-    for (let i = 0; i < orderedStoredCards.length; i++) {
-      const card = orderedStoredCards[i];
-      if (card.disabled === true) continue; // disabled cards may omit colors
-
-      // Only validate per-card colors when the card actually uses custom settings
-      // (cards with useCustomSettings=false intentionally inherit globals and should
-      // not be required to include individual per-card colors).
-      if (card.useCustomSettings !== true) continue;
-      const preset = card.colorPreset;
-      const shouldPersistColors = !preset || preset === "custom";
-      if (!shouldPersistColors) continue;
-
-      const requiredColorFields = [
-        "titleColor",
-        "backgroundColor",
-        "textColor",
-        "circleColor",
-      ];
-
-      for (const field of requiredColorFields) {
-        const val = (card as unknown as Record<string, unknown>)[field];
-        if (val === undefined || val === null) {
-          console.warn(
-            `⚠️ [${endpoint}] Card ${i} missing required color field after merge: ${field}`,
-          );
-          await incrementAnalytics(
-            buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-          ).catch(() => {});
-          return jsonWithCors({ error: "Invalid data" }, request, 400);
-        }
-        if (!validateColorValue(val)) {
-          const reason = getColorInvalidReason(val);
-          const reasonSuffix = reason ? ` (${reason})` : "";
-          console.warn(
-            `⚠️ [${endpoint}] Card ${i} invalid color or gradient format for ${field}${reasonSuffix} after merge`,
-          );
-          await incrementAnalytics(
-            buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-          ).catch(() => {});
-          return jsonWithCors({ error: "Invalid data" }, request, 400);
-        }
-      }
-    }
+    if (colorValidationError) return colorValidationError;
 
     const cardData: CardsRecord = {
       userId,
