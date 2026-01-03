@@ -19,24 +19,17 @@ import {
   Eye,
   EyeOff,
   SlidersHorizontal,
-  X,
   RotateCcw,
   Undo2,
   Redo2,
-  AlertTriangle,
   Info,
-  RefreshCw,
-  Heart,
-  ExternalLink,
   UserPlus,
   MoreHorizontal,
   GripVertical,
   Save,
   Trash2,
-  History,
 } from "lucide-react";
 import Link from "next/link";
-import { driver, type DriveStep } from "driver.js";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/Dialog";
@@ -95,6 +88,10 @@ import { cn } from "@/lib/utils";
 import { useNewUserSetup } from "./hooks/useNewUserSetup";
 import { useCardFiltering } from "./hooks/useCardFiltering";
 import { useUserDataLoader } from "./hooks/useUserDataLoader";
+import { BulkActionLiveRegion } from "./editor/BulkActionLiveRegion";
+import { EditorNotices } from "./editor/EditorNotices";
+import { useEditorTour } from "./editor/EditorTour";
+import { ReorderModeHint } from "./editor/ReorderModeHint";
 import type { LoadingPhase } from "@/lib/types/loading";
 import { useShallow } from "zustand/react/shallow";
 
@@ -106,44 +103,6 @@ function getTooltipTriggerChild(mode: TooltipTriggerMode, child: ReactElement) {
   ) : (
     child
   );
-}
-
-function toPopoverOnlyStep(step: DriveStep): DriveStep {
-  const { element: _element, ...rest } = step;
-  return rest;
-}
-
-function resolveTourSelector(selector: string, doc: Document): Element | null {
-  const direct = doc.querySelector(selector);
-  if (direct) return direct;
-
-  const fallbacks = TOUR_SELECTOR_FALLBACKS[selector];
-  if (!fallbacks?.length) return null;
-
-  for (const fallback of fallbacks) {
-    const el = doc.querySelector(fallback);
-    if (el) return el;
-  }
-
-  return null;
-}
-
-function resolveTourStepForDriver(step: DriveStep, doc: Document): DriveStep {
-  if (!step.element) return step;
-
-  if (typeof step.element === "string") {
-    const el = resolveTourSelector(step.element, doc);
-    return el ? { ...step, element: el } : toPopoverOnlyStep(step);
-  }
-
-  return step;
-}
-
-function resolveTourStepsForDriver(
-  steps: DriveStep[],
-  doc: Document,
-): DriveStep[] {
-  return steps.map((step) => resolveTourStepForDriver(step, doc));
 }
 
 /**
@@ -193,352 +152,6 @@ const PIE_PERCENTAGE_CARDS = new Set([
   "mangaCountry",
 ]);
 
-function SaveConflictNotice({
-  isVisible,
-  onKeepEdits,
-  onReloadLatest,
-}: Readonly<{
-  isVisible: boolean;
-  onKeepEdits: () => void;
-  onReloadLatest: () => void;
-}>) {
-  if (!isVisible) return null;
-
-  return (
-    <div className="flex justify-center">
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.08 }}
-        className="w-full max-w-[700px] rounded-xl border border-red-200/60 bg-gradient-to-r from-red-50/80 to-amber-50/80 px-4 py-3 backdrop-blur-sm dark:border-red-900/50 dark:from-red-950/25 dark:to-amber-950/20"
-      >
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/40">
-            <AlertTriangle className="h-4 w-4 text-red-700 dark:text-red-300" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm text-red-800 dark:text-red-200">
-              <span className="font-medium">Save conflict:</span> another tab
-              saved changes. Reload to sync, then re-apply your edits.
-            </p>
-
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-              <Button
-                type="button"
-                variant="secondary"
-                className="w-full rounded-xl sm:w-auto"
-                onClick={onKeepEdits}
-              >
-                <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />
-                Reload & keep edits
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full rounded-xl sm:w-auto"
-                onClick={onReloadLatest}
-              >
-                Reload latest
-              </Button>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-function DraftRestoreNotice({
-  isVisible,
-  onRestore,
-  onDiscard,
-  onDismiss,
-}: Readonly<{
-  isVisible: boolean;
-  onRestore: () => void;
-  onDiscard: () => void;
-  onDismiss: () => void;
-}>) {
-  if (!isVisible) return null;
-
-  return (
-    <div className="flex justify-center">
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="w-full max-w-[700px] rounded-xl border border-indigo-200/60 bg-gradient-to-r from-indigo-50/80 to-purple-50/80 px-4 py-3 backdrop-blur-sm dark:border-indigo-900/40 dark:from-indigo-950/25 dark:to-purple-950/20"
-      >
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-100 dark:bg-indigo-900/40">
-            <History className="h-4 w-4 text-indigo-700 dark:text-indigo-300" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm text-indigo-900 dark:text-indigo-100">
-              <span className="font-medium">Draft found:</span> we found unsaved
-              changes from a previous session.
-            </p>
-
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-              <Button
-                type="button"
-                variant="secondary"
-                className="w-full rounded-xl sm:w-auto"
-                onClick={onRestore}
-              >
-                Restore draft
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full rounded-xl sm:w-auto"
-                onClick={onDiscard}
-              >
-                Discard draft
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="justify-start"
-                onClick={onDismiss}
-              >
-                Dismiss
-              </Button>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-function EditorNotices({
-  showConflictNotice,
-  onResolveConflictKeepEdits,
-  onResolveConflictDiscardEdits,
-  showDraftNotice,
-  onRestoreDraft,
-  onDiscardDraft,
-  onDismissDraftNotice,
-  isNewUser,
-  onDismissNewUser,
-  onOpenHelp,
-  onStartTour,
-  cardsWarning,
-  onDismissCardsWarning,
-}: Readonly<{
-  showConflictNotice: boolean;
-  onResolveConflictKeepEdits: () => void;
-  onResolveConflictDiscardEdits: () => void;
-  showDraftNotice: boolean;
-  onRestoreDraft: () => void;
-  onDiscardDraft: () => void;
-  onDismissDraftNotice: () => void;
-  isNewUser: boolean;
-  onDismissNewUser: () => void;
-  onOpenHelp: () => void;
-  onStartTour: () => void;
-  cardsWarning: string | null;
-  onDismissCardsWarning: () => void;
-}>) {
-  return (
-    <div className="mx-auto mt-6 flex max-w-[80vw] flex-col gap-4">
-      <SaveConflictNotice
-        isVisible={showConflictNotice}
-        onKeepEdits={onResolveConflictKeepEdits}
-        onReloadLatest={onResolveConflictDiscardEdits}
-      />
-
-      <DraftRestoreNotice
-        isVisible={showDraftNotice}
-        onRestore={onRestoreDraft}
-        onDiscard={onDiscardDraft}
-        onDismiss={onDismissDraftNotice}
-      />
-
-      {/* Welcome Notice for New Users */}
-      {isNewUser && (
-        <div className="flex justify-center">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="w-full max-w-[500px] rounded-xl border border-green-200/60 bg-gradient-to-r from-green-50/80 to-emerald-50/80 px-4 py-3 backdrop-blur-sm dark:border-green-800/40 dark:from-green-950/30 dark:to-emerald-950/30"
-          >
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/50">
-                <UserPlus className="h-4 w-4 text-green-600 dark:text-green-400" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm text-green-800 dark:text-green-200">
-                  <span className="font-medium">Welcome to AniCards!</span> Your
-                  profile is ready. Enable cards below and customize them in
-                  Global Settings.
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onDismissNewUser}
-                className="h-6 w-6 shrink-0 rounded-full p-0 text-green-600 hover:bg-green-100 hover:text-green-800 dark:text-green-400 dark:hover:bg-green-900/50 dark:hover:text-green-200"
-                aria-label="Dismiss welcome notice"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* Quick Start Callout (shown for new users) */}
-      {isNewUser && (
-        <div className="flex justify-center">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.12 }}
-            className="w-full max-w-[700px] rounded-xl border border-slate-200/60 bg-white/70 px-4 py-4 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/40"
-          >
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/50">
-                <Info
-                  className="h-4 w-4 text-blue-700 dark:text-blue-300"
-                  aria-hidden="true"
-                />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-                  Quick start
-                </h3>
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700 dark:text-slate-300">
-                  <li>
-                    Enable the cards you want below (you can always change this
-                    later).
-                  </li>
-                  <li>
-                    Open <strong>Global Settings</strong> to set your default
-                    style.
-                  </li>
-                  <li>
-                    Use each card’s actions to copy links/text or download.
-                  </li>
-                </ul>
-
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="w-full rounded-xl sm:w-auto"
-                    onClick={onOpenHelp}
-                    aria-haspopup="dialog"
-                  >
-                    Learn more
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full rounded-xl sm:w-auto"
-                    onClick={onStartTour}
-                  >
-                    Start tour
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {cardsWarning && (
-        <div className="flex justify-center">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="w-full max-w-[700px] rounded-xl border border-yellow-200/60 bg-gradient-to-r from-yellow-50/80 to-amber-50/80 px-4 py-3 backdrop-blur-sm dark:border-yellow-800/40 dark:from-yellow-950/30 dark:to-amber-950/30"
-          >
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-yellow-100 dark:bg-yellow-900/50">
-                <AlertTriangle className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm text-amber-800 dark:text-amber-200">
-                  <span className="font-medium">
-                    Problem loading saved cards:
-                  </span>{" "}
-                  {cardsWarning}
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onDismissCardsWarning}
-                className="h-6 w-6 shrink-0 rounded-full p-0 text-yellow-700 hover:bg-yellow-100 hover:text-yellow-900 dark:text-yellow-300 dark:hover:bg-yellow-900/50 dark:hover:text-yellow-100"
-                aria-label="Dismiss card loading warning"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      <div className="flex flex-col justify-center gap-4 md:flex-row md:flex-wrap lg:flex-nowrap">
-        {/* Daily Update Notice */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="max-w-[500px] flex-1 rounded-xl border border-blue-200/60 bg-gradient-to-r from-blue-50/80 to-indigo-50/80 px-4 py-3 backdrop-blur-sm dark:border-blue-800/40 dark:from-blue-950/30 dark:to-indigo-950/30"
-        >
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/50">
-              <RefreshCw className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-            </div>
-            <p className="text-sm text-blue-800 dark:text-blue-200">
-              <span className="font-medium">Set it and forget it!</span> Stats
-              update automatically every day. Your card URLs always show the
-              latest data.
-            </p>
-          </div>
-        </motion.div>
-
-        {/* Credits Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="max-w-[500px] flex-1 rounded-xl border border-pink-200/40 bg-gradient-to-r from-pink-50/80 via-purple-50/80 to-blue-50/80 px-4 py-3 backdrop-blur-sm dark:border-pink-800/30 dark:from-pink-950/30 dark:via-purple-950/30 dark:to-blue-950/30"
-        >
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-pink-500 to-purple-600 shadow-lg shadow-pink-500/20">
-              <Heart className="h-4 w-4 text-white" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm text-slate-800 dark:text-slate-200">
-                <span className="font-medium">Enjoying AniCards?</span> If you
-                find this project useful, consider crediting it in your AniList
-                bio. It helps others discover AniCards!
-              </p>
-            </div>
-            <a
-              href="https://anilist.co/user/Alpha49"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-0.5 inline-flex items-center gap-1.5 rounded-lg border border-pink-200 bg-white/80 px-2.5 py-1 text-xs font-medium text-pink-700 transition-all hover:border-pink-300 hover:bg-pink-50 dark:border-pink-800 dark:bg-slate-900/50 dark:text-pink-400 dark:hover:border-pink-700"
-            >
-              <ExternalLink className="h-3 w-3" />
-              @Alpha49
-            </a>
-          </div>
-        </motion.div>
-      </div>
-    </div>
-  );
-}
-
 /**
  * Card types that support favorites toggle.
  * @source
@@ -559,39 +172,6 @@ const GROUP_ICONS: Record<string, React.ReactNode> = {
   "Advanced Analytics": <BarChart3 className="h-5 w-5" />,
 };
 const DEFAULT_GROUP_ICON = <LayoutGrid className="h-5 w-5" />;
-
-const TOUR_STORAGE_VERSION = "v1";
-
-// Fallbacks for Driver.js tour step targets.
-// Some tour UI only renders when a card is enabled (or when a group is expanded).
-// Rather than dropping steps (which changes the tour length/order), fall back to a
-// stable container or show the step as a centered popover.
-const TOUR_SELECTOR_FALLBACKS: Readonly<Record<string, string[]>> = {
-  '[data-tour="card-tile"]': ['[data-tour="card-groups"]'],
-  '[data-tour="card-enable-toggle"]': [
-    '[data-tour="card-tile"]',
-    '[data-tour="card-groups"]',
-  ],
-  '[data-tour="card-settings"]': [
-    '[data-tour="card-enable-toggle"]',
-    '[data-tour="card-tile"]',
-    '[data-tour="card-groups"]',
-  ],
-  '[data-tour="card-variant"]': [
-    '[data-tour="card-settings"]',
-    '[data-tour="card-tile"]',
-    '[data-tour="card-groups"]',
-  ],
-  '[data-tour="card-preview"]': [
-    '[data-tour="card-tile"]',
-    '[data-tour="card-groups"]',
-  ],
-  '[data-tour="card-expand"]': [
-    '[data-tour="card-preview"]',
-    '[data-tour="card-tile"]',
-    '[data-tour="card-groups"]',
-  ],
-};
 
 const VALID_VISIBILITY = new Set(["all", "enabled", "disabled"]);
 
@@ -733,29 +313,6 @@ function useStableCardEnabledById(): Record<string, boolean> {
   );
 }
 
-function BulkLastMessageLiveRegion({
-  message,
-}: Readonly<{ message: string | null }>) {
-  if (!message) return null;
-
-  return (
-    <span className="sr-only" aria-live="polite" aria-atomic="true">
-      {message}
-    </span>
-  );
-}
-
-function ReorderModeHint({ isVisible }: Readonly<{ isVisible: boolean }>) {
-  if (!isVisible) return null;
-
-  return (
-    <div className="rounded-xl border border-blue-200/60 bg-blue-50/60 px-4 py-2 text-xs text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/25 dark:text-blue-200">
-      <span className="font-semibold">Reorder mode:</span> drag cards by the
-      handle (≡) to change their order.
-    </div>
-  );
-}
-
 /**
  * Main user page editor component.
  * Handles loading user data, displaying cards, and saving changes.
@@ -820,16 +377,6 @@ export function UserPageEditor() {
   const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false);
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
 
-  const tourStorageKey = useMemo(() => {
-    if (!userId) return null;
-    return `anicards:user-editor-tour:${TOUR_STORAGE_VERSION}:${userId}`;
-  }, [userId]);
-
-  const [isTourRunning, setIsTourRunning] = useState(false);
-  const [isTourCompleted, setIsTourCompleted] = useState(false);
-  const tourRef = useRef<ReturnType<typeof driver> | null>(null);
-  const startTourTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const [draftRecord, setDraftRecord] =
     useState<ReturnType<typeof readUserPageDraft>>(null);
   const [isDraftNoticeDismissed, setIsDraftNoticeDismissed] = useState(false);
@@ -866,257 +413,16 @@ export function UserPageEditor() {
   const { isNewUser, setIsNewUser, cardsWarning, setCardsWarning } =
     useNewUserSetup();
 
-  const tourSteps = useMemo<DriveStep[]>(
-    () => [
-      {
-        popover: {
-          title: "Welcome",
-          description:
-            "This quick tour highlights the key controls for enabling, styling, and sharing your cards.",
-          side: "bottom",
-          align: "center",
-        },
-      },
-      {
-        element: '[data-tour="help-button"]',
-        popover: {
-          title: "Help",
-          description:
-            "Open Help anytime for searchable docs, shortcuts, and to restart this tour.",
-          side: "bottom",
-          align: "start",
-        },
-      },
-      {
-        element: '[data-tour="card-search"]',
-        popover: {
-          title: "Search",
-          description:
-            "Search cards by name. Tip: Ctrl/Cmd+F focuses this input from anywhere.",
-          side: "bottom",
-          align: "start",
-        },
-      },
-      {
-        element: '[data-tour="visibility-toggle"]',
-        popover: {
-          title: "Visibility",
-          description:
-            "Switch between All, Enabled, and Disabled cards to focus on what you need.",
-          side: "top",
-          align: "start",
-        },
-      },
-      {
-        element: '[data-tour="global-settings"]',
-        popover: {
-          title: "Global Settings",
-          description:
-            "Set your default style (colors, borders, and more). Cards can still be customized individually.",
-          side: "bottom",
-          align: "start",
-        },
-      },
-      {
-        element: '[data-tour="reorder-toggle"]',
-        popover: {
-          title: "Reorder",
-          description:
-            "Turn on Reorder mode to drag cards within each category using the grip handle.",
-          side: "top",
-          align: "start",
-        },
-      },
-      {
-        element: '[data-tour="card-groups"]',
-        popover: {
-          title: "Cards",
-          description:
-            "Toggle cards on/off and open each card to configure variations and actions.",
-          side: "top",
-          align: "start",
-        },
-      },
-      {
-        element: '[data-tour="card-tile"]',
-        popover: {
-          title: "Card tiles",
-          description:
-            "Each tile is one card. You can enable it, customize settings, and use the preview actions to share or download.",
-          side: "top",
-          align: "start",
-        },
-      },
-      {
-        element: '[data-tour="card-enable-toggle"]',
-        popover: {
-          title: "Enable a card",
-          description:
-            "Flip the switch to enable a card. When enabled, you'll get more controls like card settings, variants, and preview actions.",
-          side: "top",
-          align: "start",
-        },
-      },
-      {
-        element: '[data-tour="card-settings"]',
-        popover: {
-          title: "Card settings",
-          description:
-            "Fine-tune a specific card (override colors, borders, advanced options, etc.).",
-          side: "bottom",
-          align: "start",
-        },
-      },
-      {
-        element: '[data-tour="card-variant"]',
-        popover: {
-          title: "Variants",
-          description:
-            "Some cards support multiple layouts (variants). Choose the one you prefer here.",
-          side: "top",
-          align: "start",
-        },
-      },
-      {
-        element: '[data-tour="card-preview"]',
-        popover: {
-          title: "Preview actions",
-          description:
-            "Hover (desktop) or tap the ⋯ actions button (mobile) to reveal actions like Open, Refresh, Copy, and Download.",
-          side: "top",
-          align: "start",
-        },
-      },
-      {
-        element: '[data-tour="card-expand"]',
-        popover: {
-          title: "Expand preview",
-          description:
-            "Open a larger preview to inspect details (and access any extra preview-only actions).",
-          side: "top",
-          align: "start",
-        },
-      },
-      {
-        element: '[data-tour="save-button"]',
-        popover: {
-          title: "Save",
-          description:
-            "Autosave runs automatically, but you can always save manually (Ctrl/Cmd+S).",
-          side: "bottom",
-          align: "start",
-        },
-      },
-    ],
-    [],
-  );
-
-  useEffect(() => {
-    if (!tourStorageKey) return;
-
-    try {
-      setIsTourCompleted(
-        globalThis.localStorage.getItem(tourStorageKey) === "1",
-      );
-    } catch {
-      setIsTourCompleted(false);
-    }
-  }, [tourStorageKey]);
-
-  const markTourCompleted = useCallback(() => {
-    if (!tourStorageKey) return;
-    try {
-      globalThis.localStorage.setItem(tourStorageKey, "1");
-    } catch {
-      // Ignore storage failures (private mode / disabled storage)
-    }
-    setIsTourCompleted(true);
-  }, [tourStorageKey]);
-
-  const startTour = useCallback(() => {
+  const closeHelpDialog = useCallback(() => {
     setIsHelpDialogOpen(false);
-
-    tourRef.current?.destroy();
-    tourRef.current = null;
-
-    if (startTourTimerRef.current != null) {
-      globalThis.clearTimeout(startTourTimerRef.current);
-      startTourTimerRef.current = null;
-    }
-
-    // Delay by one tick so dialogs/menus can close before the tour overlay mounts.
-    startTourTimerRef.current = globalThis.setTimeout(() => {
-      startTourTimerRef.current = null;
-
-      if (!globalThis.document?.body) return;
-
-      // Resolve selectors to elements so missing targets don't break the tour.
-      // If a target is missing (e.g., card-only controls while all cards are disabled),
-      // fall back to a stable container or show the step as a centered popover.
-      const resolvedSteps = resolveTourStepsForDriver(
-        tourSteps,
-        globalThis.document,
-      );
-
-      if (resolvedSteps.length === 0) return;
-
-      setIsTourRunning(true);
-
-      try {
-        const driverObj = driver({
-          showProgress: true,
-          showButtons: ["next", "previous", "close"],
-          nextBtnText: "Next",
-          prevBtnText: "Back",
-          doneBtnText: "Done",
-          smoothScroll: true,
-          stagePadding: 8,
-          stageRadius: 10,
-          overlayOpacity: 0.6,
-          steps: resolvedSteps,
-          onDestroyed: () => {
-            setIsTourRunning(false);
-            tourRef.current = null;
-            markTourCompleted();
-            // Once the tour is done (or closed), hide the new-user callouts.
-            setIsNewUser(false);
-          },
-        });
-
-        tourRef.current = driverObj;
-        driverObj.drive();
-      } catch (err) {
-        console.error("Failed to start guided tour:", err);
-        setIsTourRunning(false);
-        tourRef.current = null;
-      }
-    }, 0);
-  }, [markTourCompleted, setIsNewUser, tourSteps]);
-
-  useEffect(() => {
-    return () => {
-      if (startTourTimerRef.current != null) {
-        globalThis.clearTimeout(startTourTimerRef.current);
-        startTourTimerRef.current = null;
-      }
-      tourRef.current?.destroy();
-      tourRef.current = null;
-    };
   }, []);
 
-  // Auto-run the tour for new users once per userId (versioned).
-  useEffect(() => {
-    if (!userId) return;
-    if (!isNewUser) return;
-    if (isTourCompleted) return;
-    if (isTourRunning) return;
-
-    const timer = globalThis.setTimeout(() => {
-      startTour();
-    }, 500);
-
-    return () => globalThis.clearTimeout(timer);
-  }, [isNewUser, isTourCompleted, isTourRunning, startTour, userId]);
+  const { startTour } = useEditorTour({
+    userId,
+    isNewUser,
+    setIsNewUser,
+    closeHelpDialog,
+  });
 
   // Card filtering hook (manages grouping, filtering, visibility, expand/collapse)
   const {
@@ -2093,7 +1399,7 @@ export function UserPageEditor() {
                 }}
               />
 
-              <BulkLastMessageLiveRegion message={bulkLastMessage} />
+              <BulkActionLiveRegion message={bulkLastMessage} />
               <ReorderModeHint isVisible={isReorderMode} />
             </div>
 
