@@ -110,7 +110,7 @@ function getTooltipTriggerChild(mode: TooltipTriggerMode, child: ReactElement) {
 
 function toPopoverOnlyStep(step: DriveStep): DriveStep {
   const { element: _element, ...rest } = step;
-  return rest as DriveStep;
+  return rest;
 }
 
 function resolveTourSelector(selector: string, doc: Document): Element | null {
@@ -1182,9 +1182,7 @@ export function UserPageEditor() {
   // Sync state from URL search params when the URL changes (back/forward etc.)
   useEffect(() => {
     const q = searchParams.get("q") ?? "";
-    const v =
-      (searchParams.get("visibility") as "all" | "enabled" | "disabled") ??
-      "all";
+    const v = parseVisibility(searchParams.get("visibility"));
     const g = searchParams.get("group") ?? "All";
 
     if (q !== query) setQuery(q);
