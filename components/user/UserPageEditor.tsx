@@ -1315,6 +1315,20 @@ export function UserPageEditor() {
     toast.success("Draft discarded");
   }, [userId]);
 
+  const handleDiscardChanges = useCallback(() => {
+    try {
+      discardChanges();
+      clearSaveConflict();
+      if (userId) clearUserPageDraft(userId);
+      setDraftRecord(null);
+      setIsDiscardDialogOpen(false);
+      toast.success("Changes discarded");
+    } catch (err) {
+      console.error("Failed to discard changes:", err);
+      toast.error("Failed to discard changes");
+    }
+  }, [discardChanges, clearSaveConflict, userId]);
+
   const router = useRouter();
   const pathname = usePathname();
 
@@ -1661,20 +1675,13 @@ export function UserPageEditor() {
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction
                           className="bg-red-600 text-white hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700"
-                          onClick={() => {
-                            discardChanges();
-                            clearSaveConflict();
-                            if (userId) clearUserPageDraft(userId);
-                            setDraftRecord(null);
-                            setIsDiscardDialogOpen(false);
-                            toast.success("Changes discarded");
-                          }}
+                          onClick={handleDiscardChanges}
                         >
                           Discard changes
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
-                  </AlertDialog>{" "}
+                  </AlertDialog>
                 </div>
               </div>
 
