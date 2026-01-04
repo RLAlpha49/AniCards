@@ -87,8 +87,7 @@ import {
 } from "@/lib/user-page-editor-draft";
 import { cn } from "@/lib/utils";
 import { useNewUserSetup } from "./hooks/useNewUserSetup";
-import { CustomFilter,
-useCardFiltering } from "./hooks/useCardFiltering";
+import { CustomFilter, useCardFiltering } from "./hooks/useCardFiltering";
 import { useUserDataLoader } from "./hooks/useUserDataLoader";
 import { BulkActionLiveRegion } from "./editor/BulkActionLiveRegion";
 import { EditorNotices } from "./editor/EditorNotices";
