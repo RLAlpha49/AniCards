@@ -697,7 +697,6 @@ export function UserPageEditor() {
   }, [
     canEnterReorderMode,
     clearSelection,
-    groupFilterTriggerId,
     isReorderMode,
     saveNow,
     selectAllEnabled,
