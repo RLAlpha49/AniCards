@@ -31,6 +31,10 @@ export function topicToSearchText(topic: UserHelpTopic): string {
       case "link":
         parts.push(block.label, block.href);
         break;
+      default: {
+        const _exhaustive: never = block;
+        throw new Error(`Unhandled block type: ${_exhaustive}`);
+      }
     }
   }
 
