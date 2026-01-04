@@ -1176,9 +1176,10 @@ export function UserPageEditor() {
                       data-tour="card-search"
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
-                      placeholder='Search cards… Try: group:"Core Stats" custom:yes enabled:true (Ctrl/Cmd+F)'
+                      placeholder="Search cards… (Ctrl/Cmd+F)"
                       aria-keyshortcuts="Control+F Meta+F"
                       className="h-10 rounded-xl border-slate-200/80 bg-white pl-9 pr-9 text-sm dark:border-slate-600 dark:bg-slate-700/80"
+                      title='Try: group:"Core Stats" custom:yes enabled:true'
                     />
 
                     <TooltipProvider delayDuration={200}>
