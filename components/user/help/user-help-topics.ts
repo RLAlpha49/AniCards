@@ -31,13 +31,6 @@ export function topicToSearchText(topic: UserHelpTopic): string {
       case "link":
         parts.push(block.label, block.href);
         break;
-      default: {
-        const _exhaustiveCheck: never = block;
-        console.warn(
-          `Unknown block type in topicToSearchText:`,
-          _exhaustiveCheck,
-        );
-      }
     }
   }
 
@@ -80,6 +73,31 @@ export const USER_HELP_TOPICS: UserHelpTopic[] = [
     ],
   },
   {
+    id: "keyboard-shortcuts",
+    title: "Keyboard shortcuts",
+    summary: "Quick keys for search, selection, saving, and reorder mode.",
+    keywords: ["keyboard", "shortcuts", "hotkeys", "keys"],
+    blocks: [
+      {
+        type: "ul",
+        items: [
+          "Search cards: Ctrl/Cmd+F focuses the card search box.",
+          "Category filter: Ctrl/Cmd+Shift+F focuses the category dropdown.",
+          "Enabled-only: Ctrl/Cmd+E toggles between Enabled and All.",
+          "Save now: Ctrl/Cmd+S triggers Save.",
+          "Select all enabled: Ctrl/Cmd+A selects every enabled card.",
+          "Clear selection / exit reorder: Esc clears selected cards and exits Reorder mode.",
+          "Reorder mode: Ctrl/Cmd+D toggles Reorder mode (only available when filters are cleared).",
+          "Help: Ctrl/Cmd+H opens this Help dialog.",
+        ],
+      },
+      {
+        type: "note",
+        text: "Shortcuts won’t trigger while you’re typing in an input, or when a dialog is open.",
+      },
+    ],
+  },
+  {
     id: "search-and-filters",
     title: "Searching & filters",
     summary: "Find cards fast, then narrow by category and visibility.",
@@ -94,8 +112,9 @@ export const USER_HELP_TOPICS: UserHelpTopic[] = [
         type: "ul",
         items: [
           "Search: Ctrl/Cmd+F focuses the search box.",
+          "Category: Ctrl/Cmd+Shift+F focuses the category dropdown.",
           "Visibility: switch between All, Enabled, and Disabled cards.",
-          "Category: limit results to a card group.",
+          "Enabled-only: Ctrl/Cmd+E toggles Enabled vs All.",
         ],
       },
     ],
@@ -127,6 +146,13 @@ export const USER_HELP_TOPICS: UserHelpTopic[] = [
       {
         type: "p",
         text: "Turn on Reorder mode, then drag cards by the handle (≡) to reorder within each category.",
+      },
+      {
+        type: "ul",
+        items: [
+          "Ctrl/Cmd+D toggles Reorder mode (when available).",
+          "Esc exits Reorder mode.",
+        ],
       },
       {
         type: "note",

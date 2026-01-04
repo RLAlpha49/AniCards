@@ -41,6 +41,8 @@ export function SelectionCounter({
             onClick={onSelectAllEnabled}
             className="text-left text-xs text-blue-600 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 dark:text-blue-400 dark:hover:text-blue-300"
             aria-label="Select all enabled cards"
+            aria-keyshortcuts="Control+A Meta+A"
+            title="Select all enabled (Ctrl/Cmd+A)"
           >
             Select all enabled
           </button>

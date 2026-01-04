@@ -94,6 +94,7 @@ import { useEditorTour } from "./editor/EditorTour";
 import { ReorderModeHint } from "./editor/ReorderModeHint";
 import type { LoadingPhase } from "@/lib/types/loading";
 import { useShallow } from "zustand/react/shallow";
+import { shallow as shallowEqual } from "zustand/shallow";
 
 type TooltipTriggerMode = "enabled" | "disabled";
 
@@ -102,6 +103,14 @@ function getTooltipTriggerChild(mode: TooltipTriggerMode, child: ReactElement) {
     <span className="inline-flex">{child}</span>
   ) : (
     child
+  );
+}
+
+function ShortcutHint({ children }: Readonly<{ children: string }>) {
+  return (
+    <kbd className="ml-2 inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+      {children}
+    </kbd>
   );
 }
 
@@ -202,6 +211,7 @@ function ReorderModeToolbarToggle({
       size="sm"
       variant="outline"
       aria-pressed={isReorderMode}
+      aria-keyshortcuts="Control+D Meta+D"
       disabled={isDisabled}
       onClick={onToggle}
       data-tour={dataTour}
@@ -213,7 +223,7 @@ function ReorderModeToolbarToggle({
       )}
       title={
         canEnterReorderMode
-          ? "Drag cards by the handle to reorder"
+          ? "Drag cards by the handle to reorder (Ctrl/Cmd+D)"
           : "Clear search and set visibility to All to reorder"
       }
     >
@@ -237,11 +247,14 @@ function ReorderModeToolbarToggle({
             <p>
               Drag cards by the handle to reorder within each category. Changes
               save automatically.
+              <ShortcutHint>Ctrl/Cmd+D</ShortcutHint>
+              <ShortcutHint>Esc</ShortcutHint>
             </p>
           ) : (
             <p>
               Clear the search box and set visibility to <strong>All</strong> to
               reorder cards.
+              <ShortcutHint>Ctrl/Cmd+D</ShortcutHint>
             </p>
           )}
         </TooltipContent>
@@ -262,12 +275,13 @@ function ReorderModeMenuToggle({
       size="sm"
       className="justify-start"
       aria-pressed={isReorderMode}
+      aria-keyshortcuts="Control+D Meta+D"
       disabled={!canEnterReorderMode && !isReorderMode}
       onClick={onToggle}
       data-tour={dataTour}
       title={
         canEnterReorderMode
-          ? "Drag cards by the handle to reorder"
+          ? "Drag cards by the handle to reorder (Ctrl/Cmd+D)"
           : "Clear search and set visibility to All to reorder"
       }
     >
@@ -293,18 +307,8 @@ function useStableCardEnabledById(): Record<string, boolean> {
       }
 
       const prev = enabledMapRef.current;
-      if (prev) {
-        const prevLen = Object.keys(prev).length;
-        const nextLen = Object.keys(next).length;
-        if (prevLen === nextLen) {
-          for (const k in next) {
-            if (prev[k] !== next[k]) {
-              enabledMapRef.current = next;
-              return next;
-            }
-          }
-          return prev;
-        }
+      if (prev && shallowEqual(prev, next)) {
+        return prev;
       }
 
       enabledMapRef.current = next;
@@ -344,6 +348,8 @@ export function UserPageEditor() {
     reorderCardsInScope,
     discardChanges,
     applyLocalEditsPatch,
+    clearSelection,
+    selectAllEnabled,
   } = useUserPageEditor(
     useShallow((s) => ({
       userId: s.userId,
@@ -367,6 +373,8 @@ export function UserPageEditor() {
       reorderCardsInScope: s.reorderCardsInScope,
       discardChanges: s.discardChanges,
       applyLocalEditsPatch: s.applyLocalEditsPatch,
+      clearSelection: s.clearSelection,
+      selectAllEnabled: s.selectAllEnabled,
     })),
   );
   const canUndoBulk = bulkPastLength > 0;
@@ -395,6 +403,8 @@ export function UserPageEditor() {
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [isDisableAllDialogOpen, setIsDisableAllDialogOpen] = useState(false);
   const [isReorderMode, setIsReorderMode] = useState(false);
+
+  const groupFilterTriggerId = "card-group-filter";
 
   const canEnterReorderMode = useMemo(
     () => query.trim().length === 0 && visibility === "all",
@@ -522,40 +532,143 @@ export function UserPageEditor() {
     if (g !== selectedGroup) setSelectedGroup(g);
   }, [searchParams]);
 
-  // Keyboard shortcuts (Ctrl/Cmd+F -> focus search, Ctrl/Cmd+E -> toggle enabled-only)
+  // Keyboard shortcuts
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase();
+    const isTypingInField = (target: EventTarget | null) => {
+      if (!(target instanceof Element)) return false;
+      return (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target as HTMLElement).isContentEditable
+      );
+    };
 
-      // Ignore shortcuts while typing in inputs/textareas/contenteditable
-      const target = e.target as Element | null;
-      const isTypingTarget =
-        !!target &&
-        (target instanceof HTMLInputElement ||
-          target instanceof HTMLTextAreaElement ||
-          (target as HTMLElement).isContentEditable);
+    const hasAnyOpenDialog = () =>
+      Boolean(
+        globalThis.document?.querySelector(
+          '[data-state="open"][role="dialog"], [data-state="open"][role="alertdialog"]',
+        ),
+      );
 
-      if ((e.ctrlKey || e.metaKey) && key === "f") {
-        if (isTypingTarget) return;
-        e.preventDefault();
+    const handleEscape = (e: KeyboardEvent, key: string) => {
+      if (key !== "escape") return false;
+      if (isTypingInField(e.target) || hasAnyOpenDialog()) return true;
+
+      const hasSelection = useUserPageEditor.getState().selectedCardIds.size > 0;
+      if (!hasSelection && !isReorderMode) return true;
+
+      e.preventDefault();
+      if (hasSelection) clearSelection();
+      if (isReorderMode) setIsReorderMode(false);
+      return true;
+    };
+
+    const handleFindShortcut = (e: KeyboardEvent) => {
+      e.preventDefault();
+
+      if (e.shiftKey) {
+        const el = globalThis.document?.getElementById(
+          groupFilterTriggerId,
+        ) as HTMLButtonElement | null;
+        el?.focus();
+      } else {
         searchRef.current?.focus();
       }
 
-      if ((e.ctrlKey || e.metaKey) && key === "e") {
-        if (isTypingTarget) return;
+    };
+
+    const handleHelpShortcut = (e: KeyboardEvent) => {
+      e.preventDefault();
+      setIsHelpDialogOpen(true);
+    };
+
+    const handleReorderShortcut = (e: KeyboardEvent) => {
+      // Allow exiting even if filters have been applied.
+      // If reordering isn't available, block the browser bookmark shortcut
+      // and provide a gentle hint.
+      if (!isReorderMode && !canEnterReorderMode) {
         e.preventDefault();
-        setVisibility((prev) => (prev === "enabled" ? "all" : "enabled"));
+        toast("Reorder mode is disabled while filters are active.", {
+          id: "reorder-mode-unavailable",
+          description:
+            "Clear the search box and set visibility to All to reorder.",
+        });
+        return;
       }
 
-      if ((e.ctrlKey || e.metaKey) && key === "s") {
-        e.preventDefault();
-        saveNow();
+      e.preventDefault();
+      const next = isReorderMode ? false : canEnterReorderMode;
+      setIsReorderMode(next);
+    };
+
+    const handleSelectAllShortcut = (e: KeyboardEvent) => {
+      e.preventDefault();
+      selectAllEnabled();
+    };
+
+    const handleEnabledOnlyShortcut = (e: KeyboardEvent) => {
+      e.preventDefault();
+      setVisibility(visibility === "enabled" ? "all" : "enabled");
+    };
+
+    const handleSaveShortcut = (e: KeyboardEvent) => {
+      e.preventDefault();
+      saveNow();
+    };
+
+    const modChordHandlers: Record<string, (e: KeyboardEvent) => void> = {
+      h: handleHelpShortcut,
+      d: handleReorderShortcut,
+      a: handleSelectAllShortcut,
+      e: handleEnabledOnlyShortcut,
+      s: handleSaveShortcut,
+    };
+
+    const handleModChord = (e: KeyboardEvent, key: string) => {
+      const isMod = e.ctrlKey || e.metaKey;
+      if (!isMod || e.altKey) return false;
+      if (isTypingInField(e.target)) return true;
+
+      // Don't allow browser-level defaults for shortcuts we advertise.
+      // (e.g., Ctrl/Cmd+D = bookmark, Ctrl/Cmd+H = history, Ctrl/Cmd+S = save page)
+      if (hasAnyOpenDialog()) {
+        if (!e.shiftKey && (key === "d" || key === "h" || key === "s")) {
+          e.preventDefault();
+        }
+        return true;
       }
+
+      if (key === "f") {
+        handleFindShortcut(e);
+        return true;
+      }
+      if (e.shiftKey) return false;
+
+      const action = modChordHandlers[key];
+      if (!action) return false;
+      action(e);
+      return true;
+    };
+
+    const handler = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.repeat) return;
+
+      const key = e.key.toLowerCase();
+      if (handleEscape(e, key)) return;
+      handleModChord(e, key);
     };
 
     globalThis.addEventListener("keydown", handler);
     return () => globalThis.removeEventListener("keydown", handler);
-  }, [saveNow]);
+  }, [
+    canEnterReorderMode,
+    clearSelection,
+    groupFilterTriggerId,
+    isReorderMode,
+    saveNow,
+    selectAllEnabled,
+    visibility,
+  ]);
 
   useEffect(() => {
     if (!userId || isLoading) return;
@@ -882,7 +995,8 @@ export function UserPageEditor() {
                       >
                         <p>
                           Save your changes now. Autosave runs automatically,
-                          but Ctrl/Cmd+S is always available.
+                          but manual Save is always available.
+                          <ShortcutHint>Ctrl/Cmd+S</ShortcutHint>
                         </p>
                       </TooltipContent>
                     </Tooltip>
@@ -919,17 +1033,34 @@ export function UserPageEditor() {
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full shrink-0 rounded-xl sm:w-auto"
-                    onClick={() => setIsHelpDialogOpen(true)}
-                    aria-haspopup="dialog"
-                    data-tour="help-button"
-                  >
-                    <Info className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Help
-                  </Button>
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full shrink-0 rounded-xl sm:w-auto"
+                          onClick={() => setIsHelpDialogOpen(true)}
+                          aria-haspopup="dialog"
+                          aria-keyshortcuts="Control+H Meta+H"
+                          data-tour="help-button"
+                        >
+                          <Info className="mr-2 h-4 w-4" aria-hidden="true" />
+                          Help
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="bottom"
+                        sideOffset={8}
+                        className="max-w-xs text-xs leading-relaxed"
+                      >
+                        <p>
+                          Open help and view all shortcuts.
+                          <ShortcutHint>Ctrl/Cmd+H</ShortcutHint>
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                   {/* Global Settings Button */}
                   <Dialog>
                     <TooltipProvider delayDuration={200}>
@@ -1010,7 +1141,7 @@ export function UserPageEditor() {
                       data-tour="card-search"
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Search cards... (Ctrl+F)"
+                      placeholder="Search cards... (Ctrl/Cmd+F)"
                       aria-keyshortcuts="Control+F Meta+F"
                       className="h-10 rounded-xl border-slate-200/80 bg-white pl-9 pr-9 text-sm dark:border-slate-600 dark:bg-slate-700/80"
                     />
@@ -1040,6 +1171,7 @@ export function UserPageEditor() {
                           <p>
                             Search cards by name. Use Ctrl/Cmd+F to focus the
                             search box from anywhere.
+                            <ShortcutHint>Ctrl/Cmd+F</ShortcutHint>
                           </p>
                         </TooltipContent>
                       </Tooltip>
@@ -1049,9 +1181,30 @@ export function UserPageEditor() {
                     value={selectedGroup}
                     onValueChange={setSelectedGroup}
                   >
-                    <SelectTrigger className="h-10 w-full rounded-xl border-slate-200/80 bg-white text-sm dark:border-slate-600 dark:bg-slate-700/80 sm:w-48">
-                      <SelectValue placeholder="All categories" />
-                    </SelectTrigger>
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <SelectTrigger
+                            id={groupFilterTriggerId}
+                            aria-keyshortcuts="Control+Shift+F Meta+Shift+F"
+                            className="h-10 w-full rounded-xl border-slate-200/80 bg-white text-sm dark:border-slate-600 dark:bg-slate-700/80 sm:w-48"
+                          >
+                            <SelectValue placeholder="All categories" />
+                          </SelectTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          sideOffset={8}
+                          className="max-w-xs text-xs leading-relaxed"
+                        >
+                          <p>
+                            Focus the category filter to limit results to a
+                            card group.
+                            <ShortcutHint>Ctrl/Cmd+Shift+F</ShortcutHint>
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                     <SelectContent>
                       <SelectItem value="All">All categories</SelectItem>
                       {groupNames.map((groupName) => (
@@ -1090,6 +1243,7 @@ export function UserPageEditor() {
                       variant="ghost"
                       size="sm"
                       aria-pressed={visibility === "enabled"}
+                      aria-keyshortcuts="Control+E Meta+E"
                       className={cn(
                         "h-8 rounded-lg px-3 text-xs font-medium transition-all",
                         visibility === "enabled"
@@ -1097,6 +1251,7 @@ export function UserPageEditor() {
                           : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
                       )}
                       onClick={() => setVisibility("enabled")}
+                      title="Toggle enabled-only view (Ctrl/Cmd+E)"
                     >
                       <Eye className="mr-1.5 h-3.5 w-3.5" />
                       Enabled

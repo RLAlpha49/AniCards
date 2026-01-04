@@ -720,7 +720,8 @@ export function BulkActionsToolbar({
               size="sm"
               onClick={clearSelection}
               className="h-9 w-9 rounded-lg p-0 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-              title="Clear selection"
+              title="Clear selection (Esc)"
+              aria-keyshortcuts="Escape"
             >
               <X className="h-4 w-4" />
               <span className="sr-only">Clear selection</span>

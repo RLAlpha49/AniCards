@@ -68,7 +68,10 @@ function resolveTourStepForDriver(step: DriveStep, doc: Document): DriveStep {
   return step;
 }
 
-function resolveTourStepsForDriver(steps: DriveStep[], doc: Document): DriveStep[] {
+function resolveTourStepsForDriver(
+  steps: DriveStep[],
+  doc: Document,
+): DriveStep[] {
   return steps.map((step) => resolveTourStepForDriver(step, doc));
 }
 
@@ -244,7 +247,9 @@ export function useEditorTour({
     if (!tourStorageKey) return;
 
     try {
-      setIsTourCompleted(globalThis.localStorage.getItem(tourStorageKey) === "1");
+      setIsTourCompleted(
+        globalThis.localStorage.getItem(tourStorageKey) === "1",
+      );
     } catch {
       setIsTourCompleted(false);
     }
@@ -259,6 +264,15 @@ export function useEditorTour({
     }
     setIsTourCompleted(true);
   }, [tourStorageKey]);
+
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const startTour = useCallback(() => {
     closeHelpDialog();
@@ -275,12 +289,16 @@ export function useEditorTour({
     startTourTimerRef.current = globalThis.setTimeout(() => {
       startTourTimerRef.current = null;
 
+      if (!isMountedRef.current) return;
       if (!globalThis.document?.body) return;
 
       // Resolve selectors to elements so missing targets don't break the tour.
       // If a target is missing (e.g., card-only controls while all cards are disabled),
       // fall back to a stable container or show the step as a centered popover.
-      const resolvedSteps = resolveTourStepsForDriver(tourSteps, globalThis.document);
+      const resolvedSteps = resolveTourStepsForDriver(
+        tourSteps,
+        globalThis.document,
+      );
 
       if (resolvedSteps.length === 0) return;
 

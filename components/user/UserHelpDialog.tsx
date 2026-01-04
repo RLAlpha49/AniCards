@@ -161,6 +161,8 @@ export function UserHelpDialog({
           <DialogTitle>Help: How your AniCards page works</DialogTitle>
           <DialogDescription>
             Search help topics, learn the key controls, or start a guided tour.
+            Tip: press Ctrl/Cmd+H to open this dialog, and see the “Keyboard
+            shortcuts” topic for the full list.
           </DialogDescription>
         </DialogHeader>
 
