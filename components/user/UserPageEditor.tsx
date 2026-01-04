@@ -76,6 +76,7 @@ import { BulkConfirmDialog } from "./bulk/BulkConfirmDialog";
 import { DISABLED_CARD_INFO } from "@/lib/card-info-tooltips";
 import {
   buildLocalEditsPatch,
+  isCardCustomized,
   useUserPageEditor,
 } from "@/lib/stores/user-page-editor";
 import { useCardAutoSave } from "@/hooks/useCardAutoSave";
@@ -86,7 +87,8 @@ import {
 } from "@/lib/user-page-editor-draft";
 import { cn } from "@/lib/utils";
 import { useNewUserSetup } from "./hooks/useNewUserSetup";
-import { useCardFiltering } from "./hooks/useCardFiltering";
+import { CustomFilter,
+useCardFiltering } from "./hooks/useCardFiltering";
 import { useUserDataLoader } from "./hooks/useUserDataLoader";
 import { BulkActionLiveRegion } from "./editor/BulkActionLiveRegion";
 import { EditorNotices } from "./editor/EditorNotices";
@@ -317,6 +319,30 @@ function useStableCardEnabledById(): Record<string, boolean> {
   );
 }
 
+function useStableCardCustomizedById(): Record<string, boolean> {
+  // Memoize the derived customized map and preserve the same object reference
+  // when no customized values changed. This keeps filtering snappy and prevents
+  // unrelated card updates from re-rendering the full editor.
+  const customizedMapRef = useRef<Record<string, boolean> | null>(null);
+
+  return useUserPageEditor(
+    useShallow((s) => {
+      const next: Record<string, boolean> = {};
+      for (const [cardId, cfg] of Object.entries(s.cardConfigs)) {
+        next[cardId] = isCardCustomized(cfg);
+      }
+
+      const prev = customizedMapRef.current;
+      if (prev && shallowEqual(prev, next)) {
+        return prev;
+      }
+
+      customizedMapRef.current = next;
+      return next;
+    }),
+  );
+}
+
 /**
  * Main user page editor component.
  * Handles loading user data, displaying cards, and saving changes.
@@ -381,6 +407,7 @@ export function UserPageEditor() {
   const canRedoBulk = bulkFutureLength > 0;
 
   const cardEnabledById = useStableCardEnabledById();
+  const cardCustomizedById = useStableCardCustomizedById();
 
   const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false);
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
@@ -399,6 +426,7 @@ export function UserPageEditor() {
   const [visibility, setVisibility] =
     useState<VisibilityFilter>(initialVisibility);
   const [selectedGroup, setSelectedGroup] = useState<string>(initialGroup);
+  const [customFilter, setCustomFilter] = useState<CustomFilter>("all");
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [isDisableAllDialogOpen, setIsDisableAllDialogOpen] = useState(false);
@@ -407,8 +435,8 @@ export function UserPageEditor() {
   const groupFilterTriggerId = "card-group-filter";
 
   const canEnterReorderMode = useMemo(
-    () => query.trim().length === 0 && visibility === "all",
-    [query, visibility],
+    () => query.trim().length === 0 && visibility === "all" && customFilter === "all",
+    [query, visibility, customFilter],
   );
 
   // Reordering with active filters is confusing (scope isn't the full category).
@@ -441,6 +469,8 @@ export function UserPageEditor() {
     groupTotals,
     filteredGroupTotals,
     visibleGroupNames,
+    filteredCardCount,
+    scopeCardCount,
     isCardEnabled,
     expandAll,
     collapseAll,
@@ -449,10 +479,12 @@ export function UserPageEditor() {
     layoutVersion,
   } = useCardFiltering({
     cardEnabledById,
+    cardCustomizedById,
     cardOrder,
     query,
     visibility,
     selectedGroup,
+    customFilter,
   });
 
   // Data loader hook manages the main load flow and loading phases
@@ -779,14 +811,16 @@ export function UserPageEditor() {
     setQuery("");
     setVisibility("all");
     setSelectedGroup("All");
+    setCustomFilter("all");
   }, []);
 
   const activeFilterCount = useMemo(
     () =>
       (query ? 1 : 0) +
       (visibility === "all" ? 0 : 1) +
-      (selectedGroup === "All" ? 0 : 1),
-    [query, visibility, selectedGroup],
+      (selectedGroup === "All" ? 0 : 1) +
+      (customFilter === "all" ? 0 : 1),
+    [query, visibility, selectedGroup, customFilter],
   );
 
   const groupIcon = useCallback(
@@ -1141,7 +1175,7 @@ export function UserPageEditor() {
                       data-tour="card-search"
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Search cards... (Ctrl/Cmd+F)"
+                      placeholder='Search cards… Try: group:"Core Stats" custom:yes enabled:true (Ctrl/Cmd+F)'
                       aria-keyshortcuts="Control+F Meta+F"
                       className="h-10 rounded-xl border-slate-200/80 bg-white pl-9 pr-9 text-sm dark:border-slate-600 dark:bg-slate-700/80"
                     />
@@ -1214,6 +1248,12 @@ export function UserPageEditor() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 px-1 text-xs text-slate-500 dark:text-slate-400">
+                  <span aria-live="polite">
+                    Showing {filteredCardCount} of {scopeCardCount} cards in view
+                  </span>
                 </div>
 
                 {/* Row 2: Visibility and Quick Actions */}
@@ -1296,6 +1336,87 @@ export function UserPageEditor() {
                           sideOffset={8}
                         >
                           <p>{DISABLED_CARD_INFO}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+
+                  {/* Customization toggle */}
+                  <div
+                    className="flex items-center gap-1 rounded-xl border border-slate-200/60 bg-slate-50/80 p-1 dark:border-slate-600 dark:bg-slate-700/50"
+                    data-tour="customization-toggle"
+                  >
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-pressed={customFilter === "all"}
+                      className={cn(
+                        "h-8 rounded-lg px-3 text-xs font-medium transition-all",
+                        customFilter === "all"
+                          ? "bg-white text-slate-900 shadow-sm dark:bg-slate-600 dark:text-white"
+                          : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                      )}
+                      onClick={() => setCustomFilter("all")}
+                    >
+                      All
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-pressed={customFilter === "customized"}
+                      className={cn(
+                        "h-8 rounded-lg px-3 text-xs font-medium transition-all",
+                        customFilter === "customized"
+                          ? "bg-white text-slate-900 shadow-sm dark:bg-slate-600 dark:text-white"
+                          : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                      )}
+                      onClick={() => setCustomFilter("customized")}
+                    >
+                      Customized
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-pressed={customFilter === "uncustomized"}
+                      className={cn(
+                        "h-8 rounded-lg px-3 text-xs font-medium transition-all",
+                        customFilter === "uncustomized"
+                          ? "bg-white text-slate-900 shadow-sm dark:bg-slate-600 dark:text-white"
+                          : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                      )}
+                      onClick={() => setCustomFilter("uncustomized")}
+                    >
+                      Uncustomized
+                    </Button>
+
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className={cn(
+                              "ml-0.5 flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
+                              "text-slate-500 hover:bg-white hover:text-slate-700",
+                              "dark:text-slate-400 dark:hover:bg-slate-600 dark:hover:text-slate-100",
+                              "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1",
+                            )}
+                            aria-label="Info about customizations filter"
+                          >
+                            <Info className="h-4 w-4" aria-hidden="true" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          className="max-w-xs text-xs leading-relaxed"
+                          sideOffset={8}
+                        >
+                          <p>
+                            Filter cards by whether they have custom per-card
+                            settings (colors, borders, advanced settings).
+                          </p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
