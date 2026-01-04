@@ -342,13 +342,13 @@ export function useEditorTour({
             setIsTourRunning(false);
             tourRef.current = null;
 
-            // Determine whether the tour ended on the final step (user clicked "Done")
-            // or was dismissed/closed early. `activeStep` is the step that was active
-            // when the tour was destroyed; compare it to the resolved steps we passed in.
-            const isFinalStep =
-              activeStep !== undefined &&
-              resolvedSteps.length > 0 &&
-              activeStep === resolvedSteps.at(-1);
+            // Determine whether the tour ended on the final step by checking if the  
+            // active step's index matches the last step index. This is more reliable  
+            // than reference equality which depends on driver.js implementation details.  
+            const activeIndex = activeStep ? resolvedSteps.indexOf(activeStep) : -1;  
+            const isFinalStep = 
+              activeIndex !== -1 && 
+              activeIndex === resolvedSteps.length - 1; 
 
             if (isFinalStep) {
               // Consider the tour completed only when the user finished the last step.
