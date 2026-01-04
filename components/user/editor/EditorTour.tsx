@@ -353,6 +353,7 @@ export function useEditorTour({
     if (isTourCompleted) return;
     if (isTourRunning) return;
 
+    // Delay tour start to allow initial UI render/layout to settle 
     const timer = globalThis.setTimeout(() => {
       startTour();
     }, 500);
