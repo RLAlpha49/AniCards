@@ -66,6 +66,7 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { UserPageHeader } from "./UserPageHeader";
 import { UserHelpDialog } from "./UserHelpDialog";
 import { GlobalSettingsPanel } from "./GlobalSettingsPanel";
+import { CommandPalette, type CommandPaletteCommand } from "./CommandPalette";
 import {
   CardCategorySection,
   type CardTileDragHandleProps,
@@ -130,6 +131,86 @@ const LOADING_PHASE_MESSAGES: Record<LoadingPhase, string> = {
   error: "Something went wrong",
 };
 
+function UserPageEditorLoadingScreen(
+  props: Readonly<{
+    loadingPhase: LoadingPhase;
+  }>,
+) {
+  const loadingMessage =
+    LOADING_PHASE_MESSAGES[props.loadingPhase] || "Loading...";
+  const isSettingUp =
+    props.loadingPhase === "setting_up" ||
+    props.loadingPhase === "fetching_anilist" ||
+    props.loadingPhase === "saving";
+
+  return (
+    <div className="container relative z-10 mx-auto flex min-h-screen items-center justify-center px-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="flex flex-col items-center gap-6"
+      >
+        {isSettingUp ? (
+          <>
+            {/* Enhanced loading UI for new user setup */}
+            <div className="relative">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30">
+                <UserPlus className="h-10 w-10 text-blue-600 dark:text-blue-400" />
+              </div>
+              <motion.div
+                className="absolute -inset-1 rounded-full border-2 border-blue-400/50"
+                animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.8, 0.5] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+              />
+            </div>
+            <div className="text-center">
+              <h2 className="text-xl font-semibold text-slate-800 dark:text-white">
+                Welcome to AniCards!
+              </h2>
+              <p className="mt-2 text-slate-600 dark:text-slate-300">
+                {loadingMessage}
+              </p>
+            </div>
+            <LoadingSpinner size="md" />
+          </>
+        ) : (
+          <LoadingSpinner size="lg" text={loadingMessage} />
+        )}
+      </motion.div>
+    </div>
+  );
+}
+
+function UserPageEditorErrorScreen(props: Readonly<{ loadError: string }>) {
+  return (
+    <div className="container relative z-10 mx-auto flex min-h-screen items-center justify-center px-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="w-full max-w-md"
+      >
+        <div className="rounded-3xl border border-red-200/50 bg-white/80 p-8 text-center shadow-2xl backdrop-blur-xl dark:border-red-800/30 dark:bg-slate-900/80">
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+            <AlertCircle className="h-10 w-10 text-red-500" />
+          </div>
+          <h1 className="mb-3 text-2xl font-bold text-slate-900 dark:text-white">
+            Something Went Wrong
+          </h1>
+          <p className="mb-6 text-slate-600 dark:text-slate-300">
+            {props.loadError}
+          </p>
+          <Button
+            asChild
+            className="rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white shadow-lg"
+          >
+            <Link href="/search">Search for User</Link>
+          </Button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 /**
  * Card types that support status colors.
  * @source
@@ -189,6 +270,406 @@ type VisibilityFilter = "all" | "enabled" | "disabled";
 
 function parseVisibilityParam(v: string | null): VisibilityFilter {
   return v && VALID_VISIBILITY.has(v) ? (v as VisibilityFilter) : "all";
+}
+
+type SearchParamsLike = { get: (key: string) => string | null };
+
+function syncFiltersFromSearchParams(opts: {
+  searchParams: SearchParamsLike;
+  query: string;
+  visibility: VisibilityFilter;
+  selectedGroup: string;
+  setQuery: (v: string) => void;
+  setVisibility: (v: VisibilityFilter) => void;
+  setSelectedGroup: (v: string) => void;
+}) {
+  const q = opts.searchParams.get("q") ?? "";
+  const v = parseVisibilityParam(opts.searchParams.get("visibility"));
+  const g = opts.searchParams.get("group") ?? "All";
+
+  if (q !== opts.query) opts.setQuery(q);
+  if (v !== opts.visibility) opts.setVisibility(v);
+  if (g !== opts.selectedGroup) opts.setSelectedGroup(g);
+}
+
+function buildEditorUrl(opts: {
+  pathname: string;
+  currentSearch: string;
+  query: string;
+  visibility: VisibilityFilter;
+  selectedGroup: string;
+}) {
+  const params = new URLSearchParams(opts.currentSearch);
+
+  if (opts.query) params.set("q", opts.query);
+  else params.delete("q");
+
+  if (opts.visibility && opts.visibility !== "all") {
+    params.set("visibility", opts.visibility);
+  } else {
+    params.delete("visibility");
+  }
+
+  if (opts.selectedGroup && opts.selectedGroup !== "All") {
+    params.set("group", opts.selectedGroup);
+  } else {
+    params.delete("group");
+  }
+
+  const search = params.toString();
+  return search ? `${opts.pathname}?${search}` : opts.pathname;
+}
+
+function useUserPageEditorCommandPalette(opts: {
+  userId: string | null;
+  visibility: VisibilityFilter;
+  setVisibility: React.Dispatch<React.SetStateAction<VisibilityFilter>>;
+  searchRef: React.RefObject<HTMLInputElement | null>;
+  selectAllEnabled: () => void;
+  canSaveNow: boolean;
+  canDiscardNow: boolean;
+  saveNow: () => void | Promise<void>;
+  startTour: () => void;
+  openGlobalSettings: () => void;
+  openDiscardDialog: () => void;
+  openHelpDialog: () => void;
+}): {
+  recentActionsStorageKey: string;
+  commandPaletteCommands: CommandPaletteCommand[];
+} {
+  const {
+    userId,
+    visibility,
+    setVisibility,
+    searchRef,
+    selectAllEnabled,
+    canSaveNow,
+    canDiscardNow,
+    saveNow,
+    startTour,
+    openGlobalSettings,
+    openDiscardDialog,
+    openHelpDialog,
+  } = opts;
+
+  const recentActionsStorageKey = useMemo(
+    () =>
+      `anicards:user-page-editor:command-palette-recent:v1:${userId ?? "anon"}`,
+    [userId],
+  );
+
+  const toggleVisibilityFilter = useCallback(() => {
+    setVisibility((prev) => {
+      if (prev === "all") return "enabled";
+      if (prev === "enabled") return "disabled";
+      return "all";
+    });
+  }, [setVisibility]);
+
+  const openBulkActions = useCallback(() => {
+    const hasSelection = useUserPageEditor.getState().selectedCardIds.size > 0;
+
+    if (!hasSelection) {
+      selectAllEnabled();
+      toast("Selected all enabled cards", {
+        id: "bulk-actions-opened",
+        description:
+          "Use the bulk toolbar at the bottom of the screen to copy/download/edit.",
+      });
+      return;
+    }
+
+    toast("Bulk actions are ready", {
+      id: "bulk-actions-ready",
+      description:
+        "Use the bulk toolbar at the bottom of the screen to copy/download/edit.",
+    });
+  }, [selectAllEnabled]);
+
+  const commandPaletteCommands = useMemo<CommandPaletteCommand[]>(
+    () => [
+      {
+        id: "search-cards",
+        label: "Search cards",
+        description: "Focus the card search box",
+        keywords: ["find", "filter", "query"],
+        group: "editor",
+        shortcutHint: "Ctrl/Cmd+F",
+        icon: <Search className="h-4 w-4" aria-hidden="true" />,
+        run: () => {
+          searchRef.current?.focus();
+        },
+      },
+      {
+        id: "toggle-visibility",
+        label: "Toggle visibility filter",
+        description: `Currently: ${visibility}`,
+        keywords: ["enabled", "disabled", "all", "show"],
+        group: "editor",
+        icon:
+          visibility === "disabled" ? (
+            <EyeOff className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <Eye className="h-4 w-4" aria-hidden="true" />
+          ),
+        run: toggleVisibilityFilter,
+      },
+      {
+        id: "open-settings",
+        label: "Open global settings",
+        description: "Edit default colors, borders, and advanced options",
+        keywords: ["preferences", "theme", "defaults"],
+        group: "editor",
+        icon: <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />,
+        run: openGlobalSettings,
+      },
+      {
+        id: "save",
+        label: "Save changes",
+        description: canSaveNow
+          ? "Save your current edits"
+          : "No changes to save",
+        keywords: ["commit", "store", "persist"],
+        group: "editor",
+        shortcutHint: "Ctrl/Cmd+S",
+        icon: <Save className="h-4 w-4" aria-hidden="true" />,
+        disabled: !canSaveNow,
+        run: saveNow,
+      },
+      {
+        id: "discard",
+        label: "Discard changes",
+        description: canDiscardNow
+          ? "Revert to last loaded/saved state"
+          : "Nothing to discard",
+        keywords: ["revert", "reset", "undo all"],
+        group: "editor",
+        icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
+        disabled: !canDiscardNow,
+        run: openDiscardDialog,
+      },
+      {
+        id: "bulk-actions",
+        label: "Bulk actions",
+        description: "Open the bulk actions toolbar",
+        keywords: ["multi", "select", "download", "copy", "bulk edit"],
+        group: "bulk",
+        icon: <Layers className="h-4 w-4" aria-hidden="true" />,
+        run: openBulkActions,
+      },
+      {
+        id: "help",
+        label: "Help",
+        description: "View shortcuts and tips",
+        keywords: ["shortcuts", "faq", "guide"],
+        group: "help",
+        shortcutHint: "Ctrl/Cmd+H",
+        icon: <Info className="h-4 w-4" aria-hidden="true" />,
+        run: openHelpDialog,
+      },
+      {
+        id: "start-tour",
+        label: "Start tour",
+        description: "Guided walkthrough of the editor",
+        keywords: ["tutorial", "onboarding", "walkthrough"],
+        group: "help",
+        run: startTour,
+      },
+    ],
+    [
+      openBulkActions,
+      canDiscardNow,
+      canSaveNow,
+      openDiscardDialog,
+      openGlobalSettings,
+      openHelpDialog,
+      saveNow,
+      searchRef,
+      startTour,
+      visibility,
+      toggleVisibilityFilter,
+    ],
+  );
+
+  return { recentActionsStorageKey, commandPaletteCommands };
+}
+
+function useUserPageEditorKeyboardShortcuts(opts: {
+  canEnterReorderMode: boolean;
+  isReorderMode: boolean;
+  setIsReorderMode: React.Dispatch<React.SetStateAction<boolean>>;
+  clearSelection: () => void;
+  selectAllEnabled: () => void;
+  visibility: VisibilityFilter;
+  setVisibility: React.Dispatch<React.SetStateAction<VisibilityFilter>>;
+  saveNow: () => void | Promise<void>;
+  setIsHelpDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsCommandPaletteOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  searchRef: React.RefObject<HTMLInputElement | null>;
+  groupFilterTriggerId: string;
+}): void {
+  useEffect(() => {
+    const isTypingInField = (target: EventTarget | null) => {
+      if (!(target instanceof Element)) return false;
+      return (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target as HTMLElement).isContentEditable
+      );
+    };
+
+    const hasAnyOpenDialog = () =>
+      Boolean(
+        globalThis.document?.querySelector(
+          '[data-state="open"][role="dialog"], [data-state="open"][role="alertdialog"]',
+        ),
+      );
+
+    const handleEscape = (e: KeyboardEvent, key: string) => {
+      if (key !== "escape") return false;
+      if (isTypingInField(e.target) || hasAnyOpenDialog()) return true;
+
+      const hasSelection =
+        useUserPageEditor.getState().selectedCardIds.size > 0;
+      if (!hasSelection && !opts.isReorderMode) return true;
+
+      e.preventDefault();
+      if (hasSelection) {
+        opts.clearSelection();
+      } else if (opts.isReorderMode) {
+        opts.setIsReorderMode(false);
+      }
+      return true;
+    };
+    const handleFindShortcut = (e: KeyboardEvent) => {
+      e.preventDefault();
+
+      if (e.shiftKey) {
+        const el = globalThis.document?.getElementById(
+          opts.groupFilterTriggerId,
+        ) as HTMLButtonElement | null;
+        el?.focus();
+      } else {
+        opts.searchRef.current?.focus();
+      }
+    };
+
+    const handleHelpShortcut = (e: KeyboardEvent) => {
+      e.preventDefault();
+      opts.setIsHelpDialogOpen(true);
+    };
+
+    const handleReorderShortcut = (e: KeyboardEvent) => {
+      // Allow exiting even if filters have been applied.
+      // If reordering isn't available, block the browser bookmark shortcut
+      // and provide a gentle hint.
+      if (!opts.isReorderMode && !opts.canEnterReorderMode) {
+        e.preventDefault();
+        toast("Reorder mode is disabled while filters are active.", {
+          id: "reorder-mode-unavailable",
+          description:
+            "Clear the search box and set visibility to All to reorder.",
+        });
+        return;
+      }
+
+      e.preventDefault();
+      const next = opts.isReorderMode ? false : opts.canEnterReorderMode;
+      opts.setIsReorderMode(next);
+    };
+
+    const handleSelectAllShortcut = (e: KeyboardEvent) => {
+      e.preventDefault();
+      opts.selectAllEnabled();
+    };
+
+    const handleEnabledOnlyShortcut = (e: KeyboardEvent) => {
+      e.preventDefault();
+      opts.setVisibility(opts.visibility === "enabled" ? "all" : "enabled");
+    };
+
+    const handleSaveShortcut = (e: KeyboardEvent) => {
+      e.preventDefault();
+      opts.saveNow();
+    };
+
+    const modChordHandlers: Record<string, (e: KeyboardEvent) => void> = {
+      h: handleHelpShortcut,
+      d: handleReorderShortcut,
+      a: handleSelectAllShortcut,
+      e: handleEnabledOnlyShortcut,
+      s: handleSaveShortcut,
+    };
+
+    const handleModChord = (e: KeyboardEvent, key: string) => {
+      const isMod = e.ctrlKey || e.metaKey;
+      if (!isMod || e.altKey) return false;
+
+      // Ctrl/Cmd+K is commonly used for a command palette. Prevent the browser
+      // default even when focused in an input.
+      if (!e.shiftKey && key === "k") {
+        e.preventDefault();
+        if (!hasAnyOpenDialog()) {
+          opts.setIsCommandPaletteOpen(true);
+        }
+        return true;
+      }
+
+      // Don't allow browser-level defaults for shortcuts we advertise.
+      // (e.g., Ctrl/Cmd+D = bookmark, Ctrl/Cmd+H = history, Ctrl/Cmd+S = save page)
+      const shouldBlockBrowserDefault =
+        !e.shiftKey && (key === "d" || key === "h" || key === "s");
+
+      if (hasAnyOpenDialog()) {
+        if (shouldBlockBrowserDefault) {
+          e.preventDefault();
+        }
+        return true;
+      }
+
+      if (isTypingInField(e.target)) {
+        if (shouldBlockBrowserDefault) {
+          e.preventDefault();
+        }
+        return true;
+      }
+
+      if (key === "f") {
+        handleFindShortcut(e);
+        return true;
+      }
+      if (e.shiftKey) return false;
+
+      const action = modChordHandlers[key];
+      if (!action) return false;
+      action(e);
+      return true;
+    };
+
+    const handler = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.repeat) return;
+
+      const key = e.key.toLowerCase();
+      if (handleEscape(e, key)) return;
+      handleModChord(e, key);
+    };
+
+    globalThis.addEventListener("keydown", handler);
+    return () => globalThis.removeEventListener("keydown", handler);
+  }, [
+    opts.canEnterReorderMode,
+    opts.clearSelection,
+    opts.groupFilterTriggerId,
+    opts.isReorderMode,
+    opts.saveNow,
+    opts.searchRef,
+    opts.selectAllEnabled,
+    opts.setIsCommandPaletteOpen,
+    opts.setIsHelpDialogOpen,
+    opts.setIsReorderMode,
+    opts.setVisibility,
+    opts.visibility,
+  ]);
 }
 
 type ReorderModeToggleProps = {
@@ -407,8 +888,10 @@ export function UserPageEditor() {
   const cardEnabledById = useStableCardEnabledById();
   const cardCustomizedById = useStableCardCustomizedById();
 
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false);
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
+  const [isGlobalSettingsOpen, setIsGlobalSettingsOpen] = useState(false);
 
   const [draftRecord, setDraftRecord] =
     useState<ReturnType<typeof readUserPageDraft>>(null);
@@ -556,151 +1039,32 @@ export function UserPageEditor() {
 
   // Sync state from URL search params when the URL changes (back/forward etc.)
   useEffect(() => {
-    const q = searchParams.get("q") ?? "";
-    const v = parseVisibilityParam(searchParams.get("visibility"));
-    const g = searchParams.get("group") ?? "All";
-
-    if (q !== query) setQuery(q);
-    if (v !== visibility) setVisibility(v);
-    if (g !== selectedGroup) setSelectedGroup(g);
+    syncFiltersFromSearchParams({
+      searchParams,
+      query,
+      visibility,
+      selectedGroup,
+      setQuery,
+      setVisibility,
+      setSelectedGroup,
+    });
   }, [searchParams]);
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const isTypingInField = (target: EventTarget | null) => {
-      if (!(target instanceof Element)) return false;
-      return (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        (target as HTMLElement).isContentEditable
-      );
-    };
-
-    const hasAnyOpenDialog = () =>
-      Boolean(
-        globalThis.document?.querySelector(
-          '[data-state="open"][role="dialog"], [data-state="open"][role="alertdialog"]',
-        ),
-      );
-
-    const handleEscape = (e: KeyboardEvent, key: string) => {
-      if (key !== "escape") return false;
-      if (isTypingInField(e.target) || hasAnyOpenDialog()) return true;
-
-      const hasSelection =
-        useUserPageEditor.getState().selectedCardIds.size > 0;
-      if (!hasSelection && !isReorderMode) return true;
-
-      e.preventDefault();
-      if (hasSelection) clearSelection();
-      if (isReorderMode) setIsReorderMode(false);
-      return true;
-    };
-
-    const handleFindShortcut = (e: KeyboardEvent) => {
-      e.preventDefault();
-
-      if (e.shiftKey) {
-        const el = globalThis.document?.getElementById(
-          groupFilterTriggerId,
-        ) as HTMLButtonElement | null;
-        el?.focus();
-      } else {
-        searchRef.current?.focus();
-      }
-    };
-
-    const handleHelpShortcut = (e: KeyboardEvent) => {
-      e.preventDefault();
-      setIsHelpDialogOpen(true);
-    };
-
-    const handleReorderShortcut = (e: KeyboardEvent) => {
-      // Allow exiting even if filters have been applied.
-      // If reordering isn't available, block the browser bookmark shortcut
-      // and provide a gentle hint.
-      if (!isReorderMode && !canEnterReorderMode) {
-        e.preventDefault();
-        toast("Reorder mode is disabled while filters are active.", {
-          id: "reorder-mode-unavailable",
-          description:
-            "Clear the search box and set visibility to All to reorder.",
-        });
-        return;
-      }
-
-      e.preventDefault();
-      const next = isReorderMode ? false : canEnterReorderMode;
-      setIsReorderMode(next);
-    };
-
-    const handleSelectAllShortcut = (e: KeyboardEvent) => {
-      e.preventDefault();
-      selectAllEnabled();
-    };
-
-    const handleEnabledOnlyShortcut = (e: KeyboardEvent) => {
-      e.preventDefault();
-      setVisibility(visibility === "enabled" ? "all" : "enabled");
-    };
-
-    const handleSaveShortcut = (e: KeyboardEvent) => {
-      e.preventDefault();
-      saveNow();
-    };
-
-    const modChordHandlers: Record<string, (e: KeyboardEvent) => void> = {
-      h: handleHelpShortcut,
-      d: handleReorderShortcut,
-      a: handleSelectAllShortcut,
-      e: handleEnabledOnlyShortcut,
-      s: handleSaveShortcut,
-    };
-
-    const handleModChord = (e: KeyboardEvent, key: string) => {
-      const isMod = e.ctrlKey || e.metaKey;
-      if (!isMod || e.altKey) return false;
-      if (isTypingInField(e.target)) return true;
-
-      // Don't allow browser-level defaults for shortcuts we advertise.
-      // (e.g., Ctrl/Cmd+D = bookmark, Ctrl/Cmd+H = history, Ctrl/Cmd+S = save page)
-      if (hasAnyOpenDialog()) {
-        if (!e.shiftKey && (key === "d" || key === "h" || key === "s")) {
-          e.preventDefault();
-        }
-        return true;
-      }
-
-      if (key === "f") {
-        handleFindShortcut(e);
-        return true;
-      }
-      if (e.shiftKey) return false;
-
-      const action = modChordHandlers[key];
-      if (!action) return false;
-      action(e);
-      return true;
-    };
-
-    const handler = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.repeat) return;
-
-      const key = e.key.toLowerCase();
-      if (handleEscape(e, key)) return;
-      handleModChord(e, key);
-    };
-
-    globalThis.addEventListener("keydown", handler);
-    return () => globalThis.removeEventListener("keydown", handler);
-  }, [
+  // Keyboard shortcuts (including Ctrl/Cmd+K for the command palette)
+  useUserPageEditorKeyboardShortcuts({
     canEnterReorderMode,
-    clearSelection,
     isReorderMode,
-    saveNow,
+    setIsReorderMode,
+    clearSelection,
     selectAllEnabled,
     visibility,
-  ]);
+    setVisibility,
+    saveNow,
+    setIsHelpDialogOpen,
+    setIsCommandPaletteOpen,
+    searchRef,
+    groupFilterTriggerId,
+  });
 
   useEffect(() => {
     if (!userId || isLoading) return;
@@ -718,6 +1082,22 @@ export function UserPageEditor() {
   const canSaveNow =
     Boolean(userId) && isDirty && !isSaving && !showConflictNotice;
   const canDiscardNow = isDirty && !isSaving;
+
+  const { recentActionsStorageKey, commandPaletteCommands } =
+    useUserPageEditorCommandPalette({
+      userId,
+      visibility,
+      setVisibility,
+      searchRef,
+      selectAllEnabled,
+      canSaveNow,
+      canDiscardNow,
+      saveNow,
+      startTour,
+      openGlobalSettings: () => setIsGlobalSettingsOpen(true),
+      openDiscardDialog: () => setIsDiscardDialogOpen(true),
+      openHelpDialog: () => setIsHelpDialogOpen(true),
+    });
 
   const handleResolveConflictKeepEdits = useCallback(async () => {
     if (!userId) return;
@@ -786,21 +1166,13 @@ export function UserPageEditor() {
   // Persist filter state to the URL for shareable views (debounced to avoid spam)
   useEffect(() => {
     const timer = setTimeout(() => {
-      const params = new URLSearchParams(globalThis.location.search);
-
-      if (query) params.set("q", query);
-      else params.delete("q");
-
-      if (visibility && visibility !== "all")
-        params.set("visibility", visibility);
-      else params.delete("visibility");
-
-      if (selectedGroup && selectedGroup !== "All")
-        params.set("group", selectedGroup);
-      else params.delete("group");
-
-      const search = params.toString();
-      const url = search ? `${pathname}?${search}` : pathname;
+      const url = buildEditorUrl({
+        pathname,
+        currentSearch: globalThis.location.search,
+        query,
+        visibility,
+        selectedGroup,
+      });
       router.replace(url);
     }, 300);
 
@@ -874,79 +1246,12 @@ export function UserPageEditor() {
 
   // Loading state - show descriptive messages based on loading phase
   if (isLoading) {
-    const loadingMessage = LOADING_PHASE_MESSAGES[loadingPhase] || "Loading...";
-    const isSettingUp =
-      loadingPhase === "setting_up" ||
-      loadingPhase === "fetching_anilist" ||
-      loadingPhase === "saving";
-
-    return (
-      <div className="container relative z-10 mx-auto flex min-h-screen items-center justify-center px-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="flex flex-col items-center gap-6"
-        >
-          {isSettingUp ? (
-            <>
-              {/* Enhanced loading UI for new user setup */}
-              <div className="relative">
-                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30">
-                  <UserPlus className="h-10 w-10 text-blue-600 dark:text-blue-400" />
-                </div>
-                <motion.div
-                  className="absolute -inset-1 rounded-full border-2 border-blue-400/50"
-                  animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.8, 0.5] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                />
-              </div>
-              <div className="text-center">
-                <h2 className="text-xl font-semibold text-slate-800 dark:text-white">
-                  Welcome to AniCards!
-                </h2>
-                <p className="mt-2 text-slate-600 dark:text-slate-300">
-                  {loadingMessage}
-                </p>
-              </div>
-              <LoadingSpinner size="md" />
-            </>
-          ) : (
-            <LoadingSpinner size="lg" text={loadingMessage} />
-          )}
-        </motion.div>
-      </div>
-    );
+    return <UserPageEditorLoadingScreen loadingPhase={loadingPhase} />;
   }
 
   // Error state
   if (loadError) {
-    return (
-      <div className="container relative z-10 mx-auto flex min-h-screen items-center justify-center px-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-md"
-        >
-          <div className="rounded-3xl border border-red-200/50 bg-white/80 p-8 text-center shadow-2xl backdrop-blur-xl dark:border-red-800/30 dark:bg-slate-900/80">
-            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-              <AlertCircle className="h-10 w-10 text-red-500" />
-            </div>
-            <h1 className="mb-3 text-2xl font-bold text-slate-900 dark:text-white">
-              Something Went Wrong
-            </h1>
-            <p className="mb-6 text-slate-600 dark:text-slate-300">
-              {loadError}
-            </p>
-            <Button
-              asChild
-              className="rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white shadow-lg"
-            >
-              <Link href="/search">Search for User</Link>
-            </Button>
-          </div>
-        </motion.div>
-      </div>
-    );
+    return <UserPageEditorErrorScreen loadError={loadError} />;
   }
 
   return (
@@ -963,6 +1268,13 @@ export function UserPageEditor() {
           open={isHelpDialogOpen}
           onOpenChange={setIsHelpDialogOpen}
           onStartTour={startTour}
+        />
+
+        <CommandPalette
+          open={isCommandPaletteOpen}
+          onOpenChange={setIsCommandPaletteOpen}
+          commands={commandPaletteCommands}
+          recentStorageKey={recentActionsStorageKey}
         />
 
         <EditorNotices
@@ -1007,7 +1319,9 @@ export function UserPageEditor() {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         {getTooltipTriggerChild(
-                          canSaveNow ? "enabled" : "disabled",
+                          (["disabled", "enabled"] as const)[
+                            Number(canSaveNow)
+                          ],
                           <Button
                             type="button"
                             variant="outline"
@@ -1039,7 +1353,9 @@ export function UserPageEditor() {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         {getTooltipTriggerChild(
-                          canDiscardNow ? "enabled" : "disabled",
+                          (["disabled", "enabled"] as const)[
+                            Number(canDiscardNow)
+                          ],
                           <Button
                             type="button"
                             variant="outline"
@@ -1096,7 +1412,10 @@ export function UserPageEditor() {
                     </Tooltip>
                   </TooltipProvider>
                   {/* Global Settings Button */}
-                  <Dialog>
+                  <Dialog
+                    open={isGlobalSettingsOpen}
+                    onOpenChange={setIsGlobalSettingsOpen}
+                  >
                     <TooltipProvider delayDuration={200}>
                       <Tooltip>
                         <TooltipTrigger asChild>
