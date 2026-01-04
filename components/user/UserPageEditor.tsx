@@ -349,7 +349,6 @@ function useStableCardCustomizedById(): Record<string, boolean> {
  * @source
  */
 export function UserPageEditor() {
-  // NOSONAR
   const searchParams = useSearchParams();
   const {
     userId,

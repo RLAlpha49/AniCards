@@ -371,7 +371,11 @@ export function useEditorTour({
             // active step's index matches the last step index. This is more reliable
             // than reference equality which depends on driver.js implementation details.
             const activeIndex = activeStep
-              ? resolvedSteps.indexOf(activeStep)
+              ? resolvedSteps.findIndex(
+                  (step) =>
+                    step.element === activeStep.element &&
+                    step.popover?.title === activeStep.popover?.title,
+                )
               : -1;
             const isFinalStep =
               activeIndex !== -1 && activeIndex === resolvedSteps.length - 1;
