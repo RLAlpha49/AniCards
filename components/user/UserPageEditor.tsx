@@ -434,7 +434,10 @@ export function UserPageEditor() {
   const groupFilterTriggerId = "card-group-filter";
 
   const canEnterReorderMode = useMemo(
-    () => query.trim().length === 0 && visibility === "all" && customFilter === "all",
+    () =>
+      query.trim().length === 0 &&
+      visibility === "all" &&
+      customFilter === "all",
     [query, visibility, customFilter],
   );
 
@@ -585,7 +588,8 @@ export function UserPageEditor() {
       if (key !== "escape") return false;
       if (isTypingInField(e.target) || hasAnyOpenDialog()) return true;
 
-      const hasSelection = useUserPageEditor.getState().selectedCardIds.size > 0;
+      const hasSelection =
+        useUserPageEditor.getState().selectedCardIds.size > 0;
       if (!hasSelection && !isReorderMode) return true;
 
       e.preventDefault();
@@ -605,7 +609,6 @@ export function UserPageEditor() {
       } else {
         searchRef.current?.focus();
       }
-
     };
 
     const handleHelpShortcut = (e: KeyboardEvent) => {
@@ -1231,8 +1234,8 @@ export function UserPageEditor() {
                           className="max-w-xs text-xs leading-relaxed"
                         >
                           <p>
-                            Focus the category filter to limit results to a
-                            card group.
+                            Focus the category filter to limit results to a card
+                            group.
                             <ShortcutHint>Ctrl/Cmd+Shift+F</ShortcutHint>
                           </p>
                         </TooltipContent>
@@ -1251,7 +1254,8 @@ export function UserPageEditor() {
 
                 <div className="flex items-center justify-between gap-2 px-1 text-xs text-slate-500 dark:text-slate-400">
                   <span aria-live="polite">
-                    Showing {filteredCardCount} of {scopeCardCount} cards in view
+                    Showing {filteredCardCount} of {scopeCardCount} cards in
+                    view
                   </span>
                 </div>
 

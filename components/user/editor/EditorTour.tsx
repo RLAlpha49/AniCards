@@ -283,7 +283,10 @@ export function useEditorTour({
       // Purpose: store the time the user dismissed the tour so we can include it in analytics
       // and avoid re-showing the tour automatically for a reasonable cooldown period.
       const ts = Date.now();
-      globalThis.localStorage.setItem(`${tourStorageKey}:dismissed`, String(ts));
+      globalThis.localStorage.setItem(
+        `${tourStorageKey}:dismissed`,
+        String(ts),
+      );
       setLastDismissedAt(ts);
       return ts;
     } catch {
@@ -364,13 +367,14 @@ export function useEditorTour({
             setIsTourRunning(false);
             tourRef.current = null;
 
-            // Determine whether the tour ended on the final step by checking if the  
-            // active step's index matches the last step index. This is more reliable  
-            // than reference equality which depends on driver.js implementation details.  
-            const activeIndex = activeStep ? resolvedSteps.indexOf(activeStep) : -1;  
-            const isFinalStep = 
-              activeIndex !== -1 && 
-              activeIndex === resolvedSteps.length - 1; 
+            // Determine whether the tour ended on the final step by checking if the
+            // active step's index matches the last step index. This is more reliable
+            // than reference equality which depends on driver.js implementation details.
+            const activeIndex = activeStep
+              ? resolvedSteps.indexOf(activeStep)
+              : -1;
+            const isFinalStep =
+              activeIndex !== -1 && activeIndex === resolvedSteps.length - 1;
 
             if (isFinalStep) {
               // Consider the tour completed only when the user finished the last step.
@@ -395,7 +399,14 @@ export function useEditorTour({
         tourRef.current = null;
       }
     }, 0);
-  }, [closeHelpDialog, markTourCompleted, markTourDismissed, trackEditorTourEvent, setIsNewUser, tourSteps]);
+  }, [
+    closeHelpDialog,
+    markTourCompleted,
+    markTourDismissed,
+    trackEditorTourEvent,
+    setIsNewUser,
+    tourSteps,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -428,7 +439,14 @@ export function useEditorTour({
     }, 500);
 
     return () => globalThis.clearTimeout(timer);
-  }, [isNewUser, isTourCompleted, isTourRunning, startTour, userId, lastDismissedAt]);
+  }, [
+    isNewUser,
+    isTourCompleted,
+    isTourRunning,
+    startTour,
+    userId,
+    lastDismissedAt,
+  ]);
 
   return {
     startTour,

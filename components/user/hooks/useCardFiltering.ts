@@ -53,8 +53,10 @@ function splitKeyValueToken(
 function parseBooleanTokenValue(value: string): boolean | null {
   const v = value.trim().toLowerCase();
   if (!v) return null;
-  if (["true", "t", "yes", "y", "1", "on", "enabled", "enable"].includes(v)) return true;
-  if (["false", "f", "no", "n", "0", "off", "disabled", "disable"].includes(v)) return false;
+  if (["true", "t", "yes", "y", "1", "on", "enabled", "enable"].includes(v))
+    return true;
+  if (["false", "f", "no", "n", "0", "off", "disabled", "disable"].includes(v))
+    return false;
   return null;
 }
 
@@ -215,7 +217,8 @@ export function useCardFiltering({
   const parsedQuery = useMemo(() => parseCardSearchQuery(query), [query]);
 
   const effectiveCustomFilter = useMemo<CustomFilter>(() => {
-    if (typeof customFilter === "string" && customFilter !== "all") return customFilter;
+    if (typeof customFilter === "string" && customFilter !== "all")
+      return customFilter;
     if (parsedQuery.custom === true) return "customized";
     if (parsedQuery.custom === false) return "uncustomized";
     return "all";
@@ -247,14 +250,16 @@ export function useCardFiltering({
       group: t.group,
       variationLabels: t.variations.map((v) => v.label).join(" "),
     }));
-    return new Fuse<{ id: string; label: string; group: string; variationLabels: string }>(
-      items,
-      {
-        keys: ["label", "id", "group", "variationLabels"],
-        threshold: 0.35,
-        ignoreLocation: true,
-      },
-    );
+    return new Fuse<{
+      id: string;
+      label: string;
+      group: string;
+      variationLabels: string;
+    }>(items, {
+      keys: ["label", "id", "group", "variationLabels"],
+      threshold: 0.35,
+      ignoreLocation: true,
+    });
   }, [fuzzy]);
 
   // Compute fuzzy matches set when query is present and fuse is available
@@ -293,7 +298,8 @@ export function useCardFiltering({
       if (effectiveCustomFilter !== "all") {
         const customized = Boolean(cardCustomizedById?.[cardType.id]);
         if (effectiveCustomFilter === "customized" && !customized) return false;
-        if (effectiveCustomFilter === "uncustomized" && customized) return false;
+        if (effectiveCustomFilter === "uncustomized" && customized)
+          return false;
       }
 
       // Free-text match
@@ -319,44 +325,51 @@ export function useCardFiltering({
     visibleGroupNames,
     filteredCardCount,
     scopeCardCount,
-  } =
-    useMemo(() => {
-      const result: Record<string, Array<(typeof statCardTypes)[0]>> = {};
-      const totals: Record<string, { total: number; enabled: number }> = {};
-      const visibleNames: string[] = [];
-      let filteredCount = 0;
-      let scopeCount = 0;
+  } = useMemo(() => {
+    const result: Record<string, Array<(typeof statCardTypes)[0]>> = {};
+    const totals: Record<string, { total: number; enabled: number }> = {};
+    const visibleNames: string[] = [];
+    let filteredCount = 0;
+    let scopeCount = 0;
 
-      for (const [groupName, cards] of Object.entries(cardGroups)) {
-        if (selectedGroup !== "All" && selectedGroup !== groupName) continue;
+    for (const [groupName, cards] of Object.entries(cardGroups)) {
+      if (selectedGroup !== "All" && selectedGroup !== groupName) continue;
 
-        const { filtered, enabledCount, scopeCount: groupScopeCount } =
-          filterCardsInGroup(cards, matchesVisibility, matchesQuery, cardEnabledById);
-        scopeCount += groupScopeCount;
-        filteredCount += filtered.length;
+      const {
+        filtered,
+        enabledCount,
+        scopeCount: groupScopeCount,
+      } = filterCardsInGroup(
+        cards,
+        matchesVisibility,
+        matchesQuery,
+        cardEnabledById,
+      );
+      scopeCount += groupScopeCount;
+      filteredCount += filtered.length;
 
-        if (filtered.length > 0) {
-          result[groupName] = filtered;
-          totals[groupName] = { total: filtered.length, enabled: enabledCount };
-          visibleNames.push(groupName);
-        }
+      if (filtered.length > 0) {
+        result[groupName] = filtered;
+        totals[groupName] = { total: filtered.length, enabled: enabledCount };
+        visibleNames.push(groupName);
       }
+    }
 
-      return {
-        filteredGroups: result,
-        filteredGroupTotals: totals,
-        visibleGroupNames: visibleNames,
-        filteredCardCount: filteredCount,
-        scopeCardCount: scopeCount,
-      };
-    }, [
-      cardEnabledById,
-      cardGroups,
-      selectedGroup,
-      visibility,
-      matchesQuery,
-      matchesVisibility,
-    ]);
+    return {
+      filteredGroups: result,
+      filteredGroupTotals: totals,
+      visibleGroupNames: visibleNames,
+      filteredCardCount: filteredCount,
+      scopeCardCount: scopeCount,
+    };
+  }, [
+    cardEnabledById,
+    cardGroups,
+    selectedGroup,
+    visibility,
+    matchesQuery,
+    matchesVisibility,
+  ]);
 
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
     () => {
