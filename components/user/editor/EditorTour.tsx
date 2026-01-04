@@ -71,11 +71,77 @@ function resolveTourStepForDriver(step: DriveStep, doc: Document): DriveStep {
   return step;
 }
 
+function normalizeToId(input?: string): string | undefined {
+  if (!input) return undefined;
+  return input
+    .toLowerCase()
+    .trim()
+    .replaceAll('"', "")
+    .replaceAll("'", "")
+    .replaceAll("`", "")
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/(^-|-$)/g, "");
+}
+
+function ensureStepIds(steps: DriveStep[]): (DriveStep & { id: string })[] {
+  return steps.map((step, idx) => {
+    const s = { ...step } as DriveStep & { id?: string };
+
+    if (s.id && typeof s.id === "string" && s.id.trim()) {
+      return s as DriveStep & { id: string };
+    }
+
+    const titleId = normalizeToId(s.popover?.title);
+    if (titleId) {
+      s.id = titleId;
+      return s as DriveStep & { id: string };
+    }
+
+    if (typeof s.element === "string" && s.element.trim()) {
+      s.id = normalizeToId(s.element) ?? `step-${idx + 1}`;
+      return s as DriveStep & { id: string };
+    }
+
+    s.id = `step-${idx + 1}`;
+    return s as DriveStep & { id: string };
+  });
+}
+
 function resolveTourStepsForDriver(
   steps: DriveStep[],
   doc: Document,
 ): DriveStep[] {
-  return steps.map((step) => resolveTourStepForDriver(step, doc));
+  const resolved = steps.map((step) => resolveTourStepForDriver(step, doc));
+  return ensureStepIds(resolved);
+}
+
+/**
+ * Find the index of the active step in a list of resolved driver steps.
+ * Prefers stable `id` equality when available and falls back to
+ * element + title matching for backward compatibility with older driver instances.
+ */
+export function findActiveStepIndex(
+  resolvedSteps: DriveStep[],
+  activeStep?: DriveStep | undefined,
+): number {
+  if (!activeStep) return -1;
+
+  return resolvedSteps.findIndex((step) => {
+    const stepId = (step as DriveStep & { id?: string }).id;
+    const activeId =
+      (activeStep as DriveStep & { id?: string }).id ??
+      normalizeToId(activeStep.popover?.title);
+
+    if (stepId && activeId) {
+      return stepId === activeId;
+    }
+
+    // Fallback to legacy comparison if ids aren't available
+    return (
+      step.element === activeStep.element &&
+      step.popover?.title === activeStep.popover?.title
+    );
+  });
 }
 
 type UseEditorTourArgs = Readonly<{
@@ -105,6 +171,7 @@ export function useEditorTour({
   const tourSteps = useMemo<DriveStep[]>(
     () => [
       {
+        id: "welcome",
         popover: {
           title: "Welcome",
           description:
@@ -114,6 +181,7 @@ export function useEditorTour({
         },
       },
       {
+        id: "help",
         element: '[data-tour="help-button"]',
         popover: {
           title: "Help",
@@ -124,6 +192,7 @@ export function useEditorTour({
         },
       },
       {
+        id: "search",
         element: '[data-tour="card-search"]',
         popover: {
           title: "Search",
@@ -134,6 +203,7 @@ export function useEditorTour({
         },
       },
       {
+        id: "visibility",
         element: '[data-tour="visibility-toggle"]',
         popover: {
           title: "Visibility",
@@ -144,6 +214,7 @@ export function useEditorTour({
         },
       },
       {
+        id: "global-settings",
         element: '[data-tour="global-settings"]',
         popover: {
           title: "Global Settings",
@@ -154,6 +225,7 @@ export function useEditorTour({
         },
       },
       {
+        id: "reorder",
         element: '[data-tour="reorder-toggle"]',
         popover: {
           title: "Reorder",
@@ -164,6 +236,7 @@ export function useEditorTour({
         },
       },
       {
+        id: "cards",
         element: '[data-tour="card-groups"]',
         popover: {
           title: "Cards",
@@ -174,6 +247,7 @@ export function useEditorTour({
         },
       },
       {
+        id: "card-tiles",
         element: '[data-tour="card-tile"]',
         popover: {
           title: "Card tiles",
@@ -184,6 +258,7 @@ export function useEditorTour({
         },
       },
       {
+        id: "enable-card",
         element: '[data-tour="card-enable-toggle"]',
         popover: {
           title: "Enable a card",
@@ -194,6 +269,7 @@ export function useEditorTour({
         },
       },
       {
+        id: "card-settings",
         element: '[data-tour="card-settings"]',
         popover: {
           title: "Card settings",
@@ -204,6 +280,7 @@ export function useEditorTour({
         },
       },
       {
+        id: "variants",
         element: '[data-tour="card-variant"]',
         popover: {
           title: "Variants",
@@ -214,6 +291,7 @@ export function useEditorTour({
         },
       },
       {
+        id: "preview-actions",
         element: '[data-tour="card-preview"]',
         popover: {
           title: "Preview actions",
@@ -224,6 +302,7 @@ export function useEditorTour({
         },
       },
       {
+        id: "expand-preview",
         element: '[data-tour="card-expand"]',
         popover: {
           title: "Expand preview",
@@ -234,6 +313,7 @@ export function useEditorTour({
         },
       },
       {
+        id: "save",
         element: '[data-tour="save-button"]',
         popover: {
           title: "Save",
@@ -302,7 +382,7 @@ export function useEditorTour({
           action: `editor_tour_${type}`,
           category: "engagement",
           // If a dismissal timestamp is available, send it as the event label for richer analytics.
-          label: timestamp == null ? "editor_tour" : String(timestamp),  
+          label: timestamp == null ? "editor_tour" : String(timestamp),
         }),
       );
     },
@@ -367,13 +447,7 @@ export function useEditorTour({
             // Determine whether the tour ended on the final step by checking if the
             // active step's index matches the last step index. This is more reliable
             // than reference equality which depends on driver.js implementation details.
-            const activeIndex = activeStep
-              ? resolvedSteps.findIndex(
-                  (step) =>
-                    step.element === activeStep.element &&
-                    step.popover?.title === activeStep.popover?.title,
-                )
-              : -1;
+            const activeIndex = findActiveStepIndex(resolvedSteps, activeStep);
             const isFinalStep =
               activeIndex !== -1 && activeIndex === resolvedSteps.length - 1;
 
