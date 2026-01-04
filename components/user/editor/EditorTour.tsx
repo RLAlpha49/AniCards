@@ -302,10 +302,7 @@ export function useEditorTour({
           action: `editor_tour_${type}`,
           category: "engagement",
           // If a dismissal timestamp is available, send it as the event label for richer analytics.
-          label:
-            timestamp === undefined || timestamp === null
-              ? "editor_tour"
-              : String(timestamp),
+          label: timestamp == null ? "editor_tour" : String(timestamp),  
         }),
       );
     },
