@@ -185,7 +185,9 @@ export function CommandPalette({
       // Run after the dialog begins closing to avoid nested-dialog focus issues
       // when a command opens another dialog.
       globalThis.setTimeout(() => {
-        cmd.run();
+        Promise.resolve()
+          .then(() => cmd.run())
+          .catch((err) => console.error("Command execution failed:", err));
       }, 0);
     },
     [onOpenChange, pushRecent],
