@@ -95,12 +95,23 @@ function CommandItem({
   icon: React.ReactNode;
   onSelect: (cmd: CommandPaletteCommand) => void;
 }>) {
+  const handlePointerDown = (e: React.PointerEvent) => {
+    // Ignore non-primary buttons and disabled commands
+    if (cmd.disabled || e.button !== 0) return;
+    // Prevent the input from blurring and stealing focus which can stop
+    // the click from being processed by cmdk in some browsers.
+    e.preventDefault();
+    e.stopPropagation();
+    onSelect(cmd);
+  };
+
   return (
     <Command.Item
       value={cmd.label}
       keywords={cmd.keywords}
       disabled={cmd.disabled}
       onSelect={() => onSelect(cmd)}
+      onPointerDown={handlePointerDown}
       className={cn(
         "flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm",
         "text-slate-900 aria-selected:bg-slate-100",
@@ -146,6 +157,9 @@ export function CommandPalette({
 }: Readonly<CommandPaletteProps>) {
   const [search, setSearch] = React.useState("");
   const [recent, setRecent] = React.useState<RecentAction[]>([]);
+  const [selectedValue, setSelectedValue] = React.useState<string | undefined>(
+    undefined,
+  );
 
   const commandById = React.useMemo(() => {
     const map = new Map<string, CommandPaletteCommand>();
@@ -158,7 +172,29 @@ export function CommandPalette({
 
     setSearch("");
     setRecent(readRecentActions(recentStorageKey));
+    setSelectedValue(undefined);
   }, [open, recentStorageKey]);
+
+  // Keep selection in sync with the current search query. When the user types a
+  // query which removes the currently-selected item, pick the first visible
+  // matching item so Enter still works without needing to arrow-key first.
+  React.useEffect(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) {
+      setSelectedValue(undefined);
+      return;
+    }
+
+    const match = commands.find((cmd) => {
+      if (cmd.disabled) return false;
+      if (cmd.label.toLowerCase().includes(q)) return true;
+      if (cmd.description?.toLowerCase().includes(q)) return true;
+      if (cmd.keywords?.some((k) => k.toLowerCase().includes(q))) return true;
+      return false;
+    });
+
+    setSelectedValue(match?.label);
+  }, [search, commands]);
 
   const pushRecent = React.useCallback(
     (cmd: CommandPaletteCommand) => {
@@ -234,7 +270,11 @@ export function CommandPalette({
           Type to search commands. Use arrow keys to navigate and Enter to run.
         </DialogDescription>
 
-        <Command className="flex h-full w-full flex-col">
+        <Command
+          value={selectedValue}
+          onValueChange={setSelectedValue}
+          className="flex h-full w-full flex-col"
+        >
           <div className="flex items-center gap-2 border-b border-slate-200 px-3 py-2 dark:border-slate-800">
             <Search
               className="h-4 w-4 text-slate-500 dark:text-slate-400"
