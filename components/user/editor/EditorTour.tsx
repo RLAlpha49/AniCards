@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { driver, type DriveStep } from "driver.js";
 
 import { event, safeTrack } from "@/lib/utils/google-analytics";
+import { shouldAutoStartTour } from "./tour-utils";
 
 const TOUR_STORAGE_VERSION = "v1";
 
@@ -97,6 +98,7 @@ export function useEditorTour({
 
   const [isTourRunning, setIsTourRunning] = useState(false);
   const [isTourCompleted, setIsTourCompleted] = useState(false);
+  const [lastDismissedAt, setLastDismissedAt] = useState<number | null>(null);
   const tourRef = useRef<ReturnType<typeof driver> | null>(null);
   const startTourTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -252,8 +254,15 @@ export function useEditorTour({
       setIsTourCompleted(
         globalThis.localStorage.getItem(tourStorageKey) === "1",
       );
+
+      const dismissedRaw = globalThis.localStorage.getItem(
+        `${tourStorageKey}:dismissed`,
+      );
+      const parsed = dismissedRaw ? Number(dismissedRaw) : Number.NaN;
+      setLastDismissedAt(Number.isFinite(parsed) ? parsed : null);
     } catch {
       setIsTourCompleted(false);
+      setLastDismissedAt(null);
     }
   }, [tourStorageKey]);
 
@@ -267,25 +276,38 @@ export function useEditorTour({
     setIsTourCompleted(true);
   }, [tourStorageKey]);
 
-  const markTourDismissed = useCallback(() => {
-    if (!tourStorageKey) return;
+  const markTourDismissed = useCallback((): number | null => {
+    if (!tourStorageKey) return null;
     try {
       // Record a dismissal timestamp separately so it can be distinguished from a full completion.
-      globalThis.localStorage.setItem(`${tourStorageKey}:dismissed`, String(Date.now()));
+      // Purpose: store the time the user dismissed the tour so we can include it in analytics
+      // and avoid re-showing the tour automatically for a reasonable cooldown period.
+      const ts = Date.now();
+      globalThis.localStorage.setItem(`${tourStorageKey}:dismissed`, String(ts));
+      setLastDismissedAt(ts);
+      return ts;
     } catch {
       // Ignore storage failures (private mode / disabled storage)
+      return null;
     }
   }, [tourStorageKey]);
 
-  const trackEditorTourEvent = useCallback((type: "completed" | "dismissed") => {
-    safeTrack(() =>
-      event({
-        action: `editor_tour_${type}`,
-        category: "engagement",
-        label: "editor_tour",
-      }),
-    );
-  }, []);
+  const trackEditorTourEvent = useCallback(
+    (type: "completed" | "dismissed", timestamp?: number) => {
+      safeTrack(() =>
+        event({
+          action: `editor_tour_${type}`,
+          category: "engagement",
+          // If a dismissal timestamp is available, send it as the event label for richer analytics.
+          label:
+            timestamp === undefined || timestamp === null
+              ? "editor_tour"
+              : String(timestamp),
+        }),
+      );
+    },
+    [],
+  );
 
   const isMountedRef = useRef(true);
 
@@ -356,8 +378,8 @@ export function useEditorTour({
               trackEditorTourEvent("completed");
             } else {
               // Record a dismissal separately so we can differentiate it from a full completion.
-              markTourDismissed();
-              trackEditorTourEvent("dismissed");
+              const dismissedAt = markTourDismissed();
+              trackEditorTourEvent("dismissed", dismissedAt ?? undefined);
             }
 
             // Once the tour is done (completed or dismissed), hide the new-user callouts.
@@ -389,17 +411,24 @@ export function useEditorTour({
   // Auto-run the tour for new users once per userId (versioned).
   useEffect(() => {
     if (!userId) return;
-    if (!isNewUser) return;
-    if (isTourCompleted) return;
-    if (isTourRunning) return;
 
-    // Delay tour start to allow initial UI render/layout to settle 
+    if (
+      !shouldAutoStartTour({
+        isNewUser,
+        isTourCompleted,
+        isTourRunning,
+        lastDismissedAt,
+      })
+    )
+      return;
+
+    // Delay tour start to allow initial UI render/layout to settle
     const timer = globalThis.setTimeout(() => {
       startTour();
     }, 500);
 
     return () => globalThis.clearTimeout(timer);
-  }, [isNewUser, isTourCompleted, isTourRunning, startTour, userId]);
+  }, [isNewUser, isTourCompleted, isTourRunning, startTour, userId, lastDismissedAt]);
 
   return {
     startTour,
