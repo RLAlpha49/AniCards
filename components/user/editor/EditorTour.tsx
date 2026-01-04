@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { driver, type DriveStep } from "driver.js";
 
+import { event, safeTrack } from "@/lib/utils/google-analytics";
+
 const TOUR_STORAGE_VERSION = "v1";
 
 // Fallbacks for Driver.js tour step targets.
@@ -265,6 +267,26 @@ export function useEditorTour({
     setIsTourCompleted(true);
   }, [tourStorageKey]);
 
+  const markTourDismissed = useCallback(() => {
+    if (!tourStorageKey) return;
+    try {
+      // Record a dismissal timestamp separately so it can be distinguished from a full completion.
+      globalThis.localStorage.setItem(`${tourStorageKey}:dismissed`, String(Date.now()));
+    } catch {
+      // Ignore storage failures (private mode / disabled storage)
+    }
+  }, [tourStorageKey]);
+
+  const trackEditorTourEvent = useCallback((type: "completed" | "dismissed") => {
+    safeTrack(() =>
+      event({
+        action: `editor_tour_${type}`,
+        category: "engagement",
+        label: "editor_tour",
+      }),
+    );
+  }, []);
+
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -316,11 +338,29 @@ export function useEditorTour({
           stageRadius: 10,
           overlayOpacity: 0.6,
           steps: resolvedSteps,
-          onDestroyed: () => {
+          onDestroyed: (_el?: Element | undefined, activeStep?: DriveStep) => {
             setIsTourRunning(false);
             tourRef.current = null;
-            markTourCompleted();
-            // Once the tour is done (or closed), hide the new-user callouts.
+
+            // Determine whether the tour ended on the final step (user clicked "Done")
+            // or was dismissed/closed early. `activeStep` is the step that was active
+            // when the tour was destroyed; compare it to the resolved steps we passed in.
+            const isFinalStep =
+              activeStep !== undefined &&
+              resolvedSteps.length > 0 &&
+              activeStep === resolvedSteps.at(-1);
+
+            if (isFinalStep) {
+              // Consider the tour completed only when the user finished the last step.
+              markTourCompleted();
+              trackEditorTourEvent("completed");
+            } else {
+              // Record a dismissal separately so we can differentiate it from a full completion.
+              markTourDismissed();
+              trackEditorTourEvent("dismissed");
+            }
+
+            // Once the tour is done (completed or dismissed), hide the new-user callouts.
             setIsNewUser(false);
           },
         });
@@ -333,7 +373,7 @@ export function useEditorTour({
         tourRef.current = null;
       }
     }, 0);
-  }, [closeHelpDialog, markTourCompleted, setIsNewUser, tourSteps]);
+  }, [closeHelpDialog, markTourCompleted, markTourDismissed, trackEditorTourEvent, setIsNewUser, tourSteps]);
 
   useEffect(() => {
     return () => {
