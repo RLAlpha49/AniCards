@@ -6,6 +6,7 @@ import { Eye, ExternalLink, MoreHorizontal, RotateCw } from "lucide-react";
 import { CopyPopover } from "@/components/user/tile/CopyPopover";
 import { DownloadPopover } from "@/components/user/tile/DownloadPopover";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { useCachedCardPreview } from "@/components/user/tile/useCachedCardPreview";
 import { cn, type ConversionFormat } from "@/lib/utils";
 
@@ -257,6 +258,13 @@ export const CardPreview = memo(function CardPreview({
     previewNode = (
       <div className="flex h-full w-full items-center justify-center text-slate-400">
         <Eye className="h-8 w-8" />
+      </div>
+    );
+  } else if (!resolvedSrc && isLoading) {
+    previewNode = (
+      <div className={cn("h-full w-full", paddingClass)}>
+        <Skeleton className="h-full w-full rounded-xl" />
+        <span className="sr-only">Loading preview...</span>
       </div>
     );
   } else if (resolvedSrc) {

@@ -25,6 +25,9 @@ interface SaveState {
   isDirty: boolean;
   saveError: string | null;
   lastSavedAt: number | null;
+  isAutoSaveQueued?: boolean;
+  autoSaveDueAt?: number | null;
+  hasConflict?: boolean;
 }
 
 /**
@@ -75,6 +78,16 @@ function getTimeSince(lastSavedAt: number | null): string {
   return `${Math.floor(seconds / 86400)}d ago`;
 }
 
+function getTimeUntil(dueAt: number | null | undefined): string {
+  if (!dueAt) return "soon";
+  const ms = dueAt - Date.now();
+  if (ms <= 0) return "now";
+  const seconds = Math.ceil(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.ceil(seconds / 60);
+  return `${minutes}m`;
+}
+
 /**
  * Simplifies save-state derivation for rendering the UI.
  * Returns the icon component, text, and contextual className.
@@ -84,6 +97,7 @@ type SaveStateInfo = {
   text: string;
   className: string;
   spinner?: boolean;
+  title?: string;
 };
 
 function getSaveStateInfo(saveState?: SaveState): SaveStateInfo {
@@ -96,6 +110,27 @@ function getSaveStateInfo(saveState?: SaveState): SaveStateInfo {
     };
   }
 
+  if (saveState.hasConflict) {
+    return {
+      Icon: AlertCircle,
+      text: "Out of sync",
+      className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+      title:
+        "A save conflict was detected. Reload to sync with the latest settings.",
+    };
+  }
+
+  if (saveState.isAutoSaveQueued) {
+    return {
+      Icon: Loader2,
+      text: `Auto-save in ${getTimeUntil(saveState.autoSaveDueAt)}`,
+      className:
+        "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+      spinner: true,
+      title: "Your changes will be saved automatically.",
+    };
+  }
+
   if (saveState.isSaving) {
     return {
       Icon: Loader2,
@@ -103,32 +138,36 @@ function getSaveStateInfo(saveState?: SaveState): SaveStateInfo {
       className:
         "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
       spinner: true,
+      title: "Syncing your changes...",
     };
   }
 
   if (saveState.saveError) {
     return {
       Icon: AlertCircle,
-      text: "Save failed",
+      text: "Sync failed",
       className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+      title: saveState.saveError,
     };
   }
 
   if (saveState.isDirty) {
     return {
       Icon: Save,
-      text: "Unsaved",
+      text: "Unsaved changes",
       className:
         "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+      title: "Changes are waiting to be saved.",
     };
   }
 
   if (saveState.lastSavedAt) {
     return {
       Icon: Check,
-      text: getTimeSince(saveState.lastSavedAt),
+      text: `Saved ${getTimeSince(saveState.lastSavedAt)} · Synced`,
       className:
         "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+      title: new Date(saveState.lastSavedAt).toLocaleString(),
     };
   }
 
@@ -217,14 +256,20 @@ export function UserPageHeader({
 
   const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
   useEffect(() => {
-    if (
-      !saveState?.lastSavedAt ||
-      saveState.isSaving ||
-      saveState.isDirty ||
-      saveState.saveError
-    ) {
-      return;
-    }
+    if (!saveState) return;
+
+    const shouldTickForLastSaved =
+      Boolean(saveState.lastSavedAt) &&
+      !saveState.isSaving &&
+      !saveState.isDirty &&
+      !saveState.saveError &&
+      !saveState.hasConflict;
+
+    const shouldTickForQueuedSave =
+      Boolean(saveState.isAutoSaveQueued) && Boolean(saveState.autoSaveDueAt);
+
+    if (!shouldTickForLastSaved && !shouldTickForQueuedSave) return;
+
     const id = setInterval(forceUpdate, 1000);
     return () => clearInterval(id);
   }, [
@@ -232,6 +277,9 @@ export function UserPageHeader({
     saveState?.isSaving,
     saveState?.isDirty,
     saveState?.saveError,
+    saveState?.isAutoSaveQueued,
+    saveState?.autoSaveDueAt,
+    saveState?.hasConflict,
   ]);
 
   const saveInfo = saveState ? getSaveStateInfo(saveState) : undefined;
@@ -301,6 +349,7 @@ export function UserPageHeader({
                 <output
                   aria-live="polite"
                   aria-atomic="true"
+                  title={saveInfo.title}
                   className={cn(
                     "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all",
                     saveInfo.className,

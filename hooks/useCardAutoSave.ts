@@ -244,7 +244,8 @@ function diffGlobalSettingsPayload(
     try {
       return JSON.stringify(value);
     } catch {
-      return String(value);
+      // Stable fallback when values cannot be serialized (e.g., cyclic objects).
+      return "[unserializable]";
     }
   };
 
@@ -364,6 +365,7 @@ function buildSavePayloadFromStoreState(
   state: ReturnType<typeof useUserPageEditor.getState>,
 ): {
   userId: string;
+  patch: NonNullable<ReturnType<typeof buildLocalEditsPatch>>;
   cards: ServerCardData[];
   globalSettings?: Partial<GlobalSettingsPayload>;
   cardOrder?: string[];
@@ -420,6 +422,7 @@ function buildSavePayloadFromStoreState(
 
   return {
     userId: state.userId,
+    patch,
     cards,
     globalSettings,
     cardOrder: patch.cardOrder,
@@ -509,6 +512,10 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
     null,
   );
 
+  // Tracks whether an auto-save is queued (debounced) and when it is expected
+  // to fire. This is used for UI indicators (e.g., "Auto-save pending").
+  const [autoSaveDueAt, setAutoSaveDueAt] = useState<number | null>(null);
+
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMountedRef = useRef(true);
 
@@ -539,12 +546,11 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
       if (alreadySaving) return;
 
       const snapshot = useUserPageEditor.getState();
-      const patch = buildLocalEditsPatch(snapshot);
-      if (!patch || !isMountedRef.current) return;
-
       const payload = buildSavePayloadFromStoreState(snapshot);
       if (!payload || !isMountedRef.current) return;
 
+      // A save is about to run, so any queued debounce is no longer relevant.
+      setAutoSaveDueAt(null);
       setSaving(true);
 
       const toastId = "user-page-autosave";
@@ -558,23 +564,35 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
         ifMatchUpdatedAt: payload.ifMatchUpdatedAt,
       });
 
-      if (!isMountedRef.current) return;
+      const shouldNotify = isMountedRef.current;
 
       if ("conflict" in result) {
-        setSaveConflict({ currentUpdatedAt: result.currentUpdatedAt });
         setSaveError(result.error);
-        toast.error("Save conflict", {
-          id: toastId,
-          description:
-            "Changes were saved in another tab. Reload to sync, then re-apply your edits.",
-        });
+        if (shouldNotify) {
+          setSaveConflict({ currentUpdatedAt: result.currentUpdatedAt });
+          toast.error("Save conflict", {
+            id: toastId,
+            description:
+              "Changes were saved in another tab. Reload to sync, then re-apply your edits.",
+          });
+        }
       } else if ("error" in result) {
         setSaveError(result.error);
-        toast.error("Save failed", { id: toastId, description: result.error });
+        if (shouldNotify) {
+          toast.error("Save failed", {
+            id: toastId,
+            description: result.error,
+          });
+        }
       } else {
-        setSaveConflict(null);
-        markSaved({ serverUpdatedAt: result.updatedAt, appliedPatch: patch });
-        toast.success("Saved", { id: toastId });
+        markSaved({
+          serverUpdatedAt: result.updatedAt,
+          appliedPatch: payload.patch,
+        });
+        if (shouldNotify) {
+          setSaveConflict(null);
+          toast.success("Saved", { id: toastId });
+        }
       }
     },
     [markSaved, saveConflict, setSaveError, setSaving],
@@ -599,12 +617,23 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
       timeoutRef.current = null;
     }
 
+    setAutoSaveDueAt(null);
+
     await performSave({ reason: "manual" });
   }, [performSave]);
 
   // Auto-save effect - watches isDirty and triggers debounced save
+  const shouldQueueAutoSave =
+    enabled && userId != null && isDirty && !isSaving && !saveConflict;
+
   useEffect(() => {
-    if (!enabled || userId == null || !isDirty || isSaving || saveConflict) {
+    if (!shouldQueueAutoSave) {
+      setAutoSaveDueAt(null);
+    }
+  }, [shouldQueueAutoSave]);
+
+  useEffect(() => {
+    if (!shouldQueueAutoSave) {
       return;
     }
 
@@ -613,6 +642,9 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
+
+    const dueAt = Date.now() + debounceMs;
+    setAutoSaveDueAt(dueAt);
 
     // Set new timeout for debounced save
     timeoutRef.current = setTimeout(() => {
@@ -626,15 +658,7 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
         timeoutRef.current = null;
       }
     };
-  }, [
-    enabled,
-    userId,
-    isDirty,
-    isSaving,
-    saveConflict,
-    debounceMs,
-    performSave,
-  ]);
+  }, [shouldQueueAutoSave, debounceMs, performSave]);
 
   return {
     /** Trigger an immediate save, bypassing debounce */
@@ -645,6 +669,10 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
     isSaving,
     /** Whether there are unsaved changes */
     isDirty,
+    /** Whether an auto-save is queued (debounced) */
+    isAutoSaveQueued: autoSaveDueAt !== null,
+    /** When the current queued auto-save is expected to run */
+    autoSaveDueAt,
     /** Present when a 409 conflict was detected and needs resolution */
     saveConflict,
   };

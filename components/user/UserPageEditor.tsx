@@ -75,6 +75,7 @@ import { CardTile } from "./CardTile";
 import { BulkActionsToolbar } from "./BulkActionsToolbar";
 import { BulkConfirmDialog } from "./bulk/BulkConfirmDialog";
 import { DISABLED_CARD_INFO } from "@/lib/card-info-tooltips";
+import { statCardTypes } from "@/components/stat-card-generator/constants";
 import {
   buildLocalEditsPatch,
   isCardCustomized,
@@ -134,10 +135,15 @@ const LOADING_PHASE_MESSAGES: Record<LoadingPhase, string> = {
 function UserPageEditorLoadingScreen(
   props: Readonly<{
     loadingPhase: LoadingPhase;
+    expectedCardCount?: number;
   }>,
 ) {
-  const loadingMessage =
-    LOADING_PHASE_MESSAGES[props.loadingPhase] || "Loading...";
+  const loadingMessage = useMemo(() => {
+    if (props.loadingPhase === "loading_cards" && props.expectedCardCount) {
+      return `Loading ${props.expectedCardCount} cards...`;
+    }
+    return LOADING_PHASE_MESSAGES[props.loadingPhase] || "Loading...";
+  }, [props.expectedCardCount, props.loadingPhase]);
   const isSettingUp =
     props.loadingPhase === "setting_up" ||
     props.loadingPhase === "fetching_anilist" ||
@@ -830,6 +836,7 @@ function useStableCardCustomizedById(): Record<string, boolean> {
  * @source
  */
 export function UserPageEditor() {
+  const expectedCardCount = statCardTypes.length;
   const searchParams = useSearchParams();
   const {
     userId,
@@ -975,7 +982,13 @@ export function UserPageEditor() {
   const { loadingPhase, reload } = useUserDataLoader();
 
   // Auto-save hook
-  const { saveNow, saveConflict, clearSaveConflict } = useCardAutoSave({
+  const {
+    saveNow,
+    saveConflict,
+    clearSaveConflict,
+    isAutoSaveQueued,
+    autoSaveDueAt,
+  } = useCardAutoSave({
     debounceMs: 1500,
   });
 
@@ -1240,13 +1253,34 @@ export function UserPageEditor() {
   );
 
   const saveState = useMemo(
-    () => ({ isSaving, isDirty, saveError, lastSavedAt }),
-    [isSaving, isDirty, saveError, lastSavedAt],
+    () => ({
+      isSaving,
+      isDirty,
+      saveError,
+      lastSavedAt,
+      isAutoSaveQueued,
+      autoSaveDueAt,
+      hasConflict: saveConflict != null,
+    }),
+    [
+      autoSaveDueAt,
+      isAutoSaveQueued,
+      isDirty,
+      isSaving,
+      lastSavedAt,
+      saveConflict,
+      saveError,
+    ],
   );
 
   // Loading state - show descriptive messages based on loading phase
   if (isLoading) {
-    return <UserPageEditorLoadingScreen loadingPhase={loadingPhase} />;
+    return (
+      <UserPageEditorLoadingScreen
+        loadingPhase={loadingPhase}
+        expectedCardCount={expectedCardCount}
+      />
+    );
   }
 
   // Error state
@@ -1834,7 +1868,24 @@ export function UserPageEditor() {
                         size="sm"
                         variant="outline"
                         className="h-9 rounded-xl border-emerald-200 bg-emerald-50/50 px-3 text-xs font-medium text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
-                        onClick={enableAllCards}
+                        onClick={() => {
+                          if (allCardIds.length === 0) return;
+                          try {
+                            enableAllCards();
+                            toast.success("Enabled all cards", {
+                              description:
+                                allCardIds.length > 0
+                                  ? `${allCardIds.length} cards are now enabled.`
+                                  : undefined,
+                              id: "enable-all-cards",
+                            });
+                          } catch (err) {
+                            console.error("Failed to enable all cards:", err);
+                            toast.error("Failed to enable all cards", {
+                              id: "enable-all-cards",
+                            });
+                          }
+                        }}
                       >
                         <Eye className="mr-1.5 h-3.5 w-3.5" />
                         Enable All
@@ -1913,7 +1964,27 @@ export function UserPageEditor() {
                               variant="ghost"
                               size="sm"
                               className="justify-start text-emerald-600 dark:text-emerald-400"
-                              onClick={enableAllCards}
+                              onClick={() => {
+                                if (allCardIds.length === 0) return;
+                                try {
+                                  enableAllCards();
+                                  toast.success("Enabled all cards", {
+                                    description:
+                                      allCardIds.length > 0
+                                        ? `${allCardIds.length} cards are now enabled.`
+                                        : undefined,
+                                    id: "enable-all-cards",
+                                  });
+                                } catch (err) {
+                                  console.error(
+                                    "Failed to enable all cards:",
+                                    err,
+                                  );
+                                  toast.error("Failed to enable all cards", {
+                                    id: "enable-all-cards",
+                                  });
+                                }
+                              }}
                             >
                               <Eye className="mr-2 h-4 w-4" />
                               Enable All
@@ -1966,8 +2037,23 @@ export function UserPageEditor() {
                 previewItems={enabledCardsPreviewItems}
                 totalAffected={enabledCardIds.length}
                 onConfirm={() => {
-                  disableAllCards();
-                  setIsDisableAllDialogOpen(false);
+                  try {
+                    disableAllCards();
+                    toast.success("Disabled all enabled cards", {
+                      description:
+                        enabledCardIds.length > 0
+                          ? `${enabledCardIds.length} cards disabled. You can undo this.`
+                          : undefined,
+                      id: "disable-all-cards",
+                    });
+                  } catch (err) {
+                    console.error("Failed to disable all cards:", err);
+                    toast.error("Failed to disable all cards", {
+                      id: "disable-all-cards",
+                    });
+                  } finally {
+                    setIsDisableAllDialogOpen(false);
+                  }
                 }}
               />
 
@@ -1991,8 +2077,23 @@ export function UserPageEditor() {
                 previewItems={allCardsPreviewItems}
                 totalAffected={allCardIds.length}
                 onConfirm={() => {
-                  resetAllCardsToGlobal();
-                  setIsResetDialogOpen(false);
+                  try {
+                    resetAllCardsToGlobal();
+                    toast.success("Reset all cards to global settings", {
+                      description:
+                        allCardIds.length > 0
+                          ? `${allCardIds.length} cards reset. You can undo this.`
+                          : undefined,
+                      id: "reset-all-cards",
+                    });
+                  } catch (err) {
+                    console.error("Failed to reset all cards:", err);
+                    toast.error("Failed to reset all cards", {
+                      id: "reset-all-cards",
+                    });
+                  } finally {
+                    setIsResetDialogOpen(false);
+                  }
                 }}
               />
 

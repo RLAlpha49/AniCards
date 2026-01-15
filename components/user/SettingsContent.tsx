@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useEffect, useState, useCallback, useRef } from "react";
+import { useMemo, useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Grid,
@@ -23,11 +23,16 @@ import {
 } from "@/components/stat-card-generator/ColorPickerGroup";
 import { colorPresets } from "@/components/stat-card-generator/constants";
 import { ColorPreviewCard } from "@/components/user/ColorPreviewCard";
-import { normalizeColorInput, isCssNamedColor } from "@/lib/utils";
+import {
+  normalizeColorInput,
+  isCssNamedColor,
+  validateColorValue,
+} from "@/lib/utils";
 import type { ColorValue } from "@/lib/types/card";
-
-const hexRegex = /^#(?:[0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})$/i;
 const hexOrNoHashRegex = /^(?:#)?(?:[0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})$/i;
+
+const GRID_MIN = 1;
+const GRID_MAX = 5;
 
 // Cached canvas for color validation
 let cachedCanvas: HTMLCanvasElement | null = null;
@@ -47,6 +52,204 @@ function tryParseColorWithCanvas(trimmed: string) {
     return result.toLowerCase();
   }
   return undefined;
+}
+
+function parseGridSizeInput(
+  value: string,
+): { ok: true; value: number } | { ok: false } {
+  const trimmed = value.trim();
+  if (!trimmed) return { ok: false };
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || !Number.isInteger(n)) return { ok: false };
+  if (n < GRID_MIN || n > GRID_MAX) return { ok: false };
+  return { ok: true, value: n };
+}
+
+function isLikelyValidBorderColorInput(args: {
+  borderEnabled: boolean;
+  value?: string;
+}): boolean {
+  if (!args.borderEnabled) return true;
+  if (!args.value) return false;
+
+  const trimmed = args.value.trim();
+  if (hexOrNoHashRegex.test(trimmed)) return true;
+  if (isCssNamedColor(trimmed)) return true;
+  return false;
+}
+
+function useBorderColorInput(args: {
+  idPrefix: string;
+  borderEnabled: boolean;
+  borderColor: string;
+  onBorderColorChange: (color: string) => void;
+}) {
+  const [inputBorderColor, setInputBorderColor] = useState<string>(
+    args.borderColor ?? "",
+  );
+  const [isBorderColorValid, setIsBorderColorValid] = useState<boolean>(true);
+
+  const borderColorAriaDescribedBy = isBorderColorValid
+    ? undefined
+    : `${args.idPrefix}-borderColor-error`;
+
+  useEffect(() => {
+    setInputBorderColor(args.borderColor ?? "");
+    setIsBorderColorValid(
+      isLikelyValidBorderColorInput({
+        borderEnabled: args.borderEnabled,
+        value: args.borderColor,
+      }),
+    );
+  }, [args.borderColor, args.borderEnabled]);
+
+  const handleColorPickerChange = (value: string) => {
+    const normalized = value.toLowerCase();
+    setInputBorderColor(normalized);
+    setIsBorderColorValid(true);
+    args.onBorderColorChange(normalized);
+  };
+
+  const handleBorderColorTextChange = (value: string) => {
+    setInputBorderColor(value);
+    setIsBorderColorValid(
+      isLikelyValidBorderColorInput({
+        borderEnabled: args.borderEnabled,
+        value,
+      }),
+    );
+  };
+
+  const handleBorderColorBlur = () => {
+    const v = inputBorderColor.trim();
+    if (!v) {
+      setInputBorderColor(args.borderColor ?? "");
+      setIsBorderColorValid(
+        isLikelyValidBorderColorInput({
+          borderEnabled: args.borderEnabled,
+          value: args.borderColor,
+        }),
+      );
+      return;
+    }
+
+    if (
+      !isLikelyValidBorderColorInput({
+        borderEnabled: args.borderEnabled,
+        value: v,
+      })
+    ) {
+      setIsBorderColorValid(false);
+      return;
+    }
+
+    const normalized = normalizeColorInput(v);
+
+    if (normalized !== args.borderColor) {
+      args.onBorderColorChange(normalized);
+    }
+    setInputBorderColor(normalized);
+    setIsBorderColorValid(true);
+  };
+
+  return {
+    inputBorderColor,
+    isBorderColorValid,
+    borderColorAriaDescribedBy,
+    handleColorPickerChange,
+    handleBorderColorTextChange,
+    handleBorderColorBlur,
+  };
+}
+
+function useGridSizeInputs(args: {
+  idPrefix: string;
+  enabled: boolean;
+  cols: number;
+  rows: number;
+  onColsChange: (value: number) => void;
+  onRowsChange: (value: number) => void;
+}) {
+  const [inputGridCols, setInputGridCols] = useState<string>(() =>
+    String(args.cols),
+  );
+  const [inputGridRows, setInputGridRows] = useState<string>(() =>
+    String(args.rows),
+  );
+  const [isGridColsValid, setIsGridColsValid] = useState(true);
+  const [isGridRowsValid, setIsGridRowsValid] = useState(true);
+
+  useEffect(() => {
+    setInputGridCols(String(args.cols));
+    setInputGridRows(String(args.rows));
+    setIsGridColsValid(true);
+    setIsGridRowsValid(true);
+  }, [args.cols, args.rows]);
+
+  const gridColsAriaDescribedBy =
+    args.enabled && !isGridColsValid
+      ? `${args.idPrefix}-gridCols-error`
+      : undefined;
+  const gridRowsAriaDescribedBy =
+    args.enabled && !isGridRowsValid
+      ? `${args.idPrefix}-gridRows-error`
+      : undefined;
+
+  const handleGridColsChange = (value: string) => {
+    setInputGridCols(value);
+    if (!args.enabled) return;
+
+    const parsed = parseGridSizeInput(value);
+    setIsGridColsValid(parsed.ok);
+    if (parsed.ok) {
+      args.onColsChange(parsed.value);
+    }
+  };
+
+  const handleGridRowsChange = (value: string) => {
+    setInputGridRows(value);
+    if (!args.enabled) return;
+
+    const parsed = parseGridSizeInput(value);
+    setIsGridRowsValid(parsed.ok);
+    if (parsed.ok) {
+      args.onRowsChange(parsed.value);
+    }
+  };
+
+  const handleGridColsBlur = () => {
+    if (!args.enabled) return;
+    const parsed = parseGridSizeInput(inputGridCols);
+    if (!parsed.ok) {
+      setInputGridCols(String(args.cols));
+      setIsGridColsValid(true);
+    }
+  };
+
+  const handleGridRowsBlur = () => {
+    if (!args.enabled) return;
+    const parsed = parseGridSizeInput(inputGridRows);
+    if (!parsed.ok) {
+      setInputGridRows(String(args.rows));
+      setIsGridRowsValid(true);
+    }
+  };
+
+  const isGridValid = args.enabled ? isGridColsValid && isGridRowsValid : true;
+
+  return {
+    inputGridCols,
+    inputGridRows,
+    isGridColsValid,
+    isGridRowsValid,
+    gridColsAriaDescribedBy,
+    gridRowsAriaDescribedBy,
+    handleGridColsChange,
+    handleGridRowsChange,
+    handleGridColsBlur,
+    handleGridRowsBlur,
+    isGridValid,
+  };
 }
 
 /**
@@ -281,28 +484,16 @@ export function SettingsContent({
     return candidates.filter((p) => Boolean(colorPresets[p.id]));
   }, []);
 
-  // Client-side validation state for the border color input
-  const [inputBorderColor, setInputBorderColor] = useState<string>(
-    borderColor ?? "",
-  );
-  const [isBorderColorValid, setIsBorderColorValid] = useState<boolean>(true);
+  const borderInputs = useBorderColorInput({
+    idPrefix,
+    borderEnabled,
+    borderColor,
+    onBorderColorChange,
+  });
 
-  const borderColorAriaDescribedBy = isBorderColorValid
-    ? undefined
-    : `${idPrefix}-borderColor-error`;
-
-  const isLikelyValidColorInput = useCallback(
-    (val?: string) => {
-      if (!borderEnabled) return true;
-      if (!val) return false;
-      const trimmed = val.trim();
-      if (hexRegex.test(trimmed)) return true;
-      if (hexOrNoHashRegex.test(trimmed)) return true;
-      if (isCssNamedColor(trimmed)) return true;
-      return false;
-    },
-    [borderEnabled],
-  );
+  const colorsValid = useMemo(() => {
+    return colors.every((c) => validateColorValue(c));
+  }, [colors]);
 
   // Keep a ref to the latest onValidityChange so we can call it without causing
   // this effect to re-run whenever the parent provides a new function identity.
@@ -312,53 +503,30 @@ export function SettingsContent({
     onValidityChangeRef.current = onValidityChange;
   }, [onValidityChange]);
 
+  const gridValidationEnabled = Boolean(visibility.showGridSize);
+
+  const gridInputs = useGridSizeInputs({
+    idPrefix,
+    enabled: gridValidationEnabled,
+    cols: effectiveAdvancedSettings.gridCols ?? 3,
+    rows: effectiveAdvancedSettings.gridRows ?? 3,
+    onColsChange: (value) => onAdvancedSettingChange("gridCols", value),
+    onRowsChange: (value) => onAdvancedSettingChange("gridRows", value),
+  });
+
+  const isOverallValid = useMemo(() => {
+    const borderValid = borderEnabled ? borderInputs.isBorderColorValid : true;
+    return colorsValid && borderValid && gridInputs.isGridValid;
+  }, [
+    borderEnabled,
+    borderInputs.isBorderColorValid,
+    colorsValid,
+    gridInputs.isGridValid,
+  ]);
+
   useEffect(() => {
-    setInputBorderColor(borderColor ?? "");
-    const initialValid = isLikelyValidColorInput(borderColor);
-    setIsBorderColorValid(initialValid);
-    onValidityChangeRef.current?.(initialValid);
-  }, [borderColor, isLikelyValidColorInput]);
-
-  const handleColorPickerChange = (value: string) => {
-    const normalized = value.toLowerCase();
-    setInputBorderColor(normalized);
-    setIsBorderColorValid(true);
-    onBorderColorChange(normalized);
-    onValidityChangeRef.current?.(true);
-  };
-
-  const handleBorderColorTextChange = (value: string) => {
-    setInputBorderColor(value);
-    const valid = isLikelyValidColorInput(value);
-    setIsBorderColorValid(valid);
-    onValidityChangeRef.current?.(valid);
-  };
-
-  const handleBorderColorBlur = () => {
-    const v = inputBorderColor.trim();
-    if (!v) {
-      setInputBorderColor(borderColor ?? "");
-      const valid = isLikelyValidColorInput(borderColor);
-      setIsBorderColorValid(valid);
-      onValidityChangeRef.current?.(valid);
-      return;
-    }
-
-    if (!isLikelyValidColorInput(v)) {
-      setIsBorderColorValid(false);
-      onValidityChangeRef.current?.(false);
-      return;
-    }
-
-    const normalized = normalizeColorInput(v);
-
-    if (normalized !== borderColor) {
-      onBorderColorChange(normalized);
-    }
-    setInputBorderColor(normalized);
-    setIsBorderColorValid(true);
-    onValidityChangeRef.current?.(true);
-  };
+    onValidityChangeRef.current?.(isOverallValid);
+  }, [isOverallValid]);
 
   return (
     <div className="space-y-4">
@@ -527,12 +695,12 @@ export function SettingsContent({
                       <Input
                         type="color"
                         value={
-                          getColorPickerHex(inputBorderColor) ??
+                          getColorPickerHex(borderInputs.inputBorderColor) ??
                           getColorPickerHex(borderColor) ??
                           "#000000"
                         }
                         onChange={(e) =>
-                          handleColorPickerChange(e.target.value)
+                          borderInputs.handleColorPickerChange(e.target.value)
                         }
                         className="absolute -left-1/2 -top-1/2 h-[200%] w-[200%] cursor-pointer border-0 p-0"
                         aria-label="Border color picker"
@@ -541,19 +709,19 @@ export function SettingsContent({
                     <Input
                       id={`${idPrefix}-borderColor-input`}
                       type="text"
-                      value={inputBorderColor}
+                      value={borderInputs.inputBorderColor}
                       onChange={(e) =>
-                        handleBorderColorTextChange(e.target.value)
+                        borderInputs.handleBorderColorTextChange(e.target.value)
                       }
-                      onBlur={handleBorderColorBlur}
-                      aria-invalid={!isBorderColorValid}
-                      aria-describedby={borderColorAriaDescribedBy}
-                      className={`h-10 flex-1 font-mono text-sm lowercase ${isBorderColorValid ? "" : "border-red-500 focus-visible:ring-1 focus-visible:ring-red-500"}`}
+                      onBlur={borderInputs.handleBorderColorBlur}
+                      aria-invalid={!borderInputs.isBorderColorValid}
+                      aria-describedby={borderInputs.borderColorAriaDescribedBy}
+                      className={`h-10 flex-1 font-mono text-sm lowercase ${borderInputs.isBorderColorValid ? "" : "border-red-500 focus-visible:ring-1 focus-visible:ring-red-500"}`}
                       placeholder="#e4e2e2"
                     />
                   </div>
                   <AnimatePresence>
-                    {!isBorderColorValid && (
+                    {!borderInputs.isBorderColorValid && (
                       <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
@@ -562,8 +730,6 @@ export function SettingsContent({
                       >
                         <p
                           id={`${idPrefix}-borderColor-error`}
-                          role="alert"
-                          aria-live="polite"
                           className="text-xs text-red-600"
                         >
                           Invalid color — use{" "}
@@ -718,16 +884,35 @@ export function SettingsContent({
                       type="number"
                       min={1}
                       max={5}
-                      value={effectiveAdvancedSettings.gridCols}
-                      onChange={(e) => {
-                        const val = Math.max(
-                          1,
-                          Math.min(5, Number(e.target.value) || 1),
-                        );
-                        onAdvancedSettingChange("gridCols", val);
-                      }}
-                      className="h-9 text-sm"
+                      value={gridInputs.inputGridCols}
+                      onChange={(e) =>
+                        gridInputs.handleGridColsChange(e.target.value)
+                      }
+                      onBlur={gridInputs.handleGridColsBlur}
+                      aria-invalid={
+                        gridValidationEnabled && !gridInputs.isGridColsValid
+                      }
+                      aria-describedby={gridInputs.gridColsAriaDescribedBy}
+                      className={
+                        gridValidationEnabled && !gridInputs.isGridColsValid
+                          ? "h-9 border-red-500 text-sm focus-visible:ring-1 focus-visible:ring-red-500"
+                          : "h-9 text-sm"
+                      }
                     />
+                    <AnimatePresence>
+                      {gridValidationEnabled && !gridInputs.isGridColsValid && (
+                        <motion.p
+                          id={`${idPrefix}-gridCols-error`}
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="mt-1 text-xs text-red-600"
+                        >
+                          Enter a whole number between {GRID_MIN} and {GRID_MAX}
+                          .
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
                   </div>
                   <div>
                     <Label
@@ -741,16 +926,35 @@ export function SettingsContent({
                       type="number"
                       min={1}
                       max={5}
-                      value={effectiveAdvancedSettings.gridRows}
-                      onChange={(e) => {
-                        const val = Math.max(
-                          1,
-                          Math.min(5, Number(e.target.value) || 1),
-                        );
-                        onAdvancedSettingChange("gridRows", val);
-                      }}
-                      className="h-9 text-sm"
+                      value={gridInputs.inputGridRows}
+                      onChange={(e) =>
+                        gridInputs.handleGridRowsChange(e.target.value)
+                      }
+                      onBlur={gridInputs.handleGridRowsBlur}
+                      aria-invalid={
+                        gridValidationEnabled && !gridInputs.isGridRowsValid
+                      }
+                      aria-describedby={gridInputs.gridRowsAriaDescribedBy}
+                      className={
+                        gridValidationEnabled && !gridInputs.isGridRowsValid
+                          ? "h-9 border-red-500 text-sm focus-visible:ring-1 focus-visible:ring-red-500"
+                          : "h-9 text-sm"
+                      }
                     />
+                    <AnimatePresence>
+                      {gridValidationEnabled && !gridInputs.isGridRowsValid && (
+                        <motion.p
+                          id={`${idPrefix}-gridRows-error`}
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="mt-1 text-xs text-red-600"
+                        >
+                          Enter a whole number between {GRID_MIN} and {GRID_MAX}
+                          .
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
                   </div>
                 </div>
                 {mode === "global" && (
