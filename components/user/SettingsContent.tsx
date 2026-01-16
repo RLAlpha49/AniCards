@@ -882,8 +882,8 @@ export function SettingsContent({
                     <Input
                       id={`${idPrefix}-gridCols`}
                       type="number"
-                      min={1}
-                      max={5}
+                      min={GRID_MIN}
+                      max={GRID_MAX}
                       value={gridInputs.inputGridCols}
                       onChange={(e) =>
                         gridInputs.handleGridColsChange(e.target.value)
@@ -924,8 +924,8 @@ export function SettingsContent({
                     <Input
                       id={`${idPrefix}-gridRows`}
                       type="number"
-                      min={1}
-                      max={5}
+                      min={GRID_MIN}
+                      max={GRID_MAX}
                       value={gridInputs.inputGridRows}
                       onChange={(e) =>
                         gridInputs.handleGridRowsChange(e.target.value)
