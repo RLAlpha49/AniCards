@@ -105,9 +105,16 @@ function useBorderColorInput(args: {
 
   const handleColorPickerChange = (value: string) => {
     const normalized = value.toLowerCase();
-    setInputBorderColor(normalized);
+    const prev = (inputBorderColor ?? "").trim();
+    const prevHex8 = /^#([0-9A-F]{8})$/i.exec(prev);
+    const newColor =
+      prevHex8 && /^#([0-9a-f]{6})$/i.test(normalized)
+        ? normalized + prevHex8[1].slice(6).toLowerCase()
+        : normalized;
+
+    setInputBorderColor(newColor);
     setIsBorderColorValid(true);
-    args.onBorderColorChange(normalized);
+    args.onBorderColorChange(newColor);
   };
 
   const handleBorderColorTextChange = (value: string) => {
