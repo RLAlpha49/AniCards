@@ -32,7 +32,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/AlertDialog";
 import { useShallow } from "zustand/react/shallow";
-import { statCardTypes } from "@/components/stat-card-generator/constants";
+import { statCardTypes } from "@/lib/card-types";
 import {
   makeSettingsExport,
   parseSettingsExportJson,

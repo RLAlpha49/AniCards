@@ -75,7 +75,7 @@ import { CardTile } from "./CardTile";
 import { BulkActionsToolbar } from "./BulkActionsToolbar";
 import { BulkConfirmDialog } from "./bulk/BulkConfirmDialog";
 import { DISABLED_CARD_INFO } from "@/lib/card-info-tooltips";
-import { statCardTypes } from "@/components/stat-card-generator/constants";
+import { statCardTypes } from "@/lib/card-types";
 import {
   buildLocalEditsPatch,
   isCardCustomized,

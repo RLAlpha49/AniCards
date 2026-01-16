@@ -2,10 +2,8 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import type { ColorValue } from "@/lib/types/card";
 import { normalizeForCompare } from "@/lib/colorUtils";
-import {
-  colorPresets,
-  statCardTypes,
-} from "@/components/stat-card-generator/constants";
+import { colorPresets } from "@/components/stat-card-generator/constants";
+import { statCardTypes } from "@/lib/card-types";
 import { DEFAULT_CARD_BORDER_RADIUS, clampBorderRadius } from "@/lib/utils";
 import type { ServerCardData, ServerGlobalSettings } from "../api/cards";
 import type {

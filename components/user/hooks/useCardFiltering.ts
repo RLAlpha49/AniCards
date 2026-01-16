@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Fuse from "fuse.js";
-import { statCardTypes } from "@/components/stat-card-generator/constants";
+import { statCardTypes } from "@/lib/card-types";
 
 type ParsedCardSearchQuery = {
   /** Free text (non token) portion of the query, normalized to lower-case. */

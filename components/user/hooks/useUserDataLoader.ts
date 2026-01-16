@@ -7,7 +7,7 @@ import { trackUserActionError } from "@/lib/error-tracking";
 import { parseResponsePayload, getResponseErrorMessage } from "@/lib/utils";
 import { isValidUsername } from "@/lib/api-utils";
 import { useNewUserSetup } from "./useNewUserSetup";
-import { statCardTypes } from "@/components/stat-card-generator/constants";
+import { statCardTypes } from "@/lib/card-types";
 import type { ReconstructedUserRecord } from "@/lib/types/records";
 import type { LoadingPhase } from "@/lib/types/loading";
 

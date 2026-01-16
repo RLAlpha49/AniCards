@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 import { fetchUserCards } from "@/lib/api/cards";
-import { statCardTypes } from "@/components/stat-card-generator/constants";
+import { statCardTypes } from "@/lib/card-types";
 import { parseResponsePayload, getResponseErrorMessage } from "@/lib/utils";
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
 import { getErrorDetails } from "@/lib/error-messages";

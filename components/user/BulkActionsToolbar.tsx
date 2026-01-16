@@ -45,10 +45,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover";
-import {
-  colorPresets,
-  statCardTypes,
-} from "@/components/stat-card-generator/constants";
+import { colorPresets } from "@/components/stat-card-generator/constants";
+import { statCardTypes } from "@/lib/card-types";
 
 /**
  * Props for BulkActionsToolbar.

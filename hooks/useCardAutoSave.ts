@@ -8,10 +8,8 @@ import {
   type CardEditorConfig,
 } from "@/lib/stores/user-page-editor";
 import { getResponseErrorMessage, parseResponsePayload } from "@/lib/utils";
-import {
-  colorPresets,
-  statCardTypes,
-} from "@/components/stat-card-generator/constants";
+import { colorPresets } from "@/components/stat-card-generator/constants";
+import { statCardTypes } from "@/lib/card-types";
 import type { ColorValue } from "@/lib/types/card";
 import type { ServerCardData } from "@/lib/api/cards";
 
