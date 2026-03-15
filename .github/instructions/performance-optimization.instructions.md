@@ -304,17 +304,17 @@ Performance isn't just a buzzword—it's the difference between a product people
 ```javascript
 // BAD: Triggers API call on every keystroke
 input.addEventListener("input", (e) => {
-  fetch(`/search?q=${e.target.value}`);
-});
+  fetch(`/search?q=${e.target.value}`)
+})
 
 // GOOD: Debounce API calls
-let timeout;
+let timeout
 input.addEventListener("input", (e) => {
-  clearTimeout(timeout);
+  clearTimeout(timeout)
   timeout = setTimeout(() => {
-    fetch(`/search?q=${e.target.value}`);
-  }, 300);
-});
+    fetch(`/search?q=${e.target.value}`)
+  }, 300)
+})
 ```
 
 ### Example 2: Efficient SQL Query
@@ -331,18 +331,18 @@ SELECT id, name FROM users WHERE email = 'user@example.com';
 
 ```javascript
 // BAD: Recomputes result every time
-const result = await expensiveFunction(x);
+const result = await expensiveFunction(x)
 
 // GOOD: Cache result (in-memory Map example)
-const cache = new Map();
+const cache = new Map()
 async function getCachedResult(key, fn) {
-  if (cache.has(key)) return cache.get(key);
-  const value = await fn(key);
-  cache.set(key, value);
-  return value;
+  if (cache.has(key)) return cache.get(key)
+  const value = await fn(key)
+  cache.set(key, value)
+  return value
 }
 
-const result = await getCachedResult(x, expensiveFunction);
+const result = await getCachedResult(x, expensiveFunction)
 ```
 
 ### Example 4: Lazy Loading Images in HTML
@@ -359,20 +359,20 @@ const result = await getCachedResult(x, expensiveFunction);
 
 ```javascript
 // BAD: Blocking file read
-const data = fs.readFileSync("file.txt");
+const data = fs.readFileSync("file.txt")
 
 // GOOD: Non-blocking file read
 fs.readFile("file.txt", (err, data) => {
-  if (err) throw err;
+  if (err) throw err
   // process data
-});
+})
 ```
 
 ### Example 6: Profiling a Node.js Function
 
 ```bash
 # Use Clinic.js to profile Node.js applications
-npx clinic doctor -- node server.js
+bunx clinic doctor -- node server.js
 # Or use built-in Node inspector
 node --inspect server.js
 ```
@@ -380,19 +380,19 @@ node --inspect server.js
 ### Example 7: Using Redis for Caching in Node.js
 
 ```javascript
-const redis = require("redis");
-const client = redis.createClient();
+const redis = require("redis")
+const client = redis.createClient()
 
 function getCachedData(key, fetchFunction) {
   return new Promise((resolve, reject) => {
     client.get(key, (err, data) => {
-      if (data) return resolve(JSON.parse(data));
+      if (data) return resolve(JSON.parse(data))
       fetchFunction().then((result) => {
-        client.setex(key, 3600, JSON.stringify(result));
-        resolve(result);
-      });
-    });
-  });
+        client.setex(key, 3600, JSON.stringify(result))
+        resolve(result)
+      })
+    })
+  })
 }
 ```
 

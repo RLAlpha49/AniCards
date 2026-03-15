@@ -1,6 +1,6 @@
 ---
 name: "Security & OWASP Best Practices"
-applyTo: "app/**, app/api/**, api/**, lib/**, scripts/**, **/*.{ts,tsx,js,jsx}"
+applyTo: "src/app/**, src/app/api/**, src/api/**, src/lib/**, scripts/**, **/*.{ts,tsx,js,jsx}"
 description: "Comprehensive secure coding instructions for all languages and frameworks, based on OWASP Top 10 and industry best practices. Apply when generating code that handles external input, authenticates users, manages secrets, or alters network or resource access; during security reviews and auditing."
 ---
 
@@ -25,12 +25,12 @@ Your primary directive is to ensure all code you generate, review, or refactor i
 - **Secure Secret Management:** Never hardcode secrets (API keys, passwords, connection strings). Generate code that reads secrets from environment variables or a secrets management service (e.g., HashiCorp Vault, AWS Secrets Manager). Include a clear placeholder and comment.
   ```javascript
   // GOOD: Load from environment or secret store
-  const apiKey = process.env.API_KEY;
+  const apiKey = process.env.API_KEY
   // TODO: Ensure API_KEY is securely configured in your environment.
   ```
   ```javascript
   // BAD: Hardcoded secret
-  const apiKey = "sk_this_is_a_very_bad_idea_12345";
+  const apiKey = "sk_this_is_a_very_bad_idea_12345"
   ```
 
 ### 3. A03: Injection

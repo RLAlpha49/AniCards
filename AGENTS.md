@@ -1,65 +1,139 @@
-# AniCards - AI Assistant
+# Agent Guidelines
 
-## Quick workflow (required)
+**NEVER** end your response until you have fully completed/implemented the user's request. Always provide a complete and thorough response that fully addresses the user's request. If you need to ask clarifying questions, use the `vscode_askQuestions` tool, but do not end your response until you have received the answers and can provide a complete response.
 
-1. **Always** Activate: `mcp_oraios_serena_activate_project "AniCards"`
-2. Use Serena exploration tools for discovery: `get_symbols_overview`, `find_symbol`, `search_for_pattern`, `list_dir`
-3. After exploring: `think_about_collected_information`; before edits: `think_about_task_adherence`; for non-trivial or multi-step work, proactively run the `Plan` subagent to get an implementable plan before editing; after finishing: `think_about_whether_you_are_done`
-4. Prefer symbolic tools over reading full files unless necessary
-5. **ALWAYS** run the `Janitor` subagent after any code edits (even if no subagent was used) to perform cleanup and review.
+At any point, use the `vscode_askQuestions` tool to clarify ambiguous requirements or confirm high-risk decisions.
 
-## Modes (serena)
+---
 
-- Trivial / small: `["one-shot","editing"]` — quick edit
-- Medium: `["planning","editing"]` — brief plan then edit
-- Large / risky: `["planning","interactive","editing"]` — require interactive validation
+## Completion Gate - No Premature Stops
 
-## Subagents — Be proactive ⚡
+- If the user asked for implementation, code changes, file edits, debugging, refactoring, testing, command execution, or any other concrete action, do **not** stop after research, planning, outlining, or identifying a likely approach. Continue until the requested work itself is done.
+- A checklist, working outline, partial findings summary, or "I found the right place to change" update is **not** a valid final response unless the user explicitly asked only for analysis or a plan.
+- Never end with future-tense handoffs such as:
+  - "I'm moving on to implementation now"
+  - "Next I'll make the changes"
+  - "I've mapped the seams and identified the low-risk slice"
+  - "Here's the plan; let me know if you want me to proceed"
+  These are progress updates, not completion.
+- Progress updates are allowed during long tasks, but only if you continue working in the **same** run. Do not let a progress update become the final output for an implementation task.
+- Subagents must treat their single returned message as a **final deliverable**, not an interim checkpoint. If a subagent was asked to implement or modify code, it must either:
+  1. complete the implementation and report what changed plus any validation performed, or
+  2. stop only because of a real blocker, clearly stating the blocker, what was attempted, and the exact input or decision needed from the user.
+- Do **not** hand work back to the caller when you can continue yourself. If the next step is obvious and feasible, do it instead of narrating that you intend to do it.
+- Before ending any response, silently verify all of the following:
+  - The requested outcome was actually produced, not just described
+  - Relevant validation, tests, or error checks were run when feasible
+  - No sentence implies future work that you should have already completed yourself
+  - There is no remaining action you can take right now without more user input
+- If any of those checks fail, continue working instead of ending the response.
 
-- Use the `Plan` subagent proactively as the first step for tasks. Ask `Plan` for an implementable plan. Run `Plan` before making edits or invoking other subagents whenever practical.
-- When you have multiple distinct tasks, run the `Plan` subagent separately for each task — **DO NOT** try to cover multiple unrelated tasks in one Plan. Each Plan must be focused and produce an implementable set of steps for that single task.
+---
+
+## Tool Parallelization
+
+- **Important**: Whenever possible, **ALWAYS** run tools in **parallel**. Do **NOT** wait for one tool to finish before starting another unless they depend on each other.
+  - You **MUST** use a single batch call when running multiple tools in parallel.
+- You are **never blocked** from issuing multiple tool calls at once. There is no queue, no lock, and no reason to serialize independent operations. If two tool calls do not depend on each other's output, fire them together immediately.
+- There is no such thing as "too many" parallel tool calls. If you have 2, 3, or even 10 independent tools to call, call them all together in one batch.
+
+### Parallel Tool Example
+
+**WRONG — sequential (slow, never do this):**
+
+```text
+1. Call read_file(fileA) → wait → get result
+2. Call read_file(fileB) → wait → get result
+3. Call grep_search(pattern) → wait → get result
+```
+
+**CORRECT — parallel (always do this):**
+
+```text
+1. Call read_file(fileA) + read_file(fileB) + grep_search(pattern) — all at once in one batch
+2. Receive all three results simultaneously, then proceed
+```
+
+Apply the same logic to any mix of independent tools: `file_search`, `read_file`, `grep_search`, `semantic_search`, `get_errors`, `list_dir`, `run_in_terminal`, etc.
+
+---
+
+## Subagents & Parallelization - Be Proactive
+
+- **Important**: Whenever possible, **ALWAYS** run subagents in **parallel**. Do **NOT** wait for one subagent to finish before starting another unless they depend on each other.
+  - You **MUST** use a single `runSubagent` batch call when running multiple subagents in parallel.
 - Use `runSubagent` proactively for bounded, self-contained tasks (research, refactor, triage, automation, complex edits) and prefer specialized agents to execute Plan items.
 - Always include: **goal**, **constraints**, and **context** when invoking any subagent.
-- **ALWAYS** run the `Janitor` subagent at the end of every implementation `runSubagent` invocation to perform cleanup and review.
-- Common agents: Plan, Accessibility Expert, Expert Next.js Developer, Expert React Frontend Engineer, Janitor
-
-Concrete example — 3-task subagent workflow (required):
-
-1. Scenario: you have three tasks (Task A, Task B, Task C).
-
-2. For Task A (repeat the same required cycle for Task B and Task C):
-   - Run the `Plan` subagent first, with a prompt that includes **goal**, **constraints**, and **context**. This step is required; do not proceed to implementation without a Plan. Example:
-     `runSubagent({agentName: "Plan", prompt: "Goal: Add pagination to /api/get-cards\nConstraints: keep backwards compatibility; minimal breaking changes\nContext: repo path: app/api/get-cards; current API params: page, perPage", description: "Plan pagination for /api/get-cards"})`
-   - Use the Plan output as the instruction for an implementation subagent (specialist). Example:
-     `runSubagent({agentName: "Expert Next.js Developer", prompt: "Implement the following plan:\n<PASTE PLAN OUTPUT>\nRun tests and commit changes", description: "Implement Task A (pagination)"})`
-   - Run the `Janitor` subagent after each task to review, simplify, and clean up changes. Example:
-     `runSubagent({agentName: "Janitor", prompt: "Review Task A changes: simplify code, ensure consistent style, adjust/add tests, and suggest follow-up cleanups", description: "Janitor for Task A"})`
-
-3. Repeat the required Plan → Implementer → Janitor cycle for Task B and Task C. After all tasks are complete, run one additional final cross-task `Janitor` to review cross-task consistency, ensure overall style and test coverage, and suggest follow-up cleanups. Do not skip this final Janitor run.
-
-Notes:
-
-- Always include **goal**, **constraints**, and **context** when invoking any subagent.
-- Provide the Plan's output verbatim to the implementation subagent.
+- **Important**: Be **VERY** thorough when providing context to subagents. The more context you provide, the better the subagent's output will be.
 - Keep subagent prompts focused and bounded — each `runSubagent` should have a clear deliverable.
+- **Important**: Practice terminal hygiene. If you or a subagent start a terminal, keep track of its terminal ID, collect any output you need, and call `kill_terminal` as soon as that process is no longer needed. Do **NOT** leave idle terminals running after a subagent finishes unless the user explicitly asked for the process to stay alive.
+- **Important**: When a subagent reports back such as any changes made, **believe** and if needed read the changes to update your context. Do not assume the subagent's output is incorrect without checking the actual changes.
 
-## Exploration Tools (Code Discovery)
+### Parallel Subagent Example
 
-- **`get_symbols_overview`**: High-level view of top-level symbols in a file
-- **`find_symbol`**: Locate specific symbol by name path with optional depth
-- **`search_for_pattern`**: Regex search when you don't know exact symbol names
-- **`list_dir`**: Understand project structure
-- **`find_file`**: Search files by glob pattern
+**WRONG — sequential (slow, never do this):**
 
-**Best Practice**: **Always** explore with these tools BEFORE reading files. Saves tokens and time.
+```text
+1. runSubagent("Explore", "research auth flow") → wait → get result
+2. runSubagent("Explore", "research library routes") → wait → get result
+3. runSubagent("General", "audit rate limit logic") → wait → get result
+```
+
+**CORRECT — parallel (always do this):**
+
+```text
+1. runSubagent("Explore", "research auth flow")
+ + runSubagent("Explore", "research library routes")
+ + runSubagent("General", "audit rate limit logic")
+   — all three launched together in one batch call
+2. Receive all three results, then synthesize and proceed
+```
+
+You are **never blocked** from launching multiple subagents at once. Independent subagents have no shared state and can always run concurrently.
+
+---
 
 ## Libraries & Docs
 
-- AniList: **Always use reference documentation at [https://docs.anilist.co/reference/](https://docs.anilist.co/reference/)**
 - Use Context7 / `get_library_documentation` for external library docs
 
-## Memory policy
+---
 
-- Store only essential project context (patterns, decisions). Do not store docs or large summaries.
+## Memory Hygiene
 
-**Critical:** Activate the project first and keep agent prompts concise.
+- Treat memory as a curated reference, not a dumping ground. Only save information that is likely to help with future tasks.
+- Before creating a new memory, first inspect the existing memory directory so you can reuse, update, or avoid duplicating notes.
+- Prefer updating or replacing stale memory over adding another overlapping note.
+- Never store secrets, credentials, tokens, personal data, or speculative guesses in memory.
+- Keep memories short, concrete, and verifiable. If a note cannot be supported by code, docs, or user-confirmed facts, do not save it.
+
+### Use the three memory scopes intentionally
+
+- **User memory** (`/memories/`)
+  - Use for durable user preferences, recurring workflow preferences, communication style notes, and long-lived constraints that apply across repositories.
+  - Good examples: preferred coding style, how the user likes progress updates, repeated tool or workflow preferences.
+  - Do **not** use for repo-specific implementation facts, one-off task details, temporary debugging notes, or anything likely to go stale quickly.
+
+- **Session memory** (`/memories/session/`)
+  - Use for temporary task state during the current conversation: active plan, open questions, partial findings, and handoff notes for long multi-step work.
+  - Keep it brief and practical so it helps you continue the task without rereading everything.
+  - Do **not** duplicate the full conversation, save finished answer drafts, or preserve notes that will be useless after the current session ends.
+
+- **Repo memory** (`/memories/repo/`)
+  - Use for stable repository conventions and verified facts that will help future work across this codebase.
+  - Good examples: trusted build or test commands, architectural guardrails, directory conventions, persistent security rules, and important workflow requirements that are not obvious from a small code sample.
+  - Every repo memory should include citations and a clear reason it matters.
+  - Do **not** store facts that depend on your unmerged changes, temporary task status, speculative interpretations, or details that can already be trivially inferred from a nearby file.
+
+### Before writing memory, sanity-check it
+
+- Is it actionable in a future task?
+- Is it likely to remain true for a while?
+- Is it the right scope: user, session, or repo?
+- Is it concise enough that someone scanning memories will thank you instead of sighing?
+- If the answer is no, do not save it.
+
+### Prefer cleanup over accumulation
+
+- If you discover a memory is outdated, incorrect, duplicated, or no longer useful, update, replace, or delete it instead of layering on more notes.
+- When in doubt, fewer high-signal memories are better than many low-signal ones.

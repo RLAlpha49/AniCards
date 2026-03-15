@@ -1,7 +1,7 @@
 ---
 name: "ReactJS Development Standards"
 description: "ReactJS development standards and best practices. Apply when authoring or refactoring React components, hooks, pages, or styles; when implementing UI behavior, performance, and accessibility features."
-applyTo: "components/**, app/**, hooks/**, **/*.{jsx,tsx,js,ts,css,scss}"
+applyTo: "src/components/**, src/app/**, src/hooks/**, **/*.{jsx,tsx,js,ts,css,scss}"
 ---
 
 # ReactJS Development Instructions

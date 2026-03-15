@@ -3,6 +3,7 @@
 /.next/
 /.shared
 /.vscode
+/audit
 /docs/
 /next-env.d.ts
 /node_modules/
