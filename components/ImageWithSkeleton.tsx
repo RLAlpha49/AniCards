@@ -1,9 +1,10 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { Skeleton } from "@/components/ui/Skeleton";
 import type React from "react";
+import { useEffect, useRef,useState } from "react";
+
+import { Skeleton } from "@/components/ui/Skeleton";
 
 /**
  * Props for ImageWithSkeleton component.

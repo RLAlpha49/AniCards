@@ -1,4 +1,4 @@
-import { test, expect } from "../fixtures/test-utils";
+import { expect,test } from "../fixtures/test-utils";
 
 test.describe("User page error states", () => {
   test("shows rate limit error with recovery link", async ({

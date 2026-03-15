@@ -1,11 +1,13 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { ArrowDown, ArrowLeft, Layers,Play, Sparkles } from "lucide-react";
 import Link from "next/link";
+
 import { Button } from "@/components/ui/Button";
-import { ArrowLeft, ArrowDown, Play, Sparkles, Layers } from "lucide-react";
-import { SearchFilterBar } from "./SearchFilterBar";
+
 import { CategoryNavigation } from "./CategoryNavigation";
+import { SearchFilterBar } from "./SearchFilterBar";
 import type { CategoryInfo } from "./types";
 
 interface HeroSectionProps {

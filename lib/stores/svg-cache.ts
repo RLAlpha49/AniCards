@@ -1,8 +1,9 @@
 import { LRUCache } from "lru-cache";
+
 import {
-  redisClient,
-  incrementAnalytics,
   buildAnalyticsMetricKey,
+  incrementAnalytics,
+  redisClient,
 } from "@/lib/api-utils";
 
 /**

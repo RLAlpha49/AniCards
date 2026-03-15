@@ -1,11 +1,11 @@
-import type { TrustedSVG } from "@/lib/types/svg";
-import type { UserAvatar, UserStatistics } from "@/lib/types/records";
 import {
   ANIMATION,
   PROFILE,
   TYPOGRAPHY,
 } from "@/lib/svg-templates/common/constants";
 import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
+import type { UserAvatar, UserStatistics } from "@/lib/types/records";
+import type { TrustedSVG } from "@/lib/types/svg";
 import {
   calculateDynamicFontSize,
   escapeForXml,
@@ -14,9 +14,10 @@ import {
   processColorsForSVG,
   toFiniteNumber,
 } from "@/lib/utils";
-import { type TemplateStyles } from "./shared";
-import { generateCommonStyles } from "../common/style-generators";
+
 import { generateCardBackground } from "../common/base-template-utils";
+import { generateCommonStyles } from "../common/style-generators";
+import { type TemplateStyles } from "./shared";
 
 /**
  * Renders the Profile Overview card showing avatar, display name, and high-level

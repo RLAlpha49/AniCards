@@ -1,39 +1,40 @@
 import { motion } from "framer-motion";
-import { Input } from "@/components/ui/Input";
-import { Label } from "@/components/ui/Label";
-import { Button } from "@/components/ui/Button";
-import { cn, isGradient, validateColorValue } from "@/lib/utils";
-import { gradientToCss } from "@/lib/colorUtils";
-import type {
-  ColorValue,
-  GradientDefinition,
-  GradientStop,
-} from "@/lib/types/card";
-import React, {
-  useState,
-  useCallback,
-  useMemo,
-  useEffect,
-  useRef,
-} from "react";
 import {
-  Plus,
-  Minus,
-  Palette,
-  Layers,
-  HelpCircle,
-  RotateCcw,
-  Move,
+  AlertCircle,
   CircleDot,
   Droplets,
-  AlertCircle,
+  HelpCircle,
+  Layers,
+  Minus,
+  Move,
+  Palette,
+  Plus,
+  RotateCcw,
 } from "lucide-react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Label } from "@/components/ui/Label";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/Tooltip";
+import { gradientToCss } from "@/lib/colorUtils";
+import type {
+  ColorValue,
+  GradientDefinition,
+  GradientStop,
+} from "@/lib/types/card";
+import { cn, isGradient, validateColorValue } from "@/lib/utils";
 
 /**
  * A color picker item used by the color picker group.

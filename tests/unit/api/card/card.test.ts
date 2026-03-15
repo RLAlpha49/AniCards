@@ -1,13 +1,14 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
+
+import { clearSvgCache, clearUserRequestStats } from "@/lib/stores/svg-cache";
 import {
-  sharedRedisMockSet,
+  sharedRatelimitMockLimit,
+  sharedRatelimitMockSlidingWindow,
   sharedRedisMockGet,
   sharedRedisMockIncr,
   sharedRedisMockMget,
-  sharedRatelimitMockLimit,
-  sharedRatelimitMockSlidingWindow,
+  sharedRedisMockSet,
 } from "@/tests/unit/__setup__";
-import { clearSvgCache, clearUserRequestStats } from "@/lib/stores/svg-cache";
 
 mock.module("@/lib/utils/milestones", () => ({
   calculateMilestones: mock(() => ({ milestone: 100 })),

@@ -1,3 +1,11 @@
+import { generateCardBackground } from "@/lib/svg-templates/common/base-template-utils";
+import {
+  ANIMATION,
+  SHAPES,
+  SPACING,
+} from "@/lib/svg-templates/common/constants";
+import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
+import { generateCommonStyles } from "@/lib/svg-templates/common/style-generators";
 import type { ColorValue } from "@/lib/types/card";
 import type { ActivityHistoryItem } from "@/lib/types/records";
 import type { TrustedSVG } from "@/lib/types/svg";
@@ -8,14 +16,6 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
-import {
-  ANIMATION,
-  SHAPES,
-  SPACING,
-} from "@/lib/svg-templates/common/constants";
-import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
-import { generateCardBackground } from "@/lib/svg-templates/common/base-template-utils";
-import { generateCommonStyles } from "@/lib/svg-templates/common/style-generators";
 
 export interface SeasonalViewingPatternsTemplateInput {
   username: string;

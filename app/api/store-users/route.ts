@@ -1,18 +1,19 @@
 import type { NextResponse } from "next/server";
-import { UserRecord } from "@/lib/types/records";
-import { validateAndNormalizeUserRecord } from "@/lib/card-data";
-import { saveUserRecord, fetchUserDataParts } from "@/lib/server/user-data";
+
 import {
-  incrementAnalytics,
-  handleError,
   apiJsonHeaders,
+  buildAnalyticsMetricKey,
+  handleError,
+  incrementAnalytics,
+  initializeApiRequest,
+  jsonWithCors,
   logSuccess,
   redisClient,
-  initializeApiRequest,
   validateUserData,
-  buildAnalyticsMetricKey,
-  jsonWithCors,
 } from "@/lib/api-utils";
+import { validateAndNormalizeUserRecord } from "@/lib/card-data";
+import { fetchUserDataParts,saveUserRecord } from "@/lib/server/user-data";
+import { UserRecord } from "@/lib/types/records";
 
 /**
  * Persists or updates a user record in Redis while keeping analytics and the username index aligned.

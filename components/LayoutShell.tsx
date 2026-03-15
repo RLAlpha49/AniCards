@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import Header from "@/components/Header";
+import React, { useEffect,useState } from "react";
+
 import { AppSidebar } from "@/components/AppSidebar";
-import { SidebarProvider, useSidebar } from "@/components/ui/Sidebar";
 import Footer from "@/components/Footer";
+import Header from "@/components/Header";
+import { SidebarProvider, useSidebar } from "@/components/ui/Sidebar";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
 /**

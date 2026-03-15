@@ -1,9 +1,10 @@
 "use client";
 
+import Fuse from "fuse.js";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import Fuse from "fuse.js";
 
+import { Button } from "@/components/ui/Button";
 import {
   Dialog,
   DialogClose,
@@ -12,12 +13,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/Dialog";
-import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
+
 import {
-  USER_HELP_TOPICS,
   topicToSearchText,
+  USER_HELP_TOPICS,
   type UserHelpBlock,
   type UserHelpTopic,
 } from "./help/user-help-topics";

@@ -1,19 +1,22 @@
+import "./globals.css";
+
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { headers } from "next/headers";
-import "./globals.css";
-import { Providers } from "./providers";
-import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
-import GithubCorner from "@/components/GithubCorner";
-import GoogleAnalytics from "@/components/GoogleAnalytics";
+import { Suspense } from "react";
+
 import AnalyticsProvider from "@/components/AnalyticsProvider";
-import { LayoutShell } from "@/components/LayoutShell";
 import { CustomScrollbar } from "@/components/CustomScrollbar";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { Suspense } from "react";
+import GithubCorner from "@/components/GithubCorner";
+import GoogleAnalytics from "@/components/GoogleAnalytics";
+import { LayoutShell } from "@/components/LayoutShell";
 import { generateMetadata as createMetadata } from "@/lib/seo";
-import { generateStructuredData, generateJsonLd } from "@/lib/structured-data";
+import { generateJsonLd,generateStructuredData } from "@/lib/structured-data";
+
+import { Providers } from "./providers";
 
 /**
  * Maps the Geist Sans face to the global CSS variable for site typography.

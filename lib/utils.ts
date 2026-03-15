@@ -1,13 +1,14 @@
-import { clsx, type ClassValue } from "clsx";
+import { type ClassValue,clsx } from "clsx";
+import JSZip from "jszip";
 import { twMerge } from "tailwind-merge";
-import type { StoredCardConfig } from "@/lib/types/records";
+
 import type {
-  TemplateCardConfig,
   ColorValue,
   GradientDefinition,
+  TemplateCardConfig,
 } from "@/lib/types/card";
+import type { StoredCardConfig } from "@/lib/types/records";
 import type { TrustedSVG } from "@/lib/types/svg";
-import JSZip from "jszip";
 
 export const DEFAULT_CARD_BORDER_RADIUS = 8;
 const BORDER_RADIUS_MIN = 0;
@@ -751,7 +752,7 @@ export function getResponseErrorMessage(
   response: Response,
   payload: unknown,
 ): string {
-  let message = `HTTP ${response.status} ${response.statusText}`;
+  const message = `HTTP ${response.status} ${response.statusText}`;
   if (!payload) return message;
   if (typeof payload === "object" && payload !== null) {
     const obj = payload as Record<string, unknown>;

@@ -1,3 +1,4 @@
+import { SPACING, TYPOGRAPHY } from "@/lib/svg-templates/common/constants";
 import type { ColorValue } from "@/lib/types/card";
 import type { TrustedSVG } from "@/lib/types/svg";
 import {
@@ -7,14 +8,14 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
+
 import {
   calculateCompletionRatio,
-  getDimensions,
   generateStackedBar,
   generateStatusLegend,
+  getDimensions,
   normalizeStatusCounts,
 } from "./shared";
-import { SPACING, TYPOGRAPHY } from "@/lib/svg-templates/common/constants";
 
 /** Status completion input structure. @source */
 interface StatusCompletionInput {

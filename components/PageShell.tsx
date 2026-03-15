@@ -1,9 +1,10 @@
 "use client";
 
-import React from "react";
 import { motion } from "framer-motion";
-import { GridPattern } from "@/components/GridPattern";
+import React from "react";
+
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { GridPattern } from "@/components/GridPattern";
 import { cn } from "@/lib/utils";
 
 /**

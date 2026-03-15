@@ -1,9 +1,9 @@
 import type {
-  UserRecord,
-  CardsRecord,
-  UserStatsData,
   AnimeStats,
+  CardsRecord,
   MangaStats,
+  UserRecord,
+  UserStatsData,
 } from "../../../lib/types/records";
 
 /**

@@ -1,23 +1,24 @@
-import { calculateMilestones } from "@/lib/utils/milestones";
 import {
-  UserRecord,
-  UserStatsData,
-  ActivityHistoryItem,
-  MediaListEntry,
-} from "@/lib/types/records";
-import {
-  SocialStats,
   AnimeStats as TemplateAnimeStats,
   MangaStats as TemplateMangaStats,
+  SocialStats,
 } from "@/lib/types/card";
 import {
+  ActivityHistoryItem,
+  MediaListEntry,
+  UserRecord,
+  UserStatsData,
+} from "@/lib/types/records";
+import { calculateMilestones } from "@/lib/utils/milestones";
+
+import {
   GenreItem,
-  TagItem,
-  VoiceActorItem,
-  StudioItem,
-  StaffItem,
   getFavoritesForCardType,
   MilestoneFields,
+  StaffItem,
+  StudioItem,
+  TagItem,
+  VoiceActorItem,
 } from "./validation";
 
 /**

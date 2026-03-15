@@ -1,12 +1,13 @@
 "use client";
 
+import { Check, ChevronDown,Copy, ImageIcon, Link } from "lucide-react";
+
 import { Button } from "@/components/ui/Button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover";
-import { Link, ImageIcon, Check, Copy, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CopyPopoverProps {

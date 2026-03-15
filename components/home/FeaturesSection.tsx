@@ -1,21 +1,22 @@
 "use client";
 
 import { motion, useInView } from "framer-motion";
-import { useRef } from "react";
 import {
   BarChart2,
-  Users,
   BookOpen,
+  Building2,
+  Clock,
   Heart,
   Mic,
-  Building2,
-  Zap,
-  Sparkles,
-  Share2,
   Palette,
-  Clock,
+  Share2,
   Shield,
+  Sparkles,
+  Users,
+  Zap,
 } from "lucide-react";
+import { useRef } from "react";
+
 import { cn } from "@/lib/utils";
 
 /**

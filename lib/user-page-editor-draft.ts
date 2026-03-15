@@ -1,8 +1,8 @@
-import type { SettingsSnapshot } from "./user-page-settings-io";
 import type {
   CardEditorConfig,
   LocalEditsPatch,
 } from "./stores/user-page-editor";
+import type { SettingsSnapshot } from "./user-page-settings-io";
 
 const DRAFT_STORAGE_VERSION = 1 as const;
 

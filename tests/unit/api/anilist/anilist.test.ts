@@ -1,19 +1,20 @@
 import {
-  describe,
-  it,
-  beforeAll,
   afterAll,
-  beforeEach,
   afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
   expect,
+  it,
   mock,
 } from "bun:test";
+
 import { sharedRatelimitMockLimit } from "@/tests/unit/__setup__";
 
 // Set the app URL for same-origin validation testing
 process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
 
-import { POST, OPTIONS } from "@/app/api/anilist/route";
+import { OPTIONS,POST } from "@/app/api/anilist/route";
 
 /**
  * Local endpoint used to build requests against the AniList proxy during tests.

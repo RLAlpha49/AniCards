@@ -4,13 +4,15 @@ import { motion } from "framer-motion";
 import {
   BarChart2,
   BookOpen,
+  Calendar,
+  type LucideIcon,
   PieChart,
   TrendingUp,
-  Calendar,
   Users,
-  type LucideIcon,
 } from "lucide-react";
+
 import { cn } from "@/lib/utils";
+
 import type { CategoryInfo } from "./types";
 
 interface CategoryNavigationProps {

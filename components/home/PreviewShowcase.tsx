@@ -1,17 +1,18 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Card, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
-import { Play, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { AnimatePresence,motion } from "framer-motion";
+import { ArrowRight, ChevronLeft, ChevronRight,Play } from "lucide-react";
 import Link from "next/link";
-import { cn, buildApiUrl } from "@/lib/utils";
+import { useMemo,useState } from "react";
+
+import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
+import { Button } from "@/components/ui/Button";
+import { Card, CardContent } from "@/components/ui/Card";
 import {
   buildCardUrlWithParams,
   mapStoredConfigToCardUrlParams,
 } from "@/lib/card-groups";
+import { buildApiUrl,cn } from "@/lib/utils";
 
 /**
  * Props for the preview showcase component.

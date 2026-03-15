@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+
 import { GET } from "../../../../../../app/StatCards/[username]/[key].svg/route";
 
 describe("StatCards SVG notice route", () => {

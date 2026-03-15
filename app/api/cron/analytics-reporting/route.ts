@@ -1,5 +1,6 @@
-import { redisClient, apiJsonHeaders, scanAllKeys } from "@/lib/api-utils";
 import type { Redis as UpstashRedis } from "@upstash/redis";
+
+import { apiJsonHeaders, redisClient, scanAllKeys } from "@/lib/api-utils";
 import { safeParse } from "@/lib/utils";
 
 /**

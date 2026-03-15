@@ -1,9 +1,9 @@
-import { escapeForXml } from "@/lib/utils";
 import type {
   GroupOptions,
   RectOptions,
   TextOptions,
 } from "@/lib/svg-templates/common/types";
+import { escapeForXml } from "@/lib/utils";
 
 export function createTextElement(
   x: number,

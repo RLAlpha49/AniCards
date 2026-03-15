@@ -1,3 +1,10 @@
+import {
+  ANIMATION,
+  POSITIONING,
+  SPACING,
+  TYPOGRAPHY,
+} from "@/lib/svg-templates/common/constants";
+import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
 import type { ColorValue } from "@/lib/types/card";
 import type { ActivityHistoryItem } from "@/lib/types/records";
 import type { TrustedSVG } from "@/lib/types/svg";
@@ -8,13 +15,7 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
-import {
-  ANIMATION,
-  POSITIONING,
-  SPACING,
-  TYPOGRAPHY,
-} from "@/lib/svg-templates/common/constants";
-import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
+
 import { detectTopActivityDays } from "./shared";
 
 /**

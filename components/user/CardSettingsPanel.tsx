@@ -1,7 +1,5 @@
 "use client";
 
-import type React from "react";
-import { useState } from "react";
 import {
   Loader2,
   Save,
@@ -9,6 +7,9 @@ import {
   ToggleLeft,
   ToggleRight,
 } from "lucide-react";
+import type React from "react";
+import { useState } from "react";
+
 import { Button } from "@/components/ui/Button";
 import { Switch } from "@/components/ui/Switch";
 import { SettingsContent } from "@/components/user/SettingsContent";

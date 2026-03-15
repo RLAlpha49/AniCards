@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
 import DOMPurify from "dompurify";
 import katex from "katex";
+import { useMemo } from "react";
 
 /* Regex patterns to detect and render LaTeX math delimiters.
  * - MATH_BLOCK_REGEX: matches display math ($$...$$) with capture group for the formula (global for replace use).

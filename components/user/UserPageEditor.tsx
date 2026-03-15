@@ -1,38 +1,39 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactElement } from "react";
-import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { toast } from "sonner";
 import {
-  AlertCircle,
-  LayoutGrid,
-  Search,
-  ChevronsUpDown,
-  Layers,
-  Clapperboard,
-  BookOpen,
   Activity,
-  Library,
+  AlertCircle,
   BarChart3,
+  BookOpen,
+  ChevronsUpDown,
+  Clapperboard,
   Eye,
   EyeOff,
-  SlidersHorizontal,
-  RotateCcw,
-  Undo2,
-  Redo2,
-  Info,
-  UserPlus,
-  MoreHorizontal,
   GripVertical,
+  Info,
+  Layers,
+  LayoutGrid,
+  Library,
+  MoreHorizontal,
+  Redo2,
+  RotateCcw,
   Save,
+  Search,
+  SlidersHorizontal,
   Trash2,
+  Undo2,
+  UserPlus,
 } from "lucide-react";
 import Link from "next/link";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/Dialog";
+import { usePathname,useRouter, useSearchParams } from "next/navigation";
+import type { ReactElement } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import { useShallow } from "zustand/react/shallow";
+import { shallow as shallowEqual } from "zustand/shallow";
+
+import { LoadingSpinner } from "@/components/LoadingSpinner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,6 +44,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/AlertDialog";
+import { Button } from "@/components/ui/Button";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/Dialog";
+import { Input } from "@/components/ui/Input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover";
 import {
   Select,
   SelectContent,
@@ -56,24 +65,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/Tooltip";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/Popover";
-
-import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { UserPageHeader } from "./UserPageHeader";
-import { UserHelpDialog } from "./UserHelpDialog";
-import { GlobalSettingsPanel } from "./GlobalSettingsPanel";
-import { CommandPalette, type CommandPaletteCommand } from "./CommandPalette";
-import {
-  CardCategorySection,
-  type CardTileDragHandleProps,
-} from "./CardCategorySection";
-import { CardTile } from "./CardTile";
-import { BulkActionsToolbar } from "./BulkActionsToolbar";
-import { BulkConfirmDialog } from "./bulk/BulkConfirmDialog";
+import { useCardAutoSave } from "@/hooks/useCardAutoSave";
+import { useUserPageDraftBackup } from "@/hooks/useUserPageDraftBackup";
 import { DISABLED_CARD_INFO } from "@/lib/card-info-tooltips";
 import { statCardTypes } from "@/lib/card-types";
 import {
@@ -81,23 +74,31 @@ import {
   isCardCustomized,
   useUserPageEditor,
 } from "@/lib/stores/user-page-editor";
-import { useCardAutoSave } from "@/hooks/useCardAutoSave";
-import { useUserPageDraftBackup } from "@/hooks/useUserPageDraftBackup";
+import type { LoadingPhase } from "@/lib/types/loading";
 import {
   clearUserPageDraft,
   readUserPageDraft,
 } from "@/lib/user-page-editor-draft";
 import { cn } from "@/lib/utils";
-import { useNewUserSetup } from "./hooks/useNewUserSetup";
-import { CustomFilter, useCardFiltering } from "./hooks/useCardFiltering";
-import { useUserDataLoader } from "./hooks/useUserDataLoader";
+
+import { BulkConfirmDialog } from "./bulk/BulkConfirmDialog";
+import { BulkActionsToolbar } from "./BulkActionsToolbar";
+import {
+  CardCategorySection,
+  type CardTileDragHandleProps,
+} from "./CardCategorySection";
+import { CardTile } from "./CardTile";
+import { CommandPalette, type CommandPaletteCommand } from "./CommandPalette";
 import { BulkActionLiveRegion } from "./editor/BulkActionLiveRegion";
 import { EditorNotices } from "./editor/EditorNotices";
 import { useEditorTour } from "./editor/EditorTour";
 import { ReorderModeHint } from "./editor/ReorderModeHint";
-import type { LoadingPhase } from "@/lib/types/loading";
-import { useShallow } from "zustand/react/shallow";
-import { shallow as shallowEqual } from "zustand/shallow";
+import { GlobalSettingsPanel } from "./GlobalSettingsPanel";
+import { CustomFilter, useCardFiltering } from "./hooks/useCardFiltering";
+import { useNewUserSetup } from "./hooks/useNewUserSetup";
+import { useUserDataLoader } from "./hooks/useUserDataLoader";
+import { UserHelpDialog } from "./UserHelpDialog";
+import { UserPageHeader } from "./UserPageHeader";
 
 type TooltipTriggerMode = "enabled" | "disabled";
 

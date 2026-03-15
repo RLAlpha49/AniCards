@@ -1,18 +1,19 @@
 "use client";
 
+import { AlertCircle, ChevronRight, RotateCcw } from "lucide-react";
+import { useEffect } from "react";
+
+import { Button } from "@/components/ui/Button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/Dialog";
-import { Button } from "@/components/ui/Button";
-import { AlertCircle, ChevronRight, RotateCcw } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { trackError, safeTrack } from "@/lib/utils/google-analytics";
-import { useEffect } from "react";
 import type { RecoverySuggestion } from "@/lib/error-messages";
+import { cn } from "@/lib/utils";
+import { safeTrack,trackError } from "@/lib/utils/google-analytics";
 
 /**
  * Props for the error dialog component.

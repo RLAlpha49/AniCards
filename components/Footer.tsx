@@ -1,17 +1,18 @@
 "use client";
 
-import Link from "next/link";
 import { motion } from "framer-motion";
-import {
-  trackExternalLinkClick,
-  safeTrack,
-} from "@/lib/utils/google-analytics";
-import { Mail, ExternalLink, Scale } from "lucide-react";
+import { ExternalLink, Mail, Scale } from "lucide-react";
+import Link from "next/link";
+
 import {
   SimpleAniListIcon,
   SimpleDiscordIcon,
   SimpleGithubIcon,
 } from "@/components/SimpleIcons";
+import {
+  safeTrack,
+  trackExternalLinkClick,
+} from "@/lib/utils/google-analytics";
 
 /**
  * Social link metadata for the footer icons.

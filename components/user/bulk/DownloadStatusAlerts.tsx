@@ -2,7 +2,8 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Info } from "lucide-react";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/Alert";
+
+import { Alert, AlertDescription,AlertTitle } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 

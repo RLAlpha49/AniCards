@@ -1,8 +1,9 @@
-import sharp from "sharp";
 import type { NextRequest, NextResponse } from "next/server";
+import sharp from "sharp";
+
 import {
-  incrementAnalytics,
   apiJsonHeaders,
+  incrementAnalytics,
   jsonWithCors,
 } from "@/lib/api-utils";
 import type { ConversionFormat } from "@/lib/utils";
@@ -651,7 +652,7 @@ function sanitizeFullSvg(svgContent: string): {
   classesToStrip: string[];
 } {
   const styleMatch = /<style>([\s\S]*?)<\/style>/.exec(svgContent);
-  let cssContent = styleMatch?.[1] || "";
+  const cssContent = styleMatch?.[1] || "";
   const { css: sanitizedCss, classesToStrip } = sanitizeCssContent(cssContent);
 
   if (styleMatch) {
@@ -779,7 +780,7 @@ export async function POST(request: NextRequest) {
       );
       return jsonWithCors({ error: "Invalid format parameter" }, request, 400);
     }
-    let requestedFormat = normalizedFormat;
+    const requestedFormat = normalizedFormat;
 
     // Validate the svgUrl
     let parsedUrl;

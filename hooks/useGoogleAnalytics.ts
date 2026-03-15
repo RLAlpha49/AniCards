@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+import { useEffect } from "react";
+
 import { pageview, safeTrack } from "@/lib/utils/google-analytics";
 
 /**

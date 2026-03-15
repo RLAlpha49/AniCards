@@ -1,12 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { AlertCircle, Home, RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/Button";
-import { trackError, safeTrack } from "@/lib/utils/google-analytics";
-import { cn } from "@/lib/utils";
-import { Component } from "react";
+import Link from "next/link";
 import type { ErrorInfo, ReactNode } from "react";
+import { Component } from "react";
+
+import { Button } from "@/components/ui/Button";
+import { cn } from "@/lib/utils";
+import { safeTrack,trackError } from "@/lib/utils/google-analytics";
 
 type ResetKey = string | number | boolean;
 

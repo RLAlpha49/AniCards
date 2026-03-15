@@ -1,8 +1,9 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { useId, type ReactNode } from "react";
+import { type ReactNode,useId } from "react";
+
+import { cn } from "@/lib/utils";
 
 /**
  * Props for the inline loading spinner.

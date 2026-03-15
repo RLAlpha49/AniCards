@@ -1,14 +1,15 @@
 "use client";
 
+import { ChevronDown, Download, Loader2 } from "lucide-react";
+
 import { Button } from "@/components/ui/Button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover";
-import { Download, ChevronDown, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import type { ConversionFormat } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 interface DownloadPopoverProps {
   open: boolean;

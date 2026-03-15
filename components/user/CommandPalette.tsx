@@ -1,8 +1,8 @@
 "use client";
 
-import * as React from "react";
 import { Command } from "cmdk";
-import { Search, Info, Sparkles, Layers } from "lucide-react";
+import { Info, Layers,Search, Sparkles } from "lucide-react";
+import * as React from "react";
 
 import {
   Dialog,

@@ -1,36 +1,36 @@
 import {
-  incrementAnalytics,
-  getAllowedCardSvgOrigin,
-  createRateLimiter,
-  checkRateLimit,
   buildAnalyticsMetricKey,
+  checkRateLimit,
+  createRateLimiter,
+  getAllowedCardSvgOrigin,
+  incrementAnalytics,
 } from "@/lib/api-utils";
 import {
-  escapeForXml,
-  getCardBorderRadius,
-  DEFAULT_CARD_BORDER_RADIUS,
-  markTrustedSvg,
-} from "@/lib/utils";
-import generateCardSvg from "@/lib/card-generator";
-import {
+  buildCardConfigFromParams,
+  CardDataError,
   fetchUserData,
   fetchUserDataForCard,
-  validateAndNormalizeUserRecord,
-  processCardConfig,
-  CardDataError,
-  resolveUserIdFromUsername,
   needsCardConfigFromDb,
-  buildCardConfigFromParams,
+  processCardConfig,
   processFavorites,
+  resolveUserIdFromUsername,
+  validateAndNormalizeUserRecord,
 } from "@/lib/card-data";
-import { toCleanSvgResponse, type TrustedSVG } from "@/lib/types/svg";
+import generateCardSvg from "@/lib/card-generator";
+import { trackUserActionError } from "@/lib/error-tracking";
 import {
   generateCacheKey,
   getSvgFromMemoryCache,
   setSvgInMemoryCache,
   trackCacheMetric,
 } from "@/lib/stores/svg-cache";
-import { trackUserActionError } from "@/lib/error-tracking";
+import { toCleanSvgResponse, type TrustedSVG } from "@/lib/types/svg";
+import {
+  DEFAULT_CARD_BORDER_RADIUS,
+  escapeForXml,
+  getCardBorderRadius,
+  markTrustedSvg,
+} from "@/lib/utils";
 
 /** Rate limiter for card SVG requests to prevent abuse. @source */
 const ratelimit = createRateLimiter({ limit: 150, window: "10 s" });

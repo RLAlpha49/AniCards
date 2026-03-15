@@ -1,7 +1,4 @@
-import type { TrustedSVG } from "@/lib/types/svg";
-
 import { generateCardBackground } from "@/lib/svg-templates/common/base-template-utils";
-import { generateCommonStyles } from "@/lib/svg-templates/common/style-generators";
 import {
   ANIMATION,
   DISTRIBUTION,
@@ -9,21 +6,22 @@ import {
   TYPOGRAPHY,
 } from "@/lib/svg-templates/common/constants";
 import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
+import { generateCommonStyles } from "@/lib/svg-templates/common/style-generators";
 import {
   createRectElement,
   createStaggeredGroup,
   createTextElement,
 } from "@/lib/svg-templates/common/svg-primitives";
-
+import type { ColorValue } from "@/lib/types/card";
+import type { TrustedSVG } from "@/lib/types/svg";
 import {
   calculateDynamicFontSize,
-  getCardBorderRadius,
-  processColorsForSVG,
   escapeForXml,
+  getCardBorderRadius,
   markTrustedSvg,
+  processColorsForSVG,
   toFiniteNumber,
 } from "@/lib/utils";
-import type { ColorValue } from "@/lib/types/card";
 
 /** Simple representation of a distribution item with value and a count. @source */
 interface DistributionDatum {

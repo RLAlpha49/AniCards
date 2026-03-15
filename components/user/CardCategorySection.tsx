@@ -1,34 +1,35 @@
 "use client";
 
 import {
-  memo,
-  useCallback,
-  useId,
-  useMemo,
-  useState,
-  type ReactElement,
-} from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle2, ChevronRight } from "lucide-react";
-import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
   closestCenter,
-  useSensor,
-  useSensors,
+  DndContext,
   type DragEndEvent,
   type DraggableAttributes,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
 } from "@dnd-kit/core";
 import {
-  SortableContext,
   rectSortingStrategy,
+  SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { cn } from "@/lib/utils";
+import { AnimatePresence,motion } from "framer-motion";
+import { CheckCircle2, ChevronRight } from "lucide-react";
+import {
+  memo,
+  type ReactElement,
+  useCallback,
+  useId,
+  useMemo,
+  useState,
+} from "react";
+
 import { VirtualizedCardGrid } from "@/components/user/VirtualizedCardGrid";
+import { cn } from "@/lib/utils";
 
 const VIRTUALIZATION_THRESHOLD = 18;
 

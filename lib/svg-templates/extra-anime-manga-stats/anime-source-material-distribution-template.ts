@@ -1,5 +1,5 @@
-import type { TrustedSVG } from "../../types/svg";
 import { displayNames } from "../../card-data";
+import type { TrustedSVG } from "../../types/svg";
 import { extraAnimeMangaStatsTemplate } from "./shared";
 
 export type AnimeSourceMaterialDistributionTemplateInput = Omit<

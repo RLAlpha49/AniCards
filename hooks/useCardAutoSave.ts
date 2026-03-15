@@ -1,17 +1,18 @@
 "use client";
 
-import { useEffect, useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+
+import { colorPresets } from "@/components/stat-card-generator/constants";
+import type { ServerCardData } from "@/lib/api/cards";
+import { statCardTypes } from "@/lib/card-types";
 import {
-  useUserPageEditor,
   buildLocalEditsPatch,
   type CardEditorConfig,
+  useUserPageEditor,
 } from "@/lib/stores/user-page-editor";
-import { getResponseErrorMessage, parseResponsePayload } from "@/lib/utils";
-import { colorPresets } from "@/components/stat-card-generator/constants";
-import { statCardTypes } from "@/lib/card-types";
 import type { ColorValue } from "@/lib/types/card";
-import type { ServerCardData } from "@/lib/api/cards";
+import { getResponseErrorMessage, parseResponsePayload } from "@/lib/utils";
 
 /**
  * Default debounce delay for auto-save in milliseconds.

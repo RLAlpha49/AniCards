@@ -1,15 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useUserPageEditor } from "@/lib/stores/user-page-editor";
+import { useCallback, useEffect, useRef, useState } from "react";
+
 import { fetchUserCards } from "@/lib/api/cards";
+import { isValidUsername } from "@/lib/api-utils";
+import { statCardTypes } from "@/lib/card-types";
 import { getErrorDetails } from "@/lib/error-messages";
 import { trackUserActionError } from "@/lib/error-tracking";
-import { parseResponsePayload, getResponseErrorMessage } from "@/lib/utils";
-import { isValidUsername } from "@/lib/api-utils";
-import { useNewUserSetup } from "./useNewUserSetup";
-import { statCardTypes } from "@/lib/card-types";
-import type { ReconstructedUserRecord } from "@/lib/types/records";
+import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 import type { LoadingPhase } from "@/lib/types/loading";
+import type { ReconstructedUserRecord } from "@/lib/types/records";
+import { getResponseErrorMessage,parseResponsePayload } from "@/lib/utils";
+
+import { useNewUserSetup } from "./useNewUserSetup";
 
 const ALL_CARD_IDS = statCardTypes.map((t) => t.id);
 

@@ -1,26 +1,26 @@
+import type { ErrorCategory, RecoverySuggestion } from "@/lib/error-messages";
+import { getErrorDetails } from "@/lib/error-messages";
 import {
-  UserRecord,
-  UserStatsData,
+  AnimeGenreSynergyTotalsEntry,
   AnimeStats,
-  MangaStats,
-  AnimeStatVoiceActor,
-  AnimeStatStudio,
   AnimeStatStaff,
+  AnimeStatStudio,
+  AnimeStatVoiceActor,
+  MangaStats,
   MangaStatStaff,
   MediaListCollection,
   MediaListEntry,
-  ReviewEntry,
   RecommendationEntry,
-  UserReviewsPage,
-  UserRecommendationsPage,
-  SourceMaterialDistributionTotalsEntry,
+  ReviewEntry,
   SeasonalPreferenceTotalsEntry,
-  AnimeGenreSynergyTotalsEntry,
+  SourceMaterialDistributionTotalsEntry,
   StudioCollaborationTotalsEntry,
   UserAvatar,
+  UserRecommendationsPage,
+  UserRecord,
+  UserReviewsPage,
+  UserStatsData,
 } from "@/lib/types/records";
-import type { ErrorCategory, RecoverySuggestion } from "@/lib/error-messages";
-import { getErrorDetails } from "@/lib/error-messages";
 
 /**
  * Error wrapper including an HTTP status code, error category, and recovery suggestions.

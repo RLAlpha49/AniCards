@@ -1,12 +1,13 @@
-import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { NextRequest } from "next/server";
+
 import {
   POST,
+  removeClassTokensFromMarkup,
   removeEmptyCssRules,
   sanitizeCssContent,
-  removeClassTokensFromMarkup,
   sanitizeInlineStyleAttributes,
 } from "@/app/api/convert/route";
-import { NextRequest } from "next/server";
 
 /**
  * Captures the buffer passed into `sharp` so tests can inspect the SVG payload.

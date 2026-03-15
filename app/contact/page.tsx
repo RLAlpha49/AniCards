@@ -1,27 +1,28 @@
 "use client";
 
-import Link from "next/link";
-import { Button } from "@/components/ui/Button";
 import { motion } from "framer-motion";
-import PageShell from "@/components/PageShell";
-import HeroBadge from "@/components/HeroBadge";
 import {
-  trackExternalLinkClick,
-  safeTrack,
-} from "@/lib/utils/google-analytics";
-import { usePageSEO } from "@/hooks/usePageSEO";
-import {
-  SimpleDiscordIcon,
-  SimpleGithubIcon,
-  SimpleAniListIcon,
-} from "@/components/SimpleIcons";
-import {
+  ArrowRight,
+  ExternalLink,
   Mail,
   MessageSquare,
-  ArrowRight,
   Send,
-  ExternalLink,
 } from "lucide-react";
+import Link from "next/link";
+
+import HeroBadge from "@/components/HeroBadge";
+import PageShell from "@/components/PageShell";
+import {
+  SimpleAniListIcon,
+  SimpleDiscordIcon,
+  SimpleGithubIcon,
+} from "@/components/SimpleIcons";
+import { Button } from "@/components/ui/Button";
+import { usePageSEO } from "@/hooks/usePageSEO";
+import {
+  safeTrack,
+  trackExternalLinkClick,
+} from "@/lib/utils/google-analytics";
 
 /**
  * Metadata that powers each social link card in the grid.

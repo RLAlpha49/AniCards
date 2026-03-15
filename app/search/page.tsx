@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import PageShell from "@/components/PageShell";
+
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { FloatingCardsLayer } from "@/components/FloatingCardsLayer";
 import { LoadingOverlay } from "@/components/LoadingSpinner";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { usePageSEO } from "@/hooks/usePageSEO";
-import { SearchHeroSection } from "@/components/search/SearchHeroSection";
+import PageShell from "@/components/PageShell";
 import { SearchForm } from "@/components/search/SearchForm";
+import { SearchHeroSection } from "@/components/search/SearchHeroSection";
+import { usePageSEO } from "@/hooks/usePageSEO";
 
 /**
  * Renders the AniList user search page with modern styling matching

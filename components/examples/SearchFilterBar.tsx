@@ -1,9 +1,10 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
-import { Search, X, SlidersHorizontal } from "lucide-react";
-import { Input } from "@/components/ui/Input";
+import { AnimatePresence,motion } from "framer-motion";
+import { Search, SlidersHorizontal,X } from "lucide-react";
+
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
 
 interface SearchFilterBarProps {

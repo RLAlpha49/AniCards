@@ -1,15 +1,17 @@
-import { NextResponse } from "next/server";
-import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
 import type { Agent as HttpAgent } from "node:http";
 import type { Agent as HttpsAgent } from "node:https";
-import {
-  validateBorderRadius,
-  validateColorValue,
-  getColorInvalidReason,
-} from "@/lib/utils";
+
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
+import { NextResponse } from "next/server";
+
 import { displayNames, isValidCardType } from "@/lib/card-data/validation";
 import type { StoredCardConfig } from "@/lib/types/records";
+import {
+  getColorInvalidReason,
+  validateBorderRadius,
+  validateColorValue,
+} from "@/lib/utils";
 
 /**
  * Optional keep-alive HTTP(S) agent used only in Node runtimes to improve

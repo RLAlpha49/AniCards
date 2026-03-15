@@ -1,24 +1,24 @@
 import { redisClient } from "@/lib/api-utils";
-import { safeParse } from "@/lib/utils";
 import {
-  UserRecord,
-  UserStatsData,
-  UserSection,
-  UserAvatar,
+  AnimeGenreSynergyTotalsEntry,
   FollowersPage,
   FollowingPage,
-  ThreadsPage,
-  ThreadCommentsPage,
-  ReviewsPage,
-  UserReviewsPage,
-  UserRecommendationsPage,
   MediaListCollection,
   ReconstructedUserRecord,
-  SourceMaterialDistributionTotalsEntry,
+  ReviewsPage,
   SeasonalPreferenceTotalsEntry,
-  AnimeGenreSynergyTotalsEntry,
+  SourceMaterialDistributionTotalsEntry,
   StudioCollaborationTotalsEntry,
+  ThreadCommentsPage,
+  ThreadsPage,
+  UserAvatar,
+  UserRecommendationsPage,
+  UserRecord,
+  UserReviewsPage,
+  UserSection,
+  UserStatsData,
 } from "@/lib/types/records";
+import { safeParse } from "@/lib/utils";
 
 export type UserDataPart =
   | "meta"

@@ -1,8 +1,9 @@
 "use client";
 
-import { memo, useId } from "react";
-import { Label } from "@/components/ui/Label";
 import { Info } from "lucide-react";
+import { memo, useId } from "react";
+
+import { Label } from "@/components/ui/Label";
 import {
   Select,
   SelectContent,

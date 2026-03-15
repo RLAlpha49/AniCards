@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useTheme } from "next-themes";
 import { motion } from "framer-motion";
-import { Sun, Moon } from "lucide-react";
-import { trackSettingsChanged, safeTrack } from "@/lib/utils/google-analytics";
+import { Moon,Sun } from "lucide-react";
+import { useTheme } from "next-themes";
+import { useCallback,useEffect, useState } from "react";
+
+import { safeTrack,trackSettingsChanged } from "@/lib/utils/google-analytics";
 
 /**
  * Interactive toggle to switch between light and dark themes.

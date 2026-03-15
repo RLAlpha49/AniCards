@@ -1,25 +1,4 @@
-import { AnimeStats, MangaStats, ColorValue } from "@/lib/types/card";
-import type { TrustedSVG } from "@/lib/types/svg";
-
-import {
-  generateCommonStyles,
-  generateRankCircleStyles,
-} from "@/lib/svg-templates/common/style-generators";
 import { generateCardBackground } from "@/lib/svg-templates/common/base-template-utils";
-import {
-  createGroupElement,
-  createStaggeredGroup,
-  createTextElement,
-} from "@/lib/svg-templates/common/svg-primitives";
-
-import {
-  calculateDynamicFontSize,
-  processColorsForSVG,
-  getCardBorderRadius,
-  escapeForXml,
-  markTrustedSvg,
-  toFiniteNumber,
-} from "@/lib/utils";
 import {
   ANIMATION,
   POSITIONING,
@@ -27,6 +6,25 @@ import {
   SPACING,
 } from "@/lib/svg-templates/common/constants";
 import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
+import {
+  generateCommonStyles,
+  generateRankCircleStyles,
+} from "@/lib/svg-templates/common/style-generators";
+import {
+  createGroupElement,
+  createStaggeredGroup,
+  createTextElement,
+} from "@/lib/svg-templates/common/svg-primitives";
+import { AnimeStats, ColorValue,MangaStats } from "@/lib/types/card";
+import type { TrustedSVG } from "@/lib/types/svg";
+import {
+  calculateDynamicFontSize,
+  escapeForXml,
+  getCardBorderRadius,
+  markTrustedSvg,
+  processColorsForSVG,
+  toFiniteNumber,
+} from "@/lib/utils";
 
 /** Media type used by the media stats templates — either anime or manga. @source */
 export type MediaType = "anime" | "manga";

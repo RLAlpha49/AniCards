@@ -1,41 +1,55 @@
-import { fileURLToPath } from "node:url";
-import typescriptEslintParser from "@typescript-eslint/parser";
-import typescriptEslintPlugin from "@typescript-eslint/eslint-plugin";
-import nextPlugin from "@next/eslint-plugin-next";
+import { defineConfig, globalIgnores } from "eslint/config"
+import simpleImportSort from "eslint-plugin-simple-import-sort"
+import tseslint from "typescript-eslint"
 
-const __filename = fileURLToPath(import.meta.url);
-
-const eslintConfig = [
+const eslintConfig = defineConfig([
+  ...tseslint.configs.recommended,
+  // Explicit React version avoids calling plugin detection which can break under ESLint 10.
+  // Keeps ESLint 10 while preventing `contextOrFilename.getFilename` errors in
+  // eslint-plugin-react's version detection code.
   {
-    ignores: [
-      "node_modules/**",
-      ".next/**",
-      "out/**",
-      "build/**",
-      "next-env.d.ts",
-    ],
+    settings: {
+      react: {
+        version: "19.2.4",
+        defaultVersion: "19.2.4"
+      }
+    }
   },
+  // Override default ignores of eslint-config-next.
+  globalIgnores([
+    // Default ignores of eslint-config-next:
+    ".next/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts"
+  ]),
   {
-    files: ["**/*.{js,jsx,ts,tsx}"],
-    languageOptions: {
-      parser: typescriptEslintParser,
-      parserOptions: {
-        ecmaVersion: "latest",
-        sourceType: "module",
-        ecmaFeatures: {
-          jsx: true,
-        },
-      },
-    },
     plugins: {
-      "@typescript-eslint": typescriptEslintPlugin,
-      "@next/next": nextPlugin,
+      "simple-import-sort": simpleImportSort
     },
     rules: {
-      "@typescript-eslint/no-explicit-any": "error",
-      "@next/next/no-img-element": "warn",
-    },
+      "@typescript-eslint/no-unused-expressions": "warn",
+      "@typescript-eslint/no-unused-vars": "warn",
+      "simple-import-sort/imports": "error",
+      "simple-import-sort/exports": "error"
+    }
   },
-];
+  {
+    rules: {
+      "@next/next/no-img-element": "off",
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "next/image",
+              message: "Use the native <img> element instead of next/image."
+            }
+          ]
+        }
+      ]
+    }
+  }
+]);
 
 export default eslintConfig;

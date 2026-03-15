@@ -1,10 +1,10 @@
 "use client";
 
+import { driver, type DriveStep } from "driver.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { driver, type DriveStep } from "driver.js";
-
 import { event, safeTrack } from "@/lib/utils/google-analytics";
+
 import { shouldAutoStartTour } from "./tour-utils";
 
 const TOUR_STORAGE_VERSION = "v1";

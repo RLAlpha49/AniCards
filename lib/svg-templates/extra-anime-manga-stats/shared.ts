@@ -1,32 +1,30 @@
-import type { TrustedSVG } from "@/lib/types/svg";
 import { displayNames } from "@/lib/card-data";
 import {
   ANIMATION,
-  POSITIONING,
-  SPACING,
-  TYPOGRAPHY,
   getCardDimensions,
   getColorByIndex,
   getStatColor,
+  POSITIONING,
   resolveCircleBaseColor,
+  SPACING,
+  TYPOGRAPHY,
 } from "@/lib/svg-templates/common";
-
-import {
-  calculateDynamicFontSize,
-  getCardBorderRadius,
-  processColorsForSVG,
-  escapeForXml,
-  markTrustedSvg,
-} from "@/lib/utils";
-import type { ColorValue } from "@/lib/types/card";
-
-import { generateCommonStyles } from "@/lib/svg-templates/common/style-generators";
 import { generateCardBackground } from "@/lib/svg-templates/common/base-template-utils";
+import { generateCommonStyles } from "@/lib/svg-templates/common/style-generators";
 import {
   createRectElement,
   createStaggeredGroup,
   createTextElement,
 } from "@/lib/svg-templates/common/svg-primitives";
+import type { ColorValue } from "@/lib/types/card";
+import type { TrustedSVG } from "@/lib/types/svg";
+import {
+  calculateDynamicFontSize,
+  escapeForXml,
+  getCardBorderRadius,
+  markTrustedSvg,
+  processColorsForSVG,
+} from "@/lib/utils";
 
 /**
  * Render an SVG card for additional anime/manga statistics including pie/bar
@@ -86,7 +84,6 @@ export const extraAnimeMangaStatsTemplate = (data: {
   const isPieLike = isPie || isDonut;
   const showPercentages = isPieLike && !!data.showPiePercentages;
 
-  let svgWidth: number;
   const svgDims = (() => {
     if (isPie) return getCardDimensions("extraStats", "pie");
     if (isDonut) return getCardDimensions("extraStats", "donut");
@@ -94,7 +91,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
     if (isRadar) return getCardDimensions("extraStats", "radar");
     return getCardDimensions("extraStats", "default");
   })();
-  svgWidth = svgDims.w;
+  const svgWidth = svgDims.w;
   const viewBoxWidth = svgWidth;
   const baseHeight = svgDims.h;
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);

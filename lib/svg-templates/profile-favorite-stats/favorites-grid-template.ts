@@ -1,5 +1,5 @@
-import type { TrustedSVG } from "../../types/svg";
 import type { UserFavourites } from "../../types/records";
+import type { TrustedSVG } from "../../types/svg";
 import {
   calculateDynamicFontSize,
   escapeForXml,
@@ -7,10 +7,10 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "../../utils";
-import { getVariantLabel, type TemplateStyles } from "./shared";
-import { generateCommonStyles } from "../common/style-generators";
 import { generateCardBackground } from "../common/base-template-utils";
 import { ANIMATION, TYPOGRAPHY } from "../common/constants";
+import { generateCommonStyles } from "../common/style-generators";
+import { getVariantLabel, type TemplateStyles } from "./shared";
 
 /**
  * Renders the Favourites Grid card - displays the user's favourite anime, manga,

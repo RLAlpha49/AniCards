@@ -1,5 +1,5 @@
-import { parseResponsePayload, getResponseErrorMessage } from "@/lib/utils";
 import type { ColorValue } from "@/lib/types/card";
+import { getResponseErrorMessage,parseResponsePayload } from "@/lib/utils";
 
 /**
  * Shape of card data received from the server.

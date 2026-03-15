@@ -1,7 +1,12 @@
+import { isAllowedAniListImageUrl } from "@/lib/image-utils";
+import {
+  ANIMATION,
+  SPACING,
+  TYPOGRAPHY,
+} from "@/lib/svg-templates/common/constants";
 import type { ColorValue } from "@/lib/types/card";
 import type { MediaListEntry } from "@/lib/types/records";
 import type { TrustedSVG } from "@/lib/types/svg";
-import { isAllowedAniListImageUrl } from "@/lib/image-utils";
 import {
   calculateDynamicFontSize,
   escapeForXml,
@@ -9,11 +14,7 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
-import {
-  ANIMATION,
-  SPACING,
-  TYPOGRAPHY,
-} from "@/lib/svg-templates/common/constants";
+
 import {
   getDimensions,
   getMediaTitle,

@@ -1,16 +1,17 @@
-import { USER_STATS_QUERY } from "@/lib/anilist/queries";
-import { UserRecord } from "@/lib/types/records";
-import { safeParse } from "@/lib/utils";
-import { redisClient, apiJsonHeaders, scanAllKeys } from "@/lib/api-utils";
 import type { Redis as UpstashRedis } from "@upstash/redis";
+
+import { USER_STATS_QUERY } from "@/lib/anilist/queries";
+import { apiJsonHeaders, redisClient, scanAllKeys } from "@/lib/api-utils";
 import { validateAndNormalizeUserRecord } from "@/lib/card-data/validation";
 import {
+  deleteUserRecord,
   fetchUserDataParts,
   reconstructUserRecord,
   saveUserRecord,
-  deleteUserRecord,
   UserDataPart,
 } from "@/lib/server/user-data";
+import { UserRecord } from "@/lib/types/records";
+import { safeParse } from "@/lib/utils";
 
 /**
  * Tracks the outcome of a user's AniList stats refresh.

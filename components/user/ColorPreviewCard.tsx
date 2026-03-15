@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo } from "react";
-import { cn, isGradient, DEFAULT_CARD_BORDER_RADIUS } from "@/lib/utils";
+
 import { gradientToCss } from "@/lib/colorUtils";
-import type { ColorValue } from "@/lib/types/card";
 import { animeStatsTemplate } from "@/lib/svg-templates/media-stats/anime-stats-template";
+import type { ColorValue } from "@/lib/types/card";
 import { stripTrustedSvgMarker, type TrustedSVG } from "@/lib/types/svg";
+import { cn, DEFAULT_CARD_BORDER_RADIUS,isGradient } from "@/lib/utils";
 
 /**
  * Sample anime stats data used for the preview card.

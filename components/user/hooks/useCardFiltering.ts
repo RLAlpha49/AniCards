@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Fuse from "fuse.js";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
 import { statCardTypes } from "@/lib/card-types";
 
 type ParsedCardSearchQuery = {

@@ -1,12 +1,9 @@
-import type { ColorValue } from "@/lib/types/card";
-import type { TrustedSVG } from "@/lib/types/svg";
-
 import {
   ANIMATION,
+  getCardDimensions,
   SHAPES,
   SPACING,
   TYPOGRAPHY,
-  getCardDimensions,
 } from "@/lib/svg-templates/common";
 import { generateCardBackground } from "@/lib/svg-templates/common/base-template-utils";
 import { generateCommonStyles } from "@/lib/svg-templates/common/style-generators";
@@ -15,6 +12,8 @@ import {
   createStaggeredGroup,
   createTextElement,
 } from "@/lib/svg-templates/common/svg-primitives";
+import type { ColorValue } from "@/lib/types/card";
+import type { TrustedSVG } from "@/lib/types/svg";
 import {
   calculateDynamicFontSize,
   escapeForXml,
@@ -153,7 +152,7 @@ function renderBarsBlock(
   const maxCountW = Math.max(0, ...rows.map((r) => r.countW));
 
   let barStartX = Math.ceil(maxLabelW + labelToBarGap);
-  let barEndX = Math.floor(colW - maxCountW - barToCountGap);
+  const barEndX = Math.floor(colW - maxCountW - barToCountGap);
   let maxBarW = barEndX - barStartX;
 
   if (!Number.isFinite(barStartX) || !Number.isFinite(maxBarW)) {

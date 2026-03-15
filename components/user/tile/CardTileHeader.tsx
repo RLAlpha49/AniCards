@@ -1,20 +1,22 @@
 "use client";
 
-import { memo } from "react";
-import { Button } from "@/components/ui/Button";
-import { Switch } from "@/components/ui/Switch";
-import { Checkbox } from "@/components/ui/Checkbox";
 import { GripVertical, Info, Settings } from "lucide-react";
+import { memo } from "react";
+
+import {
+  containsMath,
+  MathTooltipContent,
+} from "@/components/MathTooltipContent";
+import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { Switch } from "@/components/ui/Switch";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/Tooltip";
-import {
-  MathTooltipContent,
-  containsMath,
-} from "@/components/MathTooltipContent";
 import { cn } from "@/lib/utils";
+
 import type { CardTileDragHandleProps } from "../CardCategorySection";
 
 interface CardTileHeaderProps {

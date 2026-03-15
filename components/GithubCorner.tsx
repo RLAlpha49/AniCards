@@ -1,10 +1,11 @@
 "use client";
 
+import { AnimatePresence,motion } from "framer-motion";
+import { ExternalLink,GitFork, Star } from "lucide-react";
 import Link from "next/link";
-import { SimpleGithubIcon } from "./SimpleIcons";
-import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
-import { Star, GitFork, ExternalLink } from "lucide-react";
+
+import { SimpleGithubIcon } from "./SimpleIcons";
 
 /**
  * Floating GitHub call-to-action with enhanced tooltip and interactive animations.

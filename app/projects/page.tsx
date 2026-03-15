@@ -1,21 +1,22 @@
 "use client";
 
-import Link from "next/link";
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/Button";
-import { usePageSEO } from "@/hooks/usePageSEO";
-import { SimpleGithubIcon } from "@/components/SimpleIcons";
-import HeroHighlights from "@/components/HeroHighlights";
-import HeroBadge from "@/components/HeroBadge";
 import {
-  ExternalLink,
-  Code2,
-  GitFork,
   ArrowRight,
+  Code2,
+  ExternalLink,
+  GitFork,
   Play,
   Sparkles,
 } from "lucide-react";
+import Link from "next/link";
+
+import HeroBadge from "@/components/HeroBadge";
+import HeroHighlights from "@/components/HeroHighlights";
 import PageShell from "@/components/PageShell";
+import { SimpleGithubIcon } from "@/components/SimpleIcons";
+import { Button } from "@/components/ui/Button";
+import { usePageSEO } from "@/hooks/usePageSEO";
 
 /**
  * Open-source project metadata used to render the grid cards.

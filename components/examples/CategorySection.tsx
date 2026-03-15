@@ -4,14 +4,15 @@ import { motion } from "framer-motion";
 import {
   BarChart2,
   BookOpen,
-  PieChart,
-  type LucideIcon,
-  Users,
   Calendar,
+  type LucideIcon,
+  PieChart,
   TrendingUp,
+  Users,
 } from "lucide-react";
-import { ExampleCard } from "./ExampleCard";
+
 import type { LightboxCardData } from "./CardLightboxModal";
+import { ExampleCard } from "./ExampleCard";
 
 interface CardVariant {
   name: string;

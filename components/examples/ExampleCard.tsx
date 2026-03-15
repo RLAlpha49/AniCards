@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Card, CardContent } from "@/components/ui/Card";
+import { Check,Copy, Expand } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
-import { Expand, Copy, Check } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/Card";
 import { cn } from "@/lib/utils";
 
 interface CardVariant {

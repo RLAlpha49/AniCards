@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { expect,test } from "@playwright/test";
 
 test.describe("Home page", () => {
   test("navigates to search from hero CTA", async ({ page }) => {

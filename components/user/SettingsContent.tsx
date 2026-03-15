@@ -1,7 +1,6 @@
 "use client";
 
-import { useMemo, useEffect, useState, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence,motion } from "framer-motion";
 import {
   Grid,
   Heart,
@@ -11,24 +10,26 @@ import {
   Sliders,
   Square,
 } from "lucide-react";
-import { Button } from "@/components/ui/Button";
-import { Label } from "@/components/ui/Label";
-import { Switch } from "@/components/ui/Switch";
-import { Input } from "@/components/ui/Input";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
-import { ColorPresetSelector } from "@/components/stat-card-generator/ColorPresetSelector";
+import { useEffect, useMemo, useRef,useState } from "react";
+
 import {
   ColorPickerGroup,
   type ColorPickerItem,
 } from "@/components/stat-card-generator/ColorPickerGroup";
+import { ColorPresetSelector } from "@/components/stat-card-generator/ColorPresetSelector";
 import { colorPresets } from "@/components/stat-card-generator/constants";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Label } from "@/components/ui/Label";
+import { Switch } from "@/components/ui/Switch";
+import { Tabs, TabsContent,TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { ColorPreviewCard } from "@/components/user/ColorPreviewCard";
+import type { ColorValue } from "@/lib/types/card";
 import {
-  normalizeColorInput,
   isCssNamedColor,
+  normalizeColorInput,
   validateColorValue,
 } from "@/lib/utils";
-import type { ColorValue } from "@/lib/types/card";
 const hexOrNoHashRegex = /^(?:#)?(?:[0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})$/i;
 
 const GRID_MIN = 1;

@@ -1,44 +1,45 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import PageShell from "@/components/PageShell";
 import {
+  Activity,
   BarChart2,
-  Users,
-  PieChart,
-  TrendingUp,
-  Mic,
-  Building2,
   BookOpen,
-  Heart,
-  LayoutGrid,
+  Building2,
   Calendar,
   Clock,
-  Activity,
+  Heart,
+  LayoutGrid,
+  Mic,
+  PieChart,
+  TrendingUp,
+  Users,
 } from "lucide-react";
-import {
-  CARD_GROUPS,
-  buildCardUrlWithParams,
-  VARIATION_LABEL_MAP,
-  DEFAULT_BASE_CARD_URL,
-  DEFAULT_EXAMPLE_USER_ID,
-  mapStoredConfigToCardUrlParams,
-} from "@/lib/card-groups";
-import type { CardUrlParams } from "@/lib/card-groups";
-import { usePageSEO } from "@/hooks/usePageSEO";
+import { useRouter } from "next/navigation";
+import { useCallback,useMemo, useState } from "react";
+
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import {
-  ExamplesHeroSection,
-  CategorySection,
-  CTASection,
-  CardLightboxModal,
-} from "@/components/examples";
 import type {
   CardType,
   CardVariant,
   LightboxCardData,
 } from "@/components/examples";
+import {
+  CardLightboxModal,
+  CategorySection,
+  CTASection,
+  ExamplesHeroSection,
+} from "@/components/examples";
+import PageShell from "@/components/PageShell";
+import { usePageSEO } from "@/hooks/usePageSEO";
+import type { CardUrlParams } from "@/lib/card-groups";
+import {
+  buildCardUrlWithParams,
+  CARD_GROUPS,
+  DEFAULT_BASE_CARD_URL,
+  DEFAULT_EXAMPLE_USER_ID,
+  mapStoredConfigToCardUrlParams,
+  VARIATION_LABEL_MAP,
+} from "@/lib/card-groups";
 import type { StoredCardConfig } from "@/lib/types/records";
 
 /**

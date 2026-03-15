@@ -1,23 +1,19 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "@/components/ui/Button";
-import { Label } from "@/components/ui/Label";
-import {
-  trackColorPresetSelection,
-  safeTrack,
-} from "@/lib/utils/google-analytics";
-import { cn, isGradient, colorValueToString } from "@/lib/utils";
+import { AnimatePresence,motion } from "framer-motion";
 import {
   Check,
-  Moon,
-  Sun,
-  Palette,
-  Layers,
-  Filter,
   ChevronDown,
   ChevronUp,
+  Filter,
+  Layers,
+  Moon,
+  Palette,
   Sparkles,
+  Sun,
 } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+
+import { Button } from "@/components/ui/Button";
+import { Label } from "@/components/ui/Label";
 import {
   Tooltip,
   TooltipContent,
@@ -25,6 +21,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/Tooltip";
 import type { ColorValue } from "@/lib/types/card";
+import { cn, colorValueToString,isGradient } from "@/lib/utils";
+import {
+  safeTrack,
+  trackColorPresetSelection,
+} from "@/lib/utils/google-analytics";
 
 /**
  * Props for the ColorPresetSelector component.

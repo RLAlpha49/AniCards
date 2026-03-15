@@ -1,20 +1,21 @@
 import {
-  afterEach,
   afterAll,
+  afterEach,
   beforeAll,
   describe,
   expect,
   it,
   mock,
 } from "bun:test";
+
 import {
-  sharedRedisMockSet,
+  sharedRatelimitMockLimit,
+  sharedRedisMockDel,
   sharedRedisMockGet,
   sharedRedisMockIncr,
-  sharedRedisMockDel,
   sharedRedisMockMget,
   sharedRedisMockPipelineExec,
-  sharedRatelimitMockLimit,
+  sharedRedisMockSet,
 } from "@/tests/unit/__setup__";
 
 // Set the app URL for same-origin validation testing

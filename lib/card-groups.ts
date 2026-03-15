@@ -1,5 +1,5 @@
-import { buildApiUrl, clampBorderRadius } from "@/lib/utils";
 import type { ColorValue } from "@/lib/types/card";
+import { buildApiUrl, clampBorderRadius } from "@/lib/utils";
 
 /** Default card generation endpoint used for example previews. @source */
 export const DEFAULT_BASE_CARD_URL = buildApiUrl("/card.svg");

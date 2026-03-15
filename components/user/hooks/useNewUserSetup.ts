@@ -1,12 +1,13 @@
 import { useCallback, useState } from "react";
-import { useUserPageEditor } from "@/lib/stores/user-page-editor";
+
+import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
 import { fetchUserCards } from "@/lib/api/cards";
 import { statCardTypes } from "@/lib/card-types";
-import { parseResponsePayload, getResponseErrorMessage } from "@/lib/utils";
-import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
 import { getErrorDetails } from "@/lib/error-messages";
 import { trackUserActionError } from "@/lib/error-tracking";
+import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 import type { LoadingPhase } from "@/lib/types/loading";
+import { getResponseErrorMessage,parseResponsePayload } from "@/lib/utils";
 
 // Local copies of small AniList types used in hook.
 interface AniListStatsResponse {

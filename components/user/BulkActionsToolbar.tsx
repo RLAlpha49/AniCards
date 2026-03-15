@@ -1,38 +1,24 @@
 "use client";
 
+import { AnimatePresence,motion } from "framer-motion";
+import { Redo2, RotateCcw, SlidersHorizontal, Undo2, X } from "lucide-react";
 import {
-  useState,
-  useCallback,
-  useMemo,
-  useEffect,
-  useRef,
   type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import { Redo2, RotateCcw, SlidersHorizontal, Undo2, X } from "lucide-react";
+
+import { colorPresets } from "@/components/stat-card-generator/constants";
 import { Button } from "@/components/ui/Button";
 import {
-  useUserPageEditor,
-  type CardEditorConfig,
-} from "@/lib/stores/user-page-editor";
-import { SelectionCounter } from "./bulk/SelectionCounter";
-import { CopyUrlsPopover } from "./bulk/CopyUrlsPopover";
-import { DownloadPopover } from "./bulk/DownloadPopover";
-import { DownloadStatusAlerts } from "./bulk/DownloadStatusAlerts";
-import { BulkConfirmDialog } from "./bulk/BulkConfirmDialog";
-import {
-  cn,
-  batchConvertAndZip,
-  type ConversionFormat,
-  type BatchExportCard,
-} from "@/lib/utils";
-import {
-  buildCardUrlWithParams,
-  mapStoredConfigToCardUrlParams,
-} from "@/lib/card-groups";
-import { useSidebar } from "@/components/ui/Sidebar";
-import { useIsMobile } from "@/hooks/useIsMobile";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover";
 import {
   Select,
   SelectContent,
@@ -40,13 +26,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/Select";
+import { useSidebar } from "@/components/ui/Sidebar";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/Popover";
-import { colorPresets } from "@/components/stat-card-generator/constants";
+  buildCardUrlWithParams,
+  mapStoredConfigToCardUrlParams,
+} from "@/lib/card-groups";
 import { statCardTypes } from "@/lib/card-types";
+import {
+  type CardEditorConfig,
+  useUserPageEditor,
+} from "@/lib/stores/user-page-editor";
+import {
+  batchConvertAndZip,
+  type BatchExportCard,
+  cn,
+  type ConversionFormat,
+} from "@/lib/utils";
+
+import { BulkConfirmDialog } from "./bulk/BulkConfirmDialog";
+import { CopyUrlsPopover } from "./bulk/CopyUrlsPopover";
+import { DownloadPopover } from "./bulk/DownloadPopover";
+import { DownloadStatusAlerts } from "./bulk/DownloadStatusAlerts";
+import { SelectionCounter } from "./bulk/SelectionCounter";
 
 /**
  * Props for BulkActionsToolbar.

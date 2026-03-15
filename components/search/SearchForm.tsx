@@ -1,17 +1,18 @@
 "use client";
 
-import { useState, useCallback, type FormEvent } from "react";
+import { AnimatePresence,motion } from "framer-motion";
+import { ArrowRight, Hash, Info, Loader2,Search, User } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { type FormEvent,useCallback, useState } from "react";
+
+import { Alert, AlertDescription,AlertTitle } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/Alert";
-import { User, Hash, ArrowRight, Search, Info, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
+  safeTrack,
   trackFormSubmission,
   trackNavigation,
-  safeTrack,
 } from "@/lib/utils/google-analytics";
 
 /** Supported lookup modes for the search form. @source */

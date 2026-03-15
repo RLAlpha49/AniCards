@@ -1,17 +1,18 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/Button";
 import {
+  ArrowDown,
   ArrowRight,
+  Palette,
   Play,
   Sparkles,
   Star,
   TrendingUp,
-  Palette,
-  ArrowDown,
 } from "lucide-react";
+
 import { FloatingCardsLayer } from "@/components/FloatingCardsLayer";
+import { Button } from "@/components/ui/Button";
 
 /**
  * Props for the home page hero section.

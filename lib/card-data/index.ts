@@ -1,13 +1,13 @@
 // Re-export validation module exports
-export { CardDataError } from "./validation";
 export type {
   GenreItem,
+  MilestoneFields,
+  StaffItem,
+  StudioItem,
   TagItem,
   VoiceActorItem,
-  StudioItem,
-  StaffItem,
-  MilestoneFields,
 } from "./validation";
+export { CardDataError } from "./validation";
 export {
   displayNames,
   getFavoritesForCardType,
@@ -16,36 +16,36 @@ export {
 
 // Re-export fetching module exports
 export {
-  resolveUserIdFromUsername,
-  fetchUserDataOnly,
   fetchUserData,
   fetchUserDataForCard,
+  fetchUserDataOnly,
+  resolveUserIdFromUsername,
 } from "./fetching";
 
 // Re-export processing module exports
 export {
-  toTemplateSocialStats,
   buildCommonTemplateFields,
-  toTemplateAnimeStats,
-  toTemplateMangaStats,
-  toTemplateAnimeSourceMaterialDistribution,
-  toTemplateAnimeSeasonalPreference,
-  toTemplateAnimeEpisodeLengthPreferences,
-  toTemplateAnimeGenreSynergy,
-  toTemplateStudioCollaboration,
   mapCategoryItem,
   processFavorites,
+  toTemplateAnimeEpisodeLengthPreferences,
+  toTemplateAnimeGenreSynergy,
+  toTemplateAnimeSeasonalPreference,
+  toTemplateAnimeSourceMaterialDistribution,
+  toTemplateAnimeStats,
+  toTemplateMangaStats,
+  toTemplateSeasonalViewingPatterns,
+  toTemplateSocialStats,
+  toTemplateStudioCollaboration,
   toTemplateTagCategoryDistribution,
   toTemplateTagDiversity,
-  toTemplateSeasonalViewingPatterns,
 } from "./processing";
 
 // Re-export config module exports
-export {
-  needsCardConfigFromDb,
-  buildCardConfigFromParams,
-  resolveEffectiveColorPreset,
-  isCustomPreset,
-  processCardConfig,
-} from "./config";
 export type { ColorOverrideParams } from "./config";
+export {
+  buildCardConfigFromParams,
+  isCustomPreset,
+  needsCardConfigFromDb,
+  processCardConfig,
+  resolveEffectiveColorPreset,
+} from "./config";

@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback } from "react";
+
+import { colorPresets } from "@/components/stat-card-generator/constants";
 import {
   DialogDescription,
   DialogHeader,
@@ -10,7 +12,6 @@ import { CardSettingsPanel } from "@/components/user/CardSettingsPanel";
 import { SettingsTools } from "@/components/user/SettingsTools";
 import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 import type { ColorValue } from "@/lib/types/card";
-import { colorPresets } from "@/components/stat-card-generator/constants";
 
 /**
  * Props for GlobalSettingsPanel component.

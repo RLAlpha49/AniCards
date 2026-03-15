@@ -1,25 +1,9 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
 import { Copy, Download, FileDown, FileUp, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Label } from "@/components/ui/Label";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/Dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/Select";
+import { useCallback, useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,16 +15,33 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/AlertDialog";
-import { useShallow } from "zustand/react/shallow";
+import { Button } from "@/components/ui/Button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/Dialog";
+import { Input } from "@/components/ui/Input";
+import { Label } from "@/components/ui/Label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/Select";
 import { statCardTypes } from "@/lib/card-types";
+import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 import {
   makeSettingsExport,
   parseSettingsExportJson,
-  stringifySettingsExport,
   type SettingsExportV1,
   type SettingsSnapshot,
+  stringifySettingsExport,
 } from "@/lib/user-page-settings-io";
-import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 
 type SettingsToolsProps =
   | {

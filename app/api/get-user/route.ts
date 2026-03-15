@@ -1,9 +1,9 @@
 import {
-  redisClient,
+  apiJsonHeaders,
   incrementAnalytics,
   isValidUsername,
   jsonWithCors,
-  apiJsonHeaders,
+  redisClient,
 } from "@/lib/api-utils";
 import {
   fetchUserDataParts,

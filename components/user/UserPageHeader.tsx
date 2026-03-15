@@ -1,20 +1,21 @@
 "use client";
 
-import Image from "next/image";
 import { motion } from "framer-motion";
-import { useEffect, useReducer, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
-  ExternalLink,
-  User as UserIcon,
-  Check,
-  Loader2,
   AlertCircle,
-  Save,
+  Check,
   Clock,
+  ExternalLink,
+  Loader2,
+  Save,
+  User as UserIcon,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import Image from "next/image";
+import { useEffect, useReducer, useState } from "react";
+
 import { baseVariants } from "@/components/PageShell";
+import { cn } from "@/lib/utils";
 
 /**
  * Save state for displaying save status.

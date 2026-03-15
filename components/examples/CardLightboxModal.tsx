@@ -1,17 +1,18 @@
 "use client";
 
+import { AnimatePresence,motion } from "framer-motion";
+import { Check, Copy, Play, X } from "lucide-react";
 import { useCallback, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+
+import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
+import { Button } from "@/components/ui/Button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/Dialog";
-import { Button } from "@/components/ui/Button";
-import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
-import { Copy, Check, Play, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**

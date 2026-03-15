@@ -1,16 +1,17 @@
 "use client";
 
-import { useCallback } from "react";
+import { motion } from "framer-motion";
+import { ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
-import PageShell from "@/components/PageShell";
-import { trackButtonClick, safeTrack } from "@/lib/utils/google-analytics";
+import { useCallback } from "react";
+
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { FeaturesSection } from "@/components/home/FeaturesSection";
 import { HeroSection } from "@/components/home/HeroSection";
 import { PreviewShowcase } from "@/components/home/PreviewShowcase";
-import { FeaturesSection } from "@/components/home/FeaturesSection";
+import PageShell from "@/components/PageShell";
 import { Button } from "@/components/ui/Button";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { ArrowRight } from "lucide-react";
-import { motion } from "framer-motion";
+import { safeTrack,trackButtonClick } from "@/lib/utils/google-analytics";
 
 /**
  * Renders the AniCards landing page with hero, preview showcase, features,

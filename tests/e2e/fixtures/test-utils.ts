@@ -1,9 +1,10 @@
-import { test as base, Route } from "@playwright/test";
+import { Route,test as base } from "@playwright/test";
+
 import {
-  mockUserRecord,
   mockCardsRecord,
   mockRateLimitError,
   mockUserNotFoundError,
+  mockUserRecord,
 } from "./mock-data";
 
 /**

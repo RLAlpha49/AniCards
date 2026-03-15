@@ -1,4 +1,4 @@
-import { extraStatsTemplates, type ExtraStatsTemplateInput } from "./shared";
+import { type ExtraStatsTemplateInput,extraStatsTemplates } from "./shared";
 
 export type AnimeTagsTemplateInput = ExtraStatsTemplateInput;
 export const animeTagsTemplate = extraStatsTemplates.animeTags;

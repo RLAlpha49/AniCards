@@ -1,8 +1,8 @@
 import {
-  redisClient,
+  apiJsonHeaders,
   incrementAnalytics,
   jsonWithCors,
-  apiJsonHeaders,
+  redisClient,
 } from "@/lib/api-utils";
 import { CardsRecord } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
@@ -47,7 +47,7 @@ export async function GET(request: Request) {
       return jsonWithCors({ error: "Cards not found" }, request, 404);
     }
 
-    let cardData: CardsRecord = safeParse<CardsRecord>(cardDataStr);
+    const cardData: CardsRecord = safeParse<CardsRecord>(cardDataStr);
 
     console.log(
       `✅ [Cards API] Successfully returned card data for user ${numericUserId} [${duration}ms]`,

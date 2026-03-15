@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
+
 import {
-  initializeApiRequest,
-  incrementAnalytics,
-  buildAnalyticsMetricKey,
   apiJsonHeaders,
+  buildAnalyticsMetricKey,
+  incrementAnalytics,
+  initializeApiRequest,
   jsonWithCors,
 } from "@/lib/api-utils";
-import { trackUserActionError } from "@/lib/error-tracking";
 import { categorizeByStatusCode, categorizeError } from "@/lib/error-messages";
+import { trackUserActionError } from "@/lib/error-tracking";
 
 /**
  * Payload sent to AniList, containing the GraphQL query and optional variables.

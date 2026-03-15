@@ -2,8 +2,9 @@
 
 import { ThemeProvider } from "next-themes";
 import type React from "react";
-import { TooltipProvider } from "@/components/ui/Tooltip";
+
 import { Toaster } from "@/components/ui/Toaster";
+import { TooltipProvider } from "@/components/ui/Tooltip";
 
 /**
  * Provides common app-level providers used throughout the app.

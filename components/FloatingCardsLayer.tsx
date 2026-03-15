@@ -1,17 +1,17 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useMemo, useState, useEffect } from "react";
+import { useEffect,useMemo, useState } from "react";
 
-import { cn } from "@/lib/utils";
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
 import {
-  VARIATION_LABEL_MAP,
   buildCardUrlWithParams,
-  generateExampleCardVariants,
   DEFAULT_EXAMPLE_USER_ID,
+  generateExampleCardVariants,
   mapStoredConfigToCardUrlParams,
+  VARIATION_LABEL_MAP,
 } from "@/lib/card-groups";
+import { cn } from "@/lib/utils";
 
 /**
  * Example card variants generated for demo/preview displays.

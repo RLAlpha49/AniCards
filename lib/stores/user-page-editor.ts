@@ -1,15 +1,17 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
-import type { ColorValue } from "@/lib/types/card";
-import { normalizeForCompare } from "@/lib/colorUtils";
+
 import { colorPresets } from "@/components/stat-card-generator/constants";
 import { statCardTypes } from "@/lib/card-types";
-import { DEFAULT_CARD_BORDER_RADIUS, clampBorderRadius } from "@/lib/utils";
+import { normalizeForCompare } from "@/lib/colorUtils";
+import type { ColorValue } from "@/lib/types/card";
+import { clampBorderRadius,DEFAULT_CARD_BORDER_RADIUS } from "@/lib/utils";
+
 import type { ServerCardData, ServerGlobalSettings } from "../api/cards";
 import type {
+  SettingsExportV1,
   SettingsSnapshot,
   SettingsTemplateV1,
-  SettingsExportV1,
 } from "../user-page-settings-io";
 import { parseSettingsExportJson } from "../user-page-settings-io";
 
@@ -1821,7 +1823,7 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
           const applied: LocalEditsPatch | null = opts?.appliedPatch ?? null;
 
           let nextBaselineGlobal = snapshot.baselineGlobalSnapshot;
-          let nextBaselineCardConfigs = { ...snapshot.baselineCardConfigs };
+          const nextBaselineCardConfigs = { ...snapshot.baselineCardConfigs };
           let nextBaselineCardOrder = [...snapshot.baselineCardOrder];
 
           if (applied?.globalSnapshot) {

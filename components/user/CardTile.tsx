@@ -1,12 +1,10 @@
 "use client";
 
+import { Columns2, Maximize2 } from "lucide-react";
 import { memo, useCallback, useEffect, useId, useMemo, useState } from "react";
-import { CardTileHeader } from "@/components/user/tile/CardTileHeader";
-import { DisabledState } from "@/components/user/tile/DisabledState";
-import { VariantSelector } from "@/components/user/tile/VariantSelector";
-import { CardPreview } from "@/components/user/tile/CardPreview";
+import { useShallow } from "zustand/react/shallow";
+
 import { Button } from "@/components/ui/Button";
-import { Label } from "@/components/ui/Label";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/Dialog";
+import { Label } from "@/components/ui/Label";
 import {
   Select,
   SelectContent,
@@ -21,10 +20,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/Select";
-import { Columns2, Maximize2 } from "lucide-react";
-
-import { CardSettingsDialog } from "@/components/user/CardSettingsDialog";
 import type { CardTileDragHandleProps } from "@/components/user/CardCategorySection";
+import { CardSettingsDialog } from "@/components/user/CardSettingsDialog";
+import { buildPreviewUrl } from "@/components/user/tile/buildPreviewUrl";
+import { CardPreview } from "@/components/user/tile/CardPreview";
+import { CardTileHeader } from "@/components/user/tile/CardTileHeader";
+import { DisabledState } from "@/components/user/tile/DisabledState";
+import { VariantSelector } from "@/components/user/tile/VariantSelector";
+import { useCopyFeedback } from "@/hooks/useCopyFeedback";
+import { useDownload } from "@/hooks/useDownload";
 import { getCardInfoTooltip } from "@/lib/card-info-tooltips";
 import { getCardVariantTooltip } from "@/lib/card-variant-tooltips";
 import {
@@ -34,10 +38,6 @@ import {
   useUserPageEditor,
 } from "@/lib/stores/user-page-editor";
 import { cn, getCardBorderRadius } from "@/lib/utils";
-import { buildPreviewUrl } from "@/components/user/tile/buildPreviewUrl";
-import { useCopyFeedback } from "@/hooks/useCopyFeedback";
-import { useDownload } from "@/hooks/useDownload";
-import { useShallow } from "zustand/react/shallow";
 
 /**
  * Variation option for a card type.

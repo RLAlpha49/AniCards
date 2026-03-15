@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+
+import { GET, OPTIONS } from "@/app/api/get-user/route";
 import {
   sharedRedisMockGet,
   sharedRedisMockIncr,
 } from "@/tests/unit/__setup__";
-
-import { GET, OPTIONS } from "@/app/api/get-user/route";
 
 /**
  * Extracts the response JSON payload for assertions.

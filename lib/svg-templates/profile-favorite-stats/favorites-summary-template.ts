@@ -1,5 +1,7 @@
-import type { TrustedSVG } from "@/lib/types/svg";
+import { SPACING, TYPOGRAPHY } from "@/lib/svg-templates/common/constants";
+import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
 import type { UserFavourites } from "@/lib/types/records";
+import type { TrustedSVG } from "@/lib/types/svg";
 import {
   calculateDynamicFontSize,
   escapeForXml,
@@ -7,15 +9,14 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
-import { SPACING, TYPOGRAPHY } from "@/lib/svg-templates/common/constants";
-import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
+
+import { generateCardBackground } from "../common/base-template-utils";
+import { generateCommonStyles } from "../common/style-generators";
 import {
   generateFavouritesSummaryBody,
   getFavouriteCounts,
   type TemplateStyles,
 } from "./shared";
-import { generateCommonStyles } from "../common/style-generators";
-import { generateCardBackground } from "../common/base-template-utils";
 
 /**
  * Renders the Favourites Summary card - a compact KPI-style card summarizing

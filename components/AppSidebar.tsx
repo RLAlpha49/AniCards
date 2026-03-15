@@ -1,20 +1,20 @@
 "use client";
+import { Folder, Grid3X3,Home, Mail, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Mail, Search, Folder, Grid3X3 } from "lucide-react";
+import { useEffect,useState } from "react";
+
 import {
   Sidebar,
   SidebarContent,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarGroupLabel,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
 } from "@/components/ui/Sidebar";
-
-import { useState, useEffect } from "react";
-import { trackNavigation, safeTrack } from "@/lib/utils/google-analytics";
+import { safeTrack,trackNavigation } from "@/lib/utils/google-analytics";
 
 /**
  * Navigation items rendered in the sidebar. Each item contains a title,

@@ -1,76 +1,76 @@
-import { calculateMilestones } from "@/lib/utils/milestones";
-import { extractStyles } from "@/lib/utils";
-import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/shared";
-import { animeSourceMaterialDistributionTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-source-material-distribution-template";
-import { animeSeasonalPreferenceTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-seasonal-preference-template";
-import { animeEpisodeLengthPreferencesTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-episode-length-preferences-template";
-import { animeGenreSynergyTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-genre-synergy-template";
-import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats/shared";
-import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
-import { socialMilestonesTemplate } from "@/lib/svg-templates/social-community/social-milestones-template";
-import { distributionTemplate } from "@/lib/svg-templates/distribution/shared";
-import { favoritesGridTemplate } from "@/lib/svg-templates/profile-favorite-stats/favorites-grid-template";
-import { favoritesSummaryTemplate } from "@/lib/svg-templates/profile-favorite-stats/favorites-summary-template";
-import { profileOverviewTemplate } from "@/lib/svg-templates/profile-favorite-stats/profile-overview-template";
+import {
+  CardDataError,
+  displayNames,
+  GenreItem,
+  mapCategoryItem,
+  StaffItem,
+  StudioItem,
+  TagItem,
+  toTemplateAnimeEpisodeLengthPreferences,
+  toTemplateAnimeGenreSynergy,
+  toTemplateAnimeSeasonalPreference,
+  toTemplateAnimeSourceMaterialDistribution,
+  toTemplateAnimeStats,
+  toTemplateMangaStats,
+  toTemplateSocialStats,
+  toTemplateStudioCollaboration,
+  VoiceActorItem,
+} from "@/lib/card-data";
+import {
+  embedFavoritesGridImages,
+  fetchImageAsDataUrl,
+} from "@/lib/image-utils";
 import { activityStreaksTemplate } from "@/lib/svg-templates/activity-stats/activity-streaks-template";
 import { recentActivitySummaryTemplate } from "@/lib/svg-templates/activity-stats/recent-activity-summary-template";
 import { topActivityDaysTemplate } from "@/lib/svg-templates/activity-stats/top-activity-days-template";
+import { animeMangaOverviewTemplate } from "@/lib/svg-templates/comparative-distribution-stats/anime-manga-overview-template";
+import { countryDiversityTemplate } from "@/lib/svg-templates/comparative-distribution-stats/country-diversity-template";
+import { formatPreferenceOverviewTemplate } from "@/lib/svg-templates/comparative-distribution-stats/format-preference-overview-template";
+import { genreDiversityTemplate } from "@/lib/svg-templates/comparative-distribution-stats/genre-diversity-template";
+import { lengthPreferenceTemplate } from "@/lib/svg-templates/comparative-distribution-stats/length-preference-template";
+import { releaseEraPreferenceTemplate } from "@/lib/svg-templates/comparative-distribution-stats/release-era-preference-template";
+import { scoreCompareAnimeMangaTemplate } from "@/lib/svg-templates/comparative-distribution-stats/score-compare-anime-manga-template";
+import { startYearMomentumTemplate } from "@/lib/svg-templates/comparative-distribution-stats/start-year-momentum-template";
+import { currentlyWatchingReadingTemplate } from "@/lib/svg-templates/completion-progress-stats/currently-watching-reading-template";
 import { milestonesTemplate } from "@/lib/svg-templates/completion-progress-stats/milestones-template";
 import { mostRewatchedTemplate } from "@/lib/svg-templates/completion-progress-stats/most-rewatched-template";
 import { personalRecordsTemplate } from "@/lib/svg-templates/completion-progress-stats/personal-records-template";
 import { planningBacklogTemplate } from "@/lib/svg-templates/completion-progress-stats/planning-backlog-template";
-import { currentlyWatchingReadingTemplate } from "@/lib/svg-templates/completion-progress-stats/currently-watching-reading-template";
 import { statusCompletionOverviewTemplate } from "@/lib/svg-templates/completion-progress-stats/status-completion-overview-template";
-import { animeMangaOverviewTemplate } from "@/lib/svg-templates/comparative-distribution-stats/anime-manga-overview-template";
-import { scoreCompareAnimeMangaTemplate } from "@/lib/svg-templates/comparative-distribution-stats/score-compare-anime-manga-template";
-import { countryDiversityTemplate } from "@/lib/svg-templates/comparative-distribution-stats/country-diversity-template";
-import { genreDiversityTemplate } from "@/lib/svg-templates/comparative-distribution-stats/genre-diversity-template";
-import { formatPreferenceOverviewTemplate } from "@/lib/svg-templates/comparative-distribution-stats/format-preference-overview-template";
-import { releaseEraPreferenceTemplate } from "@/lib/svg-templates/comparative-distribution-stats/release-era-preference-template";
-import { startYearMomentumTemplate } from "@/lib/svg-templates/comparative-distribution-stats/start-year-momentum-template";
-import { lengthPreferenceTemplate } from "@/lib/svg-templates/comparative-distribution-stats/length-preference-template";
+import { distributionTemplate } from "@/lib/svg-templates/distribution/shared";
+import { animeEpisodeLengthPreferencesTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-episode-length-preferences-template";
+import { animeGenreSynergyTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-genre-synergy-template";
+import { animeSeasonalPreferenceTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-seasonal-preference-template";
+import { animeSourceMaterialDistributionTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-source-material-distribution-template";
+import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/shared";
+import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats/shared";
+import { favoritesGridTemplate } from "@/lib/svg-templates/profile-favorite-stats/favorites-grid-template";
+import { favoritesSummaryTemplate } from "@/lib/svg-templates/profile-favorite-stats/favorites-summary-template";
+import { profileOverviewTemplate } from "@/lib/svg-templates/profile-favorite-stats/profile-overview-template";
+import { socialMilestonesTemplate } from "@/lib/svg-templates/social-community/social-milestones-template";
+import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
+import { studioCollaborationTemplate } from "@/lib/svg-templates/studio-stats";
 import {
-  tagCategoryDistributionTemplate,
-  tagDiversityTemplate,
-  seasonalViewingPatternsTemplate,
   droppedMediaTemplate,
   reviewStatsTemplate,
+  seasonalViewingPatternsTemplate,
+  tagCategoryDistributionTemplate,
+  tagDiversityTemplate,
 } from "@/lib/svg-templates/user-analytics";
-import { studioCollaborationTemplate } from "@/lib/svg-templates/studio-stats";
-import { TrustedSVG } from "@/lib/types/svg";
-import {
-  ActivityHistoryItem,
-  StoredCardConfig,
-  UserRecord,
-  UserStatsData,
-  MediaListEntry,
-} from "@/lib/types/records";
-import {
-  toTemplateAnimeStats,
-  toTemplateMangaStats,
-  toTemplateSocialStats,
-  toTemplateAnimeSourceMaterialDistribution,
-  toTemplateAnimeSeasonalPreference,
-  toTemplateAnimeEpisodeLengthPreferences,
-  toTemplateAnimeGenreSynergy,
-  toTemplateStudioCollaboration,
-  mapCategoryItem,
-  displayNames,
-  CardDataError,
-  GenreItem,
-  TagItem,
-  VoiceActorItem,
-  StudioItem,
-  StaffItem,
-} from "@/lib/card-data";
 import {
   AnimeStats as TemplateAnimeStats,
   MangaStats as TemplateMangaStats,
 } from "@/lib/types/card";
 import {
-  fetchImageAsDataUrl,
-  embedFavoritesGridImages,
-} from "@/lib/image-utils";
+  ActivityHistoryItem,
+  MediaListEntry,
+  StoredCardConfig,
+  UserRecord,
+  UserStatsData,
+} from "@/lib/types/records";
+import { TrustedSVG } from "@/lib/types/svg";
+import { extractStyles } from "@/lib/utils";
+import { calculateMilestones } from "@/lib/utils/milestones";
 
 /**
  * Supported visual variants for generated cards.

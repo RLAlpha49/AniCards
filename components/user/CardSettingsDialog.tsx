@@ -1,23 +1,24 @@
 "use client";
 
 import { useCallback } from "react";
+
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/Dialog";
 import { CardSettingsPanel } from "@/components/user/CardSettingsPanel";
 import { SettingsTools } from "@/components/user/SettingsTools";
 import {
-  DEFAULT_BORDER_COLOR,
-  useUserPageEditor,
-  isCardCustomized,
   type CardAdvancedSettings,
+  DEFAULT_BORDER_COLOR,
+  isCardCustomized,
+  useUserPageEditor,
 } from "@/lib/stores/user-page-editor";
-import { clampBorderRadius } from "@/lib/utils";
 import type { ColorValue } from "@/lib/types/card";
+import { clampBorderRadius } from "@/lib/utils";
 
 /**
  * Props for CardSettingsDialog component.
