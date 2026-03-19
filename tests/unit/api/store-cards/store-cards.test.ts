@@ -1,3 +1,9 @@
+/**
+ * Regression coverage for the persisted card-config contract.
+ * These cases lock down the merge and cleanup rules shared by the editor and
+ * SVG route, so storage-shape regressions fail here instead of in the UI.
+ */
+
 import {
   afterAll,
   afterEach,

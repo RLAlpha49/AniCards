@@ -1,3 +1,9 @@
+/**
+ * Playwright fixtures that package common AniCards API states for E2E specs.
+ * Specs opt into these fixtures instead of repeating route mocks so scenario
+ * setup stays readable and consistent across happy-path and failure flows.
+ */
+
 import { Route, test as base } from "@playwright/test";
 
 import {

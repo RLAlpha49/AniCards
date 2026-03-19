@@ -1,3 +1,9 @@
+/**
+ * Exercises the `store-users` route's validation and Redis persistence contract.
+ * The aggregate assertions stay here because several downstream card routes read
+ * split keys directly instead of recalculating totals at render time.
+ */
+
 import {
   afterAll,
   afterEach,
