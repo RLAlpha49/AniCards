@@ -1,11 +1,8 @@
 "use client";
 
-// Shared form body for both global settings and per-card overrides.
-// The key job here is to show the effective values a card will inherit without
-// duplicating the UI or forcing callers to resolve every fallback themselves.
-
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  ChevronDown,
   Grid,
   Heart,
   Palette,
@@ -36,6 +33,7 @@ import {
 } from "@/lib/utils";
 
 import { Input } from "../ui/Input";
+
 const hexOrNoHashRegex = /^(?:#)?(?:[0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})$/i;
 
 const GRID_MIN = 1;
@@ -265,10 +263,6 @@ function useGridSizeInputs(args: {
   };
 }
 
-/**
- * Converts various color input formats to a 6-digit hex color suitable for <input type="color">.
- * Returns undefined if the input cannot be normalized.
- */
 function getColorPickerHex(val?: string) {
   if (!val) return undefined;
   const trimmed = val.trim();
@@ -312,9 +306,6 @@ function getColorPickerHex(val?: string) {
   return undefined;
 }
 
-/**
- * Advanced settings configuration for status colors, pie percentages, favorites, and grid size.
- */
 interface AdvancedSettings {
   useStatusColors?: boolean;
   showPiePercentages?: boolean;
@@ -323,9 +314,6 @@ interface AdvancedSettings {
   gridRows?: number;
 }
 
-/**
- * Visibility flags for advanced options.
- */
 interface AdvancedVisibility {
   showStatusColors?: boolean;
   showPiePercentages?: boolean;
@@ -334,52 +322,92 @@ interface AdvancedVisibility {
 }
 
 interface SettingsContentProps {
-  /** Unique identifier prefix for form elements */
   idPrefix: string;
-  /** Mode determines label text differences ("global" vs "card") */
   mode: "global" | "card";
-
-  /** Array of 4 colors: [title, background, text, circle/accent] */
   colors: [ColorValue, ColorValue, ColorValue, ColorValue];
-  /** Currently selected color preset ID */
   colorPreset: string;
-  /** Handler when color at index changes */
   onColorChange: (index: number, value: ColorValue) => void;
-  /** Handler when preset changes */
   onPresetChange: (preset: string) => void;
-
-  /** Whether border is enabled */
   borderEnabled: boolean;
-  /** Handler for border enabled toggle */
   onBorderEnabledChange: (enabled: boolean) => void;
-  /** Current border color */
   borderColor: string;
-  /** Handler for border color change */
   onBorderColorChange: (color: string) => void;
-  /** Current border radius in pixels */
   borderRadius: number;
-  /** Handler for border radius change */
   onBorderRadiusChange: (radius: number) => void;
-
-  /** Current advanced settings values (per-card overrides or global values) */
   advancedSettings: AdvancedSettings;
-  /** Optional inherited/global advanced settings to use when per-card values are undefined */
   inheritedAdvancedSettings?: AdvancedSettings;
-  /** Handler for advanced setting changes */
   onAdvancedSettingChange: <K extends keyof AdvancedSettings>(
     key: K,
     value: AdvancedSettings[K],
   ) => void;
-  /** Which advanced options to show (defaults to all for global, controlled for card) */
   advancedVisibility?: AdvancedVisibility;
-
-  /** Handler for reset action */
   onReset: () => void;
-  /** Label for reset button (e.g., "Reset to Defaults" or "Reset to Global Settings") */
   resetLabel?: string;
-  /** Optional callback that's called when the validity of the settings changes (true = valid) */
   onValidityChange?: (isValid: boolean) => void;
 }
+
+/* ------------------------------------------------------------------ */
+/*  Collapsible section wrapper                                       */
+/* ------------------------------------------------------------------ */
+
+function SettingsSection({
+  title,
+  icon: Icon,
+  defaultOpen = true,
+  children,
+}: Readonly<{
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}>) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div className="border-border/50 bg-card/40 rounded-xl border backdrop-blur-sm transition-colors">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="hover:bg-muted/40 flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors"
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="bg-gold/10 text-gold dark:bg-gold/15 flex h-7 w-7 items-center justify-center rounded-lg">
+            <Icon className="h-3.5 w-3.5" />
+          </div>
+          <span className="text-foreground text-sm font-semibold tracking-tight">
+            {title}
+          </span>
+        </div>
+        <ChevronDown
+          className={cn(
+            "text-muted-foreground h-4 w-4 transition-transform duration-200",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="content"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <div className="border-border/40 border-t px-4 py-4">
+              {children}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  SettingsContent                                                    */
+/* ------------------------------------------------------------------ */
 
 export function SettingsContent({
   idPrefix,
@@ -409,8 +437,6 @@ export function SettingsContent({
     showGridSize: mode === "global",
   };
 
-  // Merge per-card advanced settings with any provided inherited/global values so
-  // undefined means "inherit" and the UI reflects the resolved behavior.
   const effectiveAdvancedSettings = useMemo(
     () => ({
       useStatusColors:
@@ -475,7 +501,6 @@ export function SettingsContent({
       { id: "anilistDark", label: "AniList Dark" },
       { id: "anilistLight", label: "AniList Light" },
     ];
-
     return candidates.filter((p) => Boolean(colorPresets[p.id]));
   }, []);
 
@@ -490,8 +515,6 @@ export function SettingsContent({
     return colors.every((c) => validateColorValue(c));
   }, [colors]);
 
-  // Keep a ref to the latest onValidityChange so we can call it without causing
-  // this effect to re-run whenever the parent provides a new function identity.
   const onValidityChangeRef =
     useRef<SettingsContentProps["onValidityChange"]>(onValidityChange);
   useEffect(() => {
@@ -525,51 +548,58 @@ export function SettingsContent({
 
   return (
     <div className="space-y-5">
+      {/* ── Live Preview ────────────────────────────────── */}
+      <div className="border-border/50 bg-muted/30 rounded-xl border p-5 backdrop-blur-sm">
+        <ColorPreviewCard
+          titleColor={colors[0]}
+          backgroundColor={colors[1]}
+          textColor={colors[2]}
+          circleColor={colors[3]}
+          borderColor={borderEnabled ? borderColor : undefined}
+          borderRadius={borderRadius}
+        />
+      </div>
+
+      {/* ── Tab Navigation ──────────────────────────────── */}
       <Tabs defaultValue="colors" className="w-full">
         <TabsList
-          className={`border-gold/15 bg-gold/5 dark:border-gold/10 dark:bg-gold/3 grid w-full gap-1 rounded-xl border p-1 ${hasAdvancedOptions ? "grid-cols-3" : "grid-cols-2"}`}
+          className={cn(
+            "bg-muted/50 border-border/50 grid w-full gap-0.5 rounded-xl border p-1 backdrop-blur-sm",
+            hasAdvancedOptions ? "grid-cols-3" : "grid-cols-2",
+          )}
         >
           <TabsTrigger
             value="colors"
-            className="data-[state=active]:from-gold data-[state=active]:to-gold-dim data-[state=active]:shadow-gold/20 gap-2 rounded-lg data-[state=active]:bg-linear-to-r data-[state=active]:via-amber-500 data-[state=active]:text-white data-[state=active]:shadow-md"
+            className="data-[state=active]:bg-gold/90 data-[state=active]:shadow-gold/15 gap-1.5 rounded-lg text-xs font-medium transition-all data-[state=active]:text-white data-[state=active]:shadow-sm sm:text-sm"
           >
-            <Palette className="h-4 w-4" aria-hidden="true" />
+            <Palette className="h-3.5 w-3.5" aria-hidden="true" />
             Colors
           </TabsTrigger>
           <TabsTrigger
             value="border"
-            className="data-[state=active]:from-gold data-[state=active]:to-gold-dim data-[state=active]:shadow-gold/20 gap-2 rounded-lg data-[state=active]:bg-linear-to-r data-[state=active]:via-amber-500 data-[state=active]:text-white data-[state=active]:shadow-md"
+            className="data-[state=active]:bg-gold/90 data-[state=active]:shadow-gold/15 gap-1.5 rounded-lg text-xs font-medium transition-all data-[state=active]:text-white data-[state=active]:shadow-sm sm:text-sm"
           >
-            <Square className="h-4 w-4" aria-hidden="true" />
+            <Square className="h-3.5 w-3.5" aria-hidden="true" />
             Border
           </TabsTrigger>
           {hasAdvancedOptions && (
             <TabsTrigger
               value="advanced"
-              className="data-[state=active]:from-gold data-[state=active]:to-gold-dim data-[state=active]:shadow-gold/20 gap-2 rounded-lg data-[state=active]:bg-linear-to-r data-[state=active]:via-amber-500 data-[state=active]:text-white data-[state=active]:shadow-md"
+              className="data-[state=active]:bg-gold/90 data-[state=active]:shadow-gold/15 gap-1.5 rounded-lg text-xs font-medium transition-all data-[state=active]:text-white data-[state=active]:shadow-sm sm:text-sm"
             >
-              <Sliders className="h-4 w-4" aria-hidden="true" />
+              <Sliders className="h-3.5 w-3.5" aria-hidden="true" />
               Advanced
             </TabsTrigger>
           )}
         </TabsList>
 
-        <TabsContent value="colors" className="mt-5 space-y-5">
-          <div className="border-gold/15 bg-gold/3 dark:border-gold/10 dark:bg-gold/3 flex justify-center rounded-xl border p-4">
-            <ColorPreviewCard
-              titleColor={colors[0]}
-              backgroundColor={colors[1]}
-              textColor={colors[2]}
-              circleColor={colors[3]}
-              borderColor={borderEnabled ? borderColor : undefined}
-              borderRadius={borderRadius}
-            />
-          </div>
-
-          {quickColorPresets.length > 0 ? (
+        {/* ── Colors Tab ──────────────────────────────── */}
+        <TabsContent value="colors" className="mt-4 space-y-4">
+          {/* Quick Apply */}
+          {quickColorPresets.length > 0 && (
             <div className="space-y-2">
-              <Label className="text-foreground text-sm font-semibold">
-                Quick apply
+              <Label className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
+                Quick Apply
               </Label>
               <div className="flex flex-wrap gap-2">
                 {quickColorPresets.map((p) => (
@@ -580,10 +610,10 @@ export function SettingsContent({
                     variant={p.id === colorPreset ? "default" : "outline"}
                     onClick={() => onPresetChange(p.id)}
                     className={cn(
-                      "h-8 rounded-lg transition-all",
+                      "h-8 rounded-lg text-xs font-medium transition-all",
                       p.id === colorPreset
-                        ? "from-gold to-gold-dim shadow-gold/20 bg-linear-to-r via-amber-500 text-white shadow-md"
-                        : "border-gold/20 hover:border-gold/40 hover:bg-gold/5 dark:border-gold/15 dark:hover:border-gold/30",
+                        ? "bg-gold hover:bg-gold/90 text-white shadow-sm"
+                        : "border-border/60 hover:border-gold/40 hover:bg-gold/5",
                     )}
                   >
                     {p.label}
@@ -591,35 +621,33 @@ export function SettingsContent({
                 ))}
               </div>
             </div>
-          ) : null}
+          )}
 
-          <div className="via-gold/15 h-px bg-linear-to-r from-transparent to-transparent" />
-
-          <div className="space-y-3">
-            <Label className="text-foreground text-sm font-semibold">
-              Color Preset
-            </Label>
+          {/* Color Preset Selector */}
+          <SettingsSection title="Color Preset" icon={Palette}>
             <ColorPresetSelector
               selectedPreset={colorPreset}
               presets={colorPresets}
               onPresetChange={onPresetChange}
             />
-          </div>
+          </SettingsSection>
 
-          <div className="via-gold/15 h-px bg-linear-to-r from-transparent to-transparent" />
-
-          <div className="space-y-3">
-            <Label className="text-foreground text-sm font-semibold">
-              Custom Colors
-            </Label>
+          {/* Custom Colors */}
+          <SettingsSection
+            title="Custom Colors"
+            icon={Palette}
+            defaultOpen={false}
+          >
             <ColorPickerGroup pickers={colorPickers} />
-          </div>
+          </SettingsSection>
         </TabsContent>
 
-        <TabsContent value="border" className="mt-5 space-y-5">
+        {/* ── Border Tab ──────────────────────────────── */}
+        <TabsContent value="border" className="mt-4 space-y-4">
+          {/* Quick Apply */}
           <div className="space-y-2">
-            <Label className="text-foreground text-sm font-semibold">
-              Quick apply
+            <Label className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
+              Quick Apply
             </Label>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -628,10 +656,10 @@ export function SettingsContent({
                 variant={borderEnabled ? "outline" : "default"}
                 onClick={() => onBorderEnabledChange(false)}
                 className={cn(
-                  "h-8 rounded-lg transition-all",
-                  borderEnabled
-                    ? "border-gold/20 hover:border-gold/40 hover:bg-gold/5 dark:border-gold/15 dark:hover:border-gold/30"
-                    : "from-gold to-gold-dim shadow-gold/20 bg-linear-to-r via-amber-500 text-white shadow-md",
+                  "h-8 rounded-lg text-xs font-medium transition-all",
+                  !borderEnabled
+                    ? "bg-gold hover:bg-gold/90 text-white shadow-sm"
+                    : "border-border/60 hover:border-gold/40 hover:bg-gold/5",
                 )}
               >
                 No border
@@ -647,10 +675,10 @@ export function SettingsContent({
                   onBorderRadiusChange(0);
                 }}
                 className={cn(
-                  "h-8 rounded-lg transition-all",
+                  "h-8 rounded-lg text-xs font-medium transition-all",
                   borderEnabled && borderRadius === 0
-                    ? "from-gold to-gold-dim shadow-gold/20 bg-linear-to-r via-amber-500 text-white shadow-md"
-                    : "border-gold/20 hover:border-gold/40 hover:bg-gold/5 dark:border-gold/15 dark:hover:border-gold/30",
+                    ? "bg-gold hover:bg-gold/90 text-white shadow-sm"
+                    : "border-border/60 hover:border-gold/40 hover:bg-gold/5",
                 )}
               >
                 Square
@@ -666,10 +694,10 @@ export function SettingsContent({
                   onBorderRadiusChange(16);
                 }}
                 className={cn(
-                  "h-8 rounded-lg transition-all",
+                  "h-8 rounded-lg text-xs font-medium transition-all",
                   borderEnabled && borderRadius === 16
-                    ? "from-gold to-gold-dim shadow-gold/20 bg-linear-to-r via-amber-500 text-white shadow-md"
-                    : "border-gold/20 hover:border-gold/40 hover:bg-gold/5 dark:border-gold/15 dark:hover:border-gold/30",
+                    ? "bg-gold hover:bg-gold/90 text-white shadow-sm"
+                    : "border-border/60 hover:border-gold/40 hover:bg-gold/5",
                 )}
               >
                 Rounded
@@ -677,9 +705,12 @@ export function SettingsContent({
             </div>
           </div>
 
-          <div className="border-gold/15 bg-gold/3 dark:border-gold/10 dark:bg-gold/3 flex items-center justify-between rounded-lg border p-3">
-            <div className="flex items-center gap-2">
-              <Square className="text-gold-dim dark:text-gold h-4 w-4" />
+          {/* Enable Border Toggle */}
+          <div className="border-border/50 bg-muted/30 flex items-center justify-between rounded-xl border p-4 backdrop-blur-sm">
+            <div className="flex items-center gap-3">
+              <div className="bg-gold/10 text-gold dark:bg-gold/15 flex h-8 w-8 items-center justify-center rounded-lg">
+                <Square className="h-4 w-4" />
+              </div>
               <span className="text-foreground text-sm font-medium">
                 Enable Border
               </span>
@@ -692,6 +723,7 @@ export function SettingsContent({
             />
           </div>
 
+          {/* Border Settings */}
           <AnimatePresence mode="wait" initial={false}>
             {borderEnabled && (
               <motion.div
@@ -699,8 +731,10 @@ export function SettingsContent({
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
-                className="space-y-4"
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+                className="space-y-5 overflow-hidden"
               >
+                {/* Border Color */}
                 <div className="space-y-2">
                   <Label
                     htmlFor={`${idPrefix}-borderColor-input`}
@@ -709,7 +743,7 @@ export function SettingsContent({
                     Border Color
                   </Label>
                   <div className="flex items-center gap-3">
-                    <div className="border-gold/20 dark:border-gold/15 relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border-2 shadow-inner">
+                    <div className="border-border/60 relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border shadow-inner">
                       <Input
                         type="color"
                         value={
@@ -734,7 +768,12 @@ export function SettingsContent({
                       onBlur={borderInputs.handleBorderColorBlur}
                       aria-invalid={!borderInputs.isBorderColorValid}
                       aria-describedby={borderInputs.borderColorAriaDescribedBy}
-                      className={`focus-visible:ring-gold/50 h-10 flex-1 font-mono text-sm lowercase ${borderInputs.isBorderColorValid ? "border-gold/20 dark:border-gold/15" : "border-red-500 focus-visible:ring-1 focus-visible:ring-red-500"}`}
+                      className={cn(
+                        "h-10 flex-1 font-mono text-sm lowercase transition-colors",
+                        borderInputs.isBorderColorValid
+                          ? "border-border/60 focus-visible:ring-gold/30"
+                          : "border-red-500 focus-visible:ring-1 focus-visible:ring-red-500",
+                      )}
                       placeholder="#e4e2e2"
                     />
                   </div>
@@ -761,12 +800,13 @@ export function SettingsContent({
                   </AnimatePresence>
                 </div>
 
-                <div className="space-y-2">
+                {/* Border Radius */}
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <Label className="text-foreground text-sm font-medium">
                       Border Radius
                     </Label>
-                    <span className="bg-gold/10 text-gold-dim dark:bg-gold/10 dark:text-gold rounded-md px-2 py-0.5 text-sm font-bold">
+                    <span className="bg-gold/10 text-gold-dim dark:text-gold rounded-md px-2.5 py-1 text-xs font-bold tabular-nums">
                       {borderRadius}px
                     </span>
                   </div>
@@ -785,7 +825,7 @@ export function SettingsContent({
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-valuenow={borderRadius}
-                    className="from-gold/20 to-gold/30 dark:from-gold/15 dark:to-gold/25 [&::-moz-range-thumb]:bg-gold [&::-webkit-slider-thumb]:bg-gold h-2 w-full cursor-pointer appearance-none rounded-full bg-linear-to-r px-0 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md"
+                    className="from-gold/15 to-gold/25 [&::-moz-range-thumb]:bg-gold [&::-webkit-slider-thumb]:bg-gold h-2 w-full cursor-pointer appearance-none rounded-full bg-linear-to-r px-0 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md"
                   />
                 </div>
               </motion.div>
@@ -793,101 +833,75 @@ export function SettingsContent({
           </AnimatePresence>
         </TabsContent>
 
+        {/* ── Advanced Tab ─────────────────────────────── */}
         {hasAdvancedOptions && (
-          <TabsContent value="advanced" className="mt-5 space-y-4">
+          <TabsContent value="advanced" className="mt-4 space-y-3">
             {visibility.showStatusColors && (
-              <div className="border-gold/15 bg-gold/3 dark:border-gold/10 dark:bg-gold/3 flex items-center justify-between rounded-lg border p-3">
-                <div className="flex items-center gap-2">
-                  <Palette className="text-gold-dim dark:text-gold h-4 w-4" />
-                  <div>
-                    <span className="text-foreground text-sm font-medium">
-                      Status Colors
-                    </span>
-                    {mode === "global" && (
-                      <p className="text-muted-foreground text-xs">
-                        Fixed colors for status distribution
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <Switch
-                  checked={effectiveAdvancedSettings.useStatusColors ?? false}
-                  onCheckedChange={(checked) =>
-                    onAdvancedSettingChange("useStatusColors", checked)
-                  }
-                  className="data-[state=checked]:bg-green-500"
-                  aria-label="Status colors"
-                />
-              </div>
+              <ToggleRow
+                icon={Palette}
+                label="Status Colors"
+                description={
+                  mode === "global"
+                    ? "Fixed colors for status distribution"
+                    : undefined
+                }
+                checked={effectiveAdvancedSettings.useStatusColors ?? false}
+                onCheckedChange={(checked) =>
+                  onAdvancedSettingChange("useStatusColors", checked)
+                }
+                ariaLabel="Status colors"
+              />
             )}
 
             {visibility.showPiePercentages && (
-              <div className="border-gold/15 bg-gold/3 dark:border-gold/10 dark:bg-gold/3 flex items-center justify-between rounded-lg border p-3">
-                <div className="flex items-center gap-2">
-                  <PieChart className="text-gold-dim dark:text-gold h-4 w-4" />
-                  <div>
-                    <span className="text-foreground text-sm font-medium">
-                      Show Percentages
-                    </span>
-                    {mode === "global" && (
-                      <p className="text-muted-foreground text-xs">
-                        Display % on pie/donut charts
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <Switch
-                  checked={
-                    effectiveAdvancedSettings.showPiePercentages ?? false
-                  }
-                  onCheckedChange={(checked) =>
-                    onAdvancedSettingChange("showPiePercentages", checked)
-                  }
-                  className="data-[state=checked]:bg-green-500"
-                  aria-label="Show percentages"
-                />
-              </div>
+              <ToggleRow
+                icon={PieChart}
+                label="Show Percentages"
+                description={
+                  mode === "global"
+                    ? "Display % on pie/donut charts"
+                    : undefined
+                }
+                checked={effectiveAdvancedSettings.showPiePercentages ?? false}
+                onCheckedChange={(checked) =>
+                  onAdvancedSettingChange("showPiePercentages", checked)
+                }
+                ariaLabel="Show percentages"
+              />
             )}
 
             {visibility.showFavorites && (
-              <div className="border-gold/15 bg-gold/3 dark:border-gold/10 dark:bg-gold/3 flex items-center justify-between rounded-lg border p-3">
-                <div className="flex items-center gap-2">
-                  <Heart className="text-gold-dim dark:text-gold h-4 w-4" />
-                  <div>
-                    <span className="text-foreground text-sm font-medium">
-                      Show Favorites
-                    </span>
-                    {mode === "global" && (
-                      <p className="text-muted-foreground text-xs">
-                        Display favorites on applicable cards
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <Switch
-                  checked={effectiveAdvancedSettings.showFavorites ?? false}
-                  onCheckedChange={(checked) =>
-                    onAdvancedSettingChange("showFavorites", checked)
-                  }
-                  className="data-[state=checked]:bg-green-500"
-                  aria-label="Show favorites"
-                />
-              </div>
+              <ToggleRow
+                icon={Heart}
+                label="Show Favorites"
+                description={
+                  mode === "global"
+                    ? "Display favorites on applicable cards"
+                    : undefined
+                }
+                checked={effectiveAdvancedSettings.showFavorites ?? false}
+                onCheckedChange={(checked) =>
+                  onAdvancedSettingChange("showFavorites", checked)
+                }
+                ariaLabel="Show favorites"
+              />
             )}
 
             {visibility.showGridSize && (
-              <div className="border-gold/15 bg-gold/3 dark:border-gold/10 dark:bg-gold/3 space-y-3 rounded-lg border p-3">
-                <div className="flex items-center gap-2">
-                  <Grid className="text-gold-dim dark:text-gold h-4 w-4" />
+              <div className="border-border/50 bg-muted/30 rounded-xl border p-4 backdrop-blur-sm">
+                <div className="mb-3 flex items-center gap-2.5">
+                  <div className="bg-gold/10 text-gold dark:bg-gold/15 flex h-7 w-7 items-center justify-center rounded-lg">
+                    <Grid className="h-3.5 w-3.5" />
+                  </div>
                   <span className="text-foreground text-sm font-medium">
                     {mode === "global" ? "Favorites Grid Size" : "Grid Size"}
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label
                       htmlFor={`${idPrefix}-gridCols`}
-                      className="text-muted-foreground mb-1 text-xs"
+                      className="text-muted-foreground mb-1.5 text-xs font-medium"
                     >
                       Columns
                     </Label>
@@ -905,11 +919,12 @@ export function SettingsContent({
                         gridValidationEnabled && !gridInputs.isGridColsValid
                       }
                       aria-describedby={gridInputs.gridColsAriaDescribedBy}
-                      className={
+                      className={cn(
+                        "h-9 text-sm",
                         gridValidationEnabled && !gridInputs.isGridColsValid
-                          ? "h-9 border-red-500 text-sm focus-visible:ring-1 focus-visible:ring-red-500"
-                          : "h-9 text-sm"
-                      }
+                          ? "border-red-500 focus-visible:ring-1 focus-visible:ring-red-500"
+                          : "border-border/60",
+                      )}
                     />
                     <AnimatePresence>
                       {gridValidationEnabled && !gridInputs.isGridColsValid && (
@@ -929,7 +944,7 @@ export function SettingsContent({
                   <div>
                     <Label
                       htmlFor={`${idPrefix}-gridRows`}
-                      className="text-muted-foreground mb-1 text-xs"
+                      className="text-muted-foreground mb-1.5 text-xs font-medium"
                     >
                       Rows
                     </Label>
@@ -947,11 +962,12 @@ export function SettingsContent({
                         gridValidationEnabled && !gridInputs.isGridRowsValid
                       }
                       aria-describedby={gridInputs.gridRowsAriaDescribedBy}
-                      className={
+                      className={cn(
+                        "h-9 text-sm",
                         gridValidationEnabled && !gridInputs.isGridRowsValid
-                          ? "h-9 border-red-500 text-sm focus-visible:ring-1 focus-visible:ring-red-500"
-                          : "h-9 text-sm"
-                      }
+                          ? "border-red-500 focus-visible:ring-1 focus-visible:ring-red-500"
+                          : "border-border/60",
+                      )}
                     />
                     <AnimatePresence>
                       {gridValidationEnabled && !gridInputs.isGridRowsValid && (
@@ -970,7 +986,7 @@ export function SettingsContent({
                   </div>
                 </div>
                 {mode === "global" && (
-                  <p className="text-muted-foreground text-xs">
+                  <p className="text-muted-foreground mt-2 text-xs">
                     Grid dimensions for favorites card (1-5 each)
                   </p>
                 )}
@@ -980,17 +996,60 @@ export function SettingsContent({
         )}
       </Tabs>
 
-      <div className="border-gold/20 dark:border-gold/15 flex justify-end border-t pt-5">
+      {/* ── Reset Footer ────────────────────────────────── */}
+      <div className="border-border/40 flex justify-end border-t pt-4">
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           onClick={onReset}
-          className="border-gold/20 text-muted-foreground hover:border-gold/40 hover:bg-gold/5 hover:text-foreground dark:border-gold/15 dark:hover:border-gold/30 gap-2 transition-all"
+          className="text-muted-foreground hover:text-foreground gap-2 text-xs transition-colors"
         >
-          <RotateCcw className="h-4 w-4" />
+          <RotateCcw className="h-3.5 w-3.5" />
           {resetLabel ?? defaultResetLabel}
         </Button>
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Reusable toggle row                                               */
+/* ------------------------------------------------------------------ */
+
+function ToggleRow({
+  icon: Icon,
+  label,
+  description,
+  checked,
+  onCheckedChange,
+  ariaLabel,
+}: Readonly<{
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  description?: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  ariaLabel: string;
+}>) {
+  return (
+    <div className="border-border/50 bg-muted/30 flex items-center justify-between rounded-xl border p-4 backdrop-blur-sm transition-colors">
+      <div className="flex items-center gap-3">
+        <div className="bg-gold/10 text-gold dark:bg-gold/15 flex h-8 w-8 items-center justify-center rounded-lg">
+          <Icon className="h-4 w-4" />
+        </div>
+        <div>
+          <span className="text-foreground text-sm font-medium">{label}</span>
+          {description && (
+            <p className="text-muted-foreground text-xs">{description}</p>
+          )}
+        </div>
+      </div>
+      <Switch
+        checked={checked}
+        onCheckedChange={onCheckedChange}
+        className="data-[state=checked]:bg-gold"
+        aria-label={ariaLabel}
+      />
     </div>
   );
 }

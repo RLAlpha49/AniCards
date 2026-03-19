@@ -8,11 +8,6 @@ import type { ColorValue } from "@/lib/types/card";
 import { stripTrustedSvgMarker, type TrustedSVG } from "@/lib/types/svg";
 import { cn, DEFAULT_CARD_BORDER_RADIUS, isGradient } from "@/lib/utils";
 
-/**
- * Sample anime stats data used for the preview card.
- * These values provide a realistic preview of the anime stats card.
- * @source
- */
 const SAMPLE_ANIME_STATS = {
   count: 142,
   episodesWatched: 2847,
@@ -25,33 +20,16 @@ const SAMPLE_ANIME_STATS = {
   dashoffset: "75.40",
 } as const;
 
-/**
- * Props for ColorPreviewCard component.
- * @source
- */
 interface ColorPreviewCardProps {
-  /** Title color (solid or gradient) */
   titleColor: ColorValue;
-  /** Background color (solid or gradient) */
   backgroundColor: ColorValue;
-  /** Text color (solid or gradient) */
   textColor: ColorValue;
-  /** Circle/accent color (solid or gradient) */
   circleColor: ColorValue;
-  /** Optional border color */
   borderColor?: string;
-  /** Optional border radius in pixels */
   borderRadius?: number;
-  /** Optional className for additional styling */
   className?: string;
 }
 
-/**
- * Converts a ColorValue to a CSS-compatible color or gradient string.
- * @param value - The color value.
- * @returns CSS color string.
- * @source
- */
 function colorValueToCss(value: ColorValue): string {
   if (isGradient(value)) {
     return gradientToCss(value);
@@ -59,14 +37,6 @@ function colorValueToCss(value: ColorValue): string {
   return value;
 }
 
-/**
- * Renders a preview card showing the current color configuration
- * using the actual anime stats card template with sample data.
- * Displays the default variant of the anime stats card for realistic preview.
- * @param props - Component props.
- * @returns JSX element.
- * @source
- */
 export function ColorPreviewCard({
   titleColor,
   backgroundColor,
@@ -123,15 +93,15 @@ export function ColorPreviewCard({
   );
 
   return (
-    <div className={cn("flex flex-col items-center space-y-3", className)}>
-      <div className="relative overflow-hidden shadow-lg transition-all">
+    <div className={cn("flex flex-col items-center gap-4", className)}>
+      <div className="relative w-full overflow-hidden rounded-xl shadow-md ring-1 ring-black/5 transition-shadow duration-300 hover:shadow-lg dark:ring-white/5">
         <div
           dangerouslySetInnerHTML={{ __html: previewSvg }}
-          className="transition-all duration-200"
+          className="transition-all duration-200 [&>svg]:w-full"
         />
       </div>
 
-      <div className="flex flex-wrap justify-center gap-1.5">
+      <div className="flex flex-wrap justify-center gap-2">
         <ColorSwatch
           label="Title"
           color={cssValues.title}
@@ -157,37 +127,25 @@ export function ColorPreviewCard({
   );
 }
 
-/**
- * Props for ColorSwatch component.
- * @source
- */
 interface ColorSwatchProps {
-  /** Label for the color */
   label: string;
-  /** CSS color or gradient string */
   color: string;
-  /** Whether this is a gradient */
   isGradient: boolean;
 }
 
-/**
- * Renders a small labeled color swatch.
- * @param props - Component props.
- * @returns JSX element.
- * @source
- */
 function ColorSwatch({ label, color, isGradient }: Readonly<ColorSwatchProps>) {
   return (
-    <div className="bg-gold/5 dark:bg-gold/5 flex items-center gap-1.5 rounded-md px-1.5 py-1">
+    <div className="bg-muted/60 flex items-center gap-2 rounded-lg px-2.5 py-1.5 backdrop-blur-sm">
       <div
         className={cn(
-          "border-gold/20 dark:border-gold/15 h-3 w-3 shrink-0 rounded-sm border shadow-sm",
-          isGradient && "ring-gold/30 ring-1",
+          "h-3.5 w-3.5 shrink-0 rounded-full border border-black/10 shadow-sm dark:border-white/10",
+          isGradient &&
+            "ring-gold/40 ring-offset-background ring-1 ring-offset-1",
         )}
         style={{ background: color }}
         title={isGradient ? `${label} (gradient)` : label}
       />
-      <span className="text-muted-foreground text-[10px] font-medium">
+      <span className="text-muted-foreground text-[11px] font-medium tracking-wide">
         {label}
       </span>
     </div>

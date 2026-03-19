@@ -13,22 +13,10 @@ import { SettingsTools } from "@/components/user/SettingsTools";
 import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 import type { ColorValue } from "@/lib/types/card";
 
-/**
- * Props for GlobalSettingsPanel component.
- * @source
- */
 interface GlobalSettingsPanelProps {
-  /** Handler to save all cards (may be async) */
   onSave?: () => void | Promise<void>;
 }
 
-/**
- * Panel for configuring global color and border settings.
- * Uses a tabbed layout matching the individual CardSettingsDialog design.
- * @param props - Component props.
- * @returns JSX element.
- * @source
- */
 export function GlobalSettingsPanel({
   onSave,
 }: Readonly<GlobalSettingsPanelProps>) {

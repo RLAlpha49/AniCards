@@ -20,36 +20,18 @@ import {
 import type { ColorValue } from "@/lib/types/card";
 import { clampBorderRadius } from "@/lib/utils";
 
-/**
- * Props for CardSettingsDialog component.
- * @source
- */
 interface CardSettingsDialogProps {
-  /** Whether the dialog is open */
   isOpen: boolean;
-  /** Callback to close the dialog */
   onClose: () => void;
-  /** Card type ID */
   cardId: string;
-  /** Display label for the card */
   label: string;
-  /** Whether this card supports status colors */
   supportsStatusColors?: boolean;
-  /** Whether this card supports pie percentages (only shown for pie/donut variants) */
   supportsPiePercentages?: boolean;
-  /** Whether this card supports favorites */
   supportsFavorites?: boolean;
-  /** Whether this card is the favorites grid */
   isFavoritesGrid?: boolean;
-  /** Current variant of the card */
   currentVariant?: string;
 }
 
-/**
- * Dialog component for configuring individual card settings.
- * Allows overriding global colors and border settings per card.
- * @source
- */
 export function CardSettingsDialog({
   isOpen,
   onClose,
@@ -188,7 +170,7 @@ export function CardSettingsDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="overlay-scrollbar border-gold/20 bg-background shadow-gold/5 dark:border-gold/15 dark:shadow-gold/10 max-h-[85vh] max-w-4xl overflow-y-auto border-2 shadow-xl">
+      <DialogContent className="overlay-scrollbar border-border/60 bg-background/95 dark:bg-background/95 max-h-[85vh] max-w-4xl overflow-y-auto border shadow-xl backdrop-blur-md">
         <DialogHeader className="sr-only">
           <DialogTitle>{label} Settings</DialogTitle>
           <DialogDescription>
