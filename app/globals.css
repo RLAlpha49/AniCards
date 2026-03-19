@@ -420,21 +420,42 @@ body {
 }
 
 .marquee-row {
+  --marquee-fade-width: clamp(3rem, 8vw, 7rem);
+  position: relative;
   overflow: hidden;
   width: 100%;
-  mask-image: linear-gradient(
+  padding-block: 0.75rem;
+  isolation: isolate;
+}
+
+.marquee-row::before,
+.marquee-row::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--marquee-fade-width);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.marquee-row::before {
+  left: 0;
+  background: linear-gradient(
     to right,
-    transparent,
-    black 4%,
-    black 96%,
-    transparent
+    rgba(var(--background-start-rgb), 1),
+    rgba(var(--background-start-rgb), 0.92) 42%,
+    rgba(var(--background-start-rgb), 0)
   );
-  -webkit-mask-image: linear-gradient(
-    to right,
-    transparent,
-    black 4%,
-    black 96%,
-    transparent
+}
+
+.marquee-row::after {
+  right: 0;
+  background: linear-gradient(
+    to left,
+    rgba(var(--background-start-rgb), 1),
+    rgba(var(--background-start-rgb), 0.92) 42%,
+    rgba(var(--background-start-rgb), 0)
   );
 }
 

@@ -42,19 +42,18 @@ function MarqueeRow({ reverse = false }: Readonly<{ reverse?: boolean }>) {
         {[...cards, ...cards].map((card, i) => {
           const src = buildSrc(card.cardType, card.variation);
           return (
-            <a
+            <div
               key={`${card.cardType}-${i}`}
-              href={src}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex h-44 w-auto shrink-0 items-center justify-center rounded-sm border border-[hsl(var(--gold)/0.12)] transition-all duration-200 hover:scale-[1.03] hover:border-[hsl(var(--gold)/0.35)] hover:shadow-[0_0_12px_hsl(var(--gold)/0.15)]"
+              className="inline-flex h-auto w-auto shrink-0 items-center justify-center"
             >
-              <ImageWithSkeleton
-                src={src}
-                alt=""
-                className="h-full w-auto object-contain"
-              />
-            </a>
+              <a href={src} target="_blank" rel="noopener noreferrer">
+                <ImageWithSkeleton
+                  src={src}
+                  alt=""
+                  className="h-full w-auto rounded-lg! border border-[hsl(var(--gold)/0.12)] object-contain transition-all duration-200 hover:scale-[1.03] hover:border-[hsl(var(--gold)/0.35)] hover:shadow-[0_0_12px_hsl(var(--gold)/0.15)]"
+                />
+              </a>
+            </div>
           );
         })}
       </div>
@@ -64,7 +63,7 @@ function MarqueeRow({ reverse = false }: Readonly<{ reverse?: boolean }>) {
 
 export function CardMarquee() {
   return (
-    <section className="relative overflow-hidden py-16">
+    <section className="relative py-16">
       <div className="gold-line-thick mx-auto mb-10 max-w-[70%]" />
 
       <div className="space-y-6">
