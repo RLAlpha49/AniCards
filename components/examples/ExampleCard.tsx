@@ -1,11 +1,10 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check,Copy, Expand } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
-import { Card, CardContent } from "@/components/ui/Card";
 import { cn } from "@/lib/utils";
 
 interface CardVariant {
@@ -18,18 +17,12 @@ interface ExampleCardProps {
   variant: CardVariant;
   cardTypeTitle: string;
   gradient: string;
-  onOpenLightbox: () => void;
   index?: number;
 }
 
-/**
- * Redesigned example card with larger preview, lightbox trigger, and quick copy.
- */
 export function ExampleCard({
   variant,
   cardTypeTitle,
-  gradient,
-  onOpenLightbox,
   index = 0,
 }: Readonly<ExampleCardProps>) {
   const [copied, setCopied] = useState(false);
@@ -45,7 +38,6 @@ export function ExampleCard({
     async (e: React.MouseEvent) => {
       e.stopPropagation();
       if (!navigator.clipboard) {
-        console.warn("Clipboard API not available");
         return;
       }
       try {
@@ -60,83 +52,60 @@ export function ExampleCard({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 16 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-50px" }}
-      transition={{ duration: 0.4, delay: Math.min(index * 0.03, 0.3) }}
+      viewport={{ once: true, margin: "-40px" }}
+      transition={{ duration: 0.35, delay: Math.min(index * 0.04, 0.25) }}
       className="w-full"
     >
-      <Card
+      <div
         className={cn(
-          "group cursor-pointer overflow-hidden border-0 bg-white/80 shadow-lg shadow-slate-200/50 backdrop-blur-sm",
-          "transition-all duration-300 hover:-translate-y-1 hover:shadow-xl",
-          "dark:bg-slate-800/80 dark:shadow-slate-900/50",
+          "group relative w-full overflow-hidden text-left",
+          "border-gold/10 hover:border-gold/30 border-2 transition-all duration-300",
+          "hover:shadow-gold/5 hover:-translate-y-0.5 hover:shadow-lg",
+          "focus-within:border-gold/40 focus-within:shadow-gold/10 focus-within:shadow-lg",
         )}
-        onClick={onOpenLightbox}
       >
-        <CardContent className="p-0">
-          {/* Card preview area */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-slate-100 to-slate-50 p-4 dark:from-slate-900 dark:to-slate-800 sm:p-6">
-            {/* Decorative gradient blob */}
-            <div
-              className={cn(
-                "absolute -right-10 -top-10 h-32 w-32 rounded-full bg-gradient-to-r opacity-20 blur-2xl transition-all group-hover:scale-150 group-hover:opacity-30",
-                gradient,
-              )}
-            />
+        <a
+          href={variant.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`Open ${cardTypeTitle} — ${variant.name} in new tab`}
+          className="absolute inset-0 z-10"
+        />
+        <div className="pointer-events-none relative flex items-center justify-center bg-amber-50/20 p-4 dark:bg-white/2">
+          <ImageWithSkeleton
+            src={variant.url}
+            alt={`${cardTypeTitle} - ${variant.name}`}
+            className="h-auto w-full transition-transform duration-300 group-hover:scale-[1.01]"
+          />
+        </div>
 
-            {/* Card image */}
-            <div className="relative flex items-center justify-center">
-              <ImageWithSkeleton
-                src={variant.url}
-                alt={`${cardTypeTitle} - ${variant.name}`}
-                className="h-auto w-full rounded-lg shadow-sm transition-transform duration-300 group-hover:scale-[1.02]"
-              />
-            </div>
-
-            {/* Hover overlay */}
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-900/0 transition-colors duration-300 group-hover:bg-slate-900/50">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileHover={{ opacity: 1, scale: 1 }}
-                className="pointer-events-none flex items-center gap-2 rounded-full bg-white/95 px-4 py-2 font-medium text-slate-900 opacity-0 shadow-lg backdrop-blur-sm transition-all duration-300 group-hover:opacity-100"
-              >
-                <Expand className="h-4 w-4" />
-                View Full Size
-              </motion.div>
-            </div>
-          </div>
-
-          {/* Card info footer */}
-          <div className="p-4 sm:p-5">
-            <div className="mb-1 flex items-start justify-between gap-2">
-              <h4 className="line-clamp-1 font-bold text-slate-900 dark:text-white">
-                {variant.name}
-              </h4>
-              <button
-                type="button"
-                onClick={handleCopy}
-                className={cn(
-                  "shrink-0 rounded-full p-1.5 transition-all",
-                  copied
-                    ? "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400"
-                    : "text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-slate-300",
-                )}
-                aria-label={copied ? "Copied!" : "Copy embed URL"}
-              >
-                {copied ? (
-                  <Check className="h-4 w-4" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
-              </button>
-            </div>
-            <p className="line-clamp-1 text-sm text-slate-500 dark:text-slate-400">
-              {cardTypeTitle}
+        <div className="border-gold/10 pointer-events-none relative flex items-center justify-between gap-2 border-t px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-foreground line-clamp-1 text-sm font-medium">
+              {variant.name}
             </p>
           </div>
-        </CardContent>
-      </Card>
+          <button
+            type="button"
+            onClick={handleCopy}
+            className={cn(
+              "pointer-events-auto relative z-20 shrink-0 p-1.5 transition-colors",
+              copied
+                ? "text-green-600 dark:text-green-400"
+                : "text-foreground/30 hover:text-gold",
+            )}
+            aria-label={copied ? "Copied!" : "Copy embed URL"}
+          >
+            {copied ? (
+              <Check className="h-3.5 w-3.5" />
+            ) : (
+              <Copy className="h-3.5 w-3.5" />
+            )}
+          </button>
+        </div>
+      </div>
     </motion.div>
   );
 }

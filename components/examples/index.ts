@@ -1,5 +1,3 @@
-export type { LightboxCardData } from "./CardLightboxModal";
-export { CardLightboxModal } from "./CardLightboxModal";
 export { CategoryNavigation } from "./CategoryNavigation";
 export type { CardType, CardVariant } from "./CategorySection";
 export { CategorySection } from "./CategorySection";

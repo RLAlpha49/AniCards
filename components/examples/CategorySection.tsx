@@ -11,7 +11,6 @@ import {
   Users,
 } from "lucide-react";
 
-import type { LightboxCardData } from "./CardLightboxModal";
 import { ExampleCard } from "./ExampleCard";
 
 interface CardVariant {
@@ -39,7 +38,6 @@ interface CardType {
 interface CategorySectionProps {
   category: string;
   cardTypes: CardType[];
-  onOpenLightbox: (card: LightboxCardData) => void;
   isFirstCategory: boolean;
 }
 
@@ -62,70 +60,28 @@ const getCategoryIcon = (category: string): LucideIcon => {
   }
 };
 
-const getCategoryStyles = (category: string) => {
-  switch (category) {
-    case "Anime Deep Dive":
-      return {
-        bg: "bg-purple-100 dark:bg-purple-900/30",
-        text: "text-purple-600 dark:text-purple-400",
-        border: "border-purple-200/50 dark:border-purple-800/50",
-        gradient: "from-purple-500 to-violet-500",
-      };
-    case "Manga Deep Dive":
-      return {
-        bg: "bg-pink-100 dark:bg-pink-900/30",
-        text: "text-pink-600 dark:text-pink-400",
-        border: "border-pink-200/50 dark:border-pink-800/50",
-        gradient: "from-pink-500 to-rose-500",
-      };
-    case "Library & Progress":
-      return {
-        bg: "bg-emerald-100 dark:bg-emerald-900/30",
-        text: "text-emerald-600 dark:text-emerald-400",
-        border: "border-emerald-200/50 dark:border-emerald-800/50",
-        gradient: "from-emerald-500 to-green-500",
-      };
-    case "Activity & Engagement":
-      return {
-        bg: "bg-amber-100 dark:bg-amber-900/30",
-        text: "text-amber-600 dark:text-amber-400",
-        border: "border-amber-200/50 dark:border-amber-800/50",
-        gradient: "from-amber-500 to-orange-500",
-      };
-    case "Advanced Analytics":
-      return {
-        bg: "bg-indigo-100 dark:bg-indigo-900/30",
-        text: "text-indigo-600 dark:text-indigo-400",
-        border: "border-indigo-200/50 dark:border-indigo-800/50",
-        gradient: "from-indigo-500 to-blue-500",
-      };
-    case "Core Stats":
-    default:
-      return {
-        bg: "bg-blue-100 dark:bg-blue-900/30",
-        text: "text-blue-600 dark:text-blue-400",
-        border: "border-blue-200/50 dark:border-blue-800/50",
-        gradient: "from-blue-500 to-cyan-500",
-      };
-  }
+const CATEGORY_DESCRIPTIONS: Record<string, string> = {
+  "Core Stats": "Foundational cards showing your overall anime & manga profile",
+  "Anime Deep Dive":
+    "Detailed breakdowns of your anime genres, studios, and patterns",
+  "Manga Deep Dive":
+    "In-depth analysis of your manga reading habits and preferences",
+  "Activity & Engagement":
+    "Streaks, milestones, and patterns in your daily activity",
+  "Library & Progress":
+    "Favourites, backlog, and completion milestones at a glance",
+  "Advanced Analytics": "Cross-media comparisons and data-driven insights",
 };
 
-/**
- * Redesigned category section with anchor IDs and improved grid layout.
- */
 export function CategorySection({
   category,
   cardTypes,
-  onOpenLightbox,
   isFirstCategory,
 }: Readonly<CategorySectionProps>) {
   if (cardTypes.length === 0) return null;
 
   const CategoryIcon = getCategoryIcon(category);
-  const styles = getCategoryStyles(category);
   const categoryId = `category-${category.toLowerCase().replaceAll(/\s+/g, "-")}`;
-
-  // Count total variants in this category
   const totalVariants = cardTypes.reduce(
     (sum, ct) => sum + ct.variants.length,
     0,
@@ -139,67 +95,46 @@ export function CategorySection({
       whileInView={isFirstCategory ? undefined : { opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
       viewport={isFirstCategory ? undefined : { once: true, margin: "-100px" }}
-      className="scroll-mt-24 space-y-8"
+      className="scroll-mt-24"
     >
-      {/* Category Header */}
-      <div className="flex items-center gap-4">
-        <div className={`rounded-2xl p-3 ${styles.bg}`}>
-          <CategoryIcon className={`h-7 w-7 ${styles.text}`} />
+      <div className="mb-10 text-center">
+        <div className="border-gold/20 mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center border">
+          <CategoryIcon className="text-gold h-5 w-5" />
         </div>
-        <div className="flex-1">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white sm:text-2xl">
-            {category}
-          </h2>
-          <p className="text-sm text-slate-600 dark:text-slate-400">
-            {cardTypes.length} card type{cardTypes.length === 1 ? "" : "s"} •{" "}
-            {totalVariants} variant{totalVariants === 1 ? "" : "s"}
-          </p>
-        </div>
+        <h2 className="font-display text-foreground mb-2 text-sm tracking-[0.25em] uppercase sm:text-base">
+          {category}
+        </h2>
+        <p className="text-foreground/40 mx-auto mb-3 max-w-md text-sm">
+          {CATEGORY_DESCRIPTIONS[category]}
+        </p>
+        <div className="gold-line mx-auto max-w-32" />
+        <p className="text-foreground/30 mt-3 text-xs tabular-nums">
+          {cardTypes.length} card type{cardTypes.length === 1 ? "" : "s"} ·{" "}
+          {totalVariants} variant{totalVariants === 1 ? "" : "s"}
+        </p>
       </div>
 
-      {/* Card Types */}
-      <div className="space-y-12">
+      <div className="space-y-14">
         {cardTypes.map((cardType) => (
-          <div key={cardType.title} className="space-y-4">
-            {/* Card Type Header */}
-            <div
-              className={`flex items-center gap-3 rounded-xl border ${styles.border} bg-white/60 p-3 backdrop-blur-sm dark:bg-slate-800/60`}
-            >
-              <div className={`rounded-lg p-2 ${styles.bg}`}>
-                <cardType.icon className={`h-4 w-4 ${styles.text}`} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="truncate text-base font-bold text-slate-900 dark:text-white">
-                  {cardType.title}
-                </h3>
-                <p className="truncate text-xs text-slate-600 dark:text-slate-400">
-                  {cardType.description}
-                </p>
-              </div>
-              <span
-                className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${styles.bg} ${styles.text}`}
-              >
+          <div key={cardType.title}>
+            <div className="mb-5 flex items-center gap-3">
+              <cardType.icon className="text-gold/60 h-4 w-4 shrink-0" />
+              <h3 className="text-foreground text-sm font-semibold">
+                {cardType.title}
+              </h3>
+              <div className="gold-line flex-1" />
+              <span className="text-foreground/30 text-xs tabular-nums">
                 {cardType.variants.length}
               </span>
             </div>
 
-            {/* Variants Grid - Responsive masonry-style */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {cardType.variants.map((variant, variantIndex) => (
                 <ExampleCard
                   key={variant.name}
                   variant={variant}
                   cardTypeTitle={cardType.title}
                   gradient={cardType.gradient}
-                  onOpenLightbox={() =>
-                    onOpenLightbox({
-                      name: variant.name,
-                      url: variant.url,
-                      cardTypeTitle: cardType.title,
-                      category: cardType.category,
-                      description: cardType.description,
-                    })
-                  }
                   index={variantIndex}
                 />
               ))}

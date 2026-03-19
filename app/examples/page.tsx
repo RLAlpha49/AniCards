@@ -15,21 +15,18 @@ import {
   Users,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback,useMemo, useState } from "react";
+import type React from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import type {
-  CardType,
-  CardVariant,
-  LightboxCardData,
-} from "@/components/examples";
+import type { CardType, CardVariant } from "@/components/examples";
 import {
-  CardLightboxModal,
+  CategoryNavigation,
   CategorySection,
   CTASection,
   ExamplesHeroSection,
+  SearchFilterBar,
 } from "@/components/examples";
-import PageShell from "@/components/PageShell";
 import { usePageSEO } from "@/hooks/usePageSEO";
 import type { CardUrlParams } from "@/lib/card-groups";
 import {
@@ -69,7 +66,6 @@ type CardTypeMeta = Omit<CardType, "variants" | "gradient"> & {
  * Core metadata describing the card types that can appear in the gallery.
  */
 const CARD_TYPE_METADATA: CardTypeMeta[] = [
-  // Core Stats
   {
     title: "Anime Statistics",
     description:
@@ -109,7 +105,6 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
     color: "indigo",
   },
 
-  // Anime Deep Dive
   {
     title: "Anime Genres",
     description:
@@ -220,7 +215,6 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
     color: "indigo",
   },
 
-  // Manga Deep Dive
   {
     title: "Manga Genres",
     description: "Breakdown of your manga genre preferences",
@@ -278,7 +272,6 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
     color: "lime",
   },
 
-  // Activity & Engagement
   {
     title: "Recent Activity Summary",
     description: "Sparkline and stats summarizing recent activity",
@@ -322,7 +315,6 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
     color: "amber",
   },
 
-  // Library & Progress
   {
     title: "Favourites Summary",
     description:
@@ -391,7 +383,6 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
     color: "rose",
   },
 
-  // Advanced Analytics
   {
     title: "Anime vs Manga Score Comparison",
     description: "Compare your scoring patterns between anime and manga",
@@ -477,10 +468,6 @@ export default function ExamplesPage() {
   usePageSEO("examples");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [lightboxCard, setLightboxCard] = useState<LightboxCardData | null>(
-    null,
-  );
-  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
   const router = useRouter();
 
@@ -501,14 +488,7 @@ export default function ExamplesPage() {
     setActiveCategory(null);
   }, []);
 
-  const handleOpenLightbox = useCallback((card: LightboxCardData) => {
-    setLightboxCard(card);
-    setIsLightboxOpen(true);
-  }, []);
-
-  const handleCloseLightbox = useCallback(() => {
-    setIsLightboxOpen(false);
-  }, []);
+  const hasActiveFilters = searchQuery.length > 0 || activeCategory !== null;
 
   const cardTypesWithVariants = useMemo<CardType[]>(() => {
     return CARD_TYPE_METADATA.map((ct) => {
@@ -599,16 +579,13 @@ export default function ExamplesPage() {
     });
   }, []);
 
-  // Filter card types based on search and category
   const filteredCardTypes = useMemo(() => {
     let filtered = cardTypesWithVariants;
 
-    // Filter by category
     if (activeCategory) {
       filtered = filtered.filter((card) => card.category === activeCategory);
     }
 
-    // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
@@ -621,7 +598,6 @@ export default function ExamplesPage() {
     return filtered;
   }, [cardTypesWithVariants, searchQuery, activeCategory]);
 
-  // Build category info for navigation
   const categoryInfo = useMemo(() => {
     return CATEGORIES.map((category) => ({
       name: category,
@@ -630,7 +606,6 @@ export default function ExamplesPage() {
     }));
   }, [cardTypesWithVariants]);
 
-  // Calculate totals
   const totalCardTypes = cardTypesWithVariants.length;
   const totalVariants = useMemo(
     () => cardTypesWithVariants.reduce((sum, c) => sum + c.variants.length, 0),
@@ -645,71 +620,98 @@ export default function ExamplesPage() {
         setActiveCategory(null);
       }}
     >
-      <PageShell
-        heroContent={
-          <ExamplesHeroSection
-            searchQuery={searchQuery}
-            onSearchChange={handleSearchChange}
-            totalCardTypes={totalCardTypes}
-            totalVariants={totalVariants}
-            categories={categoryInfo}
-            activeCategory={activeCategory}
-            onCategoryChange={handleCategoryChange}
-            filteredCount={filteredCardTypes.length}
-            onStartCreating={handleStartCreating}
-            onClearFilters={handleClearFilters}
-          />
-        }
-        heroContentClassName="w-full"
-        variant="compact"
-      >
-        {/* Card Gallery */}
-        <section
-          id="card-gallery"
-          className="relative w-full overflow-hidden py-12 lg:py-16"
-        >
-          <div className="container relative mx-auto px-4">
-            <div className="mx-auto max-w-7xl space-y-16">
+      <div className="relative min-h-screen">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-30 dark:opacity-20"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0L60 30L30 60L0 30Z' fill='none' stroke='%23c9a84c15' stroke-width='1'/%3E%3C/svg%3E")`,
+          }}
+        />
+
+        <ExamplesHeroSection
+          totalCardTypes={totalCardTypes}
+          totalVariants={totalVariants}
+          categoryCount={CATEGORIES.length}
+          onStartCreating={handleStartCreating}
+        />
+
+        <div className="gold-line-thick mx-auto max-w-[50%]" />
+
+        <div className="sticky top-15 z-30 mx-auto mt-5 max-w-7xl backdrop-blur-sm">
+          <div className="border-gold/10 mx-auto max-w-7xl border px-4 pt-4 pb-0">
+            <div className="mb-3">
+              <SearchFilterBar
+                searchQuery={searchQuery}
+                onSearchChange={handleSearchChange}
+                resultCount={filteredCardTypes.length}
+                totalCount={totalCardTypes}
+                hasActiveFilters={hasActiveFilters}
+                onClearFilters={handleClearFilters}
+              />
+            </div>
+            <CategoryNavigation
+              categories={categoryInfo}
+              activeCategory={activeCategory}
+              onCategoryClick={handleCategoryChange}
+            />
+          </div>
+        </div>
+
+        <section id="card-gallery" className="relative w-full py-14 lg:py-20">
+          <div className="relative container mx-auto px-4">
+            <div className="mx-auto max-w-7xl space-y-20">
               {activeCategory ? (
-                // Show only the active category
                 <CategorySection
                   key={activeCategory}
                   category={activeCategory}
                   cardTypes={filteredCardTypes}
-                  onOpenLightbox={handleOpenLightbox}
                   isFirstCategory={true}
                 />
               ) : (
-                // Show all categories
-                CATEGORIES.map((category, categoryIndex) => {
-                  const categoryCardTypes = filteredCardTypes.filter(
-                    (card) => card.category === category,
-                  );
-                  if (categoryCardTypes.length === 0) return null;
-                  return (
-                    <CategorySection
-                      key={category}
-                      category={category}
-                      cardTypes={categoryCardTypes}
-                      onOpenLightbox={handleOpenLightbox}
-                      isFirstCategory={categoryIndex === 0}
-                    />
-                  );
-                })
+                CATEGORIES.reduce<React.ReactNode[]>(
+                  (nodes, category, categoryIndex) => {
+                    const categoryCardTypes = filteredCardTypes.filter(
+                      (card) => card.category === category,
+                    );
+                    if (categoryCardTypes.length === 0) return nodes;
+
+                    if (nodes.length > 0) {
+                      nodes.push(
+                        <div
+                          key={`divider-${category}`}
+                          className="gold-line mx-auto max-w-xs"
+                        />,
+                      );
+                    }
+
+                    nodes.push(
+                      <CategorySection
+                        key={category}
+                        category={category}
+                        cardTypes={categoryCardTypes}
+                        isFirstCategory={categoryIndex === 0}
+                      />,
+                    );
+                    return nodes;
+                  },
+                  [],
+                )
               )}
 
-              {/* Empty state */}
               {filteredCardTypes.length === 0 && (
-                <div className="py-20 text-center">
-                  <p className="text-lg text-slate-600 dark:text-slate-400">
-                    No cards found matching your search.
+                <div className="py-24 text-center">
+                  <p className="font-display text-foreground/30 mb-2 text-lg tracking-wider">
+                    NO RESULTS
+                  </p>
+                  <p className="font-body-serif text-foreground/40 text-sm">
+                    No cards match your current filters.
                   </p>
                   <button
                     type="button"
                     onClick={handleClearFilters}
-                    className="mt-4 font-medium text-purple-600 hover:underline dark:text-purple-400"
+                    className="text-gold mt-6 text-sm font-medium hover:underline"
                   >
-                    Clear filters
+                    Clear all filters
                   </button>
                 </div>
               )}
@@ -717,17 +719,8 @@ export default function ExamplesPage() {
           </div>
         </section>
 
-        {/* Call to Action */}
         <CTASection onStartCreating={handleStartCreating} />
-      </PageShell>
-
-      {/* Lightbox Modal */}
-      <CardLightboxModal
-        isOpen={isLightboxOpen}
-        onClose={handleCloseLightbox}
-        card={lightboxCard}
-        onCreateYourOwn={handleStartCreating}
-      />
+      </div>
     </ErrorBoundary>
   );
 }

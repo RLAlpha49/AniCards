@@ -1,10 +1,8 @@
 "use client";
 
-import { AnimatePresence,motion } from "framer-motion";
-import { Search, SlidersHorizontal,X } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Search, X } from "lucide-react";
 
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
 
 interface SearchFilterBarProps {
@@ -16,10 +14,6 @@ interface SearchFilterBarProps {
   onClearFilters: () => void;
 }
 
-/**
- * Enhanced search bar with result count and clear filters action.
- * Designed to be used inline or sticky positioned.
- */
 export function SearchFilterBar({
   searchQuery,
   onSearchChange,
@@ -28,83 +22,69 @@ export function SearchFilterBar({
   hasActiveFilters,
   onClearFilters,
 }: Readonly<SearchFilterBarProps>) {
-  const showClear = searchQuery.length > 0 || hasActiveFilters;
   const isFiltered = resultCount !== totalCount;
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-      {/* Search input */}
+    <div className="flex items-center gap-3">
       <div className="relative flex-1">
-        <Search className="absolute left-4 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-slate-400" />
-        <Input
+        <Search className="text-foreground/30 absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2" />
+        <input
           type="text"
-          placeholder="Search cards by name or description..."
+          placeholder="Search cards…"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           className={cn(
-            "h-12 rounded-full border-slate-200/50 bg-white/80 pl-11 pr-10 text-base backdrop-blur-sm",
-            "placeholder:text-slate-400 focus:border-purple-300 focus:ring-purple-200",
-            "dark:border-slate-700/50 dark:bg-slate-800/80 dark:focus:border-purple-700 dark:focus:ring-purple-900",
+            "border-gold/15 bg-background h-10 w-full rounded-none border pr-9 pl-10 text-sm",
+            "text-foreground placeholder:text-foreground/35",
+            "focus:border-gold/40 focus:ring-gold/15 focus:ring-1 focus:outline-none",
           )}
         />
         <AnimatePresence>
           {searchQuery.length > 0 && (
             <motion.button
               type="button"
-              initial={{ opacity: 0, scale: 0.8 }}
+              initial={{ opacity: 0, scale: 0.7 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
+              exit={{ opacity: 0, scale: 0.7 }}
               onClick={() => onSearchChange("")}
-              className="absolute right-3 top-1/4 flex h-6 w-6 items-center rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
+              className="text-foreground/40 hover:text-foreground/60 absolute top-1/2 right-2.5 -translate-y-1/2"
               aria-label="Clear search"
             >
-              <X className="h-4 w-4" />
+              <X className="h-3.5 w-3.5" />
             </motion.button>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Results count and clear */}
-      <div className="flex items-center gap-3">
-        <AnimatePresence mode="wait">
-          {isFiltered && (
-            <motion.div
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              className="flex items-center gap-2"
-            >
-              <SlidersHorizontal className="h-4 w-4 text-purple-500" />
-              <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                <span className="font-bold text-purple-600 dark:text-purple-400">
-                  {resultCount}
-                </span>{" "}
-                of {totalCount} cards
-              </span>
-            </motion.div>
-          )}
-        </AnimatePresence>
+      <AnimatePresence>
+        {isFiltered && (
+          <motion.span
+            initial={{ opacity: 0, x: 8 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 8 }}
+            className="text-foreground/50 shrink-0 text-xs tabular-nums"
+          >
+            <span className="text-gold font-semibold">{resultCount}</span>
+            <span className="text-foreground/30 mx-0.5">/</span>
+            {totalCount}
+          </motion.span>
+        )}
+      </AnimatePresence>
 
-        <AnimatePresence>
-          {showClear && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-            >
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onClearFilters}
-                className="h-9 rounded-full px-4 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
-              >
-                <X className="mr-1 h-3 w-3" />
-                Clear
-              </Button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      <AnimatePresence>
+        {hasActiveFilters && (
+          <motion.button
+            type="button"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            onClick={onClearFilters}
+            className="text-foreground/50 hover:text-gold border-gold/15 shrink-0 border px-3 py-1.5 text-xs font-medium transition-colors"
+          >
+            Clear
+          </motion.button>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
