@@ -4,7 +4,6 @@ export interface CardDimensions {
 }
 
 export const CARD_DIMENSIONS = {
-  // Social stats variants
   socialStats: {
     default: { w: 280, h: 195 },
     compact: { w: 280, h: 160 },
@@ -12,12 +11,10 @@ export const CARD_DIMENSIONS = {
     badges: { w: 280, h: 220 },
   },
 
-  // Social & community cards
   socialMilestones: {
     default: { w: 350, h: 270 },
   },
 
-  // Media stats variants
   mediaStats: {
     default: { w: 450, h: 195 },
     vertical: { w: 260, h: 350 },
@@ -25,7 +22,6 @@ export const CARD_DIMENSIONS = {
     minimal: { w: 220, h: 140 },
   },
 
-  // Activity stats
   activityStreaks: {
     default: { w: 280, h: 160 },
   },
@@ -36,13 +32,11 @@ export const CARD_DIMENSIONS = {
     default: { w: 320, h: 180 },
   },
 
-  // Distribution variants
   distribution: {
     default: { w: 350, h: 260 },
     horizontal: { w: 320, h: 150 },
   },
 
-  // Completion progress stats
   statusCompletionOverview: {
     combined: { w: 400, h: 150 },
     split: { w: 450, h: 220 },
@@ -65,7 +59,6 @@ export const CARD_DIMENSIONS = {
     default: { w: 420, h: 260 },
   },
 
-  // Profile and favorites
   profileOverview: {
     default: { w: 300, h: 170 },
   },
@@ -73,7 +66,6 @@ export const CARD_DIMENSIONS = {
     default: { w: 350, h: 180 },
   },
 
-  // Comparative & distribution cards
   animeMangaOverview: {
     default: { w: 450, h: 220 },
   },
@@ -99,7 +91,6 @@ export const CARD_DIMENSIONS = {
     default: { w: 450, h: 220 },
   },
 
-  // Extra anime/manga stats
   extraStats: {
     default: { w: 280, h: 195 },
     pie: { w: 340, h: 195 },
@@ -108,7 +99,6 @@ export const CARD_DIMENSIONS = {
     radar: { w: 450, h: 195 },
   },
 
-  // User analytics cards
   tagCategoryDistribution: {
     default: { w: 450, h: 220 },
   },

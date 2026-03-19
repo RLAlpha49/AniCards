@@ -14,7 +14,6 @@ import type { NextConfig } from "next";
  * @see app/middleware.ts for CSP header generation
  * @see lib/csp-config.ts for CSP directive configuration
  * @see docs/SECURITY.md for comprehensive security documentation
- * @source
  */
 const nextConfig: NextConfig = {
   env: {
@@ -49,7 +48,6 @@ const nextConfig: NextConfig = {
         protocol: "http",
         port: "3000",
       },
-      // AniList hosts
       {
         hostname: "anilist.co",
         protocol: "https",
@@ -97,34 +95,28 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // Apply security headers to all routes
         source: "/:path*",
         headers: [
           {
-            // Enable DNS prefetching for improved performance
             key: "X-DNS-Prefetch-Control",
             value: "on",
           },
           {
-            // Prevent clickjacking by disallowing embedding in frames
             // This is redundant with CSP frame-ancestors but provides defense-in-depth
             key: "X-Frame-Options",
             value: "DENY",
           },
           {
-            // Prevent browsers from MIME-sniffing a response away from the declared content-type
             // This prevents attacks based on MIME type confusion
             key: "X-Content-Type-Options",
             value: "nosniff",
           },
           {
-            // Control how much referrer information is included with requests
             // strict-origin-when-cross-origin: Full URL for same-origin, only origin for cross-origin
             key: "Referrer-Policy",
             value: "strict-origin-when-cross-origin",
           },
           {
-            // Disable unnecessary browser features to reduce attack surface
             // This prevents malicious scripts from accessing sensitive APIs
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=()",

@@ -209,7 +209,6 @@ export function updatePageTitle(pageKey: keyof typeof seoConfigs) {
       ? config.title
       : `${config.title} | ${SITE_NAME}`;
 
-    // Update meta description
     const metaDescription = document.querySelector('meta[name="description"]');
     if (metaDescription) {
       metaDescription.setAttribute("content", config.description);
@@ -220,7 +219,6 @@ export function updatePageTitle(pageKey: keyof typeof seoConfigs) {
       document.head.appendChild(meta);
     }
 
-    // Update meta keywords
     const metaKeywords = document.querySelector('meta[name="keywords"]');
     if (metaKeywords) {
       metaKeywords.setAttribute("content", config.keywords?.join(", ") || "");
@@ -231,7 +229,6 @@ export function updatePageTitle(pageKey: keyof typeof seoConfigs) {
       document.head.appendChild(meta);
     }
 
-    // Update canonical URL
     let canonical = document.querySelector('link[rel="canonical"]');
     if (canonical) {
       canonical.setAttribute("href", config.canonical || SITE_URL);

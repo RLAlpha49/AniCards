@@ -169,7 +169,6 @@ describe("Cron API POST Endpoint", () => {
     sharedRedisMockMget.mockReset();
     sharedRedisMockPipelineExec.mockReset();
 
-    // Restore default behaviors
     sharedRedisMockMget.mockImplementation(async (...keys: string[]) =>
       keys.map(() => null),
     );
@@ -259,7 +258,6 @@ describe("Cron API POST Endpoint", () => {
       expect(text).toContain(
         "Updated 0/0 users successfully. Failed: 0, Removed: 0",
       );
-      // Should include scheduling recommendations even when there are zero users
       expect(text).toContain(
         `Recommended schedules to refresh all 0 users at least once per 24 hours:`,
       );
@@ -326,7 +324,6 @@ describe("Cron API POST Endpoint", () => {
       const text = await res.text();
       expect(text).toContain("Updated 5/5 users successfully");
 
-      // Verify the cron recommendations are included and correct for 15 users
       expect(text).toContain("Update 5 users/run: 0 */8 * * *");
       expect(text).toContain("Update 10 users/run: 0 */12 * * *");
 
@@ -395,7 +392,7 @@ describe("Cron API POST Endpoint", () => {
 
       sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
-          return Promise.resolve(null); // No previous failures
+          return Promise.resolve(null);
         }
         return Promise.resolve(JSON.stringify(createMockUserRecord("123")));
       });
@@ -420,7 +417,7 @@ describe("Cron API POST Endpoint", () => {
 
       sharedRedisMockGet.mockImplementation((key: string) => {
         if (key === "failed_updates:123") {
-          return Promise.resolve("1"); // Already has 1 failure
+          return Promise.resolve("1");
         }
         return Promise.resolve(JSON.stringify(createMockUserRecord("123")));
       });
@@ -443,7 +440,7 @@ describe("Cron API POST Endpoint", () => {
 
       sharedRedisMockGet.mockImplementation((key: string) => {
         if (key === "failed_updates:123") {
-          return Promise.resolve("2"); // Already has 2 failures
+          return Promise.resolve("2");
         }
         return Promise.resolve(JSON.stringify(createMockUserRecord("123")));
       });
@@ -524,8 +521,7 @@ describe("Cron API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
       const text = await res.text();
-      expect(text).toContain("Failed: 0"); // Not a 404, so not counted as failed
-      // Verify fetch was retried 3 times
+      expect(text).toContain("Failed: 0");
       expect(globalThis.fetch).toHaveBeenCalledTimes(3);
     });
 
@@ -585,8 +581,6 @@ describe("Cron API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      // Verify that sharedRedisMockSet was called to update user data
-      // It should be called 8 times for the split parts
       expect(sharedRedisMockSet).toHaveBeenCalledWith(
         "user:123:activity",
         expect.stringContaining(JSON.stringify(mockStatsData.data)),
@@ -622,7 +616,6 @@ describe("Cron API POST Endpoint", () => {
 
       expect(res.status).toBe(200);
 
-      // Extract the call to sharedRedisMockSet for user:123:meta
       const setCall = (
         sharedRedisMockSet.mock.calls as [string, unknown][]
       ).find(([key]) => key === "user:123:meta");
@@ -645,7 +638,7 @@ describe("Cron API POST Endpoint", () => {
 
       sharedRedisMockGet.mockImplementation((key: string) => {
         if (key.startsWith("failed_updates:")) {
-          return Promise.resolve("1"); // Had previous failures
+          return Promise.resolve("1");
         }
         return Promise.resolve(JSON.stringify(createMockUserRecord("123")));
       });
@@ -666,7 +659,6 @@ describe("Cron API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      // Verify failure tracking key was deleted
       expect(sharedRedisMockDel).toHaveBeenCalledWith("failed_updates:123");
     });
   });

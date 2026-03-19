@@ -218,7 +218,6 @@ const userAnalyticsDefaultVariations = [{ id: "default", label: "Default" }];
 const studioDefaultVariations = [{ id: "default", label: "Default" }];
 
 export const statCardTypes = [
-  // Group: Core Stats
   createCardType(
     "animeStats",
     "Core Stats",
@@ -250,7 +249,6 @@ export const statCardTypes = [
     comparativeDefaultVariations,
   ),
 
-  // Group: Anime Deep Dive
   ...animeBreakdownCards.map((card) =>
     createCardType(
       card.id,
@@ -278,7 +276,6 @@ export const statCardTypes = [
     yearDistributionVariations,
   ),
 
-  // Group: Manga Deep Dive
   ...mangaBreakdownCards.map((card) =>
     createCardType(
       card.id,
@@ -300,7 +297,6 @@ export const statCardTypes = [
     yearDistributionVariations,
   ),
 
-  // Group: Activity & Engagement
   ...activityCards.map((card) =>
     createCardType(
       card.id,
@@ -328,7 +324,6 @@ export const statCardTypes = [
     userAnalyticsDefaultVariations,
   ),
 
-  // Group: Library & Progress
   createCardType(
     "favoritesSummary",
     "Library & Progress",
@@ -351,7 +346,6 @@ export const statCardTypes = [
     userAnalyticsDefaultVariations,
   ),
 
-  // Group: Advanced Analytics
   createCardType(
     "scoreCompareAnimeManga",
     "Advanced Analytics",

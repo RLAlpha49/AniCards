@@ -49,11 +49,9 @@ async function expectOkJson(
   expect(res.status).toBe(200);
   const json = await getResponseJson<Record<string, unknown>>(res);
 
-  // Check core fields
   expect(String(json.userId)).toBe(String(expected.userId));
   if (expected.username) expect(json.username).toBe(expected.username);
 
-  // Check statistics if present in expected (allow explicit null)
   if (
     Object.hasOwn(expected, "statistics") ||
     Object.hasOwn(expected, "stats")
@@ -68,7 +66,6 @@ async function expectOkJson(
     }
   }
 
-  // Check favourites if provided in expected
   if (expected.favourites || expected.favorites) {
     const expFavs = expected.favourites || expected.favorites;
     if (typeof expFavs === "object" && expFavs !== null) {
@@ -78,7 +75,6 @@ async function expectOkJson(
     }
   }
 
-  // Check other fields if they were in expected
   Object.keys(expected).forEach((key) => {
     if (
       ![
@@ -103,7 +99,6 @@ function mockRedisSequence(...values: Array<unknown>) {
 
   let callIndex = 0;
   sharedRedisMockGet.mockImplementation(async (key: string) => {
-    // If we are looking for a part key and we only have one value (legacy mock), return null
     if (
       values.length === 1 &&
       (key.endsWith(":meta") ||

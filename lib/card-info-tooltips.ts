@@ -5,25 +5,21 @@
  * @source
  */
 export const CARD_INFO_TOOLTIPS: Record<string, string> = {
-  // Diversity cards - explain the (non-obvious) Shannon diversity calculation.
   countryDiversity: String.raw`Normalized Shannon entropy (0–100): $$H' = \frac{-\sum_{i=1}^{k} p_i \ln p_i}{\ln k}$$ where $p_i$ is the share of titles in country $i$ and $k$ is the number of countries. Higher = more even country mix.`,
 
   genreDiversity: String.raw`Normalized Shannon entropy (0–100): $$H' = \frac{-\sum_{i=1}^{k} p_i \ln p_i}{\ln k}$$ where $p_i$ is the share of titles in genre $i$ and $k$ is the number of genres. Higher = more even genre spread.`,
 
   tagDiversity: String.raw`Normalized Shannon entropy (0–100): $$H' = \frac{-\sum_{i=1}^{k} p_i \ln p_i}{\ln k}$$ where $p_i$ is the share of titles with tag $i$ and $k$ is the number of tags. Higher = more even tag spread.`,
 
-  // Score distribution cards
   animeScoreDistribution:
     "Shows how you rate your anime across score buckets. The cumulative view shows the percentage of titles at or below each score bucket.",
 
   mangaScoreDistribution:
     "Shows how you rate your manga across score buckets. The cumulative view shows the percentage of titles at or below each score bucket.",
 
-  // Activity cards
   activityStreaks:
     "Consecutive days with AniList activity. Current = ongoing streak; Longest = your best record.",
 
-  // Synergy and preference cards
   animeGenreSynergy:
     "Counts how often genre pairs co-occur in your COMPLETED anime. Each title contributes 1 to each unique pair. Shows the top pairs.",
 
@@ -48,7 +44,6 @@ export const CARD_INFO_TOOLTIPS: Record<string, string> = {
   tagCategoryDistribution:
     "Groups AniList tags into their categories and sums the tag counts per category. Shows the top categories for Anime vs Manga.",
 
-  // Format and source cards
   formatPreferenceOverview:
     "Compares your consumption across different media formats (TV, Movie, OVA, etc. for anime; Manga, Light Novel, etc. for manga).",
 

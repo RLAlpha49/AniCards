@@ -42,7 +42,6 @@ test.describe("Home page", () => {
       };
     });
 
-    // Ensure the showcase is at least partially visible in the viewport
     expect(viewportState.top).toBeLessThan(viewportState.viewportHeight);
     expect(viewportState.bottom).toBeGreaterThan(0);
   });

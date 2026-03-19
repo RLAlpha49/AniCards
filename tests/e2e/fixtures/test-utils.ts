@@ -26,7 +26,6 @@ export interface AniCardsFixtures {
  */
 export const test = base.extend<AniCardsFixtures>({
   mockSuccessfulApi: async ({ page }, use) => {
-    // Mock the card API endpoint
     await page.route("**/api/card**", async (route: Route) => {
       const url = new URL(route.request().url());
       const username = url.searchParams.get("username");
@@ -40,7 +39,6 @@ export const test = base.extend<AniCardsFixtures>({
         return;
       }
 
-      // Return a mock SVG card
       await route.fulfill({
         status: 200,
         contentType: "image/svg+xml",
@@ -52,7 +50,6 @@ export const test = base.extend<AniCardsFixtures>({
       });
     });
 
-    // Mock the get-user API endpoint
     await page.route("**/api/get-user**", async (route: Route) => {
       await route.fulfill({
         status: 200,
@@ -61,7 +58,6 @@ export const test = base.extend<AniCardsFixtures>({
       });
     });
 
-    // Mock the get-cards API endpoint
     await page.route("**/api/get-cards**", async (route: Route) => {
       await route.fulfill({
         status: 200,
@@ -70,7 +66,6 @@ export const test = base.extend<AniCardsFixtures>({
       });
     });
 
-    // Mock the store-cards API endpoint
     await page.route("**/api/store-cards**", async (route: Route) => {
       await route.fulfill({
         status: 200,
@@ -79,7 +74,6 @@ export const test = base.extend<AniCardsFixtures>({
       });
     });
 
-    // Mock the store-users API endpoint
     await page.route("**/api/store-users**", async (route: Route) => {
       await route.fulfill({
         status: 200,

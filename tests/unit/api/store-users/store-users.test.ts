@@ -18,7 +18,6 @@ import {
   sharedRedisMockSet,
 } from "@/tests/unit/__setup__";
 
-// Set the app URL for same-origin validation testing
 const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
 process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
 
@@ -32,7 +31,6 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
-  // Restore the original app URL
   if (originalAppUrl === undefined) {
     delete process.env.NEXT_PUBLIC_APP_URL;
   } else {
@@ -94,7 +92,6 @@ describe("Store Users API", () => {
     sharedRedisMockMget.mockReset();
     sharedRedisMockPipelineExec.mockReset();
 
-    // Restore default behaviors
     sharedRedisMockIncr.mockResolvedValue(1);
     sharedRatelimitMockLimit.mockResolvedValue({ success: true });
     sharedRedisMockMget.mockImplementation(mgetReturnNulls);
@@ -309,7 +306,6 @@ describe("Store Users API", () => {
       expect(data.userId).toBe(1);
 
       expect(sharedRedisMockGet).toHaveBeenCalledWith("user:1");
-      // 9 parts (split storage) + 1 username index = 10 sets
       expect(sharedRedisMockSet).toHaveBeenCalledTimes(10);
 
       const metaValue = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
@@ -478,7 +474,6 @@ describe("Store Users API", () => {
           count: number;
         }>;
 
-      // Dedupes by media id across CURRENT + COMPLETED (mediaId=10 appears twice)
       expect(totals).toContainEqual({ source: "MANGA", count: 1 });
       expect(totals).toContainEqual({ source: "ORIGINAL", count: 1 });
       expect(totals).toContainEqual({ source: "UNKNOWN", count: 1 });
@@ -580,7 +575,6 @@ describe("Store Users API", () => {
         count: number;
       }>;
 
-      // Dedupes by media id across CURRENT + COMPLETED (mediaId=10 appears twice)
       expect(totals).toContainEqual({ season: "WINTER", count: 1 });
       expect(totals).toContainEqual({ season: "SPRING", count: 1 });
       expect(totals).toContainEqual({ season: "UNKNOWN", count: 1 });
@@ -666,9 +660,7 @@ describe("Store Users API", () => {
         count: number;
       }>;
 
-      // "Action + Drama" appears in two completed titles.
       expect(totals).toContainEqual({ a: "Action", b: "Drama", count: 2 });
-      // Other pairs appear once.
       expect(totals).toContainEqual({ a: "Action", b: "Comedy", count: 1 });
       expect(totals).toContainEqual({ a: "Comedy", b: "Drama", count: 1 });
       expect(totals).toContainEqual({ a: "Drama", b: "Fantasy", count: 1 });
@@ -835,16 +827,13 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      // 9 (migration) + 9 (save) + 1 (username) = 19
       expect(sharedRedisMockSet).toHaveBeenCalledTimes(19);
 
-      // The last save's meta is at index 9
       const metaValue = JSON.parse(sharedRedisMockSet.mock.calls[9][1]);
       expect(metaValue.createdAt).toBe("2022-01-01T00:00:00.000Z");
       expect(metaValue.updatedAt).not.toBe("2022-01-01T00:00:00.000Z");
       expect(metaValue.username).toBe("NewName");
 
-      // The last save's stats is at index 10
       const statsValue = JSON.parse(sharedRedisMockSet.mock.calls[10][1]);
       expect(statsValue).toEqual({ score: 100 });
     });
@@ -891,7 +880,6 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      // 9 (migration) + 9 (save) = 18
       expect(sharedRedisMockSet).toHaveBeenCalledTimes(18);
       const metaValue = JSON.parse(sharedRedisMockSet.mock.calls[9][1]);
       expect(metaValue.username).toBeUndefined();
@@ -916,7 +904,6 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      // 9 (migration) + 9 (save) + 1 (username) = 19
       expect(sharedRedisMockSet).toHaveBeenCalledTimes(19);
       expect(sharedRedisMockSet.mock.calls[18][0]).toBe("username:newname");
       expect(sharedRedisMockSet.mock.calls[18][1]).toBe("8");

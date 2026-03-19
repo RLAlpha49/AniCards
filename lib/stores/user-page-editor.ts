@@ -325,7 +325,6 @@ export interface UserPageEditorActions {
    */
   applyLocalEditsPatch: (patch: LocalEditsPatch) => void;
 
-  // Initialize from server data
   initializeFromServerData: (
     userId: string,
     username: string | null,
@@ -357,7 +356,6 @@ export interface UserPageEditorActions {
   importSettingsTemplates: (templates: SettingsTemplateV1[]) => void;
   exportSettingsTemplates: () => SettingsExportV1;
 
-  // Get effective colors for a card (considering overrides)
   getEffectiveColors: (cardId: string) => ColorValue[];
   getEffectiveBorderColor: (cardId: string) => string | undefined;
   getEffectiveBorderRadius: (cardId: string) => number;
@@ -612,7 +610,6 @@ function areCardConfigsEqual(
   if (a.borderColor !== b.borderColor) return false;
   if (a.borderRadius !== b.borderRadius) return false;
 
-  // Color override
   if (a.colorOverride.useCustomSettings !== b.colorOverride.useCustomSettings)
     return false;
   if (a.colorOverride.colorPreset !== b.colorOverride.colorPreset) return false;
@@ -1033,7 +1030,6 @@ function processServerCards(
     );
   }
 
-  // Build global advanced settings from server settings or defaults
   const globalAdvancedSettings: CardAdvancedSettings = {
     useStatusColors:
       serverGlobalSettings?.useStatusColors ??
@@ -1338,7 +1334,6 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
               colorOverride: {
                 ...existing.colorOverride,
                 useCustomSettings: useCustom,
-                // Initialize with global colors when enabling custom
                 colors: useCustom
                   ? existing.colorOverride.colors || [...globalColors]
                   : existing.colorOverride.colors,
@@ -1840,7 +1835,6 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
             nextBaselineCardOrder = [...applied.cardOrder];
           }
 
-          // Apply baseline updates and reset save state
           set(
             {
               baselineGlobalSnapshot: nextBaselineGlobal,
@@ -1976,7 +1970,6 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
           setWithDirty(next, "applyLocalEditsPatch");
         },
 
-        // Initialize from server data
         initializeFromServerData: (
           userId,
           username,
@@ -2229,7 +2222,6 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
           };
         },
 
-        // Get effective colors for a card
         getEffectiveColors: (cardId) => {
           const { cardConfigs, globalColors } = get();
           const config = cardConfigs[cardId];

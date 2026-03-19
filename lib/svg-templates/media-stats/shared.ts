@@ -197,7 +197,6 @@ function getVariantContent(
       </g>
     `;
   } else {
-    // Default variant
     const stats = [
       { label: "Count:", value: data.stats.count },
       { label: `${config.mainStat.label}:`, value: config.mainStat.value },
@@ -256,7 +255,6 @@ export const mediaStatsTemplate = (data: {
     dashoffset: string;
   };
 }): TrustedSVG => {
-  // Process colors for gradient support
   const { gradientDefs, resolvedColors } = processColorsForSVG(
     {
       titleColor: data.styles.titleColor,

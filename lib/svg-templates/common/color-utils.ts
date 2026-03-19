@@ -58,7 +58,6 @@ export const tryParseJsonGradient = (
 export const resolveCircleBaseColor = (
   value: ColorValue | undefined,
 ): string => {
-  // Handle gradient objects (in-memory form)
   if (value && typeof value === "object" && isGradient(value)) {
     for (const stop of value.stops) {
       if (stop.color && isValidHexColor(stop.color)) {
@@ -68,7 +67,6 @@ export const resolveCircleBaseColor = (
     return DEFAULT_STAT_BASE_COLOR;
   }
 
-  // Handle string values
   if (typeof value === "string") {
     // Try hex first
     if (isValidHexColor(value)) {
