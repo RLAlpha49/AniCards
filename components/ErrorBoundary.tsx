@@ -7,7 +7,7 @@ import { Component } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
-import { safeTrack,trackError } from "@/lib/utils/google-analytics";
+import { safeTrack, trackError } from "@/lib/utils/google-analytics";
 
 type ResetKey = string | number | boolean;
 
@@ -145,23 +145,23 @@ export class ErrorBoundary extends Component<
       "We couldn't render this part of the experience.";
 
     return (
-      <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-slate-100 via-white to-slate-200 px-4 py-12 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
-        <div className="w-full max-w-2xl space-y-10 rounded-3xl border border-red-200 bg-white/80 p-8 shadow-2xl backdrop-blur-xl dark:border-red-900/60 dark:bg-slate-900/80">
+      <div className="flex min-h-screen w-full items-center justify-center bg-linear-to-br from-amber-50/50 via-white to-amber-100/30 px-4 py-12 dark:from-[#0C0A10] dark:via-[#110E18] dark:to-[#0C0A10]">
+        <div className="dark:bg-background/80 w-full max-w-2xl space-y-10 rounded-3xl border border-red-200 bg-white/80 p-8 shadow-2xl backdrop-blur-xl dark:border-red-900/60">
           <div className="flex items-center gap-3">
             <span className="rounded-full bg-red-100 p-2 text-red-600 dark:bg-red-900/50 dark:text-red-300">
               <AlertCircle className="h-6 w-6" />
             </span>
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-600 dark:text-red-400">
+              <p className="text-sm font-semibold tracking-[0.3em] text-red-600 uppercase dark:text-red-400">
                 Error
               </p>
-              <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+              <h1 className="text-foreground text-3xl font-bold">
                 Something went wrong
               </h1>
             </div>
           </div>
 
-          <p className="text-base leading-relaxed text-slate-600 dark:text-slate-300">
+          <p className="text-foreground/60 text-base leading-relaxed">
             {errorMessage}
           </p>
 

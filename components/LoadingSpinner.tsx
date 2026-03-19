@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { type ReactNode,useId } from "react";
+import { type ReactNode, useId } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -39,7 +39,6 @@ export function LoadingSpinner({
   // Convert React id to a safe HTML id for SVG titles.
   const safeId = id.replaceAll(".", "-").replaceAll(":", "-");
 
-  // Size variants for different usage contexts
   const sizes = {
     sm: "h-4 w-4",
     md: "h-8 w-8",
@@ -78,7 +77,6 @@ export function LoadingSpinner({
             </linearGradient>
           </defs>
 
-          {/* Background track */}
           <circle
             cx="12"
             cy="12"
@@ -89,7 +87,6 @@ export function LoadingSpinner({
             strokeOpacity="0.08"
           />
 
-          {/* Partial arc */}
           <motion.circle
             cx="12"
             cy="12"
@@ -104,7 +101,6 @@ export function LoadingSpinner({
           />
         </svg>
 
-        {/* Progress ring overlay when progress is provided */}
         {hasProgress && (
           <svg
             className="absolute inset-0 h-full w-full -rotate-90"
@@ -123,7 +119,6 @@ export function LoadingSpinner({
               </linearGradient>
             </defs>
 
-            {/* Background track */}
             <circle
               cx="12"
               cy="12"
@@ -134,7 +129,6 @@ export function LoadingSpinner({
               strokeOpacity="0.1"
             />
 
-            {/* Progress arc */}
             <motion.circle
               cx="12"
               cy="12"
@@ -156,7 +150,6 @@ export function LoadingSpinner({
         )}
       </motion.div>
 
-      {/* Progress label if both progress and text are provided */}
       {hasProgress && showProgressLabel && (
         <motion.span
           className="text-xs font-semibold text-blue-600 dark:text-blue-400"
@@ -198,7 +191,7 @@ export function LoadingOverlay({
   children,
 }: Readonly<LoadingOverlayProps>) {
   return (
-    <div className="pointer-events-none absolute inset-0 z-[1000] flex items-center justify-center rounded-2xl bg-white/80 backdrop-blur-sm dark:bg-gray-900/80">
+    <div className="pointer-events-none absolute inset-0 z-1000 flex items-center justify-center rounded-2xl bg-white/80 backdrop-blur-sm dark:bg-gray-900/80">
       <div className="flex flex-col items-center gap-4">
         <LoadingSpinner size="lg" className="text-primary" text={text} />
         {children}

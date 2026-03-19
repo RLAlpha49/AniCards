@@ -3,7 +3,12 @@ import "./globals.css";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import {
+  Geist,
+  Geist_Mono,
+  Libre_Baskerville,
+  Playfair_Display_SC,
+} from "next/font/google";
 import { headers } from "next/headers";
 import { Suspense } from "react";
 
@@ -14,7 +19,7 @@ import GithubCorner from "@/components/GithubCorner";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
 import { LayoutShell } from "@/components/LayoutShell";
 import { generateMetadata as createMetadata } from "@/lib/seo";
-import { generateJsonLd,generateStructuredData } from "@/lib/structured-data";
+import { generateJsonLd, generateStructuredData } from "@/lib/structured-data";
 
 import { Providers } from "./providers";
 
@@ -34,6 +39,19 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+const playfairDisplaySC = Playfair_Display_SC({
+  variable: "--font-playfair-display-sc",
+  subsets: ["latin"],
+  weight: ["400", "700", "900"],
+});
+
+const libreBaskerville = Libre_Baskerville({
+  variable: "--font-libre-baskerville",
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  style: ["normal", "italic"],
 });
 
 /**
@@ -84,7 +102,6 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Retrieve the nonce from request headers (generated per-request in middleware)
   const headersList = await headers();
   const nonce = headersList.get("x-nonce") || undefined;
 
@@ -102,7 +119,7 @@ export default async function RootLayout({
       </head>
       <body
         id="app-root"
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${playfairDisplaySC.variable} ${libreBaskerville.variable} antialiased`}
       >
         {process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID && (
           <GoogleAnalytics

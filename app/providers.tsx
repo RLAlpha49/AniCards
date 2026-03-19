@@ -20,10 +20,7 @@ export function Providers({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <ThemeProvider
-      attribute="class" // Use CSS class-based theming (dark/light classes)
-      defaultTheme="system" // Default to OS preference
-    >
+    <ThemeProvider attribute="class" defaultTheme="system">
       <TooltipProvider delayDuration={200}>
         {children}
         <Toaster />
