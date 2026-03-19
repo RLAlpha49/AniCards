@@ -1,3 +1,10 @@
+/**
+ * Shared renderer for the core anime and manga stats cards.
+ *
+ * Both media types share the same structural template, with this module swapping
+ * the label/value configuration and layout variant so the visuals stay aligned
+ * while avoiding duplicated SVG markup.
+ */
 import { generateCardBackground } from "@/lib/svg-templates/common/base-template-utils";
 import {
   ANIMATION,
