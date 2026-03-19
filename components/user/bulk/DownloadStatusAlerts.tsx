@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Info } from "lucide-react";
 
-import { Alert, AlertDescription,AlertTitle } from "@/components/ui/Alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
@@ -83,7 +83,7 @@ export function DownloadStatusAlerts({
             className={cn(
               downloadSummary.failed > 0
                 ? "border-red-200/50 bg-red-50/80 dark:border-red-800/50 dark:bg-red-950/30"
-                : "border-slate-200/50 bg-white/80 dark:border-slate-700/50 dark:bg-slate-800/80",
+                : "border-gold/15 bg-gold/3 dark:border-gold/10 dark:bg-gold/3",
               "mt-2 sm:mt-0",
             )}
           >
@@ -92,7 +92,7 @@ export function DownloadStatusAlerts({
               className={
                 downloadSummary.failed > 0
                   ? "text-red-800 dark:text-red-200"
-                  : "text-slate-900 dark:text-white"
+                  : "text-foreground"
               }
             >
               {downloadSummary.failed > 0
@@ -106,7 +106,7 @@ export function DownloadStatusAlerts({
                   className={
                     downloadSummary.failed > 0
                       ? "text-red-700 dark:text-red-300"
-                      : "text-slate-600 dark:text-slate-400"
+                      : "text-muted-foreground"
                   }
                 >
                   {downloadSummary.failedCardRawTypes.slice(0, 5).join(", ")}

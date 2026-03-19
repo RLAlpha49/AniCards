@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Download, Loader2 } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
 import {
@@ -42,56 +42,55 @@ export function DownloadPopover({
           title={downloadTitle}
           aria-label={isDownloading ? "Converting..." : "Download"}
           className={cn(
-            "h-8 gap-1.5 rounded-full px-3 text-sm font-medium shadow-lg transition-all",
-            "border-2 border-white/80 bg-white/20 text-white backdrop-blur-sm",
-            "hover:border-white hover:bg-white/30",
+            "h-10 w-10 rounded-full p-0 shadow-lg transition-all",
+            "border-gold/20 bg-background/80 text-foreground border backdrop-blur-sm",
+            "hover:border-gold/40 hover:bg-background/90 hover:shadow-gold/15",
             "disabled:cursor-not-allowed disabled:opacity-70",
           )}
         >
           {isDownloading ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              <span>Converting...</span>
-            </>
+            <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
           ) : (
-            <>
-              <Download className="h-4 w-4" aria-hidden="true" />
-              <span>Download</span>
-              <ChevronDown className="h-3 w-3" aria-hidden="true" />
-            </>
+            <Download className="h-5 w-5" aria-hidden="true" />
           )}
+          <span className="sr-only">
+            {isDownloading ? "Converting..." : "Download"}
+          </span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-40 p-1.5" align="center">
+      <PopoverContent
+        className="border-gold/20 dark:border-gold/15 w-40 p-1.5"
+        align="center"
+      >
         <div className="flex flex-col gap-0.5">
           <Button
             variant="ghost"
             size="sm"
-            className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70 dark:hover:bg-slate-800"
+            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 rounded-md px-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-70"
             onClick={() => onDownload("png")}
             disabled={!previewUrl || isDownloading}
             aria-describedby={downloadDescrId}
             title={downloadTitle}
           >
-            <span className="font-medium text-slate-700 dark:text-slate-200">
-              PNG
+            <span className="text-foreground font-medium">SVG</span>
+            <span className="text-muted-foreground ml-auto text-xs">
+              Lossless
             </span>
-            <span className="ml-auto text-xs text-slate-500">Lossless</span>
           </Button>
 
           <Button
             variant="ghost"
             size="sm"
-            className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70 dark:hover:bg-slate-800"
+            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 rounded-md px-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-70"
             onClick={() => onDownload("webp")}
             disabled={!previewUrl || isDownloading}
             aria-describedby={downloadDescrId}
             title={downloadTitle}
           >
-            <span className="font-medium text-slate-700 dark:text-slate-200">
-              WebP
+            <span className="text-foreground font-medium">WebP</span>
+            <span className="text-muted-foreground ml-auto text-xs">
+              Smaller
             </span>
-            <span className="ml-auto text-xs text-slate-500">Smaller</span>
           </Button>
         </div>
       </PopoverContent>

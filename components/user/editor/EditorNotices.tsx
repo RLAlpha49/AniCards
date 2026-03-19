@@ -60,7 +60,6 @@ export function EditorNotices({
         onDismiss={onDismissDraftNotice}
       />
 
-      {/* Welcome Notice for New Users */}
       {isNewUser && (
         <div className="flex justify-center">
           <motion.div
@@ -94,27 +93,26 @@ export function EditorNotices({
         </div>
       )}
 
-      {/* Quick Start Callout (shown for new users) */}
       {isNewUser && (
         <div className="flex justify-center">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.12 }}
-            className="w-full max-w-[700px] rounded-xl border border-slate-200/60 bg-white/70 px-4 py-4 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/40"
+            className="border-gold/20 bg-gold/3 dark:border-gold/15 dark:bg-gold/3 w-full max-w-[700px] rounded-xl border px-4 py-4 backdrop-blur-sm"
           >
             <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/50">
+              <div className="bg-gold/15 dark:bg-gold/10 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
                 <Info
-                  className="h-4 w-4 text-blue-700 dark:text-blue-300"
+                  className="text-gold-dim dark:text-gold h-4 w-4"
                   aria-hidden="true"
                 />
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                <h3 className="text-foreground text-sm font-semibold">
                   Quick start
                 </h3>
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700 dark:text-slate-300">
+                <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-5 text-sm">
                   <li>
                     Enable the cards you want below (you can always change this
                     later).
@@ -189,18 +187,17 @@ export function EditorNotices({
       )}
 
       <div className="flex flex-col justify-center gap-4 md:flex-row md:flex-wrap lg:flex-nowrap">
-        {/* Daily Update Notice */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="max-w-[500px] flex-1 rounded-xl border border-blue-200/60 bg-gradient-to-r from-blue-50/80 to-indigo-50/80 px-4 py-3 backdrop-blur-sm dark:border-blue-800/40 dark:from-blue-950/30 dark:to-indigo-950/30"
+          className="border-gold/20 from-gold/5 dark:border-gold/15 dark:from-gold/3 max-w-[500px] flex-1 rounded-xl border bg-linear-to-r to-amber-100/5 px-4 py-3 backdrop-blur-sm dark:to-amber-900/3"
         >
           <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/50">
-              <RefreshCw className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <div className="bg-gold/15 dark:bg-gold/10 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
+              <RefreshCw className="text-gold-dim dark:text-gold h-4 w-4" />
             </div>
-            <p className="text-sm text-blue-800 dark:text-blue-200">
+            <p className="text-foreground text-sm">
               <span className="font-medium">Set it and forget it!</span> Stats
               update automatically every day. Your card URLs always show the
               latest data.
@@ -208,19 +205,18 @@ export function EditorNotices({
           </div>
         </motion.div>
 
-        {/* Credits Section */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="max-w-[500px] flex-1 rounded-xl border border-pink-200/40 bg-gradient-to-r from-pink-50/80 via-purple-50/80 to-blue-50/80 px-4 py-3 backdrop-blur-sm dark:border-pink-800/30 dark:from-pink-950/30 dark:via-purple-950/30 dark:to-blue-950/30"
+          className="border-gold/20 from-gold/5 to-gold/3 dark:border-gold/15 dark:from-gold/3 dark:to-gold/2 max-w-[500px] flex-1 rounded-xl border bg-linear-to-r via-amber-100/5 px-4 py-3 backdrop-blur-sm dark:via-amber-900/3"
         >
           <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-pink-500 to-purple-600 shadow-lg shadow-pink-500/20">
+            <div className="from-gold to-gold-dim shadow-gold/20 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-linear-to-br via-amber-500 shadow-lg">
               <Heart className="h-4 w-4 text-white" />
             </div>
             <div className="flex-1">
-              <p className="text-sm text-slate-800 dark:text-slate-200">
+              <p className="text-foreground text-sm">
                 <span className="font-medium">Enjoying AniCards?</span> If you
                 find this project useful, consider crediting it in your AniList
                 bio. It helps others discover AniCards!
@@ -230,7 +226,7 @@ export function EditorNotices({
               href="https://anilist.co/user/Alpha49"
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-0.5 inline-flex items-center gap-1.5 rounded-lg border border-pink-200 bg-white/80 px-2.5 py-1 text-xs font-medium text-pink-700 transition-all hover:border-pink-300 hover:bg-pink-50 dark:border-pink-800 dark:bg-slate-900/50 dark:text-pink-400 dark:hover:border-pink-700"
+              className="border-gold/20 bg-gold/5 text-gold-dim hover:border-gold/30 hover:bg-gold/10 dark:border-gold/15 dark:bg-gold/5 dark:text-gold dark:hover:border-gold/25 mt-0.5 inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-all"
             >
               <ExternalLink className="h-3 w-3" />
               @Alpha49

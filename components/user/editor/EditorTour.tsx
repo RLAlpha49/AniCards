@@ -41,7 +41,8 @@ const TOUR_SELECTOR_FALLBACKS: Readonly<Record<string, string[]>> = {
 };
 
 function toPopoverOnlyStep(step: DriveStep): DriveStep {
-  const { element: _element, ...rest } = step;
+  const { element, ...rest } = step;
+  void element;
   return rest;
 }
 

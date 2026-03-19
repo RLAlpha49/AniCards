@@ -148,7 +148,7 @@ export function VirtualizedCardGrid<TItem>({
             <div
               key={virtualRow.key}
               ref={rowVirtualizer.measureElement}
-              className="absolute left-0 top-0 grid gap-4"
+              className="absolute top-0 left-0 grid gap-4"
               style={{
                 transform: `translateY(${virtualRow.start - scrollMargin}px)`,
                 width: "100%",

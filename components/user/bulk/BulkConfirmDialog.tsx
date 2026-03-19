@@ -70,13 +70,13 @@ export function BulkConfirmDialog({
           </AlertDialogTitle>
 
           {description ? (
-            <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
+            <AlertDialogDescription className="text-muted-foreground">
               {description}
             </AlertDialogDescription>
           ) : null}
 
-          <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900">
-            <div className="text-xs font-medium text-slate-700 dark:text-slate-300">
+          <div className="border-gold/20 bg-gold/3 dark:border-gold/15 dark:bg-gold/3 mt-3 rounded-lg border p-3">
+            <div className="text-foreground text-xs font-medium">
               Affected cards: {totalAffected}
             </div>
 
@@ -85,12 +85,12 @@ export function BulkConfirmDialog({
                 {shown.map((item) => (
                   <li
                     key={item.cardId}
-                    className="flex items-center justify-between gap-2 rounded-md bg-white px-2 py-1 text-xs text-slate-700 shadow-sm dark:bg-slate-800 dark:text-slate-200"
+                    className="bg-background text-foreground flex items-center justify-between gap-2 rounded-md px-2 py-1 text-xs shadow-sm"
                   >
                     <span className="min-w-0 truncate">
                       {item.label}
                       {item.group ? (
-                        <span className="ml-2 text-slate-500 dark:text-slate-400">
+                        <span className="text-muted-foreground ml-2">
                           ({item.group})
                         </span>
                       ) : null}
@@ -101,8 +101,8 @@ export function BulkConfirmDialog({
                         className={cn(
                           "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium",
                           item.enabled
-                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
-                            : "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200",
+                            ? "bg-gold/15 text-gold-dim dark:bg-gold/10 dark:text-gold"
+                            : "bg-gold/5 text-muted-foreground",
                         )}
                       >
                         {item.enabled ? "Enabled" : "Disabled"}
@@ -112,7 +112,7 @@ export function BulkConfirmDialog({
                 ))}
               </ul>
             ) : (
-              <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+              <div className="text-muted-foreground mt-2 text-xs">
                 {totalAffected > 0
                   ? "No preview available."
                   : "No cards will be affected."}
@@ -120,7 +120,7 @@ export function BulkConfirmDialog({
             )}
 
             {remaining > 0 ? (
-              <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+              <div className="text-muted-foreground mt-2 text-xs">
                 …and {remaining} more
               </div>
             ) : null}

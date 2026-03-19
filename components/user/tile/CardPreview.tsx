@@ -1,8 +1,7 @@
 "use client";
 
 import { ExternalLink, Eye, MoreHorizontal, RotateCw } from "lucide-react";
-import Image from "next/image";
-import { memo, type ReactNode,useEffect, useMemo, useState } from "react";
+import { memo, type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -97,16 +96,14 @@ function OpenInNewTabButton(
         title="Preview in new tab"
         className={cn(
           "pointer-events-auto",
-          "inline-flex h-8 items-center justify-center gap-1.5 rounded-full px-3 text-sm font-medium text-white shadow-lg transition-all",
-          "border-2 border-white/80 bg-white/20 backdrop-blur-sm",
-          "hover:border-white hover:bg-white/30",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black/30",
+          "inline-flex h-10 w-10 items-center justify-center rounded-full shadow-lg transition-all",
+          "border-gold/20 bg-background/80 text-foreground border backdrop-blur-sm",
+          "hover:border-gold/40 hover:bg-background/90 hover:shadow-gold/15",
+          "focus-visible:ring-gold/50 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
         )}
       >
-        <ExternalLink className="h-4 w-4" aria-hidden="true" />
-        <span>Open</span>
-        <span className="sr-only"> preview in new tab</span>
-        <span className="sr-only"> {args.label}</span>
+        <ExternalLink className="h-5 w-5" aria-hidden="true" />
+        <span className="sr-only">Open preview in new tab {args.label}</span>
       </a>
     );
   }
@@ -122,15 +119,13 @@ function OpenInNewTabButton(
       title="Preview not available"
       className={cn(
         "pointer-events-auto",
-        "inline-flex h-8 cursor-not-allowed items-center justify-center gap-1.5 rounded-full px-3 text-sm font-medium text-white shadow-lg transition-all",
-        "border-2 border-white/80 bg-white/20 opacity-70 backdrop-blur-sm",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black/30",
+        "inline-flex h-10 w-10 cursor-not-allowed items-center justify-center rounded-full shadow-lg transition-all",
+        "border-gold/20 bg-background/80 text-foreground border opacity-70 backdrop-blur-sm",
+        "focus-visible:ring-gold/50 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
       )}
     >
-      <ExternalLink className="h-4 w-4" aria-hidden="true" />
-      <span>Open</span>
-      <span className="sr-only"> preview in new tab</span>
-      <span className="sr-only"> {args.label}</span>
+      <ExternalLink className="h-5 w-5" aria-hidden="true" />
+      <span className="sr-only">Open preview in new tab {args.label}</span>
     </button>
   );
 }
@@ -153,14 +148,14 @@ function RefreshPreviewButton(
       title={args.title}
       className={cn(
         "pointer-events-auto",
-        "inline-flex h-8 w-8 items-center justify-center rounded-full text-white shadow-lg transition-all",
-        "border-2 border-white/80 bg-white/20 backdrop-blur-sm",
-        "hover:border-white hover:bg-white/30",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black/30",
+        "inline-flex h-10 w-10 items-center justify-center rounded-full shadow-lg transition-all",
+        "border-gold/20 bg-background/80 text-foreground border backdrop-blur-sm",
+        "hover:border-gold/40 hover:bg-background/90 hover:shadow-gold/15",
+        "focus-visible:ring-gold/50 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
         args.disabled && "cursor-not-allowed opacity-70",
       )}
     >
-      <RotateCw className="h-4 w-4" aria-hidden="true" />
+      <RotateCw className="h-5 w-5" aria-hidden="true" />
     </button>
   );
 }
@@ -257,7 +252,7 @@ export const CardPreview = memo(function CardPreview({
   let previewNode: ReactNode;
   if (!previewUrl) {
     previewNode = (
-      <div className="flex h-full w-full items-center justify-center text-slate-400">
+      <div className="text-muted-foreground flex h-full w-full items-center justify-center">
         <Eye className="h-8 w-8" />
       </div>
     );
@@ -270,27 +265,28 @@ export const CardPreview = memo(function CardPreview({
     );
   } else if (resolvedSrc) {
     previewNode = (
-      <Image
+      <img
         src={resolvedSrc}
         alt={`${label} preview`}
-        fill
-        unoptimized
-        sizes="(min-width: 1280px) 33vw, (min-width: 640px) 50vw, 100vw"
+        loading="lazy"
+        decoding="async"
         className={cn(
-          "object-contain",
+          "blur-0 absolute inset-0 h-full w-full object-contain brightness-100",
           paddingClass,
-          "transition-transform duration-300 ease-out will-change-transform",
-          "group-focus-within/card-preview:scale-[1.04] group-hover/card-preview:scale-[1.04]",
+          "transition-all duration-300 ease-out will-change-[transform,filter]",
+          "group-focus-within/card-preview:scale-[1.02] group-hover/card-preview:scale-[1.02]",
+          "group-focus-within/card-preview:blur-[2px] group-hover/card-preview:blur-[2px]",
+          "group-focus-within/card-preview:brightness-[0.7] group-hover/card-preview:brightness-[0.7]",
         )}
         style={{ borderRadius: borderRadiusValue }}
       />
     );
   } else {
     previewNode = (
-      <div className="flex h-full w-full items-center justify-center text-slate-500 dark:text-slate-300">
+      <div className="text-muted-foreground flex h-full w-full items-center justify-center">
         <LoadingSpinner
           size="md"
-          className="text-slate-500 dark:text-slate-300"
+          className="text-muted-foreground"
           text={isLoading ? "Loading preview..." : "Preview unavailable"}
         />
       </div>
@@ -302,7 +298,7 @@ export const CardPreview = memo(function CardPreview({
   return (
     <div
       data-tour="card-preview"
-      className="group/card-preview relative aspect-[2/1] overflow-hidden bg-slate-100 dark:bg-slate-950"
+      className="group/card-preview bg-gold/3 dark:bg-gold/2 relative aspect-[2/1] overflow-hidden"
       onPointerEnter={() => onHoverChange?.(true)}
       onPointerLeave={() => onHoverChange?.(false)}
     >
@@ -326,7 +322,7 @@ export const CardPreview = memo(function CardPreview({
         aria-label={`Toggle actions for ${label}`}
         aria-pressed={showActions}
         onClick={() => setShowActions((v) => !v)}
-        className="absolute right-2 top-2 z-20 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:hidden"
+        className="absolute top-2 right-2 z-20 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:outline-none sm:hidden"
       >
         <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
       </button>
@@ -337,12 +333,11 @@ export const CardPreview = memo(function CardPreview({
         aria-label={`Toggle actions for ${label}`}
         aria-pressed={showActions}
         onClick={() => setShowActions((v) => !v)}
-        className="pointer-events-none absolute right-2 top-2 z-20 hidden h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white opacity-0 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 sm:inline-flex"
+        className="pointer-events-none absolute top-2 right-2 z-20 hidden h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white opacity-0 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:outline-none sm:inline-flex"
       >
         <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
       </button>
 
-      {/* Quick Actions Overlay */}
       {!previewUrl && (
         <span id={previewUnavailableId} className="sr-only">
           Preview not available
@@ -355,10 +350,10 @@ export const CardPreview = memo(function CardPreview({
       )}
       <div
         className={cn(
-          "absolute inset-0 flex items-center justify-center gap-2 transition-opacity",
+          "pointer-events-none absolute inset-0 flex items-center justify-center gap-3 transition-opacity duration-300",
           overlayPinned
-            ? "pointer-events-none visible opacity-100"
-            : "pointer-events-none invisible opacity-0 group-focus-within/card-preview:visible group-focus-within/card-preview:opacity-100 group-hover/card-preview:visible group-hover/card-preview:opacity-100",
+            ? "opacity-100"
+            : "opacity-40 group-focus-within/card-preview:opacity-100 group-hover/card-preview:opacity-100",
         )}
       >
         <OpenInNewTabButton

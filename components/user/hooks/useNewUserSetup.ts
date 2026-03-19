@@ -7,9 +7,8 @@ import { getErrorDetails } from "@/lib/error-messages";
 import { trackUserActionError } from "@/lib/error-tracking";
 import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 import type { LoadingPhase } from "@/lib/types/loading";
-import { getResponseErrorMessage,parseResponsePayload } from "@/lib/utils";
+import { getResponseErrorMessage, parseResponsePayload } from "@/lib/utils";
 
-// Local copies of small AniList types used in hook.
 interface AniListStatsResponse {
   User?: Record<string, unknown>;
   [key: string]: unknown;
@@ -385,7 +384,6 @@ export function useNewUserSetup() {
           return { error: setupResult.error } as const;
         }
 
-        // Initialize editor and fetch persisted cards
         setLoadingPhase?.("loading_cards");
         setUserData(
           setupResult.userId.toString(),

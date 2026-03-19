@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown,Copy, ImageIcon, Link } from "lucide-react";
+import { Check, ChevronDown, Copy, ImageIcon, Link } from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
 import {
@@ -40,7 +40,7 @@ export function CopyUrlsPopover({
             "h-9 gap-1.5 rounded-lg px-3 font-medium shadow-md transition-all",
             copiedFormat
               ? "bg-green-500 text-white shadow-green-500/25 hover:bg-green-600"
-              : "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-purple-500/25 hover:scale-[1.02] hover:shadow-lg hover:shadow-purple-500/30",
+              : "from-gold to-gold-dim shadow-gold/25 hover:shadow-gold/30 bg-linear-to-r via-amber-500 text-white hover:scale-[1.02] hover:shadow-lg",
           )}
         >
           {copiedFormat ? (
@@ -63,13 +63,13 @@ export function CopyUrlsPopover({
           <Button
             variant="ghost"
             size="sm"
-            className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-blue-50 dark:hover:bg-blue-950/50"
+            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 rounded-md px-2.5 text-sm"
             onClick={() => {
               handleCopyUrls("url");
             }}
           >
             <Link
-              className="h-4 w-4 text-blue-600 dark:text-blue-400"
+              className="text-gold-dim dark:text-gold h-4 w-4"
               aria-hidden="true"
             />
             <span>Raw URLs</span>
@@ -84,13 +84,13 @@ export function CopyUrlsPopover({
           <Button
             variant="ghost"
             size="sm"
-            className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-purple-50 dark:hover:bg-purple-950/50"
+            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 rounded-md px-2.5 text-sm"
             onClick={() => {
               handleCopyUrls("anilist");
             }}
           >
             <ImageIcon
-              className="h-4 w-4 text-purple-600 dark:text-purple-400"
+              className="text-gold-dim dark:text-gold h-4 w-4"
               aria-hidden="true"
             />
             <span>AniList Format</span>

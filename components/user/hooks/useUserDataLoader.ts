@@ -9,7 +9,7 @@ import { trackUserActionError } from "@/lib/error-tracking";
 import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 import type { LoadingPhase } from "@/lib/types/loading";
 import type { ReconstructedUserRecord } from "@/lib/types/records";
-import { getResponseErrorMessage,parseResponsePayload } from "@/lib/utils";
+import { getResponseErrorMessage, parseResponsePayload } from "@/lib/utils";
 
 import { useNewUserSetup } from "./useNewUserSetup";
 
@@ -114,7 +114,6 @@ export function useUserDataLoader() {
             errorDetails.category,
             { userId: userIdStr, username: uname ?? undefined },
           );
-          // fall back to empty
           setLoadingPhase("complete");
           setLoading(false);
           setLoadError(
@@ -167,7 +166,6 @@ export function useUserDataLoader() {
     lastLoadedUserRef.current = requestedId;
 
     setLoadError(null);
-    // Reset other transient UI state handled by hooks if needed
 
     if (!userIdParam && !usernameParam) {
       if (rawUserIdParam || rawUsernameParam) {
@@ -189,7 +187,6 @@ export function useUserDataLoader() {
     const userResult = await fetchUserData(userIdParam, usernameParam);
 
     if ("error" in userResult && userResult.notFound) {
-      // New user
       setLoadingPhase("setting_up");
       const setupResult = await startSetup(
         userIdParam,
