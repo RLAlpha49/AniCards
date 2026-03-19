@@ -46,7 +46,7 @@ This document summarizes the latest, authoritative best practices for building, 
 
 ```tsx
 // Server Component
-import DashboardNavbar from "@/components/DashboardNavbar"
+import DashboardNavbar from "@/components/DashboardNavbar";
 
 export default async function DashboardPage() {
   // ...server logic...
@@ -55,7 +55,7 @@ export default async function DashboardPage() {
       <DashboardNavbar /> {/* This is a Client Component */}
       {/* ...rest of server-rendered page... */}
     </>
-  )
+  );
 }
 ```
 
