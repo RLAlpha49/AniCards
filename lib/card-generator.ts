@@ -1,3 +1,11 @@
+/**
+ * Main SVG card dispatcher for AniCards.
+ *
+ * This file bridges normalized user records and the many template modules by
+ * mapping card ids plus variants to the right data adapter and SVG renderer.
+ * Keeping that orchestration here lets route handlers stay unaware of
+ * template-specific requirements.
+ */
 import {
   CardDataError,
   displayNames,

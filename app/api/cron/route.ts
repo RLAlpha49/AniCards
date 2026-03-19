@@ -1,3 +1,13 @@
+/**
+ * Background refresh job for cached AniList user data.
+ *
+ * The cron route updates the oldest stored users in small batches so cached
+ * profiles stay reasonably fresh without overwhelming AniList, and it removes
+ * records only after repeated 404s to distinguish deleted accounts from
+ * transient upstream failures. It also returns scheduling guidance so whoever
+ * owns the external cron job can tune refresh frequency without doing the math
+ * by hand every time the user count changes.
+ */
 import type { Redis as UpstashRedis } from "@upstash/redis";
 
 import { USER_STATS_QUERY } from "@/lib/anilist/queries";
@@ -80,11 +90,10 @@ async function updateUserStats(userId: string): Promise<UpdateResult> {
 }
 
 /**
- * Records repeated AniList 404 failures and removes stale entries after three attempts.
- * @param redisClient - Redis client used to store failure counters and related keys.
- * @param userId - AniList identifier whose failures are being tracked.
- * @param userKey - Redis key for the user's record to delete when removing.
- * @returns True when the user was removed from Redis, false otherwise.
+ * Looks up the normalized username index key for a stored user.
+ * @param redisClient - Redis client used to read the user's stored metadata.
+ * @param userId - AniList identifier whose username index key should be derived.
+ * @returns The matching `username:*` key, or null when no username is stored.
  * @source
  */
 async function getUsernameIndexKey(
@@ -113,6 +122,13 @@ async function getUsernameIndexKey(
   return null;
 }
 
+/**
+ * Counts repeated AniList 404 responses before deleting a stored user.
+ *
+ * AniList can fail transiently, so a single 404 is not enough to treat an
+ * account as gone forever. The third consecutive 404 is the point where this
+ * route chooses cleanup over retrying stale data indefinitely.
+ */
 async function handleFailureTracking(
   redisClient: UpstashRedis,
   userId: string,
@@ -328,6 +344,8 @@ export async function POST(request: Request) {
       return dateA - dateB;
     });
 
+    // Refresh the stalest records first and keep the batch small. That trades a
+    // little peak freshness for predictable AniList load and more stable cron runs.
     const batch = validUsers.slice(0, 5);
 
     console.log(
@@ -412,6 +430,10 @@ export async function POST(request: Request) {
 
     const recFor5 = computeCronForBatch(totalUsers, 5);
     const recFor10 = computeCronForBatch(totalUsers, 10);
+
+    // These recommendations are only operator-facing hints returned in the
+    // response body. The route reports the schedule math, but an external cron
+    // service still decides when to invoke it.
 
     console.log(
       `🔁 [Cron Job] Scheduling recommendation: 5/users -> ${recFor5.cron} (${recFor5.runsPerDay} runs/day, ~every ${recFor5.intervalMinutes} min).`,

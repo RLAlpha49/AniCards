@@ -1,3 +1,12 @@
+/**
+ * Stores user card configuration snapshots while preserving editor-friendly,
+ * partial-update semantics.
+ *
+ * The card editor does not resend every persisted field on each save, so this
+ * route merges incoming changes with the existing Redis record, keeps omitted
+ * per-card settings intact, and backfills newly supported card types to keep
+ * older records forward-compatible.
+ */
 import type { NextResponse } from "next/server";
 
 import {
