@@ -1,5 +1,10 @@
 "use client";
 
+// Shares rendered preview blobs across card tiles, expanded previews, and
+// refresh actions. Cache-busting replaces the normalized entry instead of
+// creating a second copy, which keeps memory bounded while still forcing a
+// fresh server render when needed.
+
 type PreviewCacheEntry = {
   objectUrl: string;
 };

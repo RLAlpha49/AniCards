@@ -1,3 +1,7 @@
+// Resolves the search params into either an existing-user load or a new-user
+// bootstrap flow, while keeping the editor store's loading/error phases in sync
+// with what the surrounding UI expects to render.
+
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
