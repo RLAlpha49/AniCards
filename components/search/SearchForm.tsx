@@ -18,11 +18,6 @@ import {
 /** Supported lookup modes for the search form. @source */
 type SearchMethod = "username" | "userid";
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
-};
-
 function scheduleAfterPaint(callback: () => void) {
   if (typeof requestAnimationFrame === "function") {
     requestAnimationFrame(() => {
@@ -119,23 +114,18 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
   };
 
   return (
-    <motion.div
-      variants={itemVariants}
-      initial="hidden"
-      animate="visible"
-      transition={{ delay: 0.3 }}
-      className="w-full"
-    >
-      <div className="imperial-card p-7 sm:p-9">
-        <div className="mb-6 text-center">
-          <span className="text-gold text-sm">❖</span>
-          <h2 className="font-display text-foreground mt-2 text-xs tracking-[0.3em] sm:text-sm">
-            LOOKUP
-          </h2>
-          <div className="gold-line mx-auto mt-3 max-w-12" />
-        </div>
+    <div className="relative mx-auto w-full max-w-xl">
+      {/* Ambient glow behind form */}
+      <div className="pointer-events-none absolute -inset-8 bg-[radial-gradient(ellipse_at_center,hsl(var(--gold)/0.10),transparent_70%)] blur-2xl" />
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+      <div className="border-gold/20 bg-background/80 relative border-2 p-8 backdrop-blur-sm sm:p-10">
+        {/* Enlarged corner brackets */}
+        <div className="border-gold absolute -top-px -left-px h-5 w-5 border-t-2 border-l-2" />
+        <div className="border-gold absolute -top-px -right-px h-5 w-5 border-t-2 border-r-2" />
+        <div className="border-gold absolute -bottom-px -left-px h-5 w-5 border-b-2 border-l-2" />
+        <div className="border-gold absolute -right-px -bottom-px h-5 w-5 border-r-2 border-b-2" />
+
+        <form onSubmit={handleSubmit} className="space-y-6">
           <AnimatePresence>
             {error && (
               <motion.div
@@ -160,11 +150,20 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
             )}
           </AnimatePresence>
 
-          <div className="space-y-2">
-            <span className="text-foreground/60 font-display block text-[0.65rem] tracking-[0.2em] uppercase">
-              Search By
+          {/* Method Toggle with sliding indicator */}
+          <div className="space-y-3">
+            <span className="font-display text-foreground/50 block text-[0.6rem] tracking-[0.3em] uppercase">
+              Search Method
             </span>
-            <div className="border-gold/20 bg-gold/5 dark:bg-gold/10 grid grid-cols-2 gap-1.5 border p-1.5">
+            <div className="border-gold/15 bg-gold/3 relative flex border">
+              <motion.div
+                className="border-gold/25 bg-gold/10 absolute inset-y-0 left-0 w-1/2 border"
+                initial={false}
+                animate={{
+                  x: searchMethod === "username" ? "0%" : "100%",
+                }}
+                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              />
               <button
                 type="button"
                 onClick={() => {
@@ -172,10 +171,10 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
                   setError("");
                 }}
                 className={cn(
-                  "flex items-center justify-center gap-2 py-2.5 text-sm font-semibold transition-all duration-200",
+                  "relative z-10 flex flex-1 items-center justify-center gap-2 py-3 text-sm font-semibold transition-colors duration-200",
                   searchMethod === "username"
-                    ? "border-gold/30 text-gold-dim dark:bg-background dark:text-gold border bg-white shadow-sm"
-                    : "text-foreground/50 hover:text-foreground/70 dark:text-foreground/50 dark:hover:text-foreground/70",
+                    ? "text-gold"
+                    : "text-foreground/40 hover:text-foreground/60",
                 )}
               >
                 <User className="h-4 w-4" />
@@ -188,10 +187,10 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
                   setError("");
                 }}
                 className={cn(
-                  "flex items-center justify-center gap-2 py-2.5 text-sm font-semibold transition-all duration-200",
+                  "relative z-10 flex flex-1 items-center justify-center gap-2 py-3 text-sm font-semibold transition-colors duration-200",
                   searchMethod === "userid"
-                    ? "border-gold/30 text-gold-dim dark:bg-background dark:text-gold border bg-white shadow-sm"
-                    : "text-foreground/50 hover:text-foreground/70 dark:text-foreground/50 dark:hover:text-foreground/70",
+                    ? "text-gold"
+                    : "text-foreground/40 hover:text-foreground/60",
                 )}
               >
                 <Hash className="h-4 w-4" />
@@ -200,17 +199,18 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
             </div>
           </div>
 
-          <div className="space-y-2">
+          {/* Input field */}
+          <div className="space-y-3">
             <label
               htmlFor="searchValue"
-              className="text-foreground/60 font-display block text-[0.65rem] tracking-[0.2em] uppercase"
+              className="font-display text-foreground/50 block text-[0.6rem] tracking-[0.3em] uppercase"
             >
               {searchMethod === "username"
                 ? "AniList Username"
                 : "AniList User ID"}
             </label>
-            <div className="relative">
-              <div className="text-foreground/40 pointer-events-none absolute top-1/2 left-4 -translate-y-1/2">
+            <div className="group relative">
+              <div className="text-foreground/30 group-focus-within:text-gold/70 pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 transition-colors duration-300">
                 {searchMethod === "username" ? (
                   <Search className="h-5 w-5" />
                 ) : (
@@ -227,16 +227,17 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
                 placeholder={
                   searchMethod === "username" ? "e.g., Alpha49" : "e.g., 542244"
                 }
-                className="border-gold/20 placeholder:text-foreground/35 hover:border-gold/40 focus:border-gold focus:ring-gold/20 dark:border-gold/20 dark:bg-background dark:placeholder:text-foreground/35 dark:hover:border-gold/40 dark:focus:border-gold h-13 bg-white pl-12 text-base transition-all focus:ring-2"
+                className="border-gold/15 placeholder:text-foreground/25 hover:border-gold/30 focus:border-gold focus:ring-gold/20 dark:border-gold/15 dark:bg-background/50 dark:placeholder:text-foreground/25 dark:hover:border-gold/30 dark:focus:border-gold h-14 bg-transparent pl-12 text-base transition-all focus:ring-2"
                 disabled={loading}
               />
             </div>
           </div>
 
+          {/* Submit button */}
           <Button
             type="submit"
             size="lg"
-            className="imperial-btn imperial-btn-fill group h-13 w-full text-base disabled:opacity-70 disabled:hover:scale-100"
+            className="imperial-btn imperial-btn-fill group h-14 w-full text-base disabled:opacity-70 disabled:hover:scale-100"
             disabled={loading}
           >
             {loading ? (
@@ -254,10 +255,10 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
           </Button>
         </form>
 
-        <p className="font-body-serif text-foreground/40 mt-5 text-center text-xs leading-relaxed">
+        <p className="font-body-serif text-foreground/30 mt-6 text-center text-xs leading-relaxed">
           Any public AniList profile can be looked up by username or numeric ID.
         </p>
       </div>
-    </motion.div>
+    </div>
   );
 }
