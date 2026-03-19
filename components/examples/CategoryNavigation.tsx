@@ -37,19 +37,19 @@ export function CategoryNavigation({
 }: Readonly<CategoryNavigationProps>) {
   const totalCount = categories.reduce((sum, c) => sum + c.count, 0);
 
-  const allItems = [
+  const items = [
     { name: "All", count: totalCount, key: null as string | null },
     ...categories.map((c) => ({ ...c, key: c.name })),
   ];
 
   return (
-    <nav className="group/nav relative w-full" aria-label="Category navigation">
-      <div className="from-background pointer-events-none absolute top-0 right-0 bottom-0 z-10 w-8 bg-gradient-to-l to-transparent sm:hidden" />
-      <div className="from-background pointer-events-none absolute top-0 bottom-0 left-0 z-10 w-8 bg-gradient-to-r to-transparent sm:hidden" />
+    <nav className="relative w-full" aria-label="Category navigation">
+      <div className="from-background pointer-events-none absolute top-0 right-0 bottom-0 z-10 w-6 bg-linear-to-l to-transparent sm:hidden" />
+      <div className="from-background pointer-events-none absolute top-0 bottom-0 left-0 z-10 w-6 bg-linear-to-r to-transparent sm:hidden" />
 
       <div className="overflow-x-auto">
-        <div className="flex min-w-max items-end">
-          {allItems.map((item) => {
+        <div className="flex min-w-max items-center gap-1">
+          {items.map((item) => {
             const isActive =
               item.key === null
                 ? activeCategory === null
@@ -66,27 +66,28 @@ export function CategoryNavigation({
                 aria-current={isActive ? "page" : undefined}
                 onClick={() => onCategoryClick(item.key)}
                 className={cn(
-                  "relative flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors",
+                  "relative flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium whitespace-nowrap transition-colors duration-200",
                   isActive
                     ? "text-gold"
-                    : "text-foreground/45 hover:text-foreground/70",
+                    : "text-foreground/35 hover:text-foreground/60",
                 )}
               >
-                {Icon && <Icon className="h-3.5 w-3.5" />}
+                {Icon && <Icon className="h-3 w-3" />}
                 <span>{item.name}</span>
                 <span
                   className={cn(
-                    "text-[0.65rem] tabular-nums",
-                    isActive ? "text-gold/70" : "text-foreground/30",
+                    "text-[0.6rem] tabular-nums",
+                    isActive ? "text-gold/60" : "text-foreground/20",
                   )}
                 >
                   {item.count}
                 </span>
+
                 {isActive && (
                   <motion.div
-                    layoutId="category-underline"
-                    className="bg-gold absolute right-0 bottom-0 left-0 h-0.5"
-                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                    layoutId="category-pill-bg"
+                    className="border-gold/20 bg-gold/6 absolute inset-0 border"
+                    transition={{ type: "spring", stiffness: 380, damping: 28 }}
                   />
                 )}
               </button>

@@ -628,13 +628,6 @@ export default function ExamplesPage() {
       }}
     >
       <div className="relative min-h-screen">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-30 dark:opacity-20"
-          style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0L60 30L30 60L0 30Z' fill='none' stroke='%23c9a84c15' stroke-width='1'/%3E%3C/svg%3E")`,
-          }}
-        />
-
         <ExamplesHeroSection
           totalCardTypes={totalCardTypes}
           totalVariants={totalVariants}
@@ -642,31 +635,35 @@ export default function ExamplesPage() {
           onStartCreating={handleStartCreating}
         />
 
-        <div className="gold-line-thick mx-auto max-w-[50%]" />
+        <div className="gold-line-thick mx-auto max-w-48" />
 
-        <div className="sticky top-15 z-30 mx-auto mt-5 max-w-7xl backdrop-blur-sm">
-          <div className="border-gold/10 mx-auto max-w-7xl border px-4 pt-4 pb-0">
-            <div className="mb-3">
-              <SearchFilterBar
-                searchQuery={searchQuery}
-                onSearchChange={handleSearchChange}
-                resultCount={filteredCardTypes.length}
-                totalCount={totalCardTypes}
-                hasActiveFilters={hasActiveFilters}
-                onClearFilters={handleClearFilters}
+        {/* Sticky filter toolbar */}
+        <div className="sticky top-15 z-30 mx-auto mt-6 max-w-7xl px-4">
+          <div className="border-gold/8 bg-background/80 border backdrop-blur-md">
+            <div className="px-4 pt-3.5 pb-0">
+              <div className="mb-2.5">
+                <SearchFilterBar
+                  searchQuery={searchQuery}
+                  onSearchChange={handleSearchChange}
+                  resultCount={filteredCardTypes.length}
+                  totalCount={totalCardTypes}
+                  hasActiveFilters={hasActiveFilters}
+                  onClearFilters={handleClearFilters}
+                />
+              </div>
+              <CategoryNavigation
+                categories={categoryInfo}
+                activeCategory={activeCategory}
+                onCategoryClick={handleCategoryChange}
               />
             </div>
-            <CategoryNavigation
-              categories={categoryInfo}
-              activeCategory={activeCategory}
-              onCategoryClick={handleCategoryChange}
-            />
           </div>
         </div>
 
-        <section id="card-gallery" className="relative w-full py-14 lg:py-20">
+        {/* Gallery */}
+        <section id="card-gallery" className="relative w-full py-16 lg:py-20">
           <div className="relative container mx-auto px-4">
-            <div className="mx-auto max-w-7xl space-y-20">
+            <div className="mx-auto max-w-7xl space-y-24">
               {activeCategory ? (
                 <CategorySection
                   key={activeCategory}
@@ -686,7 +683,7 @@ export default function ExamplesPage() {
                       nodes.push(
                         <div
                           key={`divider-${category}`}
-                          className="gold-line mx-auto max-w-xs"
+                          className="gold-line mx-auto max-w-20"
                         />,
                       );
                     }
@@ -706,17 +703,17 @@ export default function ExamplesPage() {
               )}
 
               {filteredCardTypes.length === 0 && (
-                <div className="py-24 text-center">
-                  <p className="font-display text-foreground/30 mb-2 text-lg tracking-wider">
+                <div className="py-28 text-center">
+                  <p className="font-display text-foreground/25 mb-2 text-lg tracking-[0.2em]">
                     NO RESULTS
                   </p>
-                  <p className="font-body-serif text-foreground/40 text-sm">
+                  <p className="font-body-serif text-foreground/35 text-sm">
                     No cards match your current filters.
                   </p>
                   <button
                     type="button"
                     onClick={handleClearFilters}
-                    className="text-gold mt-6 text-sm font-medium hover:underline"
+                    className="text-gold mt-8 text-xs font-medium tracking-wide uppercase hover:underline"
                   >
                     Clear all filters
                   </button>
