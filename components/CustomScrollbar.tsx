@@ -22,8 +22,6 @@ export function CustomScrollbar() {
 
     if (!scrollbar || !thumb) return;
 
-    // Update visual thumb size/position and accessible attributes based on
-    // current document scroll state.
     const updateScrollbar = () => {
       const scrollHeight = document.documentElement.scrollHeight;
       const clientHeight = window.innerHeight;
@@ -32,9 +30,7 @@ export function CustomScrollbar() {
       const trackRect = scrollbar.getBoundingClientRect();
       const trackHeight = trackRect.height;
 
-      // Guard against cases where content doesn't overflow the viewport
       if (scrollHeight <= clientHeight || trackHeight <= 0) {
-        // Hide the thumb when there's nothing to scroll
         thumb.style.display = "none";
         thumb.style.height = "0px";
         thumb.style.top = "0px";
@@ -54,24 +50,20 @@ export function CustomScrollbar() {
       thumb.style.height = `${thumbHeight}px`;
       thumb.style.top = `${thumbTop}px`;
 
-      // Update accessible attributes for assistive tech (and to satisfy linter)
       thumb.setAttribute("aria-valuenow", String(scrollTop));
       thumb.setAttribute("aria-valuemax", String(maxScroll));
     };
 
-    // Sync thumb position when the window scrolls.
     const handleScroll = () => {
       updateScrollbar();
     };
 
-    // Begin a drag operation on the scrollbar thumb.
     const handleMouseDown = (e: MouseEvent) => {
       e.preventDefault();
       isDraggingRef.current = true;
       thumb.classList.add("dragging");
       document.body.style.userSelect = "none";
 
-      // Calculate pointer offset into the thumb so it doesn't jump on drag.
       const thumbRect = thumb.getBoundingClientRect();
       dragOffsetRef.current = e.clientY - thumbRect.top;
     };
@@ -83,7 +75,6 @@ export function CustomScrollbar() {
       document.body.style.userSelect = "";
     };
 
-    // While dragging, convert pointer delta into page scroll position.
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDraggingRef.current) return;
 
@@ -94,12 +85,10 @@ export function CustomScrollbar() {
       const trackRect = scrollbar.getBoundingClientRect();
       const trackHeight = trackRect.height;
 
-      // Avoid division by zero and impossible states when content is small.
       const maxScroll = scrollHeight - clientHeight;
       const maxThumbTop = trackHeight - thumbHeight;
       if (maxScroll <= 0 || maxThumbTop <= 0) return;
 
-      // Use absolute pointer Y relative to the track to compute new thumb top.
       const pointerY = e.clientY - trackRect.top;
       let requestedTop = pointerY - dragOffsetRef.current;
       requestedTop = Math.max(0, Math.min(requestedTop, maxThumbTop));

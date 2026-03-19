@@ -83,10 +83,8 @@ function groupAnalyticsData(
     const parts = key.split(":");
 
     if (parts.length === 2) {
-      // Keys like "analytics:visits"
       summary[parts[1]] = value;
     } else if (parts.length >= 3) {
-      // Keys like "analytics:anilist_api:successful_requests"
       const service = parts[1];
       const metric = parts.slice(2).join(":");
       if (!summary[service]) {
@@ -130,7 +128,6 @@ async function createAndSaveReport(
  * @source
  */
 export async function POST(request: Request) {
-  // Check authorization
   const authError = checkCronAuthorization(request);
   if (authError) {
     return authError;
@@ -142,13 +139,10 @@ export async function POST(request: Request) {
   );
 
   try {
-    // Fetch and parse analytics data
     const analyticsData = await fetchAnalyticsData(redisClient);
 
-    // Group analytics data by service and metric
     const summary = groupAnalyticsData(analyticsData);
 
-    // Create and save the analytics report
     const report = await createAndSaveReport(
       redisClient,
       summary,

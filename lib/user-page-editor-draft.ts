@@ -156,7 +156,5 @@ export function clearUserPageDraft(userId: string): void {
   if (!globalThis.window) return;
   try {
     globalThis.window.localStorage.removeItem(draftStorageKey(userId));
-  } catch {
-    // Ignore
-  }
+  } catch {}
 }

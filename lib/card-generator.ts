@@ -415,7 +415,7 @@ function generateSocialMilestonesCard(
  * @throws {CardDataError} When required configuration or stats data are missing or the card type is unsupported.
  * @source
  */
-export async function generateCardSvg(
+async function generateCardSvg(
   cardConfig: StoredCardConfig,
   userRecord: UserRecord,
   variant: string,

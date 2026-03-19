@@ -58,7 +58,6 @@ export function MathTooltipContent({
  * @returns HTML string with rendered math
  */
 function renderMathContent(content: string): string {
-  // First, process display math ($$...$$)
   const withDisplayMath = content.replaceAll(
     MATH_BLOCK_REGEX,
     (_, formula: string) => {
@@ -74,7 +73,6 @@ function renderMathContent(content: string): string {
     },
   );
 
-  // Then, process inline math ($...$)
   return withDisplayMath.replaceAll(MATH_INLINE_REGEX, (_, formula: string) => {
     try {
       return katex.renderToString(formula.trim(), {

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { seoConfigs,updatePageTitle } from "@/lib/seo";
+import { seoConfigs, updatePageTitle } from "@/lib/seo";
 
 /**
  * React hook to update the document title and SEO metadata for the current page key.

@@ -13,10 +13,8 @@ import { buildCSPHeader } from "@/lib/csp-config";
  * @source
  */
 function generateNonce(): string {
-  // Use Web Crypto API which is available in Edge Runtime
   const array = new Uint8Array(16);
   crypto.getRandomValues(array);
-  // Convert to base64 manually for Edge Runtime compatibility
   return btoa(String.fromCodePoint(...array));
 }
 
@@ -50,18 +48,14 @@ export function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const params = request.nextUrl.searchParams;
 
-  // Handle /user route redirect first
   if (path === "/user" && !params.get("userId")) {
     return NextResponse.redirect(new URL("/user/lookup", request.url));
   }
 
-  // Generate a unique nonce for this request
   const nonce = generateNonce();
 
-  // Build the CSP header with the nonce
   const cspHeader = buildCSPHeader(nonce);
 
-  // Create response with CSP headers and forward the nonce in request headers
   const forwardedHeaders = new Headers(request.headers);
   forwardedHeaders.set("x-nonce", nonce);
   const response = NextResponse.next({
@@ -70,13 +64,8 @@ export function middleware(request: NextRequest) {
     },
   });
 
-  // Set CSP header for enforcement
-  // Note: Using Content-Security-Policy-Report-Only initially for testing
-  // Switch to Content-Security-Policy after validation
   response.headers.set("Content-Security-Policy-Report-Only", cspHeader);
 
-  // Store nonce in custom header for access by Server Components
-  // This allows layout.tsx and other components to retrieve the nonce
   response.headers.set("x-nonce", nonce);
 
   return response;
@@ -94,14 +83,5 @@ export function middleware(request: NextRequest) {
  * @source
  */
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
-    "/((?!api|_next/static|_next/image|favicon.ico).*)",
-  ],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
 };
