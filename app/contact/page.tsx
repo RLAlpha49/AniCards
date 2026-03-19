@@ -2,260 +2,355 @@
 
 import { motion } from "framer-motion";
 import {
-  ArrowRight,
+  ArrowUpRight,
+  Bug,
   ExternalLink,
+  Lightbulb,
   Mail,
   MessageSquare,
   Send,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 
-import HeroBadge from "@/components/HeroBadge";
-import PageShell from "@/components/PageShell";
 import {
   SimpleAniListIcon,
   SimpleDiscordIcon,
   SimpleGithubIcon,
 } from "@/components/SimpleIcons";
-import { Button } from "@/components/ui/Button";
 import { usePageSEO } from "@/hooks/usePageSEO";
 import {
   safeTrack,
   trackExternalLinkClick,
 } from "@/lib/utils/google-analytics";
 
-/**
- * Metadata that powers each social link card in the grid.
- * @source
- */
-const SOCIAL_LINKS = [
+const CHANNELS = [
+  {
+    href: "mailto:contact@alpha49.com",
+    icon: Mail,
+    name: "email",
+    label: "Email",
+    numeral: "Ⅰ",
+    tagline: "For detailed inquiries & collaboration",
+    address: "contact@alpha49.com",
+  },
   {
     href: "https://discordid.netlify.app/?id=251479989378220044",
     icon: SimpleDiscordIcon,
     name: "discord",
     label: "Discord",
-    description: "Chat with me directly for quick responses",
-    gradient: "from-indigo-500 to-purple-500",
-    bgLight: "bg-indigo-100 dark:bg-indigo-900/30",
-    textColor: "text-indigo-600 dark:text-indigo-400",
+    numeral: "Ⅱ",
+    tagline: "Quick questions & casual chat",
+    address: "Alpha49",
   },
   {
     href: "https://github.com/RLAlpha49",
     icon: SimpleGithubIcon,
     name: "github",
     label: "GitHub",
-    description: "Check out my projects and contributions",
-    gradient: "from-slate-600 to-slate-800",
-    bgLight: "bg-slate-100 dark:bg-slate-800/50",
-    textColor: "text-slate-700 dark:text-slate-300",
+    numeral: "Ⅲ",
+    tagline: "Projects, code & contributions",
+    address: "RLAlpha49",
   },
   {
     href: "https://anilist.co/user/Alpha49",
     icon: SimpleAniListIcon,
     name: "anilist",
     label: "AniList",
-    description: "See my anime & manga collection",
-    gradient: "from-cyan-500 to-blue-500",
-    bgLight: "bg-cyan-100 dark:bg-cyan-900/30",
-    textColor: "text-cyan-600 dark:text-cyan-400",
+    numeral: "Ⅳ",
+    tagline: "Anime & manga collection",
+    address: "Alpha49",
   },
 ];
 
-/**
- * Renders the contact page with SEO setup plus the social and email CTAs.
- * @source
- */
+const REASONS = [
+  {
+    icon: MessageSquare,
+    title: "General Questions",
+    description: "Anything about AniCards, usage, or features",
+  },
+  {
+    icon: Lightbulb,
+    title: "Feature Requests",
+    description: "Ideas for new cards, designs, or improvements",
+  },
+  {
+    icon: Bug,
+    title: "Bug Reports",
+    description: "Something broken? Let me know via GitHub Issues",
+    href: "https://github.com/RLAlpha49/AniCards/issues",
+  },
+  {
+    icon: Sparkles,
+    title: "Collaboration",
+    description: "Partnerships, integrations, or creative projects",
+  },
+];
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.12, delayChildren: 0.15 },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.55 } },
+};
+
+const staggerGrid = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.08, delayChildren: 0.1 },
+  },
+};
+
+const gridItem = {
+  hidden: { opacity: 0, scale: 0.95, y: 16 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+    transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] as const },
+  },
+};
+
 export default function ContactPage() {
   usePageSEO("contact");
 
-  /**
-   * Reports outbound social clicks for analytics.
-   * @param platform - Platform identifier used by the tracker.
-   * @source
-   */
-  const handleSocialLinkClick = (platform: string) => {
+  const handleLinkClick = (platform: string) => {
     safeTrack(() => trackExternalLinkClick(platform, "contact_page"));
   };
 
   return (
-    <PageShell
-      badge={
-        <HeroBadge
-          icon={MessageSquare}
-          className="border-blue-200/50 bg-blue-50/80 text-blue-700 dark:border-blue-700/50 dark:bg-blue-950/50 dark:text-blue-300"
+    <div className="relative min-h-screen">
+      <div
+        className="pointer-events-none absolute inset-0 opacity-30 dark:opacity-20"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0L60 30L30 60L0 30Z' fill='none' stroke='%23c9a84c15' stroke-width='1'/%3E%3C/svg%3E")`,
+        }}
+      />
+
+      <section className="relative overflow-hidden px-6 pt-24 pb-12 sm:px-12 md:pt-32">
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="relative z-10 mx-auto max-w-5xl"
         >
-          Let&apos;s Connect
-        </HeroBadge>
-      }
-      title={
-        <>
-          Get in{" "}
-          <span className="relative">
-            <span className="relative z-10 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-              Touch
-            </span>
-            <motion.span
-              className="absolute -inset-1 -z-10 block rounded-lg bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 blur-xl"
-              animate={{ opacity: [0.5, 0.8, 0.5] }}
-              transition={{ duration: 3, repeat: Infinity }}
-            />
-          </span>
-        </>
-      }
-      subtitle={
-        "Have a question, suggestion, or just want to say hi? I'd love to hear from you. Choose your preferred way to reach out below."
-      }
-      mainClassName="pt-16 lg:pt-24"
-    >
-      {/* Contact Options Section */}
-      <section className="relative w-full overflow-hidden py-16 lg:py-24">
-        <div className="container relative mx-auto px-4">
-          <div className="mx-auto max-w-5xl">
-            {/* Social Links Grid */}
+          <div className="grid items-end gap-10 md:grid-cols-[1fr_auto]">
+            <div>
+              <motion.p
+                variants={itemVariants}
+                className="text-gold mb-4 text-xs tracking-[0.5em] uppercase sm:text-sm"
+              >
+                Correspondence
+              </motion.p>
+
+              <motion.h1
+                variants={itemVariants}
+                className="font-display text-foreground mb-5 text-5xl leading-[1.05] font-black sm:text-6xl md:text-7xl lg:text-8xl"
+              >
+                GET IN
+                <br />
+                <span className="text-gold">TOUCH</span>
+              </motion.h1>
+
+              <motion.div
+                variants={itemVariants}
+                className="gold-line-thick mb-6 max-w-32"
+              />
+
+              <motion.p
+                variants={itemVariants}
+                className="font-body-serif text-foreground/55 max-w-md text-base leading-relaxed sm:text-lg"
+              >
+                Whether it&apos;s a question, idea, or just a quick hello
+                &mdash; pick your preferred channel and reach out.
+              </motion.p>
+            </div>
+
             <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5 }}
-              className="mb-12"
+              variants={itemVariants}
+              className="hidden md:block"
+              aria-hidden="true"
             >
-              <div className="mb-8 text-center">
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">
-                  Social Platforms
-                </h2>
-                <p className="mt-2 text-slate-600 dark:text-slate-400">
-                  Connect with me on your favorite platform
-                </p>
-              </div>
-
-              <div className="grid gap-6 sm:grid-cols-3">
-                {SOCIAL_LINKS.map((link, index) => (
-                  <motion.div
-                    key={link.name}
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: index * 0.1, duration: 0.5 }}
-                  >
-                    <Link
-                      href={link.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => handleSocialLinkClick(link.name)}
-                      className="group relative flex h-full flex-col items-center overflow-hidden rounded-2xl border border-slate-200/50 bg-white/80 p-8 text-center shadow-lg shadow-slate-200/50 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-slate-700/50 dark:bg-slate-800/80 dark:shadow-slate-900/50"
-                    >
-                      {/* Gradient background on hover */}
-                      <div
-                        className={`absolute inset-0 bg-gradient-to-br ${link.gradient} opacity-0 transition-opacity duration-300 group-hover:opacity-5`}
-                      />
-
-                      <div className="relative">
-                        <div
-                          className={`mb-4 inline-flex rounded-2xl p-4 ${link.bgLight} transition-transform duration-300 group-hover:scale-110`}
-                        >
-                          <link.icon size={32} className={link.textColor} />
-                        </div>
-
-                        <h3 className="mb-2 text-xl font-bold text-slate-900 dark:text-white">
-                          {link.label}
-                        </h3>
-                        <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
-                          {link.description}
-                        </p>
-
-                        <span
-                          className={`inline-flex items-center gap-1 text-sm font-medium ${link.textColor}`}
-                        >
-                          Connect
-                          <ExternalLink className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                        </span>
-                      </div>
-                    </Link>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-
-            {/* Email CTA Section */}
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-100px" }}
-              transition={{ duration: 0.6 }}
-              className="mx-auto max-w-3xl"
-            >
-              <div className="rounded-3xl border border-slate-200/50 bg-gradient-to-br from-white/80 via-white/60 to-slate-100/80 p-8 text-center shadow-2xl shadow-slate-200/50 backdrop-blur-xl dark:border-slate-700/50 dark:from-slate-800/80 dark:via-slate-800/60 dark:to-slate-900/80 dark:shadow-slate-900/50 sm:p-12">
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.2 }}
-                  className="space-y-6"
-                >
-                  <div className="mx-auto mb-6 inline-flex rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 p-5 shadow-lg shadow-purple-500/25">
-                    <Mail className="h-8 w-8 text-white" />
-                  </div>
-
-                  <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
-                    Prefer Email?
-                  </h2>
-
-                  <p className="mx-auto max-w-lg text-slate-600 dark:text-slate-300">
-                    Send me a message directly and I&apos;ll get back to you as
-                    soon as possible. Great for detailed questions or
-                    collaboration opportunities.
-                  </p>
-
-                  <Button
-                    asChild
-                    size="lg"
-                    className="group h-14 min-w-[280px] rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-lg font-semibold shadow-lg shadow-purple-500/25 transition-all hover:scale-105 hover:shadow-xl hover:shadow-purple-500/30"
-                  >
-                    <Link
-                      href="mailto:contact@alpha49.com"
-                      onClick={() => handleSocialLinkClick("email")}
-                    >
-                      <Send className="mr-2 h-5 w-5" />
-                      contact@alpha49.com
-                      <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
-                    </Link>
-                  </Button>
-                </motion.div>
-              </div>
-            </motion.div>
-
-            {/* GitHub Issues Note */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2 }}
-              className="mt-12 text-center"
-            >
-              <div className="inline-flex items-center gap-3 rounded-2xl border border-slate-200/50 bg-white/50 px-6 py-4 backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-800/50">
-                <div className="rounded-lg bg-slate-100 p-2 dark:bg-slate-700">
-                  <SimpleGithubIcon
-                    size={20}
-                    className="text-slate-700 dark:text-slate-300"
-                  />
+              <div className="border-gold/15 relative border-2 p-6">
+                <div className="border-gold/10 border-2 p-5">
+                  <Mail className="text-gold/30 h-20 w-20" strokeWidth={1} />
                 </div>
-                <p className="text-slate-600 dark:text-slate-400">
-                  Found a bug or have a feature request?{" "}
-                  <Link
-                    href="https://github.com/RLAlpha49/AniCards/issues"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => handleSocialLinkClick("github_issues")}
-                    className="font-semibold text-blue-600 transition-colors hover:text-blue-700 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
-                  >
-                    Open an issue on GitHub
-                  </Link>
-                </p>
+                <div className="border-gold absolute -top-1.5 -left-1.5 h-3 w-3 border-t-2 border-l-2" />
+                <div className="border-gold absolute -right-1.5 -bottom-1.5 h-3 w-3 border-r-2 border-b-2" />
               </div>
             </motion.div>
           </div>
+        </motion.div>
+      </section>
+
+      <div className="gold-line-thick mx-auto max-w-[60%]" />
+
+      <section className="px-6 py-16 sm:px-12 md:py-24">
+        <div className="mx-auto max-w-5xl">
+          <div className="mb-14 text-center">
+            <div className="gold-ornament mb-6">
+              <span className="text-gold text-lg">❖</span>
+            </div>
+            <h2 className="font-display text-foreground mb-3 text-sm tracking-[0.3em] uppercase">
+              Ways to Reach Me
+            </h2>
+            <div className="gold-line mx-auto max-w-12" />
+          </div>
+
+          <div className="space-y-4">
+            {CHANNELS.map((ch, index) => (
+              <motion.div
+                key={ch.name}
+                initial={{ opacity: 0, x: -30 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true, margin: "-40px" }}
+                transition={{ delay: index * 0.08, duration: 0.5 }}
+              >
+                <Link
+                  href={ch.href}
+                  target={ch.name === "email" ? undefined : "_blank"}
+                  rel={ch.name === "email" ? undefined : "noopener noreferrer"}
+                  onClick={() => handleLinkClick(ch.name)}
+                  className="border-gold/10 hover:border-gold/30 bg-gold/2 hover:bg-gold/5 group flex items-center gap-5 border-2 p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_4px_24px_hsl(42_63%_55%/0.12)] sm:gap-8 sm:p-7"
+                >
+                  <span className="font-display text-gold/25 group-hover:text-gold/50 hidden min-w-10 text-center text-3xl transition-colors sm:block">
+                    {ch.numeral}
+                  </span>
+
+                  <div className="bg-gold/15 hidden h-12 w-px sm:block" />
+
+                  <div className="border-gold/15 group-hover:border-gold/35 shrink-0 border p-3 transition-colors">
+                    <ch.icon size={22} className="text-gold" />
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-display text-foreground mb-0.5 text-xs tracking-[0.2em] uppercase sm:text-sm">
+                      {ch.label}
+                    </h3>
+                    <p className="font-body-serif text-foreground/45 text-xs leading-relaxed sm:text-sm">
+                      {ch.tagline}
+                    </p>
+                  </div>
+
+                  <div className="hidden items-center gap-3 md:flex">
+                    <span className="text-gold/60 font-body-serif text-sm">
+                      {ch.address}
+                    </span>
+                    <ArrowUpRight className="text-gold/30 group-hover:text-gold h-4 w-4 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                  </div>
+
+                  <ArrowUpRight className="text-gold/30 group-hover:text-gold h-4 w-4 shrink-0 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5 md:hidden" />
+                </Link>
+              </motion.div>
+            ))}
+          </div>
         </div>
       </section>
-    </PageShell>
+
+      <section className="border-gold/20 border-y-2 px-6 py-16 sm:px-12 md:py-24">
+        <div className="mx-auto max-w-5xl">
+          <div className="mb-14 text-center">
+            <h2 className="font-display text-foreground mb-3 text-sm tracking-[0.3em] uppercase">
+              What Can I Help With?
+            </h2>
+            <div className="gold-line mx-auto max-w-12" />
+          </div>
+
+          <motion.div
+            variants={staggerGrid}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-60px" }}
+            className="grid gap-5 sm:grid-cols-2"
+          >
+            {REASONS.map((reason) => {
+              const content = (
+                <>
+                  <div className="mb-4 flex items-center gap-3">
+                    <div className="border-gold/20 border p-2.5">
+                      <reason.icon size={18} className="text-gold" />
+                    </div>
+                    <h3 className="font-display text-foreground text-xs tracking-[0.2em] uppercase">
+                      {reason.title}
+                    </h3>
+                  </div>
+                  <p className="font-body-serif text-foreground/50 text-sm leading-relaxed">
+                    {reason.description}
+                  </p>
+                  {reason.href && (
+                    <span className="text-gold mt-3 inline-flex items-center gap-1 text-xs tracking-wider uppercase">
+                      Open Issue
+                      <ExternalLink className="h-3 w-3" />
+                    </span>
+                  )}
+                </>
+              );
+
+              return (
+                <motion.div key={reason.title} variants={gridItem}>
+                  {reason.href ? (
+                    <Link
+                      href={reason.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => handleLinkClick("github_issues")}
+                      className="imperial-card group block h-full transition-all duration-300 hover:-translate-y-0.5"
+                    >
+                      {content}
+                    </Link>
+                  ) : (
+                    <div className="imperial-card h-full">{content}</div>
+                  )}
+                </motion.div>
+              );
+            })}
+          </motion.div>
+        </div>
+      </section>
+
+      <section className="px-6 py-16 sm:px-12 md:py-24">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          className="mx-auto max-w-3xl text-center"
+        >
+          <div className="gold-ornament mb-6">
+            <span className="text-gold text-base">❖</span>
+          </div>
+
+          <h2 className="font-display text-gold mb-3 text-3xl sm:text-4xl">
+            DIRECT LINE
+          </h2>
+          <div className="gold-line mx-auto mb-6 max-w-10" />
+          <p className="font-body-serif text-foreground/50 mx-auto mb-10 max-w-md text-base leading-relaxed">
+            For anything that warrants a longer conversation &mdash; detailed
+            questions, collaboration proposals, or creative ideas.
+          </p>
+
+          <Link
+            href="mailto:contact@alpha49.com"
+            onClick={() => handleLinkClick("email")}
+            className="imperial-btn imperial-btn-fill group inline-flex items-center"
+          >
+            <Send className="mr-2.5 h-4 w-4" />
+            contact@alpha49.com
+            <ArrowUpRight className="ml-2.5 h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          </Link>
+
+          <p className="text-foreground/30 mt-6 text-xs tracking-wide">
+            Typically responds within 24 &ndash; 48 hours
+          </p>
+        </motion.div>
+      </section>
+    </div>
   );
 }
