@@ -16,6 +16,15 @@
     "check:unused": "bunx knip",
     "prepare": "husky"
   },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,mjs,mts}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.{json,md,css,scss,yml,yaml}": [
+      "prettier --write"
+    ]
+  },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
@@ -30,7 +39,7 @@
     "@radix-ui/react-switch": "^1.2.6",
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-tooltip": "^1.2.8",
-    "@tanstack/react-virtual": "^3.13.22",
+    "@tanstack/react-virtual": "^3.13.23",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.37.0",
     "@vercel/analytics": "^2.0.1",
@@ -41,13 +50,13 @@
     "cmdk": "^1.1.1",
     "dompurify": "^3.3.3",
     "driver.js": "^1.4.0",
-    "framer-motion": "^12.36.0",
+    "framer-motion": "^12.38.0",
     "fuse.js": "^7.1.0",
     "jszip": "^3.10.1",
-    "katex": "^0.16.38",
+    "katex": "^0.16.39",
     "lru-cache": "^11.2.7",
     "lucide-react": "^0.577.0",
-    "next": "16.1.6",
+    "next": "16.2.0",
     "next-themes": "^0.4.6",
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
@@ -57,38 +66,32 @@
     "simple-icons": "^16.12.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
-    "zustand": "^5.0.11"
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
-    "@next/eslint-plugin-next": "^16.1.6",
+    "@next/eslint-plugin-next": "^16.2.0",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4",
-    "@types/bun": "^1.3.10",
+    "@types/bun": "^1.3.11",
     "@types/dompurify": "^3.2.0",
     "@types/katex": "^0.16.8",
     "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@typescript-eslint/eslint-plugin": "^8.57.0",
-    "@typescript-eslint/parser": "^8.57.0",
-    "baseline-browser-mapping": "^2.10.8",
+    "@typescript-eslint/eslint-plugin": "^8.57.1",
+    "@typescript-eslint/parser": "^8.57.1",
+    "baseline-browser-mapping": "^2.10.9",
     "eslint": "^10.0.3",
-    "eslint-config-next": "16.1.6",
+    "eslint-config-next": "16.2.0",
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "husky": "^9.1.7",
-    "knip": "^5.88.0",
+    "knip": "^5.88.1",
+    "lint-staged": "^16.4.0",
     "postcss": "^8",
     "tailwindcss": "^4",
     "tw-animate-css": "^1",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.57.0"
-  },
-  "overrides": {
-    "typescript-eslint": "8.57.0",
-    "@typescript-eslint/eslint-plugin": "8.57.0",
-    "@typescript-eslint/parser": "8.57.0",
-    "@typescript-eslint/typescript-estree": "8.57.0",
-    "@typescript-eslint/utils": "8.57.0"
+    "typescript-eslint": "^8.57.1"
   }
 }
