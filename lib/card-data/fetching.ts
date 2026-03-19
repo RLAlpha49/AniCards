@@ -72,47 +72,6 @@ export async function fetchUserDataForCard(
 }
 
 /**
- * Loads only the user record from Redis for a numeric user ID.
- * This is used when card configuration can be built entirely from URL params.
- * @param numericUserId - Numeric user id stored in Redis key 'user:{id}'.
- * @returns Parsed UserRecord.
- * @throws {CardDataError} If no data exists (404) or parsed data is corrupted (500).
- * @source
- */
-export async function fetchUserDataOnly(
-  numericUserId: number,
-): Promise<UserRecord> {
-  try {
-    const allParts: UserDataPart[] = [
-      "meta",
-      "activity",
-      "favourites",
-      "statistics",
-      "pages",
-      "planning",
-      "current",
-      "rewatched",
-      "completed",
-      "aggregates",
-    ];
-    const userDataParts = await fetchUserDataParts(numericUserId, allParts);
-
-    if (!userDataParts.meta) {
-      throw new CardDataError("Not Found: User data not found", 404);
-    }
-
-    return reconstructUserRecord(userDataParts);
-  } catch (error) {
-    if (error instanceof CardDataError) throw error;
-
-    incrementAnalytics(
-      buildAnalyticsMetricKey("card_svg", "corrupted_user_records"),
-    ).catch(() => {});
-    throw new CardDataError("Server Error: Corrupted user record", 500);
-  }
-}
-
-/**
  * Loads and parses cached cards and user records from Redis for a numeric user ID.
  * Validates presence and JSON structure; records corrupted or missing values will increment analytics and throw CardDataError.
  * @param numericUserId - Numeric user id stored in Redis keys 'cards:{id}' and 'user:{id}'.

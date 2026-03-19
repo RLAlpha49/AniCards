@@ -484,7 +484,6 @@ function addFavoritesGridDimsParamIfRelevant(
   baseCardType: string,
   candidate: { gridCols?: number; gridRows?: number },
 ): void {
-  // Favorites grid layout is only meaningful for the favoritesGrid card.
   if (baseCardType !== "favoritesGrid") return;
 
   if (typeof candidate.gridCols === "number") {
@@ -632,14 +631,11 @@ export function buildCardUrlWithParams(
 ): string {
   const searchParams = new URLSearchParams();
 
-  // User identification (at least one required) - userId first for consistency
   setParamIfDefined(searchParams, "userId", params.userId);
   setParamIfDefined(searchParams, "userName", params.userName);
 
-  // Required params
   searchParams.set("cardType", params.cardType);
 
-  // Variation
   setParamIfDefined(searchParams, "variation", params.variation);
 
   // Color preset (if set, instructs the server to use the named preset; if
@@ -658,56 +654,17 @@ export function buildCardUrlWithParams(
   setParamIfDefined(searchParams, "textColor", params.textColor);
   setParamIfDefined(searchParams, "circleColor", params.circleColor);
 
-  // Border settings
   setParamIfDefined(searchParams, "borderColor", params.borderColor);
   if (typeof params.borderRadius === "number") {
     searchParams.set("borderRadius", String(params.borderRadius));
   }
 
-  // Boolean flags
   setBooleanParam(searchParams, "showFavorites", params.showFavorites);
   setBooleanParam(searchParams, "statusColors", params.statusColors);
   setBooleanParam(searchParams, "piePercentages", params.piePercentages);
 
-  // Favorites grid layout (optional)
   setNumberParam(searchParams, "gridCols", params.gridCols);
   setNumberParam(searchParams, "gridRows", params.gridRows);
 
   return `${baseUrl}?${searchParams.toString()}`;
-}
-
-/** Example variant shape used by UI examples for each card variation. @source */
-export type ExampleCardVariant = {
-  cardType: string;
-  cardTitle: string;
-  variation: string;
-  label: string;
-  extras?: Record<string, string>;
-};
-
-/**
- * Creates a flattened list of example card variants from the configured
- * card groups. Each variant includes metadata and extras required to build
- * a preview card URL.
- * @param variationLabelMap - Optional mapping for variation labels.
- * @returns An array of ExampleCardVariant objects.
- * @source
- */
-export function generateExampleCardVariants(
-  variationLabelMap: Record<string, string> = VARIATION_LABEL_MAP,
-) {
-  return CARD_GROUPS.flatMap((group) =>
-    group.variations.map((v) => {
-      const variation = typeof v === "string" ? v : v.variation;
-      const extras = typeof v === "string" ? undefined : v.extras;
-
-      return {
-        cardType: group.cardType,
-        cardTitle: group.cardTitle,
-        variation,
-        label: variationLabelMap[variation] ?? variation,
-        ...(extras ? { extras } : {}),
-      } as ExampleCardVariant;
-    }),
-  );
 }

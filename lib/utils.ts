@@ -19,12 +19,6 @@ const DEFAULT_BACKGROUND_COLOR = "#141321";
 const DEFAULT_TEXT_COLOR = "#a9fef7";
 const DEFAULT_CIRCLE_COLOR = "#fe428e";
 
-const _borderRadiusPromiseCache = new Map<string, Promise<number | null>>();
-
-type GlobalWithCache = typeof globalThis & {
-  __ANICARDS__borderRadiusCache?: Map<string, Promise<number | null>>;
-};
-
 const _envApiBase =
   typeof process === "undefined" ? undefined : process.env?.NEXT_PUBLIC_API_URL;
 
@@ -60,93 +54,6 @@ export function buildApiUrl(path: string): string {
   if (/^https?:\/\//i.test(path)) return path;
   const normalized = path.startsWith("/") ? path : `/${path}`;
   return `${API_BASE}${normalized}`;
-}
-
-/**
- * Extracts a card border radius from a remote SVG by reading a lightweight
- * header or, optionally, parsing the SVG contents for the <rect>'s rx
- * attribute. Results are memoized by absolute URL to avoid duplicate
- * requests across instances.
- *
- * @param svgUrl - The SVG URL to inspect (absolute or relative).
- * @param opts - Options controlling fallback behavior. `allowFallback`
- *               enables the full GET + parsing fallback when `true`.
- *               Default: false (no fallback).
- */
-export function getSvgBorderRadius(
-  svgUrl: string,
-  opts?: { allowFallback?: boolean },
-): Promise<number | null> {
-  const absoluteUrl = getAbsoluteUrl(svgUrl);
-  // Prefer a global cache (persisted across HMR) but fall back to the
-  // module-level cache otherwise.
-  const g = globalThis as GlobalWithCache;
-  const cache =
-    g.__ANICARDS__borderRadiusCache ??
-    (g.__ANICARDS__borderRadiusCache = _borderRadiusPromiseCache);
-
-  let promise = cache.get(absoluteUrl);
-  if (!promise) {
-    promise = (async () => {
-      const allowFallback = opts?.allowFallback ?? false;
-      let isFirstPartyCardEndpoint = false;
-      try {
-        const hasWindow = globalThis.window !== undefined;
-        const baseOrigin = hasWindow
-          ? globalThis.window.location.origin
-          : "http://localhost";
-        const parsed = new URL(absoluteUrl, baseOrigin);
-        const pathname = (parsed.pathname || "").toLowerCase();
-        const parsedHost = (parsed.hostname || "").toLowerCase();
-        const apiHost = (() => {
-          try {
-            return new URL(API_BASE).hostname.toLowerCase();
-          } catch {
-            return "";
-          }
-        })();
-
-        if (
-          pathname.startsWith("/api/card") ||
-          parsedHost === apiHost ||
-          parsedHost.startsWith("api.")
-        ) {
-          isFirstPartyCardEndpoint = true;
-        }
-      } catch {}
-      try {
-        const headRes = await fetch(absoluteUrl, { method: "HEAD" });
-        if (headRes.ok) {
-          const headerVal = headRes.headers.get("x-card-border-radius");
-          if (headerVal) {
-            const parsedFromHeader = Number.parseFloat(headerVal);
-            if (Number.isFinite(parsedFromHeader))
-              return clampBorderRadius(parsedFromHeader);
-          }
-        }
-      } catch {}
-
-      if (!allowFallback || isFirstPartyCardEndpoint) return null;
-      try {
-        const res = await fetch(absoluteUrl);
-        if (!res.ok) return null;
-        const text = await res.text();
-        const match = new RegExp(
-          /<rect[^>]*data-testid=["']card-bg["'][^>]*rx=["'](\d+(?:\.\d+)?)['"]/i,
-        ).exec(text);
-        if (!match) return null;
-        const parsed = Number.parseFloat(match[1]);
-        if (!Number.isFinite(parsed)) return null;
-        return clampBorderRadius(parsed);
-      } catch (err) {
-        // Remove the cached promise on error so subsequent attempts can retry.
-        cache.delete(absoluteUrl);
-        throw err;
-      }
-    })();
-    cache.set(absoluteUrl, promise);
-  }
-  return promise;
 }
 
 /** Export formats supported for image conversion. @source */
@@ -433,50 +340,6 @@ export function hexToHsl(hex: string): [number, number, number] {
   }
 
   return [h, s, l];
-}
-
-/**
- * Convert HSL to a hex RGB color.
- *
- * @param h - Hue in range 0..1.
- * @param s - Saturation in range 0..1.
- * @param l - Lightness in range 0..1.
- * @returns Color in #rrggbb format.
- */
-export function hslToHex(h: number, s: number, l: number): string {
-  const hh = Math.max(0, Math.min(1, Number.isFinite(h) ? h : 0));
-  const ss = Math.max(0, Math.min(1, Number.isFinite(s) ? s : 0));
-  const ll = Math.max(0, Math.min(1, Number.isFinite(l) ? l : 0));
-
-  let r: number;
-  let g: number;
-  let b: number;
-
-  if (ss === 0) {
-    r = g = b = ll;
-  } else {
-    const hue2rgb = (p: number, q: number, t: number) => {
-      if (t < 0) t += 1;
-      if (t > 1) t -= 1;
-      if (t < 1 / 6) return p + (q - p) * 6 * t;
-      if (t < 1 / 2) return q;
-      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-      return p;
-    };
-
-    const q = ll < 0.5 ? ll * (1 + ss) : ll + ss - ll * ss;
-    const p = 2 * ll - q;
-    r = hue2rgb(p, q, hh + 1 / 3);
-    g = hue2rgb(p, q, hh);
-    b = hue2rgb(p, q, hh - 1 / 3);
-  }
-
-  const toHex = (c: number) =>
-    Math.round(Math.max(0, Math.min(1, c)) * 255)
-      .toString(16)
-      .padStart(2, "0");
-
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
 /**
@@ -784,20 +647,6 @@ function extractImageDataUrl(payload: unknown): string {
 }
 
 /**
- * Copies the specified text to the system clipboard.
- *
- * A simple wrapper around the browser's clipboard API that returns a promise.
- *
- * @param text - The text to be copied.
- * @returns A Promise that resolves when the text is successfully copied.
- * @source
- */
-export function copyToClipboard(text: string): Promise<void> {
-  // Utilize the browser's native clipboard API.
-  return navigator.clipboard.writeText(text);
-}
-
-/**
  * Calculates a dynamic font size for the provided text such that it fits within a maximum width.
  *
  * The calculation iteratively reduces the font size based on the text's length and an adaptive multiplier,
@@ -827,32 +676,8 @@ export const calculateDynamicFontSize = (
   ) {
     fontSize -= 0.1;
   }
-  // Return the final font size formatted to one decimal place.
   return fontSize.toFixed(1);
 };
-
-/**
- * Formats a byte count into a human-readable string using appropriate units (Bytes, KB, MB, GB).
- *
- * Divides the byte count by the appropriate power of 1024 and formats the number to the specified decimal precision.
- *
- * @param bytes - The number of bytes to format.
- * @param decimals - The number of decimal places (default: 2).
- * @returns A formatted string representing the size (e.g., "1.23 MB").
- * @source
- */
-export function formatBytes(bytes: number, decimals = 2) {
-  if (bytes === 0) return "0 Bytes";
-  const k = 1024;
-  const dm = Math.max(decimals, 0);
-  const sizes = ["Bytes", "KB", "MB", "GB"];
-  // Determine the appropriate unit based on the logarithm of the byte count.
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  // Calculate the size in the determined unit and format it.
-  return (
-    Number.parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i]
-  );
-}
 
 /**
  * Safely parses a JSON string into an object of type T.
@@ -915,33 +740,6 @@ export function getAbsoluteUrl(url: string): string {
   if (!globalThis.window) return url;
   if (url.startsWith("http")) return url;
   return `${globalThis.window.location.origin}${url}`;
-}
-
-/**
- * Converts a stored card configuration (StoredCardConfig) into the template-facing
- * TemplateCardConfig shape. This ensures templates always receive the expected fields
- * while the stored shape may include additional persistence-only flags.
- * @source
- */
-export function toTemplateCardConfig(
-  card: StoredCardConfig | TemplateCardConfig,
-  defaultVariation = "default",
-): TemplateCardConfig {
-  return {
-    cardName: card.cardName,
-    variation:
-      "variation" in card &&
-      (card as TemplateCardConfig).variation !== undefined
-        ? (card as TemplateCardConfig).variation
-        : defaultVariation,
-    titleColor: card.titleColor ?? DEFAULT_TITLE_COLOR,
-    backgroundColor: card.backgroundColor ?? DEFAULT_BACKGROUND_COLOR,
-    textColor: card.textColor ?? DEFAULT_TEXT_COLOR,
-    circleColor: card.circleColor ?? DEFAULT_CIRCLE_COLOR,
-    borderColor: "borderColor" in card ? card.borderColor : undefined,
-    useStatusColors:
-      "useStatusColors" in card ? card.useStatusColors : undefined,
-  };
 }
 
 /**
@@ -1103,19 +901,6 @@ export function toFiniteNumber(
 export function markTrustedSvg(svg: string): TrustedSVG {
   const prefix = "<!--ANICARDS_TRUSTED_SVG-->";
   return `${prefix}${svg}` as TrustedSVG;
-}
-
-/**
- * Check whether the provided string is a marked Trusted SVG.
- * This is a lightweight runtime guard used by client components that render
- * pre-sanitized SVG markup to ensure the string passed to
- * `dangerouslySetInnerHTML` came from one of our trusted template helpers.
- * @param svg - The string to check.
- * @returns True if the string is marked as trusted.
- */
-export function isTrustedSvgString(svg: unknown): boolean {
-  if (typeof svg !== "string") return false;
-  return svg.startsWith("<!--ANICARDS_TRUSTED_SVG-->");
 }
 
 /** Successful result for a single conversion in a batch. @source */

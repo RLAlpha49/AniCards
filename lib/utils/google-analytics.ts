@@ -100,71 +100,12 @@ export const safeTrack = (fn: () => void) => {
   }
 };
 
-/** Log a card generation event with GA using a card type label. @source */
-export const trackCardGeneration = (cardType: string) => {
-  event({
-    action: "card_generated",
-    category: "engagement",
-    label: cardType,
-  });
-};
-
-/** Log a card download event with GA using a card type label. @source */
-export const trackCardDownload = (cardType: string) => {
-  event({
-    action: "card_downloaded",
-    category: "conversion",
-    label: cardType,
-  });
-};
-
-/** Track when multiple cards are exported in a batch. @source */
-export const trackBatchExport = (
-  format: "png" | "webp",
-  cardCount: number,
-  success: boolean,
-) => {
-  event({
-    action: "batch_export",
-    category: "conversion",
-    label: `${format}_${cardCount}_cards_${success ? "success" : "failure"}`,
-    value: cardCount,
-  });
-};
-
-/** Track a user search by username in GA events. @source */
-export const trackUserSearch = (username: string) => {
-  event({
-    action: "user_searched",
-    category: "engagement",
-    label: username,
-  });
-};
-
 /** Track a settings change event with GA. @source */
 export const trackSettingsChanged = (settingType: string) => {
   event({
     action: "settings_changed",
     category: "engagement",
     label: settingType,
-  });
-};
-
-/** Track when a dialog is opened by type for analytics. @source */
-export const trackDialogOpen = (dialogType: string) => {
-  event({
-    action: "dialog_opened",
-    category: "engagement",
-    label: dialogType,
-  });
-};
-
-/** Track when a dialog is closed by type for analytics. @source */
-export const trackDialogClose = (dialogType: string) => {
-  event({
-    action: "dialog_closed",
-    category: "engagement",
-    label: dialogType,
   });
 };
 
@@ -191,30 +132,12 @@ export const trackNavigation = (
   });
 };
 
-/** Track sidebar expand/collapse actions in GA. @source */
-export const trackSidebarToggle = (action: "expand" | "collapse") => {
-  event({
-    action: "sidebar_toggled",
-    category: "ui_interaction",
-    label: action,
-  });
-};
-
 /** Track when a color preset is selected in the UI. @source */
 export const trackColorPresetSelection = (presetName: string) => {
   event({
     action: "color_preset_selected",
     category: "customization",
     label: presetName,
-  });
-};
-
-/** Track previewing a card for GA analysis. @source */
-export const trackCardPreview = (cardType: string) => {
-  event({
-    action: "card_previewed",
-    category: "engagement",
-    label: cardType,
   });
 };
 
@@ -236,15 +159,6 @@ export const trackExternalLinkClick = (
     action: "external_link_clicked",
     category: "engagement",
     label: context ? `${context}_${linkDestination}` : linkDestination,
-  });
-};
-
-/** Track copy actions (e.g., copying a URL) for analytics. @source */
-export const trackCopyAction = (copyType: string) => {
-  event({
-    action: "copy_action",
-    category: "engagement",
-    label: copyType,
   });
 };
 

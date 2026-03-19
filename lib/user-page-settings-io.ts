@@ -149,53 +149,6 @@ function parseAdvancedSettingsSnapshot(
   return out;
 }
 
-const DEFAULT_COLORS: [ColorValue, ColorValue, ColorValue, ColorValue] = [
-  "#fe428e",
-  "#141321",
-  "#a9fef7",
-  "#fe428e",
-];
-
-export function sanitizeSettingsSnapshot(
-  input: SettingsSnapshot,
-): SettingsSnapshot {
-  const borderColor =
-    typeof input.borderColor === "string" ? input.borderColor : "#e4e2e2";
-
-  // Validate `colors`: must be an array of exactly 4 ColorValue items.
-  let colors: [ColorValue, ColorValue, ColorValue, ColorValue];
-  if (
-    Array.isArray(input.colors) &&
-    input.colors.length === 4 &&
-    input.colors.every(isColorValue)
-  ) {
-    const [c0, c1, c2, c3] = input.colors;
-    colors = [c0, c1, c2, c3];
-  } else {
-    // Use a fresh copy to avoid exposing the internal constant to mutation.
-    colors = [...DEFAULT_COLORS] as [
-      ColorValue,
-      ColorValue,
-      ColorValue,
-      ColorValue,
-    ];
-  }
-
-  return {
-    colorPreset:
-      typeof input.colorPreset === "string" ? input.colorPreset : "custom",
-    colors,
-    borderEnabled: Boolean(input.borderEnabled),
-    borderColor,
-    borderRadius: clampBorderRadius(
-      typeof input.borderRadius === "number"
-        ? input.borderRadius
-        : DEFAULT_CARD_BORDER_RADIUS,
-    ),
-    advancedSettings: parseAdvancedSettingsSnapshot(input.advancedSettings),
-  };
-}
-
 export function parseSettingsSnapshot(value: unknown): SettingsSnapshot | null {
   if (!isPlainObject(value)) return null;
 

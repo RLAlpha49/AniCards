@@ -2266,13 +2266,6 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
 );
 
 /**
- * Selector to get the current canonical card order.
- * @source
- */
-export const selectCardOrder = (state: UserPageEditorStore): string[] =>
-  state.cardOrder;
-
-/**
  * Selector that returns whether a specific card has unsaved modifications.
  *
  * Includes:
@@ -2298,85 +2291,3 @@ export const selectIsCardModified = (
   const currentGlobal = buildGlobalSettingsSnapshot(state);
   return !areSettingsSnapshotsEqual(currentGlobal, baselineGlobal);
 };
-
-/**
- * Selector to get all enabled card IDs.
- * @source
- */
-export const selectEnabledCardIds = (state: UserPageEditorStore): string[] =>
-  Object.values(state.cardConfigs)
-    .filter((c) => c.enabled)
-    .map((c) => c.cardId);
-
-/**
- * Selector to check if any cards are enabled.
- * @source
- */
-export const selectHasEnabledCards = (state: UserPageEditorStore): boolean =>
-  Object.values(state.cardConfigs).some((c) => c.enabled);
-
-/**
- * Selector to get the count of selected cards.
- * @source
- */
-export const selectSelectedCount = (state: UserPageEditorStore): number =>
-  state.selectedCardIds.size;
-
-/**
- * Selector to check if a card is selected.
- * @source
- */
-export const selectIsCardSelected = (
-  state: UserPageEditorStore,
-  cardId: string,
-): boolean => state.selectedCardIds.has(cardId);
-
-/**
- * Selector to get card configs grouped by their group from statCardTypes.
- * Falls back to "All" when a mapping for a card ID is not found.
- * Optionally accepts an override `statCardTypes` array (useful for tests or SSR).
- * @source
- */
-export const selectCardConfigsByGroup = (
-  state: UserPageEditorStore,
-  overrideStatCardTypes?: ReadonlyArray<{ id: string; group: string }>,
-): Record<string, CardEditorConfig[]> => {
-  const result: Record<string, CardEditorConfig[]> = {};
-
-  // Use the provided override when present, otherwise fall back to the canonical statCardTypes
-  const cardTypeList = overrideStatCardTypes ?? statCardTypes;
-
-  const groupById = new Map<string, string>(
-    cardTypeList.map((t) => [t.id, t.group]),
-  );
-
-  for (const config of Object.values(state.cardConfigs)) {
-    const group = groupById.get(config.cardId) ?? "All";
-    if (!result[group]) result[group] = [];
-    result[group].push(config);
-  }
-
-  return result;
-};
-
-/**
- * Selector to check whether a bulk undo operation is available.
- * @source
- */
-export const selectCanUndoBulk = (state: UserPageEditorStore): boolean =>
-  state.bulkPast.length > 0;
-
-/**
- * Selector to check whether a bulk redo operation is available.
- * @source
- */
-export const selectCanRedoBulk = (state: UserPageEditorStore): boolean =>
-  state.bulkFuture.length > 0;
-
-/**
- * Selector for the latest bulk-operation announcement message.
- * @source
- */
-export const selectBulkLastMessage = (
-  state: UserPageEditorStore,
-): string | null => state.bulkLastMessage;
