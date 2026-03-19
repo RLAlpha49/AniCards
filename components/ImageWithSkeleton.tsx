@@ -1,8 +1,7 @@
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import type React from "react";
-import { useEffect, useRef,useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Skeleton } from "@/components/ui/Skeleton";
 
@@ -261,7 +260,7 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
         src={src}
         alt={alt}
         className={`${className} ${shouldShowImage ? "opacity-100" : "opacity-0"} transition-opacity duration-300`}
-        style={{ borderRadius: "4px" }}
+        style={{ borderRadius: "4px", ...style }}
         width={width}
         height={height}
         loading="lazy"
