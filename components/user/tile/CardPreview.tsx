@@ -1,5 +1,9 @@
 "use client";
 
+// Renders the preview surface and its action overlay. All open/refresh/copy/
+// download flows share the same normalized `/api/card` source so the cached
+// preview, expanded view, and new-tab view stay in sync.
+
 import { ExternalLink, Eye, MoreHorizontal, RotateCw } from "lucide-react";
 import { memo, type ReactNode, useEffect, useMemo, useState } from "react";
 

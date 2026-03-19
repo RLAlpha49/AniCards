@@ -1,5 +1,9 @@
 "use client";
 
+// Shared form body for both global settings and per-card overrides.
+// The key job here is to show the effective values a card will inherit without
+// duplicating the UI or forcing callers to resolve every fallback themselves.
+
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Grid,
@@ -329,10 +333,6 @@ interface AdvancedVisibility {
   showGridSize?: boolean;
 }
 
-/**
- * Props for SettingsContent component.
- * @source
- */
 interface SettingsContentProps {
   /** Unique identifier prefix for form elements */
   idPrefix: string;
@@ -381,13 +381,6 @@ interface SettingsContentProps {
   onValidityChange?: (isValid: boolean) => void;
 }
 
-/**
- * Shared settings content component with Colors, Border, and Advanced tabs.
- * Used by both GlobalSettingsPanel and CardSettingsDialog for consistency.
- * @param props - Component props.
- * @returns JSX element.
- * @source
- */
 export function SettingsContent({
   idPrefix,
   mode,

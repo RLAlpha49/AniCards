@@ -1,5 +1,9 @@
 "use client";
 
+// Portal-based toolbar for multi-card actions. It derives everything from the
+// current editor snapshot so bulk copy/download/edit stays consistent even when
+// the main grid is filtered, reordered, or partially off-screen.
+
 import { AnimatePresence, motion } from "framer-motion";
 import { Redo2, RotateCcw, SlidersHorizontal, Undo2, X } from "lucide-react";
 import {
@@ -48,20 +52,11 @@ import { DownloadPopover } from "./bulk/DownloadPopover";
 import { DownloadStatusAlerts } from "./bulk/DownloadStatusAlerts";
 import { SelectionCounter } from "./bulk/SelectionCounter";
 
-/**
- * Props for BulkActionsToolbar.
- * @source
- */
 interface BulkActionsToolbarProps {
   /** Additional className for the toolbar container */
   className?: string;
 }
 
-/**
- * Floating toolbar that appears when cards are selected.
- * Provides bulk copy and download operations.
- * @source
- */
 export function BulkActionsToolbar({
   className,
 }: Readonly<BulkActionsToolbarProps>) {
