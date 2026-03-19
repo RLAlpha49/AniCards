@@ -1,3 +1,11 @@
+/**
+ * Sanitizes trusted AniCards SVG output before raster conversion.
+ *
+ * The conversion endpoint accepts SVG URLs from allow-listed origins only, then
+ * strips animations and brittle style fragments before handing the markup to
+ * `sharp`. That keeps exported PNG/WebP images stable across templates while
+ * reducing SSRF risk and renderer-specific SVG edge cases.
+ */
 import type { NextRequest, NextResponse } from "next/server";
 import sharp from "sharp";
 

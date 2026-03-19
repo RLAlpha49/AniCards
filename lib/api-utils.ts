@@ -1,3 +1,10 @@
+/**
+ * Shared API-route infrastructure for AniCards.
+ *
+ * This module keeps route handlers thin by centralizing lazy Upstash clients,
+ * CORS policy, request validation, analytics counters, and common response
+ * helpers in one place.
+ */
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { NextResponse } from "next/server";

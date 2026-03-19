@@ -1,3 +1,11 @@
+/**
+ * Converts normalized AniList user data into the shapes expected by SVG
+ * templates.
+ *
+ * This sits between validation/storage code and rendering so template modules
+ * can stay focused on layout instead of knowing about record normalization or
+ * aggregate fallback rules.
+ */
 import {
   AnimeStats as TemplateAnimeStats,
   MangaStats as TemplateMangaStats,

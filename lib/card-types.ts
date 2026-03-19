@@ -1,3 +1,10 @@
+/**
+ * Authoritative catalog of supported card ids, groupings, and UI variants.
+ *
+ * The editor and server-side generation both depend on these identifiers staying
+ * aligned, so the metadata lives in one registry instead of being duplicated
+ * across forms, menus, and card dispatch code.
+ */
 const pieBarVariations = [
   { id: "default", label: "Default" },
   { id: "pie", label: "Pie Chart" },

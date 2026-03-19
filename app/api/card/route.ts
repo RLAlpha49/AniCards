@@ -1,3 +1,12 @@
+/**
+ * Renders shareable AniCards SVGs for both saved configurations and stateless
+ * URL-driven previews.
+ *
+ * This route sits between user/card storage and the SVG generator: it resolves
+ * the effective config source, normalizes request params, and uses an in-memory
+ * cache with stale-while-revalidate behavior so common embeds stay fast without
+ * giving up freshness.
+ */
 import {
   buildAnalyticsMetricKey,
   checkRateLimit,

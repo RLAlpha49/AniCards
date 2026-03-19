@@ -1,3 +1,11 @@
+/**
+ * Cross-cutting utility helpers shared by the UI, SVG generation, export flow,
+ * and API clients.
+ *
+ * The file is intentionally broad: it collects small reusable helpers plus a
+ * few app-level contracts around color handling, trusted SVG output, and batch
+ * export so those rules stay consistent everywhere they are used.
+ */
 import { type ClassValue, clsx } from "clsx";
 import JSZip from "jszip";
 import { twMerge } from "tailwind-merge";

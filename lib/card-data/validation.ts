@@ -1,3 +1,10 @@
+/**
+ * Validation and normalization entry point for card-related data.
+ *
+ * These helpers turn loosely shaped AniList or Redis payloads into the stricter
+ * `UserRecord` and card contracts the rest of the app relies on, while also
+ * computing aggregates that must survive list-pruning in storage.
+ */
 import type { ErrorCategory, RecoverySuggestion } from "@/lib/error-messages";
 import { getErrorDetails } from "@/lib/error-messages";
 import {

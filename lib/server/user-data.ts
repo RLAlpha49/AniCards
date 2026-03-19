@@ -1,3 +1,10 @@
+/**
+ * Redis persistence helpers for split user-record storage.
+ *
+ * User data is stored in coarse-grained parts instead of one large blob so card
+ * rendering can fetch only the sections each card needs, while still supporting
+ * reconstruction and legacy-record migration when older keys are encountered.
+ */
 import { redisClient } from "@/lib/api-utils";
 import {
   AnimeGenreSynergyTotalsEntry,

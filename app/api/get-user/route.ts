@@ -1,3 +1,12 @@
+/**
+ * Reads a stored AniCards user record by numeric AniList id or username.
+ *
+ * This route is the lookup bridge between the public search flow and the split
+ * Redis storage format in `lib/server/user-data`. It resolves usernames through
+ * the normalized username index, then reconstructs the full stored record so
+ * the client can hydrate from one response instead of stitching sections
+ * together with follow-up requests.
+ */
 import {
   apiJsonHeaders,
   incrementAnalytics,
@@ -62,6 +71,8 @@ export async function GET(request: Request) {
       );
     }
 
+    // Username lookups use the same trim+lowercase normalization as the write
+    // path in `/api/store-users`, so searches stay case-insensitive and stable.
     /**
      * Resolves a normalized username to a numeric user ID via the Redis username index.
      * @param u - The username to normalize and resolve.
@@ -112,6 +123,9 @@ export async function GET(request: Request) {
       "completed",
       "aggregates",
     ];
+
+    // Fetch every persisted section up front so the editor and public user page
+    // can bootstrap from one payload instead of making section-specific reads.
     const userDataParts = await fetchUserDataParts(numericUserId, allParts);
     const duration = Date.now() - startTime;
 
