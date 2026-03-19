@@ -263,7 +263,6 @@ export function useCardFiltering({
     });
   }, [fuzzy]);
 
-  // Compute fuzzy matches set when query is present and fuse is available
   const fuzzyMatchIds = useMemo(() => {
     if (!parsedQuery.text || !fuse) return null;
     const results = fuse.search(parsedQuery.text);
@@ -282,7 +281,6 @@ export function useCardFiltering({
 
   const matchesQuery = useCallback(
     (cardType: (typeof statCardTypes)[0]) => {
-      // Token-based filters
       if (parsedQuery.groupTerms.length > 0) {
         const group = cardType.group.toLowerCase();
         const matchesAnyGroup = parsedQuery.groupTerms.some((t) =>
@@ -303,7 +301,6 @@ export function useCardFiltering({
           return false;
       }
 
-      // Free-text match
       if (!parsedQuery.text) return true;
       if (fuzzyMatchIds) return fuzzyMatchIds.has(cardType.id);
       const haystack = CARD_SEARCH_TEXT_BY_ID.get(cardType.id);

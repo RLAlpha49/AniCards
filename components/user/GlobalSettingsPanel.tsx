@@ -50,7 +50,6 @@ export function GlobalSettingsPanel({
     resetGlobalSettings,
   } = useUserPageEditor();
 
-  // Handler for resetting global settings to defaults
   const handleResetToDefaults = useCallback(() => {
     resetGlobalSettings();
   }, [resetGlobalSettings]);

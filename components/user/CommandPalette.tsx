@@ -1,7 +1,7 @@
 "use client";
 
 import { Command } from "cmdk";
-import { Info, Layers,Search, Sparkles } from "lucide-react";
+import { Info, Layers, Search, Sparkles } from "lucide-react";
 import * as React from "react";
 
 import {
@@ -114,24 +114,24 @@ function CommandItem({
       onPointerDown={handlePointerDown}
       className={cn(
         "flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm",
-        "text-slate-900 aria-selected:bg-slate-100",
-        "dark:text-slate-100 dark:aria-selected:bg-slate-800",
-        "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        "text-foreground aria-selected:bg-gold/10",
+        "dark:text-foreground dark:aria-selected:bg-gold/10",
+        "data-disabled:pointer-events-none data-disabled:opacity-50",
       )}
     >
-      <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+      <span className="border-gold/20 bg-gold/10 text-gold-dim dark:border-gold/15 dark:bg-gold/10 dark:text-gold inline-flex h-7 w-7 items-center justify-center border">
         {icon}
       </span>
       <div className="min-w-0 flex-1">
         <div className="truncate font-medium">{cmd.label}</div>
         {cmd.description ? (
-          <div className="truncate text-xs text-slate-600 dark:text-slate-400">
+          <div className="text-muted-foreground truncate text-xs">
             {cmd.description}
           </div>
         ) : null}
       </div>
       {cmd.shortcutHint ? (
-        <span className="ml-2 text-[10px] text-slate-500 dark:text-slate-400">
+        <span className="text-muted-foreground ml-2 text-[10px]">
           {cmd.shortcutHint}
         </span>
       ) : null}
@@ -259,9 +259,9 @@ export function CommandPalette({
       <DialogContent
         className={cn(
           "p-0",
-          "max-w-[720px]",
+          "max-w-180",
           "overflow-hidden",
-          "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900",
+          "border-gold/15 bg-background dark:border-gold/10",
           className,
         )}
       >
@@ -275,9 +275,9 @@ export function CommandPalette({
           onValueChange={setSelectedValue}
           className="flex h-full w-full flex-col"
         >
-          <div className="flex items-center gap-2 border-b border-slate-200 px-3 py-2 dark:border-slate-800">
+          <div className="border-gold/15 dark:border-gold/10 flex items-center gap-2 border-b px-3 py-2">
             <Search
-              className="h-4 w-4 text-slate-500 dark:text-slate-400"
+              className="text-muted-foreground h-4 w-4"
               aria-hidden="true"
             />
             <Command.Input
@@ -287,17 +287,17 @@ export function CommandPalette({
               aria-label="Command palette"
               className={cn(
                 "flex h-10 w-full bg-transparent text-sm outline-none",
-                "text-slate-900 placeholder:text-slate-500",
-                "dark:text-slate-100 dark:placeholder:text-slate-400",
+                "text-foreground placeholder:text-muted-foreground",
+                "dark:text-foreground dark:placeholder:text-muted-foreground",
               )}
             />
-            <kbd className="hidden rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 sm:inline-flex">
+            <kbd className="border-gold/20 bg-gold/5 text-gold-dim dark:border-gold/15 dark:bg-gold/5 dark:text-gold hidden rounded-md border px-1.5 py-0.5 text-[10px] sm:inline-flex">
               Esc
             </kbd>
           </div>
 
           <Command.List className="max-h-[60vh] overflow-y-auto p-2">
-            <Command.Empty className="px-3 py-8 text-center text-sm text-slate-600 dark:text-slate-400">
+            <Command.Empty className="text-muted-foreground px-3 py-8 text-center text-sm">
               No results.
             </Command.Empty>
 

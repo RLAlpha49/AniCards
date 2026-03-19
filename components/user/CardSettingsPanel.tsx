@@ -101,7 +101,7 @@ function SettingsBody({
   }
 
   return (
-    <div className="text-center text-sm text-muted-foreground">
+    <div className="text-muted-foreground text-center text-sm">
       {cardProps?.customSettingsDisabledMessage ??
         "Enable custom settings above to customize this card's appearance."}
     </div>
@@ -120,22 +120,21 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
     : false;
 
   const iconClass = isCustomized
-    ? "bg-gradient-to-br from-blue-500 to-cyan-500 shadow-md shadow-cyan-500/20"
-    : "bg-gradient-to-br from-purple-500 to-pink-500 shadow-lg shadow-purple-500/25";
+    ? "bg-linear-to-br from-gold via-amber-500 to-gold-dim shadow-md shadow-gold/20 ring-2 ring-gold/25"
+    : "bg-linear-to-br from-gold/40 to-amber-400/40 shadow-lg shadow-gold/15 ring-1 ring-gold/10";
 
   const useCustomPanelClass = isCustomized
-    ? "border-blue-200 bg-gradient-to-r from-blue-50 to-white dark:border-blue-900/40 dark:from-blue-900/10"
-    : "border-slate-200/50 bg-gradient-to-r from-slate-50 to-white dark:border-slate-700/50 dark:from-slate-800/50 dark:to-slate-900";
+    ? "border-2 border-gold/25 bg-linear-to-r from-gold/10 to-background dark:border-gold/20 dark:from-gold/5"
+    : "border-2 border-gold/15 bg-linear-to-r from-gold/3 to-background dark:border-gold/10 dark:from-gold/3";
 
   const useCustomTitleClass = isCustomized
-    ? "text-blue-700 dark:text-blue-200"
-    : "text-slate-900 dark:text-white";
+    ? "text-gold-dim dark:text-gold"
+    : "text-foreground";
 
   const useCustomPClass = isCustomized
-    ? "text-blue-600"
-    : "text-slate-500 dark:text-slate-400";
+    ? "text-gold-dim"
+    : "text-muted-foreground";
 
-  // Move settings body rendering to a small helper to keep main function complexity low
   const settingsBody = (
     <SettingsBody
       globalProps={globalProps}
@@ -146,12 +145,12 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
   );
 
   return (
-    <div className={cn("space-y-4", className)}>
-      <div className="flex items-center justify-between gap-4">
+    <div className={cn("space-y-5", className)}>
+      <div className="border-gold/15 from-gold/5 via-background to-background dark:border-gold/10 dark:from-gold/3 flex items-center justify-between gap-4 rounded-xl border bg-linear-to-r p-4 shadow-sm">
         <div className="flex min-w-0 items-center gap-3">
           <div
             className={cn(
-              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
               iconClass,
             )}
           >
@@ -162,16 +161,16 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="block truncate text-lg font-semibold text-slate-900 dark:text-white">
+              <span className="text-foreground font-display block truncate text-lg font-semibold">
                 {title}
               </span>
               {isCustomized ? (
-                <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
+                <span className="bg-gold/15 text-gold-dim dark:bg-gold/10 dark:text-gold inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold">
                   Custom <span className="sr-only">settings applied</span>
                 </span>
               ) : null}
             </div>
-            <p className="truncate text-sm font-normal text-muted-foreground">
+            <p className="text-muted-foreground truncate text-sm font-normal">
               {description}
             </p>
           </div>
@@ -189,8 +188,8 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
             className={cn(
               "shrink-0 rounded-lg transition-all",
               globalProps.saveAllDisabled || !isSettingsValid
-                ? "bg-slate-100 text-slate-400 dark:bg-slate-700"
-                : "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg",
+                ? "bg-gold/5 text-muted-foreground dark:bg-gold/5"
+                : "from-gold to-gold-dim shadow-gold/25 bg-linear-to-r via-amber-500 text-white shadow-lg",
             )}
           >
             {globalProps.isSaving ? (
@@ -206,7 +205,9 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
         )}
       </div>
 
-      <div className="mt-4 space-y-6">
+      <div className="via-gold/20 h-px bg-linear-to-r from-transparent to-transparent" />
+
+      <div className="space-y-5">
         {cardProps && (
           <div
             className={cn(
@@ -216,13 +217,10 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
           >
             <div className="flex items-center gap-3">
               {cardProps.useCustomSettings ? (
-                <ToggleRight
-                  className="h-5 w-5 text-blue-500"
-                  aria-hidden="true"
-                />
+                <ToggleRight className="text-gold h-5 w-5" aria-hidden="true" />
               ) : (
                 <ToggleLeft
-                  className="h-5 w-5 text-slate-400"
+                  className="text-muted-foreground h-5 w-5"
                   aria-hidden="true"
                 />
               )}
@@ -242,7 +240,7 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
             <Switch
               checked={cardProps.useCustomSettings}
               onCheckedChange={cardProps.onUseCustomSettingsChange}
-              className="data-[state=checked]:bg-blue-500"
+              className="data-[state=checked]:bg-gold"
               aria-label="Use Custom Settings"
             />
           </div>

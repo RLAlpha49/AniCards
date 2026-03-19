@@ -6,7 +6,7 @@ import { gradientToCss } from "@/lib/colorUtils";
 import { animeStatsTemplate } from "@/lib/svg-templates/media-stats/anime-stats-template";
 import type { ColorValue } from "@/lib/types/card";
 import { stripTrustedSvgMarker, type TrustedSVG } from "@/lib/types/svg";
-import { cn, DEFAULT_CARD_BORDER_RADIUS,isGradient } from "@/lib/utils";
+import { cn, DEFAULT_CARD_BORDER_RADIUS, isGradient } from "@/lib/utils";
 
 /**
  * Sample anime stats data used for the preview card.
@@ -76,7 +76,6 @@ export function ColorPreviewCard({
   borderRadius = DEFAULT_CARD_BORDER_RADIUS,
   className,
 }: Readonly<ColorPreviewCardProps>) {
-  // Generate the actual anime stats card SVG with current colors
   const previewSvg = useMemo<string>(() => {
     const svg: TrustedSVG = animeStatsTemplate({
       username: "Preview",
@@ -101,7 +100,6 @@ export function ColorPreviewCard({
     borderRadius,
   ]);
 
-  // Memoize CSS values for color swatches
   const {
     cssValues,
     isGradientTitle,
@@ -126,7 +124,6 @@ export function ColorPreviewCard({
 
   return (
     <div className={cn("flex flex-col items-center space-y-3", className)}>
-      {/* Anime Stats Card Preview */}
       <div className="relative overflow-hidden shadow-lg transition-all">
         <div
           dangerouslySetInnerHTML={{ __html: previewSvg }}
@@ -134,7 +131,6 @@ export function ColorPreviewCard({
         />
       </div>
 
-      {/* Color Swatches */}
       <div className="flex flex-wrap justify-center gap-1.5">
         <ColorSwatch
           label="Title"
@@ -182,16 +178,16 @@ interface ColorSwatchProps {
  */
 function ColorSwatch({ label, color, isGradient }: Readonly<ColorSwatchProps>) {
   return (
-    <div className="flex items-center gap-1.5 rounded-md bg-slate-100/80 px-1.5 py-1 dark:bg-slate-700/50">
+    <div className="bg-gold/5 dark:bg-gold/5 flex items-center gap-1.5 rounded-md px-1.5 py-1">
       <div
         className={cn(
-          "h-3 w-3 shrink-0 rounded-sm border border-slate-300/50 shadow-sm dark:border-slate-600/50",
-          isGradient && "ring-1 ring-purple-400/30",
+          "border-gold/20 dark:border-gold/15 h-3 w-3 shrink-0 rounded-sm border shadow-sm",
+          isGradient && "ring-gold/30 ring-1",
         )}
         style={{ background: color }}
         title={isGradient ? `${label} (gradient)` : label}
       />
-      <span className="text-[10px] font-medium text-slate-600 dark:text-slate-400">
+      <span className="text-muted-foreground text-[10px] font-medium">
         {label}
       </span>
     </div>

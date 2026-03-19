@@ -190,7 +190,6 @@ function adjustColor(hex: string, amount: number): string {
     return "#000000";
   }
 
-  // Use only the first 6 hex digits (ignoring alpha if present)
   const cleanHex = normalized.slice(1, 7).toLowerCase();
 
   const num = Number.parseInt(cleanHex, 16);
@@ -217,17 +216,14 @@ function GradientStopEditor({
   const prevStopsRef = useRef(stops);
   const localStopsRef = useRef(localStops);
 
-  // Keep ref in sync with state
   useEffect(() => {
     localStopsRef.current = localStops;
   }, [localStops]);
 
   useEffect(() => {
-    // Only sync when the incoming stops prop actually changes
     if (prevStopsRef.current === stops) return;
     prevStopsRef.current = stops;
 
-    // Build a map of existing IDs by color+offset for stable matching
     const idMap = new Map(
       localStopsRef.current.map((s, idx) => [
         `${s.color}-${s.offset}-${idx}`,
@@ -281,7 +277,6 @@ function GradientStopEditor({
   return (
     <TooltipProvider delayDuration={0}>
       <div className="space-y-3">
-        {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Droplets className="h-3.5 w-3.5 text-slate-400" />
@@ -327,7 +322,6 @@ function GradientStopEditor({
           </Button>
         </div>
 
-        {/* Stops List */}
         <div className="space-y-2">
           {localStops.map((stop, index) => (
             <motion.div
@@ -337,7 +331,6 @@ function GradientStopEditor({
               transition={{ duration: 0.2 }}
               className="group flex items-center gap-3 rounded-xl border border-slate-200/50 bg-white/80 p-2.5 shadow-sm transition-all hover:border-slate-300 hover:shadow-md dark:border-slate-700/50 dark:bg-slate-800/80 dark:hover:border-slate-600"
             >
-              {/* Color Picker */}
               <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg border-2 border-slate-200 shadow-inner transition-all group-hover:border-slate-300 dark:border-slate-700 dark:group-hover:border-slate-600">
                 <Input
                   type="color"
@@ -345,11 +338,10 @@ function GradientStopEditor({
                   onChange={(e) =>
                     handleStopChange(index, "color", e.target.value)
                   }
-                  className="absolute -left-1/2 -top-1/2 h-[200%] w-[200%] cursor-pointer border-0 p-0"
+                  className="absolute -top-1/2 -left-1/2 h-[200%] w-[200%] cursor-pointer border-0 p-0"
                 />
               </div>
 
-              {/* Position Input */}
               <div className="flex items-center gap-1.5">
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -384,7 +376,6 @@ function GradientStopEditor({
                 <span className="text-xs font-medium text-slate-400">%</span>
               </div>
 
-              {/* Opacity Slider */}
               <div className="flex flex-1 items-center gap-2">
                 <Input
                   type="range"
@@ -398,7 +389,7 @@ function GradientStopEditor({
                       Number.parseInt(e.target.value) / 100,
                     )
                   }
-                  className="h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-gradient-to-r from-slate-200 to-slate-300 px-0 dark:from-slate-700 dark:to-slate-600 [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:shadow-md"
+                  className="h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-linear-to-r from-slate-200 to-slate-300 px-0 dark:from-slate-700 dark:to-slate-600 [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:shadow-md"
                   aria-label={`Stop ${index + 1} opacity`}
                 />
                 <span className="w-10 rounded-md bg-slate-100 px-1.5 py-0.5 text-center text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-400">
@@ -406,7 +397,6 @@ function GradientStopEditor({
                 </span>
               </div>
 
-              {/* Remove Button */}
               <Button
                 type="button"
                 variant="ghost"
@@ -415,7 +405,7 @@ function GradientStopEditor({
                 disabled={localStops.length <= 2}
                 aria-label={`Remove gradient stop ${index + 1}`}
                 title="Remove this color stop"
-                className="h-7 w-7 rounded-lg p-0 text-slate-400 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-0 group-hover:opacity-100 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                className="h-7 w-7 rounded-lg p-0 text-slate-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-red-50 hover:text-red-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-0 dark:hover:bg-red-900/20 dark:hover:text-red-400"
               >
                 <Minus className="h-3.5 w-3.5" aria-hidden="true" />
               </Button>
@@ -459,12 +449,10 @@ function GradientControls({
     [gradient, onGradientChange],
   );
 
-  // Quick angle presets
   const anglePresets = [0, 45, 90, 135, 180, 270];
 
   return (
     <div className="space-y-4">
-      {/* Type Selection */}
       <div className="flex gap-2">
         <Button
           type="button"
@@ -502,7 +490,6 @@ function GradientControls({
 
       {gradient.type === "linear" ? (
         <div className="space-y-3">
-          {/* Angle Slider */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -523,11 +510,10 @@ function GradientControls({
               onChange={(e) =>
                 handleAngleChange(Number.parseInt(e.target.value))
               }
-              className="h-2 w-full cursor-pointer appearance-none rounded-full bg-gradient-to-r from-slate-200 via-blue-200 to-slate-200 px-0 dark:from-slate-700 dark:via-blue-800 dark:to-slate-700 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:shadow-lg [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:shadow-lg"
+              className="h-2 w-full cursor-pointer appearance-none rounded-full bg-linear-to-r from-slate-200 via-blue-200 to-slate-200 px-0 dark:from-slate-700 dark:via-blue-800 dark:to-slate-700 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:shadow-lg [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:shadow-lg"
             />
           </div>
 
-          {/* Quick Presets */}
           <div className="flex flex-wrap gap-1.5">
             {anglePresets.map((angle) => (
               <Button
@@ -539,7 +525,7 @@ function GradientControls({
                 aria-label={`Set gradient angle to ${angle} degrees`}
                 aria-pressed={(gradient.angle ?? 90) === angle}
                 className={cn(
-                  "h-7 min-w-[3rem] rounded-lg px-2 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500",
+                  "h-7 min-w-12 rounded-lg px-2 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500",
                   (gradient.angle ?? 90) === angle
                     ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
                     : "border-slate-200/50 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-700/50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700",
@@ -625,23 +611,19 @@ function SingleColorPicker({ picker }: Readonly<{ picker: ColorPickerItem }>) {
   const parsed = useMemo(() => parseColorValue(picker.value), [picker.value]);
   const solidOpacity = parsed.opacity ?? 1;
 
-  // Derive mode from the current value - sync with external changes (e.g., from preset selection)
   const derivedMode = parsed.isSolid ? "solid" : "gradient";
   const [mode, setMode] = useState<"solid" | "gradient">(derivedMode);
 
-  // Sync internal mode state when external value changes (e.g., preset with gradients selected)
   React.useEffect(() => {
     setMode(derivedMode);
   }, [derivedMode]);
 
   const handleModeToggle = useCallback(() => {
     if (mode === "solid") {
-      // Switch to gradient mode
       const baseHex = parsed.hex || "#888888";
       picker.onChange(createDefaultGradient(baseHex));
       setMode("gradient");
     } else {
-      // Switch to solid mode - use first stop color
       const firstColor = parsed.gradient?.stops[0]?.color || "#888888";
       picker.onChange(firstColor);
       setMode("solid");
@@ -715,11 +697,10 @@ function SingleColorPicker({ picker }: Readonly<{ picker: ColorPickerItem }>) {
       transition={{ duration: 0.2 }}
       className="space-y-3"
     >
-      {/* Header */}
       <div className="flex items-center justify-between">
         <Label
           htmlFor={picker.id}
-          className="text-sm font-semibold text-slate-800 dark:text-slate-200"
+          className="text-foreground text-sm font-semibold"
         >
           {picker.label}
         </Label>
@@ -737,10 +718,10 @@ function SingleColorPicker({ picker }: Readonly<{ picker: ColorPickerItem }>) {
             aria-pressed={mode === "gradient"}
             title={mode === "solid" ? "Switch to gradient" : "Switch to solid"}
             className={cn(
-              "h-7 gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500",
+              "focus-visible:outline-gold/50 h-7 gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-offset-2",
               mode === "gradient"
                 ? "border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-900/30 dark:text-purple-400 dark:hover:bg-purple-900/50"
-                : "border-slate-200/50 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700/50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700",
+                : "border-gold/20 bg-background text-muted-foreground hover:border-gold/40 hover:bg-gold/5 dark:border-gold/15 dark:hover:border-gold/30",
             )}
           >
             {mode === "solid" ? (
@@ -759,24 +740,21 @@ function SingleColorPicker({ picker }: Readonly<{ picker: ColorPickerItem }>) {
       </div>
 
       {mode === "solid" ? (
-        <div className="group relative flex items-start gap-3 rounded-xl border border-slate-200/50 bg-white/80 p-3 shadow-sm transition-all hover:border-slate-300 hover:shadow-md dark:border-slate-700/50 dark:bg-slate-800/80 dark:hover:border-slate-600">
-          {/* Color Swatch */}
-          <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border-2 border-slate-200 shadow-lg transition-all group-hover:border-slate-300 dark:border-slate-700 dark:group-hover:border-slate-600">
+        <div className="group border-gold/15 bg-background hover:border-gold/30 dark:border-gold/10 dark:hover:border-gold/25 relative flex items-start gap-3 rounded-xl border p-3 shadow-sm transition-all hover:shadow-md">
+          <div className="border-gold/20 group-hover:border-gold/40 dark:border-gold/15 dark:group-hover:border-gold/30 relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border-2 shadow-lg transition-all">
             <Input
               id={picker.id}
               type="color"
               value={isValidHex(solidBaseHex) ? solidBaseHex : "#000000"}
               onChange={(e) => handleSolidChange(e.target.value)}
-              className="absolute -left-1/2 -top-1/2 h-[200%] w-[200%] cursor-pointer border-0 p-0"
+              className="absolute -top-1/2 -left-1/2 h-[200%] w-[200%] cursor-pointer border-0 p-0"
               aria-label={`${picker.label} color picker`}
             />
           </div>
 
-          {/* Controls */}
           <div className="flex flex-1 flex-col gap-3">
-            {/* Hex Input */}
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
+              <span className="absolute top-1/2 left-3 -translate-y-1/2 text-sm font-bold text-slate-400">
                 #
               </span>
               <Input
@@ -786,7 +764,7 @@ function SingleColorPicker({ picker }: Readonly<{ picker: ColorPickerItem }>) {
                 className={cn(
                   "h-10 rounded-lg pl-7 font-mono text-sm font-medium uppercase transition-all",
                   valid
-                    ? "border-slate-200/50 bg-slate-50 focus-visible:ring-blue-500 dark:border-slate-700/50 dark:bg-slate-900"
+                    ? "border-gold/15 bg-background focus-visible:ring-gold/50 dark:border-gold/10"
                     : "border-red-300 bg-red-50 focus-visible:ring-red-500 dark:border-red-800 dark:bg-red-900/20",
                 )}
                 maxLength={8}
@@ -795,9 +773,8 @@ function SingleColorPicker({ picker }: Readonly<{ picker: ColorPickerItem }>) {
               />
             </div>
 
-            {/* Opacity Slider */}
             <div className="flex items-center gap-3">
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              <span className="text-muted-foreground text-xs font-medium">
                 Opacity
               </span>
               <Input
@@ -808,18 +785,17 @@ function SingleColorPicker({ picker }: Readonly<{ picker: ColorPickerItem }>) {
                 onChange={(e) =>
                   handleOpacityChange(Number.parseInt(e.target.value) || 0)
                 }
-                className="h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-gradient-to-r from-slate-200 to-slate-300 px-0 dark:from-slate-700 dark:to-slate-600 [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:shadow-md"
+                className="from-gold/15 to-gold/30 dark:from-gold/10 dark:to-gold/20 [&::-moz-range-thumb]:bg-gold [&::-webkit-slider-thumb]:bg-gold h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-linear-to-r px-0 [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md"
                 aria-label={`${picker.label} opacity slider`}
               />
-              <span className="w-12 rounded-md bg-slate-100 px-1.5 py-0.5 text-center text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+              <span className="bg-gold/10 text-gold-dim dark:bg-gold/10 dark:text-gold w-12 rounded-md px-1.5 py-0.5 text-center text-xs font-medium">
                 {solidOpacityPercent}%
               </span>
             </div>
           </div>
         </div>
       ) : (
-        <div className="space-y-4 rounded-xl border border-purple-200/50 bg-gradient-to-br from-purple-50/50 to-white p-4 shadow-sm dark:border-purple-900/50 dark:from-purple-950/20 dark:to-slate-900">
-          {/* Gradient Preview */}
+        <div className="space-y-4 rounded-xl border border-purple-200/50 bg-linear-to-br from-purple-50/50 to-white p-4 shadow-sm dark:border-purple-900/50 dark:from-purple-950/20 dark:to-slate-900">
           <div
             className="h-12 w-full overflow-hidden rounded-lg border border-slate-200/50 shadow-inner dark:border-slate-700/50"
             style={{
@@ -842,7 +818,6 @@ function SingleColorPicker({ picker }: Readonly<{ picker: ColorPickerItem }>) {
         </div>
       )}
 
-      {/* Validation Error */}
       {!valid && (
         <motion.div
           initial={{ opacity: 0, y: -5 }}

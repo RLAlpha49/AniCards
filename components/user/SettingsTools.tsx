@@ -168,7 +168,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
     }
 
     return (
-      <span className="text-slate-500 dark:text-slate-400">
+      <span className="text-muted-foreground">
         Exported JSON is safe to share (no secrets), but it may reveal your
         styling preferences.
       </span>
@@ -284,7 +284,6 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
         return;
       }
 
-      // exp.scope === "card"
       applySnapshotToTarget(exp.card);
       setImportSuccess("Imported settings applied.");
     },
@@ -370,13 +369,13 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
   }, []);
 
   return (
-    <div className="space-y-4 rounded-xl border border-slate-200/60 bg-white/60 p-4 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/40">
+    <div className="border-gold/20 from-gold/5 via-background to-background dark:border-gold/15 dark:from-gold/3 space-y-4 rounded-xl border bg-linear-to-br p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-slate-900 dark:text-white">
+          <div className="text-foreground font-display text-sm font-semibold">
             Settings tools
           </div>
-          <div className="text-xs text-slate-500 dark:text-slate-400">
+          <div className="text-muted-foreground text-xs">
             Copy, save, apply, and import/export settings
           </div>
         </div>
@@ -384,7 +383,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
 
       {props.mode === "card" && (
         <div className="space-y-2">
-          <Label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+          <Label className="text-muted-foreground text-xs font-medium">
             Copy settings from another card
           </Label>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -407,7 +406,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
               size="sm"
               onClick={handleCopyFromCard}
               disabled={!copyFromCardId}
-              className="h-9"
+              className="border-gold/20 hover:border-gold/40 hover:bg-gold/5 dark:border-gold/15 h-9"
             >
               <Copy className="mr-2 h-4 w-4" aria-hidden="true" />
               Copy
@@ -417,7 +416,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
       )}
 
       <div className="space-y-2">
-        <Label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+        <Label className="text-muted-foreground text-xs font-medium">
           Templates
         </Label>
 
@@ -431,7 +430,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
           <Button
             type="button"
             size="sm"
-            className="h-9"
+            className="from-gold to-gold-dim shadow-gold/15 hover:shadow-gold/25 h-9 bg-linear-to-r via-amber-500 text-white shadow-sm hover:shadow-md"
             onClick={handleSaveTemplate}
             disabled={!templateName.trim()}
           >
@@ -467,7 +466,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
             type="button"
             variant="outline"
             size="sm"
-            className="h-9"
+            className="border-gold/20 hover:border-gold/40 hover:bg-gold/5 dark:border-gold/15 h-9"
             onClick={handleApplyTemplate}
             disabled={!selectedTemplateId}
           >
@@ -513,7 +512,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
       </div>
 
       <div className="space-y-2">
-        <Label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+        <Label className="text-muted-foreground text-xs font-medium">
           Import / Export (JSON)
         </Label>
 
@@ -535,7 +534,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
             type="button"
             variant="outline"
             size="sm"
-            className="h-9"
+            className="border-gold/20 hover:border-gold/40 hover:bg-gold/5 dark:border-gold/15 h-9"
             onClick={handleCopyJson}
           >
             <Copy className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -546,7 +545,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
             type="button"
             variant="outline"
             size="sm"
-            className="h-9"
+            className="border-gold/20 hover:border-gold/40 hover:bg-gold/5 dark:border-gold/15 h-9"
             onClick={handleDownloadJson}
           >
             <Download className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -555,7 +554,11 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
 
           <Dialog open={importOpen} onOpenChange={setImportOpen}>
             <DialogTrigger asChild>
-              <Button type="button" size="sm" className="h-9">
+              <Button
+                type="button"
+                size="sm"
+                className="from-gold to-gold-dim shadow-gold/15 hover:shadow-gold/25 h-9 bg-linear-to-r via-amber-500 text-white shadow-sm hover:shadow-md"
+              >
                 <FileUp className="mr-2 h-4 w-4" aria-hidden="true" />
                 Import
               </Button>
@@ -595,7 +598,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                     id="settings-import-text"
                     value={importText}
                     onChange={(e) => setImportText(e.target.value)}
-                    className="h-48 w-full resize-none rounded-md border border-slate-200 bg-white p-3 font-mono text-xs text-slate-900 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                    className="border-gold/20 bg-background text-foreground focus-visible:ring-gold/50 dark:border-gold/15 h-48 w-full resize-none rounded-md border p-3 font-mono text-xs shadow-sm focus:outline-none focus-visible:ring-2"
                     placeholder={`{\n  "schemaVersion": 1,\n  ...\n}`}
                   />
                 </div>
@@ -636,9 +639,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
             </DialogContent>
           </Dialog>
         </div>
-
-        {/* Inline feedback for copy */}
-        <div className="min-h-[1.25rem] text-xs">{feedbackNode}</div>
+        <div className="min-h-5 text-xs">{feedbackNode}</div>
       </div>
     </div>
   );

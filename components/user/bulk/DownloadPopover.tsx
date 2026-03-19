@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown,Download, Loader2 } from "lucide-react";
+import { ChevronDown, Download, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
 import {
@@ -38,8 +38,8 @@ export function DownloadPopover({
           }
           className={cn(
             "h-9 gap-1.5 rounded-lg border-2 px-3 font-medium transition-all",
-            "border-blue-200 bg-blue-50/50 text-blue-700 hover:border-blue-300 hover:bg-blue-100",
-            "dark:border-blue-700/50 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:border-blue-600 dark:hover:bg-blue-950/50",
+            "border-gold/25 bg-gold/5 text-gold-dim hover:border-gold/30 hover:bg-gold/10",
+            "dark:border-gold/20 dark:bg-gold/5 dark:text-gold dark:hover:border-gold/30 dark:hover:bg-gold/10",
             "disabled:opacity-70",
           )}
         >
@@ -71,31 +71,31 @@ export function DownloadPopover({
           <Button
             variant="ghost"
             size="sm"
-            className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 rounded-md px-2.5 text-sm"
             disabled={isDownloading}
             onClick={() => {
               handleDownloadAll("png");
             }}
           >
-            <span className="font-medium text-slate-700 dark:text-slate-200">
-              PNG
+            <span className="text-foreground font-medium">PNG</span>
+            <span className="text-muted-foreground ml-auto text-xs">
+              Lossless
             </span>
-            <span className="ml-auto text-xs text-slate-500">Lossless</span>
           </Button>
 
           <Button
             variant="ghost"
             size="sm"
-            className="h-9 justify-start gap-2 rounded-md px-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 rounded-md px-2.5 text-sm"
             disabled={isDownloading}
             onClick={() => {
               handleDownloadAll("webp");
             }}
           >
-            <span className="font-medium text-slate-700 dark:text-slate-200">
-              WebP
+            <span className="text-foreground font-medium">WebP</span>
+            <span className="text-muted-foreground ml-auto text-xs">
+              Smaller
             </span>
-            <span className="ml-auto text-xs text-slate-500">Smaller</span>
           </Button>
         </div>
       </PopoverContent>

@@ -32,20 +32,16 @@ export interface UserHelpDialogProps {
 function renderBlock(block: UserHelpBlock) {
   switch (block.type) {
     case "p":
-      return (
-        <p className="text-sm text-slate-700 dark:text-slate-300">
-          {block.text}
-        </p>
-      );
+      return <p className="text-muted-foreground text-sm">{block.text}</p>;
     case "note":
       return (
-        <div className="rounded-xl border border-slate-200/70 bg-slate-50/70 p-3 text-sm text-slate-700 dark:border-slate-700/70 dark:bg-slate-800/60 dark:text-slate-200">
+        <div className="border-gold/20 bg-gold/3 text-foreground dark:border-gold/15 dark:bg-gold/3 rounded-xl border p-3 text-sm">
           <span className="font-semibold">Note:</span> {block.text}
         </div>
       );
     case "ul":
       return (
-        <ul className="list-disc space-y-1.5 pl-5 text-sm text-slate-700 dark:text-slate-300">
+        <ul className="text-muted-foreground list-disc space-y-1.5 pl-5 text-sm">
           {block.items.map((item, idx) => (
             <li key={`${idx}-${item}`}>{item}</li>
           ))}
@@ -53,7 +49,7 @@ function renderBlock(block: UserHelpBlock) {
       );
     case "ol":
       return (
-        <ol className="list-decimal space-y-1.5 pl-5 text-sm text-slate-700 dark:text-slate-300">
+        <ol className="text-muted-foreground list-decimal space-y-1.5 pl-5 text-sm">
           {block.items.map((item, idx) => (
             <li key={`${idx}-${item}`}>{item}</li>
           ))}
@@ -63,7 +59,7 @@ function renderBlock(block: UserHelpBlock) {
       return block.href.startsWith("/") ? (
         <Link
           href={block.href}
-          className="text-sm font-medium text-blue-700 hover:underline dark:text-blue-400"
+          className="text-gold-dim dark:text-gold text-sm font-medium hover:underline"
         >
           {block.label}
         </Link>
@@ -72,7 +68,7 @@ function renderBlock(block: UserHelpBlock) {
           href={block.href}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-sm font-medium text-blue-700 hover:underline dark:text-blue-400"
+          className="text-gold-dim dark:text-gold text-sm font-medium hover:underline"
         >
           {block.label}
         </a>
@@ -141,7 +137,6 @@ export function UserHelpDialog({
       return;
     }
 
-    // Reset search only when dialog first opens
     if (!didResetRef.current) {
       setQuery("");
       didResetRef.current = true;
@@ -168,12 +163,11 @@ export function UserHelpDialog({
         </DialogHeader>
 
         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-[240px_1fr]">
-          {/* Left: search + topics */}
           <div className="space-y-3">
             <div className="space-y-2">
               <label
                 htmlFor="user-help-search"
-                className="text-xs font-semibold text-slate-700 dark:text-slate-300"
+                className="text-foreground text-xs font-semibold"
               >
                 Search
               </label>
@@ -188,7 +182,7 @@ export function UserHelpDialog({
 
             <nav aria-label="Help topics" className="space-y-1">
               {filteredTopics.length === 0 ? (
-                <p className="text-sm text-slate-600 dark:text-slate-400">
+                <p className="text-muted-foreground text-sm">
                   No results. Try a different search.
                 </p>
               ) : (
@@ -198,15 +192,15 @@ export function UserHelpDialog({
                     type="button"
                     onClick={() => setSelectedTopicId(t.id)}
                     className={cn(
-                      "w-full rounded-xl px-3 py-2 text-left text-sm transition-colors",
+                      "w-full border-l-2 border-transparent px-3 py-2 text-left text-sm transition-all",
                       t.id === selectedTopicId
-                        ? "bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-white"
-                        : "text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60",
+                        ? "border-l-gold bg-gold/10 text-foreground dark:bg-gold/10"
+                        : "text-muted-foreground hover:border-l-gold/40 hover:bg-gold/5 dark:hover:bg-gold/5",
                     )}
                     aria-current={t.id === selectedTopicId ? "page" : undefined}
                   >
                     <div className="font-semibold">{t.title}</div>
-                    <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                    <div className="text-muted-foreground mt-0.5 text-xs">
                       {t.summary}
                     </div>
                   </button>
@@ -215,15 +209,14 @@ export function UserHelpDialog({
             </nav>
           </div>
 
-          {/* Right: selected topic */}
-          <div className="min-w-0 rounded-2xl border border-slate-200/70 bg-white/60 p-4 backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/30">
+          <div className="border-gold/15 bg-gold/3 dark:border-gold/15 dark:bg-gold/3 min-w-0 border-2 p-4 backdrop-blur-sm">
             {selectedTopic ? (
               <article aria-label={selectedTopic.title} className="space-y-3">
                 <header>
-                  <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+                  <h3 className="text-foreground font-display text-base font-semibold">
                     {selectedTopic.title}
                   </h3>
-                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                  <p className="text-muted-foreground mt-1 text-sm">
                     {selectedTopic.summary}
                   </p>
                 </header>
@@ -267,7 +260,7 @@ export function UserHelpDialog({
                 </div>
               </article>
             ) : (
-              <div className="text-sm text-slate-600 dark:text-slate-400">
+              <div className="text-muted-foreground text-sm">
                 Pick a topic to get started.
               </div>
             )}

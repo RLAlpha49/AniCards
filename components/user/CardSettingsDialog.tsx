@@ -91,7 +91,6 @@ export function CardSettingsDialog({
     config.borderColor !== undefined ||
     config.borderRadius !== undefined;
 
-  // Get effective colors for this card
   const cardColors =
     config.colorOverride.useCustomSettings && config.colorOverride.colors
       ? config.colorOverride.colors
@@ -102,7 +101,6 @@ export function CardSettingsDialog({
       ? config.colorOverride.colorPreset
       : globalColorPreset;
 
-  // Get effective border settings
   const cardBorderColor =
     config.borderColor ?? (globalBorderEnabled ? globalBorderColor : undefined);
   const cardBorderRadius = config.borderRadius ?? globalBorderRadius;
@@ -110,16 +108,13 @@ export function CardSettingsDialog({
 
   const isCustomized = isCardCustomized(config);
 
-  // Check if current variation supports pie percentages
   const isPieVariation = currentVariant === "pie" || currentVariant === "donut";
 
   const handleToggleCustomSettings = useCallback(
     (enabled: boolean) => {
       if (enabled) {
-        // Enable custom settings - initialize with current global values
         toggleCardCustomColors(cardId, true);
       } else {
-        // Reset to global settings
         resetCardToGlobal(cardId);
       }
     },
@@ -157,13 +152,11 @@ export function CardSettingsDialog({
   const handleToggleBorder = useCallback(
     (enabled: boolean) => {
       if (enabled) {
-        // Enable border with default color if not set
         setCardBorderColor(
           cardId,
           cardBorderColor || globalBorderColor || DEFAULT_BORDER_COLOR,
         );
       } else {
-        // Disable border
         setCardBorderColor(cardId, undefined);
       }
     },
@@ -174,7 +167,6 @@ export function CardSettingsDialog({
     resetCardToGlobal(cardId);
   }, [cardId, resetCardToGlobal]);
 
-  // Pass raw per-card overrides and let `SettingsContent` merge with globals
   const rawAdvancedSettings = config.advancedSettings;
 
   const handleAdvancedSettingChange = useCallback(
@@ -187,7 +179,6 @@ export function CardSettingsDialog({
     [cardId, setCardAdvancedSetting],
   );
 
-  // Determine which advanced options to show
   const advancedVisibility = {
     showStatusColors: supportsStatusColors,
     showPiePercentages: supportsPiePercentages && isPieVariation,
@@ -197,7 +188,7 @@ export function CardSettingsDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="overlay-scrollbar max-h-[85vh] max-w-4xl overflow-y-auto">
+      <DialogContent className="overlay-scrollbar border-gold/20 bg-background shadow-gold/5 dark:border-gold/15 dark:shadow-gold/10 max-h-[85vh] max-w-4xl overflow-y-auto border-2 shadow-xl">
         <DialogHeader className="sr-only">
           <DialogTitle>{label} Settings</DialogTitle>
           <DialogDescription>

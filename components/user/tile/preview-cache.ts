@@ -189,12 +189,3 @@ export async function fetchAndCachePreviewObjectUrl(
     if (inFlight.get(key) === promise) inFlight.delete(key);
   }
 }
-
-export function clearPreviewCache(): void {
-  for (const entry of previewCache.values()) {
-    safeRevokeObjectUrl(entry.objectUrl);
-  }
-  previewCache.clear();
-  inFlight.clear();
-  latestRequestIdByKey.clear();
-}

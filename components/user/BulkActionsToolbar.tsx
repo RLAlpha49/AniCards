@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence,motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Redo2, RotateCcw, SlidersHorizontal, Undo2, X } from "lucide-react";
 import {
   type ReactNode,
@@ -26,8 +26,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/Select";
-import { useSidebar } from "@/components/ui/Sidebar";
-import { useIsMobile } from "@/hooks/useIsMobile";
 import {
   buildCardUrlWithParams,
   mapStoredConfigToCardUrlParams,
@@ -76,7 +74,6 @@ export function BulkActionsToolbar({
     total: 0,
   });
 
-  // Local UI state for surfaced download results or errors
   const [downloadSummary, setDownloadSummary] = useState<{
     total: number;
     exported: number;
@@ -89,15 +86,12 @@ export function BulkActionsToolbar({
   );
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Track if component is mounted for SSR-safe portal rendering
   const [isMounted, setIsMounted] = useState(false);
 
-  // Set mounted state after hydration to enable portal rendering
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Cleanup timers on unmount to avoid state updates after the component unmounts
   useEffect(() => {
     return () => {
       if (downloadSummaryTimerRef.current) {
@@ -157,7 +151,6 @@ export function BulkActionsToolbar({
 
   const presetOptions = useMemo(() => {
     const keys = Object.keys(colorPresets);
-    // Prefer "default" first, then alphabetical for stability.
     keys.sort((a, b) => {
       if (a === "default") return -1;
       if (b === "default") return 1;
@@ -221,22 +214,11 @@ export function BulkActionsToolbar({
     [cardConfigs],
   );
 
-  // Mirror the LayoutShell main margin-left behavior so the portaled toolbar
-  // remains centered relative to the main content area (not the full viewport).
-  const { open } = useSidebar();
-  const isMobile = useIsMobile();
-
-  const sidebarOffset = useMemo(() => {
-    if (isMobile) return "0px";
-    return open ? "10rem" : "3rem";
-  }, [isMobile, open]);
-
   const toolbarBottom = "calc(1.5rem + env(safe-area-inset-bottom))";
   const toolbarGutter = "1rem";
 
   const selectedCount = selectedCardIds.size;
 
-  // Get selected card configurations with their URLs
   const selectedCards = useMemo(() => {
     if (!userId) return [];
 
@@ -440,14 +422,12 @@ export function BulkActionsToolbar({
       setDownloadProgress({ current: 0, total: selectedCards.length });
 
       try {
-        // Transform selectedCards to BatchExportCard format for zip export
         const batchCards: BatchExportCard[] = selectedCards.map((card) => ({
           type: card.cardId,
           rawType: `${card.cardId}-${card.config.variant}`,
           svgUrl: card.url,
         }));
 
-        // Clear any prior results or timers
         if (downloadSummaryTimerRef.current) {
           clearTimeout(downloadSummaryTimerRef.current);
           downloadSummaryTimerRef.current = null;
@@ -466,7 +446,6 @@ export function BulkActionsToolbar({
           },
         );
 
-        // Surface partial failures to the user with details (if available)
         if (result.failed > 0) {
           const failedRawTypes =
             result.failedCards?.map((c) => c.rawType || c.type) ?? [];
@@ -477,20 +456,17 @@ export function BulkActionsToolbar({
             failedCardRawTypes: failedRawTypes,
           });
 
-          // Keep partial-failure visible until user dismisses it
           console.warn(
             `Batch download completed with ${result.failed} failed card(s) out of ${result.total}`,
             failedRawTypes,
           );
         } else {
-          // Successful export; show a brief success notice
           setDownloadSummary({
             total: result.total,
             exported: result.exported,
             failed: 0,
           });
 
-          // Auto-dismiss success notice after a short delay
           downloadSummaryTimerRef.current = globalThis.setTimeout(() => {
             setDownloadSummary(null);
             downloadSummaryTimerRef.current = null;
@@ -557,7 +533,6 @@ export function BulkActionsToolbar({
     />
   );
 
-  // Don't render portal during SSR or before hydration
   if (!isMounted) return null;
 
   const toolbarContent = (
@@ -565,7 +540,7 @@ export function BulkActionsToolbar({
       data-testid="bulk-actions-toolbar-host"
       className="pointer-events-none fixed inset-x-0 z-50 flex justify-center"
       style={{
-        paddingLeft: `calc(${sidebarOffset} + ${toolbarGutter})`,
+        paddingLeft: toolbarGutter,
         paddingRight: toolbarGutter,
         bottom: toolbarBottom,
       }}
@@ -582,9 +557,9 @@ export function BulkActionsToolbar({
             className={cn(
               "pointer-events-auto",
               "w-fit max-w-full",
-              "flex flex-wrap items-center justify-center gap-2 rounded-2xl sm:gap-3",
-              "border border-slate-200/80 bg-white/95 px-4 py-3 shadow-2xl backdrop-blur-xl",
-              "dark:border-slate-700/80 dark:bg-slate-800/95",
+              "flex flex-wrap items-center justify-center gap-2 sm:gap-3",
+              "border-gold/25 bg-background/95 shadow-gold/10 border-2 px-5 py-3.5 shadow-2xl backdrop-blur-xl",
+              "dark:border-gold/18",
               className,
             )}
           >
@@ -606,13 +581,12 @@ export function BulkActionsToolbar({
               handleDownloadAll={handleDownloadAll}
             />
 
-            {/* Bulk edit popover: variant + preset + reset selected */}
             <Popover open={bulkEditOpen} onOpenChange={setBulkEditOpen}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-9 gap-1.5 rounded-lg border-slate-200 bg-white px-3 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  className="border-gold/20 bg-background text-foreground hover:bg-gold/5 dark:border-gold/15 h-9 gap-1.5 rounded-lg px-3"
                 >
                   <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Bulk edit</span>
@@ -621,7 +595,7 @@ export function BulkActionsToolbar({
               <PopoverContent className="w-72 p-3" align="center" side="top">
                 <div className="space-y-3">
                   <div>
-                    <div className="mb-1 text-xs font-medium text-slate-600 dark:text-slate-400">
+                    <div className="text-muted-foreground mb-1 text-xs font-medium">
                       Variant
                     </div>
                     <Select
@@ -648,7 +622,7 @@ export function BulkActionsToolbar({
                   </div>
 
                   <div>
-                    <div className="mb-1 text-xs font-medium text-slate-600 dark:text-slate-400">
+                    <div className="text-muted-foreground mb-1 text-xs font-medium">
                       Color preset
                     </div>
                     <Select onValueChange={handleApplyPreset}>
@@ -690,13 +664,12 @@ export function BulkActionsToolbar({
               copyToClipboard={copyFailedListToClipboard}
             />
 
-            {/* Bulk undo/redo */}
             <Button
               variant="ghost"
               size="sm"
               onClick={undoBulk}
               disabled={!canUndo}
-              className="h-9 w-9 rounded-lg p-0 text-slate-500 hover:text-slate-700 disabled:opacity-50 dark:text-slate-400 dark:hover:text-slate-200"
+              className="text-muted-foreground hover:text-foreground h-9 w-9 rounded-lg p-0 disabled:opacity-50"
               title={canUndo ? "Undo last bulk action" : "Nothing to undo"}
             >
               <Undo2 className="h-4 w-4" aria-hidden="true" />
@@ -707,19 +680,18 @@ export function BulkActionsToolbar({
               size="sm"
               onClick={redoBulk}
               disabled={!canRedo}
-              className="h-9 w-9 rounded-lg p-0 text-slate-500 hover:text-slate-700 disabled:opacity-50 dark:text-slate-400 dark:hover:text-slate-200"
+              className="text-muted-foreground hover:text-foreground h-9 w-9 rounded-lg p-0 disabled:opacity-50"
               title={canRedo ? "Redo last bulk action" : "Nothing to redo"}
             >
               <Redo2 className="h-4 w-4" aria-hidden="true" />
               <span className="sr-only">Redo</span>
             </Button>
 
-            {/* Clear selection button */}
             <Button
               variant="ghost"
               size="sm"
               onClick={clearSelection}
-              className="h-9 w-9 rounded-lg p-0 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              className="text-muted-foreground hover:text-foreground h-9 w-9 rounded-lg p-0"
               title="Clear selection (Esc)"
               aria-keyshortcuts="Escape"
             >
@@ -738,7 +710,6 @@ export function BulkActionsToolbar({
     </div>
   );
 
-  // Render toolbar at document body level to avoid overflow-hidden container issues
   return createPortal(
     <>
       {toolbarContent}

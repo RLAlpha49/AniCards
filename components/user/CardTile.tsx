@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
 import { Columns2, Maximize2 } from "lucide-react";
 import { memo, useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -137,25 +138,30 @@ function CompareControls({
         size="sm"
         aria-pressed={compareEnabled}
         onClick={onToggleCompare}
-        className="h-8"
+        className="border-gold/30 text-gold/80 hover:border-gold/50 hover:bg-gold/10 hover:text-gold h-8"
         title="Compare variants"
       >
         <Columns2 className="h-4 w-4" aria-hidden="true" />
-        <span className="ml-2">Compare</span>
+        <span className="font-display ml-2 text-xs tracking-wider uppercase">
+          Compare
+        </span>
       </Button>
 
       {compareEnabled ? (
         <div className="flex items-center gap-2">
           <Label
             htmlFor={compareSelectTriggerId}
-            className="text-xs font-medium text-slate-500 dark:text-slate-400"
+            className="font-display text-gold/50 text-xs tracking-wider uppercase"
           >
             With
           </Label>
           <Select value={compareVariant} onValueChange={onCompareVariantChange}>
             <SelectTrigger
               id={compareSelectTriggerId}
-              className={cn("h-8 w-[160px] text-xs", selectTriggerClassName)}
+              className={cn(
+                "border-gold/25 hover:border-gold/40 h-8 w-40 text-xs",
+                selectTriggerClassName,
+              )}
             >
               <SelectValue />
             </SelectTrigger>
@@ -200,7 +206,7 @@ function PreviewControlsBar({
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-2 border-b border-slate-200/50 bg-white/40 px-4 py-2 backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-900/20",
+        "border-gold/15 bg-gold/3 dark:border-gold/10 dark:bg-gold/3 flex flex-wrap items-center gap-2 border-b-2 px-4 py-2 backdrop-blur-sm",
         className,
       )}
     >
@@ -210,12 +216,14 @@ function PreviewControlsBar({
           variant="outline"
           size="sm"
           onClick={onExpand}
-          className="h-8"
+          className="border-gold/30 text-gold/80 hover:border-gold/50 hover:bg-gold/10 hover:text-gold h-8"
           title="Expand preview"
           data-tour="card-expand"
         >
           <Maximize2 className="h-4 w-4" aria-hidden="true" />
-          <span className="ml-2">Expand</span>
+          <span className="font-display ml-2 text-xs tracking-wider uppercase">
+            Expand
+          </span>
         </Button>
       ) : null}
 
@@ -278,64 +286,114 @@ function ExpandedPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] w-[min(98vw,96rem)] max-w-none overflow-y-auto p-0">
-        <div className="group/card-tile overflow-hidden rounded-2xl">
-          <DialogHeader className="border-b border-slate-200/60 bg-white/85 px-6 py-4 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-950/40">
-            <DialogTitle className="text-base">{label}</DialogTitle>
-            <DialogDescription className="text-xs">
-              Preview
-              {hasVariantOptions ? ` • Variant: ${primaryVariantLabel}` : ""}
-            </DialogDescription>
-          </DialogHeader>
-
-          <PreviewControlsBar
-            showExpand={false}
-            compareControls={{
-              ...compareControls,
-              selectTriggerClassName: "w-[200px]",
-            }}
-            className="bg-white/60 px-6 py-3 dark:bg-slate-900/25"
-          />
-
-          {/* Add breathing room around previews (especially in compare mode) */}
-          <div className="p-4 sm:p-6">
-            <div
-              className={cn(
-                isComparing ? "grid grid-cols-1 gap-4 sm:grid-cols-2" : "",
-              )}
+      <DialogContent className="border-gold/20 max-h-[90vh] w-[min(98vw,96rem)] max-w-none overflow-y-auto rounded-none border-2 p-0">
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              className="imperial-card group/card-tile overflow-hidden rounded-none border-0 p-0"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
             >
-              <CardPreview
-                previewUrl={previewUrl}
-                label={
-                  isComparing ? `${label} (${primaryVariantLabel})` : label
-                }
-                previewUnavailableId={previewUnavailableId}
-                convertingId={convertingId}
-                borderRadiusValue={borderRadiusValue}
-                {...primaryActions}
+              <DialogHeader className="bg-background/90 border-b-0 px-6 pt-5 pb-4 backdrop-blur-sm">
+                <DialogTitle className="font-display text-foreground text-sm tracking-[0.2em] uppercase">
+                  {label}
+                </DialogTitle>
+                {hasVariantOptions ? (
+                  <DialogDescription className="text-gold/50 mt-1 text-xs">
+                    Variant: {primaryVariantLabel}
+                  </DialogDescription>
+                ) : (
+                  <DialogDescription className="sr-only">
+                    Card preview
+                  </DialogDescription>
+                )}
+                <div className="via-gold/40 mt-3 h-px w-full bg-linear-to-r from-transparent to-transparent" />
+              </DialogHeader>
+
+              <PreviewControlsBar
+                showExpand={false}
+                compareControls={{
+                  ...compareControls,
+                  selectTriggerClassName: "w-[200px]",
+                }}
+                className="bg-gold/2 dark:bg-gold/2 border-b-0 px-6 py-3"
               />
 
-              {isComparing ? (
-                <CardPreview
-                  previewUrl={comparePreviewUrl}
-                  label={`${label} (${compareVariantLabel ?? compareVariant})`}
-                  previewUnavailableId={`${previewUnavailableId}-compare`}
-                  convertingId={`${convertingId}-compare`}
-                  borderRadiusValue={borderRadiusValue}
-                  {...compareActions}
-                />
-              ) : null}
-            </div>
-          </div>
+              <div
+                className="relative p-4 sm:p-6"
+                style={{
+                  backgroundImage:
+                    "url(\"data:image/svg+xml,%3Csvg width='20' height='20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 0l10 10-10 10L0 10z' fill='none' stroke='%23c9a84c' stroke-opacity='0.04' stroke-width='0.5'/%3E%3C/svg%3E\")",
+                  backgroundSize: "20px 20px",
+                }}
+              >
+                <div className="border-gold/10 rounded-sm border p-3 sm:p-5">
+                  <div
+                    className={cn(
+                      isComparing
+                        ? "grid grid-cols-1 gap-0 sm:grid-cols-[1fr_auto_1fr]"
+                        : "",
+                    )}
+                  >
+                    <div>
+                      {isComparing ? (
+                        <p className="font-display text-gold/40 mb-2 text-center text-[10px] tracking-[0.15em] uppercase">
+                          {primaryVariantLabel}
+                        </p>
+                      ) : null}
+                      <CardPreview
+                        previewUrl={previewUrl}
+                        label={
+                          isComparing
+                            ? `${label} (${primaryVariantLabel})`
+                            : label
+                        }
+                        previewUnavailableId={previewUnavailableId}
+                        convertingId={convertingId}
+                        borderRadiusValue={borderRadiusValue}
+                        {...primaryActions}
+                      />
+                    </div>
 
-          <VariantSelector
-            variations={variations}
-            currentVariant={currentVariant}
-            onVariantChange={onVariantChange}
-            getVariantTooltip={getVariantTooltipForCard}
-            label="Variant (applies to this card)"
-          />
-        </div>
+                    {isComparing ? (
+                      <div className="mx-3 hidden items-stretch sm:flex">
+                        <div className="via-gold/30 w-px self-stretch bg-linear-to-b from-transparent to-transparent" />
+                      </div>
+                    ) : null}
+
+                    {isComparing ? (
+                      <div>
+                        <p className="font-display text-gold/40 mb-2 text-center text-[10px] tracking-[0.15em] uppercase">
+                          {compareVariantLabel ?? compareVariant}
+                        </p>
+                        <CardPreview
+                          previewUrl={comparePreviewUrl}
+                          label={`${label} (${compareVariantLabel ?? compareVariant})`}
+                          previewUnavailableId={`${previewUnavailableId}-compare`}
+                          convertingId={`${convertingId}-compare`}
+                          borderRadiusValue={borderRadiusValue}
+                          {...compareActions}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+
+              <div className="via-gold/25 h-px w-full bg-linear-to-r from-transparent to-transparent" />
+
+              <VariantSelector
+                variations={variations}
+                currentVariant={currentVariant}
+                onVariantChange={onVariantChange}
+                getVariantTooltip={getVariantTooltipForCard}
+                label="Variant (applies to this card)"
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </DialogContent>
     </Dialog>
   );
@@ -374,14 +432,12 @@ export const CardTile = memo(function CardTile({
     return alt ?? fallback;
   });
 
-  // Track if any popover is open to maintain hover state
   const isAnyPopoverOpen = copyPopoverOpen || downloadPopoverOpen;
   const isAnyComparePopoverOpen =
     compareCopyPopoverOpen || compareDownloadPopoverOpen;
   const forcePreviewActionsVisible = isAnyPopoverOpen;
   const forceComparePreviewActionsVisible = isAnyComparePopoverOpen;
 
-  // Get info tooltip content - prop overrides default from card-info-tooltips
   const tooltipContent = useMemo(
     () => infoTooltip ?? getCardInfoTooltip(cardId),
     [infoTooltip, cardId],
@@ -430,7 +486,6 @@ export const CardTile = memo(function CardTile({
 
   const hasVariantOptions = variations.length > 1;
 
-  // Ensure compare state stays valid as variants change.
   useEffect(() => {
     if (!hasVariantOptions) {
       setCompareEnabled(false);
@@ -501,7 +556,6 @@ export const CardTile = memo(function CardTile({
     [effectiveColorPreset],
   );
 
-  // Build preview URL
   const previewUrl = useMemo(
     () =>
       buildPreviewUrl({
@@ -624,11 +678,9 @@ export const CardTile = memo(function CardTile({
     [effectiveBorderRadius],
   );
 
-  // Accessibility helpers: IDs for sr-only descriptions
   const previewUnavailableId = `card-${cardId}-preview-unavailable`;
   const convertingId = `card-${cardId}-converting`;
 
-  // Close popovers if preview becomes unavailable
   useEffect(() => {
     if (!previewUrl) {
       setCopyPopoverOpen(false);
@@ -636,7 +688,6 @@ export const CardTile = memo(function CardTile({
     }
   }, [previewUrl]);
 
-  // Close compare popovers if compare preview becomes unavailable
   useEffect(() => {
     if (!comparePreviewUrl) {
       setCompareCopyPopoverOpen(false);
@@ -644,7 +695,6 @@ export const CardTile = memo(function CardTile({
     }
   }, [comparePreviewUrl]);
 
-  // Close download popover when conversion starts
   useEffect(() => {
     if (isDownloading) {
       setDownloadPopoverOpen(false);
@@ -684,19 +734,22 @@ export const CardTile = memo(function CardTile({
       data-testid={`card-tile-${cardId}`}
       data-tour="card-tile"
       className={cn(
-        "group/card-tile relative overflow-hidden rounded-2xl border transition-all duration-200",
-        "focus-within:ring-2 focus-within:ring-blue-500/70 focus-within:ring-offset-2 dark:focus-within:ring-offset-slate-950",
+        "group/card-tile relative overflow-hidden border-2 transition-all duration-300",
+        "focus-within:ring-gold/70 dark:focus-within:ring-offset-background focus-within:ring-2 focus-within:ring-offset-2",
         isDragging && "z-10 cursor-grabbing opacity-80",
         config.enabled
-          ? "border-blue-200/70 bg-white/85 shadow-md backdrop-blur-sm dark:border-blue-800/40 dark:bg-slate-900/55"
-          : "border-slate-200/60 bg-slate-50/60 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-950/35",
+          ? "border-gold/15 from-gold/5 via-background to-gold/3 hover:border-gold/30 dark:border-gold/10 dark:hover:border-gold/25 bg-linear-to-br shadow-md backdrop-blur-sm hover:shadow-[0_0_20px_hsl(var(--gold)/0.08)]"
+          : "border-gold/15 from-gold/3 via-background to-gold/2 dark:border-gold/10 bg-linear-to-br backdrop-blur-sm",
         isSelected &&
           config.enabled &&
-          "ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-slate-900",
-        (isPreviewHovered || isAnyPopoverOpen) && "-translate-y-0.5 shadow-xl",
+          "ring-gold dark:ring-offset-background ring-2 ring-offset-2",
+        (isPreviewHovered || isAnyPopoverOpen) &&
+          "shadow-gold/10 -translate-y-0.5 shadow-xl",
       )}
     >
-      {/* Card Header */}
+      <div className="border-gold/60 pointer-events-none absolute top-0 left-0 h-3 w-3 border-t-2 border-l-2" />
+      <div className="border-gold/60 pointer-events-none absolute right-0 bottom-0 h-3 w-3 border-r-2 border-b-2" />
+
       <CardTileHeader
         label={label}
         enabled={config.enabled}
@@ -809,7 +862,6 @@ export const CardTile = memo(function CardTile({
         </>
       ) : null}
 
-      {/* Disabled State Overlay */}
       {!config.enabled && <DisabledState />}
     </div>
   );

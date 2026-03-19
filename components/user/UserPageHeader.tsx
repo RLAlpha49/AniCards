@@ -11,7 +11,6 @@ import {
   Save,
   User as UserIcon,
 } from "lucide-react";
-import Image from "next/image";
 import { useEffect, useReducer, useState } from "react";
 
 import { baseVariants } from "@/components/PageShell";
@@ -107,7 +106,7 @@ function getSaveStateInfo(saveState?: SaveState): SaveStateInfo {
       Icon: Clock,
       text: "No changes",
       className:
-        "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+        "border border-gold/20 bg-gold/5 text-gold-dim dark:border-gold/15 dark:bg-gold/5 dark:text-gold",
     };
   }
 
@@ -115,7 +114,8 @@ function getSaveStateInfo(saveState?: SaveState): SaveStateInfo {
     return {
       Icon: AlertCircle,
       text: "Out of sync",
-      className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+      className:
+        "border border-red-300/40 bg-red-100 text-red-700 dark:border-red-800/40 dark:bg-red-900/30 dark:text-red-400",
       title:
         "A save conflict was detected. Reload to sync with the latest settings.",
     };
@@ -126,7 +126,7 @@ function getSaveStateInfo(saveState?: SaveState): SaveStateInfo {
       Icon: Loader2,
       text: `Auto-save in ${getTimeUntil(saveState.autoSaveDueAt)}`,
       className:
-        "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+        "border border-gold/20 bg-gold/5 text-gold-dim dark:border-gold/15 dark:bg-gold/5 dark:text-gold",
       spinner: true,
       title: "Your changes will be saved automatically.",
     };
@@ -137,7 +137,7 @@ function getSaveStateInfo(saveState?: SaveState): SaveStateInfo {
       Icon: Loader2,
       text: "Saving...",
       className:
-        "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+        "border border-gold/30 bg-gold/10 text-gold-dim dark:border-gold/25 dark:bg-gold/10 dark:text-gold",
       spinner: true,
       title: "Syncing your changes...",
     };
@@ -147,7 +147,8 @@ function getSaveStateInfo(saveState?: SaveState): SaveStateInfo {
     return {
       Icon: AlertCircle,
       text: "Sync failed",
-      className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+      className:
+        "border border-red-300/40 bg-red-100 text-red-700 dark:border-red-800/40 dark:bg-red-900/30 dark:text-red-400",
       title: saveState.saveError,
     };
   }
@@ -157,7 +158,7 @@ function getSaveStateInfo(saveState?: SaveState): SaveStateInfo {
       Icon: Save,
       text: "Unsaved changes",
       className:
-        "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+        "border border-amber-300/40 bg-amber-100 text-amber-700 dark:border-amber-700/40 dark:bg-amber-900/30 dark:text-amber-400",
       title: "Changes are waiting to be saved.",
     };
   }
@@ -167,7 +168,7 @@ function getSaveStateInfo(saveState?: SaveState): SaveStateInfo {
       Icon: Check,
       text: `Saved ${getTimeSince(saveState.lastSavedAt)} · Synced`,
       className:
-        "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+        "border border-gold/30 bg-gold/10 text-gold-dim dark:border-gold/20 dark:bg-gold/10 dark:text-gold",
       title: new Date(saveState.lastSavedAt).toLocaleString(),
     };
   }
@@ -176,7 +177,7 @@ function getSaveStateInfo(saveState?: SaveState): SaveStateInfo {
     Icon: Clock,
     text: "No changes",
     className:
-      "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+      "border border-gold/20 bg-gold/5 text-gold-dim dark:border-gold/15 dark:bg-gold/5 dark:text-gold",
   };
 }
 
@@ -218,13 +219,13 @@ function Avatar({
   }, [avatarUrl]);
 
   return avatarUrl && !imageError ? (
-    <Image
+    <img
       src={avatarUrl}
       alt={username || "User avatar"}
       width={100}
       height={100}
       className={cn(
-        "relative h-20 w-20 rounded-full border-4 border-white object-cover shadow-lg dark:border-slate-800 sm:h-24 sm:w-24",
+        "border-gold/40 shadow-gold/10 dark:border-gold/30 relative h-20 w-20 rounded-full border-[3px] object-cover shadow-lg sm:h-24 sm:w-24",
         imageClassName,
       )}
       onError={() => setImageError(true)}
@@ -232,11 +233,11 @@ function Avatar({
   ) : (
     <div
       className={cn(
-        "relative flex h-20 w-20 items-center justify-center rounded-full border-4 border-white bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg dark:border-slate-800 sm:h-24 sm:w-24",
+        "border-gold/40 from-gold/20 via-gold/10 shadow-gold/10 dark:border-gold/30 dark:from-gold/15 dark:via-gold/5 relative flex h-20 w-20 items-center justify-center rounded-full border-[3px] bg-linear-to-br to-amber-900/20 shadow-lg sm:h-24 sm:w-24 dark:to-amber-900/15",
         fallbackClassName,
       )}
     >
-      <UserIcon className="h-10 w-10 text-white sm:h-12 sm:w-12" />
+      <UserIcon className="text-gold h-10 w-10 sm:h-12 sm:w-12" />
     </div>
   );
 }
@@ -292,79 +293,97 @@ export function UserPageHeader({
       animate="visible"
       className="relative"
     >
-      {/* Main header content */}
-      <div className="mx-auto max-w-4xl">
-        {/* Top section with user info */}
-        <div className="relative px-6 py-8 sm:px-8 sm:py-10">
-          <div className="flex flex-col items-center gap-6 text-center">
-            {/* Avatar */}
-            <motion.div variants={itemVariants} className="relative shrink-0">
-              <div className="absolute -inset-1 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 opacity-75 blur-sm" />
-              {anilistUrl ? (
-                <a
-                  href={anilistUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group relative block transition-transform hover:scale-105 active:scale-95"
-                  aria-label={`View ${username || "user"}'s AniList profile`}
-                >
-                  <Avatar
-                    avatarUrl={avatarUrl}
-                    username={username}
-                    imageClassName="transition-all group-hover:border-blue-400 dark:group-hover:border-blue-500"
-                    fallbackClassName="transition-all group-hover:border-blue-400 dark:group-hover:border-blue-500"
-                  />
-                  <div className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-white shadow-md sm:h-8 sm:w-8">
-                    <ExternalLink className="h-3 w-3 sm:h-4 sm:w-4" />
-                  </div>
-                </a>
-              ) : (
-                <div className="relative">
-                  <Avatar avatarUrl={avatarUrl} username={username} />
-                </div>
-              )}
-            </motion.div>
-
-            {/* User info and title */}
-            <div className="flex flex-1 flex-col items-center text-center">
-              <motion.h1
-                variants={itemVariants}
-                className="text-3xl font-extrabold leading-tight tracking-tight text-slate-900 dark:text-white sm:text-4xl lg:text-5xl"
-              >
-                {username ? (
-                  <>
-                    <span className="block text-base font-medium text-slate-500 dark:text-slate-400 sm:text-xl">
-                      Welcome back,
-                    </span>
-                    <span className="mt-1 block">{username}</span>
-                  </>
+      <div className="relative mx-auto max-w-4xl">
+        <div className="imperial-card border-gold/20! dark:border-gold/12! bg-transparent! p-0!">
+          <div className="relative px-6 py-10 sm:px-10 sm:py-14">
+            <div className="flex flex-col items-center gap-8 text-center">
+              <motion.div variants={itemVariants} className="relative shrink-0">
+                <div className="from-gold/40 to-gold/40 absolute -inset-3 rounded-full bg-linear-to-br via-amber-500/20 opacity-60 blur-lg" />
+                <div className="border-gold/20 dark:border-gold/15 absolute -inset-1 rounded-full border" />
+                {anilistUrl ? (
+                  <a
+                    href={anilistUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group relative block transition-transform hover:scale-105 active:scale-95"
+                    aria-label={`View ${username || "user"}'s AniList profile`}
+                  >
+                    <Avatar
+                      avatarUrl={avatarUrl}
+                      username={username}
+                      imageClassName="transition-all group-hover:border-gold/60 dark:group-hover:border-gold/50"
+                      fallbackClassName="transition-all group-hover:border-gold/60 dark:group-hover:border-gold/50"
+                    />
+                    <div className="border-gold/40 from-gold to-gold-dim text-primary-foreground shadow-gold/20 absolute -right-1 -bottom-1 flex h-7 w-7 items-center justify-center rounded-full border-2 bg-linear-to-br via-amber-500 shadow-lg sm:h-8 sm:w-8">
+                      <ExternalLink className="h-3 w-3 sm:h-4 sm:w-4" />
+                    </div>
+                  </a>
                 ) : (
-                  <span className="block">Your Dashboard</span>
+                  <div className="relative">
+                    <Avatar avatarUrl={avatarUrl} username={username} />
+                  </div>
                 )}
-              </motion.h1>
-            </div>
-
-            {/* Save status indicator */}
-            {saveInfo && (
-              <motion.div variants={itemVariants} className="shrink-0">
-                <output
-                  aria-live="polite"
-                  aria-atomic="true"
-                  title={saveInfo.title}
-                  className={cn(
-                    "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all",
-                    saveInfo.className,
-                  )}
-                >
-                  {saveInfo.spinner ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <saveInfo.Icon className="h-4 w-4" />
-                  )}
-                  <span>{saveInfo.text}</span>
-                </output>
               </motion.div>
-            )}
+
+              <div className="flex flex-1 flex-col items-center text-center">
+                <motion.h1
+                  variants={itemVariants}
+                  className="text-foreground text-3xl leading-tight font-bold tracking-tight sm:text-4xl lg:text-5xl"
+                >
+                  {username ? (
+                    <>
+                      <span className="text-gold-dim dark:text-gold block text-xs tracking-[0.35em] uppercase sm:text-sm">
+                        ✦ Welcome back ✦
+                      </span>
+                      <span className="font-display mt-3 block">
+                        {username}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-gold-dim dark:text-gold block text-xs tracking-[0.35em] uppercase sm:text-sm">
+                        ✦ Dashboard ✦
+                      </span>
+                      <span className="font-display mt-3 block">
+                        Your Collection
+                      </span>
+                    </>
+                  )}
+                </motion.h1>
+                <motion.div
+                  variants={itemVariants}
+                  className="gold-line-thick mt-6 w-24"
+                />
+                <motion.p
+                  variants={itemVariants}
+                  className="font-body-serif text-muted-foreground mt-4 max-w-md text-sm leading-relaxed sm:text-base"
+                >
+                  Curate your stat cards, customize their appearance, and share
+                  your anime journey.
+                </motion.p>
+              </div>
+
+              {saveInfo && (
+                <motion.div variants={itemVariants} className="shrink-0">
+                  <output
+                    aria-live="polite"
+                    aria-atomic="true"
+                    title={saveInfo.title}
+                    className={cn(
+                      "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all",
+                      saveInfo.className,
+                    )}
+                  >
+                    {saveInfo.spinner ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <saveInfo.Icon className="h-4 w-4" />
+                    )}
+                    <span>{saveInfo.text}</span>
+                  </output>
+                </motion.div>
+              )}
+            </div>
           </div>
         </div>
       </div>

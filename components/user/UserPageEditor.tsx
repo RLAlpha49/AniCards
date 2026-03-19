@@ -26,7 +26,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname,useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -112,7 +112,7 @@ function getTooltipTriggerChild(mode: TooltipTriggerMode, child: ReactElement) {
 
 function ShortcutHint({ children }: Readonly<{ children: string }>) {
   return (
-    <kbd className="ml-2 inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+    <kbd className="border-gold/20 bg-gold/3 text-foreground dark:border-gold/15 dark:bg-gold/3 ml-2 inline-flex items-center rounded-md border px-1.5 py-0.5 font-mono text-[10px]">
       {children}
     </kbd>
   );
@@ -151,7 +151,7 @@ function UserPageEditorLoadingScreen(
     props.loadingPhase === "saving";
 
   return (
-    <div className="container relative z-10 mx-auto flex min-h-screen items-center justify-center px-4">
+    <div className="relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -159,22 +159,21 @@ function UserPageEditorLoadingScreen(
       >
         {isSettingUp ? (
           <>
-            {/* Enhanced loading UI for new user setup */}
             <div className="relative">
-              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30">
-                <UserPlus className="h-10 w-10 text-blue-600 dark:text-blue-400" />
+              <div className="from-gold/15 dark:from-gold/10 flex h-20 w-20 items-center justify-center rounded-full bg-linear-to-br to-amber-100 dark:to-amber-900/20">
+                <UserPlus className="text-gold dark:text-gold h-10 w-10" />
               </div>
               <motion.div
-                className="absolute -inset-1 rounded-full border-2 border-blue-400/50"
+                className="border-gold/50 absolute -inset-1 rounded-full border-2"
                 animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.8, 0.5] }}
                 transition={{ duration: 1.5, repeat: Infinity }}
               />
             </div>
             <div className="text-center">
-              <h2 className="text-xl font-semibold text-slate-800 dark:text-white">
+              <h2 className="font-display text-foreground text-xl">
                 Welcome to AniCards!
               </h2>
-              <p className="mt-2 text-slate-600 dark:text-slate-300">
+              <p className="font-body-serif text-muted-foreground mt-2">
                 {loadingMessage}
               </p>
             </div>
@@ -190,25 +189,27 @@ function UserPageEditorLoadingScreen(
 
 function UserPageEditorErrorScreen(props: Readonly<{ loadError: string }>) {
   return (
-    <div className="container relative z-10 mx-auto flex min-h-screen items-center justify-center px-4">
+    <div className="relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         className="w-full max-w-md"
       >
-        <div className="rounded-3xl border border-red-200/50 bg-white/80 p-8 text-center shadow-2xl backdrop-blur-xl dark:border-red-800/30 dark:bg-slate-900/80">
+        <div className="border-gold/20 bg-background/80 dark:border-gold/15 relative border-2 p-8 text-center shadow-2xl backdrop-blur-xl">
+          <div className="border-gold pointer-events-none absolute top-0 left-0 h-4 w-4 border-t-2 border-l-2" />
+          <div className="border-gold pointer-events-none absolute right-0 bottom-0 h-4 w-4 border-r-2 border-b-2" />
           <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
             <AlertCircle className="h-10 w-10 text-red-500" />
           </div>
-          <h1 className="mb-3 text-2xl font-bold text-slate-900 dark:text-white">
+          <h1 className="font-display text-foreground mb-3 text-2xl">
             Something Went Wrong
           </h1>
-          <p className="mb-6 text-slate-600 dark:text-slate-300">
+          <p className="font-body-serif text-muted-foreground mb-6">
             {props.loadError}
           </p>
           <Button
             asChild
-            className="rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white shadow-lg"
+            className="from-gold to-gold-dim text-primary-foreground shadow-gold/20 bg-linear-to-r via-amber-500 shadow-lg"
           >
             <Link href="/search">Search for User</Link>
           </Button>
@@ -707,8 +708,8 @@ function ReorderModeToolbarToggle({
       className={cn(
         "h-9 rounded-xl px-3 text-xs font-medium",
         isReorderMode
-          ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-200 dark:hover:bg-blue-950/45"
-          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700",
+          ? "border-gold/30 bg-gold/10 text-gold-dim hover:bg-gold/15 dark:border-gold/25 dark:bg-gold/10 dark:text-gold dark:hover:bg-gold/15"
+          : "border-gold/15 bg-background text-muted-foreground hover:bg-gold/5 hover:text-foreground dark:border-gold/10",
       )}
       title={
         canEnterReorderMode
@@ -781,7 +782,6 @@ function ReorderModeMenuToggle({
 }
 
 function useStableCardEnabledById(): Record<string, boolean> {
-  // Enabled-only view of card state.
   // Memoize the derived enabled map and preserve the same object reference
   // when no enabled values changed. This keeps filtering fast and prevents
   // unrelated per-card updates (variant/colors) from re-rendering the whole
@@ -931,15 +931,12 @@ export function UserPageEditor() {
     [query, visibility, customFilter],
   );
 
-  // Reordering with active filters is confusing (scope isn't the full category).
-  // Auto-exit when the user applies filters.
   useEffect(() => {
     if (isReorderMode && !canEnterReorderMode) {
       setIsReorderMode(false);
     }
   }, [canEnterReorderMode, isReorderMode]);
 
-  // New-user setup hook
   const { isNewUser, setIsNewUser, cardsWarning, setCardsWarning } =
     useNewUserSetup();
 
@@ -954,7 +951,6 @@ export function UserPageEditor() {
     closeHelpDialog,
   });
 
-  // Card filtering hook (manages grouping, filtering, visibility, expand/collapse)
   const {
     filteredGroups,
     cardGroups,
@@ -979,10 +975,8 @@ export function UserPageEditor() {
     customFilter,
   });
 
-  // Data loader hook manages the main load flow and loading phases
   const { loadingPhase, reload } = useUserDataLoader();
 
-  // Auto-save hook
   const {
     saveNow,
     saveConflict,
@@ -1046,12 +1040,10 @@ export function UserPageEditor() {
     [cardMetaById, enabledCardIds],
   );
 
-  // Keep resetting help dialog when search params change
   useEffect(() => {
     setIsHelpDialogOpen(false);
   }, [searchParams]);
 
-  // Sync state from URL search params when the URL changes (back/forward etc.)
   useEffect(() => {
     syncFiltersFromSearchParams({
       searchParams,
@@ -1064,7 +1056,6 @@ export function UserPageEditor() {
     });
   }, [searchParams]);
 
-  // Keyboard shortcuts (including Ctrl/Cmd+K for the command palette)
   useUserPageEditorKeyboardShortcuts({
     canEnterReorderMode,
     isReorderMode,
@@ -1274,7 +1265,6 @@ export function UserPageEditor() {
     ],
   );
 
-  // Loading state - show descriptive messages based on loading phase
   if (isLoading) {
     return (
       <UserPageEditorLoadingScreen
@@ -1284,14 +1274,20 @@ export function UserPageEditor() {
     );
   }
 
-  // Error state
   if (loadError) {
     return <UserPageEditorErrorScreen loadError={loadError} />;
   }
 
   return (
     <div className="relative w-full overflow-hidden">
-      <div className="container relative z-10 mx-auto max-w-5xl px-4 pb-16 pt-10 lg:pt-14">
+      <div
+        className="pointer-events-none absolute inset-0 opacity-30 dark:opacity-20"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0L60 30L30 60L0 30Z' fill='none' stroke='%23c9a84c15' stroke-width='1'/%3E%3C/svg%3E")`,
+        }}
+      />
+
+      <div className="relative z-10 container mx-auto max-w-5xl px-4 pt-10 pb-16 lg:pt-14">
         <UserPageHeader
           userId={userId}
           username={username}
@@ -1329,27 +1325,33 @@ export function UserPageEditor() {
         />
 
         <div className="mt-6 space-y-8">
-          {/* Main cards section */}
           <main className="mx-auto w-full max-w-[80vw] space-y-6">
-            {/* Section header with integrated filters */}
-            <div className="space-y-4">
-              {/* Title row */}
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500 to-pink-600 shadow-lg shadow-purple-500/25">
-                    <LayoutGrid className="h-6 w-6 text-white" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-                      Your Cards
-                    </h2>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                      Toggle, customize, and preview your stat cards
-                    </p>
-                  </div>
-                </div>
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              className="space-y-3"
+            >
+              <div className="gold-ornament text-gold/50 mb-4 text-xs tracking-[0.3em] uppercase">
+                ✦
+              </div>
 
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="flex items-center gap-4">
+                <div className="from-gold to-gold-dim shadow-gold/20 flex h-12 w-12 items-center justify-center bg-linear-to-br via-amber-500 shadow-lg">
+                  <LayoutGrid className="text-primary-foreground h-6 w-6" />
+                </div>
+                <div>
+                  <h2 className="font-display text-foreground text-lg tracking-[0.15em] uppercase sm:text-xl">
+                    Your Cards
+                  </h2>
+                  <p className="font-body-serif text-muted-foreground text-sm">
+                    Toggle, customize, and preview your stat cards
+                  </p>
+                </div>
+              </div>
+
+              <div className="border-gold/20 bg-background/80 dark:border-gold/15 dark:bg-background/60 flex items-center justify-between rounded-xl border px-2.5 py-1.5 backdrop-blur-sm">
+                <div className="flex items-center gap-1.5">
                   <TooltipProvider delayDuration={200}>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -1359,15 +1361,24 @@ export function UserPageEditor() {
                           ],
                           <Button
                             type="button"
-                            variant="outline"
-                            className="w-full shrink-0 rounded-xl sm:w-auto"
+                            variant="ghost"
+                            size="sm"
+                            className={cn(
+                              "h-8 rounded-lg px-2 text-xs font-medium sm:px-3",
+                              canSaveNow
+                                ? "text-foreground hover:bg-gold/8"
+                                : "text-muted-foreground",
+                            )}
                             onClick={() => saveNow()}
                             disabled={!canSaveNow}
                             aria-keyshortcuts="Control+S Meta+S"
                             data-tour="save-button"
                           >
-                            <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-                            Save
+                            <Save
+                              className="h-4 w-4 sm:mr-1.5"
+                              aria-hidden="true"
+                            />
+                            <span className="hidden sm:inline">Save</span>
                           </Button>,
                         )}
                       </TooltipTrigger>
@@ -1393,16 +1404,22 @@ export function UserPageEditor() {
                           ],
                           <Button
                             type="button"
-                            variant="outline"
-                            className="w-full shrink-0 rounded-xl border-red-200 bg-red-50/40 text-red-700 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40 sm:w-auto"
+                            variant="ghost"
+                            size="sm"
+                            className={cn(
+                              "h-8 rounded-lg px-2 text-xs font-medium sm:px-3",
+                              canDiscardNow
+                                ? "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
+                                : "text-muted-foreground",
+                            )}
                             onClick={() => setIsDiscardDialogOpen(true)}
                             disabled={!canDiscardNow}
                           >
                             <Trash2
-                              className="mr-2 h-4 w-4"
+                              className="h-4 w-4 sm:mr-1.5"
                               aria-hidden="true"
                             />
-                            Discard
+                            <span className="hidden sm:inline">Discard</span>
                           </Button>,
                         )}
                       </TooltipTrigger>
@@ -1418,20 +1435,26 @@ export function UserPageEditor() {
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
+                </div>
+                <div className="flex items-center gap-1.5">
                   <TooltipProvider delayDuration={200}>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
                           type="button"
-                          variant="outline"
-                          className="w-full shrink-0 rounded-xl sm:w-auto"
+                          variant="ghost"
+                          size="sm"
+                          className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 rounded-lg px-2 text-xs font-medium sm:px-3"
                           onClick={() => setIsHelpDialogOpen(true)}
                           aria-haspopup="dialog"
                           aria-keyshortcuts="Control+H Meta+H"
                           data-tour="help-button"
                         >
-                          <Info className="mr-2 h-4 w-4" aria-hidden="true" />
-                          Help
+                          <Info
+                            className="h-4 w-4 sm:mr-1.5"
+                            aria-hidden="true"
+                          />
+                          <span className="hidden sm:inline">Help</span>
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent
@@ -1446,7 +1469,7 @@ export function UserPageEditor() {
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
-                  {/* Global Settings Button */}
+                  <div className="bg-gold/20 dark:bg-gold/15 h-5 w-px" />
                   <Dialog
                     open={isGlobalSettingsOpen}
                     onOpenChange={setIsGlobalSettingsOpen}
@@ -1457,12 +1480,12 @@ export function UserPageEditor() {
                           <DialogTrigger asChild>
                             <Button
                               type="button"
-                              size="default"
-                              className="w-full shrink-0 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/25 transition-all hover:shadow-xl hover:shadow-purple-500/30 sm:w-auto"
+                              size="sm"
+                              className="from-gold to-gold-dim text-primary-foreground shadow-gold/20 hover:shadow-gold/30 h-8 rounded-lg bg-linear-to-r via-amber-500 px-2 text-xs font-semibold shadow-sm transition-all hover:shadow-md sm:px-3"
                               data-tour="global-settings"
                             >
-                              <SlidersHorizontal className="mr-2 h-4 w-4" />
-                              Global Settings
+                              <SlidersHorizontal className="h-4 w-4 sm:mr-1.5" />
+                              <span className="hidden sm:inline">Settings</span>
                             </Button>
                           </DialogTrigger>
                         </TooltipTrigger>
@@ -1510,17 +1533,17 @@ export function UserPageEditor() {
                 </div>
               </div>
 
-              {/* Filters toolbar */}
               <div
-                className="flex flex-col gap-4 rounded-2xl border border-slate-200/60 bg-white/60 p-4 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-800/60"
+                className="border-gold/15 bg-gold/3 dark:border-gold/10 dark:bg-gold/3 relative flex flex-col gap-3 rounded-xl border-2 p-3 backdrop-blur-sm"
                 role="toolbar"
                 aria-label="Card filters"
               >
-                {/* Row 1: Search and Category */}
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="border-gold/40 pointer-events-none absolute top-0 left-0 h-3 w-3 border-t-2 border-l-2" />
+                <div className="border-gold/40 pointer-events-none absolute right-0 bottom-0 h-3 w-3 border-r-2 border-b-2" />
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <div className="relative flex-1">
                     <Search
-                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                      className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2"
                       aria-hidden="true"
                     />
                     <Input
@@ -1531,7 +1554,7 @@ export function UserPageEditor() {
                       onChange={(e) => setQuery(e.target.value)}
                       placeholder="Search cards… (Ctrl/Cmd+F)"
                       aria-keyshortcuts="Control+F Meta+F"
-                      className="h-10 rounded-xl border-slate-200/80 bg-white pl-9 pr-9 text-sm dark:border-slate-600 dark:bg-slate-700/80"
+                      className="border-gold/20 bg-background dark:border-gold/15 h-9 rounded-xl pr-9 pl-9 text-sm"
                       title='Try: group:"Core Stats" custom:yes enabled:true'
                     />
 
@@ -1541,11 +1564,11 @@ export function UserPageEditor() {
                           <button
                             type="button"
                             className={cn(
-                              "absolute right-2 top-1/2 -translate-y-1/2",
+                              "absolute top-1/2 right-2 -translate-y-1/2",
                               "flex h-7 w-7 items-center justify-center rounded-lg",
-                              "text-slate-500 hover:bg-white hover:text-slate-700",
-                              "dark:text-slate-300 dark:hover:bg-slate-600 dark:hover:text-slate-100",
-                              "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1",
+                              "text-muted-foreground hover:bg-gold/5 hover:text-foreground",
+                              "dark:text-muted-foreground dark:hover:bg-gold/5 dark:hover:text-foreground",
+                              "focus-visible:ring-gold/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
                             )}
                             aria-label="Help: searching cards"
                           >
@@ -1576,7 +1599,7 @@ export function UserPageEditor() {
                           <SelectTrigger
                             id={groupFilterTriggerId}
                             aria-keyshortcuts="Control+Shift+F Meta+Shift+F"
-                            className="h-10 w-full rounded-xl border-slate-200/80 bg-white text-sm dark:border-slate-600 dark:bg-slate-700/80 sm:w-48"
+                            className="border-gold/20 bg-background dark:border-gold/15 h-9 w-full rounded-xl text-sm sm:w-44"
                           >
                             <SelectValue placeholder="All categories" />
                           </SelectTrigger>
@@ -1605,18 +1628,38 @@ export function UserPageEditor() {
                   </Select>
                 </div>
 
-                <div className="flex items-center justify-between gap-2 px-1 text-xs text-slate-500 dark:text-slate-400">
-                  <span aria-live="polite">
-                    Showing {filteredCardCount} of {scopeCardCount} cards in
-                    view
+                <div className="flex items-center gap-2 px-1">
+                  <span
+                    className="inline-flex items-center gap-1.5 text-xs font-medium"
+                    aria-live="polite"
+                  >
+                    <span className="text-gold dark:text-gold">
+                      {filteredCardCount}
+                    </span>
+                    <span className="text-muted-foreground">of</span>
+                    <span className="text-gold dark:text-gold">
+                      {scopeCardCount}
+                    </span>
+                    <span className="text-muted-foreground">cards in view</span>
                   </span>
+                  {activeFilterCount > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearAllFilters}
+                      className="text-muted-foreground hover:bg-gold/5 hover:text-foreground ml-auto h-6 rounded-md px-2 text-[11px] font-medium"
+                    >
+                      Clear filters
+                    </Button>
+                  )}
                 </div>
 
-                {/* Row 2: Visibility and Quick Actions */}
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  {/* Visibility toggle */}
+                <div className="gold-line" />
+
+                <div className="flex flex-wrap items-center gap-3">
                   <div
-                    className="flex items-center gap-1 rounded-xl border border-slate-200/60 bg-slate-50/80 p-1 dark:border-slate-600 dark:bg-slate-700/50"
+                    className="border-gold/15 bg-gold/3 dark:border-gold/10 flex items-center gap-0.5 rounded-lg border p-0.5"
                     data-tour="visibility-toggle"
                   >
                     <Button
@@ -1627,8 +1670,8 @@ export function UserPageEditor() {
                       className={cn(
                         "h-8 rounded-lg px-3 text-xs font-medium transition-all",
                         visibility === "all"
-                          ? "bg-white text-slate-900 shadow-sm dark:bg-slate-600 dark:text-white"
-                          : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                          ? "bg-gold/10 text-gold-dim dark:bg-gold/10 dark:text-gold shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
                       )}
                       onClick={() => setVisibility("all")}
                     >
@@ -1643,8 +1686,8 @@ export function UserPageEditor() {
                       className={cn(
                         "h-8 rounded-lg px-3 text-xs font-medium transition-all",
                         visibility === "enabled"
-                          ? "bg-white text-slate-900 shadow-sm dark:bg-slate-600 dark:text-white"
-                          : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                          ? "bg-gold/10 text-gold-dim dark:bg-gold/10 dark:text-gold shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
                       )}
                       onClick={() => setVisibility("enabled")}
                       title="Toggle enabled-only view (Ctrl/Cmd+E)"
@@ -1660,8 +1703,8 @@ export function UserPageEditor() {
                       className={cn(
                         "h-8 rounded-lg px-3 text-xs font-medium transition-all",
                         visibility === "disabled"
-                          ? "bg-white text-slate-900 shadow-sm dark:bg-slate-600 dark:text-white"
-                          : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                          ? "bg-gold/10 text-gold-dim dark:bg-gold/10 dark:text-gold shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
                       )}
                       onClick={() => setVisibility("disabled")}
                     >
@@ -1677,9 +1720,9 @@ export function UserPageEditor() {
                             data-testid="disabled-cards-info"
                             className={cn(
                               "ml-0.5 flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
-                              "text-slate-500 hover:bg-white hover:text-slate-700",
-                              "dark:text-slate-400 dark:hover:bg-slate-600 dark:hover:text-slate-100",
-                              "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1",
+                              "text-muted-foreground hover:bg-gold/5 hover:text-foreground",
+                              "dark:text-muted-foreground dark:hover:bg-gold/5 dark:hover:text-foreground",
+                              "focus-visible:ring-gold/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
                             )}
                             aria-label="Info about disabled cards"
                           >
@@ -1697,9 +1740,10 @@ export function UserPageEditor() {
                     </TooltipProvider>
                   </div>
 
-                  {/* Customization toggle */}
+                  <div className="bg-gold/20 dark:bg-gold/15 hidden h-6 w-px sm:block" />
+
                   <div
-                    className="flex items-center gap-1 rounded-xl border border-slate-200/60 bg-slate-50/80 p-1 dark:border-slate-600 dark:bg-slate-700/50"
+                    className="border-gold/15 bg-gold/3 dark:border-gold/10 flex items-center gap-0.5 rounded-lg border p-0.5"
                     data-tour="customization-toggle"
                   >
                     <Button
@@ -1710,8 +1754,8 @@ export function UserPageEditor() {
                       className={cn(
                         "h-8 rounded-lg px-3 text-xs font-medium transition-all",
                         customFilter === "all"
-                          ? "bg-white text-slate-900 shadow-sm dark:bg-slate-600 dark:text-white"
-                          : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                          ? "bg-gold/10 text-gold-dim dark:bg-gold/10 dark:text-gold shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
                       )}
                       onClick={() => setCustomFilter("all")}
                     >
@@ -1725,8 +1769,8 @@ export function UserPageEditor() {
                       className={cn(
                         "h-8 rounded-lg px-3 text-xs font-medium transition-all",
                         customFilter === "customized"
-                          ? "bg-white text-slate-900 shadow-sm dark:bg-slate-600 dark:text-white"
-                          : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                          ? "bg-gold/10 text-gold-dim dark:bg-gold/10 dark:text-gold shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
                       )}
                       onClick={() => setCustomFilter("customized")}
                     >
@@ -1740,8 +1784,8 @@ export function UserPageEditor() {
                       className={cn(
                         "h-8 rounded-lg px-3 text-xs font-medium transition-all",
                         customFilter === "uncustomized"
-                          ? "bg-white text-slate-900 shadow-sm dark:bg-slate-600 dark:text-white"
-                          : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                          ? "bg-gold/10 text-gold-dim dark:bg-gold/10 dark:text-gold shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
                       )}
                       onClick={() => setCustomFilter("uncustomized")}
                     >
@@ -1755,9 +1799,9 @@ export function UserPageEditor() {
                             type="button"
                             className={cn(
                               "ml-0.5 flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
-                              "text-slate-500 hover:bg-white hover:text-slate-700",
-                              "dark:text-slate-400 dark:hover:bg-slate-600 dark:hover:text-slate-100",
-                              "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1",
+                              "text-muted-foreground hover:bg-gold/5 hover:text-foreground",
+                              "dark:text-muted-foreground dark:hover:bg-gold/5 dark:hover:text-foreground",
+                              "focus-visible:ring-gold/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
                             )}
                             aria-label="Info about customizations filter"
                           >
@@ -1777,250 +1821,324 @@ export function UserPageEditor() {
                       </Tooltip>
                     </TooltipProvider>
                   </div>
+                </div>
 
-                  {/* Clear filters */}
-                  <div className="ml-3 flex items-center gap-2">
-                    {activeFilterCount > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={clearAllFilters}
-                        className="h-8 rounded-lg px-2 text-xs font-medium text-slate-600 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-600 dark:hover:text-white"
-                      >
-                        Clear filters
-                      </Button>
-                    )}
-                  </div>
+                <div className="gold-line" />
 
-                  {/* Quick actions group */}
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1 rounded-xl border border-slate-200/60 bg-slate-50/80 p-1 dark:border-slate-600 dark:bg-slate-700/50">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 rounded-lg px-2 text-xs font-medium text-slate-600 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-600 dark:hover:text-white"
-                        onClick={expandAll}
-                        title="Expand all categories"
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 w-8 rounded-lg p-0"
+                          onClick={expandAll}
+                        >
+                          <ChevronsUpDown className="h-4 w-4" />
+                          <span className="sr-only">Expand all</span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="top"
+                        sideOffset={6}
+                        className="text-xs"
                       >
-                        <ChevronsUpDown className="mr-1.5 h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">Expand</span>
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 rounded-lg px-2 text-xs font-medium text-slate-600 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-600 dark:hover:text-white"
-                        onClick={collapseAll}
-                        title="Collapse all categories"
+                        Expand all categories
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 w-8 rounded-lg p-0"
+                          onClick={collapseAll}
+                        >
+                          <ChevronsUpDown className="h-4 w-4 rotate-90" />
+                          <span className="sr-only">Collapse all</span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="top"
+                        sideOffset={6}
+                        className="text-xs"
                       >
-                        <ChevronsUpDown className="mr-1.5 h-3.5 w-3.5 rotate-90" />
-                        <span className="hidden sm:inline">Collapse</span>
-                      </Button>
-                    </div>
+                        Collapse all categories
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <div className="bg-gold/15 h-5 w-px" />
 
-                    <ReorderModeToolbarToggle
-                      isReorderMode={isReorderMode}
-                      canEnterReorderMode={canEnterReorderMode}
-                      onToggle={() => setIsReorderMode((prev) => !prev)}
-                      dataTour="reorder-toggle"
-                    />
+                  <ReorderModeToolbarToggle
+                    isReorderMode={isReorderMode}
+                    canEnterReorderMode={canEnterReorderMode}
+                    onToggle={() => setIsReorderMode((prev) => !prev)}
+                    dataTour="reorder-toggle"
+                  />
 
-                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
+                  <div className="bg-gold/15 h-5 w-px" />
 
-                    {/* Desktop Bulk Actions */}
-                    <div className="hidden items-center gap-2 sm:flex">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-9 w-9 rounded-xl p-0"
-                        onClick={undoBulk}
-                        disabled={!canUndoBulk}
-                        title={
-                          canUndoBulk
-                            ? "Undo last bulk action"
-                            : "Nothing to undo"
-                        }
-                      >
-                        <Undo2 className="h-4 w-4" />
-                        <span className="sr-only">Undo</span>
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-9 w-9 rounded-xl p-0"
-                        onClick={redoBulk}
-                        disabled={!canRedoBulk}
-                        title={
-                          canRedoBulk
-                            ? "Redo last bulk action"
-                            : "Nothing to redo"
-                        }
-                      >
-                        <Redo2 className="h-4 w-4" />
-                        <span className="sr-only">Redo</span>
-                      </Button>
-
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-9 rounded-xl border-emerald-200 bg-emerald-50/50 px-3 text-xs font-medium text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
-                        onClick={() => {
-                          if (allCardIds.length === 0) return;
-                          try {
-                            enableAllCards();
-                            toast.success("Enabled all cards", {
-                              description:
-                                allCardIds.length > 0
-                                  ? `${allCardIds.length} cards are now enabled.`
-                                  : undefined,
-                              id: "enable-all-cards",
-                            });
-                          } catch (err) {
-                            console.error("Failed to enable all cards:", err);
-                            toast.error("Failed to enable all cards", {
-                              id: "enable-all-cards",
-                            });
-                          }
-                        }}
-                      >
-                        <Eye className="mr-1.5 h-3.5 w-3.5" />
-                        Enable All
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-9 rounded-xl border-red-200 bg-red-50/50 px-3 text-xs font-medium text-red-700 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-400 dark:hover:bg-red-950/40"
-                        onClick={() => {
-                          if (enabledCardIds.length === 0) return;
-                          setIsDisableAllDialogOpen(true);
-                        }}
-                        disabled={enabledCardIds.length === 0}
-                      >
-                        <EyeOff className="mr-1.5 h-3.5 w-3.5" />
-                        Disable All
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-9 rounded-xl border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                        onClick={() => setIsResetDialogOpen(true)}
-                        title="Reset all cards to use global settings"
-                      >
-                        <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-                        Reset All
-                      </Button>
-                    </div>
-
-                    {/* Mobile Bulk Actions */}
-                    <div className="sm:hidden">
-                      <Popover>
-                        <PopoverTrigger asChild>
+                  <div className="hidden items-center gap-1 sm:flex">
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
                           <Button
-                            variant="outline"
+                            type="button"
                             size="sm"
-                            className="h-9 w-9 rounded-xl p-0"
+                            variant="ghost"
+                            className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 w-8 rounded-lg p-0"
+                            onClick={undoBulk}
+                            disabled={!canUndoBulk}
                           >
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">More actions</span>
+                            <Undo2 className="h-4 w-4" />
+                            <span className="sr-only">Undo</span>
                           </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-48 p-2" align="end">
-                          <div className="flex flex-col gap-1">
-                            <ReorderModeMenuToggle
-                              isReorderMode={isReorderMode}
-                              canEnterReorderMode={canEnterReorderMode}
-                              onToggle={() => setIsReorderMode((prev) => !prev)}
-                              dataTour="reorder-toggle"
-                            />
-
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          sideOffset={6}
+                          className="text-xs"
+                        >
+                          {canUndoBulk
+                            ? "Undo last bulk action"
+                            : "Nothing to undo"}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 w-8 rounded-lg p-0"
+                            onClick={redoBulk}
+                            disabled={!canRedoBulk}
+                          >
+                            <Redo2 className="h-4 w-4" />
+                            <span className="sr-only">Redo</span>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          sideOffset={6}
+                          className="text-xs"
+                        >
+                          {canRedoBulk
+                            ? "Redo last bulk action"
+                            : "Nothing to redo"}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <div className="bg-gold/15 h-5 w-px" />
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="text-gold-dim hover:bg-gold/8 dark:text-gold h-8 rounded-lg px-2 text-xs font-medium"
+                            onClick={() => {
+                              if (allCardIds.length === 0) return;
+                              try {
+                                enableAllCards();
+                                toast.success("Enabled all cards", {
+                                  description:
+                                    allCardIds.length > 0
+                                      ? `${allCardIds.length} cards are now enabled.`
+                                      : undefined,
+                                  id: "enable-all-cards",
+                                });
+                              } catch (err) {
+                                console.error(
+                                  "Failed to enable all cards:",
+                                  err,
+                                );
+                                toast.error("Failed to enable all cards", {
+                                  id: "enable-all-cards",
+                                });
+                              }
+                            }}
+                          >
+                            <Eye className="h-3.5 w-3.5 lg:mr-1" />
+                            <span className="hidden lg:inline">Enable All</span>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          sideOffset={6}
+                          className="text-xs"
+                        >
+                          Enable all cards
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          {getTooltipTriggerChild(
+                            enabledCardIds.length === 0
+                              ? "disabled"
+                              : "enabled",
                             <Button
-                              variant="ghost"
+                              type="button"
                               size="sm"
-                              className="justify-start"
-                              onClick={undoBulk}
-                              disabled={!canUndoBulk}
-                            >
-                              <Undo2 className="mr-2 h-4 w-4" />
-                              Undo
-                            </Button>
-                            <Button
                               variant="ghost"
-                              size="sm"
-                              className="justify-start"
-                              onClick={redoBulk}
-                              disabled={!canRedoBulk}
-                            >
-                              <Redo2 className="mr-2 h-4 w-4" />
-                              Redo
-                            </Button>
-
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="justify-start text-emerald-600 dark:text-emerald-400"
-                              onClick={() => {
-                                if (allCardIds.length === 0) return;
-                                try {
-                                  enableAllCards();
-                                  toast.success("Enabled all cards", {
-                                    description:
-                                      allCardIds.length > 0
-                                        ? `${allCardIds.length} cards are now enabled.`
-                                        : undefined,
-                                    id: "enable-all-cards",
-                                  });
-                                } catch (err) {
-                                  console.error(
-                                    "Failed to enable all cards:",
-                                    err,
-                                  );
-                                  toast.error("Failed to enable all cards", {
-                                    id: "enable-all-cards",
-                                  });
-                                }
-                              }}
-                            >
-                              <Eye className="mr-2 h-4 w-4" />
-                              Enable All
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="justify-start text-red-600 dark:text-red-400"
+                              className="h-8 rounded-lg px-2 text-xs font-medium text-red-600 hover:bg-red-50/80 dark:text-red-400 dark:hover:bg-red-950/30"
                               onClick={() => {
                                 if (enabledCardIds.length === 0) return;
                                 setIsDisableAllDialogOpen(true);
                               }}
                               disabled={enabledCardIds.length === 0}
                             >
-                              <EyeOff className="mr-2 h-4 w-4" />
-                              Disable All
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="justify-start text-slate-600 dark:text-slate-400"
-                              onClick={() => setIsResetDialogOpen(true)}
-                            >
-                              <RotateCcw className="mr-2 h-4 w-4" />
-                              Reset All
-                            </Button>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
+                              <EyeOff className="h-3.5 w-3.5 lg:mr-1" />
+                              <span className="hidden lg:inline">
+                                Disable All
+                              </span>
+                            </Button>,
+                          )}
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          sideOffset={6}
+                          className="text-xs"
+                        >
+                          Disable all cards
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 rounded-lg px-2 text-xs font-medium"
+                            onClick={() => setIsResetDialogOpen(true)}
+                          >
+                            <RotateCcw className="h-3.5 w-3.5 lg:mr-1" />
+                            <span className="hidden lg:inline">Reset All</span>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          sideOffset={6}
+                          className="text-xs"
+                        >
+                          Reset all cards to global settings
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+
+                  <div className="ml-auto sm:hidden">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 w-8 rounded-lg p-0"
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">More actions</span>
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-48 p-2" align="end">
+                        <div className="flex flex-col gap-1">
+                          <ReorderModeMenuToggle
+                            isReorderMode={isReorderMode}
+                            canEnterReorderMode={canEnterReorderMode}
+                            onToggle={() => setIsReorderMode((prev) => !prev)}
+                            dataTour="reorder-toggle"
+                          />
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="justify-start"
+                            onClick={undoBulk}
+                            disabled={!canUndoBulk}
+                          >
+                            <Undo2 className="mr-2 h-4 w-4" />
+                            Undo
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="justify-start"
+                            onClick={redoBulk}
+                            disabled={!canRedoBulk}
+                          >
+                            <Redo2 className="mr-2 h-4 w-4" />
+                            Redo
+                          </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-gold-dim dark:text-gold justify-start"
+                            onClick={() => {
+                              if (allCardIds.length === 0) return;
+                              try {
+                                enableAllCards();
+                                toast.success("Enabled all cards", {
+                                  description:
+                                    allCardIds.length > 0
+                                      ? `${allCardIds.length} cards are now enabled.`
+                                      : undefined,
+                                  id: "enable-all-cards",
+                                });
+                              } catch (err) {
+                                console.error(
+                                  "Failed to enable all cards:",
+                                  err,
+                                );
+                                toast.error("Failed to enable all cards", {
+                                  id: "enable-all-cards",
+                                });
+                              }
+                            }}
+                          >
+                            <Eye className="mr-2 h-4 w-4" />
+                            Enable All
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="justify-start text-red-600 dark:text-red-400"
+                            onClick={() => {
+                              if (enabledCardIds.length === 0) return;
+                              setIsDisableAllDialogOpen(true);
+                            }}
+                            disabled={enabledCardIds.length === 0}
+                          >
+                            <EyeOff className="mr-2 h-4 w-4" />
+                            Disable All
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-muted-foreground justify-start"
+                            onClick={() => setIsResetDialogOpen(true)}
+                          >
+                            <RotateCcw className="mr-2 h-4 w-4" />
+                            Reset All
+                          </Button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </div>
               </div>
 
-              {/* Reset All Cards AlertDialog */}
               <BulkConfirmDialog
                 open={isDisableAllDialogOpen}
                 onOpenChange={setIsDisableAllDialogOpen}
@@ -2100,14 +2218,16 @@ export function UserPageEditor() {
 
               <BulkActionLiveRegion message={bulkLastMessage} />
               <ReorderModeHint isVisible={isReorderMode} />
-            </div>
+            </motion.div>
 
             {visibleGroupNames.length === 0 ? (
-              <div className="rounded-3xl border border-slate-200/50 bg-white/60 p-10 text-center shadow-xl backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-900/50">
-                <p className="text-base font-semibold text-slate-900 dark:text-white">
-                  No cards match your filters.
+              <div className="border-gold/20 bg-gold/3 dark:border-gold/15 dark:bg-gold/3 relative border-2 p-10 text-center shadow-xl backdrop-blur-sm">
+                <div className="border-gold pointer-events-none absolute top-0 left-0 h-4 w-4 border-t-2 border-l-2" />
+                <div className="border-gold pointer-events-none absolute right-0 bottom-0 h-4 w-4 border-r-2 border-b-2" />
+                <p className="font-display text-foreground text-base tracking-widest uppercase">
+                  No cards match your filters
                 </p>
-                <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                <p className="font-body-serif text-muted-foreground mt-2 text-sm">
                   Try clearing the search box or switching visibility.
                 </p>
                 <div className="mt-6 flex flex-wrap justify-center gap-2">
@@ -2186,7 +2306,6 @@ export function UserPageEditor() {
         </div>
       </div>
 
-      {/* Bulk actions toolbar - appears when cards are selected */}
       <BulkActionsToolbar />
     </div>
   );
