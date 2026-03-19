@@ -1,3 +1,7 @@
+// Centralizes card search, filter tokens, grouping, and expand/collapse state
+// so the editor can treat filtering as one derived view model instead of
+// recomputing pieces across multiple components.
+
 import Fuse from "fuse.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 

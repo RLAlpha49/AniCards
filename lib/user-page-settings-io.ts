@@ -1,3 +1,9 @@
+// Owns the import/export JSON contract for user page settings. The editor lets
+// people move settings between global defaults, individual cards, and saved
+// templates, so this module stays deliberately defensive: accept friendly input
+// shapes, normalize them, and reject malformed payloads with user-facing errors
+// instead of letting invalid JSON leak deeper into editor state.
+
 import type {
   ColorValue,
   GradientDefinition,
@@ -67,6 +73,8 @@ export type ParsedSettingsImport =
   | { kind: "snapshot"; snapshot: SettingsSnapshot }
   | { kind: "export"; value: SettingsExportV1 };
 
+// Large enough for realistic exports, small enough to stop accidental pastes of
+// unrelated blobs from freezing the import UI.
 const MAX_IMPORT_CHARS = 250_000;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -203,7 +211,8 @@ export function parseSettingsExportJson(
     return { ok: false, error: "Invalid JSON." };
   }
 
-  // Allow importing a bare snapshot for convenience.
+  // Try the bare snapshot shape first so copied settings can round-trip even if
+  // someone strips the outer export wrapper before importing again.
   const snapshot = parseSettingsSnapshot(parsed);
   if (snapshot) {
     return { ok: true, value: { kind: "snapshot", snapshot } };

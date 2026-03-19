@@ -1,3 +1,9 @@
+// Bootstraps a missing AniCards profile from AniList and then hydrates the
+// shared editor store through the same path used for returning users. The flow
+// is intentionally staged: resolve identity, fetch AniList stats, persist the
+// user, seed starter cards, then load the editor from the data that actually
+// lives in storage.
+
 import { useCallback, useState } from "react";
 
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
@@ -286,6 +292,8 @@ export function useNewUserSetup() {
 
   const handlePersistedCardsAfterNewUserSetup = useCallback(
     async (uid: number, uname: string | null, aUrl: string | null) => {
+      // Re-read cards from storage even right after creating them so brand-new
+      // users and returning users converge on the same hydration path.
       const persistedCardsResult = await fetchUserCards(String(uid));
 
       if ("error" in persistedCardsResult) {
@@ -385,6 +393,8 @@ export function useNewUserSetup() {
         }
 
         setLoadingPhase?.("loading_cards");
+        // Expose the resolved identity first so the page shell can render the
+        // correct user context while card hydration finishes in the next step.
         setUserData(
           setupResult.userId.toString(),
           setupResult.username,

@@ -1,3 +1,10 @@
+/**
+ * Local draft persistence for unsaved user-page editor changes.
+ *
+ * Drafts are stored as validated patches instead of whole-store snapshots so
+ * restore stays resilient to schema changes and ignores malformed localStorage
+ * data instead of polluting the live editor state.
+ */
 import type {
   CardEditorConfig,
   LocalEditsPatch,

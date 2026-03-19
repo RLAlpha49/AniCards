@@ -1,5 +1,10 @@
 "use client";
 
+// Browser-only download hook for rendered card previews. Download state stays
+// local to the caller because this is transient UI work: turn the current SVG
+// preview into a file, trigger the browser download flow, and surface short-
+// lived success or error feedback.
+
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { type ConversionFormat, getAbsoluteUrl, svgToPng } from "@/lib/utils";
@@ -14,6 +19,8 @@ export function useDownload(
   const [status, setStatus] = useState<
     "idle" | "downloading" | "success" | "error"
   >("idle");
+  // One ref blocks duplicate clicks inside the same download window; the other
+  // avoids setting React state after the consuming component unmounts.
   const isDownloadingRef = useRef(false);
   const isMountedRef = useRef(true);
 
@@ -37,6 +44,8 @@ export function useDownload(
       try {
         const absoluteUrl = getAbsoluteUrl(previewUrl);
         dataUrl = await svgToPng(absoluteUrl, format);
+        // Browsers still behave most consistently when downloads come from a
+        // real anchor click instead of navigating directly to the data URL.
         link = document.createElement("a");
         link.href = dataUrl;
         link.download = `${cardId}-${variant}.${format}`;

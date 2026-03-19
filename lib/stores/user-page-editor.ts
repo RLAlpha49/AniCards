@@ -1,3 +1,10 @@
+/**
+ * Zustand store backing the user-page card editor.
+ *
+ * The store owns global and per-card settings, dirty-state calculation,
+ * baseline snapshots, bulk history, and template persistence so the React UI
+ * can stay mostly declarative while save/restore logic stays consistent.
+ */
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 

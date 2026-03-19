@@ -1,5 +1,9 @@
 "use client";
 
+// Coordinates debounced persistence for the user page editor store.
+// This hook saves only the local diff, so manual saves, draft restore, and
+// conflict recovery all operate on the same payload shape.
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -14,16 +18,9 @@ import {
 import type { ColorValue } from "@/lib/types/card";
 import { getResponseErrorMessage, parseResponsePayload } from "@/lib/utils";
 
-/**
- * Default debounce delay for auto-save in milliseconds.
- * @source
- */
+// Fast enough to feel responsive, slow enough to avoid POSTing on every edit.
 const DEFAULT_DEBOUNCE_MS = 1500;
 
-/**
- * Global settings structure for API payload.
- * @source
- */
 interface GlobalSettingsPayload {
   colorPreset: string;
   titleColor?: ColorValue;
@@ -247,14 +244,6 @@ function diffGlobalSettingsPayload(
   return diff;
 }
 
-/**
- * Saves cards to the API.
- * @param userId - The user ID.
- * @param cards - Array of card configurations to save.
- * @param globalSettings - Global settings to save.
- * @returns Promise resolving to success or error object.
- * @source
- */
 async function saveCardsToApi(
   userId: string,
   cards: ServerCardData[],
@@ -384,10 +373,6 @@ function buildSavePayloadFromStoreState(
   };
 }
 
-/**
- * Options for the auto-save hook.
- * @source
- */
 interface UseCardAutoSaveOptions {
   /** Debounce delay in milliseconds. Default: 1500ms */
   debounceMs?: number;
@@ -395,14 +380,6 @@ interface UseCardAutoSaveOptions {
   enabled?: boolean;
 }
 
-/**
- * Hook that provides debounced auto-save functionality for the user page editor.
- * Watches the store's isDirty flag and triggers save after debounce period.
- *
- * @param options - Configuration options for auto-save behavior.
- * @returns Object with manual save trigger and save state.
- * @source
- */
 export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
   const { debounceMs = DEFAULT_DEBOUNCE_MS, enabled = true } = options;
 
