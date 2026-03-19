@@ -49,52 +49,54 @@ export function ProcessSteps() {
           />
         </div>
 
-        <div className="relative grid gap-12 md:grid-cols-3 md:gap-0">
+        <div className="relative">
           <div
-            className="gold-line absolute top-14 right-[17%] left-[17%] hidden md:block"
+            className="gold-line pointer-events-none absolute top-14 right-[0%] left-[15%] hidden w-[70%] md:block"
             aria-hidden="true"
           />
 
-          {STEPS.map((step, i) => (
-            <motion.div
-              key={step.title}
-              initial={{ opacity: 0, y: 30 }}
-              animate={isInView ? { opacity: 1, y: 0 } : {}}
-              transition={{
-                duration: 0.6,
-                delay: 0.2 + i * 0.15,
-                ease: [0.22, 1, 0.36, 1],
-              }}
-              whileHover={{ y: -6, transition: { duration: 0.3 } }}
-              className="relative text-center"
-            >
+          <div className="relative z-10 grid gap-12 md:grid-cols-3 md:gap-0">
+            {STEPS.map((step, i) => (
               <motion.div
-                initial={{ scale: 0, opacity: 0 }}
-                animate={isInView ? { scale: 1, opacity: 1 } : {}}
+                key={step.title}
+                initial={{ opacity: 0, y: 30 }}
+                animate={isInView ? { opacity: 1, y: 0 } : {}}
                 transition={{
-                  duration: 0.5,
-                  delay: 0.4 + i * 0.18,
-                  type: "spring",
-                  stiffness: 200,
-                  damping: 15,
+                  duration: 0.6,
+                  delay: 0.2 + i * 0.15,
+                  ease: [0.22, 1, 0.36, 1],
                 }}
-                className="bg-card relative z-10 mx-auto mb-6 flex h-28 w-28 flex-col items-center justify-center rounded-full border-2 border-[hsl(var(--gold)/0.35)]"
+                whileHover={{ y: -6, transition: { duration: 0.3 } }}
+                className="relative text-center"
               >
-                <span className="font-display text-gold mb-1 text-2xl">
-                  {step.num}
-                </span>
-                <step.icon className="text-gold/50 h-5 w-5" />
+                <motion.div
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={isInView ? { scale: 1, opacity: 1 } : {}}
+                  transition={{
+                    duration: 0.5,
+                    delay: 0.4 + i * 0.18,
+                    type: "spring",
+                    stiffness: 200,
+                    damping: 15,
+                  }}
+                  className="bg-card relative z-10 mx-auto mb-6 flex h-28 w-28 flex-col items-center justify-center rounded-full border-2 border-[hsl(var(--gold)/0.35)]"
+                >
+                  <span className="font-display text-gold mb-1 text-2xl">
+                    {step.num}
+                  </span>
+                  <step.icon className="text-gold/50 h-5 w-5" />
+                </motion.div>
+
+                <h3 className="font-display text-foreground mb-3 text-sm tracking-[0.3em]">
+                  {step.title}
+                </h3>
+
+                <p className="font-body-serif text-foreground/45 mx-auto max-w-xs text-sm leading-relaxed">
+                  {step.desc}
+                </p>
               </motion.div>
-
-              <h3 className="font-display text-foreground mb-3 text-sm tracking-[0.3em]">
-                {step.title}
-              </h3>
-
-              <p className="font-body-serif text-foreground/45 mx-auto max-w-xs text-sm leading-relaxed">
-                {step.desc}
-              </p>
-            </motion.div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     </section>
