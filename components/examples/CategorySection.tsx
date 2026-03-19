@@ -41,23 +41,13 @@ interface CategorySectionProps {
   isFirstCategory: boolean;
 }
 
-const getCategoryIcon = (category: string): LucideIcon => {
-  switch (category) {
-    case "Core Stats":
-      return BarChart2;
-    case "Anime Deep Dive":
-      return PieChart;
-    case "Manga Deep Dive":
-      return BookOpen;
-    case "Activity & Engagement":
-      return Calendar;
-    case "Library & Progress":
-      return Users;
-    case "Advanced Analytics":
-      return TrendingUp;
-    default:
-      return BarChart2;
-  }
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  "Core Stats": BarChart2,
+  "Anime Deep Dive": PieChart,
+  "Manga Deep Dive": BookOpen,
+  "Activity & Engagement": Calendar,
+  "Library & Progress": Users,
+  "Advanced Analytics": TrendingUp,
 };
 
 const CATEGORY_DESCRIPTIONS: Record<string, string> = {
@@ -80,7 +70,7 @@ export function CategorySection({
 }: Readonly<CategorySectionProps>) {
   if (cardTypes.length === 0) return null;
 
-  const CategoryIcon = getCategoryIcon(category);
+  const CategoryIcon = CATEGORY_ICONS[category] || BarChart2;
   const categoryId = `category-${category.toLowerCase().replaceAll(/\s+/g, "-")}`;
   const totalVariants = cardTypes.reduce(
     (sum, ct) => sum + ct.variants.length,
@@ -94,41 +84,46 @@ export function CategorySection({
       animate={isFirstCategory ? { opacity: 1, y: 0 } : undefined}
       whileInView={isFirstCategory ? undefined : { opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      viewport={isFirstCategory ? undefined : { once: true, margin: "-100px" }}
-      className="scroll-mt-24"
+      viewport={isFirstCategory ? undefined : { once: true, margin: "-80px" }}
+      className="scroll-mt-32"
     >
-      <div className="mb-10 text-center">
-        <div className="border-gold/20 mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center border">
-          <CategoryIcon className="text-gold h-5 w-5" />
+      {/* Category header — left-aligned with icon badge */}
+      <div className="mb-12">
+        <div className="mb-3 flex items-center gap-3">
+          <div className="border-gold/20 bg-gold/3 flex h-9 w-9 shrink-0 items-center justify-center border">
+            <CategoryIcon className="text-gold h-4 w-4" />
+          </div>
+          <div>
+            <h2 className="font-display text-foreground text-sm tracking-[0.2em] uppercase sm:text-base">
+              {category}
+            </h2>
+            <p className="text-foreground/30 text-xs tabular-nums">
+              {cardTypes.length} type{cardTypes.length === 1 ? "" : "s"} ·{" "}
+              {totalVariants} variant{totalVariants === 1 ? "" : "s"}
+            </p>
+          </div>
         </div>
-        <h2 className="font-display text-foreground mb-2 text-sm tracking-[0.25em] uppercase sm:text-base">
-          {category}
-        </h2>
-        <p className="text-foreground/40 mx-auto mb-3 max-w-md text-sm">
+        <p className="text-foreground/40 max-w-lg pl-12 text-sm leading-relaxed">
           {CATEGORY_DESCRIPTIONS[category]}
-        </p>
-        <div className="gold-line mx-auto max-w-32" />
-        <p className="text-foreground/30 mt-3 text-xs tabular-nums">
-          {cardTypes.length} card type{cardTypes.length === 1 ? "" : "s"} ·{" "}
-          {totalVariants} variant{totalVariants === 1 ? "" : "s"}
         </p>
       </div>
 
-      <div className="space-y-14">
+      {/* Card type groups */}
+      <div className="space-y-16">
         {cardTypes.map((cardType) => (
           <div key={cardType.title}>
             <div className="mb-5 flex items-center gap-3">
-              <cardType.icon className="text-gold/60 h-4 w-4 shrink-0" />
-              <h3 className="text-foreground text-sm font-semibold">
+              <cardType.icon className="text-gold/50 h-4 w-4 shrink-0" />
+              <h4 className="text-foreground text-sm font-semibold tracking-wide">
                 {cardType.title}
-              </h3>
+              </h4>
               <div className="gold-line flex-1" />
-              <span className="text-foreground/30 text-xs tabular-nums">
+              <span className="text-foreground/25 text-xs tabular-nums">
                 {cardType.variants.length}
               </span>
             </div>
 
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {cardType.variants.map((variant, variantIndex) => (
                 <ExampleCard
                   key={variant.name}

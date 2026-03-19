@@ -25,18 +25,19 @@ export function SearchFilterBar({
   const isFiltered = resultCount !== totalCount;
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2.5">
       <div className="relative flex-1">
-        <Search className="text-foreground/30 absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2" />
+        <Search className="text-foreground/25 absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2" />
         <input
           type="text"
           placeholder="Search cards…"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           className={cn(
-            "border-gold/15 bg-background h-10 w-full rounded-none border pr-9 pl-10 text-sm",
-            "text-foreground placeholder:text-foreground/35",
-            "focus:border-gold/40 focus:ring-gold/15 focus:ring-1 focus:outline-none",
+            "h-9 w-full border bg-transparent pr-8 pl-9 text-sm",
+            "border-gold/10 text-foreground placeholder:text-foreground/30",
+            "focus:border-gold/30 focus:ring-gold/8 focus:ring-1 focus:outline-none",
+            "transition-colors duration-200",
           )}
         />
         <AnimatePresence>
@@ -47,7 +48,7 @@ export function SearchFilterBar({
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.7 }}
               onClick={() => onSearchChange("")}
-              className="text-foreground/40 hover:text-foreground/60 absolute top-1/2 right-2.5 -translate-y-1/2"
+              className="text-foreground/30 hover:text-foreground/55 absolute top-1/2 right-2.5 -translate-y-1/2 transition-colors"
               aria-label="Clear search"
             >
               <X className="h-3.5 w-3.5" />
@@ -59,13 +60,13 @@ export function SearchFilterBar({
       <AnimatePresence>
         {isFiltered && (
           <motion.span
-            initial={{ opacity: 0, x: 8 }}
+            initial={{ opacity: 0, x: 6 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 8 }}
-            className="text-foreground/50 shrink-0 text-xs tabular-nums"
+            exit={{ opacity: 0, x: 6 }}
+            className="text-foreground/40 shrink-0 text-xs tabular-nums"
           >
             <span className="text-gold font-semibold">{resultCount}</span>
-            <span className="text-foreground/30 mx-0.5">/</span>
+            <span className="text-foreground/20 mx-0.5">/</span>
             {totalCount}
           </motion.span>
         )}
@@ -79,9 +80,9 @@ export function SearchFilterBar({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
             onClick={onClearFilters}
-            className="text-foreground/50 hover:text-gold border-gold/15 shrink-0 border px-3 py-1.5 text-xs font-medium transition-colors"
+            className="text-foreground/40 hover:text-gold border-gold/10 hover:border-gold/25 shrink-0 border px-2.5 py-1 text-[0.7rem] font-medium tracking-wide uppercase transition-colors"
           >
-            Clear
+            Reset
           </motion.button>
         )}
       </AnimatePresence>

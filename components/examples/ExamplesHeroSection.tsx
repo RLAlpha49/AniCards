@@ -1,7 +1,8 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { ArrowDown, Layers, LayoutGrid, Palette, Play } from "lucide-react";
+import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { ArrowDown, Layers, LayoutGrid, Palette, Sparkles } from "lucide-react";
+import { useEffect, useRef } from "react";
 
 interface HeroSectionProps {
   totalCardTypes: number;
@@ -10,23 +11,47 @@ interface HeroSectionProps {
   onStartCreating: () => void;
 }
 
-const containerVariants = {
+const container = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.12, delayChildren: 0.15 },
+    transition: { staggerChildren: 0.1, delayChildren: 0.08 },
   },
 };
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 24 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.55 } },
+const fadeUp = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] as const },
+  },
 };
 
-const STATS_CONFIG = [
-  { key: "types", label: "Card Types", icon: LayoutGrid },
-  { key: "variants", label: "Variants", icon: Layers },
-  { key: "categories", label: "Categories", icon: Palette },
+function AnimatedCounter({ target }: Readonly<{ target: number }>) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const motionVal = useMotionValue(0);
+  const spring = useSpring(motionVal, { stiffness: 80, damping: 20 });
+  const display = useTransform(spring, (v) => Math.round(v));
+
+  useEffect(() => {
+    motionVal.set(target);
+  }, [motionVal, target]);
+
+  useEffect(() => {
+    const unsub = display.on("change", (v) => {
+      if (ref.current) ref.current.textContent = String(v);
+    });
+    return unsub;
+  }, [display]);
+
+  return <span ref={ref}>0</span>;
+}
+
+const STATS = [
+  { key: "types", label: "Card Types", icon: LayoutGrid, suffix: "" },
+  { key: "variants", label: "Variants", icon: Layers, suffix: "+" },
+  { key: "categories", label: "Categories", icon: Palette, suffix: "" },
 ] as const;
 
 export function ExamplesHeroSection({
@@ -35,74 +60,60 @@ export function ExamplesHeroSection({
   categoryCount,
   onStartCreating,
 }: Readonly<HeroSectionProps>) {
-  const statValues: Record<string, string> = {
-    types: String(totalCardTypes),
-    variants: `${totalVariants}+`,
-    categories: String(categoryCount),
+  const values: Record<string, number> = {
+    types: totalCardTypes,
+    variants: totalVariants,
+    categories: categoryCount,
   };
 
   const scrollToGallery = () => {
-    const gallery = document.getElementById("card-gallery");
-    if (gallery) {
-      gallery.scrollIntoView({ behavior: "smooth", block: "start" });
-      if (!gallery.hasAttribute("tabindex")) {
-        gallery.setAttribute("tabindex", "-1");
-      }
-      gallery.focus();
-      gallery.addEventListener(
-        "blur",
-        () => gallery.removeAttribute("tabindex"),
-        { once: true },
-      );
+    const el = document.getElementById("card-gallery");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (!el.hasAttribute("tabindex")) el.setAttribute("tabindex", "-1");
+      el.focus();
+      el.addEventListener("blur", () => el.removeAttribute("tabindex"), {
+        once: true,
+      });
     }
   };
 
   return (
-    <section className="relative w-full overflow-hidden px-6 pt-28 pb-20 sm:px-12 md:pt-36 md:pb-28">
+    <section className="relative overflow-hidden px-6 pt-28 pb-14 sm:px-12 md:pt-36 md:pb-20">
       <div className="pointer-events-none absolute inset-0">
-        <div className="bg-gold/4 absolute top-1/4 left-1/2 h-125 w-175 -translate-x-1/2 -translate-y-1/2 rounded-full blur-[120px]" />
+        <div className="absolute top-1/4 left-1/2 h-120 w-175 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(var(--gold)/0.04)] blur-[100px]" />
       </div>
 
       <motion.div
-        variants={containerVariants}
+        variants={container}
         initial="hidden"
         animate="visible"
-        className="relative z-10 mx-auto max-w-4xl"
+        className="relative z-10 mx-auto max-w-3xl text-center"
       >
-        <motion.div
-          variants={itemVariants}
-          className="gold-ornament mb-10 text-center"
-        >
-          <span className="text-gold text-xl">❖</span>
-        </motion.div>
-
         <motion.p
-          variants={itemVariants}
-          className="text-gold mb-5 text-center text-[0.65rem] tracking-[0.6em] uppercase sm:text-xs"
+          variants={fadeUp}
+          className="text-gold mb-6 text-[0.6rem] tracking-[0.55em] uppercase sm:text-[0.7rem]"
         >
-          The Collection
+          The Gallery
         </motion.p>
 
         <motion.h1
-          variants={itemVariants}
-          className="font-display text-foreground mx-auto mb-7 max-w-2xl text-center text-4xl leading-[1.1] font-black sm:text-5xl md:text-6xl lg:text-7xl"
+          variants={fadeUp}
+          className="font-display text-foreground mb-5 text-4xl leading-[1.08] font-black sm:text-5xl md:text-6xl lg:text-7xl"
         >
-          EVERY CARD
-          <br />
-          <span className="text-gold">EVERY STYLE</span>
+          Card <span className="text-gold">Showcase</span>
         </motion.h1>
 
         <motion.div
-          variants={itemVariants}
-          className="gold-line-thick mx-auto mb-7 max-w-24"
+          variants={fadeUp}
+          className="gold-line-thick mx-auto mb-6 max-w-16"
         />
 
         <motion.p
-          variants={itemVariants}
-          className="font-body-serif text-foreground/50 mx-auto mb-12 max-w-lg text-center text-base leading-relaxed sm:text-lg"
+          variants={fadeUp}
+          className="font-body-serif text-foreground/50 mx-auto mb-10 max-w-md text-base leading-relaxed sm:text-lg"
         >
-          Browse the complete gallery — real data, every variant, one page. All
-          examples rendered from{" "}
+          Every card type, every variant — rendered live from{" "}
           <a
             href="https://anilist.co/user/Alpha49"
             target="_blank"
@@ -115,14 +126,40 @@ export function ExamplesHeroSection({
         </motion.p>
 
         <motion.div
-          variants={itemVariants}
-          className="mb-16 flex flex-col items-center gap-4 sm:flex-row sm:justify-center"
+          variants={fadeUp}
+          className="divide-gold/15 mb-10 inline-flex items-center divide-x"
+        >
+          {STATS.map((stat) => {
+            const Icon = stat.icon;
+            return (
+              <div
+                key={stat.key}
+                className="flex items-center gap-2 px-6 first:pl-0 last:pr-0 sm:px-8"
+              >
+                <Icon className="text-gold/50 hidden h-3.5 w-3.5 sm:block" />
+                <div className="text-left">
+                  <p className="font-display text-gold text-xl leading-none font-bold sm:text-2xl">
+                    <AnimatedCounter target={values[stat.key]} />
+                    {stat.suffix}
+                  </p>
+                  <p className="text-foreground/30 text-[0.55rem] tracking-[0.15em] uppercase sm:text-[0.6rem]">
+                    {stat.label}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </motion.div>
+
+        <motion.div
+          variants={fadeUp}
+          className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center"
         >
           <button
             onClick={onStartCreating}
             className="imperial-btn imperial-btn-fill inline-flex items-center"
           >
-            <Play className="mr-2 h-4 w-4 fill-current" />
+            <Sparkles className="mr-2 h-4 w-4" />
             Create Your Cards
           </button>
           <button
@@ -132,29 +169,6 @@ export function ExamplesHeroSection({
             Browse Gallery
             <ArrowDown className="ml-2 h-4 w-4" />
           </button>
-        </motion.div>
-
-        <motion.div
-          variants={itemVariants}
-          className="border-gold/15 mx-auto flex max-w-xl items-stretch justify-center border"
-        >
-          {STATS_CONFIG.map((stat, i) => {
-            const Icon = stat.icon;
-            return (
-              <div
-                key={stat.key}
-                className={`flex flex-1 flex-col items-center gap-1.5 py-5 ${i < STATS_CONFIG.length - 1 ? "border-gold/15 border-r" : ""}`}
-              >
-                <Icon className="text-gold/60 h-4 w-4" />
-                <span className="font-display text-gold text-2xl font-bold sm:text-3xl">
-                  {statValues[stat.key]}
-                </span>
-                <span className="text-foreground/40 text-[0.6rem] tracking-[0.2em] uppercase">
-                  {stat.label}
-                </span>
-              </div>
-            );
-          })}
         </motion.div>
       </motion.div>
     </section>
