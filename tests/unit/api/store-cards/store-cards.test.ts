@@ -23,7 +23,6 @@ process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
 const { POST, OPTIONS } = await import("@/app/api/store-cards/route");
 
 afterAll(() => {
-  // Restore the original app URL
   if (originalAppUrl === undefined) {
     delete process.env.NEXT_PUBLIC_APP_URL;
   } else {
@@ -143,7 +142,7 @@ describe("Store Cards API POST Endpoint", () => {
       const req = createRequest({
         userId: 1,
         statsData: {},
-        cards: null, // Invalid: should be an array
+        cards: null,
       });
 
       const res = await POST(req);
@@ -155,7 +154,7 @@ describe("Store Cards API POST Endpoint", () => {
       const req = createRequest({
         userId: 1,
         statsData: {},
-        cards: [null], // invalid entry
+        cards: [null],
       });
 
       const res = await POST(req);
@@ -169,7 +168,6 @@ describe("Store Cards API POST Endpoint", () => {
       const req = createRequest({
         statsData: {},
         cards: [],
-        // userId omitted
       });
 
       const res = await POST(req);
@@ -193,7 +191,6 @@ describe("Store Cards API POST Endpoint", () => {
       const data = await res.json();
       expect(data.error).toBe("Invalid JSON body");
 
-      // Ensure nothing was persisted and analytics reflects the failed request.
       expect(sharedRedisMockSet).not.toHaveBeenCalled();
       expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_cards:failed_requests",
@@ -208,7 +205,7 @@ describe("Store Cards API POST Endpoint", () => {
         cards: [
           {
             cardName: "animeStats",
-            disabled: "yes", // invalid type
+            disabled: "yes",
           },
         ],
       });
@@ -218,7 +215,6 @@ describe("Store Cards API POST Endpoint", () => {
       const data = await res.json();
       expect(data.error).toBe("Invalid data");
 
-      // Analytics metric should be incremented for failed validation
       expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_cards:failed_requests",
       );
@@ -260,7 +256,7 @@ describe("Store Cards API POST Endpoint", () => {
             circleColor: "#f00",
           },
           {
-            cardName: "tagCategoryDistribuution", // typo
+            cardName: "tagCategoryDistribuution",
             variation: "default",
             titleColor: "#000",
             backgroundColor: "#fff",
@@ -375,7 +371,6 @@ describe("Store Cards API POST Endpoint", () => {
     it("should preserve previous settings when a card is disabled", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const userId = 400;
-      // Simulate existing record with full config
       sharedRedisMockGet.mockResolvedValueOnce(
         JSON.stringify({
           userId,
@@ -457,7 +452,6 @@ describe("Store Cards API POST Endpoint", () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const userId = 1;
       const available = Object.keys(displayNames);
-      // Build a payload with exactly the number of available card types
       const cardsPayload = available.map((cardName) => ({
         cardName,
         variation: "default",
@@ -517,7 +511,6 @@ describe("Store Cards API POST Endpoint", () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const userId = 1;
       const available = Object.keys(displayNames);
-      // Build a payload with available + 1 entry but duplicate of the first card
       const cardsPayload = available
         .map((cardName) => ({
           cardName,
@@ -547,7 +540,6 @@ describe("Store Cards API POST Endpoint", () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const userId = 1;
       const available = Object.keys(displayNames);
-      // Build a payload with available + 1 unique card types
       const cardsPayload = available
         .map((cardName) => ({
           cardName,
@@ -585,7 +577,7 @@ describe("Store Cards API POST Endpoint", () => {
             backgroundColor: "#fff",
             textColor: "#333",
             circleColor: "#f00",
-            borderRadius: 75, // Valid value that will be stored
+            borderRadius: 75,
           },
         ],
       });
@@ -593,7 +585,6 @@ describe("Store Cards API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      // Verify request was successful and stored
       expect(sharedRedisMockSet).toHaveBeenCalled();
     });
 
@@ -631,7 +622,7 @@ describe("Store Cards API POST Endpoint", () => {
         statsData: {},
         cards: [
           {
-            cardName: "animeStatusDistribution", // Supports pie
+            cardName: "animeStatusDistribution",
             variation: "pie",
             titleColor: "#fff",
             backgroundColor: "#000",
@@ -683,7 +674,7 @@ describe("Store Cards API POST Endpoint", () => {
         statsData: {},
         cards: [
           {
-            cardName: "animeGenres", // Supports pie
+            cardName: "animeGenres",
             variation: "pie",
             titleColor: "#fff",
             backgroundColor: "#000",
@@ -711,12 +702,12 @@ describe("Store Cards API POST Endpoint", () => {
         cards: [
           {
             cardName: "animeStatusDistribution",
-            variation: "default", // Not pie
+            variation: "default",
             titleColor: "#fff",
             backgroundColor: "#000",
             textColor: "#000",
             circleColor: "#fff",
-            showPiePercentages: true, // Should be ignored
+            showPiePercentages: true,
           },
         ],
       });
@@ -732,7 +723,6 @@ describe("Store Cards API POST Endpoint", () => {
 
     it("should merge pie percentages from previous config", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      // Simulate existing card with showPiePercentages=true
       sharedRedisMockGet.mockResolvedValueOnce(
         JSON.stringify({
           userId: 999,
@@ -757,7 +747,6 @@ describe("Store Cards API POST Endpoint", () => {
             backgroundColor: "#000",
             textColor: "#000",
             circleColor: "#fff",
-            // No showPiePercentages provided - should use previous
           },
         ],
       });
@@ -780,7 +769,7 @@ describe("Store Cards API POST Endpoint", () => {
         statsData: {},
         cards: [
           {
-            cardName: "animeStaff", // Supports favorites
+            cardName: "animeStaff",
             variation: "default",
             titleColor: "#fff",
             backgroundColor: "#000",
@@ -804,7 +793,7 @@ describe("Store Cards API POST Endpoint", () => {
         statsData: {},
         cards: [
           {
-            cardName: "animeStudios", // Supports favorites
+            cardName: "animeStudios",
             variation: "default",
             titleColor: "#fff",
             backgroundColor: "#000",
@@ -829,13 +818,13 @@ describe("Store Cards API POST Endpoint", () => {
         statsData: {},
         cards: [
           {
-            cardName: "animeStats", // Does NOT support favorites
+            cardName: "animeStats",
             variation: "default",
             titleColor: "#fff",
             backgroundColor: "#000",
             textColor: "#000",
             circleColor: "#fff",
-            showFavorites: true, // Should be ignored
+            showFavorites: true,
           },
         ],
       });
@@ -873,7 +862,6 @@ describe("Store Cards API POST Endpoint", () => {
             backgroundColor: "#000",
             textColor: "#000",
             circleColor: "#fff",
-            // No showFavorites provided - should use previous
           },
         ],
       });
@@ -1061,7 +1049,6 @@ describe("Store Cards API POST Endpoint", () => {
         cards: [],
         globalSettings: {
           colorPreset: "default",
-          // Invalid, but should be ignored because preset is non-custom.
           titleColor: "not-a-color",
           borderEnabled: false,
         },
@@ -1081,7 +1068,6 @@ describe("Store Cards API POST Endpoint", () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const userId = 903;
 
-      // Simulate an existing record containing stale per-card overrides.
       sharedRedisMockGet.mockResolvedValueOnce(
         JSON.stringify({
           userId,
@@ -1102,7 +1088,6 @@ describe("Store Cards API POST Endpoint", () => {
               showPiePercentages: true,
             },
             {
-              // Irrelevant/stale grid dims on a non-favoritesGrid card.
               cardName: "animeStats",
               variation: "default",
               useCustomSettings: true,
@@ -1215,7 +1200,6 @@ describe("Store Cards API POST Endpoint", () => {
 
     it("should clear existing global borderColor when incoming globalSettings disables border without providing a color", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      // Simulate existing record with border set
       sharedRedisMockGet.mockResolvedValueOnce(
         JSON.stringify({
           userId: 600,
@@ -1236,7 +1220,6 @@ describe("Store Cards API POST Endpoint", () => {
         globalSettings: {
           colorPreset: "default",
           borderEnabled: false,
-          // borderColor omitted intentionally
         },
       });
 
@@ -1391,9 +1374,7 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(400);
       const data = await res.json();
       expect(data.error).toBe("Invalid data");
-      // Ensure nothing was persisted
       expect(sharedRedisMockSet).not.toHaveBeenCalled();
-      // Increment analytics for failed validation
       expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_cards:failed_requests",
       );
@@ -1412,9 +1393,7 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(400);
       const data = await res.json();
       expect(data.error).toBe("Invalid data");
-      // Ensure nothing was persisted
       expect(sharedRedisMockSet).not.toHaveBeenCalled();
-      // Increment analytics for failed validation
       expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_cards:failed_requests",
       );
@@ -1460,9 +1439,7 @@ describe("Store Cards API POST Endpoint", () => {
       expect(res.status).toBe(400);
       const data = await res.json();
       expect(data.error).toBe("Invalid data");
-      // Ensure nothing was persisted
       expect(sharedRedisMockSet).not.toHaveBeenCalled();
-      // Increment analytics for failed validation
       expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_cards:failed_requests",
       );
@@ -1523,7 +1500,6 @@ describe("Store Cards API POST Endpoint", () => {
 
     it("should preserve existing per-card border values when global border is disabled and incoming omits them", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      // Simulate existing record with per-card borderColor and borderRadius
       sharedRedisMockGet.mockResolvedValueOnce(
         JSON.stringify({
           userId: 601,
@@ -1553,7 +1529,6 @@ describe("Store Cards API POST Endpoint", () => {
             backgroundColor: "#222",
             textColor: "#333",
             circleColor: "#444",
-            // borderColor and borderRadius omitted intentionally
           },
         ],
         globalSettings: {
@@ -1605,7 +1580,6 @@ describe("Store Cards API POST Endpoint", () => {
 
     it("should preserve per-card borderColor from previous config when omitted and border is enabled globally", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      // Simulate existing record with per-card borderColor and borders enabled
       sharedRedisMockGet.mockResolvedValueOnce(
         JSON.stringify({
           userId: 600,
@@ -1634,7 +1608,6 @@ describe("Store Cards API POST Endpoint", () => {
             backgroundColor: "#222",
             textColor: "#333",
             circleColor: "#444",
-            // borderColor omitted intentionally
           },
         ],
         globalSettings: {
@@ -1652,7 +1625,6 @@ describe("Store Cards API POST Endpoint", () => {
 
     it("should not save borderColor in card config when useCustomSettings is false", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      // Simulate existing record with per-card borderColor
       sharedRedisMockGet.mockResolvedValueOnce(
         JSON.stringify({
           userId: 601,
@@ -1696,7 +1668,6 @@ describe("Store Cards API POST Endpoint", () => {
 
     it("should clamp existing global borderRadius when merging", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      // Simulate existing globalSettings with out-of-range borderRadius
       sharedRedisMockGet.mockResolvedValueOnce(
         JSON.stringify({
           userId: 900,
@@ -1717,7 +1688,6 @@ describe("Store Cards API POST Endpoint", () => {
         globalSettings: {
           colorPreset: "default",
           borderEnabled: true,
-          // borderRadius omitted, should preserve (but clamped) from existing
         },
       });
 
@@ -2014,7 +1984,7 @@ describe("Store Cards API POST Endpoint", () => {
   describe("Error Recovery & Edge Cases", () => {
     it("should recover from corrupted Redis payload", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
-      sharedRedisMockGet.mockResolvedValueOnce("[object Object]"); // Corrupted
+      sharedRedisMockGet.mockResolvedValueOnce("[object Object]");
 
       const req = createRequest({
         userId: 77,
@@ -2057,8 +2027,6 @@ describe("Store Cards API POST Endpoint", () => {
       });
 
       await POST(req);
-      // When existing data is corrupted, the endpoint should recover gracefully
-      // and continue to store the new card configuration
       expect(sharedRedisMockSet).toHaveBeenCalled();
     });
 
@@ -2101,8 +2069,6 @@ describe("Store Cards API POST Endpoint", () => {
       });
 
       const res = await POST(req);
-      // This depends on validateCardData implementation - adjust expectation if needed
-      // Could be 400 if validation rejects empty, or 200 if it's allowed
       expect([200, 400]).toContain(res.status);
     });
 

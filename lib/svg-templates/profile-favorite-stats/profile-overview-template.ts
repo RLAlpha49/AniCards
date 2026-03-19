@@ -128,7 +128,6 @@ export const profileOverviewTemplate = (data: {
   ${generateCardBackground(dims, cardRadius, resolvedColors)}
 
   ${(() => {
-    // Default variant
     return `
       <g data-testid="card-title" transform="translate(100, 45)">
         <text x="0" y="0" class="header">${safeUsername}</text>

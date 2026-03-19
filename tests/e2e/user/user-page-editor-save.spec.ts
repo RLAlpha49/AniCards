@@ -68,7 +68,6 @@ test.describe("User page editor - save UX", () => {
       });
       await expect(animeToggle).toBeVisible();
 
-      // Wait for the editor to finish hydrating / loading before toggling.
       await expect(animeToggle).toHaveAttribute("aria-checked", "true");
       await animeToggle.click();
       await expect(animeToggle).toHaveAttribute("aria-checked", "false");

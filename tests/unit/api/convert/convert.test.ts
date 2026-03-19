@@ -55,7 +55,6 @@ function createSharpInstance(buf?: Buffer) {
 process.env.NEXT_PUBLIC_API_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost";
 
-// Mocking "sharp" using Bun's mock system
 mock.module("sharp", () => ({
   default: mock(createSharpInstance),
 }));
@@ -90,7 +89,6 @@ describe("Convert API POST Endpoint", () => {
   });
 
   afterEach(() => {
-    // Clear mocks by resetting the fetch implementation
     globalThis.fetch = originalFetch;
   });
 
@@ -278,7 +276,6 @@ describe("Convert API POST Endpoint", () => {
     });
 
     it("should reject HTTP requests when allowed domain requires HTTPS", async () => {
-      // This test verifies that HTTP is rejected for non-localhost domains
       const req = new Request("http://localhost/api/convert", {
         method: "POST",
         headers: {
@@ -412,7 +409,6 @@ describe("Convert API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(500);
       const data = await res.json();
-      // When fetch throws, fetchSvgContent returns "Failed to fetch SVG"
       expect(data.error).toBe("Failed to fetch SVG");
     });
 
@@ -517,11 +513,7 @@ describe("Convert API POST Endpoint", () => {
         }),
       );
 
-      // Note: In Bun's test environment, mocking sharp at module level prevents
-      // easy dynamic replacement. This test validates the error handling path.
-      // To fully test sharp failures, consider integration or e2e tests.
       const res = await POST(req);
-      // With the mocked sharp, this should succeed normally
       expect(res.status).toBe(200);
     });
   });
@@ -588,7 +580,6 @@ describe("Convert API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(500);
       const data = await res.json();
-      // When fetch throws, error message is "Failed to fetch SVG"
       expect(data.error).toBe("Failed to fetch SVG");
     });
   });
@@ -718,9 +709,7 @@ describe("Convert API POST Endpoint", () => {
         </svg>`;
 
       const { captured: captured1 } = await postAndCaptureSvg(dummySVG);
-      // animation declarations removed from CSS
       expect(captured1).not.toMatch(/animation\s*:/i);
-      // .stagger rule doesn't have animation; class should remain
       expect(captured1).toMatch(/class=(['"]).*?\bstagger\b.*?\1/);
     });
 
@@ -810,10 +799,8 @@ describe("Convert API POST Endpoint", () => {
       const svg = `<g style="fill: blue; animation-delay: 100ms; opacity: 0.5;"></g>`;
       const sanitized = sanitizeInlineStyleAttributes(svg);
       expect(sanitized).toMatch(/fill\s*:\s*blue/);
-      // opacity: 0.5 should be normalized to opacity: 1
       expect(sanitized).toMatch(/opacity\s*:\s*1/);
       expect(sanitized).not.toMatch(/animation-delay/);
-      // The style attribute should still exist since there are valid properties
       expect(sanitized).toContain("style=");
     });
 
@@ -846,7 +833,6 @@ describe("Convert API POST Endpoint", () => {
       );
 
       const res = await POST(req);
-      // Should still attempt conversion
       expect(res.status).toBe(200);
     });
 
@@ -870,7 +856,6 @@ describe("Convert API POST Endpoint", () => {
       );
 
       const res = await POST(req);
-      // Should fail because example.com is not in allowed domains
       expect(res.status).toBe(403);
     });
 
@@ -894,8 +879,6 @@ describe("Convert API POST Endpoint", () => {
       );
 
       const res = await POST(req);
-      // In development, localhost/127.0.0.1 is explicitly allowed (and should remain in the URL),
-      // so this should pass authorization and proceed.
       expect(res.status).toBe(200);
     });
 
@@ -919,7 +902,6 @@ describe("Convert API POST Endpoint", () => {
       );
 
       const res = await POST(req);
-      // ::1 is IPv6 localhost but not in allowedDomains so it should fail
       expect(res.status).toBe(403);
     });
   });

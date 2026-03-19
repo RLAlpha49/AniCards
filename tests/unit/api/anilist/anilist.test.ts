@@ -11,7 +11,6 @@ import {
 
 import { sharedRatelimitMockLimit } from "@/tests/unit/__setup__";
 
-// Set the app URL for same-origin validation testing
 process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
 
 import { OPTIONS, POST } from "@/app/api/anilist/route";
@@ -217,7 +216,6 @@ describe("AniList API Proxy Endpoint", () => {
 
       const response = await POST(request);
 
-      // Should make actual API call, not simulate
       expect(globalThis.fetch).toHaveBeenCalledWith(
         "https://graphql.anilist.co",
         expect.any(Object),
@@ -290,7 +288,6 @@ describe("AniList API Proxy Endpoint", () => {
 
       await POST(request);
 
-      // Analytics is tracked asynchronously, just verify request succeeds
       expect(globalThis.fetch).toHaveBeenCalled();
     });
 
@@ -313,7 +310,6 @@ describe("AniList API Proxy Endpoint", () => {
 
       const response = await POST(request);
 
-      // Verify response is successful despite logging
       expect(response.status).toBe(200);
     });
 
@@ -325,19 +321,17 @@ describe("AniList API Proxy Endpoint", () => {
 
       mockFetchResponse({ data: { user: "testUser" } });
 
-      // Mock Date.now to simulate slow request
       const originalDateNow = Date.now;
       let callCount = 0;
       const dateNowMock = mock(() => {
         callCount++;
-        if (callCount === 1) return 1000; // startTime
-        return 2500; // after request: 1500ms elapsed
+        if (callCount === 1) return 1000;
+        return 2500;
       });
       Date.now = dateNowMock as unknown as typeof Date.now;
 
       const response = await POST(request);
 
-      // Verify response is successful and slow warning would be logged
       expect(response.status).toBe(200);
 
       Date.now = originalDateNow;
@@ -361,7 +355,6 @@ describe("AniList API Proxy Endpoint", () => {
       expect(response.status).toBe(401);
       const data = await response.json();
       expect(data.error).toBe("Unauthorized");
-      // Fetch should not be called due to early rejection
       expect(globalThis.fetch).not.toHaveBeenCalled();
     });
 
@@ -525,7 +518,6 @@ describe("AniList API Proxy Endpoint", () => {
 
       const response = await POST(request);
 
-      // Verify operation is processed correctly
       expect(response.status).toBe(200);
     });
 
@@ -542,7 +534,6 @@ describe("AniList API Proxy Endpoint", () => {
 
       const response = await POST(request);
 
-      // Verify operation is processed correctly
       expect(response.status).toBe(200);
     });
 
@@ -557,7 +548,6 @@ describe("AniList API Proxy Endpoint", () => {
 
       const response = await POST(request);
 
-      // Verify operation is processed correctly
       expect(response.status).toBe(200);
     });
 
@@ -572,7 +562,6 @@ describe("AniList API Proxy Endpoint", () => {
 
       const response = await POST(request);
 
-      // Verify operation is processed correctly even without specific userId
       expect(response.status).toBe(200);
     });
 
@@ -586,7 +575,6 @@ describe("AniList API Proxy Endpoint", () => {
 
       const response = await POST(request);
 
-      // Verify operation is processed correctly even without specific userName
       expect(response.status).toBe(200);
     });
   });
@@ -684,13 +672,10 @@ describe("AniList API Proxy Endpoint", () => {
       const requestBody = createGraphQLBody();
       const request = createAniListRequest({}, requestBody);
 
-      // Note: initializeApiRequest is real and implements its own rate limit logic
-      // This test verifies that successful requests pass through correctly
       mockFetchResponse({ data: { user: "testUser" } });
 
       const response = await POST(request);
 
-      // Verify the response succeeds (no rate limit hit in this case)
       expect(response.status).toBe(200);
     });
   });
@@ -709,7 +694,6 @@ describe("AniList API Proxy Endpoint", () => {
 
       const response = await POST(request);
 
-      // Verify request is processed with IP extracted
       expect(response.status).toBe(200);
     });
 
@@ -723,7 +707,6 @@ describe("AniList API Proxy Endpoint", () => {
 
       const response = await POST(request);
 
-      // Verify request is processed with default IP
       expect(response.status).toBe(200);
     });
   });
@@ -761,7 +744,6 @@ describe("AniList API Proxy Endpoint", () => {
 
       const response = await POST(request);
 
-      // Verify the response is successful (no test simulation in production)
       expect(response.status).toBe(200);
     });
   });

@@ -203,7 +203,6 @@ function applyColorOverrides(
     return;
   }
 
-  // If a named preset is provided (from URL or database), look up and apply preset colors
   if (effectivePreset) {
     const presetColors = getPresetColors(effectivePreset);
     if (presetColors) {
@@ -348,7 +347,6 @@ export function buildCardConfigFromParams(params: {
     colorPreset: params.colorPresetParam || undefined,
   };
 
-  // Apply preset colors if a named preset is provided
   if (params.colorPresetParam && params.colorPresetParam !== "custom") {
     const presetColors = getPresetColors(params.colorPresetParam);
     if (presetColors) {
@@ -359,7 +357,6 @@ export function buildCardConfigFromParams(params: {
   // Apply individual color params (these override preset colors)
   applyUrlColorParams(config, params);
 
-  // Apply border params
   applyBorderOverrides(config, params);
 
   // Favorites grid layout params (only meaningful for favoritesGrid)
@@ -368,7 +365,6 @@ export function buildCardConfigFromParams(params: {
     config.gridRows = clampGridDim(params.gridRowsParam, 3);
   }
 
-  // Apply boolean flags using a utility function to reduce cognitive
   applyBooleanOverridesForBuild(config, params);
 
   return config;
@@ -455,7 +451,6 @@ export function processCardConfig(
     );
   }
 
-  // Apply boolean-like overrides and compute favorites list
   const favorites = applyBooleanOverridesForProcess(
     effectiveCardConfig,
     params,
@@ -563,7 +558,6 @@ function mergeGlobalSettingsIntoConfig(
 ): void {
   if (!globalSettings) return;
 
-  // Helper to set config fields only when they are missing.
   const setIfMissing = <K extends keyof StoredCardConfig>(
     key: K,
     value: StoredCardConfig[K] | undefined,

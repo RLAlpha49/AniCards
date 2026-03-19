@@ -38,7 +38,6 @@ export const socialStatsTemplate = (data: {
   stats: SocialStats;
   activityHistory?: { date: number; amount: number }[];
 }): TrustedSVG => {
-  // Process colors for gradient support
   const { gradientDefs, resolvedColors } = processColorsForSVG(
     {
       titleColor: data.styles.titleColor,

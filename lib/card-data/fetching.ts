@@ -98,8 +98,8 @@ export async function fetchUserData(
         "completed",
       ] as UserDataPart[]);
 
-  // Fetch cards data first - if this fails with a Redis error, let it bubble up
-  // to generate a generic "Internal Error" response as expected by tests.
+  // Let Redis errors from the cards lookup bubble up so tests still see the
+  // expected generic "Internal Error" response.
   const cardsDataStr = await redisClient.get(`cards:${numericUserId}`);
 
   let userDataParts: Partial<Record<UserDataPart, unknown>>;

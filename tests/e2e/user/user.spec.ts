@@ -63,12 +63,10 @@ test.describe("User page", () => {
     });
 
     await test.step("Verify hero heading and rendered cards", async () => {
-      // Page now shows a welcome heading for returning users
       await expect(
         page.getByRole("heading", { level: 1, name: /testuser/i }),
       ).toBeVisible();
 
-      // Wait for the cards section to be visible then assert preview images exist
       await expect(
         page.getByRole("heading", { name: /your cards/i }),
       ).toBeVisible();
@@ -77,7 +75,6 @@ test.describe("User page", () => {
     });
 
     await test.step("Per-card quick actions are hidden by default and appear on preview hover/focus", async () => {
-      // Ensure we are not accidentally hovering a card tile before asserting hidden state.
       await page.getByRole("heading", { name: /your cards/i }).hover();
 
       const tile = page.getByTestId("card-tile-animeStats");
@@ -98,7 +95,6 @@ test.describe("User page", () => {
       await expect(copyTrigger).toBeHidden();
       await expect(downloadTrigger).toBeHidden();
 
-      // Keyboard users should get quick actions via focus-within on the preview itself.
       const previewToggle = tile.getByRole("button", {
         name: /toggle actions for/i,
       });
@@ -114,8 +110,6 @@ test.describe("User page", () => {
       );
       await expect(openLink).toHaveAttribute("href", /\/api\/card/i);
 
-      // And mouse users via hover.
-      // First move focus off the preview so we're only validating hover.
       await tile
         .getByRole("checkbox", { name: /select anime stats card/i })
         .focus();
@@ -143,14 +137,12 @@ test.describe("User page", () => {
       const compareButton = dialog.getByRole("button", { name: /compare/i });
       await expect(compareButton).toBeVisible();
 
-      // Default is single preview; after enabling compare it should render two previews.
       const previews = dialog.getByRole("img", { name: /preview/i });
       await expect(previews).toHaveCount(1);
 
       await compareButton.click();
       await expect(previews).toHaveCount(2);
 
-      // Both previews should have quick actions available (Open + Download, etc.).
       const openLinks = dialog.getByRole("link", {
         name: /^open/i,
         includeHidden: true,
@@ -167,7 +159,6 @@ test.describe("User page", () => {
       await expect(copyButtons).toHaveCount(2);
       await expect(downloadButtons).toHaveCount(2);
 
-      // Hovering one preview should only show quick actions for that preview.
       await dialog.hover({ position: { x: 10, y: 10 } });
       await previews.nth(0).hover({ position: { x: 10, y: 10 } });
       await expect(openLinks.nth(0)).toBeVisible();
@@ -182,13 +173,11 @@ test.describe("User page", () => {
       await expect(downloadButtons.nth(1)).toBeVisible();
       await expect(downloadButtons.nth(0)).toBeHidden();
 
-      // Close the dialog so subsequent steps can interact with the page.
       await page.keyboard.press("Escape");
       await expect(dialog).toBeHidden();
     });
 
     await test.step("Inspect export controls", async () => {
-      // Select the rendered cards so the bulk actions toolbar appears
       await page
         .getByRole("checkbox", { name: /select anime stats card/i })
         .check();
@@ -199,7 +188,6 @@ test.describe("User page", () => {
       const toolbar = page.locator('[data-testid="bulk-actions-toolbar"]');
       await expect(toolbar).toBeVisible();
 
-      // Use role-based selectors scoped to the toolbar so the test doesn't rely on button order
       const selectAllButton = toolbar.getByRole("button", {
         name: /select all enabled/i,
       });
@@ -214,11 +202,9 @@ test.describe("User page", () => {
       await expect(copyButton).toBeVisible();
       await expect(downloadButton).toBeVisible();
 
-      // Open the copy popover and verify its contents
       await copyButton.click();
       await expect(page.getByText(/raw urls/i)).toBeVisible();
 
-      // Open the download popover and verify its contents
       await downloadButton.click();
       await expect(page.getByText(/png/i)).toBeVisible();
     });
@@ -241,7 +227,6 @@ test.describe("User page", () => {
 
     await test.step("Show error UI with recovery", async () => {
       await expect(page.getByText(/something went wrong/i)).toBeVisible();
-      // Server errors are surfaced directly (e.g. "Server error")
       await expect(
         page.getByText(/server error|an unexpected error occurred/i),
       ).toBeVisible();
@@ -324,7 +309,6 @@ test.describe("User page", () => {
       page.getByRole("heading", { level: 1, name: /newuser/i }),
     ).toBeVisible({ timeout: 15000 });
 
-    // Wait for at least one preview image to appear (initial cards snapshot should enable previews)
     const images = page.locator("main").getByRole("img");
     await expect(images.first()).toBeVisible();
   });

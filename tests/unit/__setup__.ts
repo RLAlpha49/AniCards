@@ -1,6 +1,5 @@
 import { mock } from "bun:test";
 
-// Silence console output
 console.debug = mock(() => {});
 console.log = mock(() => {});
 console.info = mock(() => {});
@@ -52,7 +51,6 @@ const sharedRedisFakeClient = {
   pipeline: mock(() => sharedRedisPipelineMock),
 };
 
-// Register the shared Redis mock FIRST
 mock.module("@upstash/redis", () => ({
   Redis: {
     fromEnv: mock(() => sharedRedisFakeClient),
@@ -73,7 +71,6 @@ const RatelimitMockClass = mock().mockImplementation(() => ({
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (RatelimitMockClass as any).slidingWindow = sharedRatelimitMockSlidingWindow;
 
-// Register the shared Ratelimit mock
 mock.module("@upstash/ratelimit", () => ({
   Ratelimit: RatelimitMockClass,
 }));

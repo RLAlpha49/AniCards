@@ -352,20 +352,16 @@ function isValidGradientStop(stop: unknown): boolean {
   if (typeof stop !== "object" || stop === null) return false;
   const s = stop as Record<string, unknown>;
 
-  // Validate color
   if (typeof s.color !== "string" || !isValidHexColor(s.color)) return false;
 
-  // Validate offset
   if (typeof s.offset !== "number" || s.offset < 0 || s.offset > 100)
     return false;
 
-  // Validate optional opacity
   if (s.opacity !== undefined) {
     if (typeof s.opacity !== "number" || s.opacity < 0 || s.opacity > 1)
       return false;
   }
 
-  // Validate optional id
   if (s.id !== undefined) {
     if (typeof s.id !== "string") return false;
   }
@@ -400,23 +396,19 @@ export function isValidGradient(value: unknown): boolean {
 
   const grad = value as Record<string, unknown>;
 
-  // Validate type
   if (grad.type !== "linear" && grad.type !== "radial") return false;
 
-  // Validate stops
   if (!Array.isArray(grad.stops) || grad.stops.length < 2) return false;
 
   for (const stop of grad.stops) {
     if (!isValidGradientStop(stop)) return false;
   }
 
-  // Validate linear gradient angle
   if (grad.type === "linear" && grad.angle !== undefined) {
     if (typeof grad.angle !== "number" || grad.angle < 0 || grad.angle > 360)
       return false;
   }
 
-  // Validate radial gradient properties
   if (grad.type === "radial" && !isValidRadialProperties(grad)) {
     return false;
   }
@@ -496,7 +488,6 @@ function parseColorValue(value: ColorValue | string): ColorValue | undefined {
     }
   }
 
-  // Return as regular color string
   return value;
 }
 
@@ -526,7 +517,6 @@ export function processColorsForSVG(
       continue;
     }
 
-    // Parse JSON-encoded gradients back to objects
     value = parseColorValue(value);
 
     if (value !== undefined && isGradient(value)) {

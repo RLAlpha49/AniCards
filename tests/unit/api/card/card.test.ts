@@ -76,7 +76,6 @@ mock.module("@/lib/svg-templates/extra-anime-manga-stats/shared", () => {
     }) => extraAnimeMangaStatsTemplate({ ...input, format });
   };
 
-  // Minimal map needed for template wrappers used by the generator.
   const extraStatsTemplates = {
     animeSeasonalPreference: createExtraStatsTemplate("Anime Seasons"),
     animeEpisodeLengthPreferences: createExtraStatsTemplate(
@@ -269,7 +268,6 @@ async function expectErrorResponse(
   expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
   expect(res.headers.get("Vary")).toBe("Origin");
   const text = await getResponseText(res);
-  // Build expected SVG error string exactly as server does and assert equality
   const escaped = escapeForXml(expectedError);
   const expectedSvg = `<?xml version="1.0" encoding="UTF-8"?>
   <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
@@ -303,7 +301,6 @@ describe("Card SVG Route", () => {
     mock.clearAllMocks();
     clearSvgCache();
     clearUserRequestStats();
-    // Reset mocks to their default state
     sharedRatelimitMockLimit.mockResolvedValue({ success: true });
     sharedRedisMockGet.mockClear();
     sharedRedisMockMget.mockClear();
@@ -406,7 +403,6 @@ describe("Card SVG Route", () => {
     });
 
     it("should accept all allowed card types", async () => {
-      // Test a sample of the most important card types
       const allowedTypes = ["animeStats", "socialStats", "mangaStats"];
 
       for (const cardType of allowedTypes) {
@@ -424,7 +420,6 @@ describe("Card SVG Route", () => {
         const res = await GET(req);
         expect(res.status).toBe(200);
 
-        // Reset mock chain for next iteration
         mock.clearAllMocks();
         sharedRatelimitMockLimit.mockResolvedValue({ success: true });
       }
@@ -511,15 +506,12 @@ describe("Card SVG Route", () => {
       expect(res.status).toBe(200);
       const body = await getResponseText(res);
 
-      // Anime-only should not include the manga icon/label in the stats line.
       expect(body).toContain("📺");
       expect(body).not.toContain("📚");
 
-      // Progress bar track should be positioned within the translated row group.
       expect(body).toContain('opacity="0.16"');
       expect(body).toContain('y="10"');
 
-      // Embedded cover images should render via <image> with a data: URL.
       expect(body).toContain("<image");
       expect(body).toContain("data:image/png;base64");
     });
@@ -583,7 +575,6 @@ describe("Card SVG Route", () => {
       expect(res.status).toBe(200);
       const body = await getResponseText(res);
 
-      // Manga-only should not include the anime icon/label in the stats line.
       expect(body).toContain("📚");
       expect(body).not.toContain("📺");
 
@@ -642,10 +633,8 @@ describe("Card SVG Route", () => {
         "default",
       );
 
-      // Cards record is fetched via GET first.
       sharedRedisMockGet.mockResolvedValueOnce(cardsData);
 
-      // User record is fetched via split parts (mget). Provide meta/current/completed and aggregates.
       const metaPart = JSON.stringify({
         userId: "542244",
         username: "testUser",
@@ -728,10 +717,8 @@ describe("Card SVG Route", () => {
         "default",
       );
 
-      // Cards record is fetched via GET first.
       sharedRedisMockGet.mockResolvedValueOnce(cardsData);
 
-      // User record is fetched via split parts (mget). Provide meta/current/completed and aggregates.
       const metaPart = JSON.stringify({
         userId: "542244",
         username: "testUser",
@@ -811,10 +798,8 @@ describe("Card SVG Route", () => {
     it("should render animeGenreSynergy using stored totals (split meta)", async () => {
       const cardsData = createMockCardData("animeGenreSynergy", "default");
 
-      // Cards record is fetched via GET first.
       sharedRedisMockGet.mockResolvedValueOnce(cardsData);
 
-      // User record is fetched via split parts (mget). Provide meta and aggregates.
       const metaPart = JSON.stringify({
         userId: "542244",
         username: "testUser",
@@ -864,10 +849,8 @@ describe("Card SVG Route", () => {
     it("should render studioCollaboration using stored totals (split meta)", async () => {
       const cardsData = createMockCardData("studioCollaboration", "default");
 
-      // Cards record is fetched via GET first.
       sharedRedisMockGet.mockResolvedValueOnce(cardsData);
 
-      // User record is fetched via split parts (mget). Provide meta and aggregates.
       const metaPart = JSON.stringify({
         userId: "542244",
         username: "testUser",
@@ -1025,7 +1008,6 @@ describe("Card SVG Route", () => {
                   media: {
                     id: 101,
                     title: { romaji: "Ongoing Manga" },
-                    // chapters deliberately omitted to simulate unknown total
                   },
                 },
               ],
@@ -1048,7 +1030,6 @@ describe("Card SVG Route", () => {
       expect(body).toContain("Avg. Progress");
       expect(body).toContain("N/A");
       expect(body).toContain("Dropped");
-      // Should reflect one dropped entry
       expect(body).toContain("1");
     });
 
@@ -1174,7 +1155,6 @@ describe("Card SVG Route", () => {
           },
         },
       });
-      // Use URL-built config path: only user record is needed when providing full color params.
       sharedRedisMockGet.mockResolvedValueOnce(userData);
 
       const req = new Request(
@@ -1192,9 +1172,6 @@ describe("Card SVG Route", () => {
       );
 
       const res = await GET(req);
-      // This assertion focuses on param plumbing. The route may still return 404
-      // in unit tests depending on user favourites normalization/mocks, so we
-      // avoid hard-failing the suite here.
       expect([200, 404]).toContain(res.status);
       if (res.status === 200) {
         expect(favoritesGridTemplateMock).toHaveBeenCalled();
@@ -1226,7 +1203,6 @@ describe("Card SVG Route", () => {
           },
         },
       });
-      // Use URL-built config path: only user record is needed when providing full color params.
       sharedRedisMockGet.mockResolvedValueOnce(userData);
 
       const req = new Request(
@@ -1244,9 +1220,6 @@ describe("Card SVG Route", () => {
       );
 
       const res = await GET(req);
-      // This assertion focuses on param clamping/plumbing. The route may still return 404
-      // in unit tests depending on user favourites normalization/mocks, so we
-      // avoid hard-failing the suite here.
       expect([200, 404]).toContain(res.status);
       if (res.status === 200) {
         expect(favoritesGridTemplateMock).toHaveBeenCalled();
@@ -1277,7 +1250,6 @@ describe("Card SVG Route", () => {
         },
       });
 
-      // Both requests use URL-built config path (include color params)
       sharedRedisMockGet
         .mockResolvedValueOnce(userData)
         .mockResolvedValueOnce(userData);
@@ -1292,7 +1264,6 @@ describe("Card SVG Route", () => {
         circleColor: "#3cc8ff",
       };
 
-      // First request uses "03" formatting and should populate cache
       const req1 = new Request(
         createRequestUrl(baseUrl, {
           ...baseParams,
@@ -1302,17 +1273,14 @@ describe("Card SVG Route", () => {
       );
       await GET(req1);
 
-      // First request should track a cache miss
       let mockCalls = (
         sharedRedisMockIncr as unknown as { mock: { calls: Array<[string]> } }
       ).mock.calls;
       let incrCalls = mockCalls.map((call) => call[0]);
       expect(incrCalls).toContain("analytics:card_svg:cache_misses");
 
-      // Reset incr tracker for second request
       sharedRedisMockIncr.mockClear();
 
-      // Second request uses "3" formatting and should hit the same cache entry
       const req2 = new Request(
         createRequestUrl(baseUrl, {
           ...baseParams,
@@ -1540,7 +1508,6 @@ describe("Card SVG Route", () => {
       const userData = createMockUserData(542244, "testUser", {
         User: { statistics: { anime: {} } },
       });
-      // URL-built config path: only user record is needed.
       sharedRedisMockGet.mockResolvedValueOnce(userData);
 
       const req = new Request(
@@ -1557,7 +1524,6 @@ describe("Card SVG Route", () => {
       const res = await GET(req);
       expect(res.status).toBe(200);
 
-      // Ensure we did not fetch the cards record (only user record should be loaded)
       expect(sharedRedisMockGet).toHaveBeenCalledTimes(1);
 
       expect(mediaStatsTemplate).toHaveBeenCalled();
@@ -1571,8 +1537,6 @@ describe("Card SVG Route", () => {
     });
 
     it("should allow full URL colors to override DB colors when custom preset is used but DB config is still required", async () => {
-      // Force DB config path by using a card type that requires DB flags when not provided in the URL.
-      // `animeStaff` is favorites-relevant and requires showFavoritesParam to be present to skip DB.
       const cardsData = createMockCardData("animeStaff", "default", {
         titleColor: "#111111",
         backgroundColor: "#222222",
@@ -1598,7 +1562,6 @@ describe("Card SVG Route", () => {
           userId: "542244",
           cardType: "animeStaff",
           colorPreset: "custom",
-          // Provide all required colors so the URL has everything needed for colors.
           titleColor: "#aaaaaa",
           backgroundColor: "#bbbbbb",
           textColor: "#cccccc",
@@ -1802,7 +1765,6 @@ describe("Card SVG Route", () => {
         User: {
           statistics: {
             anime: {
-              // Provide a minimal bucket; the template fills missing buckets.
               scores: [{ score: 10, count: 1 }],
             },
           },
@@ -2126,7 +2088,6 @@ describe("Card SVG Route", () => {
         }),
       );
       const res = await GET(req);
-      // Simply verify the request succeeds
       expect(res.status).toBe(200);
       expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
     });
@@ -2568,7 +2529,6 @@ describe("Card SVG Route", () => {
       const parsedUserData = JSON.parse(
         createMockUserData(542244, "testUser"),
       ) as Record<string, unknown>;
-      // Remove statistics to force generator-level CardDataError
       const stats = (parsedUserData.stats as Record<string, unknown>) ?? {};
       const userSection = (stats.User as Record<string, unknown>) ?? {};
       stats.User = {
@@ -2602,7 +2562,6 @@ describe("Card SVG Route", () => {
       );
       await GET(req);
 
-      // Verify that analytics tracking was attempted (at least the first call)
       expect(sharedRedisMockIncr).toHaveBeenCalled();
     });
 
@@ -2619,10 +2578,8 @@ describe("Card SVG Route", () => {
           cardType: "animeStats",
         }),
       );
-      // First request - cache miss, populates cache and tracks successful_requests
       await GET(req);
 
-      // Verify first request tracking (cache miss + successful generation)
       let mockCalls = (
         sharedRedisMockIncr as unknown as {
           mock: { calls: Array<[string]> };
@@ -2636,16 +2593,12 @@ describe("Card SVG Route", () => {
         "analytics:card_svg:successful_requests:animeStats",
       );
 
-      // Reset mock to track second request only
       sharedRedisMockIncr.mockClear();
 
-      // Set up mocks for second request (cached hit scenario - though they won't be called)
       setupSuccessfulMocks(cardsData, userData);
 
-      // Second request - cache hit, serves from in-memory cache
       await GET(req);
 
-      // Verify second request only tracks cache hit (no Redis calls for cache hit)
       mockCalls = (
         sharedRedisMockIncr as unknown as {
           mock: { calls: Array<[string]> };
@@ -2653,7 +2606,6 @@ describe("Card SVG Route", () => {
       ).mock.calls;
       incrCalls = mockCalls.map((call) => call[0]);
 
-      // Should include cache hit metrics from our new cache layer
       expect(incrCalls).toContain("analytics:card_svg:cache_hits");
     });
   });
@@ -2744,7 +2696,6 @@ describe("Card SVG Route", () => {
     it("should generate SVG for multiple card types", async () => {
       const cardTypes = ["animeStats", "socialStats", "mangaStats"];
 
-      // Ensure clean state for this test - reset entire mock state
       sharedRedisMockGet.mockReset();
       sharedRedisMockSet.mockReset();
       sharedRedisMockIncr.mockReset();
@@ -2757,7 +2708,6 @@ describe("Card SVG Route", () => {
         const userData = createMockUserData(542244, "testUser", {
           User: { statistics: { anime: {}, manga: {} } },
         });
-        // Queue mock responses for this iteration
         sharedRedisMockGet
           .mockResolvedValueOnce(cardsData)
           .mockResolvedValueOnce(userData);
@@ -2773,7 +2723,6 @@ describe("Card SVG Route", () => {
         expect(res.status).toBe(200);
         expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
 
-        // Reset state for next iteration
         clearSvgCache();
         clearUserRequestStats();
       }

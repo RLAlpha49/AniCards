@@ -171,13 +171,11 @@ function normalizeVariant(
     "bar",
     "horizontal",
   ]);
-  // Default early for invalid variant types
   if (!variant || typeof variant !== "string") return "default";
 
   // Accept legacy 'communityFootprint' variant as alias for 'badges'
   if (variant === "communityFootprint") variant = "badges";
 
-  // Handle favoritesGrid specially
   if (baseCardType === "favoritesGrid") {
     if (
       ["anime", "manga", "characters", "staff", "studios", "mixed"].includes(
@@ -189,7 +187,6 @@ function normalizeVariant(
     return "mixed" as CardGenVariant;
   }
 
-  // Allowed variant sets for groups of card types
   const statsVariants = new Set<CardGenVariant>([
     "default",
     "vertical",
@@ -324,10 +321,8 @@ function generateStatsCard(
   }
   let milestoneCount = 0;
   if (mediaType === "anime") {
-    // anime milestones are measured in episodes watched
     milestoneCount = (recordsStats as TemplateAnimeStats).episodesWatched || 0;
   } else {
-    // manga milestones are measured in chapters read
     milestoneCount = (recordsStats as TemplateMangaStats).chaptersRead || 0;
   }
   const milestoneData = calculateMilestones(Number(milestoneCount));
@@ -955,7 +950,6 @@ function generateSimpleListCard(
         count: (entry.count as number) ?? 0,
       }))
     : [];
-  // Ensure the list has data; throw an informative error if not
   if (!statsList.length) {
     throw new CardDataError(`Not Found: ${notFoundMessage}`, 404);
   }
@@ -993,7 +987,6 @@ function generateDistributionCard(
   const stats = isAnime
     ? userRecord.stats?.User?.statistics?.anime
     : userRecord.stats?.User?.statistics?.manga;
-  // Choose the property on the stats object for score vs release year distributions
   const dataProperty = kind === "score" ? "scores" : "releaseYears";
   const valueProperty = kind === "score" ? "score" : "releaseYear";
   const distributionData = (

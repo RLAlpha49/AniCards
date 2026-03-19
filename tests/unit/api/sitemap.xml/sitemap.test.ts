@@ -15,7 +15,6 @@ async function getSitemap(siteUrl?: string) {
   }
 
   try {
-    // Cache bust to ensure fresh module for each test
     const modulePath = `../../../../app/sitemap.xml/route?cacheBust=${Date.now()}`;
     const { GET } = await import(modulePath);
     const response = await GET();

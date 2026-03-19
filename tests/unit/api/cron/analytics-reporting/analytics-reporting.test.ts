@@ -61,12 +61,10 @@ async function expectSuccessfulReport(response: Response) {
   expect(response.status).toBe(200);
   const report = await response.json();
 
-  // Report should contain required properties
   expect(report).toHaveProperty("summary");
   expect(report).toHaveProperty("raw_data");
   expect(report).toHaveProperty("generatedAt");
 
-  // Validate timestamp format (ISO 8601)
   expect(() => new Date(report.generatedAt)).not.toThrow();
 
   return report;
@@ -77,13 +75,11 @@ async function expectSuccessfulReport(response: Response) {
  * @source
  */
 function setupSuccessfulAnalyticsMocks() {
-  // Simulate Redis returning analytics keys
   sharedRedisMockScan.mockResolvedValueOnce([
     0,
     ["analytics:visits", "analytics:anilist_api:successful_requests"],
   ]);
 
-  // Simulate Redis get responses for each key
   sharedRedisMockGet.mockImplementation((key: string) => {
     if (key === "analytics:visits") {
       return Promise.resolve("100");
@@ -93,7 +89,6 @@ function setupSuccessfulAnalyticsMocks() {
     return Promise.resolve(null);
   });
 
-  // Simulate rpush success
   sharedRedisMockRpush.mockResolvedValueOnce(1);
 }
 
@@ -151,13 +146,11 @@ describe("Analytics & Reporting Cron API", () => {
       const res = await POST(req);
       const report = await expectSuccessfulReport(res);
 
-      // Verify the summary structure
       expect(report.summary.visits).toBe(100);
       expect(report.summary.anilist_api).toEqual({
         successful_requests: 200,
       });
 
-      // Verify raw_data contains the raw numbers
       expect(report.raw_data).toEqual({
         "analytics:visits": 100,
         "analytics:anilist_api:successful_requests": 200,
@@ -199,7 +192,6 @@ describe("Analytics & Reporting Cron API", () => {
       const res = await POST(req);
       const report = await expectSuccessfulReport(res);
 
-      // analytics:reports should not be in the data
       expect(report.raw_data).toEqual({ "analytics:visits": 50 });
       expect(report.raw_data).not.toHaveProperty("analytics:reports");
     });
@@ -289,7 +281,6 @@ describe("Analytics & Reporting Cron API", () => {
         if (key === "analytics:visits") {
           return Promise.resolve("100");
         } else if (key === "analytics:custom") {
-          // Simulate a JSON stringified value
           return Promise.resolve('{"count": 50}');
         }
         return Promise.resolve(null);
@@ -318,7 +309,6 @@ describe("Analytics & Reporting Cron API", () => {
         expect.any(String),
       );
 
-      // Verify that the saved report is valid JSON
       const callArgs = sharedRedisMockRpush.mock.calls[0];
       expect(() => JSON.parse(callArgs[1])).not.toThrow();
     });

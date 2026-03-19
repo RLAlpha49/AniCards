@@ -48,7 +48,6 @@ export const favoritesSummaryTemplate = (data: {
     ],
   );
 
-  // Get counts from each category
   const counts = getFavouriteCounts(data.favourites);
   const animeCount = counts.anime;
   const mangaCount = counts.manga;

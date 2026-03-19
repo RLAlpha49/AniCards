@@ -10,15 +10,12 @@ import type { ColorValue, GradientDefinition } from "@/lib/types/card";
  * the behavior used in existing local helpers.
  */
 export function hexToRgba(hex: string, alpha: number): string {
-  // Normalize alpha: clamp to [0, 1], default to 0 if invalid
   const normalizedAlpha = Number.isFinite(alpha)
     ? Math.max(0, Math.min(1, alpha))
     : 0;
 
-  // Normalize: strip leading '#' and whitespace
   let cleanHex = hex.trim().replace(/^#/, "").toLowerCase();
 
-  // Expand 3-digit hex (#rgb -> #rrggbb)
   if (/^[a-f0-9]{3}$/.test(cleanHex)) {
     cleanHex = cleanHex
       .split("")
@@ -26,7 +23,6 @@ export function hexToRgba(hex: string, alpha: number): string {
       .join("");
   }
 
-  // Accept 6 or 8 hex digits; use only the first 6 characters for r/g/b
   if (!/^[a-f0-9]{6}(?:[a-f0-9]{2})?$/.test(cleanHex)) {
     return `rgba(0, 0, 0, ${normalizedAlpha})`;
   }
