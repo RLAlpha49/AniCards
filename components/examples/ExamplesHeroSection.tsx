@@ -1,63 +1,50 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowDown, ArrowLeft, Layers,Play, Sparkles } from "lucide-react";
-import Link from "next/link";
-
-import { Button } from "@/components/ui/Button";
-
-import { CategoryNavigation } from "./CategoryNavigation";
-import { SearchFilterBar } from "./SearchFilterBar";
-import type { CategoryInfo } from "./types";
+import { ArrowDown, Layers, LayoutGrid, Palette, Play } from "lucide-react";
 
 interface HeroSectionProps {
-  searchQuery: string;
-  onSearchChange: (value: string) => void;
   totalCardTypes: number;
   totalVariants: number;
-  categories: CategoryInfo[];
-  activeCategory: string | null;
-  onCategoryChange: (category: string | null) => void;
-  filteredCount: number;
+  categoryCount: number;
   onStartCreating: () => void;
-  onClearFilters: () => void;
 }
 
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.08, delayChildren: 0.1 },
+    transition: { staggerChildren: 0.12, delayChildren: 0.15 },
   },
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.55 } },
 };
 
-/**
- * Redesigned hero section with cleaner design, prominent search, and category navigation.
- */
+const STATS_CONFIG = [
+  { key: "types", label: "Card Types", icon: LayoutGrid },
+  { key: "variants", label: "Variants", icon: Layers },
+  { key: "categories", label: "Categories", icon: Palette },
+] as const;
+
 export function ExamplesHeroSection({
-  searchQuery,
-  onSearchChange,
   totalCardTypes,
   totalVariants,
-  categories,
-  activeCategory,
-  onCategoryChange,
-  filteredCount,
+  categoryCount,
   onStartCreating,
-  onClearFilters,
 }: Readonly<HeroSectionProps>) {
-  const hasActiveFilters = searchQuery.length > 0 || activeCategory !== null;
+  const statValues: Record<string, string> = {
+    types: String(totalCardTypes),
+    variants: `${totalVariants}+`,
+    categories: String(categoryCount),
+  };
 
   const scrollToGallery = () => {
     const gallery = document.getElementById("card-gallery");
     if (gallery) {
       gallery.scrollIntoView({ behavior: "smooth", block: "start" });
-      // Set focus for screen reader accessibility
       if (!gallery.hasAttribute("tabindex")) {
         gallery.setAttribute("tabindex", "-1");
       }
@@ -71,138 +58,105 @@ export function ExamplesHeroSection({
   };
 
   return (
-    <section className="relative w-full">
-      <div className="container relative z-10 mx-auto px-4 py-12 lg:py-20">
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="mx-auto max-w-5xl"
-        >
-          {/* Back button */}
-          <motion.div
-            variants={itemVariants}
-            className="mb-8 flex w-full justify-start"
-          >
-            <Link href="/">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="group text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-              >
-                <ArrowLeft className="mr-2 h-4 w-4 transition-transform group-hover:-translate-x-1" />
-                Back to Home
-              </Button>
-            </Link>
-          </motion.div>
-
-          {/* Badge */}
-          <motion.div variants={itemVariants} className="mb-6">
-            <span className="inline-flex items-center gap-2 rounded-full border border-purple-200/50 bg-purple-50/80 px-4 py-2 text-sm font-medium text-purple-700 shadow-sm backdrop-blur-sm dark:border-purple-700/50 dark:bg-purple-950/50 dark:text-purple-300">
-              <Sparkles className="h-4 w-4" />
-              Card Gallery
-            </span>
-          </motion.div>
-
-          {/* Main heading */}
-          <motion.h1
-            variants={itemVariants}
-            className="mb-4 text-4xl font-extrabold leading-[1.1] tracking-tight text-slate-900 dark:text-white sm:text-5xl lg:text-6xl"
-          >
-            Discover{" "}
-            <span className="relative inline-block">
-              <span className="relative z-10 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                Beautiful
-              </span>
-              <motion.span
-                className="absolute -inset-1 -z-10 block rounded-lg bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 blur-xl"
-                animate={{ opacity: [0.5, 0.8, 0.5] }}
-                transition={{ duration: 3, repeat: Infinity }}
-              />
-            </span>{" "}
-            Stat Cards
-          </motion.h1>
-
-          {/* Subtitle with stats */}
-          <motion.p
-            variants={itemVariants}
-            className="mx-auto mb-8 max-w-2xl text-lg text-slate-600 dark:text-slate-300 sm:text-xl"
-          >
-            Explore our complete collection of{" "}
-            <span className="font-semibold text-purple-600 dark:text-purple-400">
-              {totalCardTypes} card types
-            </span>{" "}
-            with{" "}
-            <span className="font-semibold text-blue-600 dark:text-blue-400">
-              {totalVariants}+ variants
-            </span>
-            . All examples use real data from{" "}
-            <a
-              href="https://anilist.co/user/Alpha49"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-semibold text-blue-600 transition-colors hover:text-blue-700 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
-            >
-              @Alpha49
-            </a>
-            {""}.
-          </motion.p>
-
-          {/* CTA buttons */}
-          <motion.div
-            variants={itemVariants}
-            className="mb-10 flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:justify-center"
-          >
-            <Button
-              onClick={onStartCreating}
-              className="group h-12 gap-2 rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 px-6 font-semibold text-white shadow-lg shadow-purple-500/25 transition-all hover:scale-[1.02] hover:shadow-xl hover:shadow-purple-500/30"
-            >
-              <Play className="h-4 w-4 fill-current" />
-              Create Your Cards
-            </Button>
-            <Button
-              variant="outline"
-              onClick={scrollToGallery}
-              className="h-12 gap-2 rounded-full border-2 border-slate-300 bg-white/50 px-6 font-medium backdrop-blur-sm transition-all hover:border-slate-400 hover:bg-white dark:border-slate-700 dark:bg-slate-900/50 dark:hover:border-slate-600 dark:hover:bg-slate-800/80"
-            >
-              <Layers className="h-4 w-4" />
-              Browse Gallery
-              <ArrowDown className="h-4 w-4" />
-            </Button>
-          </motion.div>
-
-          {/* Search bar */}
-          <motion.div
-            variants={itemVariants}
-            className="mb-6 flex w-full justify-center"
-          >
-            <div className="w-full max-w-3xl">
-              <SearchFilterBar
-                searchQuery={searchQuery}
-                onSearchChange={onSearchChange}
-                resultCount={filteredCount}
-                totalCount={totalCardTypes}
-                hasActiveFilters={hasActiveFilters}
-                onClearFilters={onClearFilters}
-              />
-            </div>
-          </motion.div>
-
-          {/* Category navigation */}
-          <motion.div
-            variants={itemVariants}
-            className="flex w-full justify-center"
-          >
-            <div className="w-full max-w-4xl">
-              <CategoryNavigation
-                categories={categories}
-                activeCategory={activeCategory}
-                onCategoryClick={onCategoryChange}
-              />
-            </div>
-          </motion.div>
-        </motion.div>
+    <section className="relative w-full overflow-hidden px-6 pt-28 pb-20 sm:px-12 md:pt-36 md:pb-28">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="bg-gold/4 absolute top-1/4 left-1/2 h-125 w-175 -translate-x-1/2 -translate-y-1/2 rounded-full blur-[120px]" />
       </div>
+
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        className="relative z-10 mx-auto max-w-4xl"
+      >
+        <motion.div
+          variants={itemVariants}
+          className="gold-ornament mb-10 text-center"
+        >
+          <span className="text-gold text-xl">❖</span>
+        </motion.div>
+
+        <motion.p
+          variants={itemVariants}
+          className="text-gold mb-5 text-center text-[0.65rem] tracking-[0.6em] uppercase sm:text-xs"
+        >
+          The Collection
+        </motion.p>
+
+        <motion.h1
+          variants={itemVariants}
+          className="font-display text-foreground mx-auto mb-7 max-w-2xl text-center text-4xl leading-[1.1] font-black sm:text-5xl md:text-6xl lg:text-7xl"
+        >
+          EVERY CARD
+          <br />
+          <span className="text-gold">EVERY STYLE</span>
+        </motion.h1>
+
+        <motion.div
+          variants={itemVariants}
+          className="gold-line-thick mx-auto mb-7 max-w-24"
+        />
+
+        <motion.p
+          variants={itemVariants}
+          className="font-body-serif text-foreground/50 mx-auto mb-12 max-w-lg text-center text-base leading-relaxed sm:text-lg"
+        >
+          Browse the complete gallery — real data, every variant, one page. All
+          examples rendered from{" "}
+          <a
+            href="https://anilist.co/user/Alpha49"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-gold hover:text-gold/80 font-semibold transition-colors hover:underline"
+          >
+            @Alpha49
+          </a>
+          .
+        </motion.p>
+
+        <motion.div
+          variants={itemVariants}
+          className="mb-16 flex flex-col items-center gap-4 sm:flex-row sm:justify-center"
+        >
+          <button
+            onClick={onStartCreating}
+            className="imperial-btn imperial-btn-fill inline-flex items-center"
+          >
+            <Play className="mr-2 h-4 w-4 fill-current" />
+            Create Your Cards
+          </button>
+          <button
+            onClick={scrollToGallery}
+            className="imperial-btn imperial-btn-ghost inline-flex items-center"
+          >
+            Browse Gallery
+            <ArrowDown className="ml-2 h-4 w-4" />
+          </button>
+        </motion.div>
+
+        <motion.div
+          variants={itemVariants}
+          className="border-gold/15 mx-auto flex max-w-xl items-stretch justify-center border"
+        >
+          {STATS_CONFIG.map((stat, i) => {
+            const Icon = stat.icon;
+            return (
+              <div
+                key={stat.key}
+                className={`flex flex-1 flex-col items-center gap-1.5 py-5 ${i < STATS_CONFIG.length - 1 ? "border-gold/15 border-r" : ""}`}
+              >
+                <Icon className="text-gold/60 h-4 w-4" />
+                <span className="font-display text-gold text-2xl font-bold sm:text-3xl">
+                  {statValues[stat.key]}
+                </span>
+                <span className="text-foreground/40 text-[0.6rem] tracking-[0.2em] uppercase">
+                  {stat.label}
+                </span>
+              </div>
+            );
+          })}
+        </motion.div>
+      </motion.div>
     </section>
   );
 }

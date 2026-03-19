@@ -1,9 +1,7 @@
 "use client";
 
-import { ArrowRight, Play, Sparkles } from "lucide-react";
-
-import UiCtaSection from "@/components/CTASection";
-import HeroBadge from "@/components/HeroBadge";
+import { motion } from "framer-motion";
+import { ArrowRight } from "lucide-react";
 
 interface CTASectionProps {
   onStartCreating: () => void;
@@ -11,40 +9,39 @@ interface CTASectionProps {
 
 export function CTASection({ onStartCreating }: Readonly<CTASectionProps>) {
   return (
-    <UiCtaSection
-      badge={
-        <HeroBadge
-          icon={Sparkles}
-          className="border-blue-200/50 bg-blue-50/80 text-blue-700 dark:border-blue-700/50 dark:bg-blue-950/50 dark:text-blue-300"
+    <section className="relative overflow-x-clip px-6 py-20 text-center sm:px-12 lg:py-28">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="bg-gold/5 absolute -top-32 left-1/2 h-64 w-200 -translate-x-1/2 rounded-full blur-[140px]" />
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: "-80px" }}
+        transition={{ duration: 0.6 }}
+        className="relative z-10"
+      >
+        <div className="gold-ornament mb-8">
+          <span className="text-gold text-base">❖</span>
+        </div>
+
+        <h2 className="font-display text-foreground mb-4 text-2xl tracking-wide sm:text-3xl md:text-4xl">
+          READY TO CREATE <span className="text-gold">YOUR OWN?</span>
+        </h2>
+
+        <p className="font-body-serif text-foreground/45 mx-auto mb-10 max-w-md text-sm leading-relaxed sm:text-base">
+          Generate personalised cards from your AniList profile — free, instant,
+          and fully customisable.
+        </p>
+
+        <button
+          onClick={onStartCreating}
+          className="imperial-btn imperial-btn-fill group inline-flex items-center"
         >
-          Start Creating
-        </HeroBadge>
-      }
-      title={
-        <>
-          Ready to Create{" "}
-          <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-            Your Own Cards
-          </span>{" "}
-          ?
-        </>
-      }
-      subtitle={
-        "These examples use real data from @Alpha49. Generate your personalized cards with your own AniList statistics in seconds!"
-      }
-      primary={{
-        label: (
-          <>
-            <Play className="mr-2 h-5 w-5 fill-current" />
-            Create Your Cards
-            <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
-          </>
-        ),
-        onClick: onStartCreating,
-        className:
-          "group h-14 min-w-[220px] rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-lg font-semibold shadow-lg shadow-purple-500/25 transition-all hover:scale-105 hover:shadow-xl hover:shadow-purple-500/30",
-      }}
-      className="pb-16 lg:pb-24"
-    />
+          Create Your Cards
+          <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+        </button>
+      </motion.div>
+    </section>
   );
 }

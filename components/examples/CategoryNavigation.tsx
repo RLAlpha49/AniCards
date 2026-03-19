@@ -30,53 +30,6 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
   "Advanced Analytics": TrendingUp,
 };
 
-const CATEGORY_COLORS: Record<
-  string,
-  { bg: string; text: string; activeBg: string }
-> = {
-  // NOTE: `activeBg` is an exhaustive, static class string (not fragments).
-  // This avoids runtime interpolation of Tailwind classes which can be purged
-  // by Tailwind's JIT scanner in production builds.
-  "Core Stats": {
-    bg: "bg-blue-100 dark:bg-blue-900/30",
-    text: "text-blue-600 dark:text-blue-400",
-    activeBg: "bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg",
-  },
-  "Anime Deep Dive": {
-    bg: "bg-purple-100 dark:bg-purple-900/30",
-    text: "text-purple-600 dark:text-purple-400",
-    activeBg:
-      "bg-gradient-to-r from-purple-500 to-violet-500 text-white shadow-lg",
-  },
-  "Manga Deep Dive": {
-    bg: "bg-pink-100 dark:bg-pink-900/30",
-    text: "text-pink-600 dark:text-pink-400",
-    activeBg: "bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-lg",
-  },
-  "Activity & Engagement": {
-    bg: "bg-amber-100 dark:bg-amber-900/30",
-    text: "text-amber-600 dark:text-amber-400",
-    activeBg:
-      "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg",
-  },
-  "Library & Progress": {
-    bg: "bg-emerald-100 dark:bg-emerald-900/30",
-    text: "text-emerald-600 dark:text-emerald-400",
-    activeBg:
-      "bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-lg",
-  },
-  "Advanced Analytics": {
-    bg: "bg-indigo-100 dark:bg-indigo-900/30",
-    text: "text-indigo-600 dark:text-indigo-400",
-    activeBg:
-      "bg-gradient-to-r from-indigo-500 to-blue-500 text-white shadow-lg",
-  },
-};
-
-/**
- * Horizontal scrollable category navigation with filter chips.
- * Allows users to filter cards by category or view all.
- */
 export function CategoryNavigation({
   categories,
   activeCategory,
@@ -84,74 +37,62 @@ export function CategoryNavigation({
 }: Readonly<CategoryNavigationProps>) {
   const totalCount = categories.reduce((sum, c) => sum + c.count, 0);
 
+  const allItems = [
+    { name: "All", count: totalCount, key: null as string | null },
+    ...categories.map((c) => ({ ...c, key: c.name })),
+  ];
+
   return (
-    <nav
-      className="relative w-full overflow-visible"
-      aria-label="Category navigation"
-    >
-      <div className="flex flex-wrap items-center justify-center gap-2 gap-y-3 px-4 pb-2 sm:px-6">
-        {/* All categories chip */}
-        <motion.button
-          type="button"
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => onCategoryClick(null)}
-          className={cn(
-            "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-all",
-            activeCategory === null
-              ? "bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/25"
-              : "bg-white/80 text-slate-700 hover:bg-slate-100 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700/80",
-          )}
-        >
-          <span>All</span>
-          <span
-            className={cn(
-              "rounded-full px-2 py-0.5 text-xs font-semibold",
-              activeCategory === null
-                ? "bg-white/20"
-                : "bg-slate-200 dark:bg-slate-700",
-            )}
-          >
-            {totalCount}
-          </span>
-        </motion.button>
+    <nav className="group/nav relative w-full" aria-label="Category navigation">
+      <div className="from-background pointer-events-none absolute top-0 right-0 bottom-0 z-10 w-8 bg-gradient-to-l to-transparent sm:hidden" />
+      <div className="from-background pointer-events-none absolute top-0 bottom-0 left-0 z-10 w-8 bg-gradient-to-r to-transparent sm:hidden" />
 
-        {/* Category chips */}
-        {categories.map((category) => {
-          const Icon = CATEGORY_ICONS[category.name] || BarChart2;
-          const colors =
-            CATEGORY_COLORS[category.name] || CATEGORY_COLORS["Core Stats"];
-          const isActive = activeCategory === category.name;
+      <div className="overflow-x-auto">
+        <div className="flex min-w-max items-end">
+          {allItems.map((item) => {
+            const isActive =
+              item.key === null
+                ? activeCategory === null
+                : activeCategory === item.key;
+            const Icon =
+              item.key === null
+                ? undefined
+                : CATEGORY_ICONS[item.key] || BarChart2;
 
-          return (
-            <motion.button
-              type="button"
-              key={category.name}
-              aria-current={isActive ? "true" : undefined}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => onCategoryClick(category.name)}
-              className={cn(
-                "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-all",
-                isActive
-                  ? colors.activeBg
-                  : "bg-white/80 text-slate-700 hover:bg-slate-100 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700/80",
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              <span className="hidden sm:inline">{category.name}</span>
-              <span className="sm:hidden">{category.name.split(" ")[0]}</span>
-              <span
+            return (
+              <button
+                type="button"
+                key={item.name}
+                aria-current={isActive ? "page" : undefined}
+                onClick={() => onCategoryClick(item.key)}
                 className={cn(
-                  "rounded-full px-2 py-0.5 text-xs font-semibold",
-                  isActive ? "bg-white/20" : "bg-slate-200 dark:bg-slate-700",
+                  "relative flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors",
+                  isActive
+                    ? "text-gold"
+                    : "text-foreground/45 hover:text-foreground/70",
                 )}
               >
-                {category.count}
-              </span>
-            </motion.button>
-          );
-        })}
+                {Icon && <Icon className="h-3.5 w-3.5" />}
+                <span>{item.name}</span>
+                <span
+                  className={cn(
+                    "text-[0.65rem] tabular-nums",
+                    isActive ? "text-gold/70" : "text-foreground/30",
+                  )}
+                >
+                  {item.count}
+                </span>
+                {isActive && (
+                  <motion.div
+                    layoutId="category-underline"
+                    className="bg-gold absolute right-0 bottom-0 left-0 h-0.5"
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </nav>
   );
