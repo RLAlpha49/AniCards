@@ -15,7 +15,7 @@ import {
   createStaggeredGroup,
   createTextElement,
 } from "@/lib/svg-templates/common/svg-primitives";
-import { AnimeStats, ColorValue,MangaStats } from "@/lib/types/card";
+import { AnimeStats, ColorValue, MangaStats } from "@/lib/types/card";
 import type { TrustedSVG } from "@/lib/types/svg";
 import {
   calculateDynamicFontSize,

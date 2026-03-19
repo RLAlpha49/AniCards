@@ -5,7 +5,7 @@ import { colorPresets } from "@/components/stat-card-generator/constants";
 import { statCardTypes } from "@/lib/card-types";
 import { normalizeForCompare } from "@/lib/colorUtils";
 import type { ColorValue } from "@/lib/types/card";
-import { clampBorderRadius,DEFAULT_CARD_BORDER_RADIUS } from "@/lib/utils";
+import { clampBorderRadius, DEFAULT_CARD_BORDER_RADIUS } from "@/lib/utils";
 
 import type { ServerCardData, ServerGlobalSettings } from "../api/cards";
 import type {
