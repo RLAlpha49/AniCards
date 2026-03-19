@@ -1,3 +1,10 @@
+/**
+ * Regression coverage for the card SVG route.
+ * Template modules are replaced with tiny SVG stubs so these tests can verify
+ * request normalization, Redis wiring, and template selection without brittle
+ * full-SVG snapshots.
+ */
+
 import { afterEach, describe, expect, it, mock } from "bun:test";
 
 import { clearSvgCache, clearUserRequestStats } from "@/lib/stores/svg-cache";
@@ -14,6 +21,8 @@ mock.module("@/lib/utils/milestones", () => ({
   calculateMilestones: mock(() => ({ milestone: 100 })),
 }));
 
+// Keep template doubles tiny so assertions stay about route decisions and the
+// normalized template arguments, not incidental SVG markup churn.
 mock.module("@/lib/svg-templates/media-stats/shared", () => ({
   mediaStatsTemplate: mock(
     (data: { styles?: { borderColor?: string } }) =>

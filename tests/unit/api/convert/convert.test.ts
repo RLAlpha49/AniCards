@@ -1,3 +1,9 @@
+/**
+ * Covers the convert route's fetch, sanitization, and format branches.
+ * `sharp` is mocked so the suite can inspect the sanitized SVG handed to
+ * rasterization without turning binary image output into brittle snapshots.
+ */
+
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { NextRequest } from "next/server";
 

@@ -1,3 +1,9 @@
+/**
+ * Regression coverage for the scheduled user refresh job.
+ * The helpers below make retry and removal branches explicit so the suite can
+ * focus on batching decisions and failure bookkeeping instead of fetch ceremony.
+ */
+
 import { afterEach, describe, expect, it, mock } from "bun:test";
 
 import {

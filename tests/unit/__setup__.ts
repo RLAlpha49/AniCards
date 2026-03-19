@@ -1,3 +1,9 @@
+/**
+ * Shared Bun test bootstrap for unit API routes.
+ * Centralizing console silencing and Upstash doubles keeps each spec focused on
+ * handler behavior instead of repeating the same client scaffolding.
+ */
+
 import { mock } from "bun:test";
 
 console.debug = mock(() => {});
