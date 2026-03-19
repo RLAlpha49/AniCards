@@ -15,7 +15,7 @@
     "*.ts",
     "*.mjs"
   ],
-  "ignoreDependencies": ["anilist-stat-cards", "postcss-load-config"],
+  "ignoreDependencies": ["postcss-load-config"],
   "ignoreBinaries": ["ncu"],
   "exclude": ["devDependencies"],
   "ignoreExportsUsedInFile": true
