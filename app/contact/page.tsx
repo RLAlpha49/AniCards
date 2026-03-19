@@ -1,5 +1,9 @@
 "use client";
 
+// Curated contact page for the public site. The content arrays below act like a
+// tiny content model so the order, copy, and supported contact channels can be
+// edited without reshaping the layout.
+
 import { motion } from "framer-motion";
 import {
   ArrowUpRight,
@@ -24,6 +28,8 @@ import {
   trackExternalLinkClick,
 } from "@/lib/utils/google-analytics";
 
+// Keep these as data instead of inline JSX so the page stays easy to reorder or
+// expand when contact options change.
 const CHANNELS = [
   {
     href: "mailto:contact@alpha49.com",
@@ -87,6 +93,8 @@ const REASONS = [
   },
 ];
 
+// Shared motion timing keeps the page feeling like one composed sequence rather
+// than a stack of unrelated sections that all animate slightly differently.
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
@@ -122,6 +130,8 @@ export default function ContactPage() {
   usePageSEO("contact");
 
   const handleLinkClick = (platform: string) => {
+    // Outbound navigation should never wait on analytics, so tracking here is
+    // intentionally best-effort and silent on failure.
     safeTrack(() => trackExternalLinkClick(platform, "contact_page"));
   };
 
