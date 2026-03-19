@@ -357,7 +357,7 @@ export const CardPreview = memo(function CardPreview({
           "pointer-events-none absolute inset-0 flex items-center justify-center gap-3 transition-opacity duration-300",
           overlayPinned
             ? "opacity-100"
-            : "opacity-40 group-focus-within/card-preview:opacity-100 group-hover/card-preview:opacity-100",
+            : "opacity-0 group-focus-within/card-preview:opacity-100 group-hover/card-preview:opacity-100",
         )}
       >
         <OpenInNewTabButton
