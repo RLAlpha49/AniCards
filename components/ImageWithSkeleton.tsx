@@ -24,6 +24,7 @@ type ImageWithSkeletonProps = {
   width?: number;
   height?: number;
   containerClassName?: string;
+  loading?: "eager" | "lazy";
 };
 
 function useInView<T extends HTMLElement | null>(
@@ -184,6 +185,7 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
   width,
   height,
   containerClassName,
+  loading = "lazy",
 }) => {
   const [isMounted, setIsMounted] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -263,7 +265,7 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
         style={{ borderRadius: "4px", ...style }}
         width={width}
         height={height}
-        loading="lazy"
+        loading={loading}
         onLoad={onImageLoad}
         onError={onImageError}
       />

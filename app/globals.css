@@ -461,9 +461,17 @@ body {
 
 .marquee-track {
   display: inline-flex;
-  gap: 1.5rem;
   will-change: transform;
   white-space: nowrap;
+  width: max-content;
+}
+
+.marquee-group {
+  --marquee-gap: 1.5rem;
+  display: inline-flex;
+  gap: var(--marquee-gap);
+  padding-inline-end: var(--marquee-gap);
+  flex-shrink: 0;
 }
 
 .marquee-forward {
