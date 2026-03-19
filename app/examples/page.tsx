@@ -1,3 +1,10 @@
+/**
+ * Examples gallery catalog and URL builder for the public preview page.
+ *
+ * This file keeps the editorial metadata for each showcased card close to the
+ * shared `CARD_GROUPS` config so the preview URLs, category copy, and supported
+ * variations stay in sync without hardcoding example links across components.
+ */
 "use client";
 
 import {
