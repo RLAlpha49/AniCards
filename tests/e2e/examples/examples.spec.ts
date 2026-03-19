@@ -1,4 +1,4 @@
-import { expect,test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 test.describe("Examples gallery", () => {
   test.beforeEach(async ({ page }) => {

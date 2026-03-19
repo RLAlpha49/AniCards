@@ -2,7 +2,7 @@
  * Color utility helpers.
  * Central place for gradient -> CSS conversion and helpers.
  */
-import type { ColorValue,GradientDefinition } from "@/lib/types/card";
+import type { ColorValue, GradientDefinition } from "@/lib/types/card";
 
 /**
  * Convert a hex color string to an rgba() CSS string using the provided alpha.

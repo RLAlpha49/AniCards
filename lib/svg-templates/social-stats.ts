@@ -5,7 +5,7 @@ import {
   TYPOGRAPHY,
 } from "@/lib/svg-templates/common/constants";
 import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
-import { ColorValue,SocialStats } from "@/lib/types/card";
+import { ColorValue, SocialStats } from "@/lib/types/card";
 import type { TrustedSVG } from "@/lib/types/svg";
 
 import {

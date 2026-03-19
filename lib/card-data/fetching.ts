@@ -9,7 +9,7 @@ import {
   reconstructUserRecord,
   UserDataPart,
 } from "@/lib/server/user-data";
-import { CardsRecord,UserRecord } from "@/lib/types/records";
+import { CardsRecord, UserRecord } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
 
 import { CardDataError } from "./validation";
