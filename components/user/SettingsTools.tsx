@@ -1,11 +1,15 @@
 "use client";
 
-// Shared settings toolbox for both global defaults and per-card overrides. The
-// same JSON schema powers copy, download, and import so users can move settings
-// between cards, templates, and full-page defaults without learning separate
-// file formats for each workflow.
-
-import { Copy, Download, FileDown, FileUp, Trash2 } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  ChevronDown,
+  Copy,
+  Download,
+  FileDown,
+  FileUp,
+  Trash2,
+  Wrench,
+} from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
@@ -47,6 +51,7 @@ import {
   type SettingsSnapshot,
   stringifySettingsExport,
 } from "@/lib/user-page-settings-io";
+import { cn } from "@/lib/utils";
 
 type SettingsToolsProps =
   | {
@@ -85,8 +90,6 @@ function downloadJson(filename: string, json: string) {
   a.href = url;
   a.download = filename;
   a.click();
-  // Some browsers cancel downloads if the object URL disappears immediately
-  // after the synthetic click, so revoke it on a short delay instead.
   globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
@@ -107,6 +110,8 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
   const [importText, setImportText] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
+
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const {
     cardConfigs,
@@ -198,8 +203,6 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
   }, [getCardSettingsSnapshot, getGlobalSettingsSnapshot, props]);
 
   const buildExport = useCallback((): SettingsExportV1 => {
-    // "current" means the active target only. The broader scopes are only
-    // available from the global tools because templates live outside a single card.
     if (exportKind === "templates") {
       return exportSettingsTemplates();
     }
@@ -260,8 +263,6 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
       setImportError(null);
       setImportSuccess(null);
 
-      // Accept both the wrapped export format and a bare snapshot so copied JSON
-      // can be hand-edited without recreating export metadata around it.
       const parsed = parseSettingsExportJson(raw);
       if (!parsed.ok) {
         setImportError(parsed.error);
@@ -379,278 +380,351 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
   }, []);
 
   return (
-    <div className="border-gold/20 from-gold/5 via-background to-background dark:border-gold/15 dark:from-gold/3 space-y-4 rounded-xl border bg-linear-to-br p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-foreground font-display text-sm font-semibold">
-            Settings tools
+    <div className="border-border/50 bg-card/40 rounded-xl border backdrop-blur-sm transition-colors">
+      {/* Collapsible Header */}
+      <button
+        type="button"
+        onClick={() => setIsExpanded((v) => !v)}
+        className="hover:bg-muted/40 flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors"
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="bg-gold/10 text-gold dark:bg-gold/15 flex h-7 w-7 items-center justify-center rounded-lg">
+            <Wrench className="h-3.5 w-3.5" />
           </div>
-          <div className="text-muted-foreground text-xs">
-            Copy, save, apply, and import/export settings
-          </div>
-        </div>
-      </div>
-
-      {props.mode === "card" && (
-        <div className="space-y-2">
-          <Label className="text-muted-foreground text-xs font-medium">
-            Copy settings from another card
-          </Label>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <Select value={copyFromCardId} onValueChange={setCopyFromCardId}>
-              <SelectTrigger className="h-9 w-full sm:w-80">
-                <SelectValue placeholder="Select a card" />
-              </SelectTrigger>
-              <SelectContent>
-                {cardOptions.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.label}
-                    {c.enabled ? "" : " (disabled)"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleCopyFromCard}
-              disabled={!copyFromCardId}
-              className="border-gold/20 hover:border-gold/40 hover:bg-gold/5 dark:border-gold/15 h-9"
-            >
-              <Copy className="mr-2 h-4 w-4" aria-hidden="true" />
-              Copy
-            </Button>
+          <div className="min-w-0">
+            <span className="text-foreground text-sm font-semibold tracking-tight">
+              Settings Tools
+            </span>
+            <p className="text-muted-foreground text-[11px]">
+              Copy, templates, import &amp; export
+            </p>
           </div>
         </div>
-      )}
+        <ChevronDown
+          className={cn(
+            "text-muted-foreground h-4 w-4 shrink-0 transition-transform duration-200",
+            isExpanded && "rotate-180",
+          )}
+        />
+      </button>
 
-      <div className="space-y-2">
-        <Label className="text-muted-foreground text-xs font-medium">
-          Templates
-        </Label>
-
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Input
-            value={templateName}
-            onChange={(e) => setTemplateName(e.target.value)}
-            placeholder="Template name"
-            className="h-9 sm:w-80"
-          />
-          <Button
-            type="button"
-            size="sm"
-            className="from-gold to-gold-dim shadow-gold/15 hover:shadow-gold/25 h-9 bg-linear-to-r via-amber-500 text-white shadow-sm hover:shadow-md"
-            onClick={handleSaveTemplate}
-            disabled={!templateName.trim()}
+      {/* Collapsible Content */}
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            key="tools-content"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="overflow-hidden"
           >
-            <FileDown className="mr-2 h-4 w-4" aria-hidden="true" />
-            Save current
-          </Button>
-        </div>
-
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Select
-            value={selectedTemplateId}
-            onValueChange={setSelectedTemplateId}
-          >
-            <SelectTrigger className="h-9 w-full sm:w-80">
-              <SelectValue placeholder="Select a template" />
-            </SelectTrigger>
-            <SelectContent>
-              {templateOptions.length === 0 ? (
-                <SelectItem value="__no_templates" disabled>
-                  No templates yet
-                </SelectItem>
-              ) : (
-                templateOptions.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.name}
-                  </SelectItem>
-                ))
+            <div className="border-border/40 space-y-5 border-t px-4 py-4">
+              {/* ── Copy from Card ─────────────────────────── */}
+              {props.mode === "card" && (
+                <ToolGroup label="Copy from another card">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <Select
+                      value={copyFromCardId}
+                      onValueChange={setCopyFromCardId}
+                    >
+                      <SelectTrigger className="border-border/60 h-9 w-full sm:w-72">
+                        <SelectValue placeholder="Select a card" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {cardOptions.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.label}
+                            {c.enabled ? "" : " (disabled)"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCopyFromCard}
+                      disabled={!copyFromCardId}
+                      className="border-border/60 hover:bg-gold/5 h-9"
+                    >
+                      <Copy className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                      Copy
+                    </Button>
+                  </div>
+                </ToolGroup>
               )}
-            </SelectContent>
-          </Select>
 
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="border-gold/20 hover:border-gold/40 hover:bg-gold/5 dark:border-gold/15 h-9"
-            onClick={handleApplyTemplate}
-            disabled={!selectedTemplateId}
-          >
-            Apply
-          </Button>
+              {/* ── Templates ─────────────────────────────── */}
+              <ToolGroup label="Templates">
+                <div className="space-y-2.5">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <Input
+                      value={templateName}
+                      onChange={(e) => setTemplateName(e.target.value)}
+                      placeholder="Template name"
+                      className="border-border/60 h-9 sm:w-72"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="bg-gold hover:bg-gold/90 h-9 text-white shadow-sm"
+                      onClick={handleSaveTemplate}
+                      disabled={!templateName.trim()}
+                    >
+                      <FileDown
+                        className="mr-1.5 h-3.5 w-3.5"
+                        aria-hidden="true"
+                      />
+                      Save current
+                    </Button>
+                  </div>
 
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                className="h-9"
-                disabled={!selectedTemplateId}
-              >
-                <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
-                Delete
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete template?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will remove the template from your browser. This cannot
-                  be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => {
-                    if (!selectedTemplateId) return;
-                    deleteSettingsTemplate(selectedTemplateId);
-                    setSelectedTemplateId("");
-                  }}
-                >
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      </div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <Select
+                      value={selectedTemplateId}
+                      onValueChange={setSelectedTemplateId}
+                    >
+                      <SelectTrigger className="border-border/60 h-9 w-full sm:w-72">
+                        <SelectValue placeholder="Select a template" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {templateOptions.length === 0 ? (
+                          <SelectItem value="__no_templates" disabled>
+                            No templates yet
+                          </SelectItem>
+                        ) : (
+                          templateOptions.map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {t.name}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
 
-      <div className="space-y-2">
-        <Label className="text-muted-foreground text-xs font-medium">
-          Import / Export (JSON)
-        </Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="border-border/60 hover:bg-gold/5 h-9"
+                      onClick={handleApplyTemplate}
+                      disabled={!selectedTemplateId}
+                    >
+                      Apply
+                    </Button>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Select value={exportKind} onValueChange={handleExportKindChange}>
-            <SelectTrigger className="h-9 w-full sm:w-80">
-              <SelectValue placeholder="Export type" />
-            </SelectTrigger>
-            <SelectContent>
-              {exportKindOptions.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="border-gold/20 hover:border-gold/40 hover:bg-gold/5 dark:border-gold/15 h-9"
-            onClick={handleCopyJson}
-          >
-            <Copy className="mr-2 h-4 w-4" aria-hidden="true" />
-            Copy JSON
-          </Button>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="border-gold/20 hover:border-gold/40 hover:bg-gold/5 dark:border-gold/15 h-9"
-            onClick={handleDownloadJson}
-          >
-            <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-            Download
-          </Button>
-
-          <Dialog open={importOpen} onOpenChange={setImportOpen}>
-            <DialogTrigger asChild>
-              <Button
-                type="button"
-                size="sm"
-                className="from-gold to-gold-dim shadow-gold/15 hover:shadow-gold/25 h-9 bg-linear-to-r via-amber-500 text-white shadow-sm hover:shadow-md"
-              >
-                <FileUp className="mr-2 h-4 w-4" aria-hidden="true" />
-                Import
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Import settings</DialogTitle>
-                <DialogDescription>
-                  Paste JSON or choose a file. Supported: global, card,
-                  templates, or combined exports.
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="settings-import-file" className="sr-only">
-                    Choose a JSON file to import
-                  </Label>
-                  <Input
-                    id="settings-import-file"
-                    type="file"
-                    accept="application/json,.json"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (!f) return;
-                      handleImportFile(f);
-                      e.target.value = "";
-                    }}
-                  />
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="h-9"
+                          disabled={!selectedTemplateId}
+                        >
+                          <Trash2
+                            className="mr-1.5 h-3.5 w-3.5"
+                            aria-hidden="true"
+                          />
+                          Delete
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete template?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will remove the template from your browser.
+                            This cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => {
+                              if (!selectedTemplateId) return;
+                              deleteSettingsTemplate(selectedTemplateId);
+                              setSelectedTemplateId("");
+                            }}
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </div>
+              </ToolGroup>
 
-                <div className="space-y-2">
-                  <Label htmlFor="settings-import-text" className="text-xs">
-                    Or paste JSON
-                  </Label>
-                  <textarea
-                    id="settings-import-text"
-                    value={importText}
-                    onChange={(e) => setImportText(e.target.value)}
-                    className="border-gold/20 bg-background text-foreground focus-visible:ring-gold/50 dark:border-gold/15 h-48 w-full resize-none rounded-md border p-3 font-mono text-xs shadow-sm focus:outline-none focus-visible:ring-2"
-                    placeholder={`{\n  "schemaVersion": 1,\n  ...\n}`}
-                  />
+              {/* ── Import / Export ────────────────────────── */}
+              <ToolGroup label="Import / Export (JSON)">
+                <div className="space-y-2.5">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <Select
+                      value={exportKind}
+                      onValueChange={handleExportKindChange}
+                    >
+                      <SelectTrigger className="border-border/60 h-9 w-full sm:w-72">
+                        <SelectValue placeholder="Export type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {exportKindOptions.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="border-border/60 hover:bg-gold/5 h-9"
+                      onClick={handleCopyJson}
+                    >
+                      <Copy className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                      Copy JSON
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="border-border/60 hover:bg-gold/5 h-9"
+                      onClick={handleDownloadJson}
+                    >
+                      <Download
+                        className="mr-1.5 h-3.5 w-3.5"
+                        aria-hidden="true"
+                      />
+                      Download
+                    </Button>
+
+                    <Dialog open={importOpen} onOpenChange={setImportOpen}>
+                      <DialogTrigger asChild>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="bg-gold hover:bg-gold/90 h-9 text-white shadow-sm"
+                        >
+                          <FileUp
+                            className="mr-1.5 h-3.5 w-3.5"
+                            aria-hidden="true"
+                          />
+                          Import
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl">
+                        <DialogHeader>
+                          <DialogTitle>Import settings</DialogTitle>
+                          <DialogDescription>
+                            Paste JSON or choose a file. Supported: global,
+                            card, templates, or combined exports.
+                          </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2">
+                            <Label
+                              htmlFor="settings-import-file"
+                              className="sr-only"
+                            >
+                              Choose a JSON file to import
+                            </Label>
+                            <Input
+                              id="settings-import-file"
+                              type="file"
+                              accept="application/json,.json"
+                              onChange={(e) => {
+                                const f = e.target.files?.[0];
+                                if (!f) return;
+                                handleImportFile(f);
+                                e.target.value = "";
+                              }}
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label
+                              htmlFor="settings-import-text"
+                              className="text-xs"
+                            >
+                              Or paste JSON
+                            </Label>
+                            <textarea
+                              id="settings-import-text"
+                              value={importText}
+                              onChange={(e) => setImportText(e.target.value)}
+                              className="border-border/60 bg-background text-foreground focus-visible:ring-gold/30 h-48 w-full resize-none rounded-lg border p-3 font-mono text-xs shadow-sm focus:outline-none focus-visible:ring-2"
+                              placeholder={`{\n  "schemaVersion": 1,\n  ...\n}`}
+                            />
+                          </div>
+
+                          {importError ? (
+                            <p role="alert" className="text-sm text-red-600">
+                              {importError}
+                            </p>
+                          ) : null}
+                          {importSuccess ? (
+                            <output
+                              className="text-sm text-green-600"
+                              aria-live="polite"
+                            >
+                              {importSuccess}
+                            </output>
+                          ) : null}
+
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => {
+                                setImportOpen(false);
+                                setImportText("");
+                                setImportError(null);
+                                setImportSuccess(null);
+                              }}
+                            >
+                              Close
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={() => handleImportString(importText)}
+                              disabled={!importText.trim()}
+                            >
+                              Import
+                            </Button>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                  <div className="min-h-5 text-xs">{feedbackNode}</div>
                 </div>
+              </ToolGroup>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
-                {importError ? (
-                  <p role="alert" className="text-sm text-red-600">
-                    {importError}
-                  </p>
-                ) : null}
-                {importSuccess ? (
-                  <output className="text-sm text-green-600" aria-live="polite">
-                    {importSuccess}
-                  </output>
-                ) : null}
+/* ------------------------------------------------------------------ */
+/*  Tool group with label                                             */
+/* ------------------------------------------------------------------ */
 
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setImportOpen(false);
-                      setImportText("");
-                      setImportError(null);
-                      setImportSuccess(null);
-                    }}
-                  >
-                    Close
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={() => handleImportString(importText)}
-                    disabled={!importText.trim()}
-                  >
-                    Import
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-        <div className="min-h-5 text-xs">{feedbackNode}</div>
-      </div>
+function ToolGroup({
+  label,
+  children,
+}: Readonly<{ label: string; children: React.ReactNode }>) {
+  return (
+    <div className="space-y-2">
+      <Label className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
+        {label}
+      </Label>
+      {children}
     </div>
   );
 }
