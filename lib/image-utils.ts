@@ -63,7 +63,7 @@ export async function fetchImageAsDataUrl(
   urlString: string,
 ): Promise<string | null> {
   if (!urlString || typeof urlString !== "string") return null;
-  if (urlString.startsWith("data:")) return urlString; // Already a data URL
+  if (urlString.startsWith("data:")) return urlString;
   if (!isAllowedAniListImageUrl(urlString)) return null;
 
   const now = Date.now();
@@ -90,17 +90,14 @@ export async function fetchImageAsDataUrl(
     const buffer = await response.arrayBuffer();
     if (buffer.byteLength > IMAGE_MAX_BYTES) return null;
 
-    // Convert to base64 without any compression or quality loss
     const base64 = Buffer.from(buffer).toString("base64");
     const dataUrl = `data:${contentType};base64,${base64}`;
 
-    // Cache the result
     imageDataUrlCache.set(urlString, {
       dataUrl,
       expiresAt: now + IMAGE_DATA_URL_CACHE_TTL_MS,
     });
 
-    // Trim cache if it grows too large
     if (imageDataUrlCache.size > 500) {
       const oldestKey = imageDataUrlCache.keys().next().value;
       if (oldestKey) {
@@ -250,33 +247,6 @@ function computeMixedCounts(
 }
 
 /**
- * Create a default mixed-variant result when there are no available items to embed.
- */
-function createEmptyMixedResult(
-  favourites: UserFavourites,
-  animeNodes: unknown[],
-  mangaNodes: unknown[],
-  characterNodes: unknown[],
-  staffNodes: unknown[],
-) {
-  return {
-    ...favourites,
-    anime: favourites.anime
-      ? { ...favourites.anime, nodes: animeNodes }
-      : undefined,
-    manga: favourites.manga
-      ? { ...favourites.manga, nodes: mangaNodes }
-      : undefined,
-    characters: favourites.characters
-      ? { ...favourites.characters, nodes: characterNodes }
-      : undefined,
-    staff: favourites.staff
-      ? { ...favourites.staff, nodes: staffNodes }
-      : { nodes: [] },
-  };
-}
-
-/**
  * Helper that applies non-mixed embedding (single-variant) up to the given limit.
  */
 async function embedNonMixed(
@@ -328,7 +298,6 @@ export async function embedFavoritesGridImages(
     return favourites;
   }
 
-  // Staff variant: embed staff images like characters
   if (variant === "staff") {
     return await embedStaffVariant(favourites, capacity);
   }

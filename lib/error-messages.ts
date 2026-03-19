@@ -317,7 +317,6 @@ export function getErrorDetails(
   message: string,
   statusCode?: number,
 ): ErrorDetails {
-  // Check exact match in map
   const exactMatch = Object.entries(ERROR_MESSAGE_MAP).find(
     ([key]) =>
       message.toLowerCase().includes(key) ||
@@ -342,7 +341,6 @@ export function getErrorDetails(
     return categoryMatch;
   }
 
-  // Return generic error details
   return {
     userMessage: "Something went wrong",
     technicalMessage: message,
@@ -356,37 +354,4 @@ export function getErrorDetails(
       },
     ],
   };
-}
-
-/**
- * Format error details for display to user.
- * Returns tuple of [title, description].
- * @param details - ErrorDetails from getErrorDetails.
- * @returns Formatted [title, description] pair.
- * @source
- */
-export function formatErrorForDisplay(details: ErrorDetails): [string, string] {
-  return [details.userMessage, details.technicalMessage];
-}
-
-/**
- * Check if an error should be retried based on its characteristics.
- * @param details - ErrorDetails to analyze.
- * @returns True if the error is retryable.
- * @source
- */
-export function isErrorRetryable(details: ErrorDetails): boolean {
-  return details.retryable;
-}
-
-/**
- * Get recovery suggestions for an error.
- * @param details - ErrorDetails from getErrorDetails.
- * @returns Array of RecoverySuggestion objects.
- * @source
- */
-export function getRecoverySuggestions(
-  details: ErrorDetails,
-): RecoverySuggestion[] {
-  return details.suggestions;
 }

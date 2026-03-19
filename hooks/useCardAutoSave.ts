@@ -64,50 +64,6 @@ function ensureFourColors(colors?: ColorValue[]): ColorValue[] {
   return out;
 }
 
-function buildGlobalPayloadAndColorsFromState(state: {
-  globalColorPreset: string;
-  globalColors?: ColorValue[];
-  globalBorderEnabled: boolean;
-  globalBorderColor: string;
-  globalBorderRadius?: number;
-  globalAdvancedSettings: {
-    useStatusColors?: boolean;
-    showPiePercentages?: boolean;
-    showFavorites?: boolean;
-    gridCols?: number;
-    gridRows?: number;
-  };
-}): {
-  globalSettings: GlobalSettingsPayload;
-  normalizedGlobalColors: ColorValue[];
-} {
-  const shouldSendGlobalColors =
-    !state.globalColorPreset || state.globalColorPreset === "custom";
-  const normalizedGlobalColors = ensureFourColors(state.globalColors);
-
-  const globalSettings: GlobalSettingsPayload = {
-    colorPreset: state.globalColorPreset,
-    titleColor: shouldSendGlobalColors ? normalizedGlobalColors[0] : undefined,
-    backgroundColor: shouldSendGlobalColors
-      ? normalizedGlobalColors[1]
-      : undefined,
-    textColor: shouldSendGlobalColors ? normalizedGlobalColors[2] : undefined,
-    circleColor: shouldSendGlobalColors ? normalizedGlobalColors[3] : undefined,
-    borderEnabled: state.globalBorderEnabled,
-    borderColor: state.globalBorderColor,
-    borderRadius: state.globalBorderEnabled
-      ? state.globalBorderRadius
-      : undefined,
-    useStatusColors: state.globalAdvancedSettings.useStatusColors,
-    showPiePercentages: state.globalAdvancedSettings.showPiePercentages,
-    showFavorites: state.globalAdvancedSettings.showFavorites,
-    gridCols: state.globalAdvancedSettings.gridCols,
-    gridRows: state.globalAdvancedSettings.gridRows,
-  };
-
-  return { globalSettings, normalizedGlobalColors };
-}
-
 function getCardConfigsInSaveOrder(opts: {
   cardConfigs: Record<string, CardEditorConfig>;
   cardOrder?: readonly string[];
@@ -130,7 +86,6 @@ function getCardConfigsInSaveOrder(opts: {
     seen.add(cfg.cardId);
   }
 
-  // Include any remaining allowed configs not present in cardOrder.
   for (const cfg of Object.values(opts.cardConfigs)) {
     if (!opts.allowedIds.has(cfg.cardId)) continue;
     if (seen.has(cfg.cardId)) continue;
@@ -430,59 +385,6 @@ function buildSavePayloadFromStoreState(
 }
 
 /**
- * Builds the cards array and global settings from the current store state.
- * Note: This reads from the store synchronously via getState(), capturing
- * a snapshot at the moment of invocation. It does not subscribe to changes.
- * @returns Object with userId, cards array, and global settings.
- * @source
- */
-export function buildCardsFromState(): {
-  userId: string | null;
-  cards: ServerCardData[];
-  globalSettings: GlobalSettingsPayload;
-} {
-  const state = useUserPageEditor.getState();
-
-  const {
-    userId,
-    cardConfigs,
-    cardOrder,
-    globalColorPreset,
-    globalBorderEnabled,
-    globalBorderColor,
-    globalBorderRadius,
-    globalAdvancedSettings,
-  } = state;
-
-  const { globalSettings, normalizedGlobalColors } =
-    buildGlobalPayloadAndColorsFromState({
-      globalColorPreset,
-      globalColors: state.globalColors,
-      globalBorderEnabled,
-      globalBorderColor,
-      globalBorderRadius,
-      globalAdvancedSettings,
-    });
-
-  const allowedIds = new Set(statCardTypes.map((t) => t.id));
-  const fallbackOrder = statCardTypes.map((t) => t.id);
-  const configsArray = getCardConfigsInSaveOrder({
-    cardConfigs,
-    cardOrder,
-    allowedIds,
-    fallbackOrder,
-  });
-
-  const cards = buildCardPayloadsFromConfigs({
-    configs: configsArray,
-    globalColorPreset,
-    normalizedGlobalColors,
-  });
-
-  return { userId, cards, globalSettings };
-}
-
-/**
  * Options for the auto-save hook.
  * @source
  */
@@ -511,14 +413,11 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
     null,
   );
 
-  // Tracks whether an auto-save is queued (debounced) and when it is expected
-  // to fire. This is used for UI indicators (e.g., "Auto-save pending").
   const [autoSaveDueAt, setAutoSaveDueAt] = useState<number | null>(null);
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMountedRef = useRef(true);
 
-  // Cleanup on unmount
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
@@ -530,7 +429,6 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
     };
   }, []);
 
-  // Perform the actual save operation
   const performSave = useCallback(
     async (opts?: { reason?: "auto" | "manual" }) => {
       if (saveConflict) {
@@ -548,7 +446,6 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
       const payload = buildSavePayloadFromStoreState(snapshot);
       if (!payload || !isMountedRef.current) return;
 
-      // A save is about to run, so any queued debounce is no longer relevant.
       setAutoSaveDueAt(null);
       setSaving(true);
 
@@ -608,9 +505,7 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
     }
   }, [isDirty, saveConflict]);
 
-  // Manual save function
   const saveNow = useCallback(async () => {
-    // Clear any pending debounced save
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
@@ -621,7 +516,6 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
     await performSave({ reason: "manual" });
   }, [performSave]);
 
-  // Auto-save effect - watches isDirty and triggers debounced save
   const shouldQueueAutoSave =
     enabled && userId != null && isDirty && !isSaving && !saveConflict;
 
@@ -636,7 +530,6 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
       return;
     }
 
-    // Clear any existing timeout
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
@@ -645,12 +538,10 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
     const dueAt = Date.now() + debounceMs;
     setAutoSaveDueAt(dueAt);
 
-    // Set new timeout for debounced save
     timeoutRef.current = setTimeout(() => {
       performSave({ reason: "auto" });
     }, debounceMs);
 
-    // Cleanup on effect re-run
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);

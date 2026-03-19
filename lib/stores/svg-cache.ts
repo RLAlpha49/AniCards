@@ -1,10 +1,6 @@
 import { LRUCache } from "lru-cache";
 
-import {
-  buildAnalyticsMetricKey,
-  incrementAnalytics,
-  redisClient,
-} from "@/lib/api-utils";
+import { buildAnalyticsMetricKey, incrementAnalytics } from "@/lib/api-utils";
 
 /**
  * Represents a cached SVG entry with metadata.
@@ -19,16 +15,6 @@ export interface CachedSvgEntry {
   ttl: number;
   /** Whether this entry is stale but still usable (stale-while-revalidate) */
   isStale: boolean;
-}
-
-/**
- * Represents a cache key with user context.
- * @source
- */
-export interface CacheKey {
-  userId: number;
-  cardType: string;
-  hash: string; // Hash of parameters to differentiate variations
 }
 
 /**
@@ -89,7 +75,6 @@ export function generateCacheKey(
     .map(([k, v]) => `${k}=${v}`)
     .join("&");
 
-  // Create a deterministic key
   const suffix = sortedParams ? `:${sortedParams}` : "";
   return `svg:${userId}:${cardType}${suffix}`;
 }
@@ -192,21 +177,6 @@ function updateUserRequestStats(userId: number): void {
 }
 
 /**
- * Retrieves the list of top N most requested users.
- * Used for cache warming strategies.
- *
- * @param limit - Number of top users to return (default: 100)
- * @returns Array of user IDs sorted by request count
- * @source
- */
-export function getTopRequestedUsers(limit: number = 100): number[] {
-  return Array.from(userRequestStats.values())
-    .sort((a, b) => b.requestCount - a.requestCount)
-    .slice(0, limit)
-    .map((s) => s.userId);
-}
-
-/**
  * Clears the entire in-memory SVG cache.
  * Useful for memory cleanup or testing.
  *
@@ -224,21 +194,6 @@ export function clearSvgCache(): void {
  */
 export function clearUserRequestStats(): void {
   userRequestStats.clear();
-}
-
-/**
- * Gets cache statistics for monitoring and debugging.
- *
- * @returns Object with cache metrics
- * @source
- */
-export function getSvgCacheStats() {
-  return {
-    size: svgCache.size,
-    itemCount: svgCache.size, // LRUCache.size is the item count
-    maxSize: svgCache.maxSize,
-    maxItems: svgCache.max,
-  };
 }
 
 /**
@@ -263,100 +218,4 @@ export async function trackCacheMetric(
   ]).catch(() => {
     // Silently fail analytics to not affect primary functionality
   });
-}
-
-/**
- * Warms the cache by pre-loading frequently accessed cards from Redis.
- * Should be called periodically (e.g., via a cron job).
- *
- * @param topUsers - Array of user IDs to warm cache for
- * @param cardTypes - Array of card types to pre-load (e.g., ["animeStats", "socialStats"])
- * @returns Promise with statistics about the warming process
- * @source
- */
-export async function warmSvgCache(
-  topUsers: number[] = getTopRequestedUsers(100),
-  cardTypes: string[] = [
-    "animeStats",
-    "mangaStats",
-    "socialStats",
-    "animeGenres",
-  ],
-): Promise<{
-  attemptedCount: number;
-  successCount: number;
-  failureCount: number;
-}> {
-  const stats = {
-    attemptedCount: 0,
-    successCount: 0,
-    failureCount: 0,
-  };
-
-  for (const userId of topUsers) {
-    for (const cardType of cardTypes) {
-      stats.attemptedCount++;
-
-      try {
-        // Try to fetch from Redis (user and card data)
-        const redisKey = `user:${userId}`;
-        const userDoc = await redisClient.get(redisKey);
-
-        if (!userDoc) {
-          stats.failureCount++;
-          continue;
-        }
-
-        // Cache is warmed on-demand when cards are generated
-        // This preloads user data into Redis for faster access
-        stats.successCount++;
-      } catch (error) {
-        console.warn(
-          "Failed to warm cache for user %d, cardType %s:",
-          userId,
-          cardType,
-          error,
-        );
-        stats.failureCount++;
-      }
-    }
-  }
-
-  console.log(
-    `✨ [Cache Warming] Attempted: ${stats.attemptedCount}, Success: ${stats.successCount}, Failed: ${stats.failureCount}`,
-  );
-
-  await incrementAnalytics(
-    buildAnalyticsMetricKey("cache_warming", "attempts"),
-  ).catch(() => {});
-
-  return stats;
-}
-
-/**
- * Invalidates a specific cached SVG entry (e.g., when user updates settings).
- * Also supports pattern-based invalidation.
- *
- * @param userId - User ID to invalidate for
- * @param cardType - Specific card type to invalidate, or undefined for all
- * @source
- */
-export function invalidateSvgCache(userId: number, cardType?: string): void {
-  if (cardType) {
-    // Invalidate specific card type
-    const pattern = `svg:${userId}:${cardType}`;
-    for (const key of svgCache.keys()) {
-      if (key.startsWith(pattern)) {
-        svgCache.delete(key);
-      }
-    }
-  } else {
-    // Invalidate all cards for this user
-    const pattern = `svg:${userId}:`;
-    for (const key of svgCache.keys()) {
-      if (key.startsWith(pattern)) {
-        svgCache.delete(key);
-      }
-    }
-  }
 }

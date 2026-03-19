@@ -52,7 +52,6 @@ export const extraAnimeMangaStatsTemplate = (data: {
   fixedStatusColors?: boolean;
   showPiePercentages?: boolean;
 }): TrustedSVG => {
-  // Process colors for gradient support
   const { gradientDefs, resolvedColors } = processColorsForSVG(
     {
       titleColor: data.styles.titleColor,
@@ -703,7 +702,3 @@ export const extraStatsTemplates = {
   animeCountry: createExtraStatsTemplate(displayNames["animeCountry"]),
   mangaCountry: createExtraStatsTemplate(displayNames["mangaCountry"]),
 } as const;
-
-export type ExtraStatsTemplateInput = Parameters<
-  ReturnType<typeof createExtraStatsTemplate>
->[0];

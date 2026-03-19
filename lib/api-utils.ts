@@ -1,6 +1,3 @@
-import type { Agent as HttpAgent } from "node:http";
-import type { Agent as HttpsAgent } from "node:https";
-
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { NextResponse } from "next/server";
@@ -13,35 +10,6 @@ import {
   validateColorValue,
 } from "@/lib/utils";
 
-/**
- * Optional keep-alive HTTP(S) agent used only in Node runtimes to improve
- * connection reuse for Redis/Upstash requests.
- * @source
- */
-let agent: HttpAgent | HttpsAgent | undefined = undefined;
-try {
-  // Prefer detecting the Edge runtime explicit flag for Next.js.
-  const isEdge = process?.env?.NEXT_RUNTIME === "edge";
-  const isNode = typeof process !== "undefined" && !!process.versions?.node;
-
-  if (isNode && !isEdge) {
-    // Use dynamic require here to keep this module compatible with edge runtimes
-    const https = require("node:https");
-    agent = new https.Agent({
-      keepAlive: true,
-      keepAliveMsecs: 30000,
-      maxSockets: 100,
-    });
-  }
-} catch {
-  if (process.env.NODE_ENV !== "production") {
-    console.debug(
-      "Warning: HTTPS Agent not available; continuing without keepAlive agent.",
-    );
-  }
-  agent = undefined;
-}
-
 // Create the Redis client lazily to prevent calling `Redis.fromEnv()` during module initialization.
 // This avoids side effects in test environments (jest mocking) and preserves edge runtime safety.
 let _realRedisClient: Redis | undefined;
@@ -53,7 +21,6 @@ let _realRedisClient: Redis | undefined;
  */
 function createRealRedisClient(): Redis {
   _realRedisClient ??= Redis.fromEnv({
-    agent,
     enableAutoPipelining: true,
     retry: {
       retries: 3,
@@ -458,29 +425,6 @@ export function logSuccess(
 }
 
 /**
- * Validates that the provided request data contains a valid userId.
- * @param data - The payload to validate.
- * @param endpoint - Logical endpoint name for logging context.
- * @returns A NextResponse with an ApiError when invalid, or null otherwise.
- * @source
- */
-export function validateRequestData(
-  data: Record<string, unknown>,
-  endpoint: string,
-  request?: Request,
-): NextResponse<ApiError> | null {
-  if (!data.userId) {
-    console.warn(`⚠️ [${endpoint}] Missing userId in request`);
-    return jsonWithCors(
-      { error: "Missing required field: userId" },
-      request,
-      400,
-    );
-  }
-  return null;
-}
-
-/**
  * Validates the payload for the store-users endpoint including userId,
  * optional username, and stats object shape.
  * @param data - The request data to validate.
@@ -493,13 +437,11 @@ export function validateUserData(
   endpoint: string,
   request?: Request,
 ): NextResponse<ApiError> | null {
-  // Check required fields
   if (data.userId === undefined || data.userId === null) {
     console.warn(`⚠️ [${endpoint}] Missing userId`);
     return jsonWithCors({ error: "Invalid data" }, request, 400);
   }
 
-  // Validate userId is a number
   const userId = Number(data.userId);
   if (!Number.isInteger(userId) || userId <= 0) {
     console.warn(
@@ -508,7 +450,6 @@ export function validateUserData(
     return jsonWithCors({ error: "Invalid data" }, request, 400);
   }
 
-  // Validate username if provided
   if (data.username !== undefined && data.username !== null) {
     if (!isValidUsername(data.username)) {
       console.warn(
@@ -518,7 +459,6 @@ export function validateUserData(
     }
   }
 
-  // Validate stats exists and is an object
   if (!data.stats || typeof data.stats !== "object") {
     console.warn(`⚠️ [${endpoint}] Stats must be a valid object`);
     return jsonWithCors({ error: "Invalid data" }, request, 400);
@@ -539,7 +479,6 @@ export function isValidUsername(value: unknown): boolean {
   if (typeof value !== "string") return false;
   const trimmed = value.trim();
   if (trimmed.length === 0 || trimmed.length > 100) return false;
-  // Only allow letters, numbers, underscores, hyphens and whitespace inside usernames.
   return /^[a-zA-Z0-9_\-\s]*$/.test(trimmed);
 }
 
@@ -604,8 +543,6 @@ function validateCardRequiredFields(
     cardObj: Record<string, unknown>,
     fields: string[],
   ): NextResponse<ApiError> | null {
-    // If the incoming card includes no color fields at all, treat as a partial
-    // patch and skip requiring color fields (they may be merged from existing record).
     const anyColorPresent = fields.some(
       (f) => cardObj[f] !== undefined && cardObj[f] !== null,
     );
@@ -642,7 +579,6 @@ function validateCardRequiredFields(
   const reqStrErr = validateRequiredStringFields(card, fieldsToValidate);
   if (reqStrErr) return reqStrErr;
 
-  // Ensure the cardName points to a supported card type (base type validation)
   const cardNameRaw = card["cardName"];
   if (typeof cardNameRaw !== "string" || !isValidCardType(cardNameRaw)) {
     console.warn(
@@ -656,7 +592,6 @@ function validateCardRequiredFields(
     );
   }
 
-  // Only validate color requirements when not disabled (disabled cards store minimal data)
   if (!isDisabled) {
     const rawPreset = card["colorPreset"];
     const preset =
@@ -777,7 +712,6 @@ function validateCardOptionalFields(
   endpoint: string,
   request?: Request,
 ): NextResponse<ApiError> | null {
-  // Validate optional boolean fields
   const optBoolErr = validateOptionalBooleanFields(
     card,
     cardIndex,
@@ -786,7 +720,6 @@ function validateCardOptionalFields(
   );
   if (optBoolErr) return optBoolErr;
 
-  // Validate borderColor if present (optional, can be hex string or gradient)
   const borderColorValue = card.borderColor;
   const hasBorder = borderColorValue !== undefined && borderColorValue !== null;
   const borderColorErr = validateOptionalBorderColorField(
@@ -797,7 +730,6 @@ function validateCardOptionalFields(
   );
   if (borderColorErr) return borderColorErr;
 
-  // Validate borderRadius (uses helper which can require value when border exists)
   const borderRadiusValue = card.borderRadius;
   const borderRadiusError = validateBorderRadiusField(
     borderRadiusValue,
@@ -808,7 +740,6 @@ function validateCardOptionalFields(
   );
   if (borderRadiusError) return borderRadiusError;
 
-  // Grid numeric validations
   const gridColsError = validateGridNumericField(
     card.gridCols,
     cardIndex,
@@ -1032,7 +963,6 @@ function validateUniqueCardTypes(
   const { uniqueSupportedNames, unknownNames } =
     collectUniqueAndUnknownCardNames(cards, supportedNames);
 
-  // If any invalid/unsupported card names are present, return a clear error
   if (unknownNames.size > 0) {
     console.warn(
       `⚠️ [${endpoint}] Invalid card types provided: ${[...unknownNames].join(", ")}`,
@@ -1052,7 +982,6 @@ function validateUniqueCardTypes(
     );
   }
 
-  // Enforce the allowed maximum against supported card types only
   if (uniqueSupportedNames.size > MAX_ALLOWED_CARDS) {
     console.warn(
       `⚠️ [${endpoint}] Too many unique card types provided: ${uniqueSupportedNames.size} (max ${MAX_ALLOWED_CARDS})`,
@@ -1089,7 +1018,6 @@ function validateCardsItems(
 
     const cardRecord = card as Record<string, unknown>;
 
-    // Validate required fields
     const requiredFieldsError = validateCardRequiredFields(
       cardRecord,
       i,
@@ -1098,7 +1026,6 @@ function validateCardsItems(
     );
     if (requiredFieldsError) return requiredFieldsError;
 
-    // Validate optional fields
     const optionalFieldsError = validateCardOptionalFields(
       cardRecord,
       i,
@@ -1133,21 +1060,17 @@ export function validateCardData(
   endpoint: string,
   request?: Request,
 ): ValidateCardDataResult {
-  // Validate userId
   const userIdError = validateUserIdField(userId, endpoint, request);
   if (userIdError) return { success: false, error: userIdError };
 
-  // Validate that cards is an array
   const cardsArrayError = validateCardsArrayField(cards, endpoint, request);
   if (cardsArrayError) return { success: false, error: cardsArrayError };
 
   const cardsArr = cards as unknown[];
 
-  // Validate unique card types limit
   const uniqueErr = validateUniqueCardTypes(cardsArr, endpoint, request);
   if (uniqueErr) return { success: false, error: uniqueErr };
 
-  // Validate each card's structure and fields
   const itemsErr = validateCardsItems(cardsArr, endpoint, request);
   if (itemsErr) return { success: false, error: itemsErr };
 
@@ -1170,7 +1093,6 @@ export function validateCardData(
         typeof r.colorPreset === "string" && r.colorPreset.length > 0
           ? r.colorPreset
           : undefined,
-      // Colours may be string or gradient objects; keep as-is and trust validation
       titleColor: r.titleColor as StoredCardConfig["titleColor"],
       backgroundColor: r.backgroundColor as StoredCardConfig["backgroundColor"],
       textColor: r.textColor as StoredCardConfig["textColor"],
@@ -1235,7 +1157,6 @@ export async function initializeApiRequest(
 
   logRequest(endpoint, ip);
 
-  // Check rate limit
   const rateLimitResponse = await checkRateLimit(
     request,
     ip,
@@ -1253,7 +1174,6 @@ export async function initializeApiRequest(
     };
   }
 
-  // Validate same-origin request (for write operations)
   const sameOriginResponse = validateSameOrigin(request, endpoint, endpointKey);
   if (sameOriginResponse) {
     return {

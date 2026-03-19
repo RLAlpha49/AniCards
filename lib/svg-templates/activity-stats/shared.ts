@@ -129,53 +129,6 @@ export function computeStreaks(history: ActivityHistoryItem[]): {
 }
 
 /**
- * Computes activity patterns by day of week and month.
- * @param history - Activity history array.
- * @returns Object with day-of-week and month distributions.
- * @source
- */
-export function computeActivityPatterns(history: ActivityHistoryItem[]): {
-  byDayOfWeek: number[];
-  byMonth: number[];
-  mostActiveDay: string;
-  mostActiveMonth: string;
-} {
-  const dayOfWeek = [0, 0, 0, 0, 0, 0, 0]; // Sun-Sat
-  const byMonth = new Array(12).fill(0); // Jan-Dec
-  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const monthNames = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ];
-
-  for (const item of history) {
-    const date = new Date(item.date * 1000);
-    dayOfWeek[date.getUTCDay()] += item.amount;
-    byMonth[date.getUTCMonth()] += item.amount;
-  }
-
-  const maxDayIdx = dayOfWeek.indexOf(Math.max(...dayOfWeek));
-  const maxMonthIdx = byMonth.indexOf(Math.max(...byMonth));
-
-  return {
-    byDayOfWeek: dayOfWeek,
-    byMonth,
-    mostActiveDay: dayNames[maxDayIdx],
-    mostActiveMonth: monthNames[maxMonthIdx],
-  };
-}
-
-/**
  * Detects top activity days from activity history.
  * A top day is defined as a day with activity significantly above average.
  * @param history - Activity history array.
