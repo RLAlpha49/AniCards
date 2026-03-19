@@ -1,5 +1,9 @@
 "use client";
 
+// Owns the interactive surface for one card: preview lifecycle, compare/expand
+// affordances, and per-card actions all live here while the shared editor store
+// remains the source of truth for card state.
+
 import { AnimatePresence, motion } from "framer-motion";
 import { Columns2, Maximize2 } from "lucide-react";
 import { memo, useCallback, useEffect, useId, useMemo, useState } from "react";
@@ -40,19 +44,11 @@ import {
 } from "@/lib/stores/user-page-editor";
 import { cn, getCardBorderRadius } from "@/lib/utils";
 
-/**
- * Variation option for a card type.
- * @source
- */
 interface CardVariation {
   id: string;
   label: string;
 }
 
-/**
- * Props for CardTile component.
- * @source
- */
 interface CardTileProps {
   /** Card type ID */
   cardId: string;
@@ -399,12 +395,6 @@ function ExpandedPreviewDialog({
   );
 }
 
-/**
- * Individual card tile with preview, variant selector, and settings.
- * @param props - Component props.
- * @returns JSX element.
- * @source
- */
 export const CardTile = memo(function CardTile({
   cardId,
   label,

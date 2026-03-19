@@ -1,5 +1,9 @@
 "use client";
 
+// Composes the user-page editor shell: data loading, autosave/draft recovery,
+// keyboard shortcuts, filtering, and bulk actions all meet here so individual
+// card tiles can stay focused on per-card rendering and controls.
+
 import { motion } from "framer-motion";
 import {
   Activity,
@@ -118,10 +122,6 @@ function ShortcutHint({ children }: Readonly<{ children: string }>) {
   );
 }
 
-/**
- * Human-readable messages for each loading phase.
- * @source
- */
 const LOADING_PHASE_MESSAGES: Record<LoadingPhase, string> = {
   idle: "Preparing...",
   checking: "Checking your profile...",
@@ -219,19 +219,11 @@ function UserPageEditorErrorScreen(props: Readonly<{ loadError: string }>) {
   );
 }
 
-/**
- * Card types that support status colors.
- * @source
- */
 const STATUS_COLOR_CARDS = new Set([
   "animeStatusDistribution",
   "mangaStatusDistribution",
 ]);
 
-/**
- * Card types that support pie percentages (for pie/donut variations).
- * @source
- */
 const PIE_PERCENTAGE_CARDS = new Set([
   "animeGenres",
   "animeTags",
@@ -251,10 +243,6 @@ const PIE_PERCENTAGE_CARDS = new Set([
   "mangaCountry",
 ]);
 
-/**
- * Card types that support favorites toggle.
- * @source
- */
 const FAVORITES_CARDS = new Set([
   "animeVoiceActors",
   "animeStudios",
@@ -830,12 +818,6 @@ function useStableCardCustomizedById(): Record<string, boolean> {
   );
 }
 
-/**
- * Main user page editor component.
- * Handles loading user data, displaying cards, and saving changes.
- * @returns JSX element.
- * @source
- */
 export function UserPageEditor() {
   const expectedCardCount = statCardTypes.length;
   const searchParams = useSearchParams();

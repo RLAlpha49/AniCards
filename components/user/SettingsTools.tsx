@@ -1,5 +1,10 @@
 "use client";
 
+// Shared settings toolbox for both global defaults and per-card overrides. The
+// same JSON schema powers copy, download, and import so users can move settings
+// between cards, templates, and full-page defaults without learning separate
+// file formats for each workflow.
+
 import { Copy, Download, FileDown, FileUp, Trash2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -80,7 +85,8 @@ function downloadJson(filename: string, json: string) {
   a.href = url;
   a.download = filename;
   a.click();
-  // Some browsers may cancel the download if the object URL is revoked too early.
+  // Some browsers cancel downloads if the object URL disappears immediately
+  // after the synthetic click, so revoke it on a short delay instead.
   globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
@@ -192,6 +198,8 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
   }, [getCardSettingsSnapshot, getGlobalSettingsSnapshot, props]);
 
   const buildExport = useCallback((): SettingsExportV1 => {
+    // "current" means the active target only. The broader scopes are only
+    // available from the global tools because templates live outside a single card.
     if (exportKind === "templates") {
       return exportSettingsTemplates();
     }
@@ -252,6 +260,8 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
       setImportError(null);
       setImportSuccess(null);
 
+      // Accept both the wrapped export format and a bare snapshot so copied JSON
+      // can be hand-edited without recreating export metadata around it.
       const parsed = parseSettingsExportJson(raw);
       if (!parsed.ok) {
         setImportError(parsed.error);

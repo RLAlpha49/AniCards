@@ -1,5 +1,9 @@
 "use client";
 
+// Wraps Driver.js with AniCards-specific persistence and selector fallbacks.
+// Many tour targets are conditional on card state, so the fallback resolution
+// keeps onboarding stable instead of silently dropping steps.
+
 import { driver, type DriveStep } from "driver.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
