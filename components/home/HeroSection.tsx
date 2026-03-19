@@ -153,7 +153,7 @@ export function HeroSection() {
               variants={cardFloat}
               initial="hidden"
               animate="visible"
-              className="hero-card-float absolute rounded-sm shadow-2xl shadow-black/20 dark:shadow-black/50"
+              className="hero-card-float absolute rounded-lg shadow-2xl shadow-black/20 dark:shadow-black/50"
               style={{
                 rotate: `${card.rotate}deg`,
                 zIndex: card.z,
@@ -162,7 +162,7 @@ export function HeroSection() {
                 width: "clamp(200px, 55%, 320px)",
               }}
             >
-              <div className="overflow-hidden rounded-sm border-2 border-[hsl(var(--gold)/0.2)]">
+              <div className="overflow-hidden rounded-lg border-2 border-[hsl(var(--gold)/0.2)]">
                 <ImageWithSkeleton
                   src={buildPreviewSrc(card.cardType, card.variation)}
                   alt={`${card.cardType} preview`}
