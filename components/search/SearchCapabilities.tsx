@@ -1,0 +1,85 @@
+"use client";
+
+import { motion } from "framer-motion";
+import { Layers, Palette, Share2 } from "lucide-react";
+
+const CAPABILITIES = [
+  {
+    icon: Layers,
+    title: "MULTIPLE CARD TYPES",
+    desc: "From activity stats to genre breakdowns, favorites, and social metrics \u2014 every facet of your profile, visualized.",
+  },
+  {
+    icon: Palette,
+    title: "RICH THEMES",
+    desc: "Choose from curated color palettes or craft your own. Dark, light, vibrant, or minimal \u2014 your aesthetic, your rules.",
+  },
+  {
+    icon: Share2,
+    title: "EXPORT ANYWHERE",
+    desc: "SVG and PNG output that renders flawlessly on GitHub readmes, social profiles, forums, and everywhere in between.",
+  },
+];
+
+export function SearchCapabilities() {
+  return (
+    <section className="px-6 py-20 sm:px-12 md:py-28">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: "-80px" }}
+        transition={{ duration: 0.6 }}
+        className="mb-16 text-center"
+      >
+        <p className="text-gold mb-4 text-xs tracking-[0.5em] uppercase sm:text-sm">
+          What Awaits
+        </p>
+        <h2 className="font-display text-foreground mb-4 text-3xl tracking-[0.15em] sm:text-4xl">
+          CRAFT YOUR COLLECTION
+        </h2>
+        <div className="gold-line-thick mx-auto max-w-20" />
+      </motion.div>
+
+      <div className="mx-auto grid max-w-5xl grid-cols-1 gap-8 md:grid-cols-3 md:gap-6">
+        {CAPABILITIES.map((cap, i) => (
+          <motion.div
+            key={cap.title}
+            initial={{ opacity: 0, y: 40, scale: 0.96 }}
+            whileInView={{ opacity: 1, y: 0, scale: 1 }}
+            viewport={{ once: true, margin: "-50px" }}
+            transition={{ duration: 0.6, delay: i * 0.12 }}
+            whileHover={{ y: -6, transition: { duration: 0.25 } }}
+            className={`group border-gold/10 bg-gold/2 relative border-2 p-8 text-center transition-colors duration-500 hover:border-gold/30${i === 1 ? "md:-translate-y-4" : ""}`}
+          >
+            {/* Top accent line that slides in */}
+            <div className="absolute top-0 right-0 left-0 h-0.5 overflow-hidden">
+              <motion.div
+                className="via-gold h-full bg-linear-to-r from-transparent to-transparent"
+                initial={{ x: "-100%" }}
+                whileInView={{ x: "0%" }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.8, delay: 0.3 + i * 0.1 }}
+              />
+            </div>
+
+            {/* Icon container */}
+            <div className="border-gold/20 bg-gold/5 group-hover:border-gold/40 group-hover:bg-gold/8 mx-auto mb-6 flex h-16 w-16 items-center justify-center border transition-all duration-300">
+              <cap.icon className="text-gold/70 group-hover:text-gold h-7 w-7 transition-colors" />
+            </div>
+
+            <h3 className="font-display text-foreground mb-4 text-sm tracking-[0.25em]">
+              {cap.title}
+            </h3>
+            <div className="gold-line mx-auto mb-4 max-w-10" />
+            <p className="font-body-serif text-foreground/45 text-sm leading-relaxed">
+              {cap.desc}
+            </p>
+
+            {/* Hover glow */}
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,hsl(var(--gold)/0.04),transparent_70%)] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+          </motion.div>
+        ))}
+      </div>
+    </section>
+  );
+}
