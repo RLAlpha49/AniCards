@@ -1,3 +1,10 @@
+/**
+ * Shared layout engine for the comparative analytics cards.
+ *
+ * Individual comparative cards only provide labels and metric/bar data; this
+ * module owns the two-column sizing and rendering rules so those cards keep a
+ * consistent structure without duplicating layout math.
+ */
 import {
   ANIMATION,
   getCardDimensions,

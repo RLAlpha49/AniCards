@@ -1,3 +1,10 @@
+/**
+ * Shared SVG renderer for category-style anime and manga breakdown cards.
+ *
+ * Genres, tags, studios, status distributions, and similar cards all reuse this
+ * file so the project can support several chart variants without duplicating the
+ * same legend, sizing, and favorite-highlighting rules in every template.
+ */
 import { displayNames } from "@/lib/card-data";
 import {
   ANIMATION,

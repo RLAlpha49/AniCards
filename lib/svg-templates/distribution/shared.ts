@@ -1,3 +1,10 @@
+/**
+ * Shared renderer for score and year distribution cards.
+ *
+ * This module normalizes sparse input data, handles variant-specific layouts,
+ * and marks year gaps/cumulative views so card-specific callers only need to
+ * provide typed values and styling.
+ */
 import { generateCardBackground } from "@/lib/svg-templates/common/base-template-utils";
 import {
   ANIMATION,
