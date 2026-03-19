@@ -12,7 +12,7 @@ import {
   validateUserData,
 } from "@/lib/api-utils";
 import { validateAndNormalizeUserRecord } from "@/lib/card-data";
-import { fetchUserDataParts,saveUserRecord } from "@/lib/server/user-data";
+import { fetchUserDataParts, saveUserRecord } from "@/lib/server/user-data";
 import { UserRecord } from "@/lib/types/records";
 
 /**
@@ -37,7 +37,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       `📝 [${endpoint}] Processing user ${data.userId} (${data.username || "no username"})`,
     );
 
-    // Validate incoming data
     const validationError = validateUserData(
       data as Record<string, unknown>,
       endpoint,
@@ -67,7 +66,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       updatedAt: new Date().toISOString(),
     };
 
-    // Normalize and prune data before saving to Redis
     const normalizationResult = validateAndNormalizeUserRecord(userData);
     const finalUserData =
       "normalized" in normalizationResult
@@ -80,7 +78,6 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     await saveUserRecord(finalUserData);
 
-    // Create/update the username index if a username is provided.
     if (data.username) {
       const normalizedUsername = data.username.trim().toLowerCase();
       const usernameIndexKey = `username:${normalizedUsername}`;

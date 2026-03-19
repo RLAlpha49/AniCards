@@ -130,9 +130,9 @@ async function handleFailureTracking(
     const usernameIndexKey = await getUsernameIndexKey(redisClient, userId);
 
     const deletions = [
-      deleteUserRecord(userId), // Remove user data (all parts)
-      redisClient.del(failureKey), // Remove failure tracking
-      redisClient.del(cardsKey), // Remove user's card configurations
+      deleteUserRecord(userId),
+      redisClient.del(failureKey),
+      redisClient.del(cardsKey),
       ...(usernameIndexKey ? [redisClient.del(usernameIndexKey)] : []),
     ];
 
@@ -143,10 +143,10 @@ async function handleFailureTracking(
         usernameIndexKey ? ` (removed ${usernameIndexKey})` : ""
       }`,
     );
-    return true; // User was removed
+    return true;
   } else {
     await redisClient.set(failureKey, newFailureCount);
-    return false; // User was not removed
+    return false;
   }
 }
 
@@ -279,7 +279,6 @@ export async function POST(request: Request) {
     );
 
     const allKeys = await scanAllKeys("user:*");
-    // Filter to only include numeric user IDs and avoid analytics or other keys
     const userIds = Array.from(
       new Set(
         allKeys
@@ -289,7 +288,6 @@ export async function POST(request: Request) {
     );
     const totalUsers = userIds.length;
 
-    // Fetch meta for all users to sort by updatedAt
     const metaKeys = userIds.map((id) => `user:${id}:meta`);
     const metaResults = await Promise.all(
       metaKeys.map((key) => redisClient.get(key)),
@@ -324,14 +322,12 @@ export async function POST(request: Request) {
       });
     }
 
-    // Sort by updatedAt (oldest first)
     validUsers.sort((a, b) => {
       const dateA = new Date(a.updatedAt || 0).getTime();
       const dateB = new Date(b.updatedAt || 0).getTime();
       return dateA - dateB;
     });
 
-    // Select the 5 oldest users
     const batch = validUsers.slice(0, 5);
 
     console.log(
@@ -370,10 +366,8 @@ export async function POST(request: Request) {
           const updateResult = await updateUserStats(user.userId);
 
           if (updateResult.success) {
-            // Update user data in Redis with the fetched stats
             user.stats = updateResult.statsData.data;
 
-            // Normalize and prune data before saving to keep Redis size down
             const normalizationResult = validateAndNormalizeUserRecord(user);
             const finalUser =
               "normalized" in normalizationResult
@@ -416,7 +410,6 @@ export async function POST(request: Request) {
       `📊 Results: ${successfulUpdates} successful, ${failedUpdates} failed (404), ${removedUsers} removed.`,
     );
 
-    // Compute recommended cron expressions for 5 and 10 users per run
     const recFor5 = computeCronForBatch(totalUsers, 5);
     const recFor10 = computeCronForBatch(totalUsers, 10);
 

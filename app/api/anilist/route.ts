@@ -96,9 +96,7 @@ function parseOperationInfo(requestData: GraphQLRequest): OperationInfo {
 async function trackAnalytics(metric: string): Promise<void> {
   try {
     await incrementAnalytics(metric);
-  } catch {
-    // Silently fail for analytics
-  }
+  } catch {}
 }
 
 /**
@@ -260,13 +258,11 @@ export async function POST(request: Request) {
     const statusMatch = statusPattern.exec(errorMessage);
     const statusCode = statusMatch ? Number.parseInt(statusMatch[1], 10) : 500;
 
-    // Determine error category using centralized categorization
     const errorCategory =
       statusCode === 500
         ? categorizeError(errorMessage)
         : categorizeByStatusCode(statusCode);
 
-    // Track error with context
     trackUserActionError(
       `anilist_api_${operationInfo.name}`,
       error instanceof Error ? error : new Error(errorMessage),

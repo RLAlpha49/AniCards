@@ -45,6 +45,7 @@ function createSharpInstance(buf?: Buffer) {
       return instance;
     }),
     webp: mock((opts: { quality: number }) => {
+      void opts;
       lastSharpFormat = "webp";
       return instance;
     }),
@@ -648,6 +649,7 @@ describe("Convert API POST Endpoint", () => {
      * Stubs `fetch` to return controlled SVG responses.
      */
     const mockFetchSvg = (svg: string, ok = true, status = 200) => {
+      void ok;
       globalThis.fetch = mock(
         async () =>
           new Response(svg, {

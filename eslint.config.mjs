@@ -1,6 +1,6 @@
-import { defineConfig, globalIgnores } from "eslint/config"
-import simpleImportSort from "eslint-plugin-simple-import-sort"
-import tseslint from "typescript-eslint"
+import { defineConfig, globalIgnores } from "eslint/config";
+import simpleImportSort from "eslint-plugin-simple-import-sort";
+import tseslint from "typescript-eslint";
 
 const eslintConfig = defineConfig([
   ...tseslint.configs.recommended,
@@ -11,28 +11,22 @@ const eslintConfig = defineConfig([
     settings: {
       react: {
         version: "19.2.4",
-        defaultVersion: "19.2.4"
-      }
-    }
+        defaultVersion: "19.2.4",
+      },
+    },
   },
   // Override default ignores of eslint-config-next.
-  globalIgnores([
-    // Default ignores of eslint-config-next:
-    ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts"
-  ]),
+  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
   {
     plugins: {
-      "simple-import-sort": simpleImportSort
+      "simple-import-sort": simpleImportSort,
     },
     rules: {
       "@typescript-eslint/no-unused-expressions": "warn",
       "@typescript-eslint/no-unused-vars": "warn",
       "simple-import-sort/imports": "error",
-      "simple-import-sort/exports": "error"
-    }
+      "simple-import-sort/exports": "error",
+    },
   },
   {
     rules: {
@@ -43,13 +37,13 @@ const eslintConfig = defineConfig([
           paths: [
             {
               name: "next/image",
-              message: "Use the native <img> element instead of next/image."
-            }
-          ]
-        }
-      ]
-    }
-  }
+              message: "Use the native <img> element instead of next/image.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

@@ -21,19 +21,17 @@ function isWhitespaceOrComments(substr: string): boolean {
     const ch = substr[i];
     const nxt = substr[i + 1];
     if (inComment) {
-      // Found end of comment marker '*/'
       if (ch === "*" && nxt === "/") {
         inComment = false;
-        i += 2; // skip '*/'
+        i += 2;
         continue;
       }
       i += 1;
       continue;
     }
-    // Start of a comment '/*'
     if (ch === "/" && nxt === "*") {
       inComment = true;
-      i += 2; // skip '/*'
+      i += 2;
       continue;
     }
     if (!/\s/.test(ch)) return false;
@@ -51,10 +49,9 @@ function isWhitespaceOrComments(substr: string): boolean {
  * @source
  */
 function advanceIndexPastEndOfComment(input: string, start: number): number {
-  // start points to '/' and next is '*'
   let j = start + 2;
   while (j < input.length) {
-    if (input[j] === "*" && input[j + 1] === "/") return j + 2; // position after '*/'
+    if (input[j] === "*" && input[j + 1] === "/") return j + 2;
     j += 1;
   }
   return j;
@@ -76,7 +73,7 @@ function advanceIndexPastEndOfQuote(
   let j = start + 1;
   while (j < input.length) {
     // treat escaped quotes as not closing
-    if (input[j] === quote && input[j - 1] !== "\\") return j + 1; // position after closing quote
+    if (input[j] === quote && input[j - 1] !== "\\") return j + 1;
     j += 1;
   }
   return j;
@@ -96,12 +93,10 @@ function findMatchingBraceEndIndex(input: string, openIdx: number): number {
   while (j < input.length && depth > 0) {
     const ch = input[j];
     const nxt = input[j + 1];
-    // skip comments
     if (ch === "/" && nxt === "*") {
       j = advanceIndexPastEndOfComment(input, j);
       continue;
     }
-    // skip quoted strings
     if (ch === "'") {
       j = advanceIndexPastEndOfQuote(input, j, "'");
       continue;
@@ -169,12 +164,10 @@ function collectCssBlocks(input: string): Array<{
   while (i < input.length) {
     const ch = input[i];
     const nxt = input[i + 1];
-    // skip comments
     if (ch === "/" && nxt === "*") {
       i = advanceIndexPastEndOfComment(input, i);
       continue;
     }
-    // skip quotes
     if (ch === "'") {
       i = advanceIndexPastEndOfQuote(input, i, "'");
       continue;
@@ -343,12 +336,9 @@ function removeAtRuleBlocks(inputCss: string, atRuleName: string): string {
       out += inputCss.slice(i);
       break;
     }
-    // Append thing before the at-rule
     out += inputCss.slice(i, idx);
-    // Find opening brace for the at-rule, while respecting quotes/comments
     const j = findOpeningBraceIndex(inputCss, idx);
     if (j >= inputCss.length) break; // malformed at-rule without block
-    // Find the end of the brace-block using helper
     const endIndex = findMatchingBraceEndIndex(inputCss, j);
     i = endIndex;
   }
@@ -472,18 +462,12 @@ export function sanitizeCssContent(css: string): {
   classesToStrip: string[];
 } {
   if (!css?.includes("{")) return { css, classesToStrip: [] };
-  // 1) Remove @keyframes via a safe scan. Also remove vendor-prefixed keyframes.
   let sanitized = removeAtRuleBlocks(css, "keyframes");
   sanitized = removeAtRuleBlocks(sanitized, "-webkit-keyframes");
   sanitized = removeAtRuleBlocks(sanitized, "-moz-keyframes");
   sanitized = removeAtRuleBlocks(sanitized, "-ms-keyframes");
-  // Lowercase copy for content checks - not needed at the moment
   const classesToStrip = new Set<string>();
-
-  // 2) Parse block-based rules using brace matching (we can reuse existing helpers)
   const blocks = collectCssBlocks(sanitized);
-
-  // Rebuild sanitized CSS by iterating blocks and sanitizing inner content
   let out = "";
   let lastPos = 0;
   for (const b of blocks) {
@@ -499,31 +483,23 @@ export function sanitizeCssContent(css: string): {
     // to `.stagger` selectors that are used for AniList templates' animations.
     if (/\.stagger\b/i.test(selectorText)) {
       if (/(?:animation\b|animation-\w+\b|animation\s*:)/i.test(innerText)) {
-        // remove .stagger token(s) from the selectorList
         const selectors = splitSelectors(selectorText);
         const filtered = selectors.filter(
           (s) => !selectorContainsClass(s, "stagger"),
         );
         if (filtered.length === 0) {
-          // Skip the entire rule
           lastPos = b.closeIdx + 1;
-          // Mark that we should remove class="stagger" tokens from markup later
           classesToStrip.add("stagger");
           continue;
         }
         newSelectorText = filtered.join(", ");
-        // Mark removal from markup if we changed selector list to drop .stagger
         classesToStrip.add("stagger");
       }
     }
-
-    // Append sanitized rule
     out += `${newSelectorText}{${newInner}}`;
     lastPos = b.closeIdx + 1;
   }
   out += sanitized.slice(lastPos);
-
-  // 3) Global cleanup: remove any leftover animation properties or vendor prefixes
   out = out.replaceAll(
     /(?:-webkit-|-moz-|-ms-)?animation(?:-[\w-]+)?\s*:\s*[^;]+;?/gi,
     "",
@@ -534,14 +510,11 @@ export function sanitizeCssContent(css: string): {
   );
   // Replace any leftover to blocks (safety)
   out = out.replaceAll(/\bto\s*\{[^}]*\}/gi, "");
-  // Normalize opacity/visibility
   out = out.replaceAll(/opacity\s*:\s*0+(?:\.\d+)?\s*;?/gi, "opacity: 1;");
   out = out.replaceAll(
     /visibility\s*:\s*hidden\s*;?/gi,
     "visibility: visible;",
   );
-
-  // 4) Remove empty rules that become empty after our changes
   out = removeEmptyCssRules(out);
   return { css: out, classesToStrip: Array.from(classesToStrip) };
 }
@@ -558,14 +531,13 @@ export function removeClassTokensFromMarkup(
   classTokens: string[],
 ): string {
   if (!classTokens || classTokens.length === 0) return svg;
-  // Replace both single and double-quoted class attributes
   svg = svg.replaceAll(/class=(['"])(.*?)\1/gi, (match, quote, clsValue) => {
     const tokens = clsValue
       .split(/\s+/)
       .map((s: string) => s.trim())
       .filter(Boolean);
     const remaining = tokens.filter((t: string) => !classTokens.includes(t));
-    if (remaining.length === 0) return ""; // remove entire attribute
+    if (remaining.length === 0) return "";
     return `class=${quote}${remaining.join(" ")}${quote}`;
   });
   return svg;
@@ -580,7 +552,6 @@ export function removeClassTokensFromMarkup(
  */
 export function sanitizeInlineStyleAttributes(svg: string): string {
   return svg.replaceAll(/style=(['"])(.*?)\1/gi, (m, quote, styleValue) => {
-    // Split declarations by semicolon, but tolerate trailing/leading semicolons
     const parts = styleValue
       .split(/;+/)
       .map((p: string) => p.trim())
@@ -591,13 +562,10 @@ export function sanitizeInlineStyleAttributes(svg: string): string {
       if (!rawName || rest.length === 0) continue;
       const name = rawName.trim().toLowerCase();
       const val = rest.join(":").trim();
-      // Skip animation properties and vendor prefixed animation
       if (/^(?:-webkit-|-moz-|-ms-)?animation(?:-.*)?$/i.test(name)) continue;
       let finalVal = val;
-      // Normalize opacity
       if (name === "opacity" && /^\s*0+(?:\.\d+)?\s*$/.test(val))
         finalVal = "1";
-      // Normalize visibility
       if (name === "visibility" && /^\s*hidden\s*$/i.test(val))
         finalVal = "visible";
       outParts.push(`${name}: ${finalVal}`);
@@ -757,7 +725,6 @@ export async function POST(request: NextRequest) {
   console.log(`🚀 [Convert API] Request received from ${ip}`);
 
   try {
-    // 1. Parse input and fetch SVG content
     const { svgUrl, format } = await request.json();
     if (!svgUrl) {
       console.warn(`⚠️ [Convert API] Missing 'svgUrl' parameter from ${ip}`);
@@ -782,7 +749,6 @@ export async function POST(request: NextRequest) {
     }
     const requestedFormat = normalizedFormat;
 
-    // Validate the svgUrl
     let parsedUrl;
     try {
       // Handle relative URLs by using the request origin as base
@@ -842,14 +808,10 @@ export async function POST(request: NextRequest) {
       `📝 [Convert API] Received SVG content (${svgContent.length} characters)`,
     );
 
-    // 1. Extract and sanitize CSS style blocks
-    // Regex explanation:
-    // - <style>([\s\S]*?)<\/style> matches the <style> tag and everything inside it
     const { svg: sanitizedSvg } = sanitizeFullSvg(svgContent);
     svgContent = sanitizedSvg;
     console.log("🧼 [Convert API] Final SVG cleanup completed.");
 
-    // 4. Convert the processed SVG to the requested raster format using sharp
     console.log(
       `🔄 [Convert API] Converting SVG to ${requestedFormat.toUpperCase()} using sharp...`,
     );

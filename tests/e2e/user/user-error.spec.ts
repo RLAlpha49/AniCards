@@ -5,7 +5,7 @@ test.describe("User page error states", () => {
     page,
     mockRateLimitedApi,
   }) => {
-    mockRateLimitedApi;
+    void mockRateLimitedApi;
 
     await page.goto("/user?username=RateLimitedUser");
 
@@ -26,7 +26,7 @@ test.describe("User page error states", () => {
     page,
     mockNetworkError,
   }) => {
-    mockNetworkError;
+    void mockNetworkError;
 
     await page.goto("/user?username=OfflineUser");
 

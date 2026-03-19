@@ -14,7 +14,6 @@ export default function AnalyticsProvider({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Initialize GA hook for page tracking and analytics side effects.
   useGoogleAnalytics();
   return <>{children}</>;
 }

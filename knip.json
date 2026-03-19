@@ -1,0 +1,22 @@
+{
+  "$schema": "./node_modules/knip/schema.json",
+  "entry": [
+    "app/**/*.{ts,tsx,mjs}",
+    "tests/**/*.{ts,tsx,mjs}",
+    "*.ts",
+    "*.mjs"
+  ],
+  "project": [
+    "app/**/*.{ts,tsx,mjs}",
+    "components/**/*.{ts,tsx,mjs}",
+    "hooks/**/*.{ts,tsx,mjs}",
+    "lib/**/*.{ts,tsx,mjs}",
+    "tests/**/*.{ts,tsx,mjs}",
+    "*.ts",
+    "*.mjs"
+  ],
+  "ignoreDependencies": ["anilist-stat-cards", "postcss-load-config"],
+  "ignoreBinaries": ["ncu"],
+  "exclude": ["devDependencies"],
+  "ignoreExportsUsedInFile": true
+}

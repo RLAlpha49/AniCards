@@ -106,7 +106,6 @@ function parseStoredCardsRecord(
     if (parsedValue && typeof parsedValue === "object") {
       const cards = (parsedValue as CardsRecord).cards;
       if (Array.isArray(cards)) {
-        // Filter out any stored entries that are not valid/supported card types
         const filtered = cards.filter(
           (c): c is StoredCardConfig =>
             !!c &&
@@ -185,8 +184,6 @@ function computeShowPiePercentages(
   incoming: StoredCardConfig,
   previous: StoredCardConfig | undefined,
 ): boolean | undefined {
-  // Consider incoming variation first, fall back to previous variation so
-  // disabling a card (which may omit variation) still preserves pie settings.
   const variation = incoming.variation ?? previous?.variation;
   const shouldSave =
     supportsPieVariation(incoming.cardName) &&
@@ -292,8 +289,6 @@ function processGlobalColorField(
     (sanitized as Record<string, unknown>)[key as string] = value;
     return undefined;
   }
-  // Validate non-string values (e.g., gradient objects) too — return the field
-  // name when they fail validation so callers can reject the payload.
   if (validateColorValue(value)) {
     (sanitized as Record<string, unknown>)[key as string] = value;
     return undefined;
@@ -419,7 +414,6 @@ function buildCardConfig(
   incoming: StoredCardConfig,
   previous: StoredCardConfig | undefined,
 ): StoredCardConfig {
-  // Prefer incoming explicit flag, fall back to previous, and default to true
   const useCustomSettings =
     incoming.useCustomSettings ?? previous?.useCustomSettings ?? true;
 
@@ -464,7 +458,6 @@ function buildCardConfig(
 
   return {
     cardName: incoming.cardName,
-    // Preserve disabled flag when provided
     disabled: incoming.disabled === true ? true : undefined,
     variation: incoming.variation ?? previous?.variation,
     colorPreset: effectiveColorPreset,
@@ -530,9 +523,6 @@ function buildOrderedStoredCards(opts: {
     seen.add(name);
   };
 
-  // If the request provides an explicit order, it wins.
-  // Otherwise, only treat incoming order as authoritative when it looks like
-  // a full payload (prevents patch saves from reordering the stored list).
   const shouldUseIncomingOrder =
     opts.incomingCards.length > 0 &&
     (opts.existingCards.length === 0 ||
@@ -858,12 +848,10 @@ async function assembleStoredCardsAndGlobalSettings(params: {
     request,
   } = params;
 
-  // Build a map of existing cards by cardName for efficient merging
   const existingCardsMap = new Map<string, StoredCardConfig>(
     existingCards.map((card) => [card.cardName, card]),
   );
 
-  // Sanitize incoming globalSettings to only include known keys and valid types.
   const sanitizeResult = sanitizeIncomingGlobalSettings(globalSettings);
   if (sanitizeResult?.invalidColorStringKey) {
     console.warn(
@@ -882,7 +870,6 @@ async function assembleStoredCardsAndGlobalSettings(params: {
     sanitizedGlobalSettings?.borderEnabled ??
     existingGlobalSettings?.borderEnabled;
 
-  // Apply incoming typed cards (validated above)
   applyIncomingCards(existingCardsMap, incomingCards);
 
   ensureAllSupportedCardTypesPresent(existingCardsMap);
@@ -894,7 +881,6 @@ async function assembleStoredCardsAndGlobalSettings(params: {
     cardOrder,
   });
 
-  // Compute borderRadius using helper (clamped when applicable)
   const effectiveBorderRadius = computeEffectiveBorderRadius(
     effectiveBorderEnabled,
     sanitizedGlobalSettings,
@@ -1017,7 +1003,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       `📝 [${endpoint}] Processing user ${userId} with ${incomingCardsCount} cards`,
     );
 
-    // Validate incoming data and obtain typed cards on success
     const validated = validateCardData(
       incomingCards,
       userId,
@@ -1037,13 +1022,11 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const incomingCardsTyped = validated.success ? validated.cards : [];
 
-    // Use a Redis key to store the user's card configurations
     const cardsKey = `cards:${userId}`;
     console.log(
       `📝 [${endpoint}] Storing card configuration using key: ${cardsKey}`,
     );
 
-    // Fetch existing cards from Redis to merge with incoming cards
     const existingData = await redisClient.get(cardsKey);
 
     // Optimistic concurrency: reject when the record has been updated since the
@@ -1097,7 +1080,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       updatedAt: new Date().toISOString(),
     };
 
-    // Save card configuration to Redis
     await redisClient.set(cardsKey, JSON.stringify(cardData));
 
     const duration = Date.now() - startTime;

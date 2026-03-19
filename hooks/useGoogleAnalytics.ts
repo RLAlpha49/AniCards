@@ -15,7 +15,6 @@ export function useGoogleAnalytics() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Record pageview when the pathname or query changes
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID) {
       const queryString = searchParams.toString();

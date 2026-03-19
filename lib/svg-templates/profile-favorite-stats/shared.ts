@@ -46,6 +46,7 @@ export function generateFavouritesSummaryBody(
   counts: ReturnType<typeof getFavouriteCounts>,
   resolvedColors: Record<string, string>,
 ): string {
+  void resolvedColors;
   const total =
     counts.anime +
     counts.manga +

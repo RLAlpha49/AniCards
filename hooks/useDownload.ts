@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { type ConversionFormat,getAbsoluteUrl, svgToPng } from "@/lib/utils";
+import { type ConversionFormat, getAbsoluteUrl, svgToPng } from "@/lib/utils";
 
 export function useDownload(
   previewUrl: string | null,

@@ -495,17 +495,15 @@ export function reconstructUserRecord(
   };
 
   const tmpMeta = meta as unknown as Record<string, unknown> | undefined;
-  const {
-    userId: _u,
-    username: _un,
-    updatedAt: _ua,
-    ip: _i,
-    createdAt: _c,
-    name: _n,
-    avatar: _a,
-    userCreatedAt: _uc,
-    ...rest
-  } = tmpMeta || {};
+  const rest: Record<string, unknown> = tmpMeta ? { ...tmpMeta } : {};
+  delete rest.userId;
+  delete rest.username;
+  delete rest.updatedAt;
+  delete rest.ip;
+  delete rest.createdAt;
+  delete rest.name;
+  delete rest.avatar;
+  delete rest.userCreatedAt;
   const aggregates = parts.aggregates as UserAggregates | undefined;
 
   return {

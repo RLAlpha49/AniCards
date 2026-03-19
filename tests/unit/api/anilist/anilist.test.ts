@@ -164,9 +164,7 @@ describe("AniList API Proxy Endpoint", () => {
     mock(console.warn);
   });
 
-  afterAll(() => {
-    // Bun mocks clean up automatically
-  });
+  afterAll(() => {});
 
   beforeEach(() => {
     process.env = { ...originalEnv };
