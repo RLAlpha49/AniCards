@@ -1,11 +1,11 @@
 "use client";
 
-import { AnimatePresence,motion } from "framer-motion";
-import { ArrowRight, Hash, Info, Loader2,Search, User } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ArrowRight, Hash, Info, Loader2, Search, User } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { type FormEvent,useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 
-import { Alert, AlertDescription,AlertTitle } from "@/components/ui/Alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
@@ -89,11 +89,8 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
         params.set("userId", trimmedValue);
       }
 
-      // Ensure the loading overlay has a chance to render before navigation.
       scheduleAfterPaint(() => {
         try {
-          // router.push may return void (older Next.js) or a Promise (newer versions).
-          // Wrap the return in Promise.resolve so we can attach a catch handler if it's a Promise.
           Promise.resolve(router.push(`/user?${params.toString()}`)).catch(
             () => {
               setLoading(false);
@@ -116,7 +113,7 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
    * @param e - The form submission event.
    * @source
    */
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: { preventDefault(): void }) => {
     e.preventDefault();
     performSearch(searchValue);
   };
@@ -127,11 +124,18 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
       initial="hidden"
       animate="visible"
       transition={{ delay: 0.3 }}
-      className="w-full max-w-2xl"
+      className="w-full"
     >
-      <div className="rounded-3xl border border-slate-200/50 bg-white/80 p-8 shadow-2xl shadow-slate-200/50 backdrop-blur-xl dark:border-slate-700/50 dark:bg-slate-800/80 dark:shadow-slate-900/50 sm:p-10">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Error Alert */}
+      <div className="imperial-card p-7 sm:p-9">
+        <div className="mb-6 text-center">
+          <span className="text-gold text-sm">❖</span>
+          <h2 className="font-display text-foreground mt-2 text-xs tracking-[0.3em] sm:text-sm">
+            LOOKUP
+          </h2>
+          <div className="gold-line mx-auto mt-3 max-w-12" />
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-5">
           <AnimatePresence>
             {error && (
               <motion.div
@@ -156,12 +160,11 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
             )}
           </AnimatePresence>
 
-          {/* Search Method Toggle */}
-          <div className="space-y-3">
-            <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+          <div className="space-y-2">
+            <span className="text-foreground/60 font-display block text-[0.65rem] tracking-[0.2em] uppercase">
               Search By
             </span>
-            <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1.5 dark:bg-slate-700/50">
+            <div className="border-gold/20 bg-gold/5 dark:bg-gold/10 grid grid-cols-2 gap-1.5 border p-1.5">
               <button
                 type="button"
                 onClick={() => {
@@ -169,10 +172,10 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
                   setError("");
                 }}
                 className={cn(
-                  "flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all duration-200",
+                  "flex items-center justify-center gap-2 py-2.5 text-sm font-semibold transition-all duration-200",
                   searchMethod === "username"
-                    ? "bg-white text-blue-600 shadow-md dark:bg-slate-600 dark:text-blue-400"
-                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                    ? "border-gold/30 text-gold-dim dark:bg-background dark:text-gold border bg-white shadow-sm"
+                    : "text-foreground/50 hover:text-foreground/70 dark:text-foreground/50 dark:hover:text-foreground/70",
                 )}
               >
                 <User className="h-4 w-4" />
@@ -185,10 +188,10 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
                   setError("");
                 }}
                 className={cn(
-                  "flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all duration-200",
+                  "flex items-center justify-center gap-2 py-2.5 text-sm font-semibold transition-all duration-200",
                   searchMethod === "userid"
-                    ? "bg-white text-blue-600 shadow-md dark:bg-slate-600 dark:text-blue-400"
-                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                    ? "border-gold/30 text-gold-dim dark:bg-background dark:text-gold border bg-white shadow-sm"
+                    : "text-foreground/50 hover:text-foreground/70 dark:text-foreground/50 dark:hover:text-foreground/70",
                 )}
               >
                 <Hash className="h-4 w-4" />
@@ -197,18 +200,17 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
             </div>
           </div>
 
-          {/* Search Input */}
-          <div className="space-y-3">
+          <div className="space-y-2">
             <label
               htmlFor="searchValue"
-              className="block text-sm font-medium text-slate-700 dark:text-slate-300"
+              className="text-foreground/60 font-display block text-[0.65rem] tracking-[0.2em] uppercase"
             >
               {searchMethod === "username"
                 ? "AniList Username"
                 : "AniList User ID"}
             </label>
             <div className="relative">
-              <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500">
+              <div className="text-foreground/40 pointer-events-none absolute top-1/2 left-4 -translate-y-1/2">
                 {searchMethod === "username" ? (
                   <Search className="h-5 w-5" />
                 ) : (
@@ -223,21 +225,18 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
                   setError("");
                 }}
                 placeholder={
-                  searchMethod === "username"
-                    ? "Enter username (e.g., Alpha49)"
-                    : "Enter user ID (e.g., 542244)"
+                  searchMethod === "username" ? "e.g., Alpha49" : "e.g., 542244"
                 }
-                className="h-14 rounded-2xl border-slate-200 bg-white pl-12 text-lg transition-all placeholder:text-slate-400 hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-700 dark:placeholder:text-slate-500 dark:hover:border-blue-500 dark:focus:border-blue-400"
+                className="border-gold/20 placeholder:text-foreground/35 hover:border-gold/40 focus:border-gold focus:ring-gold/20 dark:border-gold/20 dark:bg-background dark:placeholder:text-foreground/35 dark:hover:border-gold/40 dark:focus:border-gold h-13 bg-white pl-12 text-base transition-all focus:ring-2"
                 disabled={loading}
               />
             </div>
           </div>
 
-          {/* Submit Button */}
           <Button
             type="submit"
             size="lg"
-            className="group h-14 w-full rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-lg font-semibold text-white shadow-lg transition-all hover:scale-[1.02] hover:shadow-xl hover:shadow-purple-500/25 disabled:opacity-70 disabled:hover:scale-100"
+            className="imperial-btn imperial-btn-fill group h-13 w-full text-base disabled:opacity-70 disabled:hover:scale-100"
             disabled={loading}
           >
             {loading ? (
@@ -255,10 +254,8 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
           </Button>
         </form>
 
-        {/* Helper text */}
-        <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
-          Search for any AniList user by username or ID to view and customize
-          stat cards.
+        <p className="font-body-serif text-foreground/40 mt-5 text-center text-xs leading-relaxed">
+          Any public AniList profile can be looked up by username or numeric ID.
         </p>
       </div>
     </motion.div>
