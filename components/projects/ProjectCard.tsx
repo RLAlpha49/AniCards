@@ -1,112 +1,98 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowRight, ExternalLink } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 
 import { SimpleGithubIcon } from "@/components/SimpleIcons";
 import { Button } from "@/components/ui/Button";
 
 import type { Project } from "./types";
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 24 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.55 } },
+const cardVariants = {
+  hidden: { opacity: 0, y: 30 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] as const },
+  },
 };
 
-export function ProjectCard({
-  project,
-  isLeft,
-}: {
-  project: Project;
-  isLeft: boolean;
-}) {
+export function ProjectCard({ project }: Readonly<{ project: Project }>) {
   return (
-    <motion.div variants={itemVariants} className="relative">
-      <div className="absolute top-10 left-1/2 z-10 hidden -translate-x-1/2 md:block">
-        <div className="border-gold/40 bg-background flex h-10 w-10 items-center justify-center border-2">
-          <span className="font-display text-gold text-sm">
+    <motion.div variants={cardVariants}>
+      <div className="imperial-card group relative overflow-hidden transition-all duration-400 hover:-translate-y-1">
+        {/* Large watermark numeral */}
+        <div className="pointer-events-none absolute -top-4 -right-2 select-none">
+          <span className="font-display block text-[10rem] leading-none text-[hsl(var(--gold)/0.04)]">
             {project.numeral}
           </span>
         </div>
-      </div>
 
-      <div
-        className={`md:grid md:grid-cols-2 md:gap-16 ${
-          isLeft ? "" : "md:direction-rtl"
-        }`}
-      >
-        <div
-          className={`${isLeft ? "md:pr-8" : "md:col-start-2 md:pl-8"} md:direction-ltr`}
-        >
-          <div className="imperial-card group h-full transition-all duration-400 hover:-translate-y-1">
-            <div className="pointer-events-none absolute top-0 right-0 select-none">
-              <span className="font-display text-gold/4 block text-[8rem] leading-none">
-                {project.numeral}
+        <div className="relative z-10">
+          {/* Header: catalog number + external link */}
+          <div className="mb-6 flex items-start justify-between">
+            <div className="flex items-center gap-3">
+              <div className="border-gold/20 border p-2.5">
+                <SimpleGithubIcon size={20} className="text-gold" />
+              </div>
+              <span className="font-display text-gold/40 text-sm">
+                № {project.numeral}
               </span>
             </div>
-
-            <div className="relative z-10 p-8">
-              <div className="mb-5 flex items-start justify-between">
-                <div className="border-gold/20 border p-2.5">
-                  <SimpleGithubIcon size={22} className="text-gold" />
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  asChild
-                  className="text-foreground/40 hover:bg-gold/10 hover:text-gold transition-colors"
-                >
-                  <a
-                    href={project.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`View ${project.name} on GitHub`}
-                  >
-                    <ExternalLink className="h-5 w-5" />
-                  </a>
-                </Button>
-              </div>
-
-              <h3 className="font-display text-foreground mb-2 text-sm tracking-[0.15em] uppercase sm:text-base">
-                {project.name}
-              </h3>
-              <div className="gold-line mb-4 max-w-8" />
-
-              <p className="font-body-serif text-foreground/55 mb-2 text-sm leading-relaxed italic">
-                {project.highlight}
-              </p>
-              <p className="font-body-serif text-foreground/45 mb-6 text-sm leading-relaxed">
-                {project.description}
-              </p>
-
-              <div className="mb-6 flex flex-wrap gap-2">
-                {project.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="border-gold/20 text-foreground/50 border px-3 py-1 text-xs tracking-wider uppercase"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-
-              <Button asChild className="imperial-btn imperial-btn-fill w-full">
-                <a
-                  href={project.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2"
-                >
-                  <SimpleGithubIcon size={18} />
-                  View on GitHub
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                </a>
-              </Button>
-            </div>
+            <a
+              href={project.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-foreground/30 hover:text-gold transition-colors"
+              aria-label={`View ${project.name} on GitHub`}
+            >
+              <ArrowUpRight className="h-5 w-5" />
+            </a>
           </div>
-        </div>
 
-        <div className="hidden md:block" />
+          {/* Title */}
+          <h3 className="font-display text-foreground mb-3 text-base tracking-[0.12em] uppercase sm:text-lg">
+            {project.name}
+          </h3>
+
+          <div className="gold-line mb-5 max-w-10" />
+
+          {/* Highlight as emphasized text */}
+          <p className="font-body-serif text-foreground/60 mb-3 text-sm leading-relaxed italic">
+            {project.highlight}
+          </p>
+
+          {/* Description */}
+          <p className="font-body-serif text-foreground/40 mb-8 text-sm leading-relaxed">
+            {project.description}
+          </p>
+
+          {/* Tags */}
+          <div className="mb-8 flex flex-wrap gap-2">
+            {project.tags.map((tag) => (
+              <span
+                key={tag}
+                className="border-gold/15 text-foreground/40 border px-3 py-1 text-xs tracking-wider uppercase"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+
+          {/* CTA */}
+          <Button asChild className="imperial-btn imperial-btn-fill w-full">
+            <a
+              href={project.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2"
+            >
+              <SimpleGithubIcon size={18} />
+              View on GitHub
+              <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+            </a>
+          </Button>
+        </div>
       </div>
     </motion.div>
   );
