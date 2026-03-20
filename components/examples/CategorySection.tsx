@@ -63,6 +63,15 @@ const CATEGORY_DESCRIPTIONS: Record<string, string> = {
   "Advanced Analytics": "Cross-media comparisons and data-driven insights",
 };
 
+const CATEGORY_NUMBERS: Record<string, string> = {
+  "Core Stats": "01",
+  "Anime Deep Dive": "02",
+  "Manga Deep Dive": "03",
+  "Activity & Engagement": "04",
+  "Library & Progress": "05",
+  "Advanced Analytics": "06",
+};
+
 export function CategorySection({
   category,
   cardTypes,
@@ -76,54 +85,74 @@ export function CategorySection({
     (sum, ct) => sum + ct.variants.length,
     0,
   );
+  const sectionNumber = CATEGORY_NUMBERS[category] || "00";
 
   return (
     <motion.section
       id={categoryId}
-      initial={{ opacity: 0, y: 30 }}
+      initial={{ opacity: 0, y: 40 }}
       animate={isFirstCategory ? { opacity: 1, y: 0 } : undefined}
       whileInView={isFirstCategory ? undefined : { opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
+      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
       viewport={isFirstCategory ? undefined : { once: true, margin: "-80px" }}
       className="scroll-mt-32"
     >
-      {/* Category header — left-aligned with icon badge */}
-      <div className="mb-12">
-        <div className="mb-3 flex items-center gap-3">
-          <div className="border-gold/20 bg-gold/3 flex h-9 w-9 shrink-0 items-center justify-center border">
-            <CategoryIcon className="text-gold h-4 w-4" />
-          </div>
-          <div>
-            <h2 className="font-display text-foreground text-sm tracking-[0.2em] uppercase sm:text-base">
-              {category}
-            </h2>
-            <p className="text-foreground/30 text-xs tabular-nums">
-              {cardTypes.length} type{cardTypes.length === 1 ? "" : "s"} ·{" "}
-              {totalVariants} variant{totalVariants === 1 ? "" : "s"}
-            </p>
+      {/* Category header — editorial numbered layout */}
+      <div className="mb-14">
+        <div className="flex items-start gap-5">
+          {/* Large section number */}
+          <span className="font-display text-gold/10 hidden text-6xl leading-none font-black select-none sm:block md:text-7xl">
+            {sectionNumber}
+          </span>
+
+          <div className="flex-1">
+            <div className="mb-2 flex items-center gap-3">
+              <div className="border-gold/15 bg-gold/4 flex h-8 w-8 shrink-0 items-center justify-center border">
+                <CategoryIcon className="text-gold h-3.5 w-3.5" />
+              </div>
+              <h2 className="font-display text-foreground text-sm tracking-[0.25em] uppercase sm:text-base">
+                {category}
+              </h2>
+            </div>
+
+            <div className="ml-11 flex flex-wrap items-center gap-x-4 gap-y-1">
+              <p className="font-body-serif text-foreground/35 max-w-md text-sm leading-relaxed">
+                {CATEGORY_DESCRIPTIONS[category]}
+              </p>
+              <span className="text-foreground/20 text-xs tabular-nums">
+                {cardTypes.length} type{cardTypes.length === 1 ? "" : "s"} ·{" "}
+                {totalVariants} variant{totalVariants === 1 ? "" : "s"}
+              </span>
+            </div>
           </div>
         </div>
-        <p className="text-foreground/40 max-w-lg pl-12 text-sm leading-relaxed">
-          {CATEGORY_DESCRIPTIONS[category]}
-        </p>
       </div>
 
       {/* Card type groups */}
-      <div className="space-y-16">
-        {cardTypes.map((cardType) => (
+      <div className="space-y-20">
+        {cardTypes.map((cardType, typeIndex) => (
           <div key={cardType.title}>
-            <div className="mb-5 flex items-center gap-3">
-              <cardType.icon className="text-gold/50 h-4 w-4 shrink-0" />
-              <h4 className="text-foreground text-sm font-semibold tracking-wide">
-                {cardType.title}
-              </h4>
+            {/* Card type header with line */}
+            <div className="mb-6 flex items-center gap-4">
+              <div className="flex items-center gap-2.5">
+                <cardType.icon className="text-gold/40 h-3.5 w-3.5 shrink-0" />
+                <h4 className="text-foreground/80 text-sm font-semibold tracking-wide">
+                  {cardType.title}
+                </h4>
+              </div>
               <div className="gold-line flex-1" />
-              <span className="text-foreground/25 text-xs tabular-nums">
-                {cardType.variants.length}
+              <span className="text-foreground/15 font-display text-[0.6rem] tracking-widest tabular-nums">
+                {String(typeIndex + 1).padStart(2, "0")}
               </span>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {/* Description */}
+            <p className="text-foreground/30 mb-6 ml-6 max-w-lg text-xs leading-relaxed">
+              {cardType.description}
+            </p>
+
+            {/* Variant grid */}
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {cardType.variants.map((variant, variantIndex) => (
                 <ExampleCard
                   key={variant.name}

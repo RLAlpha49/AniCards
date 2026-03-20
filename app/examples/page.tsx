@@ -635,13 +635,20 @@ export default function ExamplesPage() {
           onStartCreating={handleStartCreating}
         />
 
-        <div className="gold-line-thick mx-auto max-w-48" />
+        {/* Ornamental divider between hero and content */}
+        <div className="flex items-center justify-center gap-4 py-2">
+          <div className="gold-line max-w-24 flex-1" />
+          <div className="h-1 w-1 rotate-45 bg-[hsl(var(--gold)/0.3)]" />
+          <div className="gold-line-thick max-w-32 flex-1" />
+          <div className="h-1 w-1 rotate-45 bg-[hsl(var(--gold)/0.3)]" />
+          <div className="gold-line max-w-24 flex-1" />
+        </div>
 
         {/* Sticky filter toolbar */}
         <div className="sticky top-15 z-30 mx-auto mt-6 max-w-7xl px-4">
-          <div className="border-gold/8 bg-background/80 border backdrop-blur-md">
-            <div className="px-4 pt-3.5 pb-0">
-              <div className="mb-2.5">
+          <div className="border-gold/8 bg-background/85 border backdrop-blur-xl">
+            <div className="px-5 pt-4 pb-0">
+              <div className="mb-3">
                 <SearchFilterBar
                   searchQuery={searchQuery}
                   onSearchChange={handleSearchChange}
@@ -661,9 +668,15 @@ export default function ExamplesPage() {
         </div>
 
         {/* Gallery */}
-        <section id="card-gallery" className="relative w-full py-16 lg:py-20">
+        <section id="card-gallery" className="relative w-full py-20 lg:py-24">
+          {/* Subtle side accents */}
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="absolute top-32 -left-32 h-96 w-64 rounded-full bg-[hsl(var(--gold)/0.02)] blur-[100px]" />
+            <div className="absolute top-1/2 -right-32 h-96 w-64 rounded-full bg-[hsl(var(--gold)/0.02)] blur-[100px]" />
+          </div>
+
           <div className="relative container mx-auto px-4">
-            <div className="mx-auto max-w-7xl space-y-24">
+            <div className="mx-auto max-w-7xl space-y-28">
               {activeCategory ? (
                 <CategorySection
                   key={activeCategory}
@@ -683,8 +696,12 @@ export default function ExamplesPage() {
                       nodes.push(
                         <div
                           key={`divider-${category}`}
-                          className="gold-line mx-auto max-w-20"
-                        />,
+                          className="flex items-center justify-center gap-3"
+                        >
+                          <div className="gold-line max-w-16 flex-1" />
+                          <div className="h-1 w-1 rotate-45 border border-[hsl(var(--gold)/0.25)]" />
+                          <div className="gold-line max-w-16 flex-1" />
+                        </div>,
                       );
                     }
 
@@ -703,17 +720,21 @@ export default function ExamplesPage() {
               )}
 
               {filteredCardTypes.length === 0 && (
-                <div className="py-28 text-center">
-                  <p className="font-display text-foreground/25 mb-2 text-lg tracking-[0.2em]">
-                    NO RESULTS
+                <div className="py-32 text-center">
+                  <div className="font-display text-foreground/6 mb-4 text-7xl font-black select-none sm:text-8xl">
+                    ∅
+                  </div>
+                  <p className="font-display text-foreground/20 mb-2 text-base tracking-[0.25em] uppercase">
+                    No Results
                   </p>
-                  <p className="font-body-serif text-foreground/35 text-sm">
-                    No cards match your current filters.
+                  <p className="font-body-serif text-foreground/30 mx-auto max-w-xs text-sm leading-relaxed">
+                    No cards match your current filters. Try adjusting your
+                    search or category selection.
                   </p>
                   <button
                     type="button"
                     onClick={handleClearFilters}
-                    className="text-gold mt-8 text-xs font-medium tracking-wide uppercase hover:underline"
+                    className="text-gold hover:text-gold/80 mt-8 text-xs font-semibold tracking-widest uppercase transition-colors hover:underline"
                   >
                     Clear all filters
                   </button>

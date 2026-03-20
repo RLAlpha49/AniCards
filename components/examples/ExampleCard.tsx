@@ -51,18 +51,22 @@ export function ExampleCard({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 16 }}
+      initial={{ opacity: 0, y: 24 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-50px" }}
-      transition={{ duration: 0.35, delay: Math.min(index * 0.04, 0.2) }}
+      viewport={{ once: true, margin: "-40px" }}
+      transition={{
+        duration: 0.5,
+        delay: Math.min(index * 0.05, 0.25),
+        ease: [0.22, 1, 0.36, 1],
+      }}
       className="group/card w-full"
     >
       <div
         className={cn(
           "relative overflow-hidden",
-          "border-gold/8 border transition-all duration-300",
-          "hover:border-gold/25 hover:-translate-y-0.5",
-          "hover:shadow-[0_8px_30px_-8px_hsl(var(--gold)/0.12)]",
+          "border border-transparent transition-all duration-500",
+          "hover:border-gold/20",
+          "hover:shadow-[0_16px_48px_-12px_hsl(var(--gold)/0.1)]",
         )}
       >
         {/* Full-card link overlay */}
@@ -74,36 +78,46 @@ export function ExampleCard({
           className="absolute inset-0 z-10"
         />
 
-        {/* Image area */}
-        <div className="bg-foreground/1.5 relative flex items-center justify-center p-4 dark:bg-white/1.5">
-          <ImageWithSkeleton
-            src={variant.url}
-            alt={`${cardTypeTitle} - ${variant.name}`}
-            className="h-auto w-full transition-transform duration-500 ease-out group-hover/card:scale-[1.015]"
-          />
+        {/* Image area with cinematic treatment */}
+        <div className="relative overflow-hidden bg-[hsl(var(--foreground)/0.02)] dark:bg-[hsl(var(--foreground)/0.02)]">
+          {/* Subtle vignette on hover */}
+          <div className="pointer-events-none absolute inset-0 z-2 opacity-0 transition-opacity duration-500 group-hover/card:opacity-100">
+            <div className="h-full w-full bg-[radial-gradient(ellipse_at_center,transparent_40%,hsl(var(--background)/0.3))]" />
+          </div>
 
-          {/* Hover overlay */}
-          <div className="bg-background/0 group-hover/card:bg-background/50 pointer-events-none absolute inset-0 flex items-center justify-center transition-colors duration-300">
-            <span className="text-gold inline-flex items-center gap-1.5 text-xs font-medium tracking-wide opacity-0 transition-opacity duration-300 group-hover/card:opacity-100">
-              <ExternalLink className="h-3.5 w-3.5" />
-              Open
-            </span>
+          <div className="p-4 transition-transform duration-700 ease-out group-hover/card:scale-[1.03]">
+            <ImageWithSkeleton
+              src={variant.url}
+              alt={`${cardTypeTitle} - ${variant.name}`}
+              className="h-auto w-full"
+            />
+          </div>
+
+          {/* Hover action badge */}
+          <div className="pointer-events-none absolute inset-0 z-3 flex items-center justify-center">
+            <motion.div
+              className="flex items-center gap-1.5 bg-[hsl(var(--gold)/0.9)] px-3 py-1.5 text-[0.65rem] font-semibold tracking-wider text-[#0c0a10] uppercase opacity-0 shadow-lg transition-all duration-400 group-hover/card:opacity-100"
+              style={{ transitionDelay: "50ms" }}
+            >
+              <ExternalLink className="h-3 w-3" />
+              View Full Size
+            </motion.div>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="border-gold/8 flex items-center justify-between gap-2 border-t px-3.5 py-2.5">
-          <p className="text-foreground/60 line-clamp-1 text-xs font-medium">
+        {/* Footer bar */}
+        <div className="flex items-center justify-between gap-2 border-t border-[hsl(var(--gold)/0.06)] bg-[hsl(var(--gold)/0.01)] px-4 py-3">
+          <p className="text-foreground/55 line-clamp-1 text-xs font-medium tracking-wide">
             {variant.name}
           </p>
           <button
             type="button"
             onClick={handleCopy}
             className={cn(
-              "pointer-events-auto relative z-20 shrink-0 p-1 transition-all duration-200",
+              "pointer-events-auto relative z-20 shrink-0 p-1.5 transition-all duration-200",
               copied
                 ? "text-emerald-500 dark:text-emerald-400"
-                : "text-foreground/20 hover:text-gold",
+                : "text-foreground/15 hover:text-gold",
             )}
             aria-label={copied ? "Copied!" : "Copy embed URL"}
           >
