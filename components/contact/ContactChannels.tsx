@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowUpRight, Mail } from "lucide-react";
+import { ArrowRight, Mail } from "lucide-react";
 import Link from "next/link";
 
 import {
@@ -20,9 +20,9 @@ const CHANNELS = [
     icon: Mail,
     name: "email",
     label: "Email",
-    tagline: "For detailed inquiries & collaboration",
+    tagline: "Detailed inquiries & collaboration",
     address: "contact@alpha49.com",
-    accent: "from-amber-500/20 to-yellow-500/10",
+    num: "01",
   },
   {
     href: "https://discordid.netlify.app/?id=251479989378220044",
@@ -31,7 +31,7 @@ const CHANNELS = [
     label: "Discord",
     tagline: "Quick questions & casual chat",
     address: "Alpha49",
-    accent: "from-indigo-500/20 to-blue-500/10",
+    num: "02",
   },
   {
     href: "https://github.com/RLAlpha49",
@@ -40,7 +40,7 @@ const CHANNELS = [
     label: "GitHub",
     tagline: "Projects, code & contributions",
     address: "RLAlpha49",
-    accent: "from-slate-500/20 to-zinc-500/10",
+    num: "03",
   },
   {
     href: "https://anilist.co/user/Alpha49",
@@ -49,25 +49,24 @@ const CHANNELS = [
     label: "AniList",
     tagline: "Anime & manga collection",
     address: "Alpha49",
-    accent: "from-cyan-500/20 to-blue-500/10",
+    num: "04",
   },
 ];
 
-const staggerGrid = {
+const stagger = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.08, delayChildren: 0.1 },
+    transition: { staggerChildren: 0.07, delayChildren: 0.1 },
   },
 };
 
-const gridItem = {
-  hidden: { opacity: 0, scale: 0.96, y: 20 },
+const row = {
+  hidden: { opacity: 0, x: -32 },
   visible: {
     opacity: 1,
-    scale: 1,
-    y: 0,
-    transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const },
+    x: 0,
+    transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] as const },
   },
 };
 
@@ -80,57 +79,84 @@ export function ContactChannels() {
     <section className="px-6 py-16 sm:px-12 md:py-24">
       <div className="mx-auto max-w-5xl">
         {/* Section heading */}
-        <div className="mb-14 text-center">
-          <div className="gold-ornament mb-6">
-            <span className="text-gold text-lg">❖</span>
-          </div>
-          <h2 className="font-display text-foreground mb-3 text-sm tracking-[0.3em] uppercase">
-            Ways to Reach Me
+        <div className="mb-12">
+          <span
+            className="text-[10px] tracking-[0.5em] uppercase"
+            style={{
+              fontFamily: "var(--font-geist-mono), monospace",
+              color: "hsl(var(--gold) / 0.4)",
+            }}
+          >
+            Frequencies
+          </span>
+          <h2 className="font-display text-foreground mt-3 text-2xl font-bold tracking-tight sm:text-3xl">
+            SELECT CHANNEL
           </h2>
-          <div className="gold-line mx-auto max-w-12" />
         </div>
 
-        {/* Bento grid */}
+        {/* Channel rows */}
         <motion.div
-          variants={staggerGrid}
+          variants={stagger}
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, margin: "-60px" }}
-          className="grid gap-4 sm:grid-cols-2"
+          className="border-t border-[hsl(var(--gold)/0.1)]"
         >
           {CHANNELS.map((ch) => (
-            <motion.div key={ch.name} variants={gridItem}>
+            <motion.div key={ch.name} variants={row}>
               <Link
                 href={ch.href}
                 target={ch.name === "email" ? undefined : "_blank"}
                 rel={ch.name === "email" ? undefined : "noopener noreferrer"}
                 onClick={() => handleLinkClick(ch.name)}
-                className="imperial-card group relative flex h-full flex-col overflow-hidden p-6 transition-all duration-300 hover:-translate-y-1 sm:p-8"
+                className="group flex items-center gap-4 border-b border-[hsl(var(--gold)/0.1)] py-6 transition-all duration-300 hover:pl-3 sm:gap-6 sm:py-8"
               >
-                {/* Gradient accent stripe at top */}
-                <div
-                  className={`absolute inset-x-0 top-0 h-1 bg-linear-to-r opacity-0 transition-opacity duration-300 group-hover:opacity-100 ${ch.accent}`}
-                />
+                {/* Number */}
+                <span
+                  className="hidden min-w-10 text-right text-sm transition-colors sm:block"
+                  style={{
+                    fontFamily: "var(--font-geist-mono), monospace",
+                    color: "hsl(var(--gold) / 0.2)",
+                  }}
+                >
+                  <span className="group-hover:text-gold/50 transition-colors">
+                    {ch.num}
+                  </span>
+                </span>
 
-                <div className="mb-5 flex items-center justify-between">
-                  <div className="border-gold/20 group-hover:border-gold/40 border p-3 transition-colors">
-                    <ch.icon size={22} className="text-gold" />
-                  </div>
-                  <ArrowUpRight className="text-gold/20 group-hover:text-gold h-5 w-5 transition-all duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                {/* Icon badge */}
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center border border-[hsl(var(--gold)/0.15)] transition-all duration-300 group-hover:border-[hsl(var(--gold)/0.4)] group-hover:bg-[hsl(var(--gold)/0.05)]">
+                  <ch.icon
+                    size={20}
+                    className="text-gold/60 group-hover:text-gold transition-colors"
+                  />
                 </div>
 
-                <h3 className="font-display text-foreground mb-1 text-sm tracking-[0.2em] uppercase">
-                  {ch.label}
-                </h3>
-                <p className="font-body-serif text-foreground/45 mb-4 text-sm leading-relaxed">
-                  {ch.tagline}
-                </p>
+                {/* Info */}
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-display text-foreground group-hover:text-gold text-sm tracking-[0.15em] uppercase transition-colors">
+                    {ch.label}
+                  </h3>
+                  <p className="font-body-serif text-foreground/35 mt-0.5 text-sm">
+                    {ch.tagline}
+                  </p>
+                </div>
 
-                <div className="mt-auto">
-                  <span className="text-gold/70 group-hover:text-gold font-body-serif text-sm transition-colors">
+                {/* Address */}
+                <span
+                  className="hidden text-xs transition-colors sm:block"
+                  style={{
+                    fontFamily: "var(--font-geist-mono), monospace",
+                    color: "hsl(var(--foreground) / 0.2)",
+                  }}
+                >
+                  <span className="group-hover:text-gold/60 transition-colors">
                     {ch.address}
                   </span>
-                </div>
+                </span>
+
+                {/* Arrow */}
+                <ArrowRight className="text-gold/15 group-hover:text-gold h-5 w-5 shrink-0 transition-all duration-300 group-hover:translate-x-1" />
               </Link>
             </motion.div>
           ))}

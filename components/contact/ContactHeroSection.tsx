@@ -1,107 +1,118 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Clock, Globe, MessageCircle, Send } from "lucide-react";
 
-const containerVariants = {
+const container = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.15 },
+    transition: { staggerChildren: 0.1, delayChildren: 0.25 },
   },
 };
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 28 },
+const fadeUp = {
+  hidden: { opacity: 0, y: 32 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] as const },
+    transition: { duration: 0.75, ease: [0.22, 1, 0.36, 1] as const },
   },
 };
 
-const HIGHLIGHTS = [
-  { icon: MessageCircle, label: "4 Channels" },
-  { icon: Clock, label: "< 48h Reply" },
-  { icon: Globe, label: "Open Source" },
+const STATUS_CHIPS = [
+  {
+    dot: "bg-emerald-400 shadow-[0_0_6px_theme(colors.emerald.400/0.6)]",
+    label: "Online",
+  },
+  { dot: "bg-gold", label: "< 48h Reply" },
+  { dot: "bg-gold/50", label: "Open Source" },
 ];
 
 export function ContactHeroSection() {
   return (
-    <section className="relative overflow-hidden px-6 pt-24 pb-16 sm:px-12 md:pt-32 md:pb-20">
-      {/* Decorative glow */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute top-1/3 left-1/2 h-120 w-120 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(var(--gold)/0.06)] blur-[120px]" />
-      </div>
+    <section className="relative overflow-hidden px-6 pt-28 pb-24 sm:px-12 md:pt-40 md:pb-32">
+      {/* Dot grid atmosphere */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.06] dark:opacity-[0.035]"
+        style={{
+          backgroundImage:
+            "radial-gradient(hsl(var(--gold)) 0.8px, transparent 0.8px)",
+          backgroundSize: "28px 28px",
+        }}
+      />
+
+      {/* Centered radial glow */}
+      <div className="pointer-events-none absolute top-1/3 left-1/2 h-125 w-175 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(var(--gold)/0.045)] blur-[140px]" />
 
       <motion.div
-        variants={containerVariants}
+        variants={container}
         initial="hidden"
         animate="visible"
         className="relative z-10 mx-auto max-w-5xl"
       >
-        <div className="grid items-end gap-12 md:grid-cols-[1.2fr_auto]">
-          {/* Text column */}
-          <div>
-            <motion.p
-              variants={itemVariants}
-              className="text-gold mb-4 text-xs tracking-[0.5em] uppercase sm:text-sm"
+        {/* Decorative top frame */}
+        <motion.div variants={fadeUp} className="mb-16 flex items-center gap-4">
+          <div className="h-px flex-1 bg-linear-to-r from-transparent to-[hsl(var(--gold)/0.2)]" />
+          <div className="flex items-center gap-3">
+            <span className="block h-1.5 w-1.5 rotate-45 border border-[hsl(var(--gold)/0.4)]" />
+            <span
+              className="text-[10px] tracking-[0.5em] uppercase"
+              style={{
+                fontFamily: "var(--font-geist-mono), monospace",
+                color: "hsl(var(--gold) / 0.45)",
+              }}
             >
-              Correspondence
-            </motion.p>
-
-            <motion.h1
-              variants={itemVariants}
-              className="font-display text-foreground mb-5 text-5xl leading-[1.05] font-black sm:text-6xl md:text-7xl lg:text-8xl"
-            >
-              LET&apos;S
-              <br />
-              <span className="text-gold">CONNECT</span>
-            </motion.h1>
-
-            <motion.div
-              variants={itemVariants}
-              className="gold-line-thick mb-6 max-w-32"
-            />
-
-            <motion.p
-              variants={itemVariants}
-              className="font-body-serif text-foreground/55 max-w-lg text-base leading-relaxed sm:text-lg"
-            >
-              Have a question, idea, or collaboration in mind? Pick the channel
-              that suits you best and let&apos;s start a conversation.
-            </motion.p>
+              Contact
+            </span>
+            <span className="block h-1.5 w-1.5 rotate-45 border border-[hsl(var(--gold)/0.4)]" />
           </div>
+          <div className="h-px flex-1 bg-linear-to-l from-transparent to-[hsl(var(--gold)/0.2)]" />
+        </motion.div>
 
-          {/* Decorative icon frame */}
-          <motion.div
-            variants={itemVariants}
-            className="hidden md:block"
-            aria-hidden="true"
+        {/* Oversized stacked headline */}
+        <div className="text-center">
+          <motion.h1
+            variants={fadeUp}
+            className="font-display text-foreground text-[clamp(3.5rem,13vw,11rem)] leading-[0.82] font-black"
           >
-            <div className="border-gold/15 relative border-2 p-6">
-              <div className="border-gold/10 border-2 p-5">
-                <Send className="text-gold/30 h-20 w-20" strokeWidth={1} />
-              </div>
-              <div className="border-gold absolute -top-1.5 -left-1.5 h-3 w-3 border-t-2 border-l-2" />
-              <div className="border-gold absolute -right-1.5 -bottom-1.5 h-3 w-3 border-r-2 border-b-2" />
-            </div>
-          </motion.div>
+            REACH
+          </motion.h1>
+          <motion.h1
+            variants={fadeUp}
+            className="font-display text-gold text-[clamp(3.5rem,13vw,11rem)] leading-[0.82] font-black"
+          >
+            OUT
+          </motion.h1>
         </div>
 
-        {/* Highlight chips */}
+        {/* Gold separator */}
         <motion.div
-          variants={itemVariants}
-          className="mt-14 flex flex-wrap items-center gap-5"
+          variants={fadeUp}
+          className="mx-auto mt-10 mb-8 h-0.5 max-w-24 bg-linear-to-r from-transparent via-[hsl(var(--gold)/0.6)] to-transparent"
+        />
+
+        {/* Subtitle */}
+        <motion.p
+          variants={fadeUp}
+          className="font-body-serif text-foreground/40 mx-auto max-w-md text-center text-base leading-relaxed sm:text-lg"
         >
-          {HIGHLIGHTS.map((h) => (
-            <div
-              key={h.label}
-              className="border-gold/15 bg-gold/3 flex items-center gap-2.5 border px-4 py-2.5"
-            >
-              <h.icon className="text-gold h-4 w-4" strokeWidth={1.5} />
-              <span className="text-foreground/50 text-xs tracking-wider uppercase">
-                {h.label}
+          Pick the channel that feels right. Every message is read and every
+          reply is thoughtful.
+        </motion.p>
+
+        {/* Status chips */}
+        <motion.div
+          variants={fadeUp}
+          className="mt-14 flex flex-wrap items-center justify-center gap-7"
+        >
+          {STATUS_CHIPS.map(({ dot, label }) => (
+            <div key={label} className="flex items-center gap-2.5">
+              <span className={`block h-1.5 w-1.5 rounded-full ${dot}`} />
+              <span
+                className="text-foreground/30 text-[10px] tracking-[0.25em] uppercase"
+                style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+              >
+                {label}
               </span>
             </div>
           ))}
