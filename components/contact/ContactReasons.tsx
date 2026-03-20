@@ -20,102 +20,109 @@ const REASONS = [
     icon: MessageSquare,
     title: "General Questions",
     description: "Anything about AniCards, usage, or features",
-    numeral: "01",
   },
   {
     icon: Lightbulb,
     title: "Feature Requests",
     description: "Ideas for new cards, designs, or improvements",
-    numeral: "02",
   },
   {
     icon: Bug,
     title: "Bug Reports",
-    description:
-      "Something broken? Open an issue on GitHub and I'll look into it",
+    description: "Something broken? Open an issue on GitHub",
     href: "https://github.com/RLAlpha49/AniCards/issues",
-    numeral: "03",
   },
   {
     icon: Sparkles,
     title: "Collaboration",
     description: "Partnerships, integrations, or creative projects",
-    numeral: "04",
   },
 ];
 
-const staggerList = {
+const container = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.1 },
+    transition: { staggerChildren: 0.08, delayChildren: 0.15 },
   },
 };
 
-const listItem = {
-  hidden: { opacity: 0, x: -24 },
+const card = {
+  hidden: { opacity: 0, y: 24 },
   visible: {
     opacity: 1,
-    x: 0,
-    transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const },
+    y: 0,
+    transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] as const },
   },
 };
 
 export function ContactReasons() {
   return (
-    <section className="border-gold/20 border-y-2 px-6 py-16 sm:px-12 md:py-24">
+    <section className="px-6 py-16 sm:px-12 md:py-24">
       <div className="mx-auto max-w-5xl">
         {/* Section heading */}
         <div className="mb-14 text-center">
-          <h2 className="font-display text-foreground mb-3 text-sm tracking-[0.3em] uppercase">
-            What Can I Help With?
+          <span
+            className="text-[10px] tracking-[0.5em] uppercase"
+            style={{
+              fontFamily: "var(--font-geist-mono), monospace",
+              color: "hsl(var(--gold) / 0.4)",
+            }}
+          >
+            Topics
+          </span>
+          <h2 className="font-display text-foreground mt-3 text-2xl font-bold tracking-tight sm:text-3xl">
+            HOW CAN I HELP?
           </h2>
-          <div className="gold-line mx-auto max-w-12" />
+          <div className="mx-auto mt-5 h-px max-w-16 bg-linear-to-r from-transparent via-[hsl(var(--gold)/0.4)] to-transparent" />
         </div>
 
-        {/* Reasons list — numbered editorial style */}
+        {/* Reasons grid */}
         <motion.div
-          variants={staggerList}
+          variants={container}
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, margin: "-60px" }}
-          className="space-y-0 divide-y divide-[hsl(var(--gold)/0.1)]"
+          className="grid gap-4 sm:grid-cols-2"
         >
-          {REASONS.map((reason) => {
-            const inner = (
-              <div className="group flex items-start gap-5 py-7 transition-colors sm:items-center sm:gap-8">
-                {/* Numeral */}
-                <span className="font-display text-gold/20 group-hover:text-gold/50 hidden min-w-12 text-right text-2xl transition-colors sm:block">
-                  {reason.numeral}
+          {REASONS.map((reason, i) => {
+            const content = (
+              <div className="group relative flex h-full flex-col border border-[hsl(var(--gold)/0.08)] bg-[hsl(var(--gold)/0.015)] p-6 transition-all duration-300 hover:border-[hsl(var(--gold)/0.25)] hover:bg-[hsl(var(--gold)/0.03)] sm:p-8">
+                {/* Numbered corner */}
+                <span
+                  className="absolute top-4 right-5 text-[10px] tracking-wider"
+                  style={{
+                    fontFamily: "var(--font-geist-mono), monospace",
+                    color: "hsl(var(--gold) / 0.15)",
+                  }}
+                >
+                  {String(i + 1).padStart(2, "0")}
                 </span>
 
-                {/* Icon */}
-                <div className="border-gold/15 group-hover:border-gold/35 shrink-0 border p-3 transition-colors">
-                  <reason.icon size={18} className="text-gold" />
-                </div>
+                <reason.icon
+                  size={20}
+                  className="text-gold/50 group-hover:text-gold mb-5 transition-colors"
+                  strokeWidth={1.5}
+                />
 
-                {/* Copy */}
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-display text-foreground mb-1 text-xs tracking-[0.2em] uppercase sm:text-sm">
-                    {reason.title}
-                  </h3>
-                  <p className="font-body-serif text-foreground/45 text-sm leading-relaxed">
-                    {reason.description}
-                  </p>
-                </div>
+                <h3 className="font-display text-foreground mb-2 text-xs tracking-[0.2em] uppercase sm:text-sm">
+                  {reason.title}
+                </h3>
+                <p className="font-body-serif text-foreground/40 text-sm leading-relaxed">
+                  {reason.description}
+                </p>
 
-                {/* Action hint for linked items */}
                 {reason.href && (
-                  <span className="text-gold/50 group-hover:text-gold hidden shrink-0 items-center gap-1.5 text-xs tracking-wider uppercase transition-colors sm:flex">
-                    Open an Issue on GitHub
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </span>
+                  <div className="text-gold/40 group-hover:text-gold mt-5 flex items-center gap-1.5 text-xs tracking-wider uppercase transition-colors">
+                    Open Issue
+                    <ExternalLink className="h-3 w-3" />
+                  </div>
                 )}
               </div>
             );
 
             return (
-              <motion.div key={reason.title} variants={listItem}>
+              <motion.div key={reason.title} variants={card}>
                 {reason.href ? (
                   <Link
                     href={reason.href}
@@ -126,12 +133,12 @@ export function ContactReasons() {
                         trackExternalLinkClick("github_issues", "contact_page"),
                       )
                     }
-                    className="block"
+                    className="block h-full"
                   >
-                    {inner}
+                    {content}
                   </Link>
                 ) : (
-                  inner
+                  content
                 )}
               </motion.div>
             );
