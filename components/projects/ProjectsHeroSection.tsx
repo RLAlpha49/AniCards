@@ -1,85 +1,130 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Code2 } from "lucide-react";
 
-const containerVariants = {
+import { FEATURED_PROJECT, PROJECTS } from "./constants";
+
+const stagger = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.12, delayChildren: 0.15 },
+    transition: { staggerChildren: 0.1, delayChildren: 0.1 },
   },
 };
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 24 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.55 } },
+const fadeUp = {
+  hidden: { opacity: 0, y: 28 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] as const },
+  },
 };
 
 export function ProjectsHeroSection() {
+  const totalProjects = 1 + PROJECTS.length;
+  const projectCount = String(totalProjects).padStart(2, "0");
+
   return (
-    <section className="relative overflow-hidden px-6 pt-24 pb-12 sm:px-12 md:pt-32">
+    <section className="relative overflow-hidden px-6 pt-28 pb-20 sm:px-12 md:pt-36 md:pb-28">
+      {/* Large decorative letter watermark */}
+      <div className="pointer-events-none absolute top-8 -right-8 opacity-[0.025] select-none md:right-8">
+        <span className="font-display text-gold block text-[18rem] leading-none sm:text-[24rem] md:text-[32rem]">
+          P
+        </span>
+      </div>
+
       <motion.div
-        variants={containerVariants}
+        variants={stagger}
         initial="hidden"
         animate="visible"
-        className="relative z-10 mx-auto max-w-5xl"
+        className="relative z-10 mx-auto max-w-6xl"
       >
-        <div className="grid items-end gap-10 md:grid-cols-[1fr_auto]">
+        {/* Eyebrow with extending line */}
+        <motion.div variants={fadeUp} className="mb-8 flex items-center gap-4">
+          <div className="h-px w-12 bg-[hsl(var(--gold)/0.4)]" />
+          <span className="font-display text-gold text-xs tracking-[0.5em] uppercase">
+            Open Source
+          </span>
+        </motion.div>
+
+        {/* Asymmetric grid: headline + sidebar */}
+        <div className="grid gap-8 md:grid-cols-[1fr_auto] md:items-end md:gap-16">
           <div>
-            <motion.p
-              variants={itemVariants}
-              className="text-gold mb-4 text-xs tracking-[0.5em] uppercase sm:text-sm"
-            >
-              Open Source Portfolio
-            </motion.p>
-
             <motion.h1
-              variants={itemVariants}
-              className="font-display text-foreground mb-5 text-5xl leading-[1.05] font-black sm:text-6xl md:text-7xl lg:text-8xl"
+              variants={fadeUp}
+              className="font-display text-foreground text-5xl leading-[0.92] font-black sm:text-6xl md:text-7xl lg:text-8xl xl:text-9xl"
             >
-              CRAFTED WITH
+              THE
               <br />
-              <span className="text-gold">PURPOSE</span>
+              <span className="text-gold">PORTFOLIO</span>
             </motion.h1>
-
-            <motion.div
-              variants={itemVariants}
-              className="gold-line-thick mb-6 max-w-32"
-            />
-
-            <motion.p
-              variants={itemVariants}
-              className="font-body-serif text-foreground/55 max-w-md text-base leading-relaxed sm:text-lg"
-            >
-              A collection of open-source tools built to enhance your anime and
-              media tracking experience. Each project is free, maintained, and
-              open to contributions.
-            </motion.p>
           </div>
 
-          <motion.div
-            variants={itemVariants}
-            className="hidden md:block"
-            aria-hidden="true"
-          >
-            <div className="border-gold/15 relative border-2 p-6">
-              <div className="border-gold/10 border-2 p-5">
-                <Code2 className="text-gold/30 h-20 w-20" strokeWidth={1} />
+          {/* Desktop sidebar info */}
+          <motion.div variants={fadeUp} className="hidden pb-2 md:block">
+            <div className="border-gold/20 border-l-2 pl-6">
+              <p className="font-body-serif text-foreground/50 max-w-xs text-sm leading-relaxed">
+                A curated collection of open-source tools built to enhance your
+                anime and media tracking experience.
+              </p>
+              <div className="mt-5 flex items-baseline gap-3">
+                <span className="font-display text-gold text-3xl leading-none">
+                  {projectCount}
+                </span>
+                <span className="text-foreground/30 text-xs tracking-[0.3em] uppercase">
+                  Projects
+                </span>
               </div>
-              <div className="border-gold absolute -top-1.5 -left-1.5 h-3 w-3 border-t-2 border-l-2" />
-              <div className="border-gold absolute -right-1.5 -bottom-1.5 h-3 w-3 border-r-2 border-b-2" />
             </div>
           </motion.div>
         </div>
 
-        <motion.div
-          variants={itemVariants}
-          className="text-foreground/40 mt-12 flex flex-wrap items-center gap-6 text-xs tracking-wider uppercase"
+        {/* Mobile description */}
+        <motion.p
+          variants={fadeUp}
+          className="font-body-serif text-foreground/50 mt-6 max-w-md text-sm leading-relaxed md:hidden"
         >
-          <span>✦ Open Source</span>
-          <span>✦ Community Driven</span>
-          <span>✦ Free Forever</span>
+          A curated collection of open-source tools built to enhance your anime
+          and media tracking experience.
+        </motion.p>
+
+        {/* Bottom tag strip */}
+        <motion.div
+          variants={fadeUp}
+          className="mt-14 flex flex-wrap items-center gap-x-8 gap-y-3"
+        >
+          {[
+            `${totalProjects} Projects`,
+            "MIT Licensed",
+            "Community Driven",
+          ].map((label) => (
+            <span
+              key={label}
+              className="text-foreground/25 text-xs tracking-[0.25em] uppercase"
+            >
+              ✦ {label}
+            </span>
+          ))}
+        </motion.div>
+
+        {/* Horizontal accent line */}
+        <motion.div
+          variants={fadeUp}
+          className="gold-line-thick mt-14 max-w-48"
+        />
+
+        {/* Featured callout for all projects */}
+        <motion.div
+          variants={fadeUp}
+          className="text-foreground/20 mt-6 flex flex-wrap gap-x-6 gap-y-1 text-xs tracking-wider"
+        >
+          <span className="font-display">{FEATURED_PROJECT.name}</span>
+          {PROJECTS.map((p) => (
+            <span key={p.url} className="font-display">
+              {p.name}
+            </span>
+          ))}
         </motion.div>
       </motion.div>
     </section>

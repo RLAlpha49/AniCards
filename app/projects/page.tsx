@@ -24,11 +24,8 @@ export default function ProjectsPage() {
         />
 
         <ProjectsHeroSection />
-        <div className="gold-line-thick mx-auto max-w-[60%]" />
         <FeaturedProject />
-        <div className="gold-line mx-auto max-w-[40%]" />
         <ProjectCollection />
-        <div className="gold-line-thick mx-auto max-w-[60%]" />
         <ProjectEthos />
         <ProjectsCTA />
       </div>
