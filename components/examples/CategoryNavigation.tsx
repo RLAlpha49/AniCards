@@ -30,6 +30,15 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
   "Advanced Analytics": TrendingUp,
 };
 
+const CATEGORY_INDEX: Record<string, string> = {
+  "Core Stats": "01",
+  "Anime Deep Dive": "02",
+  "Manga Deep Dive": "03",
+  "Activity & Engagement": "04",
+  "Library & Progress": "05",
+  "Advanced Analytics": "06",
+};
+
 export function CategoryNavigation({
   categories,
   activeCategory,
@@ -44,11 +53,12 @@ export function CategoryNavigation({
 
   return (
     <nav className="relative w-full" aria-label="Category navigation">
-      <div className="from-background pointer-events-none absolute top-0 right-0 bottom-0 z-10 w-6 bg-linear-to-l to-transparent sm:hidden" />
-      <div className="from-background pointer-events-none absolute top-0 bottom-0 left-0 z-10 w-6 bg-linear-to-r to-transparent sm:hidden" />
+      {/* Fade edges for mobile scroll */}
+      <div className="from-background pointer-events-none absolute top-0 right-0 bottom-0 z-10 w-8 bg-linear-to-l to-transparent sm:hidden" />
+      <div className="from-background pointer-events-none absolute top-0 bottom-0 left-0 z-10 w-8 bg-linear-to-r to-transparent sm:hidden" />
 
       <div className="overflow-x-auto">
-        <div className="flex min-w-max items-center gap-1">
+        <div className="flex min-w-max items-center gap-0.5">
           {items.map((item) => {
             const isActive =
               item.key === null
@@ -58,6 +68,7 @@ export function CategoryNavigation({
               item.key === null
                 ? undefined
                 : CATEGORY_ICONS[item.key] || BarChart2;
+            const index = item.key ? CATEGORY_INDEX[item.key] : undefined;
 
             return (
               <button
@@ -66,28 +77,40 @@ export function CategoryNavigation({
                 aria-current={isActive ? "page" : undefined}
                 onClick={() => onCategoryClick(item.key)}
                 className={cn(
-                  "relative flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium whitespace-nowrap transition-colors duration-200",
+                  "relative flex items-center gap-2 px-3.5 py-3 text-xs font-medium whitespace-nowrap transition-all duration-300",
                   isActive
                     ? "text-gold"
-                    : "text-foreground/35 hover:text-foreground/60",
+                    : "text-foreground/30 hover:text-foreground/55",
                 )}
               >
-                {Icon && <Icon className="h-3 w-3" />}
-                <span>{item.name}</span>
+                {/* Numbered index for non-All items */}
+                {index && (
+                  <span
+                    className={cn(
+                      "font-display text-[0.55rem] tabular-nums transition-colors duration-300",
+                      isActive ? "text-gold/70" : "text-foreground/15",
+                    )}
+                  >
+                    {index}
+                  </span>
+                )}
+                {Icon && <Icon className="h-3 w-3 shrink-0" />}
+                <span className="tracking-wide">{item.name}</span>
                 <span
                   className={cn(
-                    "text-[0.6rem] tabular-nums",
-                    isActive ? "text-gold/60" : "text-foreground/20",
+                    "ml-0.5 rounded-full px-1.5 py-0.5 text-[0.55rem] tabular-nums transition-all duration-300",
+                    isActive ? "bg-gold/10 text-gold/80" : "text-foreground/18",
                   )}
                 >
                   {item.count}
                 </span>
 
+                {/* Active indicator — bottom bar */}
                 {isActive && (
                   <motion.div
-                    layoutId="category-pill-bg"
-                    className="border-gold/20 bg-gold/6 absolute inset-0 border"
-                    transition={{ type: "spring", stiffness: 380, damping: 28 }}
+                    layoutId="category-active-bar"
+                    className="bg-gold absolute right-3.5 bottom-0 left-3.5 h-0.5"
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
                   />
                 )}
               </button>

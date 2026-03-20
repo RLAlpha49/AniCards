@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { ArrowDown, Layers, LayoutGrid, Palette, Sparkles } from "lucide-react";
+import { ArrowDown, Sparkles } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 interface HeroSectionProps {
@@ -11,27 +11,37 @@ interface HeroSectionProps {
   onStartCreating: () => void;
 }
 
-const container = {
+const orchestrate = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.08 },
+    transition: { staggerChildren: 0.08, delayChildren: 0.15 },
   },
 };
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 20 },
+const riseIn = {
+  hidden: { opacity: 0, y: 40, filter: "blur(8px)" },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] as const },
+    filter: "blur(0px)",
+    transition: { duration: 0.9, ease: [0.22, 1, 0.36, 1] as const },
   },
 };
 
-function AnimatedCounter({ target }: Readonly<{ target: number }>) {
+const scaleReveal = {
+  hidden: { opacity: 0, scale: 0.85 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    transition: { duration: 1.1, ease: [0.22, 1, 0.36, 1] as const },
+  },
+};
+
+function AnimatedNumber({ target }: Readonly<{ target: number }>) {
   const ref = useRef<HTMLSpanElement>(null);
   const motionVal = useMotionValue(0);
-  const spring = useSpring(motionVal, { stiffness: 80, damping: 20 });
+  const spring = useSpring(motionVal, { stiffness: 60, damping: 22 });
   const display = useTransform(spring, (v) => Math.round(v));
 
   useEffect(() => {
@@ -48,24 +58,12 @@ function AnimatedCounter({ target }: Readonly<{ target: number }>) {
   return <span ref={ref}>0</span>;
 }
 
-const STATS = [
-  { key: "types", label: "Card Types", icon: LayoutGrid, suffix: "" },
-  { key: "variants", label: "Variants", icon: Layers, suffix: "+" },
-  { key: "categories", label: "Categories", icon: Palette, suffix: "" },
-] as const;
-
 export function ExamplesHeroSection({
   totalCardTypes,
   totalVariants,
   categoryCount,
   onStartCreating,
 }: Readonly<HeroSectionProps>) {
-  const values: Record<string, number> = {
-    types: totalCardTypes,
-    variants: totalVariants,
-    categories: categoryCount,
-  };
-
   const scrollToGallery = () => {
     const el = document.getElementById("card-gallery");
     if (el) {
@@ -79,95 +77,126 @@ export function ExamplesHeroSection({
   };
 
   return (
-    <section className="relative overflow-hidden px-6 pt-28 pb-14 sm:px-12 md:pt-36 md:pb-20">
+    <section className="relative overflow-hidden px-6 pt-28 pb-20 sm:px-12 md:pt-36 md:pb-28">
+      {/* Atmospheric background layers */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute top-1/4 left-1/2 h-120 w-175 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(var(--gold)/0.04)] blur-[100px]" />
+        <div className="absolute top-0 left-0 h-full w-full bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,hsl(var(--gold)/0.08),transparent_60%)]" />
+        <div className="absolute bottom-0 left-0 h-1/2 w-full bg-[radial-gradient(ellipse_60%_40%_at_50%_100%,hsl(var(--gold)/0.04),transparent_60%)]" />
+        {/* Subtle dot pattern */}
+        <div
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle, hsl(var(--foreground)) 0.5px, transparent 0.5px)",
+            backgroundSize: "24px 24px",
+          }}
+        />
       </div>
 
       <motion.div
-        variants={container}
+        variants={orchestrate}
         initial="hidden"
         animate="visible"
-        className="relative z-10 mx-auto max-w-3xl text-center"
+        className="relative z-10 mx-auto max-w-5xl"
       >
+        {/* Overline */}
+        <motion.div variants={riseIn} className="mb-8 flex items-center gap-4">
+          <div className="h-px max-w-12 flex-1 bg-linear-to-r from-transparent to-[hsl(var(--gold)/0.5)]" />
+          <span className="text-gold text-[0.6rem] tracking-[0.6em] uppercase sm:text-[0.65rem]">
+            Gallery
+          </span>
+          <div className="h-px max-w-12 flex-1 bg-linear-to-l from-transparent to-[hsl(var(--gold)/0.5)]" />
+        </motion.div>
+
+        {/* Large number overlay */}
+        <div className="relative">
+          <motion.div
+            variants={scaleReveal}
+            className="pointer-events-none absolute -top-8 -left-2 select-none sm:-top-14 sm:-left-4"
+          >
+            <span className="font-display text-[8rem] leading-none font-black text-[hsl(var(--gold)/0.04)] sm:text-[12rem] md:text-[16rem]">
+              <AnimatedNumber target={totalVariants} />
+            </span>
+          </motion.div>
+
+          {/* Main heading */}
+          <motion.h1
+            variants={riseIn}
+            className="font-display relative text-4xl leading-[1.05] font-black tracking-tight sm:text-5xl md:text-6xl lg:text-7xl"
+          >
+            <span className="text-foreground">Every Card,</span>
+            <br />
+            <span className="text-gold">Every Variant</span>
+          </motion.h1>
+        </div>
+
+        {/* Subtitle */}
         <motion.p
-          variants={fadeUp}
-          className="text-gold mb-6 text-[0.6rem] tracking-[0.55em] uppercase sm:text-[0.7rem]"
+          variants={riseIn}
+          className="font-body-serif text-foreground/45 mt-6 max-w-lg text-base leading-relaxed sm:text-lg"
         >
-          The Gallery
-        </motion.p>
-
-        <motion.h1
-          variants={fadeUp}
-          className="font-display text-foreground mb-5 text-4xl leading-[1.08] font-black sm:text-5xl md:text-6xl lg:text-7xl"
-        >
-          Card <span className="text-gold">Showcase</span>
-        </motion.h1>
-
-        <motion.div
-          variants={fadeUp}
-          className="gold-line-thick mx-auto mb-6 max-w-16"
-        />
-
-        <motion.p
-          variants={fadeUp}
-          className="font-body-serif text-foreground/50 mx-auto mb-10 max-w-md text-base leading-relaxed sm:text-lg"
-        >
-          Every card type, every variant — rendered live from{" "}
+          A curated collection of{" "}
+          <span className="text-foreground/70 font-semibold">
+            <AnimatedNumber target={totalCardTypes} /> card types
+          </span>{" "}
+          across{" "}
+          <span className="text-foreground/70 font-semibold">
+            {categoryCount} categories
+          </span>
+          , rendered live from{" "}
           <a
             href="https://anilist.co/user/Alpha49"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-gold hover:text-gold/80 font-semibold transition-colors hover:underline"
+            className="text-gold hover:text-gold/80 transition-colors hover:underline"
           >
             @Alpha49
           </a>
           .
         </motion.p>
 
+        {/* Stats strip */}
         <motion.div
-          variants={fadeUp}
-          className="divide-gold/15 mb-10 inline-flex items-center divide-x"
+          variants={riseIn}
+          className="mt-12 flex flex-wrap items-end gap-12 sm:gap-16"
         >
-          {STATS.map((stat) => {
-            const Icon = stat.icon;
-            return (
-              <div
-                key={stat.key}
-                className="flex items-center gap-2 px-6 first:pl-0 last:pr-0 sm:px-8"
-              >
-                <Icon className="text-gold/50 hidden h-3.5 w-3.5 sm:block" />
-                <div className="text-left">
-                  <p className="font-display text-gold text-xl leading-none font-bold sm:text-2xl">
-                    <AnimatedCounter target={values[stat.key]} />
-                    {stat.suffix}
-                  </p>
-                  <p className="text-foreground/30 text-[0.55rem] tracking-[0.15em] uppercase sm:text-[0.6rem]">
-                    {stat.label}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
+          {[
+            { value: totalCardTypes, label: "Card Types" },
+            { value: totalVariants, label: "Total Variants", suffix: "+" },
+            { value: categoryCount, label: "Categories" },
+          ].map((stat) => (
+            <div key={stat.label}>
+              <p className="font-display text-gold text-3xl leading-none font-black sm:text-4xl">
+                <AnimatedNumber target={stat.value} />
+                {stat.suffix && (
+                  <span className="text-gold/50 text-xl">{stat.suffix}</span>
+                )}
+              </p>
+              <p className="text-foreground/30 mt-1.5 text-[0.6rem] tracking-[0.2em] uppercase">
+                {stat.label}
+              </p>
+            </div>
+          ))}
         </motion.div>
 
+        {/* Actions */}
         <motion.div
-          variants={fadeUp}
-          className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center"
+          variants={riseIn}
+          className="mt-12 flex flex-wrap items-center gap-4"
         >
           <button
             onClick={onStartCreating}
             className="imperial-btn imperial-btn-fill inline-flex items-center"
           >
             <Sparkles className="mr-2 h-4 w-4" />
-            Create Your Cards
+            Create Yours
           </button>
           <button
             onClick={scrollToGallery}
-            className="imperial-btn imperial-btn-ghost inline-flex items-center"
+            className="imperial-btn imperial-btn-ghost group inline-flex items-center"
           >
-            Browse Gallery
-            <ArrowDown className="ml-2 h-4 w-4" />
+            Explore Collection
+            <ArrowDown className="ml-2 h-4 w-4 transition-transform group-hover:translate-y-0.5" />
           </button>
         </motion.div>
       </motion.div>

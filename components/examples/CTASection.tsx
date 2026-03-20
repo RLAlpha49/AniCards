@@ -9,25 +9,45 @@ interface CTASectionProps {
 
 export function CTASection({ onStartCreating }: Readonly<CTASectionProps>) {
   return (
-    <section className="relative overflow-x-clip px-6 py-20 text-center sm:px-12 lg:py-24">
+    <section className="relative overflow-x-clip px-6 py-24 sm:px-12 lg:py-32">
+      {/* Atmospheric glow */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute top-0 left-1/2 h-48 w-150 -translate-x-1/2 rounded-full bg-[hsl(var(--gold)/0.04)] blur-[100px]" />
+        <div className="absolute top-1/2 left-1/2 h-64 w-120 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(var(--gold)/0.04)] blur-[120px]" />
       </div>
 
+      {/* Subtle dot pattern */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.02]"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle, hsl(var(--foreground)) 0.5px, transparent 0.5px)",
+          backgroundSize: "20px 20px",
+        }}
+      />
+
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 30 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-60px" }}
-        transition={{ duration: 0.5 }}
-        className="relative z-10"
+        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+        className="relative z-10 mx-auto max-w-2xl text-center"
       >
-        <div className="gold-line mx-auto mb-10 max-w-20" />
+        {/* Ornamental divider */}
+        <div className="mb-10 flex items-center justify-center gap-4">
+          <div className="gold-line max-w-16 flex-1" />
+          <div className="h-1.5 w-1.5 rotate-45 border border-[hsl(var(--gold)/0.4)]" />
+          <div className="gold-line max-w-16 flex-1" />
+        </div>
 
-        <h2 className="font-display text-foreground mb-4 text-2xl tracking-wide sm:text-3xl">
-          CREATE <span className="text-gold">YOUR OWN</span>
+        <p className="text-gold mb-4 text-[0.6rem] tracking-[0.5em] uppercase">
+          Ready to begin?
+        </p>
+
+        <h2 className="font-display text-foreground mb-5 text-2xl tracking-wide sm:text-3xl md:text-4xl">
+          Create <span className="text-gold">Your Own</span>
         </h2>
 
-        <p className="font-body-serif text-foreground/40 mx-auto mb-8 max-w-md text-sm leading-relaxed sm:text-base">
+        <p className="font-body-serif text-foreground/35 mx-auto mb-10 max-w-md text-sm leading-relaxed sm:text-base">
           Generate personalised stat cards from your AniList profile — free,
           instant, and fully customisable.
         </p>
@@ -37,7 +57,7 @@ export function CTASection({ onStartCreating }: Readonly<CTASectionProps>) {
           className="imperial-btn imperial-btn-fill group inline-flex items-center"
         >
           Get Started
-          <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+          <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
         </button>
       </motion.div>
     </section>
