@@ -25,46 +25,14 @@ type ImageWithSkeletonProps = {
   height?: number;
   containerClassName?: string;
   loading?: "eager" | "lazy";
+  decoding?: "async" | "auto" | "sync";
+  fixedDimensions?: boolean;
 };
-
-function useInView<T extends HTMLElement | null>(
-  ref: React.RefObject<T | null>,
-  rootMargin = "200px",
-) {
-  const [isInView, setIsInView] = useState(false);
-
-  useEffect(() => {
-    const node = ref.current;
-    if (!node || isInView) return;
-    if (typeof IntersectionObserver === "undefined") {
-      setIsInView(true);
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries, obs) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setIsInView(true);
-            obs.disconnect();
-            return;
-          }
-        }
-      },
-      { rootMargin },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [ref, isInView, rootMargin]);
-
-  return isInView;
-}
 
 function useImageDimensions(
   src: string,
   imgRef: React.RefObject<HTMLImageElement | null>,
   isMounted: boolean,
-  isInView: boolean,
   width?: number,
   height?: number,
 ): readonly [
@@ -118,6 +86,7 @@ function useImageLoader(
 } {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
+
   useEffect(() => {
     if (!isMounted) return;
 
@@ -128,16 +97,18 @@ function useImageLoader(
     }, fallbackMs);
 
     return () => clearTimeout(fallbackTimer);
-  }, [isLoaded, hasError, isMounted, fallbackMs]);
+  }, [fallbackMs, hasError, isLoaded, isMounted]);
 
   useEffect(() => {
     if (!isMounted) return;
+
     const el = imgRef.current;
     if (!el) return;
+
     if (el.complete) {
       setIsLoaded(true);
     }
-  }, [isMounted, src]);
+  }, [imgRef, isMounted, src]);
 
   useEffect(() => {
     setIsLoaded(false);
@@ -160,9 +131,17 @@ function useImageLoader(
 function getContainerStyle(
   imageDimensions: { width: number; height: number } | null,
   fallbackAspectRatio: number | undefined,
+  fixedDimensions: boolean,
 ): React.CSSProperties {
   if (imageDimensions) {
-    const style: React.CSSProperties = { maxWidth: imageDimensions.width };
+    const style: React.CSSProperties = fixedDimensions
+      ? {
+          width: imageDimensions.width,
+          minWidth: imageDimensions.width,
+          maxWidth: imageDimensions.width,
+        }
+      : { maxWidth: imageDimensions.width };
+
     if (fallbackAspectRatio) style.aspectRatio = fallbackAspectRatio;
     return style;
   }
@@ -186,16 +165,16 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
   height,
   containerClassName,
   loading = "lazy",
+  decoding = "async",
+  fixedDimensions = false,
 }) => {
   const [isMounted, setIsMounted] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const isInView = useInView(containerRef, "200px");
   const [imageDimensions, setImageDimensions] = useImageDimensions(
     src,
     imgRef,
     isMounted,
-    isInView,
     width,
     height,
   );
@@ -233,6 +212,7 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
   const containerStyle = getContainerStyle(
     imageDimensions,
     fallbackAspectRatio,
+    fixedDimensions,
   );
 
   const showSkeleton = !hasError && !isLoaded;
@@ -266,6 +246,7 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
         width={width}
         height={height}
         loading={loading}
+        decoding={decoding}
         onLoad={onImageLoad}
         onError={onImageError}
       />
