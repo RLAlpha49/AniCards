@@ -27,7 +27,7 @@ export function ProjectCollection() {
         >
           <span className="text-gold/50">§ 02</span>
           <span className="bg-gold/20 inline-block h-px max-w-20 flex-1" />
-          <span className="text-foreground/30">More from the Workshop</span>
+          <span className="text-foreground/30">More from the Collection</span>
         </motion.div>
 
         {/* Top border */}
