@@ -30,32 +30,12 @@ const revealLine = {
 export function ProjectsHeroSection() {
   return (
     <section className="relative overflow-hidden px-6 pt-28 pb-20 sm:px-12 md:pt-36 md:pb-28">
-      {/* Faint diagonal grid lines */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.03] dark:opacity-[0.04]"
-        aria-hidden="true"
-        style={{
-          backgroundImage:
-            "repeating-linear-gradient(135deg, hsl(var(--gold)) 0px, hsl(var(--gold)) 1px, transparent 1px, transparent 80px)",
-        }}
-      />
-
       <motion.div
         variants={orchestrate}
         initial="hidden"
         animate="visible"
         className="relative z-10 mx-auto max-w-6xl"
       >
-        {/* Monospaced catalog annotation */}
-        <motion.div
-          variants={rise}
-          className="mb-8 flex items-center gap-4 font-mono text-[0.65rem] tracking-[0.4em] uppercase sm:text-xs"
-        >
-          <span className="text-gold/60">No. 03</span>
-          <span className="bg-gold/30 inline-block h-px w-12" />
-          <span className="text-foreground/35">Open Source Workshop</span>
-        </motion.div>
-
         {/* Enormous headline with clipped overlay */}
         <div className="relative">
           <motion.h1
@@ -96,38 +76,6 @@ export function ProjectsHeroSection() {
             anime and media tracking workflow. Everything's free, actively
             maintained, and wide open for contributions.
           </motion.p>
-
-          <motion.div
-            variants={rise}
-            className="flex items-end justify-start gap-10 md:justify-end"
-          >
-            <div className="text-center">
-              <span className="font-display text-gold text-3xl sm:text-4xl">
-                3
-              </span>
-              <p className="text-foreground/30 mt-1 text-[0.6rem] tracking-[0.3em] uppercase">
-                Projects
-              </p>
-            </div>
-            <div className="bg-gold/15 h-12 w-px" />
-            <div className="text-center">
-              <span className="font-display text-gold text-3xl sm:text-4xl">
-                ∞
-              </span>
-              <p className="text-foreground/30 mt-1 text-[0.6rem] tracking-[0.3em] uppercase">
-                Possibilities
-              </p>
-            </div>
-            <div className="bg-gold/15 h-12 w-px" />
-            <div className="text-center">
-              <span className="font-display text-gold text-3xl sm:text-4xl">
-                0
-              </span>
-              <p className="text-foreground/30 mt-1 text-[0.6rem] tracking-[0.3em] uppercase">
-                Cost
-              </p>
-            </div>
-          </motion.div>
         </div>
       </motion.div>
     </section>
