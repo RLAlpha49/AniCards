@@ -15,13 +15,10 @@ export default function ContactPage() {
   return (
     <ErrorBoundary>
       <div className="relative min-h-screen">
-        {/* Dot grid atmosphere — spans the full page behind all sections */}
         <div
-          className="pointer-events-none absolute inset-0 opacity-[0.04] dark:opacity-[0.025]"
+          className="pointer-events-none absolute inset-0 opacity-30 dark:opacity-20"
           style={{
-            backgroundImage:
-              "radial-gradient(hsl(var(--gold)) 0.8px, transparent 0.8px)",
-            backgroundSize: "28px 28px",
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0L60 30L30 60L0 30Z' fill='none' stroke='%23c9a84c15' stroke-width='1'/%3E%3C/svg%3E")`,
           }}
         />
 
