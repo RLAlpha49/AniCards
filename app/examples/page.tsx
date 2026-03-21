@@ -24,7 +24,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import type React from "react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import type { CardType, CardVariant } from "@/components/examples";
@@ -503,9 +503,17 @@ export default function ExamplesPage() {
   usePageSEO("examples");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
   const { resolvedTheme } = useTheme();
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const colorPreset =
-    resolvedTheme === "dark" ? "anicardsDarkGradient" : "anicardsLightGradient";
+    isMounted && resolvedTheme === "dark"
+      ? "anicardsDarkGradient"
+      : "anicardsLightGradient";
 
   const router = useRouter();
 
