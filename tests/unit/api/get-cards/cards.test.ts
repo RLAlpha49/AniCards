@@ -8,12 +8,6 @@ import {
 
 const { GET, OPTIONS } = await import("@/app/api/get-cards/route");
 
-/**
- * Extracts the parsed JSON payload from a response for assertions.
- * @param response - HTTP response produced by the handler.
- * @returns Parsed JSON payload.
- * @source
- */
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
 async function getResponseJson(response: Response): Promise<any> {
   return response.json();

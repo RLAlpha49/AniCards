@@ -13,9 +13,6 @@ import {
   mockUserRecord,
 } from "./mock-data";
 
-/**
- * Custom fixture types for AniCards E2E tests.
- */
 export interface AniCardsFixtures {
   /** Mocks the API responses for successful scenarios */
   mockSuccessfulApi: void;
@@ -27,9 +24,6 @@ export interface AniCardsFixtures {
   mockNetworkError: void;
 }
 
-/**
- * Extended test with AniCards-specific fixtures.
- */
 export const test = base.extend<AniCardsFixtures>({
   mockSuccessfulApi: async ({ page }, use) => {
     await page.route("**/api/card**", async (route: Route) => {
@@ -143,9 +137,6 @@ export const test = base.extend<AniCardsFixtures>({
   },
 });
 
-/**
- * Create a mock SVG card for testing.
- */
 function createMockCardSvg(username: string): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
@@ -163,9 +154,6 @@ function createMockCardSvg(username: string): string {
 </svg>`;
 }
 
-/**
- * Create an error SVG for testing error states.
- */
 function createErrorSvg(message: string): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">

@@ -17,9 +17,6 @@ import {
 
 const { POST } = await import("@/app/api/cron/route");
 
-/**
- * Helper to create a mock user record
- */
 function createMockUserRecord(userId: string, daysOld: number = 0) {
   const date = new Date();
   date.setDate(date.getDate() - daysOld);
@@ -31,30 +28,18 @@ function createMockUserRecord(userId: string, daysOld: number = 0) {
   };
 }
 
-/**
- * Async function that returns successful stats
- */
 async function jsonSuccessResponse() {
   return { data: { stats: "mocked" } };
 }
 
-/**
- * Async function that returns 404 error
- */
 async function json404Response() {
   return { error: "User not found" };
 }
 
-/**
- * Async function that returns 500 error
- */
 async function json500Response() {
   return { error: "Internal Server Error" };
 }
 
-/**
- * Creates a successful fetch response
- */
 function createSuccessResponse() {
   return {
     ok: true,
@@ -63,9 +48,6 @@ function createSuccessResponse() {
   };
 }
 
-/**
- * Creates a 404 fetch response
- */
 function create404Response() {
   return {
     ok: false,
@@ -74,9 +56,6 @@ function create404Response() {
   };
 }
 
-/**
- * Creates a 500 fetch response
- */
 function create500Response() {
   return {
     ok: false,
@@ -85,30 +64,18 @@ function create500Response() {
   };
 }
 
-/**
- * Helper to setup mock fetch for successful response
- */
 function setupSuccessfulFetch() {
   return toFetchMock(mock().mockResolvedValue(createSuccessResponse()));
 }
 
-/**
- * Helper to setup mock fetch for 404 response
- */
 function setup404Fetch() {
   return toFetchMock(mock().mockResolvedValue(create404Response()));
 }
 
-/**
- * Helper to setup mock fetch for 500 response
- */
 function setup500Fetch() {
   return toFetchMock(mock().mockResolvedValue(create500Response()));
 }
 
-/**
- * Creates a fetch implementation that retries on error
- */
 function createRetryFetchImplementation(successAfterAttempt: number) {
   let callCount = 0;
   return async () => {
@@ -120,9 +87,6 @@ function createRetryFetchImplementation(successAfterAttempt: number) {
   };
 }
 
-/**
- * Helper to setup mock fetch with retry logic
- */
 function setupRetryFetch(successAfterAttempt: number) {
   return toFetchMock(
     mock().mockImplementation(
@@ -131,16 +95,10 @@ function setupRetryFetch(successAfterAttempt: number) {
   );
 }
 
-/**
- * Helper to setup persistent network error
- */
 function setupNetworkErrorFetch() {
   return toFetchMock(mock().mockRejectedValue(new Error("Network error")));
 }
 
-/**
- * Creates a fetch implementation with mixed outcomes
- */
 function createMixedOutcomesFetchImplementation(failureUserIds: string[]) {
   return async (url: RequestInfo, init?: RequestInit) => {
     const body = init?.body ? JSON.parse(init.body as string) : {};

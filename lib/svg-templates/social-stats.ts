@@ -80,12 +80,10 @@ export const socialStatsTemplate = (data: {
     data.stats.threadCommentsPage?.pageInfo?.total,
   );
   const reviews = toSafeInt(data.stats.reviewsPage?.pageInfo?.total);
-  // Calculate total activity amount
   const totalActivity = activityHistory.length
     ? activityHistory.reduce((acc, curr) => acc + curr.amount, 0)
     : 0;
 
-  // Calculate the number of days between the earliest and latest activity
   const dates = activityHistory.map((entry) => entry.date * 1000);
   let earliestDate = 0;
   let latestDate = 0;

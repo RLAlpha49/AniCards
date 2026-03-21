@@ -197,7 +197,6 @@ export const favoritesGridTemplate = (data: {
   } else if (variant === "studios") {
     gridItems = buildStudioItems().slice(0, gridCapacity);
   } else {
-    // mixed
     gridItems = takeInterleavedMixed(
       buildAnimeItems(),
       buildMangaItems(),

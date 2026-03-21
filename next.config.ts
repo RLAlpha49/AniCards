@@ -1,13 +1,6 @@
 import type { NextConfig } from "next";
 
 /**
- * Next.js Configuration
- *
- * This configuration includes:
- * - Environment variables for API authentication and analytics
- * - Image optimization settings for local and production domains
- * - Security headers for defense-in-depth protection
- *
  * Note: The main CSP header with nonces is injected via middleware (app/middleware.ts)
  * to enable per-request nonce generation. Static security headers are configured here.
  *
@@ -77,20 +70,10 @@ const nextConfig: NextConfig = {
   },
 
   /**
-   * Security Headers Configuration
-   *
-   * These headers provide defense-in-depth security measures.
-   * The CSP directives themselves are defined in `lib/csp-config.ts` and injected per request
+   * CSP directives are defined in `lib/csp-config.ts` and injected per request
    * in `app/middleware.ts` so that nonces can be generated via `crypto.getRandomValues`.
    * `next.config.ts` only hosts the static headers below and purposely avoids duplicating
    * CSP logic.
-   *
-   * Headers applied:
-   * - X-DNS-Prefetch-Control: Enable DNS prefetching for performance
-   * - X-Frame-Options: Prevent clickjacking (defense-in-depth with CSP frame-ancestors)
-   * - X-Content-Type-Options: Prevent MIME type sniffing attacks
-   * - Referrer-Policy: Control referrer information sent to other origins
-   * - Permissions-Policy: Disable unnecessary browser features
    */
   async headers() {
     return [

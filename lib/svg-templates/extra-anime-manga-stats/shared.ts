@@ -406,7 +406,6 @@ export const extraAnimeMangaStatsTemplate = (data: {
       const px = cx + r * Math.cos(angle);
       const py = cy + r * Math.sin(angle);
 
-      // Label placement
       const labelPad = 14;
       const lx = cx + (R + labelPad) * Math.cos(angle);
       const ly = cy + (R + labelPad) * Math.sin(angle);

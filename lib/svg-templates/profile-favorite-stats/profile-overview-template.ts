@@ -55,13 +55,11 @@ export const profileOverviewTemplate = (data: {
   const animeStats = data.statistics.anime;
   const mangaStats = data.statistics.manga;
 
-  // Calculate days watched from minutes
   const daysWatched = Math.round(
     (toFiniteNumber(animeStats.minutesWatched, { fallback: 0 }) ?? 0) /
       (60 * 24),
   );
 
-  // Calculate years active if createdAt is available
   const yearsActive = data.createdAt
     ? Math.max(
         1,

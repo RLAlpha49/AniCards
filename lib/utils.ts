@@ -154,7 +154,6 @@ export function generateGradientSVG(
 
     return `<linearGradient id="${id}" x1="${x1}%" y1="${y1}%" x2="${x2}%" y2="${y2}%">${stops}</linearGradient>`;
   } else {
-    // Radial gradient
     const cx = gradient.cx ?? 50;
     const cy = gradient.cy ?? 50;
     const r = gradient.r ?? 50;

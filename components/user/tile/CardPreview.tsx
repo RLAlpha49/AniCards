@@ -225,7 +225,6 @@ export const CardPreview = memo(function CardPreview({
 
   const [lastRefreshToken, setLastRefreshToken] = useState<string | null>(null);
 
-  // Reset refresh token whenever the underlying preview URL changes.
   useEffect(() => {
     setLastRefreshToken(null);
   }, [openHrefBase]);
@@ -302,7 +301,7 @@ export const CardPreview = memo(function CardPreview({
   return (
     <div
       data-tour="card-preview"
-      className="group/card-preview bg-gold/3 dark:bg-gold/2 relative aspect-[2/1] overflow-hidden"
+      className="group/card-preview bg-gold/3 dark:bg-gold/2 relative aspect-2/1 overflow-hidden"
       onPointerEnter={() => onHoverChange?.(true)}
       onPointerLeave={() => onHoverChange?.(false)}
     >
@@ -312,7 +311,7 @@ export const CardPreview = memo(function CardPreview({
       <div
         aria-hidden="true"
         className={cn(
-          "pointer-events-none absolute inset-0 bg-gradient-to-t from-black/15 via-black/0 to-black/0",
+          "pointer-events-none absolute inset-0 bg-linear-to-t from-black/15 via-black/0 to-black/0",
           "transition-opacity duration-200",
           overlayPinned
             ? "opacity-100"

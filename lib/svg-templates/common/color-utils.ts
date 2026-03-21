@@ -68,7 +68,6 @@ export const resolveCircleBaseColor = (
   }
 
   if (typeof value === "string") {
-    // Try hex first
     if (isValidHexColor(value)) {
       return value;
     }
