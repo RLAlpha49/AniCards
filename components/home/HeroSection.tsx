@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
 import {
@@ -75,8 +75,16 @@ const cardFloat = {
 export function HeroSection() {
   const router = useRouter();
   const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const colorPreset =
-    resolvedTheme === "dark" ? "anicardsDarkGradient" : "anicardsLightGradient";
+    mounted && resolvedTheme === "dark"
+      ? "anicardsDarkGradient"
+      : "anicardsLightGradient";
 
   const handleGetStarted = useCallback(() => {
     safeTrack(() => trackButtonClick("get_started", "homepage_hero"));

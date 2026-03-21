@@ -1,7 +1,7 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
 import {
@@ -399,8 +399,16 @@ function MarqueeRow({
 
 export function CardMarquee() {
   const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const colorPreset =
-    resolvedTheme === "dark" ? "anicardsDarkGradient" : "anicardsLightGradient";
+    mounted && resolvedTheme === "dark"
+      ? "anicardsDarkGradient"
+      : "anicardsLightGradient";
 
   const marqueeRows = useMemo(() => {
     const cards = buildMarqueeCards(colorPreset);
