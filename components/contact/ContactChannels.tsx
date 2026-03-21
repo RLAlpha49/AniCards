@@ -9,6 +9,7 @@ import {
   SimpleDiscordIcon,
   SimpleGithubIcon,
 } from "@/components/SimpleIcons";
+import { EASE_OUT_EXPO } from "@/lib/animations";
 import {
   safeTrack,
   trackExternalLinkClick,
@@ -102,7 +103,14 @@ export function ContactChannels() {
           className="grid grid-cols-1 gap-px bg-[hsl(var(--gold)/0.1)] sm:grid-cols-2 lg:grid-cols-4"
         >
           {CHANNELS.map((ch) => (
-            <motion.div key={ch.name} variants={panelVariant}>
+            <motion.div
+              key={ch.name}
+              variants={panelVariant}
+              whileHover={{
+                y: -4,
+                transition: { duration: 0.3, ease: EASE_OUT_EXPO },
+              }}
+            >
               <Link
                 href={ch.href}
                 target={ch.name === "email" ? undefined : "_blank"}

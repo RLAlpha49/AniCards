@@ -7,6 +7,7 @@
  */
 "use client";
 
+import { motion } from "framer-motion";
 import {
   Activity,
   BarChart2,
@@ -36,6 +37,7 @@ import {
   SearchFilterBar,
 } from "@/components/examples";
 import { usePageSEO } from "@/hooks/usePageSEO";
+import { fadeUp, VIEWPORT_ONCE } from "@/lib/animations";
 import type { CardUrlParams } from "@/lib/card-groups";
 import {
   buildCardUrlWithParams,
@@ -667,12 +669,25 @@ export default function ExamplesPage() {
       }}
     >
       <div className="relative min-h-screen">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-30 dark:opacity-20"
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.5 }}
+          transition={{ duration: 1.2, ease: "easeOut" }}
+          className="pointer-events-none absolute inset-0 opacity-30 dark:hidden"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0L60 30L30 60L0 30Z' fill='none' stroke='%23a67c1a2e' stroke-width='1'/%3E%3C/svg%3E")`,
+          }}
+        />
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.3 }}
+          transition={{ duration: 1.2, ease: "easeOut" }}
+          className="pointer-events-none absolute inset-0 hidden opacity-20 dark:block"
           style={{
             backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0L60 30L30 60L0 30Z' fill='none' stroke='%23c9a84c15' stroke-width='1'/%3E%3C/svg%3E")`,
           }}
         />
+
         <ExamplesHeroSection
           totalCardTypes={totalCardTypes}
           totalVariants={totalVariants}
@@ -681,16 +696,28 @@ export default function ExamplesPage() {
         />
 
         {/* Ornamental divider between hero and content */}
-        <div className="flex items-center justify-center gap-4 py-2">
+        <motion.div
+          variants={fadeUp}
+          initial="hidden"
+          whileInView="visible"
+          viewport={VIEWPORT_ONCE}
+          className="flex items-center justify-center gap-4 py-2"
+        >
           <div className="gold-line max-w-24 flex-1" />
           <div className="h-1 w-1 rotate-45 bg-[hsl(var(--gold)/0.3)]" />
           <div className="gold-line-thick max-w-32 flex-1" />
           <div className="h-1 w-1 rotate-45 bg-[hsl(var(--gold)/0.3)]" />
           <div className="gold-line max-w-24 flex-1" />
-        </div>
+        </motion.div>
 
         {/* Sticky filter toolbar */}
-        <div className="sticky top-15 z-30 mx-auto mt-6 max-w-7xl px-4">
+        <motion.div
+          variants={fadeUp}
+          initial="hidden"
+          whileInView="visible"
+          viewport={VIEWPORT_ONCE}
+          className="sticky top-15 z-30 mx-auto mt-6 max-w-7xl px-4"
+        >
           <div className="border-gold/8 bg-background/85 border backdrop-blur-xl">
             <div className="px-5 pt-4 pb-0">
               <div className="mb-3">
@@ -710,16 +737,17 @@ export default function ExamplesPage() {
               />
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Gallery */}
-        <section id="card-gallery" className="relative w-full py-20 lg:py-24">
-          {/* Subtle side accents */}
-          <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div className="absolute top-32 -left-32 h-96 w-64 rounded-full bg-[hsl(var(--gold)/0.02)] blur-[100px]" />
-            <div className="absolute top-1/2 -right-32 h-96 w-64 rounded-full bg-[hsl(var(--gold)/0.02)] blur-[100px]" />
-          </div>
-
+        <motion.section
+          variants={fadeUp}
+          initial="hidden"
+          whileInView="visible"
+          viewport={VIEWPORT_ONCE}
+          id="card-gallery"
+          className="relative w-full py-20 lg:py-24"
+        >
           <div className="relative container mx-auto px-4">
             <div className="mx-auto max-w-7xl space-y-28">
               {activeCategory ? (
@@ -787,9 +815,16 @@ export default function ExamplesPage() {
               )}
             </div>
           </div>
-        </section>
+        </motion.section>
 
-        <CTASection onStartCreating={handleStartCreating} />
+        <motion.div
+          variants={fadeUp}
+          initial="hidden"
+          whileInView="visible"
+          viewport={VIEWPORT_ONCE}
+        >
+          <CTASection onStartCreating={handleStartCreating} />
+        </motion.div>
       </div>
     </ErrorBoundary>
   );

@@ -1,9 +1,11 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { useTheme } from "next-themes";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
+import { EASE_OUT_EXPO, VIEWPORT_ONCE } from "@/lib/animations";
 import {
   buildCardUrlWithParams,
   CARD_GROUPS,
@@ -416,7 +418,13 @@ export function CardMarquee() {
   }, [colorPreset]);
 
   return (
-    <section className="relative py-16">
+    <motion.section
+      className="relative py-16"
+      initial={{ opacity: 0, y: 30 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={VIEWPORT_ONCE}
+      transition={{ duration: 0.7, ease: EASE_OUT_EXPO }}
+    >
       <div className="gold-line-thick mx-auto mb-10 max-w-[70%]" />
 
       <div className="space-y-6">
@@ -431,6 +439,6 @@ export function CardMarquee() {
       </div>
 
       <div className="gold-line-thick mx-auto mt-10 max-w-[70%]" />
-    </section>
+    </motion.section>
   );
 }

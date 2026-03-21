@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+import { EASE_OUT_EXPO } from "@/lib/animations";
 import {
   safeTrack,
   trackExternalLinkClick,
@@ -55,7 +56,21 @@ const card = {
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] as const },
+    transition: {
+      duration: 0.55,
+      ease: [0.22, 1, 0.36, 1] as const,
+      staggerChildren: 0.06,
+      delayChildren: 0.15,
+    },
+  },
+};
+
+const cardChild = {
+  hidden: { opacity: 0, y: 8 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] as const },
   },
 };
 
@@ -90,7 +105,10 @@ export function ContactReasons() {
         >
           {REASONS.map((reason, i) => {
             const content = (
-              <div className="group relative flex h-full flex-col border border-[hsl(var(--gold)/0.08)] bg-[hsl(var(--gold)/0.015)] p-6 transition-all duration-300 hover:border-[hsl(var(--gold)/0.25)] hover:bg-[hsl(var(--gold)/0.03)] sm:p-8">
+              <motion.div
+                variants={card}
+                className="group relative flex h-full flex-col border border-[hsl(var(--gold)/0.08)] bg-[hsl(var(--gold)/0.015)] p-6 transition-all duration-300 hover:border-[hsl(var(--gold)/0.25)] hover:bg-[hsl(var(--gold)/0.03)] sm:p-8"
+              >
                 {/* Numbered corner */}
                 <span
                   className="absolute top-4 right-5 text-[10px] tracking-wider"
@@ -102,30 +120,48 @@ export function ContactReasons() {
                   {String(i + 1).padStart(2, "0")}
                 </span>
 
-                <reason.icon
-                  size={20}
-                  className="text-gold/50 group-hover:text-gold mb-5 transition-colors"
-                  strokeWidth={1.5}
-                />
+                <motion.div variants={cardChild}>
+                  <reason.icon
+                    size={20}
+                    className="text-gold/50 group-hover:text-gold mb-5 transition-colors"
+                    strokeWidth={1.5}
+                  />
+                </motion.div>
 
-                <h3 className="font-display text-foreground mb-2 text-xs tracking-[0.2em] uppercase sm:text-sm">
+                <motion.h3
+                  variants={cardChild}
+                  className="font-display text-foreground mb-2 text-xs tracking-[0.2em] uppercase sm:text-sm"
+                >
                   {reason.title}
-                </h3>
-                <p className="font-body-serif text-foreground/40 text-sm leading-relaxed">
+                </motion.h3>
+                <motion.p
+                  variants={cardChild}
+                  className="font-body-serif text-foreground/40 text-sm leading-relaxed"
+                >
                   {reason.description}
-                </p>
+                </motion.p>
 
                 {reason.href && (
-                  <div className="text-gold/40 group-hover:text-gold mt-5 flex items-center gap-1.5 text-xs tracking-wider uppercase transition-colors">
+                  <motion.div
+                    variants={cardChild}
+                    className="text-gold/40 group-hover:text-gold mt-5 flex items-center gap-1.5 text-xs tracking-wider uppercase transition-colors"
+                  >
                     Open Issue
                     <ExternalLink className="h-3 w-3" />
-                  </div>
+                  </motion.div>
                 )}
-              </div>
+              </motion.div>
             );
 
             return (
-              <motion.div key={reason.title} variants={card}>
+              <motion.div
+                key={reason.title}
+                variants={card}
+                whileHover={{
+                  y: -3,
+                  transition: { duration: 0.3, ease: EASE_OUT_EXPO },
+                }}
+              >
                 {reason.href ? (
                   <Link
                     href={reason.href}

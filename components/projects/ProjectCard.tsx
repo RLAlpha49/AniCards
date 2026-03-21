@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
 
 import { SimpleGithubIcon } from "@/components/SimpleIcons";
+import { EASE_OUT_EXPO } from "@/lib/animations";
 
 import type { Project } from "./types";
 
@@ -12,7 +13,21 @@ const cardVariants = {
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.65, ease: [0.22, 1, 0.36, 1] as const },
+    transition: {
+      duration: 0.65,
+      ease: [0.22, 1, 0.36, 1] as const,
+      staggerChildren: 0.08,
+      delayChildren: 0.15,
+    },
+  },
+};
+
+const childFade = {
+  hidden: { opacity: 0, y: 12 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.5, ease: EASE_OUT_EXPO },
   },
 };
 
@@ -52,7 +67,10 @@ export function ProjectCard({
           </span>
 
           {/* Header */}
-          <div className="relative z-10 mb-5 flex items-start justify-between gap-4">
+          <motion.div
+            variants={childFade}
+            className="relative z-10 mb-5 flex items-start justify-between gap-4"
+          >
             <div className="flex items-center gap-3">
               <span className="text-gold/40 group-hover:text-gold/70 font-mono text-xs tracking-[0.3em]">
                 {num}
@@ -65,23 +83,36 @@ export function ProjectCard({
                 }}
               />
             </div>
-            <div className="border-gold/15 group-hover:border-gold/40 group-hover:bg-gold/5 flex h-9 w-9 items-center justify-center border transition-all duration-300">
+            <motion.div
+              whileHover={{ scale: 1.12 }}
+              transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
+              className="border-gold/15 group-hover:border-gold/40 group-hover:bg-gold/5 flex h-9 w-9 items-center justify-center border transition-all duration-300"
+            >
               <ArrowUpRight className="text-foreground/25 group-hover:text-gold h-4 w-4 transition-all duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
 
           {/* Project name */}
-          <h3 className="font-display text-foreground group-hover:text-gold relative z-10 mb-3 text-lg tracking-[0.12em] uppercase transition-colors duration-300 sm:text-xl">
+          <motion.h3
+            variants={childFade}
+            className="font-display text-foreground group-hover:text-gold relative z-10 mb-3 text-lg tracking-[0.12em] uppercase transition-colors duration-300 sm:text-xl"
+          >
             {project.name}
-          </h3>
+          </motion.h3>
 
           {/* Description */}
-          <p className="font-body-serif text-foreground/40 relative z-10 mb-6 flex-1 text-sm leading-[1.75]">
+          <motion.p
+            variants={childFade}
+            className="font-body-serif text-foreground/40 relative z-10 mb-6 flex-1 text-sm leading-[1.75]"
+          >
             {project.highlight}
-          </p>
+          </motion.p>
 
           {/* Tags + GitHub */}
-          <div className="relative z-10 flex items-center justify-between gap-4">
+          <motion.div
+            variants={childFade}
+            className="relative z-10 flex items-center justify-between gap-4"
+          >
             <div className="flex flex-wrap gap-x-3 gap-y-1">
               {project.tags.map((tag, i) => (
                 <span
@@ -99,7 +130,7 @@ export function ProjectCard({
               size={16}
               className="text-foreground/15 group-hover:text-gold/50 shrink-0 transition-colors"
             />
-          </div>
+          </motion.div>
         </div>
       </a>
     </motion.article>

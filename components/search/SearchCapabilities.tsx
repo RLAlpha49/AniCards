@@ -3,6 +3,8 @@
 import { motion } from "framer-motion";
 import { Layers, Palette, Share2 } from "lucide-react";
 
+import { EASE_OUT_EXPO, fadeIn, fadeUp } from "@/lib/animations";
+
 const CAPABILITIES = [
   {
     icon: Layers,
@@ -44,10 +46,24 @@ export function SearchCapabilities() {
         {CAPABILITIES.map((cap, i) => (
           <motion.div
             key={cap.title}
-            initial={{ opacity: 0, y: 40, scale: 0.96 }}
-            whileInView={{ opacity: 1, y: 0, scale: 1 }}
+            initial="hidden"
+            whileInView="visible"
             viewport={{ once: true, margin: "-50px" }}
-            transition={{ duration: 0.6, delay: i * 0.12 }}
+            variants={{
+              hidden: { opacity: 0, y: 40, scale: 0.96 },
+              visible: {
+                opacity: 1,
+                y: 0,
+                scale: 1,
+                transition: {
+                  duration: 0.6,
+                  delay: i * 0.12,
+                  ease: EASE_OUT_EXPO,
+                  staggerChildren: 0.08,
+                  delayChildren: 0.25,
+                },
+              },
+            }}
             whileHover={{ y: -6, transition: { duration: 0.25 } }}
             className={`group border-gold/10 bg-gold/2 relative border-2 p-8 text-center transition-colors duration-500 hover:border-gold/30${i === 1 ? "md:-translate-y-4" : ""}`}
           >
@@ -63,17 +79,27 @@ export function SearchCapabilities() {
             </div>
 
             {/* Icon container */}
-            <div className="border-gold/20 bg-gold/5 group-hover:border-gold/40 group-hover:bg-gold/8 mx-auto mb-6 flex h-16 w-16 items-center justify-center border transition-all duration-300">
+            <motion.div
+              variants={fadeIn}
+              whileHover={{ scale: 1.1, transition: { duration: 0.25 } }}
+              className="border-gold/20 bg-gold/5 group-hover:border-gold/40 group-hover:bg-gold/8 mx-auto mb-6 flex h-16 w-16 items-center justify-center border transition-all duration-300"
+            >
               <cap.icon className="text-gold/70 group-hover:text-gold h-7 w-7 transition-colors" />
-            </div>
+            </motion.div>
 
-            <h3 className="font-display text-foreground mb-4 text-sm tracking-[0.25em]">
+            <motion.h3
+              variants={fadeUp}
+              className="font-display text-foreground mb-4 text-sm tracking-[0.25em]"
+            >
               {cap.title}
-            </h3>
+            </motion.h3>
             <div className="gold-line mx-auto mb-4 max-w-10" />
-            <p className="font-body-serif text-foreground/45 text-sm leading-relaxed">
+            <motion.p
+              variants={fadeUp}
+              className="font-body-serif text-foreground/45 text-sm leading-relaxed"
+            >
               {cap.desc}
-            </p>
+            </motion.p>
 
             {/* Hover glow */}
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,hsl(var(--gold)/0.04),transparent_70%)] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />

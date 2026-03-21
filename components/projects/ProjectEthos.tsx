@@ -2,6 +2,8 @@
 
 import { motion } from "framer-motion";
 
+import { EASE_OUT_EXPO } from "@/lib/animations";
+
 import { ETHOS_ITEMS } from "./constants";
 
 const stagger = {
@@ -17,7 +19,30 @@ const cardReveal = {
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.65, ease: [0.22, 1, 0.36, 1] as const },
+    transition: {
+      duration: 0.65,
+      ease: [0.22, 1, 0.36, 1] as const,
+      staggerChildren: 0.08,
+      delayChildren: 0.12,
+    },
+  },
+};
+
+const childFade = {
+  hidden: { opacity: 0, y: 10 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.45, ease: EASE_OUT_EXPO },
+  },
+};
+
+const dotScale = {
+  hidden: { opacity: 0, scale: 0 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    transition: { duration: 0.5, ease: EASE_OUT_EXPO },
   },
 };
 
@@ -80,7 +105,8 @@ export function ProjectEthos() {
               className="group relative"
             >
               {/* Node dot on the timeline */}
-              <div
+              <motion.div
+                variants={dotScale}
                 className="bg-background border-gold/40 absolute -top-[3.35rem] left-1/2 hidden h-3 w-3 -translate-x-1/2 border md:block"
                 aria-hidden="true"
                 style={{
@@ -90,15 +116,21 @@ export function ProjectEthos() {
 
               <div className="relative text-center md:text-left">
                 {/* Icon container */}
-                <div className="border-gold/20 group-hover:border-gold/40 group-hover:bg-gold/5 mx-auto mb-6 inline-flex border p-3.5 transition-all duration-300 md:mx-0">
+                <motion.div
+                  variants={childFade}
+                  className="border-gold/20 group-hover:border-gold/40 group-hover:bg-gold/5 mx-auto mb-6 inline-flex border p-3.5 transition-all duration-300 md:mx-0"
+                >
                   <item.icon
                     size={22}
                     className="text-gold/70 group-hover:text-gold transition-colors duration-300"
                   />
-                </div>
+                </motion.div>
 
                 {/* Number + Title */}
-                <div className="mb-4 flex items-center justify-center gap-3 md:justify-start">
+                <motion.div
+                  variants={childFade}
+                  className="mb-4 flex items-center justify-center gap-3 md:justify-start"
+                >
                   <span className="text-gold/30 font-mono text-xs tracking-[0.3em]">
                     {String(i + 1).padStart(2, "0")}
                   </span>
@@ -109,15 +141,21 @@ export function ProjectEthos() {
                         "linear-gradient(90deg, hsl(var(--gold) / 0.3), transparent)",
                     }}
                   />
-                </div>
+                </motion.div>
 
-                <h3 className="font-display text-foreground group-hover:text-gold/90 mb-4 text-sm tracking-[0.2em] transition-colors duration-300">
+                <motion.h3
+                  variants={childFade}
+                  className="font-display text-foreground group-hover:text-gold/90 mb-4 text-sm tracking-[0.2em] transition-colors duration-300"
+                >
                   {item.title}
-                </h3>
+                </motion.h3>
 
-                <p className="font-body-serif text-foreground/40 mx-auto max-w-xs text-sm leading-[1.75] md:mx-0">
+                <motion.p
+                  variants={childFade}
+                  className="font-body-serif text-foreground/40 mx-auto max-w-xs text-sm leading-[1.75] md:mx-0"
+                >
                   {item.description}
-                </p>
+                </motion.p>
               </div>
             </motion.div>
           ))}
