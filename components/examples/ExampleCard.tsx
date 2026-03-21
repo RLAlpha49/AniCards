@@ -100,7 +100,7 @@ export function ExampleCard({
               style={{ transitionDelay: "50ms" }}
             >
               <ExternalLink className="h-3 w-3" />
-              View Full Size
+              Open Full Size
             </motion.div>
           </div>
         </div>

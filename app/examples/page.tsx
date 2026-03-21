@@ -76,7 +76,7 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
   {
     title: "Anime Statistics",
     description:
-      "Complete overview of your anime watching journey with various layout options",
+      "A wide-angle snapshot of your anime watching habits — pick the layout that suits you",
     category: "Core Stats",
     icon: BarChart2,
     color: "blue",
@@ -84,14 +84,15 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
   {
     title: "Manga Statistics",
     description:
-      "Comprehensive manga reading statistics with different display formats",
+      "Your manga reading stats at a glance, available in several visual formats",
     category: "Core Stats",
     icon: BookOpen,
     color: "pink",
   },
   {
     title: "Social Statistics",
-    description: "Community engagement metrics and social activity overview",
+    description:
+      "How you show up in the community — thread activity, follows, and everything social",
     category: "Core Stats",
     icon: Users,
     color: "green",
@@ -99,14 +100,14 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
   {
     title: "Profile Overview",
     description:
-      "Avatar, banner, and key profile totals in a clean overview card",
+      "Your avatar, banner, and headline numbers wrapped into one tidy card",
     category: "Core Stats",
     icon: Users,
     color: "teal",
   },
   {
     title: "Anime vs Manga Overview",
-    description: "High-level overview comparing your anime and manga habits",
+    description: "Anime versus manga — a quick side-by-side of your two habits",
     category: "Core Stats",
     icon: BarChart2,
     color: "indigo",
@@ -115,42 +116,44 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
   {
     title: "Anime Genres",
     description:
-      "Breakdown of your anime genre preferences with multiple visualization options",
+      "Which genres pull you in? This maps your anime taste with several chart styles",
     category: "Anime Deep Dive",
     icon: PieChart,
     color: "purple",
   },
   {
     title: "Anime Tags",
-    description: "Most common tags from your anime collection",
+    description: "The tags that keep surfacing across your anime library",
     category: "Anime Deep Dive",
     icon: PieChart,
     color: "indigo",
   },
   {
     title: "Voice Actors",
-    description: "Most frequent voice actors in your anime collection",
+    description:
+      "Voice actors you've heard more than anyone else in your lineup",
     category: "Anime Deep Dive",
     icon: Mic,
     color: "orange",
   },
   {
     title: "Animation Studios",
-    description: "Your favorite animation studios breakdown",
+    description: "A studio-by-studio breakdown of where your anime comes from",
     category: "Anime Deep Dive",
     icon: Building2,
     color: "teal",
   },
   {
     title: "Studio Collaboration",
-    description: "Most frequent studio collaborations in your collection",
+    description: "Which studios team up most often in the shows you watch",
     category: "Anime Deep Dive",
     icon: Building2,
     color: "cyan",
   },
   {
     title: "Anime Staff",
-    description: "Most frequent staff members in your anime collection",
+    description:
+      "The directors, writers, and key staff behind the anime you gravitate toward",
     category: "Anime Deep Dive",
     icon: Users,
     color: "cyan",
@@ -158,14 +161,15 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
   {
     title: "Anime Status Distribution",
     description:
-      "Distribution of anime by watching status with optional status colors",
+      "Where things stand — watching, completed, dropped — with optional color coding",
     category: "Anime Deep Dive",
     icon: TrendingUp,
     color: "emerald",
   },
   {
     title: "Anime Format Distribution",
-    description: "Breakdown by anime formats (TV, Movie, OVA, etc.)",
+    description:
+      "TV series, movies, OVAs — see which formats dominate your watchlist",
     category: "Anime Deep Dive",
     icon: PieChart,
     color: "violet",
@@ -173,7 +177,7 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
   {
     title: "Anime Source Material Distribution",
     description:
-      "Breakdown of anime by source material (Manga, Original, Light Novel, etc.)",
+      "Adapted from manga? An original? Light novel? See where your anime originated",
     category: "Anime Deep Dive",
     icon: PieChart,
     color: "orange",
@@ -181,42 +185,45 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
   {
     title: "Anime Seasonal Preference",
     description:
-      "Breakdown of anime releases by season (Winter/Spring/Summer/Fall)",
+      "Winter premieres or summer blockbusters — find out which season owns your list",
     category: "Anime Deep Dive",
     icon: Calendar,
     color: "amber",
   },
   {
     title: "Anime Country Distribution",
-    description: "Anime by country of origin breakdown",
+    description:
+      "Where in the world your anime was produced — country by country",
     category: "Anime Deep Dive",
     icon: PieChart,
     color: "rose",
   },
   {
     title: "Anime Score Distribution",
-    description: "Distribution of your anime ratings",
+    description: "How your scores actually spread out across your anime list",
     category: "Anime Deep Dive",
     icon: TrendingUp,
     color: "amber",
   },
   {
     title: "Anime Year Distribution",
-    description: "Distribution of anime by release year",
+    description: "A timeline of when the anime on your list first aired",
     category: "Anime Deep Dive",
     icon: TrendingUp,
     color: "lime",
   },
   {
     title: "Episode Length Preferences",
-    description: "Breakdown of your preferred anime episode lengths",
+    description:
+      "Short-form bites or full-length episodes — see where your preferences land",
     category: "Anime Deep Dive",
     icon: Clock,
     color: "blue",
   },
   {
     title: "Genre Synergy",
-    description: "Top genre combinations in your anime collection",
+    description:
+      "The genre pairings that show up together most in your collection",
     category: "Anime Deep Dive",
     icon: BarChart2,
     color: "indigo",
@@ -224,56 +231,60 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
 
   {
     title: "Manga Genres",
-    description: "Breakdown of your manga genre preferences",
+    description: "Which manga genres keep pulling you back in",
     category: "Manga Deep Dive",
     icon: PieChart,
     color: "purple",
   },
   {
     title: "Manga Tags",
-    description: "Most common tags from your manga collection",
+    description: "Recurring tags scattered across your manga shelves",
     category: "Manga Deep Dive",
     icon: PieChart,
     color: "indigo",
   },
   {
     title: "Manga Staff",
-    description: "Most frequent staff members in your manga collection",
+    description:
+      "The mangaka and staff who show up most across your reading list",
     category: "Manga Deep Dive",
     icon: Users,
     color: "cyan",
   },
   {
     title: "Manga Status Distribution",
-    description: "Distribution of manga by reading status",
+    description:
+      "Reading, finished, on hold — a snapshot of where each title sits",
     category: "Manga Deep Dive",
     icon: TrendingUp,
     color: "emerald",
   },
   {
     title: "Manga Format Distribution",
-    description: "Breakdown by manga formats (Manga, Novel, etc.)",
+    description:
+      "Manga proper, light novels, one-shots — your format split at a glance",
     category: "Manga Deep Dive",
     icon: PieChart,
     color: "violet",
   },
   {
     title: "Manga Country Distribution",
-    description: "Manga by country of origin breakdown",
+    description: "Country of origin for every manga in your collection",
     category: "Manga Deep Dive",
     icon: PieChart,
     color: "rose",
   },
   {
     title: "Manga Score Distribution",
-    description: "Distribution of your manga ratings",
+    description: "How generous (or harsh) your manga scores really are",
     category: "Manga Deep Dive",
     icon: TrendingUp,
     color: "amber",
   },
   {
     title: "Manga Year Distribution",
-    description: "Distribution of manga by release year",
+    description:
+      "When the manga on your list was first published, year by year",
     category: "Manga Deep Dive",
     icon: TrendingUp,
     color: "lime",
@@ -281,42 +292,46 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
 
   {
     title: "Recent Activity Summary",
-    description: "Sparkline and stats summarizing recent activity",
+    description:
+      "A quick pulse check — sparklines and numbers from your latest activity",
     category: "Activity & Engagement",
     icon: Activity,
     color: "amber",
   },
   {
     title: "Activity Streaks",
-    description: "Current and longest streaks based on activity history",
+    description: "Your current streak and your all-time best, side by side",
     category: "Activity & Engagement",
     icon: Clock,
     color: "amber",
   },
   {
     title: "Top Activity Days",
-    description: "Highlight the days with highest activity",
+    description: "The days you went hardest — ranked by raw activity volume",
     category: "Activity & Engagement",
     icon: Activity,
     color: "amber",
   },
   {
     title: "Social Milestones",
-    description: "Milestones and achievements based on your social activity",
+    description:
+      "Unlocked milestones and social achievements worth bragging about",
     category: "Activity & Engagement",
     icon: TrendingUp,
     color: "emerald",
   },
   {
     title: "Review Statistics",
-    description: "Overview of your review activity and ratings",
+    description:
+      "How often you review, what you rate, and the scores you hand out",
     category: "Activity & Engagement",
     icon: BarChart2,
     color: "blue",
   },
   {
     title: "Seasonal Viewing Patterns",
-    description: "Patterns by day-of-week and month to show peak times",
+    description:
+      "When do you actually watch? Spot your peak days and busiest months",
     category: "Activity & Engagement",
     icon: Calendar,
     color: "amber",
@@ -325,7 +340,7 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
   {
     title: "Favourites Summary",
     description:
-      "Quick summary of favourite anime, manga, and characters in one card",
+      "Your top picks — favourite anime, manga, and characters — all on a single card",
     category: "Library & Progress",
     icon: Heart,
     color: "rose",
@@ -333,7 +348,7 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
   {
     title: "Favourites Grid",
     description:
-      "Customisable grid showing favourite anime, manga, characters, or mixed",
+      "A flexible grid of favourites you can mix and match however you like",
     category: "Library & Progress",
     icon: LayoutGrid,
     color: "orange",
@@ -341,35 +356,38 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
   {
     title: "Status Completion Overview",
     description:
-      "Compare anime vs manga completion totals with combined or split views",
+      "Completion tally for anime and manga — view them together or split apart",
     category: "Library & Progress",
     icon: TrendingUp,
     color: "emerald",
   },
   {
     title: "Consumption Milestones",
-    description: "Celebrate your biggest anime and manga milestones",
+    description:
+      "The big landmarks in your anime and manga journey, worth celebrating",
     category: "Library & Progress",
     icon: Calendar,
     color: "green",
   },
   {
     title: "Personal Records",
-    description: "Your personal bests and standout completed titles",
+    description: "Personal bests and the standout titles that earned them",
     category: "Library & Progress",
     icon: BarChart2,
     color: "teal",
   },
   {
     title: "Planning Backlog",
-    description: "Snapshot of your planned watch/read backlog",
+    description:
+      "Everything still sitting in your plan-to-watch and plan-to-read pile",
     category: "Library & Progress",
     icon: Clock,
     color: "cyan",
   },
   {
     title: "Most Rewatched/Reread",
-    description: "Your most revisited anime and manga",
+    description:
+      "The titles you keep coming back to — your most rewatched and reread",
     category: "Library & Progress",
     icon: Activity,
     color: "lime",
@@ -377,14 +395,15 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
   {
     title: "Currently Watching / Reading",
     description:
-      "Snapshot of what you're currently watching/reading with anime-only and manga-only views",
+      "What's on your plate right now, with options to filter by anime or manga only",
     category: "Library & Progress",
     icon: Clock,
     color: "cyan",
   },
   {
     title: "Dropped Media",
-    description: "Overview of titles you've dropped from your list",
+    description:
+      "The ones that didn't make the cut — every title you've walked away from",
     category: "Library & Progress",
     icon: Activity,
     color: "rose",
@@ -392,63 +411,71 @@ const CARD_TYPE_METADATA: CardTypeMeta[] = [
 
   {
     title: "Anime vs Manga Score Comparison",
-    description: "Compare your scoring patterns between anime and manga",
+    description:
+      "Do you score anime and manga the same way? This card settles the debate",
     category: "Advanced Analytics",
     icon: TrendingUp,
     color: "violet",
   },
   {
     title: "Country Diversity",
-    description: "Compare the diversity of countries across anime and manga",
+    description: "How worldly is your taste? Country diversity, anime vs manga",
     category: "Advanced Analytics",
     icon: PieChart,
     color: "rose",
   },
   {
     title: "Genre Diversity",
-    description: "Compare genre diversity across anime and manga",
+    description:
+      "Genre spread across both media — are you more adventurous with one than the other?",
     category: "Advanced Analytics",
     icon: PieChart,
     color: "purple",
   },
   {
     title: "Format Preference Overview",
-    description: "Compare your format preferences between anime and manga",
+    description:
+      "TV vs manga proper, movies vs one-shots — your format leanings compared",
     category: "Advanced Analytics",
     icon: PieChart,
     color: "blue",
   },
   {
     title: "Release Era Preference",
-    description: "Compare which release eras you consume most",
+    description:
+      "Classic era fan or modern-day devotee? See where most of your picks land",
     category: "Advanced Analytics",
     icon: Calendar,
     color: "amber",
   },
   {
     title: "Start-Year Momentum",
-    description: "Compare momentum by start year between anime and manga",
+    description:
+      "When did you start picking up new titles? Track the momentum year by year",
     category: "Advanced Analytics",
     icon: TrendingUp,
     color: "orange",
   },
   {
     title: "Length Preference",
-    description: "Compare preferences for shorter vs longer series",
+    description:
+      "Quick reads and binge-watches vs sprawling epics — see which side wins",
     category: "Advanced Analytics",
     icon: TrendingUp,
     color: "teal",
   },
   {
     title: "Tag Category Distribution",
-    description: "Compare tag categories across anime and manga",
+    description:
+      "How your tag preferences stack up when you put anime and manga next to each other",
     category: "Advanced Analytics",
     icon: PieChart,
     color: "indigo",
   },
   {
     title: "Tag Diversity",
-    description: "Compare tag diversity across anime and manga",
+    description:
+      "Are your anime tags all over the map while manga stays niche? Find out",
     category: "Advanced Analytics",
     icon: PieChart,
     color: "violet",
@@ -731,18 +758,18 @@ export default function ExamplesPage() {
                     ∅
                   </div>
                   <p className="font-display text-foreground/20 mb-2 text-base tracking-[0.25em] uppercase">
-                    No Results
+                    Nothing Here
                   </p>
                   <p className="font-body-serif text-foreground/30 mx-auto max-w-xs text-sm leading-relaxed">
-                    No cards match your current filters. Try adjusting your
-                    search or category selection.
+                    Your filters came up empty. Try loosening the search or
+                    picking a different category.
                   </p>
                   <button
                     type="button"
                     onClick={handleClearFilters}
                     className="text-gold hover:text-gold/80 mt-8 text-xs font-semibold tracking-widest uppercase transition-colors hover:underline"
                   >
-                    Clear all filters
+                    Start fresh
                   </button>
                 </div>
               )}

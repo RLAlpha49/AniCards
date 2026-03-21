@@ -51,16 +51,18 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
 };
 
 const CATEGORY_DESCRIPTIONS: Record<string, string> = {
-  "Core Stats": "Foundational cards showing your overall anime & manga profile",
+  "Core Stats":
+    "The essentials — a bird's-eye view of your anime and manga footprint",
   "Anime Deep Dive":
-    "Detailed breakdowns of your anime genres, studios, and patterns",
+    "Granular breakdowns covering your anime genres, studios, and viewing habits",
   "Manga Deep Dive":
-    "In-depth analysis of your manga reading habits and preferences",
+    "A closer look at what you read, how you read, and which titles define your taste",
   "Activity & Engagement":
-    "Streaks, milestones, and patterns in your daily activity",
+    "Tracking the rhythm of your daily engagement — streaks, milestones, and peak days",
   "Library & Progress":
-    "Favourites, backlog, and completion milestones at a glance",
-  "Advanced Analytics": "Cross-media comparisons and data-driven insights",
+    "Your favourites, your backlog, and the milestones that matter — all in one place",
+  "Advanced Analytics":
+    "Side-by-side anime-vs-manga comparisons and the deeper patterns most people miss",
 };
 
 const CATEGORY_NUMBERS: Record<string, string> = {

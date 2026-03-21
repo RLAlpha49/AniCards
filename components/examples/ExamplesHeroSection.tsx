@@ -103,7 +103,7 @@ export function ExamplesHeroSection({
         <motion.div variants={riseIn} className="mb-8 flex items-center gap-4">
           <div className="h-px max-w-12 flex-1 bg-linear-to-r from-transparent to-[hsl(var(--gold)/0.5)]" />
           <span className="text-gold text-[0.6rem] tracking-[0.6em] uppercase sm:text-[0.65rem]">
-            Gallery
+            Showcase
           </span>
           <div className="h-px max-w-12 flex-1 bg-linear-to-l from-transparent to-[hsl(var(--gold)/0.5)]" />
         </motion.div>
@@ -135,15 +135,15 @@ export function ExamplesHeroSection({
           variants={riseIn}
           className="font-body-serif text-foreground/45 mt-6 max-w-lg text-base leading-relaxed sm:text-lg"
         >
-          A curated collection of{" "}
+          Browse{" "}
           <span className="text-foreground/70 font-semibold">
-            <AnimatedNumber target={totalCardTypes} /> card types
+            <AnimatedNumber target={totalCardTypes} /> distinct card types
           </span>{" "}
-          across{" "}
+          spread across{" "}
           <span className="text-foreground/70 font-semibold">
             {categoryCount} categories
           </span>
-          , rendered live from{" "}
+          — all pulled live from{" "}
           <a
             href="https://anilist.co/user/Alpha49"
             target="_blank"
@@ -152,7 +152,7 @@ export function ExamplesHeroSection({
           >
             @Alpha49
           </a>
-          .
+          {"."}
         </motion.p>
 
         {/* Stats strip */}
@@ -195,7 +195,7 @@ export function ExamplesHeroSection({
             onClick={scrollToGallery}
             className="imperial-btn imperial-btn-ghost group inline-flex items-center"
           >
-            Explore Collection
+            Browse the Gallery
             <ArrowDown className="ml-2 h-4 w-4 transition-transform group-hover:translate-y-0.5" />
           </button>
         </motion.div>
