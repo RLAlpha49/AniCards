@@ -91,7 +91,7 @@ export function HeroSection() {
             variants={fadeUp}
             className="text-gold mb-5 text-[0.65rem] tracking-[0.6em] uppercase sm:text-xs"
           >
-            AniList Statistics, Elevated
+            Your AniList Stats, Distilled
           </motion.p>
 
           <motion.h1
@@ -100,9 +100,9 @@ export function HeroSection() {
           >
             YOUR ANIME
             <br />
-            JOURNEY,{" "}
+            STORY,{" "}
             <span className="text-gold">
-              RENDERED
+              CARVED
               <br className="hidden sm:block" /> IN GOLD
             </span>
           </motion.h1>
@@ -116,8 +116,8 @@ export function HeroSection() {
             variants={fadeUp}
             className="font-body-serif text-foreground/50 mb-10 max-w-md text-base leading-relaxed sm:text-lg"
           >
-            Elegant stat cards crafted from your AniList data. Comprehensive
-            analytics, stunning visuals, infinitely customizable.
+            Sharp stat cards pulled straight from your AniList profile. Deep
+            analytics, bold visuals — and every detail is yours to tweak.
           </motion.p>
 
           <motion.div
@@ -139,8 +139,8 @@ export function HeroSection() {
             variants={fadeUp}
             className="text-foreground/35 mt-10 flex flex-wrap gap-6 text-[0.65rem] tracking-[0.2em] uppercase"
           >
-            <span>✦ Free Forever</span>
-            <span>✦ No Login</span>
+            <span>✦ Always Free</span>
+            <span>✦ No Sign-Up</span>
             <span>✦ 20+ Card Types</span>
           </motion.div>
         </motion.div>

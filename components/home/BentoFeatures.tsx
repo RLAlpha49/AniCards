@@ -17,57 +17,57 @@ const FEATURES = [
   {
     num: "Ⅰ",
     icon: BarChart2,
-    title: "COMPREHENSIVE STATS",
-    desc: "Detailed statistics about your anime and manga including watch time, episodes, and scores.",
+    title: "FULL-PICTURE STATS",
+    desc: "Watch time, episode counts, scores — the whole rundown for your anime and manga lives here.",
     span: "md:col-span-2 md:row-span-1",
   },
   {
     num: "Ⅱ",
     icon: Heart,
-    title: "GENRE BREAKDOWN",
-    desc: "Discover your top genres and tags with beautiful pie charts and visualizations.",
+    title: "GENRE DEEP DIVE",
+    desc: "Find out which genres and tags pull you in most, laid out in clean pie charts and vivid visuals.",
     span: "md:col-span-1 md:row-span-2",
   },
   {
     num: "Ⅲ",
     icon: Palette,
-    title: "CUSTOM THEMES",
-    desc: "Choose from beautiful presets or create your own color schemes to match your style.",
+    title: "CUSTOM PALETTES",
+    desc: "Pick a preset that catches your eye, or create your own color scheme from scratch.",
     span: "md:col-span-1 md:row-span-1",
   },
   {
     num: "Ⅳ",
     icon: BookOpen,
-    title: "MANGA ANALYSIS",
-    desc: "Deep dive into reading habits with chapter counts, volume progress, and mean scores.",
+    title: "MANGA BREAKDOWN",
+    desc: "Chapter counts, volume progress, average scores — your reading habits, all in one spot.",
     span: "md:col-span-1 md:row-span-1",
   },
   {
     num: "Ⅴ",
     icon: Mic,
     title: "VOICE ACTOR SPOTLIGHT",
-    desc: "Identify the voice actors who appear most frequently across your anime collection.",
+    desc: "See which voice actors keep showing up across the anime you’ve watched.",
     span: "md:col-span-1 md:row-span-1",
   },
   {
     num: "Ⅵ",
     icon: Building2,
-    title: "STUDIO INSIGHTS",
-    desc: "See which animation studios produce your most-watched and highest-rated content.",
+    title: "STUDIO BREAKDOWN",
+    desc: "Find out which animation studios are behind the shows you watch most — and rate highest.",
     span: "md:col-span-1 md:row-span-1",
   },
   {
     num: "Ⅶ",
     icon: Share2,
-    title: "EFFORTLESS SHARING",
-    desc: "Generate optimized SVG cards that display flawlessly on GitHub, Discord, and social media.",
+    title: "SHARE ANYWHERE",
+    desc: "Crisp SVG cards that look just right on AniList, or wherever you drop them.",
     span: "md:col-span-1 md:row-span-1",
   },
   {
     num: "Ⅷ",
     icon: Shield,
-    title: "PRIVACY FIRST",
-    desc: "No account needed. We only access public AniList data with full transparency.",
+    title: "YOUR DATA, YOUR CALL",
+    desc: "No account required. We only pull what’s already public on your AniList profile — nothing hidden.",
     span: "md:col-span-2 md:row-span-1",
   },
 ] as const;
@@ -95,7 +95,7 @@ export function BentoFeatures() {
             transition={{ duration: 0.5, delay: 0.1 }}
             className="font-display text-foreground mb-4 text-3xl sm:text-4xl lg:text-5xl"
           >
-            THE <span className="text-gold">COLLECTION</span>
+            THE <span className="text-gold">REPERTOIRE</span>
           </motion.h2>
 
           <motion.p
@@ -104,8 +104,8 @@ export function BentoFeatures() {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="font-body-serif text-foreground/50 mx-auto max-w-xl text-base sm:text-lg"
           >
-            Every facet of your anime and manga experience, distilled into
-            beautifully crafted visual cards.
+            Every corner of your anime and manga world, shaped into cards worth
+            showing off.
           </motion.p>
         </div>
 

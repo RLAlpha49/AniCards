@@ -32,11 +32,12 @@ export function HomeCTA() {
           transition={{ duration: 0.7 }}
         >
           <h2 className="font-display text-gold mb-5 text-3xl sm:text-4xl lg:text-5xl">
-            READY TO BEGIN?
+            READY TO BUILD YOURS?
           </h2>
 
           <p className="font-body-serif text-foreground/40 mx-auto mb-10 max-w-md text-base sm:text-lg">
-            Where data meets craftsmanship. Where your stats become art.
+            Numbers that look good enough to frame. Your stats deserve better
+            than a spreadsheet.
           </p>
 
           <motion.button
@@ -49,7 +50,7 @@ export function HomeCTA() {
             whileTap={{ scale: 0.97 }}
             transition={{ type: "spring", stiffness: 400, damping: 20 }}
           >
-            ❖ Create Your Cards ❖
+            ❖ Build Your Cards ❖
           </motion.button>
         </motion.div>
       </div>
