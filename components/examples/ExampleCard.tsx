@@ -85,7 +85,7 @@ export function ExampleCard({
             <div className="h-full w-full bg-[radial-gradient(ellipse_at_center,transparent_40%,hsl(var(--background)/0.3))]" />
           </div>
 
-          <div className="p-4 transition-transform duration-700 ease-out group-hover/card:scale-[1.03]">
+          <div className="flex justify-center p-4 transition-transform duration-700 ease-out group-hover/card:scale-[1.03]">
             <ImageWithSkeleton
               src={variant.url}
               alt={`${cardTypeTitle} - ${variant.name}`}
