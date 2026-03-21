@@ -15,14 +15,14 @@ const STATS = [
   {
     icon: Sparkles,
     value: "∞",
-    label: "Customizations",
+    label: "Combinations",
     countTo: null,
     suffix: "",
   },
   {
     icon: Zap,
     value: "<1s",
-    label: "Generation",
+    label: "Render Time",
     countTo: 1,
     suffix: "s",
     prefix: "<",
@@ -30,7 +30,7 @@ const STATS = [
   {
     icon: Clock,
     value: "24h",
-    label: "Auto Refresh",
+    label: "Data Refresh",
     countTo: 24,
     suffix: "h",
   },

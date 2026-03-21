@@ -8,20 +8,20 @@ const STEPS = [
   {
     num: "Ⅰ",
     icon: Search,
-    title: "DISCOVER",
-    desc: "Enter any AniList username. We fetch your public profile data instantly.",
+    title: "LOOK UP",
+    desc: "Drop in any AniList username — we grab your public profile data on the spot.",
   },
   {
     num: "Ⅱ",
     icon: Sparkles,
-    title: "GENERATE",
-    desc: "Your stats are transformed into over 20 beautifully designed card types.",
+    title: "BUILD",
+    desc: "Those numbers get shaped into 20+ distinct card designs, each one polished and ready to go.",
   },
   {
     num: "Ⅲ",
     icon: Palette,
-    title: "CUSTOMIZE",
-    desc: "Fine-tune colors, layouts, and themes. Then export as pixel-perfect SVGs.",
+    title: "MAKE IT YOURS",
+    desc: "Dial in colors, layouts, and themes until it feels right. Then grab your pixel-perfect SVGs.",
   },
 ] as const;
 
@@ -39,7 +39,7 @@ export function ProcessSteps() {
             transition={{ duration: 0.5 }}
             className="font-display text-foreground mb-4 text-3xl sm:text-4xl"
           >
-            THE <span className="text-gold">JOURNEY</span>
+            THE <span className="text-gold">PROCESS</span>
           </motion.h2>
           <motion.div
             initial={{ opacity: 0 }}
