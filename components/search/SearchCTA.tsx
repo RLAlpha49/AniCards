@@ -22,13 +22,12 @@ export function SearchCTA() {
           EXPLORE THE COLLECTION
         </h2>
         <p className="font-body-serif text-foreground/40 mb-10 text-sm leading-relaxed sm:text-base">
-          See what others have created. Browse real stat cards and find
-          inspiration for your own collection.
+          Curious what&apos;s possible?
         </p>
 
         <Link href="/examples" className="imperial-btn imperial-btn-fill">
           <span className="inline-flex items-center gap-2">
-            View Examples
+            Browse Examples
             <ArrowRight className="h-4 w-4" />
           </span>
         </Link>

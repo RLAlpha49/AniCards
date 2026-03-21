@@ -6,20 +6,20 @@ import { Palette, Search, Sparkles } from "lucide-react";
 const STEPS = [
   {
     num: "01",
-    title: "SEARCH",
-    desc: "Enter any AniList username or user ID. We\u2019ll find the profile instantly.",
+    title: "LOOK UP",
+    desc: "Drop in an AniList username or user ID. We'll track down the profile before you can blink.",
     icon: Search,
   },
   {
     num: "02",
-    title: "GENERATE",
-    desc: "Your stats are transformed into beautifully crafted visual cards automatically.",
+    title: "BUILD",
+    desc: "Your watching habits, favorites, and stats get shaped into polished visual cards \u2014 no effort required on your end.",
     icon: Sparkles,
   },
   {
     num: "03",
-    title: "CUSTOMIZE",
-    desc: "Fine-tune colors, layouts, and styles until every card feels unmistakably yours.",
+    title: "REFINE",
+    desc: "Tinker with colors, swap layouts, adjust styles. Keep going until every card feels distinctly yours.",
     icon: Palette,
   },
 ];
@@ -35,10 +35,10 @@ export function SearchJourney() {
         className="mb-16 text-center"
       >
         <p className="text-gold mb-4 text-xs tracking-[0.5em] uppercase sm:text-sm">
-          How It Works
+          The Process
         </p>
         <h2 className="font-display text-foreground mb-4 text-3xl tracking-[0.15em] sm:text-4xl">
-          THE JOURNEY
+          YOUR PATH
         </h2>
         <div className="gold-line-thick mx-auto max-w-20" />
       </motion.div>
