@@ -22,16 +22,6 @@ const fadeUp = {
 export function ContactHeroSection() {
   return (
     <section className="relative overflow-hidden px-6 pt-28 pb-24 sm:px-12 md:pt-40 md:pb-32">
-      {/* Dot grid atmosphere */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.06] dark:opacity-[0.035]"
-        style={{
-          backgroundImage:
-            "radial-gradient(hsl(var(--gold)) 0.8px, transparent 0.8px)",
-          backgroundSize: "28px 28px",
-        }}
-      />
-
       {/* Centered radial glow */}
       <div className="pointer-events-none absolute top-1/3 left-1/2 h-125 w-175 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(var(--gold)/0.045)] blur-[140px]" />
 
@@ -53,7 +43,7 @@ export function ContactHeroSection() {
                 color: "hsl(var(--gold) / 0.45)",
               }}
             >
-              Contact
+              Say Hello
             </span>
             <span className="block h-1.5 w-1.5 rotate-45 border border-[hsl(var(--gold)/0.4)]" />
           </div>
@@ -66,13 +56,13 @@ export function ContactHeroSection() {
             variants={fadeUp}
             className="font-display text-foreground text-[clamp(3.5rem,13vw,11rem)] leading-[0.82] font-black"
           >
-            REACH
+            GET IN
           </motion.h1>
           <motion.h1
             variants={fadeUp}
             className="font-display text-gold text-[clamp(3.5rem,13vw,11rem)] leading-[0.82] font-black"
           >
-            OUT
+            TOUCH
           </motion.h1>
         </div>
 
