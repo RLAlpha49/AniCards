@@ -32,10 +32,10 @@ export function ContactCTA() {
         </div>
 
         <h2 className="font-display text-foreground mb-3 text-3xl font-bold sm:text-4xl">
-          DIRECT LINE
+          DROP A LINE
         </h2>
         <p className="font-body-serif text-foreground/35 mb-10 text-base leading-relaxed">
-          For anything that warrants a longer conversation.
+          Some things deserve more than a quick message.
         </p>
 
         <Link
@@ -53,7 +53,7 @@ export function ContactCTA() {
           className="text-foreground/20 mt-8 text-[10px] tracking-[0.3em] uppercase"
           style={{ fontFamily: "var(--font-geist-mono), monospace" }}
         >
-          Typically responds within 24–48 hours
+          I usually reply within a day or two
         </p>
       </motion.div>
     </section>

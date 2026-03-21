@@ -18,24 +18,27 @@ import {
 const REASONS = [
   {
     icon: MessageSquare,
-    title: "General Questions",
-    description: "Anything about AniCards, usage, or features",
+    title: "Just Curious",
+    description:
+      "Wondering how AniCards works, what it can do, or something else entirely",
   },
   {
     icon: Lightbulb,
-    title: "Feature Requests",
-    description: "Ideas for new cards, designs, or improvements",
+    title: "Got an Idea",
+    description:
+      "Dream up a new card type, suggest a fresh look, or pitch something unexpected",
   },
   {
     icon: Bug,
-    title: "Bug Reports",
-    description: "Something broken? Open an issue on GitHub",
+    title: "Something's Off",
+    description:
+      "Ran into a bug? Let me know — or open an issue directly on GitHub",
     href: "https://github.com/RLAlpha49/AniCards/issues",
   },
   {
     icon: Sparkles,
-    title: "Collaboration",
-    description: "Partnerships, integrations, or creative projects",
+    title: "Let's Build",
+    description: "Partnerships, integrations, or whatever you're cooking up",
   },
 ];
 
@@ -69,10 +72,10 @@ export function ContactReasons() {
               color: "hsl(var(--gold) / 0.4)",
             }}
           >
-            Topics
+            What Brings You Here
           </span>
           <h2 className="font-display text-foreground mt-3 text-2xl font-bold tracking-tight sm:text-3xl">
-            HOW CAN I HELP?
+            WHAT&apos;S ON YOUR MIND?
           </h2>
           <div className="mx-auto mt-5 h-px max-w-16 bg-linear-to-r from-transparent via-[hsl(var(--gold)/0.4)] to-transparent" />
         </div>
