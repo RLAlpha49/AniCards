@@ -602,3 +602,135 @@ button {
     animation: none !important;
   }
 }
+
+/* ── Command Palette ── */
+
+.cmd-palette-panel {
+  isolation: isolate;
+}
+
+.cmd-search-area {
+  position: relative;
+}
+
+.cmd-search-area::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 1rem;
+  right: 1rem;
+  height: 1px;
+  background: hsl(var(--gold) / 0.1);
+}
+
+.cmd-search-area::before {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  right: 50%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    hsl(var(--gold) / 0.5),
+    transparent
+  );
+  transition:
+    left 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    right 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  z-index: 1;
+}
+
+.cmd-search-area:focus-within::before {
+  left: 1rem;
+  right: 1rem;
+}
+
+.cmd-palette-list [cmdk-group-heading] {
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: hsl(var(--gold-dim) / 0.6);
+  padding: 14px 12px 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dark .cmd-palette-list [cmdk-group-heading] {
+  color: hsl(var(--gold) / 0.4);
+}
+
+.cmd-palette-list [cmdk-group-heading]::before {
+  content: "◆";
+  font-size: 5px;
+  color: hsl(var(--gold) / 0.35);
+}
+
+.cmd-palette-list [cmdk-group-heading]::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, hsl(var(--gold) / 0.12), transparent);
+}
+
+.cmd-palette-list [cmdk-item] {
+  animation: cmd-item-in 0.22s ease-out both;
+}
+
+.cmd-palette-list [cmdk-group-items] > [cmdk-item]:nth-child(2) {
+  animation-delay: 25ms;
+}
+.cmd-palette-list [cmdk-group-items] > [cmdk-item]:nth-child(3) {
+  animation-delay: 50ms;
+}
+.cmd-palette-list [cmdk-group-items] > [cmdk-item]:nth-child(4) {
+  animation-delay: 75ms;
+}
+.cmd-palette-list [cmdk-group-items] > [cmdk-item]:nth-child(5) {
+  animation-delay: 100ms;
+}
+.cmd-palette-list [cmdk-group-items] > [cmdk-item]:nth-child(6) {
+  animation-delay: 125ms;
+}
+.cmd-palette-list [cmdk-group-items] > [cmdk-item]:nth-child(7) {
+  animation-delay: 150ms;
+}
+.cmd-palette-list [cmdk-group-items] > [cmdk-item]:nth-child(8) {
+  animation-delay: 175ms;
+}
+
+@keyframes cmd-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cmd-palette-list {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--gold) / 0.15) transparent;
+}
+
+.cmd-palette-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.cmd-palette-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cmd-palette-list::-webkit-scrollbar-thumb {
+  background: hsl(var(--gold) / 0.15);
+  border-radius: 8px;
+}
+
+.cmd-palette-list::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--gold) / 0.25);
+}
