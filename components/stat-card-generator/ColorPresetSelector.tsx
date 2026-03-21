@@ -106,6 +106,10 @@ function ColorPresetSelectorComponent({
       Object.entries(presets).sort(([aKey, aVal], [bKey, bVal]) => {
         const fixedOrder = [
           "default",
+          "anicardsLight",
+          "anicardsDark",
+          "anicardsLightGradient",
+          "anicardsDarkGradient",
           "anilistLight",
           "anilistDark",
           "anilistLightGradient",
