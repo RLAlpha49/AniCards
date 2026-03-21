@@ -110,14 +110,14 @@ export function SearchHeroSection({
           variants={itemVariants}
           className="text-gold mb-5 text-xs tracking-[0.6em] uppercase sm:text-sm"
         >
-          User Discovery
+          Profile Lookup
         </motion.p>
 
         <motion.h1
           variants={itemVariants}
           className="font-display text-foreground mb-2 text-5xl leading-[1.05] font-black sm:text-6xl md:text-7xl lg:text-8xl"
         >
-          DISCOVER
+          UNLOCK
         </motion.h1>
 
         <motion.h1
@@ -136,17 +136,18 @@ export function SearchHeroSection({
           variants={itemVariants}
           className="font-body-serif text-foreground/45 mx-auto mb-6 max-w-lg text-base leading-relaxed sm:text-lg"
         >
-          Enter a username or user ID to explore, customize, and export
-          beautifully crafted stat cards from any AniList profile.
+          Punch in a username or ID, and we&apos;ll pull together stunning stat
+          cards from any public AniList profile — ready to customize and share
+          wherever you like.
         </motion.p>
 
         <motion.div
           variants={itemVariants}
           className="text-foreground/30 mb-14 flex flex-wrap justify-center gap-x-8 gap-y-2 text-xs tracking-[0.2em] uppercase"
         >
-          <span>✦ Instant Lookup</span>
-          <span>✦ No Login Required</span>
-          <span>✦ Auto Setup</span>
+          <span>✦ Instant Results</span>
+          <span>✦ No Account Needed</span>
+          <span>✦ One-Click Setup</span>
         </motion.div>
 
         <motion.div variants={itemVariants}>

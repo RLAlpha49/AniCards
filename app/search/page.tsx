@@ -23,7 +23,7 @@ export default function UserSearchPage() {
       onReset={() => setLoading(false)}
     >
       <div className="relative min-h-screen">
-        {loading && <LoadingOverlay text="Searching for user..." />}
+        {loading && <LoadingOverlay text="Tracking down that profile..." />}
 
         <div
           className="pointer-events-none absolute inset-0 opacity-30 dark:opacity-20"

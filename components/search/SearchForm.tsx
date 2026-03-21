@@ -64,7 +64,7 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
 
       if (!trimmedValue) {
         setError(
-          `Please enter a ${searchMethod === "username" ? "username" : "user ID"}`,
+          `You'll need to enter a ${searchMethod === "username" ? "username" : "user ID"} first`,
         );
         safeTrack(() => trackFormSubmission("user_search", false));
         return;
@@ -90,13 +90,13 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
             () => {
               setLoading(false);
               onLoadingChange?.(false);
-              setError("Navigation failed. Please try again.");
+              setError("Something went wrong with navigation. Try again?");
             },
           );
         } catch {
           setLoading(false);
           onLoadingChange?.(false);
-          setError("Navigation failed. Please try again.");
+          setError("Something went wrong with navigation. Try again?");
         }
       });
     },
@@ -140,7 +140,7 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
                 >
                   <Info className="h-4 w-4" />
                   <AlertTitle className="text-red-800 dark:text-red-200">
-                    Search Error
+                    Heads Up
                   </AlertTitle>
                   <AlertDescription className="text-red-700 dark:text-red-300">
                     {error}
@@ -153,7 +153,7 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
           {/* Method Toggle with sliding indicator */}
           <div className="space-y-3">
             <span className="font-display text-foreground/50 block text-[0.6rem] tracking-[0.3em] uppercase">
-              Search Method
+              Look Up By
             </span>
             <div className="border-gold/15 bg-gold/3 relative flex border">
               <motion.div
@@ -243,12 +243,12 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Opening user page...
+                Pulling up their page...
               </>
             ) : (
               <>
                 <Search className="mr-2 h-5 w-5" />
-                Search User
+                Find Profile
                 <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
               </>
             )}
@@ -256,7 +256,8 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
         </form>
 
         <p className="font-body-serif text-foreground/30 mt-6 text-center text-xs leading-relaxed">
-          Any public AniList profile can be looked up by username or numeric ID.
+          Works with any public AniList profile — just type a username or paste
+          their numeric ID.
         </p>
       </div>
     </div>

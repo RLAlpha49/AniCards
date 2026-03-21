@@ -6,18 +6,18 @@ import { Layers, Palette, Share2 } from "lucide-react";
 const CAPABILITIES = [
   {
     icon: Layers,
-    title: "MULTIPLE CARD TYPES",
-    desc: "From activity stats to genre breakdowns, favorites, and social metrics \u2014 every facet of your profile, visualized.",
+    title: "VARIED CARD TYPES",
+    desc: "Activity stats, genre breakdowns, favorites, social metrics \u2014 nearly every angle of your profile gets its own dedicated card.",
   },
   {
     icon: Palette,
-    title: "RICH THEMES",
-    desc: "Choose from curated color palettes or craft your own. Dark, light, vibrant, or minimal \u2014 your aesthetic, your rules.",
+    title: "DEEP CUSTOMIZATION",
+    desc: "Pick from handpicked color palettes or build one from scratch. Dark, vivid, understated \u2014 whatever suits your taste.",
   },
   {
     icon: Share2,
-    title: "EXPORT ANYWHERE",
-    desc: "SVG and PNG output that renders flawlessly on GitHub readmes, social profiles, forums, and everywhere in between.",
+    title: "SHARE EVERYWHERE",
+    desc: "SVG and PNG exports that look crisp on GitHub readmes, social profiles, forums \u2014 basically anywhere you want to show them off.",
   },
 ];
 
@@ -32,10 +32,10 @@ export function SearchCapabilities() {
         className="mb-16 text-center"
       >
         <p className="text-gold mb-4 text-xs tracking-[0.5em] uppercase sm:text-sm">
-          What Awaits
+          What's Inside
         </p>
         <h2 className="font-display text-foreground mb-4 text-3xl tracking-[0.15em] sm:text-4xl">
-          CRAFT YOUR COLLECTION
+          ASSEMBLE YOUR SET
         </h2>
         <div className="gold-line-thick mx-auto max-w-20" />
       </motion.div>
