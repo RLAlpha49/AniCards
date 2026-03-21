@@ -9,42 +9,40 @@ const stagger = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.15, delayChildren: 0.05 },
+    transition: { staggerChildren: 0.18, delayChildren: 0.05 },
   },
 };
 
 export function ProjectCollection() {
   return (
     <section className="relative px-6 py-20 sm:px-12 md:py-28">
-      <div className="mx-auto max-w-6xl">
+      <div className="mx-auto max-w-7xl">
         {/* Section label */}
         <motion.div
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true, margin: "-40px" }}
           transition={{ duration: 0.5 }}
-          className="mb-12 flex items-center gap-4 font-mono text-[0.6rem] tracking-[0.4em] uppercase sm:text-xs"
+          className="mb-14 flex items-center gap-4 font-mono text-[0.6rem] tracking-[0.4em] uppercase sm:text-xs"
         >
-          <span className="text-gold/50">§ 02</span>
-          <span className="bg-gold/20 inline-block h-px max-w-20 flex-1" />
-          <span className="text-foreground/30">More from the Collection</span>
+          <span className="text-gold/60">02</span>
+          <span
+            className="inline-block h-px max-w-16 flex-1"
+            style={{
+              background:
+                "linear-gradient(90deg, hsl(var(--gold) / 0.3), transparent)",
+            }}
+          />
+          <span className="text-foreground/30">Collection</span>
         </motion.div>
 
-        {/* Top border */}
-        <div
-          className="mb-0 h-0.5"
-          style={{
-            background:
-              "linear-gradient(90deg, hsl(var(--gold) / 0.4), hsl(var(--gold) / 0.08) 70%, transparent)",
-          }}
-        />
-
-        {/* Project strips */}
+        {/* Asymmetric card grid */}
         <motion.div
           variants={stagger}
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, margin: "-40px" }}
+          className="grid gap-6 md:grid-cols-2 md:gap-8"
         >
           {PROJECTS.map((project, index) => (
             <ProjectCard key={project.url} project={project} index={index} />
