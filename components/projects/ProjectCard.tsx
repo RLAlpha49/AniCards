@@ -4,96 +4,82 @@ import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
 
 import { SimpleGithubIcon } from "@/components/SimpleIcons";
-import { Button } from "@/components/ui/Button";
 
 import type { Project } from "./types";
 
-const cardVariants = {
-  hidden: { opacity: 0, y: 30 },
+const stripVariants = {
+  hidden: { opacity: 0, x: -20 },
   visible: {
     opacity: 1,
-    y: 0,
+    x: 0,
     transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] as const },
   },
 };
 
-export function ProjectCard({ project }: Readonly<{ project: Project }>) {
-  return (
-    <motion.div variants={cardVariants}>
-      <div className="imperial-card group relative overflow-hidden transition-all duration-400 hover:-translate-y-1">
-        {/* Large watermark numeral */}
-        <div className="pointer-events-none absolute -top-4 -right-2 select-none">
-          <span className="font-display block text-[10rem] leading-none text-[hsl(var(--gold)/0.04)]">
-            {project.numeral}
-          </span>
-        </div>
+export function ProjectCard({
+  project,
+  index,
+}: Readonly<{
+  project: Project;
+  index: number;
+}>) {
+  const num = String(index + 2).padStart(2, "0");
 
-        <div className="relative z-10">
-          {/* Header: catalog number + external link */}
-          <div className="mb-6 flex items-start justify-between">
-            <div className="flex items-center gap-3">
-              <div className="border-gold/20 border p-2.5">
-                <SimpleGithubIcon size={20} className="text-gold" />
-              </div>
-              <span className="font-display text-gold/40 text-sm">
-                № {project.numeral}
-              </span>
-            </div>
-            <a
-              href={project.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-foreground/30 hover:text-gold transition-colors"
-              aria-label={`View ${project.name} on GitHub`}
-            >
-              <ArrowUpRight className="h-5 w-5" />
-            </a>
+  return (
+    <motion.article variants={stripVariants} className="group relative">
+      {/* Horizontal strip layout */}
+      <a
+        href={project.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="border-gold/10 hover:border-gold/30 hover:bg-gold/2 grid items-center gap-6 border-b-2 px-2 py-8 transition-all duration-500 sm:px-4 md:grid-cols-[4rem_1fr_auto] md:gap-10 md:py-10"
+      >
+        {/* Large number */}
+        <span className="font-display text-gold/15 group-hover:text-gold/30 hidden text-5xl leading-none transition-colors duration-500 md:block">
+          {num}
+        </span>
+
+        {/* Project info */}
+        <div className="min-w-0">
+          <div className="mb-2 flex items-center gap-3">
+            <span className="font-display text-gold/30 text-2xl md:hidden">
+              {num}
+            </span>
+            <h3 className="font-display text-foreground group-hover:text-gold text-base tracking-[0.12em] uppercase transition-colors duration-300 sm:text-lg">
+              {project.name}
+            </h3>
           </div>
 
-          {/* Title */}
-          <h3 className="font-display text-foreground mb-3 text-base tracking-[0.12em] uppercase sm:text-lg">
-            {project.name}
-          </h3>
-
-          <div className="gold-line mb-5 max-w-10" />
-
-          {/* Highlight as emphasized text */}
-          <p className="font-body-serif text-foreground/60 mb-3 text-sm leading-relaxed italic">
+          <p className="font-body-serif text-foreground/40 mb-4 line-clamp-2 max-w-xl text-sm leading-[1.7]">
             {project.highlight}
           </p>
 
-          {/* Description */}
-          <p className="font-body-serif text-foreground/40 mb-8 text-sm leading-relaxed">
-            {project.description}
-          </p>
-
-          {/* Tags */}
-          <div className="mb-8 flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
             {project.tags.map((tag) => (
               <span
                 key={tag}
-                className="border-gold/15 text-foreground/40 border px-3 py-1 text-xs tracking-wider uppercase"
+                className="text-foreground/35 group-hover:text-foreground/50 font-mono text-[0.6rem] tracking-widest uppercase transition-colors"
               >
                 {tag}
+                {tag !== project.tags.at(-1) && (
+                  <span className="text-gold/25 ml-2">·</span>
+                )}
               </span>
             ))}
           </div>
-
-          {/* CTA */}
-          <Button asChild className="imperial-btn imperial-btn-fill w-full">
-            <a
-              href={project.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2"
-            >
-              <SimpleGithubIcon size={18} />
-              View on GitHub
-              <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-            </a>
-          </Button>
         </div>
-      </div>
-    </motion.div>
+
+        {/* Arrow link indicator */}
+        <div className="flex items-center gap-3">
+          <SimpleGithubIcon
+            size={18}
+            className="text-foreground/20 group-hover:text-gold/60 transition-colors"
+          />
+          <div className="border-gold/20 group-hover:border-gold/50 group-hover:bg-gold/5 flex h-10 w-10 items-center justify-center border transition-all duration-300">
+            <ArrowUpRight className="text-foreground/30 group-hover:text-gold h-5 w-5 transition-all duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          </div>
+        </div>
+      </a>
+    </motion.article>
   );
 }

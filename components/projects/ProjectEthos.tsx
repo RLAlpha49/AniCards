@@ -8,74 +8,92 @@ const stagger = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.12 },
+    transition: { staggerChildren: 0.12, delayChildren: 0.08 },
   },
 };
 
-const fadeUp = {
+const cardReveal = {
   hidden: { opacity: 0, y: 20 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] as const },
+    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] as const },
   },
 };
 
 export function ProjectEthos() {
   return (
-    <section className="border-gold/15 relative overflow-hidden border-y-2 bg-[hsl(var(--gold)/0.02)] px-6 py-20 sm:px-12 md:py-24">
-      {/* Atmospheric background glow */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute top-1/2 left-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(var(--gold)/0.04)] blur-[100px]" />
-      </div>
+    <section className="relative px-6 py-20 sm:px-12 md:py-28">
+      {/* Background accent */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-40 dark:opacity-25"
+        aria-hidden="true"
+        style={{
+          background:
+            "radial-gradient(ellipse at 30% 50%, hsl(var(--gold) / 0.04), transparent 60%)",
+        }}
+      />
 
-      <div className="relative z-10 mx-auto max-w-6xl">
+      <div className="relative mx-auto max-w-6xl">
+        {/* Section label */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true, margin: "-40px" }}
           transition={{ duration: 0.5 }}
-          className="mb-14 text-center"
+          className="mb-14 flex items-center gap-4 font-mono text-[0.6rem] tracking-[0.4em] uppercase sm:text-xs"
         >
-          <span className="font-display text-gold text-xs tracking-[0.5em] uppercase">
-            Our Principles
-          </span>
-          <div className="gold-line mx-auto mt-4 max-w-14" />
+          <span className="text-gold/50">§ 03</span>
+          <span className="bg-gold/20 inline-block h-px max-w-20 flex-1" />
+          <span className="text-foreground/30">What Drives This</span>
         </motion.div>
 
-        {/* Horizontal strip with vertical dividers */}
         <motion.div
           variants={stagger}
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, margin: "-40px" }}
-          className="grid grid-cols-1 md:grid-cols-3"
+          className="grid grid-cols-1 gap-px overflow-hidden md:grid-cols-3"
+          style={{
+            background:
+              "linear-gradient(180deg, hsl(var(--gold) / 0.12), hsl(var(--gold) / 0.06))",
+          }}
         >
-          {ETHOS_ITEMS.map((item, index) => (
+          {ETHOS_ITEMS.map((item, i) => (
             <motion.div
               key={item.title}
-              variants={fadeUp}
-              className={`group p-8 text-center md:p-10 ${
-                index < ETHOS_ITEMS.length - 1
-                  ? "border-gold/10 border-b md:border-r md:border-b-0"
-                  : ""
-              }`}
+              variants={cardReveal}
+              className="bg-background relative p-8 sm:p-10"
             >
-              <div className="border-gold/20 group-hover:border-gold/40 mx-auto mb-6 inline-flex border p-4 transition-colors duration-300">
-                <item.icon size={22} className="text-gold" />
-              </div>
-              <span className="font-display text-gold/20 mb-4 block text-2xl">
-                {item.numeral}
+              {/* Large watermark number */}
+              <span
+                className="font-display text-gold/5 pointer-events-none absolute -top-2 right-4 text-[7rem] leading-none select-none"
+                aria-hidden="true"
+              >
+                {String(i + 1).padStart(2, "0")}
               </span>
-              <h3 className="font-display text-foreground mb-3 text-sm tracking-[0.25em]">
-                {item.title}
-              </h3>
 
-              <div className="gold-line mx-auto mb-4 max-w-8" />
+              <div className="relative z-10">
+                <div className="border-gold/20 mb-6 inline-flex border p-3">
+                  <item.icon size={20} className="text-gold" />
+                </div>
 
-              <p className="font-body-serif text-foreground/45 text-sm leading-relaxed">
-                {item.description}
-              </p>
+                <h3 className="font-display text-foreground mb-3 text-sm tracking-[0.2em]">
+                  {item.title}
+                </h3>
+
+                <div
+                  className="mb-4 h-px max-w-10"
+                  style={{
+                    background:
+                      "linear-gradient(90deg, hsl(var(--gold) / 0.4), transparent)",
+                  }}
+                />
+
+                <p className="font-body-serif text-foreground/45 text-sm leading-[1.7]">
+                  {item.description}
+                </p>
+              </div>
             </motion.div>
           ))}
         </motion.div>

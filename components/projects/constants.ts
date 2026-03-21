@@ -5,33 +5,34 @@ import type { EthosItem, Project } from "./types";
 export const FEATURED_PROJECT: Project = {
   name: "AniCards",
   description:
-    "Elegant stat cards generated from your AniList data. Beautiful designs, rich color themes, multiple layouts, and SVG perfection that displays flawlessly everywhere.",
+    "Stat cards pulled straight from your AniList profile — sharp designs, a deep bench of color themes, flexible layouts, and SVG rendering that looks crisp no matter where you drop it.",
   url: "https://github.com/RLAlpha49/AniCards",
   tags: ["Next.js", "AniList API", "SVG", "TypeScript"],
   numeral: "Ⅰ",
   highlight:
-    "The flagship project — the very site you're browsing. A complete platform for generating, customizing, and sharing beautiful anime stat cards.",
+    "This is the main act — the site you're on right now. A full-blown platform for generating, tweaking, and sharing anime stat cards that actually look good.",
 };
 
 export const PROJECTS: Project[] = [
   {
     name: "Anilist Custom List Manager",
     description:
-      "Manage your custom lists on Anilist and automatically set your entries to them based on conditions you set. A powerful tool for organizing your anime and manga collections.",
+      "Take charge of your Anilist custom lists and let the tool sort entries on your terms. Set the rules once, and it handles the busywork of keeping your anime and manga organized.",
     url: "https://github.com/RLAlpha49/Anilist-Custom-List-Manager",
     tags: ["Anilist", "List Management", "Automation"],
     numeral: "Ⅱ",
     highlight:
-      "Automate your collection organization with rule-based list assignments.",
+      "Rule-based sorting that keeps your collections tidy without lifting a finger.",
   },
   {
     name: "Kenmai to Anilist",
     description:
-      "An application to update your Anilist entries from a Kenmai export file. Perfect for migrating your tracking data between platforms.",
+      "Pulls in a Kenmai export and syncs everything with your Anilist account. If you're jumping between tracking platforms, this makes the switch painless.",
     url: "https://github.com/RLAlpha49/KenmeiToAnilist",
     tags: ["Anilist", "Kenmai", "Data Migration"],
     numeral: "Ⅲ",
-    highlight: "Seamless data migration between tracking platforms.",
+    highlight:
+      "Move your tracking data across platforms without the headaches.",
   },
 ];
 
@@ -39,22 +40,22 @@ export const ETHOS_ITEMS: EthosItem[] = [
   {
     icon: Globe,
     numeral: "Ⅰ",
-    title: "OPEN BY DEFAULT",
+    title: "OPEN BY NATURE",
     description:
-      "Every project is open source. Fork, extend, and make it your own.",
+      "Everything here ships open source. Fork it, extend it, bend it to your will.",
   },
   {
     icon: Heart,
     numeral: "Ⅱ",
-    title: "BUILT FOR YOU",
+    title: "MADE FOR REAL USE",
     description:
-      "Tools designed around real workflows for anime and media tracking.",
+      "These tools grew out of actual workflows — built for people who track anime and media seriously.",
   },
   {
     icon: GitBranch,
     numeral: "Ⅲ",
-    title: "ALWAYS EVOLVING",
+    title: "NEVER STANDING STILL",
     description:
-      "Actively maintained and improved. Contributions welcome from all.",
+      "Actively maintained, regularly improved. Pull requests from anyone are genuinely welcome.",
   },
 ];
