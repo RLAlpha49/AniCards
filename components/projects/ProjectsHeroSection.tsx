@@ -2,18 +2,16 @@
 
 import { motion } from "framer-motion";
 
-import { FEATURED_PROJECT, PROJECTS } from "./constants";
-
-const stagger = {
+const orchestrate = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.1 },
+    transition: { staggerChildren: 0.09, delayChildren: 0.1 },
   },
 };
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 28 },
+const rise = {
+  hidden: { opacity: 0, y: 32 },
   visible: {
     opacity: 1,
     y: 0,
@@ -21,85 +19,116 @@ const fadeUp = {
   },
 };
 
-export function ProjectsHeroSection() {
-  const totalProjects = 1 + PROJECTS.length;
+const revealLine = {
+  hidden: { scaleX: 0 },
+  visible: {
+    scaleX: 1,
+    transition: { duration: 0.9, ease: [0.22, 1, 0.36, 1] as const },
+  },
+};
 
+export function ProjectsHeroSection() {
   return (
     <section className="relative overflow-hidden px-6 pt-28 pb-20 sm:px-12 md:pt-36 md:pb-28">
+      {/* Faint diagonal grid lines */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.03] dark:opacity-[0.04]"
+        aria-hidden="true"
+        style={{
+          backgroundImage:
+            "repeating-linear-gradient(135deg, hsl(var(--gold)) 0px, hsl(var(--gold)) 1px, transparent 1px, transparent 80px)",
+        }}
+      />
+
       <motion.div
-        variants={stagger}
+        variants={orchestrate}
         initial="hidden"
         animate="visible"
         className="relative z-10 mx-auto max-w-6xl"
       >
-        {/* Eyebrow with extending line */}
-        <motion.div variants={fadeUp} className="mb-8 flex items-center gap-4">
-          <div className="h-px w-12 bg-[hsl(var(--gold)/0.4)]" />
-          <span className="font-display text-gold text-xs tracking-[0.5em] uppercase">
-            Open Source
-          </span>
+        {/* Monospaced catalog annotation */}
+        <motion.div
+          variants={rise}
+          className="mb-8 flex items-center gap-4 font-mono text-[0.65rem] tracking-[0.4em] uppercase sm:text-xs"
+        >
+          <span className="text-gold/60">No. 03</span>
+          <span className="bg-gold/30 inline-block h-px w-12" />
+          <span className="text-foreground/35">Open Source Workshop</span>
         </motion.div>
 
-        {/* Asymmetric grid: headline + sidebar */}
-        <div className="grid gap-8 md:grid-cols-[1fr_auto] md:items-end md:gap-16">
-          <div>
-            <motion.h1
-              variants={fadeUp}
-              className="font-display text-foreground text-5xl leading-[0.92] font-black sm:text-6xl md:text-7xl lg:text-8xl xl:text-9xl"
-            >
-              OTHER
-              <br />
-              <span className="text-gold">PROJECTS</span>
-            </motion.h1>
-          </div>
+        {/* Enormous headline with clipped overlay */}
+        <div className="relative">
+          <motion.h1
+            variants={rise}
+            className="font-display text-foreground/4 pointer-events-none absolute -top-6 -left-2 text-[8rem] leading-none select-none sm:text-[11rem] md:text-[15rem] lg:text-[18rem]"
+            aria-hidden="true"
+          >
+            PRJ
+          </motion.h1>
+
+          <motion.h1
+            variants={rise}
+            className="font-display text-foreground relative text-5xl leading-[0.95] font-black sm:text-6xl md:text-7xl lg:text-[5.5rem]"
+          >
+            THE
+            <br />
+            <span className="text-gold">PROJECTS</span>
+          </motion.h1>
         </div>
 
-        {/* Mobile description */}
-        <motion.p
-          variants={fadeUp}
-          className="font-body-serif text-foreground/50 mt-6 max-w-md text-sm leading-relaxed md:hidden"
-        >
-          A curated collection of open-source tools built to enhance your anime
-          and media tracking experience.
-        </motion.p>
-
-        {/* Bottom tag strip */}
+        {/* Animated gold rule */}
         <motion.div
-          variants={fadeUp}
-          className="mt-14 flex flex-wrap items-center gap-x-8 gap-y-3"
-        >
-          {[
-            `${totalProjects} Projects`,
-            "MIT Licensed",
-            "Community Driven",
-          ].map((label) => (
-            <span
-              key={label}
-              className="text-foreground/25 text-xs tracking-[0.25em] uppercase"
-            >
-              ✦ {label}
-            </span>
-          ))}
-        </motion.div>
-
-        {/* Horizontal accent line */}
-        <motion.div
-          variants={fadeUp}
-          className="gold-line-thick mt-14 max-w-48"
+          variants={revealLine}
+          className="my-8 h-0.5 max-w-64 origin-left sm:my-10"
+          style={{
+            background:
+              "linear-gradient(90deg, hsl(var(--gold)), hsl(var(--gold) / 0.15))",
+          }}
         />
 
-        {/* Featured callout for all projects */}
-        <motion.div
-          variants={fadeUp}
-          className="text-foreground/20 mt-6 flex flex-wrap gap-x-6 gap-y-1 text-xs tracking-wider"
-        >
-          <span className="font-display">{FEATURED_PROJECT.name}</span>
-          {PROJECTS.map((p) => (
-            <span key={p.url} className="font-display">
-              {p.name}
-            </span>
-          ))}
-        </motion.div>
+        {/* Two-column intro */}
+        <div className="grid gap-8 md:grid-cols-[1fr_1fr] md:gap-16">
+          <motion.p
+            variants={rise}
+            className="font-body-serif text-foreground/50 max-w-md text-base leading-[1.8] sm:text-lg"
+          >
+            Open-source tools I've put together for anyone who wants a better
+            anime and media tracking workflow. Everything's free, actively
+            maintained, and wide open for contributions.
+          </motion.p>
+
+          <motion.div
+            variants={rise}
+            className="flex items-end justify-start gap-10 md:justify-end"
+          >
+            <div className="text-center">
+              <span className="font-display text-gold text-3xl sm:text-4xl">
+                3
+              </span>
+              <p className="text-foreground/30 mt-1 text-[0.6rem] tracking-[0.3em] uppercase">
+                Projects
+              </p>
+            </div>
+            <div className="bg-gold/15 h-12 w-px" />
+            <div className="text-center">
+              <span className="font-display text-gold text-3xl sm:text-4xl">
+                ∞
+              </span>
+              <p className="text-foreground/30 mt-1 text-[0.6rem] tracking-[0.3em] uppercase">
+                Possibilities
+              </p>
+            </div>
+            <div className="bg-gold/15 h-12 w-px" />
+            <div className="text-center">
+              <span className="font-display text-gold text-3xl sm:text-4xl">
+                0
+              </span>
+              <p className="text-foreground/30 mt-1 text-[0.6rem] tracking-[0.3em] uppercase">
+                Cost
+              </p>
+            </div>
+          </motion.div>
+        </div>
       </motion.div>
     </section>
   );
