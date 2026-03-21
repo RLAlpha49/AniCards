@@ -6,16 +6,16 @@ const orchestrate = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.09, delayChildren: 0.1 },
+    transition: { staggerChildren: 0.12, delayChildren: 0.15 },
   },
 };
 
 const rise = {
-  hidden: { opacity: 0, y: 32 },
+  hidden: { opacity: 0, y: 40 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] as const },
+    transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1] as const },
   },
 };
 
@@ -23,59 +23,110 @@ const revealLine = {
   hidden: { scaleX: 0 },
   visible: {
     scaleX: 1,
-    transition: { duration: 0.9, ease: [0.22, 1, 0.36, 1] as const },
+    transition: { duration: 1.1, ease: [0.22, 1, 0.36, 1] as const },
+  },
+};
+
+const fadeIn = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { duration: 1.2, ease: "easeOut" as const },
   },
 };
 
 export function ProjectsHeroSection() {
   return (
-    <section className="relative overflow-hidden px-6 pt-28 pb-20 sm:px-12 md:pt-36 md:pb-28">
+    <section className="relative overflow-hidden px-6 pt-32 pb-24 sm:px-12 md:pt-44 md:pb-36">
+      {/* Radial spotlight */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        aria-hidden="true"
+        style={{
+          background:
+            "radial-gradient(ellipse 70% 50% at 25% 40%, hsl(var(--gold) / 0.06), transparent)",
+        }}
+      />
+
       <motion.div
         variants={orchestrate}
         initial="hidden"
         animate="visible"
-        className="relative z-10 mx-auto max-w-6xl"
+        className="relative z-10 mx-auto max-w-7xl"
       >
-        {/* Enormous headline with clipped overlay */}
-        <div className="relative">
-          <motion.h1
-            variants={rise}
-            className="font-display text-foreground/4 pointer-events-none absolute -top-6 -left-2 text-[8rem] leading-none select-none sm:text-[11rem] md:text-[15rem] lg:text-[18rem]"
-            aria-hidden="true"
-          >
-            PRJ
-          </motion.h1>
+        {/* Catalog label */}
+        <motion.div
+          variants={fadeIn}
+          className="mb-10 flex items-center gap-4 sm:mb-14"
+        >
+          <span className="text-gold font-mono text-[0.6rem] tracking-[0.5em] uppercase sm:text-xs">
+            ◆ Portfolio
+          </span>
+          <span
+            className="inline-block h-px max-w-32 flex-1"
+            style={{
+              background:
+                "linear-gradient(90deg, hsl(var(--gold) / 0.4), transparent)",
+            }}
+          />
+        </motion.div>
 
+        {/* Headline stack — massive scale contrast */}
+        <div className="relative mb-10 sm:mb-14">
           <motion.h1
             variants={rise}
-            className="font-display text-foreground relative text-5xl leading-[0.95] font-black sm:text-6xl md:text-7xl lg:text-[5.5rem]"
+            className="font-display text-foreground text-[3.5rem] leading-[0.88] tracking-tight sm:text-[5.5rem] md:text-[7.5rem] lg:text-[10rem]"
           >
-            THE
-            <br />
-            <span className="text-gold">PROJECTS</span>
+            MORE
+          </motion.h1>
+          <motion.h1
+            variants={rise}
+            className="font-display text-gold -mt-1 text-[3.5rem] leading-[0.88] tracking-tight sm:-mt-2 sm:text-[5.5rem] md:-mt-3 md:text-[7.5rem] lg:-mt-4 lg:text-[10rem]"
+          >
+            PROJECTS
           </motion.h1>
         </div>
 
-        {/* Animated gold rule */}
+        {/* Gold ruled divider */}
         <motion.div
           variants={revealLine}
-          className="my-8 h-0.5 max-w-64 origin-left sm:my-10"
+          className="mb-10 h-0.75 max-w-24 origin-left sm:mb-12 sm:max-w-32"
           style={{
             background:
-              "linear-gradient(90deg, hsl(var(--gold)), hsl(var(--gold) / 0.15))",
+              "linear-gradient(90deg, hsl(var(--gold)), hsl(var(--gold) / 0.2))",
           }}
         />
 
-        {/* Two-column intro */}
-        <div className="grid gap-8 md:grid-cols-[1fr_1fr] md:gap-16">
+        {/* Two-column intro with stats ribbon */}
+        <div className="grid items-end gap-10 md:grid-cols-[1fr_auto] md:gap-20">
           <motion.p
             variants={rise}
-            className="font-body-serif text-foreground/50 max-w-md text-base leading-[1.8] sm:text-lg"
+            className="font-body-serif text-foreground/50 max-w-lg text-base leading-[1.85] sm:text-lg"
           >
-            Open-source tools I've put together for anyone who wants a better
-            anime and media tracking workflow. Everything's free, actively
-            maintained, and wide open for contributions.
+            Open-source tools for anyone tired of clunky anime and media
+            tracking setups. Carefully built, steadily maintained, and wide open
+            if you want to pitch in.
           </motion.p>
+
+          <motion.div
+            variants={rise}
+            className="flex gap-8 sm:gap-12"
+            aria-label="Project statistics"
+          >
+            {[
+              { value: "3", label: "Projects" },
+              { value: "100%", label: "Open Source" },
+            ].map((stat) => (
+              <div key={stat.label} className="text-right">
+                <span className="font-display text-gold block text-2xl sm:text-3xl">
+                  {stat.value}
+                </span>
+                <span className="text-foreground/35 font-mono text-[0.6rem] tracking-[0.3em] uppercase">
+                  {stat.label}
+                </span>
+              </div>
+            ))}
+          </motion.div>
         </div>
       </motion.div>
     </section>

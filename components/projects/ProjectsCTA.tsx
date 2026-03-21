@@ -8,34 +8,32 @@ import { SimpleGithubIcon } from "@/components/SimpleIcons";
 import { Button } from "@/components/ui/Button";
 
 const fadeIn = {
-  hidden: { opacity: 0, y: 24 },
+  hidden: { opacity: 0, y: 28 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] as const },
+    transition: { duration: 0.75, ease: [0.22, 1, 0.36, 1] as const },
+  },
+};
+
+const lineExpand = {
+  hidden: { scaleX: 0 },
+  visible: {
+    scaleX: 1,
+    transition: { duration: 1, ease: [0.22, 1, 0.36, 1] as const },
   },
 };
 
 export function ProjectsCTA() {
   return (
-    <section className="relative overflow-hidden px-6 py-24 sm:px-12 md:py-32">
-      {/* Oversized background text */}
-      <div
-        className="pointer-events-none absolute inset-0 flex items-center justify-center select-none"
-        aria-hidden="true"
-      >
-        <span className="font-display text-gold/3 text-[10rem] leading-none sm:text-[16rem] md:text-[22rem]">
-          ✦
-        </span>
-      </div>
-
-      {/* Subtle radial glow */}
+    <section className="relative overflow-hidden px-6 py-28 sm:px-12 md:py-36">
+      {/* Radial spotlight glow */}
       <div
         className="pointer-events-none absolute inset-0"
         aria-hidden="true"
         style={{
           background:
-            "radial-gradient(ellipse at 50% 50%, hsl(var(--gold) / 0.06), transparent 55%)",
+            "radial-gradient(ellipse 60% 50% at 50% 50%, hsl(var(--gold) / 0.07), transparent)",
         }}
       />
 
@@ -43,50 +41,50 @@ export function ProjectsCTA() {
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, margin: "-60px" }}
-        transition={{ staggerChildren: 0.1 }}
-        className="relative z-10 mx-auto max-w-2xl text-center"
+        transition={{ staggerChildren: 0.12 }}
+        className="relative z-10 mx-auto max-w-3xl text-center"
       >
         {/* Top ornamental line */}
         <motion.div
-          variants={fadeIn}
-          className="mx-auto mb-10 h-px max-w-24"
+          variants={lineExpand}
+          className="mx-auto mb-12 h-px max-w-20 origin-center"
           style={{
             background:
-              "linear-gradient(90deg, transparent, hsl(var(--gold) / 0.5), transparent)",
+              "linear-gradient(90deg, transparent, hsl(var(--gold) / 0.6), transparent)",
           }}
         />
 
         <motion.p
           variants={fadeIn}
-          className="text-gold/50 mb-4 font-mono text-[0.6rem] tracking-[0.5em] uppercase"
+          className="text-gold/50 mb-5 font-mono text-[0.6rem] tracking-[0.5em] uppercase"
         >
-          § Get Involved
+          ◆ Contribute
         </motion.p>
 
         <motion.h2
           variants={fadeIn}
-          className="font-display text-foreground mb-6 text-3xl sm:text-4xl md:text-5xl"
+          className="font-display text-foreground mb-4 text-4xl leading-[0.9] sm:text-5xl md:text-6xl"
         >
-          GET
+          BUILD WITH
           <br />
-          <span className="text-gold">INVOLVED</span>
+          <span className="text-gold">US</span>
         </motion.h2>
 
         <motion.div
-          variants={fadeIn}
-          className="mx-auto mb-6 h-px max-w-12"
+          variants={lineExpand}
+          className="mx-auto mb-8 h-0.5 max-w-10 origin-center"
           style={{
             background:
-              "linear-gradient(90deg, transparent, hsl(var(--gold) / 0.4), transparent)",
+              "linear-gradient(90deg, transparent, hsl(var(--gold)), transparent)",
           }}
         />
 
         <motion.p
           variants={fadeIn}
-          className="font-body-serif text-foreground/40 mx-auto mb-10 max-w-md text-sm leading-[1.8] sm:text-base"
+          className="font-body-serif text-foreground/40 mx-auto mb-12 max-w-md text-sm leading-[1.85] sm:text-base"
         >
-          Stars and issues aren't just vanity metrics here — every contribution,
-          however small, pushes these tools forward for everyone.
+          Every star, issue, and pull request pushes these tools forward. Jump
+          in — contributions of any size are genuinely welcome.
         </motion.p>
 
         <motion.div
@@ -113,6 +111,16 @@ export function ProjectsCTA() {
             </Link>
           </Button>
         </motion.div>
+
+        {/* Bottom ornamental line */}
+        <motion.div
+          variants={lineExpand}
+          className="mx-auto mt-12 h-px max-w-20 origin-center"
+          style={{
+            background:
+              "linear-gradient(90deg, transparent, hsl(var(--gold) / 0.4), transparent)",
+          }}
+        />
       </motion.div>
     </section>
   );

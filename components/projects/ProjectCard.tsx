@@ -7,12 +7,12 @@ import { SimpleGithubIcon } from "@/components/SimpleIcons";
 
 import type { Project } from "./types";
 
-const stripVariants = {
-  hidden: { opacity: 0, x: -20 },
+const cardVariants = {
+  hidden: { opacity: 0, y: 24 },
   visible: {
     opacity: 1,
-    x: 0,
-    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] as const },
+    y: 0,
+    transition: { duration: 0.65, ease: [0.22, 1, 0.36, 1] as const },
   },
 };
 
@@ -26,57 +26,79 @@ export function ProjectCard({
   const num = String(index + 2).padStart(2, "0");
 
   return (
-    <motion.article variants={stripVariants} className="group relative">
-      {/* Horizontal strip layout */}
+    <motion.article variants={cardVariants} className="group relative h-full">
       <a
         href={project.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="border-gold/10 hover:border-gold/30 hover:bg-gold/2 grid items-center gap-6 border-b-2 px-2 py-8 transition-all duration-500 sm:px-4 md:grid-cols-[4rem_1fr_auto] md:gap-10 md:py-10"
+        className="border-gold/10 bg-card/40 hover:border-gold/30 relative flex h-full flex-col overflow-hidden border-2 backdrop-blur-sm transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_8px_40px_hsl(var(--gold)/0.08)]"
       >
-        {/* Large number */}
-        <span className="font-display text-gold/15 group-hover:text-gold/30 hidden text-5xl leading-none transition-colors duration-500 md:block">
-          {num}
-        </span>
+        {/* Gold top accent */}
+        <div
+          className="h-0.5 transition-all duration-500 group-hover:h-1"
+          style={{
+            background:
+              "linear-gradient(90deg, hsl(var(--gold)), hsl(var(--gold) / 0.3) 70%, transparent)",
+          }}
+        />
 
-        {/* Project info */}
-        <div className="min-w-0">
-          <div className="mb-2 flex items-center gap-3">
-            <span className="font-display text-gold/30 text-2xl md:hidden">
-              {num}
-            </span>
-            <h3 className="font-display text-foreground group-hover:text-gold text-base tracking-[0.12em] uppercase transition-colors duration-300 sm:text-lg">
-              {project.name}
-            </h3>
+        <div className="relative flex flex-1 flex-col p-7 sm:p-8">
+          {/* Watermark number */}
+          <span
+            className="font-display text-gold/5 group-hover:text-gold/8 pointer-events-none absolute -top-4 -right-2 text-[8rem] leading-none transition-all duration-500 select-none"
+            aria-hidden="true"
+          >
+            {num}
+          </span>
+
+          {/* Header */}
+          <div className="relative z-10 mb-5 flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="text-gold/40 group-hover:text-gold/70 font-mono text-xs tracking-[0.3em]">
+                {num}
+              </span>
+              <div
+                className="h-px w-6"
+                style={{
+                  background:
+                    "linear-gradient(90deg, hsl(var(--gold) / 0.3), transparent)",
+                }}
+              />
+            </div>
+            <div className="border-gold/15 group-hover:border-gold/40 group-hover:bg-gold/5 flex h-9 w-9 items-center justify-center border transition-all duration-300">
+              <ArrowUpRight className="text-foreground/25 group-hover:text-gold h-4 w-4 transition-all duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+            </div>
           </div>
 
-          <p className="font-body-serif text-foreground/40 mb-4 line-clamp-2 max-w-xl text-sm leading-[1.7]">
+          {/* Project name */}
+          <h3 className="font-display text-foreground group-hover:text-gold relative z-10 mb-3 text-lg tracking-[0.12em] uppercase transition-colors duration-300 sm:text-xl">
+            {project.name}
+          </h3>
+
+          {/* Description */}
+          <p className="font-body-serif text-foreground/40 relative z-10 mb-6 flex-1 text-sm leading-[1.75]">
             {project.highlight}
           </p>
 
-          <div className="flex flex-wrap gap-2">
-            {project.tags.map((tag) => (
-              <span
-                key={tag}
-                className="text-foreground/35 group-hover:text-foreground/50 font-mono text-[0.6rem] tracking-widest uppercase transition-colors"
-              >
-                {tag}
-                {tag !== project.tags.at(-1) && (
-                  <span className="text-gold/25 ml-2">·</span>
-                )}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* Arrow link indicator */}
-        <div className="flex items-center gap-3">
-          <SimpleGithubIcon
-            size={18}
-            className="text-foreground/20 group-hover:text-gold/60 transition-colors"
-          />
-          <div className="border-gold/20 group-hover:border-gold/50 group-hover:bg-gold/5 flex h-10 w-10 items-center justify-center border transition-all duration-300">
-            <ArrowUpRight className="text-foreground/30 group-hover:text-gold h-5 w-5 transition-all duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          {/* Tags + GitHub */}
+          <div className="relative z-10 flex items-center justify-between gap-4">
+            <div className="flex flex-wrap gap-x-3 gap-y-1">
+              {project.tags.map((tag, i) => (
+                <span
+                  key={tag}
+                  className="text-foreground/30 group-hover:text-foreground/50 font-mono text-[0.55rem] tracking-[0.2em] uppercase transition-colors"
+                >
+                  {tag}
+                  {i < project.tags.length - 1 && (
+                    <span className="text-gold/20 ml-3">·</span>
+                  )}
+                </span>
+              ))}
+            </div>
+            <SimpleGithubIcon
+              size={16}
+              className="text-foreground/15 group-hover:text-gold/50 shrink-0 transition-colors"
+            />
           </div>
         </div>
       </a>
