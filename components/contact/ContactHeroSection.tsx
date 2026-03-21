@@ -19,15 +19,6 @@ const fadeUp = {
   },
 };
 
-const STATUS_CHIPS = [
-  {
-    dot: "bg-emerald-400 shadow-[0_0_6px_theme(colors.emerald.400/0.6)]",
-    label: "Online",
-  },
-  { dot: "bg-gold", label: "< 48h Reply" },
-  { dot: "bg-gold/50", label: "Open Source" },
-];
-
 export function ContactHeroSection() {
   return (
     <section className="relative overflow-hidden px-6 pt-28 pb-24 sm:px-12 md:pt-40 md:pb-32">
@@ -90,33 +81,6 @@ export function ContactHeroSection() {
           variants={fadeUp}
           className="mx-auto mt-10 mb-8 h-0.5 max-w-24 bg-linear-to-r from-transparent via-[hsl(var(--gold)/0.6)] to-transparent"
         />
-
-        {/* Subtitle */}
-        <motion.p
-          variants={fadeUp}
-          className="font-body-serif text-foreground/40 mx-auto max-w-md text-center text-base leading-relaxed sm:text-lg"
-        >
-          Pick the channel that feels right. Every message is read and every
-          reply is thoughtful.
-        </motion.p>
-
-        {/* Status chips */}
-        <motion.div
-          variants={fadeUp}
-          className="mt-14 flex flex-wrap items-center justify-center gap-7"
-        >
-          {STATUS_CHIPS.map(({ dot, label }) => (
-            <div key={label} className="flex items-center gap-2.5">
-              <span className={`block h-1.5 w-1.5 rounded-full ${dot}`} />
-              <span
-                className="text-foreground/30 text-[10px] tracking-[0.25em] uppercase"
-                style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-              >
-                {label}
-              </span>
-            </div>
-          ))}
-        </motion.div>
       </motion.div>
     </section>
   );
