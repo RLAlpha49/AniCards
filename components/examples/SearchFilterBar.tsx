@@ -31,7 +31,7 @@ export function SearchFilterBar({
         <Search className="text-foreground/20 absolute top-1/2 left-3.5 h-3.5 w-3.5 -translate-y-1/2 transition-colors" />
         <input
           type="text"
-          placeholder="Search cards by name or description…"
+          placeholder="Find a card by name or keyword…"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           className={cn(
@@ -94,7 +94,7 @@ export function SearchFilterBar({
               "text-foreground/40 hover:text-gold hover:border-gold/20 hover:bg-gold/5",
             )}
           >
-            Reset
+            Clear
           </motion.button>
         )}
       </AnimatePresence>

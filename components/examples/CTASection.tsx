@@ -40,23 +40,23 @@ export function CTASection({ onStartCreating }: Readonly<CTASectionProps>) {
         </div>
 
         <p className="text-gold mb-4 text-[0.6rem] tracking-[0.5em] uppercase">
-          Ready to begin?
+          Your turn
         </p>
 
         <h2 className="font-display text-foreground mb-5 text-2xl tracking-wide sm:text-3xl md:text-4xl">
-          Create <span className="text-gold">Your Own</span>
+          Build <span className="text-gold">Yours</span>
         </h2>
 
         <p className="font-body-serif text-foreground/35 mx-auto mb-10 max-w-md text-sm leading-relaxed sm:text-base">
-          Generate personalised stat cards from your AniList profile — free,
-          instant, and fully customisable.
+          Pull your stats straight from AniList and turn them into shareable
+          cards — no cost, no wait, and you control every detail.
         </p>
 
         <button
           onClick={onStartCreating}
           className="imperial-btn imperial-btn-fill group inline-flex items-center"
         >
-          Get Started
+          Start Building
           <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
         </button>
       </motion.div>
