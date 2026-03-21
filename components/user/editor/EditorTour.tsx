@@ -23,8 +23,18 @@ const TOUR_SELECTOR_FALLBACKS: Readonly<Record<string, string[]>> = {
     '[data-tour="card-tile"]',
     '[data-tour="card-groups"]',
   ],
+  '[data-tour="card-info"]': [
+    '[data-tour="card-enable-toggle"]',
+    '[data-tour="card-tile"]',
+    '[data-tour="card-groups"]',
+  ],
   '[data-tour="card-settings"]': [
     '[data-tour="card-enable-toggle"]',
+    '[data-tour="card-tile"]',
+    '[data-tour="card-groups"]',
+  ],
+  '[data-tour="card-select"]': [
+    '[data-tour="card-settings"]',
     '[data-tour="card-tile"]',
     '[data-tour="card-groups"]',
   ],
@@ -219,6 +229,17 @@ export function useEditorTour({
         },
       },
       {
+        id: "customization-filter",
+        element: '[data-tour="customization-toggle"]',
+        popover: {
+          title: "Customization filter",
+          description:
+            "Filter cards by whether they have per-card overrides. Handy for auditing which cards use custom settings vs. the global defaults.",
+          side: "top",
+          align: "start",
+        },
+      },
+      {
         id: "global-settings",
         element: '[data-tour="global-settings"]',
         popover: {
@@ -274,6 +295,17 @@ export function useEditorTour({
         },
       },
       {
+        id: "card-info",
+        element: '[data-tour="card-info"]',
+        popover: {
+          title: "Card info",
+          description:
+            "Hover the ℹ icon to see what data a card tracks and how its stats are calculated.",
+          side: "top",
+          align: "start",
+        },
+      },
+      {
         id: "card-settings",
         element: '[data-tour="card-settings"]',
         popover: {
@@ -281,6 +313,17 @@ export function useEditorTour({
           description:
             "Fine-tune a specific card (override colors, borders, advanced options, etc.).",
           side: "bottom",
+          align: "start",
+        },
+      },
+      {
+        id: "card-select",
+        element: '[data-tour="card-select"]',
+        popover: {
+          title: "Select cards",
+          description:
+            "Check the box to select cards for bulk actions — enable, disable, reset, copy links, or download them all at once.",
+          side: "top",
           align: "start",
         },
       },
@@ -315,6 +358,16 @@ export function useEditorTour({
             "Open a larger preview to inspect details (and access any extra preview-only actions).",
           side: "top",
           align: "start",
+        },
+      },
+      {
+        id: "command-palette",
+        popover: {
+          title: "Command palette",
+          description:
+            "Press Ctrl/Cmd+K to open the command palette — a quick way to jump to any action (save, toggle cards, open settings, and more).",
+          side: "bottom",
+          align: "center",
         },
       },
       {
