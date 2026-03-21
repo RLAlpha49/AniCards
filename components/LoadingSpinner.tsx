@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { type ReactNode, useId } from "react";
+import { type ReactNode, useEffect, useId } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -22,6 +22,12 @@ interface LoadingSpinnerProps {
   showProgressLabel?: boolean;
 }
 
+const sizeConfig = {
+  sm: { box: "h-6 w-6", viewBox: 48, textClass: "text-[10px]" },
+  md: { box: "h-10 w-10", viewBox: 48, textClass: "text-xs" },
+  lg: { box: "h-16 w-16", viewBox: 48, textClass: "text-sm" },
+} as const;
+
 /**
  * A compact animated spinner with optional label and progress indicator.
  * @param props - Spinner props.
@@ -36,123 +42,192 @@ export function LoadingSpinner({
   showProgressLabel = false,
 }: Readonly<LoadingSpinnerProps>) {
   const id = useId();
-  // Convert React id to a safe HTML id for SVG titles.
-  const safeId = id.replaceAll(".", "-").replaceAll(":", "-");
-
-  const sizes = {
-    sm: "h-4 w-4",
-    md: "h-8 w-8",
-    lg: "h-12 w-12",
-  } as const;
-
-  const gradientId = `spinner-gradient-${safeId}`;
-  const titleId = `spinner-title-${safeId}`;
+  const s = id.replaceAll(".", "-").replaceAll(":", "-");
+  const cfg = sizeConfig[size];
   const hasProgress =
     progress !== undefined && progress >= 0 && progress <= 100;
+  const cx = 24;
+  const r1 = 18;
+  const r2 = 14;
+  const r3 = 10;
+  const circumference1 = 2 * Math.PI * r1;
+  const circumference2 = 2 * Math.PI * r2;
+  const circumference3 = 2 * Math.PI * r3;
 
   return (
     <output
       aria-live="polite"
       aria-busy="true"
-      className="inline-flex flex-col items-center gap-2"
+      className="inline-flex flex-col items-center gap-2.5"
     >
-      <motion.div
-        initial={{ rotate: 0, scale: 1 }}
-        animate={{ rotate: 360, scale: [1, 1.06, 1] }}
-        transition={{ duration: 1.4, repeat: Infinity, ease: "linear" }}
-        className={cn(sizes[size], className, "relative drop-shadow-lg")}
-        aria-hidden={text ? undefined : true}
-      >
+      <div className={cn(cfg.box, className, "relative")}>
+        {/* Ambient glow behind the arcs */}
+        <div className="bg-primary/10 dark:bg-primary/15 absolute inset-[-25%] rounded-full blur-xl" />
+
         <svg
-          className="h-full w-full"
-          viewBox="0 0 24 24"
-          aria-labelledby={titleId}
+          className="relative h-full w-full"
+          viewBox={`0 0 ${cfg.viewBox} ${cfg.viewBox}`}
+          aria-labelledby={`t-${s}`}
         >
-          <title id={titleId}>{text ?? "Loading"}</title>
+          <title id={`t-${s}`}>{text ?? "Loading"}</title>
 
           <defs>
-            <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="currentColor" stopOpacity="1" />
-              <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+            {/* Outer arc gradient — warm gold sweep */}
+            <linearGradient id={`g1-${s}`} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="hsl(42, 63%, 55%)" />
+              <stop offset="50%" stopColor="hsl(38, 50%, 48%)" />
+              <stop
+                offset="100%"
+                stopColor="hsl(42, 63%, 55%)"
+                stopOpacity="0.15"
+              />
             </linearGradient>
-          </defs>
+            {/* Middle arc gradient — deeper amber */}
+            <linearGradient id={`g2-${s}`} x1="100%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="hsl(35, 58%, 45%)" />
+              <stop offset="60%" stopColor="hsl(42, 70%, 58%)" />
+              <stop
+                offset="100%"
+                stopColor="hsl(35, 58%, 45%)"
+                stopOpacity="0.1"
+              />
+            </linearGradient>
+            {/* Inner arc gradient — bright gold */}
+            <linearGradient id={`g3-${s}`} x1="0%" y1="100%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="hsl(45, 72%, 60%)" />
+              <stop offset="50%" stopColor="hsl(42, 80%, 52%)" />
+              <stop
+                offset="100%"
+                stopColor="hsl(45, 72%, 60%)"
+                stopOpacity="0.2"
+              />
+            </linearGradient>
 
-          <circle
-            cx="12"
-            cy="12"
-            r="9"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            fill="none"
-            strokeOpacity="0.08"
-          />
-
-          <motion.circle
-            cx="12"
-            cy="12"
-            r="9"
-            stroke={`url(#${gradientId})`}
-            strokeWidth="2.5"
-            fill="none"
-            strokeLinecap="round"
-            strokeDasharray="40 120"
-            animate={{ rotate: [0, 360] }}
-            transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
-          />
-        </svg>
-
-        {hasProgress && (
-          <svg
-            className="absolute inset-0 h-full w-full -rotate-90"
-            viewBox="0 0 24 24"
-          >
-            <defs>
+            {hasProgress && (
               <linearGradient
-                id={`progress-gradient-${safeId}`}
+                id={`gp-${s}`}
                 x1="0%"
                 y1="0%"
                 x2="100%"
                 y2="100%"
               >
-                <stop offset="0%" stopColor="rgb(59, 130, 246)" />
-                <stop offset="100%" stopColor="rgb(168, 85, 247)" />
+                <stop offset="0%" stopColor="hsl(42, 63%, 55%)" />
+                <stop offset="100%" stopColor="hsl(30, 58%, 42%)" />
               </linearGradient>
-            </defs>
+            )}
+          </defs>
 
-            <circle
-              cx="12"
-              cy="12"
-              r="9"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              fill="none"
-              strokeOpacity="0.1"
-            />
+          {/* Faint track rings */}
+          <circle
+            cx={cx}
+            cy={cx}
+            r={r1}
+            fill="none"
+            stroke="hsl(42, 40%, 50%)"
+            strokeWidth="1.2"
+            strokeOpacity="0.08"
+          />
+          <circle
+            cx={cx}
+            cy={cx}
+            r={r2}
+            fill="none"
+            stroke="hsl(42, 40%, 50%)"
+            strokeWidth="1"
+            strokeOpacity="0.06"
+          />
+          <circle
+            cx={cx}
+            cy={cx}
+            r={r3}
+            fill="none"
+            stroke="hsl(42, 40%, 50%)"
+            strokeWidth="0.8"
+            strokeOpacity="0.05"
+          />
 
-            <motion.circle
-              cx="12"
-              cy="12"
-              r="9"
-              stroke={`url(#progress-gradient-${safeId})`}
-              strokeWidth="1.5"
-              fill="none"
-              strokeLinecap="round"
-              strokeDasharray={`${(progress * 56.5) / 100} 56.5`}
-              animate={{
-                strokeDasharray: [
-                  `${(progress * 56.5) / 100} 56.5`,
-                  `${(progress * 56.5) / 100} 56.5`,
-                ],
-              }}
-              transition={{ duration: 0.5, ease: "easeInOut" }}
-            />
-          </svg>
-        )}
-      </motion.div>
+          {/* Outer arc — slow elegant sweep */}
+          <motion.circle
+            cx={cx}
+            cy={cx}
+            r={r1}
+            fill="none"
+            stroke={`url(#g1-${s})`}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeDasharray={`${circumference1 * 0.3} ${circumference1 * 0.7}`}
+            animate={{ rotate: [0, 360] }}
+            transition={{ duration: 3.2, repeat: Infinity, ease: "linear" }}
+            style={{ transformOrigin: "center" }}
+          />
+
+          {/* Middle arc — counter-rotating */}
+          <motion.circle
+            cx={cx}
+            cy={cx}
+            r={r2}
+            fill="none"
+            stroke={`url(#g2-${s})`}
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeDasharray={`${circumference2 * 0.25} ${circumference2 * 0.75}`}
+            animate={{ rotate: [360, 0] }}
+            transition={{ duration: 2.4, repeat: Infinity, ease: "linear" }}
+            style={{ transformOrigin: "center" }}
+          />
+
+          {/* Inner arc — fastest, creates visual rhythm */}
+          <motion.circle
+            cx={cx}
+            cy={cx}
+            r={r3}
+            fill="none"
+            stroke={`url(#g3-${s})`}
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeDasharray={`${circumference3 * 0.35} ${circumference3 * 0.65}`}
+            animate={{ rotate: [0, 360] }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: "linear" }}
+            style={{ transformOrigin: "center" }}
+          />
+
+          {/* Center dot — pulsing gold */}
+          <motion.circle
+            cx={cx}
+            cy={cx}
+            r="2"
+            fill="hsl(42, 63%, 55%)"
+            animate={{ r: [1.8, 2.6, 1.8], opacity: [0.7, 1, 0.7] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+          />
+
+          {/* Progress ring overlay when progress is provided */}
+          {hasProgress && (
+            <g
+              style={{ transform: "rotate(-90deg)", transformOrigin: "center" }}
+            >
+              <motion.circle
+                cx={cx}
+                cy={cx}
+                r={r1}
+                fill="none"
+                stroke={`url(#gp-${s})`}
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeDasharray={`${(progress / 100) * circumference1} ${circumference1}`}
+                transition={{ duration: 0.5, ease: "easeInOut" }}
+              />
+            </g>
+          )}
+        </svg>
+      </div>
 
       {hasProgress && showProgressLabel && (
         <motion.span
-          className="text-xs font-semibold text-blue-600 dark:text-blue-400"
+          className={cn(
+            cfg.textClass,
+            "font-display text-primary font-semibold",
+          )}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3 }}
@@ -163,10 +238,13 @@ export function LoadingSpinner({
 
       {text && (
         <motion.p
-          className="text-sm text-gray-600 dark:text-gray-400"
-          initial={{ opacity: 0.6 }}
-          animate={{ opacity: [0.6, 1, 0.6] }}
-          transition={{ duration: 1.5, repeat: Infinity }}
+          className={cn(
+            cfg.textClass,
+            "font-body-serif text-muted-foreground tracking-wide",
+          )}
+          initial={{ opacity: 0.5 }}
+          animate={{ opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
         >
           {text}
         </motion.p>
@@ -180,20 +258,28 @@ interface LoadingOverlayProps {
   children?: ReactNode;
 }
 
-/**
- * Full-screen loading overlay with backdrop blur.
- * @param props - Optional text shown to the user while waiting.
- * @returns A full-screen overlay with a centered spinner.
- * @source
- */
 export function LoadingOverlay({
   text = "Generating your cards...",
   children,
 }: Readonly<LoadingOverlayProps>) {
+  useEffect(() => {
+    const { body, documentElement } = document;
+    const previousBodyOverflow = body.style.overflow;
+    const previousHtmlOverflow = documentElement.style.overflow;
+
+    body.style.overflow = "hidden";
+    documentElement.style.overflow = "hidden";
+
+    return () => {
+      body.style.overflow = previousBodyOverflow;
+      documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, []);
+
   return (
-    <div className="pointer-events-none absolute inset-0 z-1000 flex items-center justify-center rounded-2xl bg-white/80 backdrop-blur-sm dark:bg-gray-900/80">
-      <div className="flex flex-col items-center gap-4">
-        <LoadingSpinner size="lg" className="text-primary" text={text} />
+    <div className="bg-background/85 fixed inset-0 z-1000 flex items-center justify-center backdrop-blur-md">
+      <div className="pointer-events-none flex flex-col items-center gap-4">
+        <LoadingSpinner size="lg" text={text} />
         {children}
       </div>
     </div>
