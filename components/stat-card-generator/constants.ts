@@ -668,6 +668,76 @@ const _unsortedColorPresets: Record<string, ColorPreset> = {
     ],
     mode: "light",
   },
+  anicardsLight: {
+    colors: ["#a9842d", "#f7f5f2", "#2a2622", "#a9842d"],
+    mode: "light",
+  },
+  anicardsDark: {
+    colors: ["#d5a944", "#0c0a10", "#eee4d3", "#d5a944"],
+    mode: "dark",
+  },
+  anicardsLightGradient: {
+    colors: [
+      {
+        type: "linear",
+        angle: 90,
+        stops: [
+          { color: "#a9842d", offset: 0 },
+          { color: "#e1b137", offset: 100 },
+        ],
+      },
+      {
+        type: "linear",
+        angle: 180,
+        stops: [
+          { color: "#fbfaf9", offset: 0 },
+          { color: "#f7f5f2", offset: 50 },
+          { color: "#eeebe8", offset: 100 },
+        ],
+      },
+      "#2a2622",
+      {
+        type: "linear",
+        angle: 135,
+        stops: [
+          { color: "#a9842d", offset: 0 },
+          { color: "#e1b137", offset: 100 },
+        ],
+      },
+    ],
+    mode: "light",
+  },
+  anicardsDarkGradient: {
+    colors: [
+      {
+        type: "linear",
+        angle: 90,
+        stops: [
+          { color: "#d5a944", offset: 0 },
+          { color: "#dfb03a", offset: 100 },
+        ],
+      },
+      {
+        type: "linear",
+        angle: 180,
+        stops: [
+          { color: "#0c0a10", offset: 0 },
+          { color: "#18161d", offset: 50 },
+          { color: "#22222b", offset: 100 },
+        ],
+      },
+      "#eee4d3",
+      {
+        type: "linear",
+        angle: 135,
+        stops: [
+          { color: "#d5a944", offset: 0 },
+          { color: "#89763e", offset: 100 },
+        ],
+      },
+    ],
+    mode: "dark",
+  },
   custom: { colors: ["", "", "", ""], mode: "custom" },
 };
 

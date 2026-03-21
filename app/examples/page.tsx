@@ -22,6 +22,7 @@ import {
   Users,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
 import type React from "react";
 import { useCallback, useMemo, useState } from "react";
 
@@ -502,6 +503,9 @@ export default function ExamplesPage() {
   usePageSEO("examples");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const { resolvedTheme } = useTheme();
+  const colorPreset =
+    resolvedTheme === "dark" ? "anicardsDarkGradient" : "anicardsLightGradient";
 
   const router = useRouter();
 
@@ -539,7 +543,7 @@ export default function ExamplesPage() {
         const extras = typeof v === "string" ? undefined : v.extras;
         const label = VARIATION_LABEL_MAP[variation] ?? variation;
         const extrasParams: Partial<CardUrlParams> = {
-          colorPreset: "anilistDarkGradient",
+          colorPreset,
         };
         if (extras) {
           for (const [key, value] of Object.entries(extras)) {
@@ -611,7 +615,7 @@ export default function ExamplesPage() {
 
       return { ...ct, variants, gradient } as CardType;
     });
-  }, []);
+  }, [colorPreset]);
 
   const filteredCardTypes = useMemo(() => {
     let filtered = cardTypesWithVariants;

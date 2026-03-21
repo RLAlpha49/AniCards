@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
 import { useCallback } from "react";
 
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
@@ -22,13 +23,17 @@ const HERO_CARDS = [
   { cardType: "socialStats", variation: "default", rotate: -2, z: 1 },
 ];
 
-function buildPreviewSrc(cardType: string, variation: string) {
+function buildPreviewSrc(
+  cardType: string,
+  variation: string,
+  colorPreset: string,
+) {
   return buildCardUrlWithParams(
     mapStoredConfigToCardUrlParams(
       {
         cardName: cardType,
         variation,
-        colorPreset: "anilistDarkGradient",
+        colorPreset,
       },
       { userId: DEFAULT_EXAMPLE_USER_ID, includeColors: false },
     ),
@@ -69,6 +74,9 @@ const cardFloat = {
 
 export function HeroSection() {
   const router = useRouter();
+  const { resolvedTheme } = useTheme();
+  const colorPreset =
+    resolvedTheme === "dark" ? "anicardsDarkGradient" : "anicardsLightGradient";
 
   const handleGetStarted = useCallback(() => {
     safeTrack(() => trackButtonClick("get_started", "homepage_hero"));
@@ -164,7 +172,11 @@ export function HeroSection() {
             >
               <div className="overflow-hidden rounded-lg border-2 border-[hsl(var(--gold)/0.2)]">
                 <ImageWithSkeleton
-                  src={buildPreviewSrc(card.cardType, card.variation)}
+                  src={buildPreviewSrc(
+                    card.cardType,
+                    card.variation,
+                    colorPreset,
+                  )}
                   alt={`${card.cardType} preview`}
                   className="h-auto w-full"
                 />

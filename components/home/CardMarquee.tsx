@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useTheme } from "next-themes";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
 import {
@@ -221,6 +222,7 @@ type MarqueeCard = {
 function buildSrc(
   cardType: string,
   variation: string,
+  colorPreset: string,
   extras?: Record<string, string>,
 ) {
   return buildCardUrlWithParams(
@@ -228,7 +230,7 @@ function buildSrc(
       {
         cardName: cardType,
         variation,
-        colorPreset: "anilistDarkGradient",
+        colorPreset,
         useStatusColors: extras?.statusColors === "true" ? true : undefined,
       },
       { userId: DEFAULT_EXAMPLE_USER_ID, includeColors: false },
@@ -284,7 +286,7 @@ function getVariationSignature(extras?: Record<string, string>) {
     .join("-");
 }
 
-const MARQUEE_CARDS: MarqueeCard[] = CARD_GROUPS.flatMap((group) => {
+const MARQUEE_CARDS_LAYOUT = CARD_GROUPS.flatMap((group) => {
   if (group.cardType === "favoritesGrid") {
     return [];
   }
@@ -309,18 +311,23 @@ const MARQUEE_CARDS: MarqueeCard[] = CARD_GROUPS.flatMap((group) => {
         .join("-"),
       cardType: group.cardType,
       variation: normalizedVariation.variation,
-      src: buildSrc(
-        group.cardType,
-        normalizedVariation.variation,
-        normalizedVariation.extras,
-      ),
+      extras: normalizedVariation.extras,
       width: dimensions.w,
       height: dimensions.h,
     };
   });
 });
 
-const MARQUEE_ROWS = buildMarqueeRows(MARQUEE_CARDS, MARQUEE_ROW_COUNT);
+function buildMarqueeCards(colorPreset: string): MarqueeCard[] {
+  return MARQUEE_CARDS_LAYOUT.map((card) => ({
+    key: card.key,
+    cardType: card.cardType,
+    variation: card.variation,
+    src: buildSrc(card.cardType, card.variation, colorPreset, card.extras),
+    width: card.width,
+    height: card.height,
+  }));
+}
 
 function getRowDurationMs(cardCount: number, rowIndex: number) {
   return Math.max(MARQUEE_DURATION_MS, cardCount * 3_000 + rowIndex * 4_000);
@@ -391,12 +398,21 @@ function MarqueeRow({
 }
 
 export function CardMarquee() {
+  const { resolvedTheme } = useTheme();
+  const colorPreset =
+    resolvedTheme === "dark" ? "anicardsDarkGradient" : "anicardsLightGradient";
+
+  const marqueeRows = useMemo(() => {
+    const cards = buildMarqueeCards(colorPreset);
+    return buildMarqueeRows(cards, MARQUEE_ROW_COUNT);
+  }, [colorPreset]);
+
   return (
     <section className="relative py-16">
       <div className="gold-line-thick mx-auto mb-10 max-w-[70%]" />
 
       <div className="space-y-6">
-        {MARQUEE_ROWS.map((row, index) => (
+        {marqueeRows.map((row, index) => (
           <MarqueeRow
             key={"marquee-row-" + (row[0]?.key ?? `row-${row.length}`)}
             cards={row}
