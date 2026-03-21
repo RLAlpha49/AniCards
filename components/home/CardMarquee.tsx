@@ -24,6 +24,23 @@ const MARQUEE_DURATION_MS = 45_000;
 const MARQUEE_ROW_COUNT = 2;
 const useIsomorphicLayoutEffect =
   globalThis.window === undefined ? useEffect : useLayoutEffect;
+const MARQUEE_VARIATION_PRIORITY = [
+  "default",
+  "vertical",
+  "horizontal",
+  "compact",
+  "minimal",
+  "pie",
+  "donut",
+  "bar",
+  "radar",
+  "badges",
+  "split",
+  "combined",
+  "anime",
+  "manga",
+  "cumulative",
+] as const;
 const MARQUEE_DIMENSION_OVERRIDES: Partial<
   Record<string, Partial<Record<string, CardDimensions>>>
 > = {
@@ -221,6 +238,11 @@ type MarqueeCard = {
   height: number;
 };
 
+type NormalizedVariation = {
+  variation: string;
+  extras?: Record<string, string>;
+};
+
 function buildSrc(
   cardType: string,
   variation: string,
@@ -288,26 +310,50 @@ function getVariationSignature(extras?: Record<string, string>) {
     .join("-");
 }
 
+function normalizeVariation(
+  variationDef: (typeof CARD_GROUPS)[number]["variations"][number],
+): NormalizedVariation {
+  return typeof variationDef === "string"
+    ? { variation: variationDef, extras: undefined }
+    : variationDef;
+}
+
+function pickMarqueeVariation(
+  variations: readonly (typeof CARD_GROUPS)[number]["variations"][number][],
+): NormalizedVariation | undefined {
+  const normalizedVariations = variations.map(normalizeVariation);
+
+  for (const candidate of MARQUEE_VARIATION_PRIORITY) {
+    const match = normalizedVariations.find(
+      (variation) => variation.variation === candidate,
+    );
+
+    if (match) {
+      return match;
+    }
+  }
+
+  return normalizedVariations[0];
+}
+
 const MARQUEE_CARDS_LAYOUT = CARD_GROUPS.flatMap((group) => {
   if (group.cardType === "favoritesGrid") {
     return [];
   }
 
-  return group.variations.map((variationDef) => {
-    const normalizedVariation =
-      typeof variationDef === "string"
-        ? { variation: variationDef, extras: undefined }
-        : variationDef;
+  const normalizedVariation = pickMarqueeVariation(group.variations);
+  if (!normalizedVariation) {
+    return [];
+  }
 
-    const dimensions = getMarqueeCardDimensions(
-      group.cardType,
-      normalizedVariation.variation,
-    );
-    const variationSignature = getVariationSignature(
-      normalizedVariation.extras,
-    );
+  const dimensions = getMarqueeCardDimensions(
+    group.cardType,
+    normalizedVariation.variation,
+  );
+  const variationSignature = getVariationSignature(normalizedVariation.extras);
 
-    return {
+  return [
+    {
       key: [group.cardType, normalizedVariation.variation, variationSignature]
         .filter(Boolean)
         .join("-"),
@@ -316,8 +362,8 @@ const MARQUEE_CARDS_LAYOUT = CARD_GROUPS.flatMap((group) => {
       extras: normalizedVariation.extras,
       width: dimensions.w,
       height: dimensions.h,
-    };
-  });
+    },
+  ];
 });
 
 function buildMarqueeCards(colorPreset: string): MarqueeCard[] {
@@ -352,10 +398,12 @@ function MarqueeGroup({
               <ImageWithSkeleton
                 src={card.src}
                 alt=""
-                className="h-full w-auto rounded-lg! border border-[hsl(var(--gold)/0.12)] object-contain transition-all duration-200 hover:scale-[1.03] hover:border-[hsl(var(--gold)/0.35)] hover:shadow-[0_0_12px_hsl(var(--gold)/0.15)]"
+                className="block h-full w-full rounded-lg! border border-[hsl(var(--gold)/0.12)] object-contain transition-all duration-200 hover:scale-[1.03] hover:border-[hsl(var(--gold)/0.35)] hover:shadow-[0_0_12px_hsl(var(--gold)/0.15)]"
                 width={card.width}
                 height={card.height}
-                loading="eager"
+                loading="lazy"
+                decoding="async"
+                fixedDimensions
               />
             </a>
           </div>
