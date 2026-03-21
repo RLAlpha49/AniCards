@@ -57,13 +57,11 @@ export function recentActivitySummaryTemplate(data: {
   const title = `${data.username}'s Recent Activity`;
   const safeTitle = escapeForXml(title);
 
-  // Sort activity by date and compute stats
   const sorted = [...data.activityHistory].sort((a, b) => a.date - b.date);
   const totalActivity = sorted.reduce((acc, curr) => acc + curr.amount, 0);
   const dayCount = sorted.length || 1;
   const avgPerDay = (totalActivity / dayCount).toFixed(1);
 
-  // Find best day
   const bestDay = sorted.reduce(
     (best, curr) => (curr.amount > best.amount ? curr : best),
     { date: 0, amount: 0 },

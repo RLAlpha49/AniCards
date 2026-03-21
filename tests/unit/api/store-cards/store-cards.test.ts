@@ -36,9 +36,6 @@ afterAll(() => {
   }
 });
 
-/**
- * Helper to create a request with standard headers
- */
 function createRequest(
   body?: Record<string, unknown>,
   method: string = "POST",

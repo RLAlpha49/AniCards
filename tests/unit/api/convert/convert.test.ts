@@ -67,23 +67,14 @@ mock.module("sharp", () => ({
 }));
 
 describe("Convert API POST Endpoint", () => {
-  /**
-   * Retains the original fetch implementation so it can be restored after tests.
-   */
   const originalFetch = globalThis.fetch;
 
-  /**
-   * Helper to mock fetch with resolved values
-   */
   function mockFetchResolve(response: Response) {
     globalThis.fetch = mock(
       async () => response,
     ) as unknown as typeof globalThis.fetch;
   }
 
-  /**
-   * Helper to mock fetch with rejected value
-   */
   function mockFetchReject(error: Error) {
     globalThis.fetch = mock(async () => {
       throw error;
@@ -633,17 +624,11 @@ describe("Convert API POST Endpoint", () => {
   });
 
   describe("SVG Sanitization Policy - CSS", () => {
-    /**
-     * Default headers used when crafting conversion requests.
-     */
     const defaultHeaders = {
       "Content-Type": "application/json",
       "x-forwarded-for": "127.0.0.1",
     };
 
-    /**
-     * Constructs a POST `NextRequest` for the convert API using the given SVG URL.
-     */
     const makeRequestForSvgUrl = (url = "http://localhost/dummy.svg") =>
       new Request("http://localhost/api/convert", {
         method: "POST",
@@ -651,9 +636,6 @@ describe("Convert API POST Endpoint", () => {
         body: JSON.stringify({ svgUrl: url }),
       }) as unknown as NextRequest;
 
-    /**
-     * Stubs `fetch` to return controlled SVG responses.
-     */
     const mockFetchSvg = (svg: string, ok = true, status = 200) => {
       void ok;
       globalThis.fetch = mock(

@@ -21,21 +21,10 @@ import { OPTIONS, POST } from "@/app/api/anilist/route";
  */
 const BASE_URL = "http://localhost/api/anilist";
 
-/**
- * GraphQL query string used when a test does not provide a custom query.
- * @source
- */
 const DEFAULT_QUERY = "query GetUserStats { dummyField }";
 
-/**
- * Default set of variables accompanying the default query.
- * @source
- */
 const DEFAULT_VARIABLES = { userId: 123 };
 
-/**
- * Variables for GetUserId operation
- */
 const GET_USER_ID_VARIABLES = { userName: "testUser" };
 
 /**
@@ -61,9 +50,6 @@ function createAniListRequest(
   });
 }
 
-/**
- * Sets up environment variables for tests
- */
 function setupEnvironment(nodeEnv: string, includeToken = false) {
   (process.env as Record<string, string>).NODE_ENV = nodeEnv;
   if (includeToken) {
@@ -73,9 +59,6 @@ function setupEnvironment(nodeEnv: string, includeToken = false) {
   }
 }
 
-/**
- * Creates a GraphQL request payload
- */
 function createGraphQLBody(
   query = DEFAULT_QUERY,
   variables?: Record<string, unknown>,

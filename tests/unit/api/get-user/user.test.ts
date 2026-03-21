@@ -6,9 +6,6 @@ import {
   sharedRedisMockIncr,
 } from "@/tests/unit/__setup__";
 
-/**
- * Extracts the response JSON payload for assertions.
- */
 async function getResponseJson<T = unknown>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }

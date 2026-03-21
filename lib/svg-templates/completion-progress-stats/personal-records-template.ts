@@ -72,7 +72,6 @@ export function personalRecordsTemplate(
   const safeTitle = escapeForXml(title);
   const headerFontSize = calculateDynamicFontSize(title, 18, dims.w - 40);
 
-  // Find records
   const longestAnime = [...animeCompleted].sort(
     (a, b) => (b.media.episodes ?? 0) - (a.media.episodes ?? 0),
   )[0];

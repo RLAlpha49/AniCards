@@ -35,7 +35,6 @@ function safeRevokeObjectUrl(url: string) {
 }
 
 function lruTouch(key: string, entry: PreviewCacheEntry) {
-  // Move to the end.
   previewCache.delete(key);
   previewCache.set(key, entry);
 }

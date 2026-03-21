@@ -63,9 +63,6 @@ function createTestRequest(reqBody: object, origin?: string): Request {
   });
 }
 
-/**
- * Helper to extract JSON response safely
- */
 async function getJsonResponse(res: Response) {
   return res.clone().json();
 }
