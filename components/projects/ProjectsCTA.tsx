@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { SimpleGithubIcon } from "@/components/SimpleIcons";
 import { Button } from "@/components/ui/Button";
+import { EASE_OUT_EXPO } from "@/lib/animations";
 
 const fadeIn = {
   hidden: { opacity: 0, y: 28 },
@@ -91,25 +92,43 @@ export function ProjectsCTA() {
           variants={fadeIn}
           className="flex flex-col items-center justify-center gap-4 sm:flex-row"
         >
-          <Button asChild className="imperial-btn imperial-btn-fill">
-            <a
-              href="https://github.com/RLAlpha49"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2"
-            >
-              <SimpleGithubIcon size={20} />
-              Visit My GitHub
-              <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
-            </a>
-          </Button>
+          <motion.div
+            variants={fadeIn}
+            whileHover={{
+              scale: 1.04,
+              transition: { duration: 0.25, ease: EASE_OUT_EXPO },
+            }}
+            whileTap={{ scale: 0.97 }}
+          >
+            <Button asChild className="imperial-btn imperial-btn-fill">
+              <a
+                href="https://github.com/RLAlpha49"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2"
+              >
+                <SimpleGithubIcon size={20} />
+                Visit My GitHub
+                <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+              </a>
+            </Button>
+          </motion.div>
 
-          <Button asChild className="imperial-btn imperial-btn-ghost">
-            <Link href="/" className="flex items-center gap-2">
-              <GitFork className="h-4 w-4" />
-              Back to Home
-            </Link>
-          </Button>
+          <motion.div
+            variants={fadeIn}
+            whileHover={{
+              scale: 1.04,
+              transition: { duration: 0.25, ease: EASE_OUT_EXPO },
+            }}
+            whileTap={{ scale: 0.97 }}
+          >
+            <Button asChild className="imperial-btn imperial-btn-ghost">
+              <Link href="/" className="flex items-center gap-2">
+                <GitFork className="h-4 w-4" />
+                Back to Home
+              </Link>
+            </Button>
+          </motion.div>
         </motion.div>
 
         {/* Bottom ornamental line */}

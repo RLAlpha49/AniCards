@@ -3,6 +3,8 @@
 import { motion } from "framer-motion";
 import { Palette, Search, Sparkles } from "lucide-react";
 
+import { EASE_OUT_EXPO, SPRING_GENTLE } from "@/lib/animations";
+
 const STEPS = [
   {
     num: "01",
@@ -74,9 +76,19 @@ export function SearchJourney() {
               className="relative flex flex-col items-center text-center"
             >
               {/* Large ghost number */}
-              <div className="font-display text-gold/6 pointer-events-none absolute -top-6 text-8xl font-black select-none md:text-9xl">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.7 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{
+                  duration: 1.2,
+                  delay: i * 0.15 + 0.2,
+                  ease: EASE_OUT_EXPO,
+                }}
+                className="font-display text-gold/6 pointer-events-none absolute -top-6 text-8xl font-black select-none md:text-9xl"
+              >
                 {step.num}
-              </div>
+              </motion.div>
 
               {/* Step box with corner tick accents */}
               <motion.div
@@ -88,7 +100,15 @@ export function SearchJourney() {
                 className="border-gold/20 bg-background relative z-10 mb-6 flex h-32 w-32 items-center justify-center border-2"
               >
                 <div className="bg-gold/3 absolute inset-0" />
-                <step.icon className="text-gold/70 relative z-10 h-8 w-8" />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ ...SPRING_GENTLE, delay: i * 0.15 + 0.35 }}
+                  className="relative z-10"
+                >
+                  <step.icon className="text-gold/70 h-8 w-8" />
+                </motion.div>
 
                 {/* Corner ticks */}
                 <div className="border-gold/50 absolute -top-1 -left-1 h-3 w-3 border-t-2 border-l-2" />

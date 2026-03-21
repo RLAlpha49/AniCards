@@ -8,6 +8,7 @@ import { useCallback, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { EASE_OUT_EXPO, scaleIn, VIEWPORT_ONCE } from "@/lib/animations";
 import { cn } from "@/lib/utils";
 import {
   safeTrack,
@@ -118,7 +119,13 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
       {/* Ambient glow behind form */}
       <div className="pointer-events-none absolute -inset-8 bg-[radial-gradient(ellipse_at_center,hsl(var(--gold)/0.10),transparent_70%)] blur-2xl" />
 
-      <div className="border-gold/20 bg-background/80 relative border-2 p-8 backdrop-blur-sm sm:p-10">
+      <motion.div
+        variants={scaleIn}
+        initial="hidden"
+        whileInView="visible"
+        viewport={VIEWPORT_ONCE}
+        className="border-gold/20 bg-background/80 relative border-2 p-8 backdrop-blur-sm sm:p-10"
+      >
         {/* Enlarged corner brackets */}
         <div className="border-gold absolute -top-px -left-px h-5 w-5 border-t-2 border-l-2" />
         <div className="border-gold absolute -top-px -right-px h-5 w-5 border-t-2 border-r-2" />
@@ -234,32 +241,44 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
           </div>
 
           {/* Submit button */}
-          <Button
-            type="submit"
-            size="lg"
-            className="imperial-btn imperial-btn-fill group h-14 w-full text-base disabled:opacity-70 disabled:hover:scale-100"
-            disabled={loading}
+          <motion.div
+            whileHover={
+              loading
+                ? undefined
+                : {
+                    scale: 1.03,
+                    transition: { duration: 0.25, ease: EASE_OUT_EXPO },
+                  }
+            }
+            whileTap={loading ? undefined : { scale: 0.97 }}
           >
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Pulling up their page...
-              </>
-            ) : (
-              <>
-                <Search className="mr-2 h-5 w-5" />
-                Find Profile
-                <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
-              </>
-            )}
-          </Button>
+            <Button
+              type="submit"
+              size="lg"
+              className="imperial-btn imperial-btn-fill group h-14 w-full text-base disabled:opacity-70 disabled:hover:scale-100"
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Pulling up their page...
+                </>
+              ) : (
+                <>
+                  <Search className="mr-2 h-5 w-5" />
+                  Find Profile
+                  <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+                </>
+              )}
+            </Button>
+          </motion.div>
         </form>
 
         <p className="font-body-serif text-foreground/30 mt-6 text-center text-xs leading-relaxed">
           Works with any public AniList profile — just type a username or paste
           their numeric ID.
         </p>
-      </div>
+      </motion.div>
     </div>
   );
 }

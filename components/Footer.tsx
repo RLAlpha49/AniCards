@@ -9,6 +9,7 @@ import {
   SimpleDiscordIcon,
   SimpleGithubIcon,
 } from "@/components/SimpleIcons";
+import { EASE_OUT_EXPO } from "@/lib/animations";
 import {
   safeTrack,
   trackExternalLinkClick,
@@ -54,7 +55,13 @@ export default function Footer() {
 
       <div className="px-8 py-6 sm:px-12">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-2 text-xs tracking-widest">
+          <motion.div
+            className="flex flex-wrap items-center gap-2 text-xs tracking-widest"
+            initial={{ opacity: 0, y: 6 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-40px" }}
+            transition={{ duration: 0.5, ease: EASE_OUT_EXPO, delay: 0.3 }}
+          >
             <span className="font-display text-foreground/30">
               © {new Date().getFullYear()} ANICARDS
             </span>
@@ -69,25 +76,51 @@ export default function Footer() {
               MIT Licensed
               <ExternalLink className="h-2.5 w-2.5 opacity-0 transition-opacity group-hover:opacity-100" />
             </Link>
-          </div>
+          </motion.div>
 
-          <div className="flex items-center gap-3">
+          <motion.div
+            className="flex items-center gap-3"
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-40px" }}
+            variants={{
+              hidden: {},
+              visible: {
+                transition: { staggerChildren: 0.08, delayChildren: 0.15 },
+              },
+            }}
+          >
             {SOCIAL_LINKS.map((link) => (
-              <Link
+              <motion.div
                 key={link.name}
-                href={link.href}
-                target={link.name === "email" ? undefined : "_blank"}
-                rel={link.name === "email" ? undefined : "noopener noreferrer"}
-                className="border-gold/15 text-foreground/40 hover:border-gold/40 hover:text-gold flex h-9 w-9 items-center justify-center rounded-lg border transition-all"
-                onClick={() =>
-                  safeTrack(() => trackExternalLinkClick(link.name, "footer"))
-                }
-                aria-label={link.label}
+                variants={{
+                  hidden: { opacity: 0, scale: 0.85 },
+                  visible: {
+                    opacity: 1,
+                    scale: 1,
+                    transition: { duration: 0.35, ease: EASE_OUT_EXPO },
+                  },
+                }}
+                whileHover={{ scale: 1.15 }}
+                transition={{ duration: 0.2 }}
               >
-                <link.icon size={16} />
-              </Link>
+                <Link
+                  href={link.href}
+                  target={link.name === "email" ? undefined : "_blank"}
+                  rel={
+                    link.name === "email" ? undefined : "noopener noreferrer"
+                  }
+                  className="border-gold/15 text-foreground/40 hover:border-gold/40 hover:text-gold flex h-9 w-9 items-center justify-center rounded-lg border transition-all"
+                  onClick={() =>
+                    safeTrack(() => trackExternalLinkClick(link.name, "footer"))
+                  }
+                  aria-label={link.label}
+                >
+                  <link.icon size={16} />
+                </Link>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       </div>
     </motion.footer>

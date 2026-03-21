@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import DarkModeToggle from "@/components/DarkModeToggle";
+import { EASE_OUT_EXPO } from "@/lib/animations";
 import { safeTrack, trackNavigation } from "@/lib/utils/google-analytics";
 
 const NAV_ITEMS = [
@@ -85,12 +86,32 @@ export default function Header() {
             </div>
           </Link>
 
-          <nav
+          <motion.nav
             className="hidden items-center gap-4 md:flex"
             aria-label="Main navigation"
+            initial="hidden"
+            animate="visible"
+            variants={{
+              hidden: { opacity: 0 },
+              visible: {
+                opacity: 1,
+                transition: { staggerChildren: 0.07, delayChildren: 0.3 },
+              },
+            }}
           >
             {NAV_ITEMS.map((item, i) => (
-              <span key={item.label} className="flex items-center gap-4">
+              <motion.span
+                key={item.label}
+                className="flex items-center gap-4"
+                variants={{
+                  hidden: { opacity: 0, y: 8 },
+                  visible: {
+                    opacity: 1,
+                    y: 0,
+                    transition: { duration: 0.4, ease: EASE_OUT_EXPO },
+                  },
+                }}
+              >
                 {i > 0 && <GoldDiamond />}
                 <Link
                   href={item.href}
@@ -99,17 +120,28 @@ export default function Header() {
                       trackNavigation(item.label.toLowerCase(), "header"),
                     )
                   }
-                  className={`nav-link-underline font-body-serif text-xs tracking-[0.15em] uppercase transition-colors ${
+                  className={`font-body-serif relative text-xs tracking-[0.15em] uppercase transition-colors ${
                     pathname === item.href
                       ? "text-gold"
-                      : "text-foreground/60 hover:text-gold"
+                      : "nav-link-underline text-foreground/60 hover:text-gold"
                   }`}
                 >
                   {item.label}
+                  {pathname === item.href && (
+                    <motion.div
+                      layoutId="nav-underline"
+                      className="bg-gold absolute right-0 -bottom-1 left-0 h-0.5 rounded-full"
+                      transition={{
+                        type: "spring",
+                        stiffness: 400,
+                        damping: 30,
+                      }}
+                    />
+                  )}
                 </Link>
-              </span>
+              </motion.span>
             ))}
-          </nav>
+          </motion.nav>
 
           <div className="flex items-center gap-3">
             <DarkModeToggle />
@@ -118,11 +150,29 @@ export default function Header() {
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
             >
-              {mobileMenuOpen ? (
-                <X className="h-5 w-5" />
-              ) : (
-                <Menu className="h-5 w-5" />
-              )}
+              <AnimatePresence mode="wait" initial={false}>
+                {mobileMenuOpen ? (
+                  <motion.span
+                    key="close"
+                    initial={{ rotate: -90, opacity: 0 }}
+                    animate={{ rotate: 0, opacity: 1 }}
+                    exit={{ rotate: 90, opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <X className="h-5 w-5" />
+                  </motion.span>
+                ) : (
+                  <motion.span
+                    key="menu"
+                    initial={{ rotate: 90, opacity: 0 }}
+                    animate={{ rotate: 0, opacity: 1 }}
+                    exit={{ rotate: -90, opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Menu className="h-5 w-5" />
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </button>
           </div>
         </div>
