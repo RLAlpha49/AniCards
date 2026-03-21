@@ -10,3 +10,4 @@
 /tests/e2e/playwright-report/
 /tests/e2e/test-results/
 /tsconfig.tsbuildinfo
+/TODO.md
