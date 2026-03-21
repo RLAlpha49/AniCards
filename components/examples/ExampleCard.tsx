@@ -59,11 +59,11 @@ export function ExampleCard({
         delay: Math.min(index * 0.05, 0.25),
         ease: [0.22, 1, 0.36, 1],
       }}
-      className="group/card w-full"
+      className="w-full"
     >
       <div
         className={cn(
-          "relative overflow-hidden",
+          "group/card relative overflow-hidden",
           "border border-transparent transition-all duration-500",
           "hover:border-gold/20",
           "hover:shadow-[0_16px_48px_-12px_hsl(var(--gold)/0.1)]",
