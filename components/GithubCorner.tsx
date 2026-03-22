@@ -62,7 +62,7 @@ export default function GithubCorner() {
       initial={{ opacity: 0, x: 16 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.6, delay: 0.4, ease: EASE_OUT_EXPO }}
-      className="fixed top-24 right-5 z-50"
+      className="fixed top-20 right-5 z-1000"
       onMouseEnter={open}
       onMouseLeave={close}
       onFocusCapture={open}

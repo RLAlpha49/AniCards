@@ -120,6 +120,7 @@ export default async function RootLayout({
         id="app-root"
         className={`${geistSans.variable} ${geistMono.variable} ${playfairDisplaySC.variable} ${libreBaskerville.variable} antialiased`}
       >
+        <GithubCorner />
         {process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID && (
           <GoogleAnalytics
             GA_TRACKING_ID={process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID}
@@ -130,10 +131,7 @@ export default async function RootLayout({
           <Suspense fallback={<div>Loading...</div>}>
             <AnalyticsProvider>
               <ErrorBoundary>
-                <LayoutShell>
-                  <GithubCorner />
-                  {children}
-                </LayoutShell>
+                <LayoutShell>{children}</LayoutShell>
               </ErrorBoundary>
             </AnalyticsProvider>
           </Suspense>
