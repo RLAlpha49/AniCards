@@ -392,13 +392,18 @@ function MarqueeGroup({
         return (
           <div
             key={card.key}
-            className="inline-flex h-auto w-auto shrink-0 items-center justify-center"
+            className="inline-flex size-auto shrink-0 items-center justify-center"
           >
             <a href={card.src} target="_blank" rel="noopener noreferrer">
               <ImageWithSkeleton
                 src={card.src}
                 alt=""
-                className="block h-full w-full rounded-lg! border border-[hsl(var(--gold)/0.12)] object-contain transition-all duration-200 hover:scale-[1.03] hover:border-[hsl(var(--gold)/0.35)] hover:shadow-[0_0_12px_hsl(var(--gold)/0.15)]"
+                className="
+                  block size-full rounded-lg! border border-[hsl(var(--gold)/0.12)] object-contain
+                  transition-all duration-200
+                  hover:scale-[1.03] hover:border-[hsl(var(--gold)/0.35)]
+                  hover:shadow-[0_0_12px_hsl(var(--gold)/0.15)]
+                "
                 width={card.width}
                 height={card.height}
                 loading="lazy"

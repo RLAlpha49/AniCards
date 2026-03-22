@@ -54,7 +54,10 @@ export function FeaturedProject() {
           whileInView={{ opacity: 1 }}
           viewport={{ once: true, margin: "-40px" }}
           transition={{ duration: 0.5 }}
-          className="mb-14 flex items-center gap-4 font-mono text-[0.6rem] tracking-[0.4em] uppercase sm:text-xs"
+          className="
+            mb-14 flex items-center gap-4 font-mono text-[0.6rem] tracking-[0.4em] uppercase
+            sm:text-xs
+          "
         >
           <span className="text-gold/60">01</span>
           <span
@@ -77,17 +80,29 @@ export function FeaturedProject() {
         >
           {/* Geometric frame — gold corner brackets */}
           <div
-            className="pointer-events-none absolute -top-3 -left-3 h-12 w-12 border-t-2 border-l-2 opacity-40 transition-opacity duration-500 group-hover:opacity-80"
+            className="
+              pointer-events-none absolute -top-3 -left-3 size-12 border-t-2 border-l-2 opacity-40
+              transition-opacity duration-500
+              group-hover:opacity-80
+            "
             style={{ borderColor: "hsl(var(--gold))" }}
             aria-hidden="true"
           />
           <div
-            className="pointer-events-none absolute -right-3 -bottom-3 h-12 w-12 border-r-2 border-b-2 opacity-40 transition-opacity duration-500 group-hover:opacity-80"
+            className="
+              pointer-events-none absolute -right-3 -bottom-3 size-12 border-r-2 border-b-2
+              opacity-40 transition-opacity duration-500
+              group-hover:opacity-80
+            "
             style={{ borderColor: "hsl(var(--gold))" }}
             aria-hidden="true"
           />
 
-          <div className="border-gold/15 bg-card/60 hover:border-gold/30 overflow-hidden border-2 backdrop-blur-sm transition-all duration-500">
+          <div className="
+            overflow-hidden border-2 border-gold/15 bg-card/60 backdrop-blur-sm transition-all
+            duration-500
+            hover:border-gold/30
+          ">
             {/* Gold accent bar at top */}
             <div
               className="h-1"
@@ -110,14 +125,21 @@ export function FeaturedProject() {
                   variants={slideUp}
                   className="mb-6 flex items-center gap-4"
                 >
-                  <div className="border-gold/30 bg-gold/5 group-hover:border-gold/50 group-hover:bg-gold/10 flex h-12 w-12 items-center justify-center border transition-colors duration-300">
+                  <div className="
+                    flex size-12 items-center justify-center border border-gold/30 bg-gold/5
+                    transition-colors duration-300
+                    group-hover:border-gold/50 group-hover:bg-gold/10
+                  ">
                     <SimpleGithubIcon size={24} className="text-gold" />
                   </div>
                   <div>
-                    <p className="text-gold/50 font-mono text-[0.55rem] tracking-[0.4em] uppercase">
+                    <p className="font-mono text-[0.55rem] tracking-[0.4em] text-gold/50 uppercase">
                       You&apos;re looking at it
                     </p>
-                    <h3 className="font-display text-foreground text-2xl tracking-widest uppercase sm:text-3xl">
+                    <h3 className="
+                      font-display text-2xl tracking-widest text-foreground uppercase
+                      sm:text-3xl
+                    ">
                       {FEATURED_PROJECT.name}
                     </h3>
                   </div>
@@ -125,14 +147,19 @@ export function FeaturedProject() {
 
                 <motion.p
                   variants={slideUp}
-                  className="font-body-serif text-foreground/55 mb-3 max-w-2xl text-sm leading-[1.85] sm:text-base"
+                  className="
+                    mb-3 max-w-2xl font-body-serif text-sm leading-[1.85] text-foreground/55
+                    sm:text-base
+                  "
                 >
                   {FEATURED_PROJECT.highlight}
                 </motion.p>
 
                 <motion.p
                   variants={slideUp}
-                  className="font-body-serif text-foreground/35 mb-8 max-w-2xl text-sm leading-[1.85]"
+                  className="
+                    mb-8 max-w-2xl font-body-serif text-sm leading-[1.85] text-foreground/35
+                  "
                 >
                   {FEATURED_PROJECT.description}
                 </motion.p>
@@ -145,7 +172,11 @@ export function FeaturedProject() {
                   {FEATURED_PROJECT.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="border-gold/15 text-foreground/45 hover:border-gold/40 hover:text-gold/80 border px-4 py-1.5 font-mono text-[0.6rem] tracking-[0.2em] uppercase transition-all duration-300"
+                      className="
+                        border border-gold/15 px-4 py-1.5 font-mono text-[0.6rem] tracking-[0.2em]
+                        text-foreground/45 uppercase transition-all duration-300
+                        hover:border-gold/40 hover:text-gold/80
+                      "
                     >
                       {tag}
                     </span>
@@ -161,9 +192,12 @@ export function FeaturedProject() {
                       rel="noopener noreferrer"
                       className="flex items-center gap-2"
                     >
-                      <Star className="h-4 w-4" />
+                      <Star className="size-4" />
                       Star on GitHub
-                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                      <ArrowRight className="
+                        size-4 transition-transform
+                        group-hover:translate-x-0.5
+                      " />
                     </a>
                   </Button>
                   <Button asChild className="imperial-btn imperial-btn-ghost">
@@ -180,8 +214,11 @@ export function FeaturedProject() {
                 className="hidden min-w-48 md:block"
                 aria-hidden="true"
               >
-                <div className="border-gold/10 border-l pl-8">
-                  <span className="font-display text-gold/6 block text-[9rem] leading-none lg:text-[11rem]">
+                <div className="border-l border-gold/10 pl-8">
+                  <span className="
+                    block font-display text-[9rem] leading-none text-gold/6
+                    lg:text-[11rem]
+                  ">
                     01
                   </span>
                   <div
@@ -191,7 +228,9 @@ export function FeaturedProject() {
                         "linear-gradient(90deg, hsl(var(--gold) / 0.3), transparent)",
                     }}
                   />
-                  <p className="text-foreground/20 mt-4 font-mono text-[0.55rem] tracking-[0.3em] uppercase">
+                  <p className="
+                    mt-4 font-mono text-[0.55rem] tracking-[0.3em] text-foreground/20 uppercase
+                  ">
                     Flagship
                     <br />
                     Project

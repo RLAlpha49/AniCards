@@ -37,7 +37,7 @@ export function ProcessSteps() {
             initial={{ opacity: 0, y: 20 }}
             animate={isInView ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.5 }}
-            className="font-display text-foreground mb-4 text-3xl sm:text-4xl"
+            className="mb-4 font-display text-3xl text-foreground sm:text-4xl"
           >
             THE <span className="text-gold">PROCESS</span>
           </motion.h2>
@@ -51,7 +51,10 @@ export function ProcessSteps() {
 
         <div className="relative">
           <div
-            className="gold-line pointer-events-none absolute top-14 right-[0%] left-[15%] hidden w-[70%] md:block"
+            className="
+              pointer-events-none gold-line absolute top-14 right-[0%] left-[15%] hidden w-[70%]
+              md:block
+            "
             aria-hidden="true"
           />
 
@@ -79,19 +82,22 @@ export function ProcessSteps() {
                     stiffness: 200,
                     damping: 15,
                   }}
-                  className="bg-card relative z-10 mx-auto mb-6 flex h-28 w-28 flex-col items-center justify-center rounded-full border-2 border-[hsl(var(--gold)/0.35)]"
+                  className="
+                    relative z-10 mx-auto mb-6 flex size-28 flex-col items-center justify-center
+                    rounded-full border-2 border-[hsl(var(--gold)/0.35)] bg-card
+                  "
                 >
-                  <span className="font-display text-gold mb-1 text-2xl">
+                  <span className="mb-1 font-display text-2xl text-gold">
                     {step.num}
                   </span>
-                  <step.icon className="text-gold/50 h-5 w-5" />
+                  <step.icon className="size-5 text-gold/50" />
                 </motion.div>
 
-                <h3 className="font-display text-foreground mb-3 text-sm tracking-[0.3em]">
+                <h3 className="mb-3 font-display text-sm tracking-[0.3em] text-foreground">
                   {step.title}
                 </h3>
 
-                <p className="font-body-serif text-foreground/45 mx-auto max-w-xs text-sm leading-relaxed">
+                <p className="mx-auto max-w-xs font-body-serif text-sm/relaxed text-foreground/45">
                   {step.desc}
                 </p>
               </motion.div>

@@ -24,14 +24,21 @@ export function DraftRestoreNotice({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="border-gold/20 from-gold/5 dark:border-gold/15 dark:from-gold/3 w-full max-w-[700px] border bg-linear-to-r to-amber-100/5 px-4 py-3 backdrop-blur-sm dark:to-amber-900/3"
+        className="
+          w-full max-w-[700px] border border-gold/20 bg-linear-to-r from-gold/5 to-amber-100/5 px-4
+          py-3 backdrop-blur-sm
+          dark:border-gold/15 dark:from-gold/3 dark:to-amber-900/3
+        "
       >
         <div className="flex items-start gap-3">
-          <div className="bg-gold/15 dark:bg-gold/10 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center">
-            <History className="text-gold-dim dark:text-gold h-4 w-4" />
+          <div className="
+            mt-0.5 flex size-8 shrink-0 items-center justify-center bg-gold/15
+            dark:bg-gold/10
+          ">
+            <History className="size-4 text-gold-dim dark:text-gold" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-foreground text-sm">
+            <p className="text-sm text-foreground">
               <span className="font-medium">Draft found:</span> we found unsaved
               changes from a previous session.
             </p>

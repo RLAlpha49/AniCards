@@ -65,7 +65,9 @@ export default function UserPage() {
     <Suspense
       fallback={
         <PageShell>
-          <div className="relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4">
+          <div className="
+            relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4
+          ">
             <LoadingSpinner size="lg" text="Loading user data..." />
           </div>
         </PageShell>

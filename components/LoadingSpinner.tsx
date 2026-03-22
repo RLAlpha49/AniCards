@@ -62,10 +62,10 @@ export function LoadingSpinner({
     >
       <div className={cn(cfg.box, className, "relative")}>
         {/* Ambient glow behind the arcs */}
-        <div className="bg-primary/10 dark:bg-primary/15 absolute inset-[-25%] rounded-full blur-xl" />
+        <div className="absolute inset-[-25%] rounded-full bg-primary/10 blur-xl dark:bg-primary/15" />
 
         <svg
-          className="relative h-full w-full"
+          className="relative size-full"
           viewBox={`0 0 ${cfg.viewBox} ${cfg.viewBox}`}
           aria-labelledby={`t-${s}`}
         >
@@ -226,7 +226,7 @@ export function LoadingSpinner({
         <motion.span
           className={cn(
             cfg.textClass,
-            "font-display text-primary font-semibold",
+            "font-display font-semibold text-primary",
           )}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -240,7 +240,7 @@ export function LoadingSpinner({
         <motion.p
           className={cn(
             cfg.textClass,
-            "font-body-serif text-muted-foreground tracking-wide",
+            "font-body-serif tracking-wide text-muted-foreground",
           )}
           initial={{ opacity: 0.5 }}
           animate={{ opacity: [0.5, 1, 0.5] }}
@@ -277,7 +277,9 @@ export function LoadingOverlay({
   }, []);
 
   return (
-    <div className="bg-background/85 fixed inset-0 z-1000 flex items-center justify-center backdrop-blur-md">
+    <div className="
+      fixed inset-0 z-1000 flex items-center justify-center bg-background/85 backdrop-blur-md
+    ">
       <div className="pointer-events-none flex flex-col items-center gap-4">
         <LoadingSpinner size="lg" text={text} />
         {children}

@@ -40,19 +40,22 @@ export function CopyUrlsPopover({
             "h-9 gap-1.5 px-3 font-medium shadow-md transition-all",
             copiedFormat
               ? "bg-green-500 text-white shadow-green-500/25 hover:bg-green-600"
-              : "from-gold to-gold-dim shadow-gold/25 hover:shadow-gold/30 bg-linear-to-r via-amber-500 text-white hover:scale-[1.02] hover:shadow-lg",
+              : `
+                bg-linear-to-r from-gold via-amber-500 to-gold-dim text-white shadow-gold/25
+                hover:scale-[1.02] hover:shadow-lg hover:shadow-gold/30
+              `,
           )}
         >
           {copiedFormat ? (
             <>
-              <Check className="h-4 w-4" aria-hidden="true" />
+              <Check className="size-4" aria-hidden="true" />
               <span>Copied!</span>
             </>
           ) : (
             <>
-              <Copy className="h-4 w-4" aria-hidden="true" />
+              <Copy className="size-4" aria-hidden="true" />
               <span className="hidden sm:inline">Copy URLs</span>
-              <ChevronDown className="h-3 w-3" aria-hidden="true" />
+              <ChevronDown className="size-3" aria-hidden="true" />
             </>
           )}
         </Button>
@@ -63,19 +66,19 @@ export function CopyUrlsPopover({
           <Button
             variant="ghost"
             size="sm"
-            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 px-2.5 text-sm"
+            className="h-9 justify-start gap-2 px-2.5 text-sm hover:bg-gold/5 dark:hover:bg-gold/5"
             onClick={() => {
               handleCopyUrls("url");
             }}
           >
             <Link
-              className="text-gold-dim dark:text-gold h-4 w-4"
+              className="size-4 text-gold-dim dark:text-gold"
               aria-hidden="true"
             />
             <span>Raw URLs</span>
             {copiedFormat === "url" && (
               <Check
-                className="ml-auto h-4 w-4 text-green-600"
+                className="ml-auto size-4 text-green-600"
                 aria-hidden="true"
               />
             )}
@@ -84,19 +87,19 @@ export function CopyUrlsPopover({
           <Button
             variant="ghost"
             size="sm"
-            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 px-2.5 text-sm"
+            className="h-9 justify-start gap-2 px-2.5 text-sm hover:bg-gold/5 dark:hover:bg-gold/5"
             onClick={() => {
               handleCopyUrls("anilist");
             }}
           >
             <ImageIcon
-              className="text-gold-dim dark:text-gold h-4 w-4"
+              className="size-4 text-gold-dim dark:text-gold"
               aria-hidden="true"
             />
             <span>AniList Format</span>
             {copiedFormat === "anilist" && (
               <Check
-                className="ml-auto h-4 w-4 text-green-600"
+                className="ml-auto size-4 text-green-600"
                 aria-hidden="true"
               />
             )}

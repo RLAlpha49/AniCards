@@ -32,7 +32,10 @@ export function ContactCTA() {
     <section className="relative px-6 py-20 sm:px-12 md:py-32">
       {/* Background glow */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute bottom-0 left-1/2 h-100 w-150 -translate-x-1/2 rounded-full bg-[hsl(var(--gold)/0.04)] blur-[120px]" />
+        <div className="
+          absolute bottom-0 left-1/2 h-100 w-150 -translate-x-1/2 rounded-full
+          bg-[hsl(var(--gold)/0.04)] blur-[120px]
+        " />
       </div>
 
       <motion.div
@@ -48,19 +51,19 @@ export function ContactCTA() {
           className="mb-10 flex items-center gap-4"
         >
           <div className="h-px flex-1 bg-linear-to-r from-transparent to-[hsl(var(--gold)/0.15)]" />
-          <Send className="text-gold/30 h-4 w-4" strokeWidth={1.5} />
+          <Send className="size-4 text-gold/30" strokeWidth={1.5} />
           <div className="h-px flex-1 bg-linear-to-l from-transparent to-[hsl(var(--gold)/0.15)]" />
         </motion.div>
 
         <motion.h2
           variants={ctaChild}
-          className="font-display text-foreground mb-3 text-3xl font-bold sm:text-4xl"
+          className="mb-3 font-display text-3xl font-bold text-foreground sm:text-4xl"
         >
           DROP A LINE
         </motion.h2>
         <motion.p
           variants={ctaChild}
-          className="font-body-serif text-foreground/35 mb-10 text-base leading-relaxed"
+          className="mb-10 font-body-serif text-base/relaxed text-foreground/35"
         >
           Some things deserve more than a quick message.
         </motion.p>
@@ -79,16 +82,16 @@ export function ContactCTA() {
             onClick={() =>
               safeTrack(() => trackExternalLinkClick("email", "contact_page"))
             }
-            className="imperial-btn imperial-btn-fill group inline-flex items-center"
+            className="group imperial-btn inline-flex imperial-btn-fill items-center"
           >
-            <Send className="mr-2.5 h-4 w-4" />
+            <Send className="mr-2.5 size-4" />
             contact@alpha49.com
           </Link>
         </motion.div>
 
         <motion.p
           variants={ctaChild}
-          className="text-foreground/20 mt-8 text-[10px] tracking-[0.3em] uppercase"
+          className="mt-8 text-[10px] tracking-[0.3em] text-foreground/20 uppercase"
           style={{ fontFamily: "var(--font-geist-mono), monospace" }}
         >
           I usually reply within a day or two

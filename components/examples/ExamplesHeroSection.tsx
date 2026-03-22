@@ -80,8 +80,14 @@ export function ExamplesHeroSection({
     <section className="relative overflow-hidden px-6 pt-28 pb-20 sm:px-12 md:pt-36 md:pb-28">
       {/* Atmospheric background layers */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute top-0 left-0 h-full w-full bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,hsl(var(--gold)/0.08),transparent_60%)]" />
-        <div className="absolute bottom-0 left-0 h-1/2 w-full bg-[radial-gradient(ellipse_60%_40%_at_50%_100%,hsl(var(--gold)/0.04),transparent_60%)]" />
+        <div className="
+          absolute top-0 left-0 size-full
+          bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,hsl(var(--gold)/0.08),transparent_60%)]
+        " />
+        <div className="
+          absolute bottom-0 left-0 h-1/2 w-full
+          bg-[radial-gradient(ellipse_60%_40%_at_50%_100%,hsl(var(--gold)/0.04),transparent_60%)]
+        " />
         {/* Subtle dot pattern */}
         <div
           className="absolute inset-0 opacity-[0.03]"
@@ -101,20 +107,31 @@ export function ExamplesHeroSection({
       >
         {/* Overline */}
         <motion.div variants={riseIn} className="mb-8 flex items-center gap-4">
-          <div className="h-px max-w-12 flex-1 bg-linear-to-r from-transparent to-[hsl(var(--gold)/0.5)]" />
-          <span className="text-gold text-[0.6rem] tracking-[0.6em] uppercase sm:text-[0.65rem]">
+          <div className="
+            h-px max-w-12 flex-1 bg-linear-to-r from-transparent to-[hsl(var(--gold)/0.5)]
+          " />
+          <span className="text-[0.6rem] tracking-[0.6em] text-gold uppercase sm:text-[0.65rem]">
             Showcase
           </span>
-          <div className="h-px max-w-12 flex-1 bg-linear-to-l from-transparent to-[hsl(var(--gold)/0.5)]" />
+          <div className="
+            h-px max-w-12 flex-1 bg-linear-to-l from-transparent to-[hsl(var(--gold)/0.5)]
+          " />
         </motion.div>
 
         {/* Large number overlay */}
         <div className="relative">
           <motion.div
             variants={scaleReveal}
-            className="pointer-events-none absolute -top-8 -left-2 select-none sm:-top-14 sm:-left-4"
+            className="
+              pointer-events-none absolute -top-8 -left-2 select-none
+              sm:-top-14 sm:-left-4
+            "
           >
-            <span className="font-display text-[8rem] leading-none font-black text-[hsl(var(--gold)/0.04)] sm:text-[12rem] md:text-[16rem]">
+            <span className="
+              font-display text-[8rem] leading-none font-black text-[hsl(var(--gold)/0.04)]
+              sm:text-[12rem]
+              md:text-[16rem]
+            ">
               <AnimatedNumber target={totalVariants} />
             </span>
           </motion.div>
@@ -122,7 +139,12 @@ export function ExamplesHeroSection({
           {/* Main heading */}
           <motion.h1
             variants={riseIn}
-            className="font-display relative text-4xl leading-[1.05] font-black tracking-tight sm:text-5xl md:text-6xl lg:text-7xl"
+            className="
+              relative font-display text-4xl leading-[1.05] font-black tracking-tight
+              sm:text-5xl
+              md:text-6xl
+              lg:text-7xl
+            "
           >
             <span className="text-foreground">Every Card,</span>
             <br />
@@ -133,14 +155,14 @@ export function ExamplesHeroSection({
         {/* Subtitle */}
         <motion.p
           variants={riseIn}
-          className="font-body-serif text-foreground/45 mt-6 max-w-lg text-base leading-relaxed sm:text-lg"
+          className="mt-6 max-w-lg font-body-serif text-base/relaxed text-foreground/45 sm:text-lg"
         >
           Browse{" "}
-          <span className="text-foreground/70 font-semibold">
+          <span className="font-semibold text-foreground/70">
             <AnimatedNumber target={totalCardTypes} /> distinct card types
           </span>{" "}
           spread across{" "}
-          <span className="text-foreground/70 font-semibold">
+          <span className="font-semibold text-foreground/70">
             {categoryCount} categories
           </span>
           — all pulled live from{" "}
@@ -148,7 +170,7 @@ export function ExamplesHeroSection({
             href="https://anilist.co/user/Alpha49"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-gold hover:text-gold/80 transition-colors hover:underline"
+            className="text-gold transition-colors hover:text-gold/80 hover:underline"
           >
             @Alpha49
           </a>
@@ -166,13 +188,13 @@ export function ExamplesHeroSection({
             { value: categoryCount, label: "Categories" },
           ].map((stat) => (
             <div key={stat.label}>
-              <p className="font-display text-gold text-3xl leading-none font-black sm:text-4xl">
+              <p className="font-display text-3xl leading-none font-black text-gold sm:text-4xl">
                 <AnimatedNumber target={stat.value} />
                 {stat.suffix && (
-                  <span className="text-gold/50 text-xl">{stat.suffix}</span>
+                  <span className="text-xl text-gold/50">{stat.suffix}</span>
                 )}
               </p>
-              <p className="text-foreground/30 mt-1.5 text-[0.6rem] tracking-[0.2em] uppercase">
+              <p className="mt-1.5 text-[0.6rem] tracking-[0.2em] text-foreground/30 uppercase">
                 {stat.label}
               </p>
             </div>
@@ -186,17 +208,17 @@ export function ExamplesHeroSection({
         >
           <button
             onClick={onStartCreating}
-            className="imperial-btn imperial-btn-fill inline-flex items-center"
+            className="imperial-btn inline-flex imperial-btn-fill items-center"
           >
-            <Sparkles className="mr-2 h-4 w-4" />
+            <Sparkles className="mr-2 size-4" />
             Create Yours
           </button>
           <button
             onClick={scrollToGallery}
-            className="imperial-btn imperial-btn-ghost group inline-flex items-center"
+            className="group imperial-btn inline-flex imperial-btn-ghost items-center"
           >
             Browse the Gallery
-            <ArrowDown className="ml-2 h-4 w-4 transition-transform group-hover:translate-y-0.5" />
+            <ArrowDown className="ml-2 size-4 transition-transform group-hover:translate-y-0.5" />
           </button>
         </motion.div>
       </motion.div>

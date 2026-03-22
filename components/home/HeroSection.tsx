@@ -94,10 +94,17 @@ export function HeroSection() {
   return (
     <section className="relative min-h-[90vh] overflow-hidden px-6 sm:px-12">
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute top-1/4 left-1/2 h-150 w-150 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(var(--gold)/0.06)] blur-[120px]" />
+        <div className="
+          absolute top-1/4 left-1/2 h-150 w-150 -translate-1/2 rounded-full
+          bg-[hsl(var(--gold)/0.06)] blur-[120px]
+        " />
       </div>
 
-      <div className="relative z-10 mx-auto grid max-w-7xl items-center gap-12 pt-20 pb-16 md:grid-cols-[1fr_1.1fr] md:gap-8 md:pt-28 lg:gap-16">
+      <div className="
+        relative z-10 mx-auto grid max-w-7xl items-center gap-12 pt-20 pb-16
+        md:grid-cols-[1fr_1.1fr] md:gap-8 md:pt-28
+        lg:gap-16
+      ">
         <motion.div
           variants={staggerContainer}
           initial="hidden"
@@ -105,14 +112,19 @@ export function HeroSection() {
         >
           <motion.p
             variants={fadeUp}
-            className="text-gold mb-5 text-[0.65rem] tracking-[0.6em] uppercase sm:text-xs"
+            className="mb-5 text-[0.65rem] tracking-[0.6em] text-gold uppercase sm:text-xs"
           >
             Your AniList Stats, Distilled
           </motion.p>
 
           <motion.h1
             variants={fadeUp}
-            className="font-display text-foreground mb-6 text-4xl leading-[1.1] font-black sm:text-5xl lg:text-6xl xl:text-7xl"
+            className="
+              mb-6 font-display text-4xl leading-[1.1] font-black text-foreground
+              sm:text-5xl
+              lg:text-6xl
+              xl:text-7xl
+            "
           >
             YOUR ANIME
             <br />
@@ -130,7 +142,10 @@ export function HeroSection() {
 
           <motion.p
             variants={fadeUp}
-            className="font-body-serif text-foreground/50 mb-10 max-w-md text-base leading-relaxed sm:text-lg"
+            className="
+              mb-10 max-w-md font-body-serif text-base/relaxed text-foreground/50
+              sm:text-lg
+            "
           >
             Sharp stat cards pulled straight from your AniList profile. Deep
             analytics, bold visuals — and every detail is yours to tweak.
@@ -153,7 +168,10 @@ export function HeroSection() {
 
           <motion.div
             variants={fadeUp}
-            className="text-foreground/35 mt-10 flex flex-wrap gap-6 text-[0.65rem] tracking-[0.2em] uppercase"
+            className="
+              mt-10 flex flex-wrap gap-6 text-[0.65rem] tracking-[0.2em] text-foreground/35
+              uppercase
+            "
           >
             <span>✦ Always Free</span>
             <span>✦ No Sign-Up</span>
@@ -161,7 +179,11 @@ export function HeroSection() {
           </motion.div>
         </motion.div>
 
-        <div className="relative mx-auto flex h-90 w-full max-w-lg items-center justify-center sm:h-105 md:h-120">
+        <div className="
+          relative mx-auto flex h-90 w-full max-w-lg items-center justify-center
+          sm:h-105
+          md:h-120
+        ">
           {HERO_CARDS.map((card, i) => (
             <motion.div
               key={card.cardType}
@@ -169,7 +191,7 @@ export function HeroSection() {
               variants={cardFloat}
               initial="hidden"
               animate="visible"
-              className="hero-card-float absolute shadow-2xl shadow-black/20 dark:shadow-black/50"
+              className="absolute hero-card-float shadow-2xl shadow-black/20 dark:shadow-black/50"
               style={{
                 rotate: `${card.rotate}deg`,
                 zIndex: card.z,

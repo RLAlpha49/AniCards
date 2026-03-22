@@ -229,7 +229,7 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
     >
       {shouldShowSkeleton && (
         <Skeleton
-          className="absolute inset-0 h-full w-full"
+          className="absolute inset-0 size-full"
           style={
             fallbackAspectRatio
               ? { aspectRatio: fallbackAspectRatio }
@@ -241,7 +241,9 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
         ref={imgRef}
         src={src}
         alt={alt}
-        className={`${className} ${shouldShowImage ? "opacity-100" : "opacity-0"} transition-opacity duration-300`}
+        className={`${className} ${shouldShowImage ? "opacity-100" : "opacity-0"}
+          transition-opacity duration-300
+        `}
         style={{ borderRadius: "4px", ...style }}
         width={width}
         height={height}
@@ -251,7 +253,10 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
         onError={onImageError}
       />
       {hasError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+        <div className="
+          absolute inset-0 flex items-center justify-center bg-gray-100
+          dark:bg-gray-800
+        ">
           <span className="text-sm text-gray-500">Failed to load</span>
         </div>
       )}

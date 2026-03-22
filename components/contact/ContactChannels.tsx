@@ -83,11 +83,15 @@ export function ContactChannels() {
         <div className="mb-16">
           <div className="mb-4 flex items-center gap-4">
             <div className="h-px w-16 max-w-16 bg-[hsl(var(--gold)/0.3)]" />
-            <span className="font-display text-gold text-[0.65rem] tracking-[0.5em] uppercase">
+            <span className="font-display text-[0.65rem] tracking-[0.5em] text-gold uppercase">
               Channels
             </span>
           </div>
-          <h2 className="font-display text-foreground text-3xl tracking-tight sm:text-4xl md:text-5xl">
+          <h2 className="
+            font-display text-3xl tracking-tight text-foreground
+            sm:text-4xl
+            md:text-5xl
+          ">
             WAYS TO
             <br />
             <span className="text-gold">CONNECT</span>
@@ -100,7 +104,11 @@ export function ContactChannels() {
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, margin: "-80px" }}
-          className="grid grid-cols-1 gap-px bg-[hsl(var(--gold)/0.1)] sm:grid-cols-2 lg:grid-cols-4"
+          className="
+            grid grid-cols-1 gap-px bg-[hsl(var(--gold)/0.1)]
+            sm:grid-cols-2
+            lg:grid-cols-4
+          "
         >
           {CHANNELS.map((ch) => (
             <motion.div
@@ -116,11 +124,19 @@ export function ContactChannels() {
                 target={ch.name === "email" ? undefined : "_blank"}
                 rel={ch.name === "email" ? undefined : "noopener noreferrer"}
                 onClick={() => handleClick(ch.name)}
-                className="bg-background group relative flex h-full flex-col p-8 transition-all duration-500 hover:bg-[hsl(var(--gold)/0.03)] sm:p-10"
+                className="
+                  group relative flex h-full flex-col bg-background p-8 transition-all duration-500
+                  hover:bg-[hsl(var(--gold)/0.03)]
+                  sm:p-10
+                "
               >
                 {/* Large background numeral */}
                 <span
-                  className="font-display pointer-events-none absolute top-4 right-4 text-[5rem] leading-none text-[hsl(var(--foreground)/0.03)] transition-colors duration-500 group-hover:text-[hsl(var(--gold)/0.08)]"
+                  className="
+                    pointer-events-none absolute top-4 right-4 font-display text-[5rem] leading-none
+                    text-[hsl(var(--foreground)/0.03)] transition-colors duration-500
+                    group-hover:text-[hsl(var(--gold)/0.08)]
+                  "
                   aria-hidden="true"
                 >
                   {ch.numeral}
@@ -128,7 +144,12 @@ export function ContactChannels() {
 
                 {/* Icon */}
                 <div className="relative mb-8">
-                  <div className="inline-flex border-2 border-[hsl(var(--gold)/0.15)] p-3.5 transition-all duration-500 group-hover:border-[hsl(var(--gold)/0.4)] group-hover:shadow-[0_0_20px_hsl(var(--gold)/0.08)]">
+                  <div className="
+                    inline-flex border-2 border-[hsl(var(--gold)/0.15)] p-3.5 transition-all
+                    duration-500
+                    group-hover:border-[hsl(var(--gold)/0.4)]
+                    group-hover:shadow-[0_0_20px_hsl(var(--gold)/0.08)]
+                  ">
                     <ch.icon
                       size={20}
                       className="text-gold transition-transform duration-500 group-hover:scale-110"
@@ -137,25 +158,37 @@ export function ContactChannels() {
                 </div>
 
                 {/* Label */}
-                <h3 className="font-display text-foreground mb-2 text-sm tracking-[0.25em] uppercase">
+                <h3 className="
+                  mb-2 font-display text-sm tracking-[0.25em] text-foreground uppercase
+                ">
                   {ch.label}
                 </h3>
 
                 {/* Description */}
-                <p className="font-body-serif text-foreground/40 mb-8 text-sm leading-relaxed">
+                <p className="mb-8 font-body-serif text-sm/relaxed text-foreground/40">
                   {ch.tagline}
                 </p>
 
                 {/* Bottom: Address + arrow */}
                 <div className="mt-auto flex items-center justify-between">
-                  <span className="font-body-serif text-gold/60 group-hover:text-gold text-sm transition-colors duration-300">
+                  <span className="
+                    font-body-serif text-sm text-gold/60 transition-colors duration-300
+                    group-hover:text-gold
+                  ">
                     {ch.address}
                   </span>
-                  <ArrowUpRight className="text-gold h-4 w-4 opacity-0 transition-all duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100" />
+                  <ArrowUpRight className="
+                    size-4 text-gold opacity-0 transition-all duration-300
+                    group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100
+                  " />
                 </div>
 
                 {/* Bottom accent line that extends on hover */}
-                <div className="via-gold absolute bottom-0 left-1/2 h-0.5 w-0 -translate-x-1/2 bg-linear-to-r from-transparent to-transparent transition-all duration-500 group-hover:w-4/5" />
+                <div className="
+                  absolute bottom-0 left-1/2 h-0.5 w-0 -translate-x-1/2 bg-linear-to-r
+                  from-transparent via-gold to-transparent transition-all duration-500
+                  group-hover:w-4/5
+                " />
               </Link>
             </motion.div>
           ))}

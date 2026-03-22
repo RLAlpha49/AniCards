@@ -57,7 +57,11 @@ export default function DarkModeToggle() {
       aria-label={`Switch to ${currentTheme === "dark" ? "light" : "dark"} mode`}
       role="switch"
       aria-checked={currentTheme === "dark"}
-      className="focus-visible:ring-primary relative inline-flex h-7 w-14 items-center rounded-full p-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+      className="
+        relative inline-flex h-7 w-14 items-center rounded-full p-1
+        focus:outline-none
+        focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2
+      "
       style={{
         backgroundColor: currentTheme === "dark" ? "#e8dcc8" : "#d4c9a8",
       }}
@@ -70,21 +74,24 @@ export default function DarkModeToggle() {
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
         style={{ color: "#8B7A3E" }}
       >
-        <Sun className="h-5 w-5" strokeWidth={2.5} />
+        <Sun className="size-5" strokeWidth={2.5} />
       </motion.span>
 
       <motion.span
-        className="absolute right-1 flex items-center justify-center text-gray-800 dark:text-gray-100"
+        className="
+          absolute right-1 flex items-center justify-center text-gray-800
+          dark:text-gray-100
+        "
         aria-hidden
         initial={false}
         animate={moonAnimate}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
       >
-        <Moon className="h-5 w-5" />
+        <Moon className="size-5" />
       </motion.span>
 
       <motion.span
-        className="absolute h-6 w-6 rounded-full bg-white shadow-md"
+        className="absolute size-6 rounded-full bg-white shadow-md"
         initial={false}
         animate={{ x: thumbX }}
         transition={{ type: "spring", stiffness: 700, damping: 30 }}

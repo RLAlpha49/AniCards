@@ -15,14 +15,17 @@ export function HomeCTA() {
   }, [router]);
 
   return (
-    <section className="border-gold/20 relative border-y-2 px-6 py-20 text-center sm:px-12 md:py-28">
+    <section className="relative border-y-2 border-gold/20 px-6 py-20 text-center sm:px-12 md:py-28">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute top-1/2 left-1/2 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(var(--gold)/0.04)] blur-[100px]" />
+        <div className="
+          absolute top-1/2 left-1/2 size-96 -translate-1/2 rounded-full bg-[hsl(var(--gold)/0.04)]
+          blur-[100px]
+        " />
       </div>
 
       <div className="relative z-10">
-        <div className="gold-ornament mb-8">
-          <span className="text-gold text-xl">❖</span>
+        <div className="mb-8 gold-ornament">
+          <span className="text-xl text-gold">❖</span>
         </div>
 
         <motion.div
@@ -31,11 +34,14 @@ export function HomeCTA() {
           viewport={{ once: true }}
           transition={{ duration: 0.7 }}
         >
-          <h2 className="font-display text-gold mb-5 text-3xl sm:text-4xl lg:text-5xl">
+          <h2 className="mb-5 font-display text-3xl text-gold sm:text-4xl lg:text-5xl">
             READY TO BUILD YOURS?
           </h2>
 
-          <p className="font-body-serif text-foreground/40 mx-auto mb-10 max-w-md text-base sm:text-lg">
+          <p className="
+            mx-auto mb-10 max-w-md font-body-serif text-base text-foreground/40
+            sm:text-lg
+          ">
             Numbers that look good enough to frame. Your stats deserve better
             than a spreadsheet.
           </p>

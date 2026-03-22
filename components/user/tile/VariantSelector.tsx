@@ -51,11 +51,13 @@ export const VariantSelector = memo(function VariantSelector({
   const selectedTooltip = getVariantTooltip?.(effectiveVariant) ?? null;
 
   return (
-    <div className="border-gold/15 dark:border-gold/10 border-t-2 px-4 py-3">
+    <div className="border-t-2 border-gold/15 px-4 py-3 dark:border-gold/10">
       <div className="mb-2 flex items-center gap-2">
         <Label
           htmlFor={triggerId}
-          className="font-display text-muted-foreground block text-[10px] tracking-[0.15em] uppercase"
+          className="
+            block font-display text-[10px] tracking-[0.15em] text-muted-foreground uppercase
+          "
         >
           {label}
         </Label>
@@ -65,10 +67,15 @@ export const VariantSelector = memo(function VariantSelector({
               <button
                 type="button"
                 data-tour="card-variant-info"
-                className="text-muted-foreground hover:text-foreground focus-visible:ring-gold/50 rounded-full p-0.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
+                className="
+                  rounded-full p-0.5 text-muted-foreground transition-colors
+                  hover:text-foreground
+                  focus:outline-none
+                  focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-1
+                "
                 aria-label={`${label} info`}
               >
-                <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                <Info className="size-3.5" aria-hidden="true" />
               </button>
             </TooltipTrigger>
             <TooltipContent
@@ -89,7 +96,7 @@ export const VariantSelector = memo(function VariantSelector({
       >
         <SelectTrigger
           id={triggerId}
-          className="border-gold/20 focus:ring-gold/30 dark:border-gold/15 h-9 w-full text-sm"
+          className="h-9 w-full border-gold/20 text-sm focus:ring-gold/30 dark:border-gold/15"
           data-tour="card-variant"
         >
           <SelectValue />

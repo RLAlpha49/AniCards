@@ -8,7 +8,7 @@ import { fadeIn, fadeUp, sectionReveal, VIEWPORT_ONCE } from "@/lib/animations";
 
 export function SearchCTA() {
   return (
-    <section className="border-gold/20 border-y-2 px-6 py-20 text-center sm:px-12 md:py-24">
+    <section className="border-y-2 border-gold/20 px-6 py-20 text-center sm:px-12 md:py-24">
       <motion.div
         variants={sectionReveal}
         initial="hidden"
@@ -16,19 +16,19 @@ export function SearchCTA() {
         viewport={VIEWPORT_ONCE}
         className="mx-auto max-w-2xl"
       >
-        <motion.div variants={fadeIn} className="gold-ornament mb-8">
-          <span className="text-gold text-lg">❖</span>
+        <motion.div variants={fadeIn} className="mb-8 gold-ornament">
+          <span className="text-lg text-gold">❖</span>
         </motion.div>
 
         <motion.h2
           variants={fadeUp}
-          className="font-display text-gold mb-5 text-3xl tracking-widest sm:text-4xl md:text-5xl"
+          className="mb-5 font-display text-3xl tracking-widest text-gold sm:text-4xl md:text-5xl"
         >
           EXPLORE THE COLLECTION
         </motion.h2>
         <motion.p
           variants={fadeUp}
-          className="font-body-serif text-foreground/40 mb-10 text-sm leading-relaxed sm:text-base"
+          className="mb-10 font-body-serif text-sm/relaxed text-foreground/40 sm:text-base"
         >
           Curious what&apos;s possible?
         </motion.p>
@@ -42,7 +42,7 @@ export function SearchCTA() {
           <Link href="/examples" className="imperial-btn imperial-btn-fill">
             <span className="inline-flex items-center gap-2">
               Browse Examples
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="size-4" />
             </span>
           </Link>
         </motion.div>

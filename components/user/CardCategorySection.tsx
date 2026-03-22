@@ -283,12 +283,21 @@ function CardCategorySectionInner<TCard extends { id: string }>({
       className={cn(
         "group/section relative overflow-hidden border-2 transition-all duration-300",
         isExpanded
-          ? "border-gold/25 bg-gold/3 dark:border-gold/18 dark:bg-gold/3 shadow-lg backdrop-blur-xl"
-          : "border-gold/15 bg-gold/2 hover:border-gold/30 hover:bg-gold/3 dark:border-gold/10 dark:bg-gold/2 dark:hover:border-gold/20",
+          ? "border-gold/25 bg-gold/3 shadow-lg backdrop-blur-xl dark:border-gold/18 dark:bg-gold/3"
+          : `
+            border-gold/15 bg-gold/2
+            hover:border-gold/30 hover:bg-gold/3
+            dark:border-gold/10 dark:bg-gold/2
+            dark:hover:border-gold/20
+          `,
       )}
     >
-      <div className="border-gold pointer-events-none absolute top-0 left-0 h-4 w-4 border-t-2 border-l-2" />
-      <div className="border-gold pointer-events-none absolute right-0 bottom-0 h-4 w-4 border-r-2 border-b-2" />
+      <div className="
+        pointer-events-none absolute top-0 left-0 size-4 border-t-2 border-l-2 border-gold
+      " />
+      <div className="
+        pointer-events-none absolute right-0 bottom-0 size-4 border-r-2 border-b-2 border-gold
+      " />
 
       <button
         type="button"
@@ -296,36 +305,49 @@ function CardCategorySectionInner<TCard extends { id: string }>({
         aria-expanded={isExpanded}
         aria-controls={contentId}
         className={cn(
-          "flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-all duration-200 sm:px-6",
+          `
+            flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-all
+            duration-200
+            sm:px-6
+          `,
           "hover:bg-gold/5 dark:hover:bg-gold/5",
         )}
       >
         <div className="flex min-w-0 flex-1 items-center gap-4">
           <div
             className={cn(
-              "flex h-11 w-11 shrink-0 items-center justify-center shadow-md transition-all duration-300",
+              `
+                flex size-11 shrink-0 items-center justify-center shadow-md transition-all
+                duration-300
+              `,
               isFullyEnabled
-                ? "from-gold to-gold-dim bg-linear-to-br via-amber-500"
-                : "from-gold/20 dark:from-gold/15 bg-linear-to-br to-amber-200/30 dark:to-amber-300/20",
+                ? "bg-linear-to-br from-gold via-amber-500 to-gold-dim"
+                : `
+                  bg-linear-to-br from-gold/20 to-amber-200/30
+                  dark:from-gold/15 dark:to-amber-300/20
+                `,
             )}
           >
             {isFullyEnabled ? (
-              <CheckCircle2 className="h-5 w-5 text-white" />
+              <CheckCircle2 className="size-5 text-white" />
             ) : (
               <span className="text-gold-dim dark:text-gold">{icon}</span>
             )}
           </div>
 
           <div className="min-w-0 flex-1">
-            <h3 className="font-display text-foreground truncate text-sm tracking-[0.15em] uppercase sm:text-base">
+            <h3 className="
+              truncate font-display text-sm tracking-[0.15em] text-foreground uppercase
+              sm:text-base
+            ">
               {title}
             </h3>
-            <p className="text-muted-foreground mt-0.5 text-sm">
-              <span className="text-gold-dim dark:text-gold font-medium">
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              <span className="font-medium text-gold-dim dark:text-gold">
                 {clampedEnabledCount}
               </span>{" "}
               of{" "}
-              <span className="text-gold-dim dark:text-gold font-medium">
+              <span className="font-medium text-gold-dim dark:text-gold">
                 {cardCount}
               </span>{" "}
               cards enabled
@@ -336,17 +358,22 @@ function CardCategorySectionInner<TCard extends { id: string }>({
         <div className="flex shrink-0 items-center gap-4">
           <div
             className={cn(
-              "flex h-9 w-9 items-center justify-center transition-all duration-200",
+              "flex size-9 items-center justify-center transition-all duration-200",
               isExpanded
                 ? "bg-gold/15 text-gold dark:bg-gold/10 dark:text-gold"
-                : "bg-gold/5 text-gold/60 group-hover/section:bg-gold/10 dark:bg-gold/5 dark:text-gold/50 dark:group-hover/section:bg-gold/10",
+                : `
+                  bg-gold/5 text-gold/60
+                  group-hover/section:bg-gold/10
+                  dark:bg-gold/5 dark:text-gold/50
+                  dark:group-hover/section:bg-gold/10
+                `,
             )}
           >
             <motion.div
               animate={{ rotate: isExpanded ? 90 : 0 }}
               transition={{ duration: 0.2 }}
             >
-              <ChevronRight className="h-5 w-5" />
+              <ChevronRight className="size-5" />
             </motion.div>
           </div>
         </div>
@@ -363,9 +390,7 @@ function CardCategorySectionInner<TCard extends { id: string }>({
             className="overflow-hidden"
           >
             <div className="gold-line" />
-            <div className="bg-gold/2 dark:bg-gold/2 px-5 py-5 sm:px-6">
-              {grid}
-            </div>
+            <div className="bg-gold/2 p-5 sm:px-6 dark:bg-gold/2">{grid}</div>
           </motion.div>
         )}
       </AnimatePresence>

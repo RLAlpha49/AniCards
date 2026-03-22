@@ -118,7 +118,9 @@ export default async function RootLayout({
       </head>
       <body
         id="app-root"
-        className={`${geistSans.variable} ${geistMono.variable} ${playfairDisplaySC.variable} ${libreBaskerville.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${playfairDisplaySC.variable} ${libreBaskerville.variable}
+          antialiased
+        `}
       >
         <GithubCorner />
         {process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID && (

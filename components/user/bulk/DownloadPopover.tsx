@@ -39,22 +39,25 @@ export function DownloadPopover({
           className={cn(
             "h-9 gap-1.5 border-2 px-3 font-medium transition-all",
             "border-gold/25 bg-gold/5 text-gold-dim hover:border-gold/30 hover:bg-gold/10",
-            "dark:border-gold/20 dark:bg-gold/5 dark:text-gold dark:hover:border-gold/30 dark:hover:bg-gold/10",
+            `
+              dark:border-gold/20 dark:bg-gold/5 dark:text-gold
+              dark:hover:border-gold/30 dark:hover:bg-gold/10
+            `,
             "disabled:opacity-70",
           )}
         >
           {isDownloading ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
               <span className="hidden sm:inline" aria-hidden="true">
                 {downloadProgress.current}/{downloadProgress.total}
               </span>
             </>
           ) : (
             <>
-              <Download className="h-4 w-4" aria-hidden="true" />
+              <Download className="size-4" aria-hidden="true" />
               <span className="hidden sm:inline">Download</span>
-              <ChevronDown className="h-3 w-3" aria-hidden="true" />
+              <ChevronDown className="size-3" aria-hidden="true" />
             </>
           )}
         </Button>
@@ -71,14 +74,14 @@ export function DownloadPopover({
           <Button
             variant="ghost"
             size="sm"
-            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 px-2.5 text-sm"
+            className="h-9 justify-start gap-2 px-2.5 text-sm hover:bg-gold/5 dark:hover:bg-gold/5"
             disabled={isDownloading}
             onClick={() => {
               handleDownloadAll("png");
             }}
           >
-            <span className="text-foreground font-medium">PNG</span>
-            <span className="text-muted-foreground ml-auto text-xs">
+            <span className="font-medium text-foreground">PNG</span>
+            <span className="ml-auto text-xs text-muted-foreground">
               Lossless
             </span>
           </Button>
@@ -86,14 +89,14 @@ export function DownloadPopover({
           <Button
             variant="ghost"
             size="sm"
-            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 px-2.5 text-sm"
+            className="h-9 justify-start gap-2 px-2.5 text-sm hover:bg-gold/5 dark:hover:bg-gold/5"
             disabled={isDownloading}
             onClick={() => {
               handleDownloadAll("webp");
             }}
           >
-            <span className="text-foreground font-medium">WebP</span>
-            <span className="text-muted-foreground ml-auto text-xs">
+            <span className="font-medium text-foreground">WebP</span>
+            <span className="ml-auto text-xs text-muted-foreground">
               Smaller
             </span>
           </Button>

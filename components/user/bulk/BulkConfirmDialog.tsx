@@ -75,8 +75,11 @@ export function BulkConfirmDialog({
             </AlertDialogDescription>
           ) : null}
 
-          <div className="border-gold/20 bg-gold/3 dark:border-gold/15 dark:bg-gold/3 mt-3 border p-3">
-            <div className="text-foreground text-xs font-medium">
+          <div className="
+            mt-3 border border-gold/20 bg-gold/3 p-3
+            dark:border-gold/15 dark:bg-gold/3
+          ">
+            <div className="text-xs font-medium text-foreground">
               Affected cards: {totalAffected}
             </div>
 
@@ -85,12 +88,15 @@ export function BulkConfirmDialog({
                 {shown.map((item) => (
                   <li
                     key={item.cardId}
-                    className="bg-background text-foreground flex items-center justify-between gap-2 px-2 py-1 text-xs shadow-sm"
+                    className="
+                      flex items-center justify-between gap-2 bg-background px-2 py-1 text-xs
+                      text-foreground shadow-sm
+                    "
                   >
                     <span className="min-w-0 truncate">
                       {item.label}
                       {item.group ? (
-                        <span className="text-muted-foreground ml-2">
+                        <span className="ml-2 text-muted-foreground">
                           ({item.group})
                         </span>
                       ) : null}
@@ -112,7 +118,7 @@ export function BulkConfirmDialog({
                 ))}
               </ul>
             ) : (
-              <div className="text-muted-foreground mt-2 text-xs">
+              <div className="mt-2 text-xs text-muted-foreground">
                 {totalAffected > 0
                   ? "No preview available."
                   : "No cards will be affected."}
@@ -120,7 +126,7 @@ export function BulkConfirmDialog({
             )}
 
             {remaining > 0 ? (
-              <div className="text-muted-foreground mt-2 text-xs">
+              <div className="mt-2 text-xs text-muted-foreground">
                 …and {remaining} more
               </div>
             ) : null}

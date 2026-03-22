@@ -1,4 +1,5 @@
 import { defineConfig, globalIgnores } from "eslint/config";
+import eslintPluginBetterTailwindcss from "eslint-plugin-better-tailwindcss";
 import simpleImportSort from "eslint-plugin-simple-import-sort";
 import tseslint from "typescript-eslint";
 
@@ -17,6 +18,25 @@ const eslintConfig = defineConfig([
   },
   // Override default ignores of eslint-config-next.
   globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
+  {
+    extends: [eslintPluginBetterTailwindcss.configs["recommended"]],
+    settings: {
+      "better-tailwindcss": {
+        entryPoint: "app/globals.css",
+      },
+    },
+    rules: {
+      "better-tailwindcss/enforce-consistent-line-wrapping": [
+        "warn",
+        {
+          printWidth: 100,
+          preferSingleLine: true,
+          indent: 2,
+          lineBreakStyle: "windows",
+        },
+      ],
+    },
+  },
   {
     plugins: {
       "simple-import-sort": simpleImportSort,

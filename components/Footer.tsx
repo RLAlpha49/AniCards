@@ -49,9 +49,11 @@ export default function Footer() {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="border-gold/30 relative border-t bg-white dark:bg-[#0C0A10]"
+      className="relative border-t border-gold/30 bg-white dark:bg-[#0C0A10]"
     >
-      <div className="via-gold/50 absolute inset-x-0 top-0 h-0.5 bg-linear-to-r from-transparent to-transparent" />
+      <div className="
+        absolute inset-x-0 top-0 h-0.5 bg-linear-to-r from-transparent via-gold/50 to-transparent
+      " />
 
       <div className="px-8 py-6 sm:px-12">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -68,13 +70,20 @@ export default function Footer() {
             <span className="text-gold/30">•</span>
             <Link
               href="https://github.com/RLAlpha49/Anicards/blob/main/LICENSE"
-              className="group font-body-serif text-foreground/40 hover:text-gold inline-flex items-center gap-1 transition-colors"
+              className="
+                group inline-flex items-center gap-1 font-body-serif text-foreground/40
+                transition-colors
+                hover:text-gold
+              "
               target="_blank"
               rel="noopener noreferrer"
             >
-              <Scale className="h-3 w-3" />
+              <Scale className="size-3" />
               MIT Licensed
-              <ExternalLink className="h-2.5 w-2.5 opacity-0 transition-opacity group-hover:opacity-100" />
+              <ExternalLink className="
+                size-2.5 opacity-0 transition-opacity
+                group-hover:opacity-100
+              " />
             </Link>
           </motion.div>
 
@@ -110,7 +119,11 @@ export default function Footer() {
                   rel={
                     link.name === "email" ? undefined : "noopener noreferrer"
                   }
-                  className="border-gold/15 text-foreground/40 hover:border-gold/40 hover:text-gold flex h-9 w-9 items-center justify-center border transition-all"
+                  className="
+                    flex size-9 items-center justify-center border border-gold/15 text-foreground/40
+                    transition-all
+                    hover:border-gold/40 hover:text-gold
+                  "
                   onClick={() =>
                     safeTrack(() => trackExternalLinkClick(link.name, "footer"))
                   }

@@ -54,8 +54,16 @@ export function CategoryNavigation({
   return (
     <nav className="relative w-full" aria-label="Category navigation">
       {/* Fade edges for mobile scroll */}
-      <div className="from-background pointer-events-none absolute top-0 right-0 bottom-0 z-10 w-8 bg-linear-to-l to-transparent sm:hidden" />
-      <div className="from-background pointer-events-none absolute top-0 bottom-0 left-0 z-10 w-8 bg-linear-to-r to-transparent sm:hidden" />
+      <div className="
+        pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-linear-to-l from-background
+        to-transparent
+        sm:hidden
+      " />
+      <div className="
+        pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-linear-to-r from-background
+        to-transparent
+        sm:hidden
+      " />
 
       <div className="overflow-x-auto">
         <div className="flex min-w-max items-center gap-0.5">
@@ -77,7 +85,10 @@ export function CategoryNavigation({
                 aria-current={isActive ? "page" : undefined}
                 onClick={() => onCategoryClick(item.key)}
                 className={cn(
-                  "relative flex items-center gap-2 px-3.5 py-3 text-xs font-medium whitespace-nowrap transition-all duration-300",
+                  `
+                    relative flex items-center gap-2 px-3.5 py-3 text-xs font-medium
+                    whitespace-nowrap transition-all duration-300
+                  `,
                   isActive
                     ? "text-gold"
                     : "text-foreground/30 hover:text-foreground/55",
@@ -94,7 +105,7 @@ export function CategoryNavigation({
                     {index}
                   </span>
                 )}
-                {Icon && <Icon className="h-3 w-3 shrink-0" />}
+                {Icon && <Icon className="size-3 shrink-0" />}
                 <span className="tracking-wide">{item.name}</span>
                 <span
                   className={cn(
@@ -109,7 +120,7 @@ export function CategoryNavigation({
                 {isActive && (
                   <motion.div
                     layoutId="category-active-bar"
-                    className="bg-gold absolute right-3.5 bottom-0 left-3.5 h-0.5"
+                    className="absolute inset-x-3.5 bottom-0 h-0.5 bg-gold"
                     transition={{ type: "spring", stiffness: 400, damping: 30 }}
                   />
                 )}

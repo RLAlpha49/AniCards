@@ -86,7 +86,7 @@ export function StatsRibbon() {
   return (
     <div
       ref={ref}
-      className="border-gold/25 bg-gold/2 mx-auto max-w-5xl border-y px-6 py-12 sm:px-12"
+      className="mx-auto max-w-5xl border-y border-gold/25 bg-gold/2 px-6 py-12 sm:px-12"
     >
       <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
         {STATS.map((stat, i) => (
@@ -102,9 +102,9 @@ export function StatsRibbon() {
               animate={isInView ? { rotate: [0, -10, 10, 0] } : {}}
               transition={{ duration: 0.6, delay: 0.3 + i * 0.1 }}
             >
-              <stat.icon className="text-gold/40 mx-auto mb-3 h-5 w-5" />
+              <stat.icon className="mx-auto mb-3 size-5 text-gold/40" />
             </motion.div>
-            <span className="font-display text-gold mb-1 block text-3xl sm:text-4xl">
+            <span className="mb-1 block font-display text-3xl text-gold sm:text-4xl">
               <AnimatedCount
                 to={stat.countTo}
                 suffix={stat.suffix}
@@ -113,7 +113,7 @@ export function StatsRibbon() {
                 isInView={isInView}
               />
             </span>
-            <span className="font-body-serif text-foreground/40 text-xs tracking-[0.2em] uppercase">
+            <span className="font-body-serif text-xs tracking-[0.2em] text-foreground/40 uppercase">
               {stat.label}
             </span>
           </motion.div>

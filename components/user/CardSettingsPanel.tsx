@@ -84,7 +84,9 @@ function SettingsBody({
   }
 
   return (
-    <div className="text-muted-foreground border-border/50 border border-dashed py-10 text-center text-sm">
+    <div className="
+      border border-dashed border-border/50 py-10 text-center text-sm text-muted-foreground
+    ">
       {cardProps?.customSettingsDisabledMessage ??
         "Enable custom settings above to customize this card's appearance."}
     </div>
@@ -114,31 +116,40 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
   return (
     <div className={cn("space-y-5", className)}>
       {/* ── Header ──────────────────────────────────────── */}
-      <div className="border-border/50 bg-card/60 flex items-center justify-between gap-4 border p-4 backdrop-blur-sm">
+      <div className="
+        flex items-center justify-between gap-4 border border-border/50 bg-card/60 p-4
+        backdrop-blur-sm
+      ">
         <div className="flex min-w-0 items-center gap-3">
           <div
             className={cn(
-              "flex h-10 w-10 shrink-0 items-center justify-center transition-colors",
+              "flex size-10 shrink-0 items-center justify-center transition-colors",
               isCustomized
-                ? "bg-gold shadow-gold/20 text-white shadow-sm"
+                ? "bg-gold text-white shadow-sm shadow-gold/20"
                 : "bg-muted text-muted-foreground",
             )}
           >
-            <Settings2 className="h-5 w-5" aria-hidden="true" />
+            <Settings2 className="size-5" aria-hidden="true" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-foreground font-display block truncate text-lg font-semibold tracking-tight">
+              <span className="
+                block truncate font-display text-lg font-semibold tracking-tight text-foreground
+              ">
                 {title}
               </span>
               {isCustomized && (
-                <span className="bg-gold/15 text-gold-dim dark:bg-gold/10 dark:text-gold inline-flex items-center px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase">
+                <span className="
+                  inline-flex items-center bg-gold/15 px-2 py-0.5 text-[10px] font-semibold
+                  tracking-wider text-gold-dim uppercase
+                  dark:bg-gold/10 dark:text-gold
+                ">
                   Custom
                   <span className="sr-only"> settings applied</span>
                 </span>
               )}
             </div>
-            <p className="text-muted-foreground truncate text-sm">
+            <p className="truncate text-sm text-muted-foreground">
               {description}
             </p>
           </div>
@@ -157,16 +168,16 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
               "shrink-0 transition-all",
               globalProps.saveAllDisabled || !isSettingsValid
                 ? "bg-muted text-muted-foreground"
-                : "bg-gold shadow-gold/20 hover:bg-gold/90 text-white shadow-sm",
+                : "bg-gold text-white shadow-sm shadow-gold/20 hover:bg-gold/90",
             )}
           >
             {globalProps.isSaving ? (
               <Loader2
-                className="mr-1.5 h-3.5 w-3.5 animate-spin"
+                className="mr-1.5 size-3.5 animate-spin"
                 aria-hidden="true"
               />
             ) : (
-              <Save className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+              <Save className="mr-1.5 size-3.5" aria-hidden="true" />
             )}
             Save All
           </Button>
@@ -188,12 +199,12 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
             <div className="flex items-center gap-3">
               {cardProps.useCustomSettings ? (
                 <ToggleRight
-                  className="text-gold h-5 w-5 shrink-0"
+                  className="size-5 shrink-0 text-gold"
                   aria-hidden="true"
                 />
               ) : (
                 <ToggleLeft
-                  className="text-muted-foreground h-5 w-5 shrink-0"
+                  className="size-5 shrink-0 text-muted-foreground"
                   aria-hidden="true"
                 />
               )}

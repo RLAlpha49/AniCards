@@ -66,11 +66,18 @@ export function EditorNotices({
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="w-full max-w-125 border border-green-200/60 bg-gradient-to-r from-green-50/80 to-emerald-50/80 px-4 py-3 backdrop-blur-sm dark:border-green-800/40 dark:from-green-950/30 dark:to-emerald-950/30"
+            className="
+              w-full max-w-125 border border-green-200/60 bg-linear-to-r from-green-50/80
+              to-emerald-50/80 px-4 py-3 backdrop-blur-sm
+              dark:border-green-800/40 dark:from-green-950/30 dark:to-emerald-950/30
+            "
           >
             <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center bg-green-100 dark:bg-green-900/50">
-                <UserPlus className="h-4 w-4 text-green-600 dark:text-green-400" />
+              <div className="
+                mt-0.5 flex size-8 shrink-0 items-center justify-center bg-green-100
+                dark:bg-green-900/50
+              ">
+                <UserPlus className="size-4 text-green-600 dark:text-green-400" />
               </div>
               <div className="flex-1">
                 <p className="text-sm text-green-800 dark:text-green-200">
@@ -83,10 +90,15 @@ export function EditorNotices({
                 variant="ghost"
                 size="sm"
                 onClick={onDismissNewUser}
-                className="h-6 w-6 shrink-0 rounded-full p-0 text-green-600 hover:bg-green-100 hover:text-green-800 dark:text-green-400 dark:hover:bg-green-900/50 dark:hover:text-green-200"
+                className="
+                  size-6 shrink-0 rounded-full p-0 text-green-600
+                  hover:bg-green-100 hover:text-green-800
+                  dark:text-green-400
+                  dark:hover:bg-green-900/50 dark:hover:text-green-200
+                "
                 aria-label="Dismiss welcome notice"
               >
-                <X className="h-4 w-4" />
+                <X className="size-4" />
               </Button>
             </div>
           </motion.div>
@@ -99,20 +111,26 @@ export function EditorNotices({
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.12 }}
-            className="border-gold/20 bg-gold/3 dark:border-gold/15 dark:bg-gold/3 w-full max-w-[700px] border px-4 py-4 backdrop-blur-sm"
+            className="
+              w-full max-w-[700px] border border-gold/20 bg-gold/3 p-4 backdrop-blur-sm
+              dark:border-gold/15 dark:bg-gold/3
+            "
           >
             <div className="flex items-start gap-3">
-              <div className="bg-gold/15 dark:bg-gold/10 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center">
+              <div className="
+                mt-0.5 flex size-8 shrink-0 items-center justify-center bg-gold/15
+                dark:bg-gold/10
+              ">
                 <Info
-                  className="text-gold-dim dark:text-gold h-4 w-4"
+                  className="size-4 text-gold-dim dark:text-gold"
                   aria-hidden="true"
                 />
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="text-foreground text-sm font-semibold">
+                <h3 className="text-sm font-semibold text-foreground">
                   Quick start
                 </h3>
-                <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-5 text-sm">
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
                   <li>
                     Enable the cards you want below (you can always change this
                     later).
@@ -158,11 +176,18 @@ export function EditorNotices({
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
-            className="w-full max-w-[700px] border border-yellow-200/60 bg-gradient-to-r from-yellow-50/80 to-amber-50/80 px-4 py-3 backdrop-blur-sm dark:border-yellow-800/40 dark:from-yellow-950/30 dark:to-amber-950/30"
+            className="
+              w-full max-w-[700px] border border-yellow-200/60 bg-linear-to-r from-yellow-50/80
+              to-amber-50/80 px-4 py-3 backdrop-blur-sm
+              dark:border-yellow-800/40 dark:from-yellow-950/30 dark:to-amber-950/30
+            "
           >
             <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center bg-yellow-100 dark:bg-yellow-900/50">
-                <AlertTriangle className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />
+              <div className="
+                mt-0.5 flex size-8 shrink-0 items-center justify-center bg-yellow-100
+                dark:bg-yellow-900/50
+              ">
+                <AlertTriangle className="size-4 text-yellow-700 dark:text-yellow-300" />
               </div>
               <div className="flex-1">
                 <p className="text-sm text-amber-800 dark:text-amber-200">
@@ -176,10 +201,15 @@ export function EditorNotices({
                 variant="ghost"
                 size="sm"
                 onClick={onDismissCardsWarning}
-                className="h-6 w-6 shrink-0 rounded-full p-0 text-yellow-700 hover:bg-yellow-100 hover:text-yellow-900 dark:text-yellow-300 dark:hover:bg-yellow-900/50 dark:hover:text-yellow-100"
+                className="
+                  size-6 shrink-0 rounded-full p-0 text-yellow-700
+                  hover:bg-yellow-100 hover:text-yellow-900
+                  dark:text-yellow-300
+                  dark:hover:bg-yellow-900/50 dark:hover:text-yellow-100
+                "
                 aria-label="Dismiss card loading warning"
               >
-                <X className="h-4 w-4" />
+                <X className="size-4" />
               </Button>
             </div>
           </motion.div>
@@ -191,13 +221,20 @@ export function EditorNotices({
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="border-gold/20 from-gold/5 dark:border-gold/15 dark:from-gold/3 max-w-[500px] flex-1 border bg-linear-to-r to-amber-100/5 px-4 py-3 backdrop-blur-sm dark:to-amber-900/3"
+          className="
+            max-w-[500px] flex-1 border border-gold/20 bg-linear-to-r from-gold/5 to-amber-100/5
+            px-4 py-3 backdrop-blur-sm
+            dark:border-gold/15 dark:from-gold/3 dark:to-amber-900/3
+          "
         >
           <div className="flex items-start gap-3">
-            <div className="bg-gold/15 dark:bg-gold/10 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center">
-              <RefreshCw className="text-gold-dim dark:text-gold h-4 w-4" />
+            <div className="
+              mt-0.5 flex size-8 shrink-0 items-center justify-center bg-gold/15
+              dark:bg-gold/10
+            ">
+              <RefreshCw className="size-4 text-gold-dim dark:text-gold" />
             </div>
-            <p className="text-foreground text-sm">
+            <p className="text-sm text-foreground">
               <span className="font-medium">Set it and forget it!</span> Stats
               update automatically every day. Your card URLs always show the
               latest data.
@@ -209,14 +246,21 @@ export function EditorNotices({
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="border-gold/20 from-gold/5 to-gold/3 dark:border-gold/15 dark:from-gold/3 dark:to-gold/2 max-w-[500px] flex-1 border bg-linear-to-r via-amber-100/5 px-4 py-3 backdrop-blur-sm dark:via-amber-900/3"
+          className="
+            max-w-[500px] flex-1 border border-gold/20 bg-linear-to-r from-gold/5 via-amber-100/5
+            to-gold/3 px-4 py-3 backdrop-blur-sm
+            dark:border-gold/15 dark:from-gold/3 dark:via-amber-900/3 dark:to-gold/2
+          "
         >
           <div className="flex items-start gap-3">
-            <div className="from-gold to-gold-dim shadow-gold/20 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center bg-linear-to-br via-amber-500 shadow-lg">
-              <Heart className="h-4 w-4 text-white" />
+            <div className="
+              mt-0.5 flex size-8 shrink-0 items-center justify-center bg-linear-to-br from-gold
+              via-amber-500 to-gold-dim shadow-lg shadow-gold/20
+            ">
+              <Heart className="size-4 text-white" />
             </div>
             <div className="flex-1">
-              <p className="text-foreground text-sm">
+              <p className="text-sm text-foreground">
                 <span className="font-medium">Enjoying AniCards?</span> If you
                 find this project useful, consider crediting it in your AniList
                 bio. It helps others discover AniCards!
@@ -226,9 +270,15 @@ export function EditorNotices({
               href="https://anilist.co/user/Alpha49"
               target="_blank"
               rel="noopener noreferrer"
-              className="border-gold/20 bg-gold/5 text-gold-dim hover:border-gold/30 hover:bg-gold/10 dark:border-gold/15 dark:bg-gold/5 dark:text-gold dark:hover:border-gold/25 mt-0.5 inline-flex items-center gap-1.5 border px-2.5 py-1 text-xs font-medium transition-all"
+              className="
+                mt-0.5 inline-flex items-center gap-1.5 border border-gold/20 bg-gold/5 px-2.5 py-1
+                text-xs font-medium text-gold-dim transition-all
+                hover:border-gold/30 hover:bg-gold/10
+                dark:border-gold/15 dark:bg-gold/5 dark:text-gold
+                dark:hover:border-gold/25
+              "
             >
-              <ExternalLink className="h-3 w-3" />
+              <ExternalLink className="size-3" />
               @Alpha49
             </a>
           </div>

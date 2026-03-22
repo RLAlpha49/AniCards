@@ -33,10 +33,10 @@ export function SearchCapabilities() {
         transition={{ duration: 0.6 }}
         className="mb-16 text-center"
       >
-        <p className="text-gold mb-4 text-xs tracking-[0.5em] uppercase sm:text-sm">
+        <p className="mb-4 text-xs tracking-[0.5em] text-gold uppercase sm:text-sm">
           What's Inside
         </p>
-        <h2 className="font-display text-foreground mb-4 text-3xl tracking-[0.15em] sm:text-4xl">
+        <h2 className="mb-4 font-display text-3xl tracking-[0.15em] text-foreground sm:text-4xl">
           ASSEMBLE YOUR SET
         </h2>
         <div className="gold-line-thick mx-auto max-w-20" />
@@ -65,12 +65,16 @@ export function SearchCapabilities() {
               },
             }}
             whileHover={{ y: -6, transition: { duration: 0.25 } }}
-            className={`group border-gold/10 bg-gold/2 relative border-2 p-8 text-center transition-colors duration-500 hover:border-gold/30${i === 1 ? "md:-translate-y-4" : ""}`}
+            className={`
+              group relative border-2 border-gold/10 bg-gold/2 p-8 text-center transition-colors
+              duration-500
+              hover:border-gold/30${i === 1 ? `md:-translate-y-4` : ""}
+            `}
           >
             {/* Top accent line that slides in */}
-            <div className="absolute top-0 right-0 left-0 h-0.5 overflow-hidden">
+            <div className="absolute inset-x-0 top-0 h-0.5 overflow-hidden">
               <motion.div
-                className="via-gold h-full bg-linear-to-r from-transparent to-transparent"
+                className="h-full bg-linear-to-r from-transparent via-gold to-transparent"
                 initial={{ x: "-100%" }}
                 whileInView={{ x: "0%" }}
                 viewport={{ once: true }}
@@ -82,27 +86,36 @@ export function SearchCapabilities() {
             <motion.div
               variants={fadeIn}
               whileHover={{ scale: 1.1, transition: { duration: 0.25 } }}
-              className="border-gold/20 bg-gold/5 group-hover:border-gold/40 group-hover:bg-gold/8 mx-auto mb-6 flex h-16 w-16 items-center justify-center border transition-all duration-300"
+              className="
+                mx-auto mb-6 flex size-16 items-center justify-center border border-gold/20
+                bg-gold/5 transition-all duration-300
+                group-hover:border-gold/40 group-hover:bg-gold/8
+              "
             >
-              <cap.icon className="text-gold/70 group-hover:text-gold h-7 w-7 transition-colors" />
+              <cap.icon className="size-7 text-gold/70 transition-colors group-hover:text-gold" />
             </motion.div>
 
             <motion.h3
               variants={fadeUp}
-              className="font-display text-foreground mb-4 text-sm tracking-[0.25em]"
+              className="mb-4 font-display text-sm tracking-[0.25em] text-foreground"
             >
               {cap.title}
             </motion.h3>
             <div className="gold-line mx-auto mb-4 max-w-10" />
             <motion.p
               variants={fadeUp}
-              className="font-body-serif text-foreground/45 text-sm leading-relaxed"
+              className="font-body-serif text-sm/relaxed text-foreground/45"
             >
               {cap.desc}
             </motion.p>
 
             {/* Hover glow */}
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,hsl(var(--gold)/0.04),transparent_70%)] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+            <div className="
+              pointer-events-none absolute inset-0
+              bg-[radial-gradient(ellipse_at_center,hsl(var(--gold)/0.04),transparent_70%)]
+              opacity-0 transition-opacity duration-500
+              group-hover:opacity-100
+            " />
           </motion.div>
         ))}
       </div>

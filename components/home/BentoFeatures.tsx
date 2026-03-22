@@ -84,16 +84,16 @@ export function BentoFeatures() {
             initial={{ opacity: 0, y: 20 }}
             animate={isInView ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.5 }}
-            className="gold-ornament mb-6"
+            className="mb-6 gold-ornament"
           >
-            <span className="text-gold text-lg">❖</span>
+            <span className="text-lg text-gold">❖</span>
           </motion.div>
 
           <motion.h2
             initial={{ opacity: 0, y: 20 }}
             animate={isInView ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className="font-display text-foreground mb-4 text-3xl sm:text-4xl lg:text-5xl"
+            className="mb-4 font-display text-3xl text-foreground sm:text-4xl lg:text-5xl"
           >
             THE <span className="text-gold">REPERTOIRE</span>
           </motion.h2>
@@ -102,7 +102,7 @@ export function BentoFeatures() {
             initial={{ opacity: 0, y: 20 }}
             animate={isInView ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className="font-body-serif text-foreground/50 mx-auto max-w-xl text-base sm:text-lg"
+            className="mx-auto max-w-xl font-body-serif text-base text-foreground/50 sm:text-lg"
           >
             Every corner of your anime and manga world, shaped into cards worth
             showing off.
@@ -121,20 +121,26 @@ export function BentoFeatures() {
                 ease: [0.22, 1, 0.36, 1],
               }}
               whileHover={{ y: -4, transition: { duration: 0.25 } }}
-              className={`bento-cell group ${f.span}`}
+              className={`group bento-cell ${f.span}`}
             >
               <div className="flex h-full flex-col justify-between p-6 sm:p-8">
                 <div className="flex items-start justify-between">
-                  <f.icon className="text-gold/60 group-hover:text-gold h-5 w-5 transition-colors" />
-                  <span className="font-display text-gold/30 group-hover:text-gold/50 text-2xl transition-colors">
+                  <f.icon className="size-5 text-gold/60 transition-colors group-hover:text-gold" />
+                  <span className="
+                    font-display text-2xl text-gold/30 transition-colors
+                    group-hover:text-gold/50
+                  ">
                     {f.num}
                   </span>
                 </div>
                 <div>
-                  <h3 className="font-display text-foreground mb-2 text-xs tracking-[0.25em] sm:text-sm">
+                  <h3 className="
+                    mb-2 font-display text-xs tracking-[0.25em] text-foreground
+                    sm:text-sm
+                  ">
                     {f.title}
                   </h3>
-                  <p className="font-body-serif text-foreground/45 text-sm leading-relaxed">
+                  <p className="font-body-serif text-sm/relaxed text-foreground/45">
                     {f.desc}
                   </p>
                 </div>

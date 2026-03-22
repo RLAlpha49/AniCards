@@ -52,7 +52,10 @@ export default function ContactPage() {
           whileInView="visible"
           viewport={VIEWPORT_ONCE}
           variants={lineExpand}
-          className="mx-auto h-px max-w-[60%] origin-center bg-linear-to-r from-transparent via-[hsl(var(--gold)/0.2)] to-transparent"
+          className="
+            mx-auto h-px max-w-[60%] origin-center bg-linear-to-r from-transparent
+            via-[hsl(var(--gold)/0.2)] to-transparent
+          "
         />
 
         <motion.div

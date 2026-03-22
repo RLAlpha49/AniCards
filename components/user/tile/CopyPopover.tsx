@@ -48,8 +48,8 @@ export function CopyPopover({
           aria-describedby={previewUrl ? undefined : previewUnavailableId}
           title={previewUrl ? undefined : "Preview not available"}
           className={cn(
-            "h-10 w-10 rounded-full p-0 shadow-lg transition-all",
-            "border-gold/20 bg-background/80 text-foreground border backdrop-blur-sm",
+            "size-10 rounded-full p-0 shadow-lg transition-all",
+            "border border-gold/20 bg-background/80 text-foreground backdrop-blur-sm",
             "hover:border-gold/40 hover:bg-background/90 hover:shadow-gold/15",
             copiedFormat &&
               "border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400",
@@ -57,9 +57,9 @@ export function CopyPopover({
           )}
         >
           {copiedFormat ? (
-            <Check className="h-5 w-5" aria-hidden="true" />
+            <Check className="size-5" aria-hidden="true" />
           ) : (
-            <Copy className="h-5 w-5" aria-hidden="true" />
+            <Copy className="size-5" aria-hidden="true" />
           )}
           <span className="sr-only">
             {copiedFormat ? "Copied" : "Copy URL"}
@@ -67,14 +67,19 @@ export function CopyPopover({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="border-gold/20 dark:border-gold/15 w-48 p-1.5"
+        className="w-48 border-gold/20 p-1.5 dark:border-gold/15"
         align="center"
       >
         <div className="flex flex-col gap-0.5">
           <Button
             variant="ghost"
             size="sm"
-            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 px-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-70"
+            className="
+              h-9 justify-start gap-2 px-2.5 text-sm
+              hover:bg-gold/5
+              disabled:cursor-not-allowed disabled:opacity-70
+              dark:hover:bg-gold/5
+            "
             onClick={onCopyUrl}
             disabled={!previewUrl}
             aria-disabled={!previewUrl}
@@ -82,13 +87,13 @@ export function CopyPopover({
             title={previewUrl ? undefined : "Preview not available"}
           >
             <Link
-              className="text-gold-dim dark:text-gold h-4 w-4"
+              className="size-4 text-gold-dim dark:text-gold"
               aria-hidden="true"
             />
             <span>Copy URL</span>
             {copiedFormat === "url" && (
               <Check
-                className="ml-auto h-4 w-4 text-green-600"
+                className="ml-auto size-4 text-green-600"
                 aria-hidden="true"
               />
             )}
@@ -97,7 +102,12 @@ export function CopyPopover({
           <Button
             variant="ghost"
             size="sm"
-            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 px-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-70"
+            className="
+              h-9 justify-start gap-2 px-2.5 text-sm
+              hover:bg-gold/5
+              disabled:cursor-not-allowed disabled:opacity-70
+              dark:hover:bg-gold/5
+            "
             onClick={onCopyAniList}
             disabled={!previewUrl}
             aria-disabled={!previewUrl}
@@ -105,13 +115,13 @@ export function CopyPopover({
             title={previewUrl ? undefined : "Preview not available"}
           >
             <ImageIcon
-              className="text-gold-dim dark:text-gold h-4 w-4"
+              className="size-4 text-gold-dim dark:text-gold"
               aria-hidden="true"
             />
             <span>AniList Format</span>
             {copiedFormat === "anilist" && (
               <Check
-                className="ml-auto h-4 w-4 text-green-600"
+                className="ml-auto size-4 text-green-600"
                 aria-hidden="true"
               />
             )}

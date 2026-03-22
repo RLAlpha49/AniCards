@@ -23,7 +23,10 @@ export function ContactHeroSection() {
   return (
     <section className="relative overflow-hidden px-6 pt-28 pb-24 sm:px-12 md:pt-40 md:pb-32">
       {/* Centered radial glow */}
-      <div className="pointer-events-none absolute top-1/3 left-1/2 h-125 w-175 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(var(--gold)/0.045)] blur-[140px]" />
+      <div className="
+        pointer-events-none absolute top-1/3 left-1/2 h-125 w-175 -translate-1/2 rounded-full
+        bg-[hsl(var(--gold)/0.045)] blur-[140px]
+      " />
 
       <motion.div
         variants={container}
@@ -35,7 +38,7 @@ export function ContactHeroSection() {
         <motion.div variants={fadeUp} className="mb-16 flex items-center gap-4">
           <div className="h-px flex-1 bg-linear-to-r from-transparent to-[hsl(var(--gold)/0.2)]" />
           <div className="flex items-center gap-3">
-            <span className="block h-1.5 w-1.5 rotate-45 border border-[hsl(var(--gold)/0.4)]" />
+            <span className="block size-1.5 rotate-45 border border-[hsl(var(--gold)/0.4)]" />
             <span
               className="text-[10px] tracking-[0.5em] uppercase"
               style={{
@@ -45,7 +48,7 @@ export function ContactHeroSection() {
             >
               Say Hello
             </span>
-            <span className="block h-1.5 w-1.5 rotate-45 border border-[hsl(var(--gold)/0.4)]" />
+            <span className="block size-1.5 rotate-45 border border-[hsl(var(--gold)/0.4)]" />
           </div>
           <div className="h-px flex-1 bg-linear-to-l from-transparent to-[hsl(var(--gold)/0.2)]" />
         </motion.div>
@@ -54,13 +57,17 @@ export function ContactHeroSection() {
         <div className="text-center">
           <motion.h1
             variants={fadeUp}
-            className="font-display text-foreground text-[clamp(3.5rem,13vw,11rem)] leading-[0.82] font-black"
+            className="
+              font-display text-[clamp(3.5rem,13vw,11rem)] leading-[0.82] font-black text-foreground
+            "
           >
             GET IN
           </motion.h1>
           <motion.h1
             variants={fadeUp}
-            className="font-display text-gold text-[clamp(3.5rem,13vw,11rem)] leading-[0.82] font-black"
+            className="
+              font-display text-[clamp(3.5rem,13vw,11rem)] leading-[0.82] font-black text-gold
+            "
           >
             TOUCH
           </motion.h1>
@@ -69,7 +76,10 @@ export function ContactHeroSection() {
         {/* Gold separator */}
         <motion.div
           variants={fadeUp}
-          className="mx-auto mt-10 mb-8 h-0.5 max-w-24 bg-linear-to-r from-transparent via-[hsl(var(--gold)/0.6)] to-transparent"
+          className="
+            mx-auto mt-10 mb-8 h-0.5 max-w-24 bg-linear-to-r from-transparent
+            via-[hsl(var(--gold)/0.6)] to-transparent
+          "
         />
       </motion.div>
     </section>
