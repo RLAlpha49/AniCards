@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ChevronDown,
+  ChevronRight,
   Copy,
   Download,
   FileDown,
@@ -385,7 +385,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
       <button
         type="button"
         onClick={() => setIsExpanded((v) => !v)}
-        className="hover:bg-muted/40 flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors"
+        className="hover:bg-muted/40 flex w-full items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition-colors"
       >
         <div className="flex items-center gap-2.5">
           <div className="bg-gold/10 text-gold dark:bg-gold/15 flex h-7 w-7 items-center justify-center rounded-lg">
@@ -400,10 +400,10 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
             </p>
           </div>
         </div>
-        <ChevronDown
+        <ChevronRight
           className={cn(
             "text-muted-foreground h-4 w-4 shrink-0 transition-transform duration-200",
-            isExpanded && "rotate-180",
+            isExpanded && "rotate-90",
           )}
         />
       </button>
