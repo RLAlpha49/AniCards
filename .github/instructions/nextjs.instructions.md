@@ -6,9 +6,18 @@ applyTo: "src/app/**, src/components/**, src/pages/**, src/lib/**, public/**, ne
 
 # Next.js Best Practices for LLMs (2025)
 
-_Last updated: July 2025_
-
 This document summarizes the latest, authoritative best practices for building, structuring, and maintaining Next.js applications. It is intended for use by LLMs and developers to ensure code quality, maintainability, and scalability.
+
+## Avoid Unnecessary Example Files
+
+Do not create example/demo files (like ModalExample.tsx) in the main codebase unless the user specifically requests a live example, Storybook story, or explicit documentation component. Keep the repository clean and production-focused by default.
+
+## Always use the latest documentation and guides
+
+- For every nextjs related request, begin by searching for the most current nextjs documentation, guides, and examples.
+- Use the following tools to fetch and search documentation if they are available:
+  - `resolve_library_id` to resolve the package/library name in the docs.
+  - `get_library_docs` for up to date documentation.
 
 ---
 
@@ -133,14 +142,3 @@ Always move client-only UI into a Client Component and import it directly in you
 - **Documentation:**
   - Write clear README and code comments.
   - Document public APIs and components.
-
-# Avoid Unnecessary Example Files
-
-Do not create example/demo files (like ModalExample.tsx) in the main codebase unless the user specifically requests a live example, Storybook story, or explicit documentation component. Keep the repository clean and production-focused by default.
-
-# Always use the latest documentation and guides
-
-- For every nextjs related request, begin by searching for the most current nextjs documentation, guides, and examples.
-- Use the following tools to fetch and search documentation if they are available:
-  - `resolve_library_id` to resolve the package/library name in the docs.
-  - `get_library_docs` for up to date documentation.
