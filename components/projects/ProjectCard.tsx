@@ -54,7 +54,10 @@ export function ProjectCard({
       >
         {/* Gold top accent */}
         <div
-          className="h-0.5 transition-all duration-500 group-hover:h-1"
+          className="
+            h-1 origin-top scale-y-50 transition-transform duration-500
+            group-hover:scale-y-100
+          "
           style={{
             background:
               "linear-gradient(90deg, hsl(var(--gold)), hsl(var(--gold) / 0.3) 70%, transparent)",
