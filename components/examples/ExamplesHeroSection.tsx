@@ -77,28 +77,7 @@ export function ExamplesHeroSection({
   };
 
   return (
-    <section className="relative overflow-hidden px-6 pt-28 pb-20 sm:px-12 md:pt-36 md:pb-28">
-      {/* Atmospheric background layers */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="
-          absolute top-0 left-0 size-full
-          bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,hsl(var(--gold)/0.08),transparent_60%)]
-        " />
-        <div className="
-          absolute bottom-0 left-0 h-1/2 w-full
-          bg-[radial-gradient(ellipse_60%_40%_at_50%_100%,hsl(var(--gold)/0.04),transparent_60%)]
-        " />
-        {/* Subtle dot pattern */}
-        <div
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle, hsl(var(--foreground)) 0.5px, transparent 0.5px)",
-            backgroundSize: "24px 24px",
-          }}
-        />
-      </div>
-
+    <section className="relative px-6 pt-28 pb-20 sm:px-12 md:pt-36 md:pb-28">
       <motion.div
         variants={orchestrate}
         initial="hidden"
