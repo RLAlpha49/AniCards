@@ -169,7 +169,7 @@ export function HeroSection() {
               variants={cardFloat}
               initial="hidden"
               animate="visible"
-              className="hero-card-float absolute rounded-lg shadow-2xl shadow-black/20 dark:shadow-black/50"
+              className="hero-card-float absolute shadow-2xl shadow-black/20 dark:shadow-black/50"
               style={{
                 rotate: `${card.rotate}deg`,
                 zIndex: card.z,

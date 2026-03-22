@@ -98,7 +98,7 @@ export function CategoryNavigation({
                 <span className="tracking-wide">{item.name}</span>
                 <span
                   className={cn(
-                    "ml-0.5 rounded-full px-1.5 py-0.5 text-[0.55rem] tabular-nums transition-all duration-300",
+                    "ml-0.5 px-1.5 py-0.5 text-[0.55rem] tabular-nums transition-all duration-300",
                     isActive ? "bg-gold/10 text-gold/80" : "text-foreground/18",
                   )}
                 >

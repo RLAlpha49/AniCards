@@ -229,7 +229,7 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
     >
       {shouldShowSkeleton && (
         <Skeleton
-          className="absolute inset-0 h-full w-full rounded-lg"
+          className="absolute inset-0 h-full w-full"
           style={
             fallbackAspectRatio
               ? { aspectRatio: fallbackAspectRatio }
@@ -251,7 +251,7 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
         onError={onImageError}
       />
       {hasError && (
-        <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
           <span className="text-sm text-gray-500">Failed to load</span>
         </div>
       )}

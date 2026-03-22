@@ -110,7 +110,7 @@ export default function Footer() {
                   rel={
                     link.name === "email" ? undefined : "noopener noreferrer"
                   }
-                  className="border-gold/15 text-foreground/40 hover:border-gold/40 hover:text-gold flex h-9 w-9 items-center justify-center rounded-lg border transition-all"
+                  className="border-gold/15 text-foreground/40 hover:border-gold/40 hover:text-gold flex h-9 w-9 items-center justify-center border transition-all"
                   onClick={() =>
                     safeTrack(() => trackExternalLinkClick(link.name, "footer"))
                   }

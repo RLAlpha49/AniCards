@@ -84,7 +84,7 @@ function SettingsBody({
   }
 
   return (
-    <div className="text-muted-foreground border-border/50 rounded-xl border border-dashed py-10 text-center text-sm">
+    <div className="text-muted-foreground border-border/50 border border-dashed py-10 text-center text-sm">
       {cardProps?.customSettingsDisabledMessage ??
         "Enable custom settings above to customize this card's appearance."}
     </div>
@@ -114,11 +114,11 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
   return (
     <div className={cn("space-y-5", className)}>
       {/* ── Header ──────────────────────────────────────── */}
-      <div className="border-border/50 bg-card/60 flex items-center justify-between gap-4 rounded-xl border p-4 backdrop-blur-sm">
+      <div className="border-border/50 bg-card/60 flex items-center justify-between gap-4 border p-4 backdrop-blur-sm">
         <div className="flex min-w-0 items-center gap-3">
           <div
             className={cn(
-              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors",
+              "flex h-10 w-10 shrink-0 items-center justify-center transition-colors",
               isCustomized
                 ? "bg-gold shadow-gold/20 text-white shadow-sm"
                 : "bg-muted text-muted-foreground",
@@ -132,7 +132,7 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
                 {title}
               </span>
               {isCustomized && (
-                <span className="bg-gold/15 text-gold-dim dark:bg-gold/10 dark:text-gold inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase">
+                <span className="bg-gold/15 text-gold-dim dark:bg-gold/10 dark:text-gold inline-flex items-center px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase">
                   Custom
                   <span className="sr-only"> settings applied</span>
                 </span>
@@ -154,7 +154,7 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
             }
             size="sm"
             className={cn(
-              "shrink-0 rounded-lg transition-all",
+              "shrink-0 transition-all",
               globalProps.saveAllDisabled || !isSettingsValid
                 ? "bg-muted text-muted-foreground"
                 : "bg-gold shadow-gold/20 hover:bg-gold/90 text-white shadow-sm",
@@ -179,7 +179,7 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
         {cardProps && (
           <div
             className={cn(
-              "flex items-center justify-between rounded-xl border p-4 transition-all",
+              "flex items-center justify-between border p-4 transition-all",
               cardProps.useCustomSettings
                 ? "border-gold/30 bg-gold/5 dark:border-gold/20 dark:bg-gold/5"
                 : "border-border/50 bg-muted/20",

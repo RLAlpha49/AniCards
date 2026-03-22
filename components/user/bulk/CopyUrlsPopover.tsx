@@ -37,7 +37,7 @@ export function CopyUrlsPopover({
           size="sm"
           aria-label={ariaLabel}
           className={cn(
-            "h-9 gap-1.5 rounded-lg px-3 font-medium shadow-md transition-all",
+            "h-9 gap-1.5 px-3 font-medium shadow-md transition-all",
             copiedFormat
               ? "bg-green-500 text-white shadow-green-500/25 hover:bg-green-600"
               : "from-gold to-gold-dim shadow-gold/25 hover:shadow-gold/30 bg-linear-to-r via-amber-500 text-white hover:scale-[1.02] hover:shadow-lg",
@@ -63,7 +63,7 @@ export function CopyUrlsPopover({
           <Button
             variant="ghost"
             size="sm"
-            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 rounded-md px-2.5 text-sm"
+            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 px-2.5 text-sm"
             onClick={() => {
               handleCopyUrls("url");
             }}
@@ -84,7 +84,7 @@ export function CopyUrlsPopover({
           <Button
             variant="ghost"
             size="sm"
-            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 rounded-md px-2.5 text-sm"
+            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 px-2.5 text-sm"
             onClick={() => {
               handleCopyUrls("anilist");
             }}

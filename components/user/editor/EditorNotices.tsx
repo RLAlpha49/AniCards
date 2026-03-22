@@ -66,10 +66,10 @@ export function EditorNotices({
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="w-full max-w-[500px] rounded-xl border border-green-200/60 bg-gradient-to-r from-green-50/80 to-emerald-50/80 px-4 py-3 backdrop-blur-sm dark:border-green-800/40 dark:from-green-950/30 dark:to-emerald-950/30"
+            className="w-full max-w-125 border border-green-200/60 bg-gradient-to-r from-green-50/80 to-emerald-50/80 px-4 py-3 backdrop-blur-sm dark:border-green-800/40 dark:from-green-950/30 dark:to-emerald-950/30"
           >
             <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/50">
+              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center bg-green-100 dark:bg-green-900/50">
                 <UserPlus className="h-4 w-4 text-green-600 dark:text-green-400" />
               </div>
               <div className="flex-1">
@@ -99,10 +99,10 @@ export function EditorNotices({
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.12 }}
-            className="border-gold/20 bg-gold/3 dark:border-gold/15 dark:bg-gold/3 w-full max-w-[700px] rounded-xl border px-4 py-4 backdrop-blur-sm"
+            className="border-gold/20 bg-gold/3 dark:border-gold/15 dark:bg-gold/3 w-full max-w-[700px] border px-4 py-4 backdrop-blur-sm"
           >
             <div className="flex items-start gap-3">
-              <div className="bg-gold/15 dark:bg-gold/10 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
+              <div className="bg-gold/15 dark:bg-gold/10 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center">
                 <Info
                   className="text-gold-dim dark:text-gold h-4 w-4"
                   aria-hidden="true"
@@ -130,7 +130,7 @@ export function EditorNotices({
                   <Button
                     type="button"
                     variant="secondary"
-                    className="w-full rounded-xl sm:w-auto"
+                    className="w-full sm:w-auto"
                     onClick={onOpenHelp}
                     aria-haspopup="dialog"
                   >
@@ -140,7 +140,7 @@ export function EditorNotices({
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full rounded-xl sm:w-auto"
+                    className="w-full sm:w-auto"
                     onClick={onStartTour}
                   >
                     Start tour
@@ -158,10 +158,10 @@ export function EditorNotices({
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
-            className="w-full max-w-[700px] rounded-xl border border-yellow-200/60 bg-gradient-to-r from-yellow-50/80 to-amber-50/80 px-4 py-3 backdrop-blur-sm dark:border-yellow-800/40 dark:from-yellow-950/30 dark:to-amber-950/30"
+            className="w-full max-w-[700px] border border-yellow-200/60 bg-gradient-to-r from-yellow-50/80 to-amber-50/80 px-4 py-3 backdrop-blur-sm dark:border-yellow-800/40 dark:from-yellow-950/30 dark:to-amber-950/30"
           >
             <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-yellow-100 dark:bg-yellow-900/50">
+              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center bg-yellow-100 dark:bg-yellow-900/50">
                 <AlertTriangle className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />
               </div>
               <div className="flex-1">
@@ -191,10 +191,10 @@ export function EditorNotices({
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="border-gold/20 from-gold/5 dark:border-gold/15 dark:from-gold/3 max-w-[500px] flex-1 rounded-xl border bg-linear-to-r to-amber-100/5 px-4 py-3 backdrop-blur-sm dark:to-amber-900/3"
+          className="border-gold/20 from-gold/5 dark:border-gold/15 dark:from-gold/3 max-w-[500px] flex-1 border bg-linear-to-r to-amber-100/5 px-4 py-3 backdrop-blur-sm dark:to-amber-900/3"
         >
           <div className="flex items-start gap-3">
-            <div className="bg-gold/15 dark:bg-gold/10 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
+            <div className="bg-gold/15 dark:bg-gold/10 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center">
               <RefreshCw className="text-gold-dim dark:text-gold h-4 w-4" />
             </div>
             <p className="text-foreground text-sm">
@@ -209,10 +209,10 @@ export function EditorNotices({
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="border-gold/20 from-gold/5 to-gold/3 dark:border-gold/15 dark:from-gold/3 dark:to-gold/2 max-w-[500px] flex-1 rounded-xl border bg-linear-to-r via-amber-100/5 px-4 py-3 backdrop-blur-sm dark:via-amber-900/3"
+          className="border-gold/20 from-gold/5 to-gold/3 dark:border-gold/15 dark:from-gold/3 dark:to-gold/2 max-w-[500px] flex-1 border bg-linear-to-r via-amber-100/5 px-4 py-3 backdrop-blur-sm dark:via-amber-900/3"
         >
           <div className="flex items-start gap-3">
-            <div className="from-gold to-gold-dim shadow-gold/20 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-linear-to-br via-amber-500 shadow-lg">
+            <div className="from-gold to-gold-dim shadow-gold/20 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center bg-linear-to-br via-amber-500 shadow-lg">
               <Heart className="h-4 w-4 text-white" />
             </div>
             <div className="flex-1">
@@ -226,7 +226,7 @@ export function EditorNotices({
               href="https://anilist.co/user/Alpha49"
               target="_blank"
               rel="noopener noreferrer"
-              className="border-gold/20 bg-gold/5 text-gold-dim hover:border-gold/30 hover:bg-gold/10 dark:border-gold/15 dark:bg-gold/5 dark:text-gold dark:hover:border-gold/25 mt-0.5 inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-all"
+              className="border-gold/20 bg-gold/5 text-gold-dim hover:border-gold/30 hover:bg-gold/10 dark:border-gold/15 dark:bg-gold/5 dark:text-gold dark:hover:border-gold/25 mt-0.5 inline-flex items-center gap-1.5 border px-2.5 py-1 text-xs font-medium transition-all"
             >
               <ExternalLink className="h-3 w-3" />
               @Alpha49

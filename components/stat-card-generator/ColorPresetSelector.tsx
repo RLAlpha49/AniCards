@@ -235,7 +235,7 @@ function ColorPresetSelectorComponent({
         <Label className="text-foreground font-display text-base font-bold">
           Choose a Preset
         </Label>
-        <span className="bg-gold/10 text-gold-dim dark:bg-gold/10 dark:text-gold rounded-full px-2.5 py-1 text-xs font-medium">
+        <span className="bg-gold/10 text-gold-dim dark:bg-gold/10 dark:text-gold px-2.5 py-1 text-xs font-medium">
           {filteredPresets.length} of {sortedPresets.length}
         </span>
       </div>
@@ -270,7 +270,7 @@ function ColorPresetSelectorComponent({
                   setColorTypeFilter(option.value as typeof colorTypeFilter)
                 }
                 className={cn(
-                  "h-8 gap-1.5 rounded-lg px-3 text-xs font-medium transition-all",
+                  "h-8 gap-1.5 px-3 text-xs font-medium transition-all",
                   colorTypeFilter === option.value
                     ? "from-gold to-gold-dim shadow-gold/20 bg-linear-to-r via-amber-500 text-white shadow-md"
                     : "border-gold/20 bg-background text-muted-foreground hover:border-gold/40 hover:bg-gold/5 dark:border-gold/15 dark:hover:border-gold/30",
@@ -315,7 +315,7 @@ function ColorPresetSelectorComponent({
                   setThemeFilter(option.value as typeof themeFilter)
                 }
                 className={cn(
-                  "h-8 gap-1.5 rounded-lg px-3 text-xs font-medium transition-all",
+                  "h-8 gap-1.5 px-3 text-xs font-medium transition-all",
                   themeFilter === option.value
                     ? "from-gold to-gold-dim shadow-gold/20 bg-linear-to-r via-amber-500 text-white shadow-md"
                     : "border-gold/20 bg-background text-muted-foreground hover:border-gold/40 hover:bg-gold/5 dark:border-gold/15 dark:hover:border-gold/30",
@@ -357,7 +357,7 @@ function ColorPresetSelectorComponent({
                       type="button"
                       onClick={() => handlePresetChange(key)}
                       className={cn(
-                        "group relative flex aspect-3/2 w-full items-center justify-center overflow-hidden rounded-xl border-2 transition-all duration-200",
+                        "group relative flex aspect-3/2 w-full items-center justify-center overflow-hidden border-2 transition-all duration-200",
                         isSelected
                           ? "border-gold ring-gold/20 dark:border-gold dark:ring-gold/20 ring-4"
                           : "hover:border-gold/40 dark:hover:border-gold/30 border-transparent hover:shadow-lg",
@@ -389,7 +389,7 @@ function ColorPresetSelectorComponent({
                         <motion.div
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
-                          className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/30 backdrop-blur-[2px]"
+                          className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-[2px]"
                         >
                           <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-lg dark:bg-slate-900">
                             <Check className="text-gold dark:text-gold h-4 w-4" />
@@ -429,7 +429,7 @@ function ColorPresetSelectorComponent({
                   </TooltipTrigger>
                   <TooltipContent
                     side="bottom"
-                    className="flex items-center gap-2 rounded-lg border-slate-200/50 bg-white/95 px-3 py-2 shadow-lg backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-900/95"
+                    className="flex items-center gap-2 border-slate-200/50 bg-white/95 px-3 py-2 shadow-lg backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-900/95"
                   >
                     <span className="font-semibold text-slate-900 capitalize dark:text-white">
                       {key.replaceAll(/([A-Z])/g, " $1").trim()}
@@ -438,7 +438,7 @@ function ColorPresetSelectorComponent({
                       {mode === "light" ? "Light" : "Dark"}
                     </span>
                     {containsGradient && (
-                      <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-600 dark:bg-purple-900/50 dark:text-purple-400">
+                      <span className="bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-600 dark:bg-purple-900/50 dark:text-purple-400">
                         Gradient
                       </span>
                     )}
@@ -461,7 +461,7 @@ function ColorPresetSelectorComponent({
             size="sm"
             type="button"
             onClick={() => setIsExpanded(!isExpanded)}
-            className="border-gold/20 bg-background text-muted-foreground hover:border-gold/40 hover:bg-gold/5 dark:border-gold/15 dark:hover:border-gold/30 gap-2 rounded-full px-4 text-sm font-medium shadow-sm hover:shadow-md"
+            className="border-gold/20 bg-background text-muted-foreground hover:border-gold/40 hover:bg-gold/5 dark:border-gold/15 dark:hover:border-gold/30 gap-2 px-4 text-sm font-medium shadow-sm hover:shadow-md"
           >
             {isExpanded ? (
               <>

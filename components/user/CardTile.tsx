@@ -325,7 +325,7 @@ function ExpandedPreviewDialog({
                   backgroundSize: "20px 20px",
                 }}
               >
-                <div className="border-gold/10 rounded-sm border p-3 sm:p-5">
+                <div className="border-gold/10 border p-3 sm:p-5">
                   <div
                     className={cn(
                       isComparing
