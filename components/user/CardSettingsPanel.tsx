@@ -118,7 +118,6 @@ export function CardSettingsPanel(props: Readonly<CardSettingsPanelProps>) {
       {/* ── Header ──────────────────────────────────────── */}
       <div className="
         flex items-center justify-between gap-4 border border-border/50 bg-card/60 p-4
-        backdrop-blur-sm
       ">
         <div className="flex min-w-0 items-center gap-3">
           <div

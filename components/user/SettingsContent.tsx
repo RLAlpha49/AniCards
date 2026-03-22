@@ -364,7 +364,7 @@ function SettingsSection({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className="border border-border/50 bg-card/40 backdrop-blur-sm transition-colors">
+    <div className="border border-border/50 bg-card/40 transition-colors">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -553,7 +553,7 @@ export function SettingsContent({
   return (
     <div className="space-y-5">
       {/* ── Live Preview ────────────────────────────────── */}
-      <div className="border border-border/50 bg-muted/30 p-5 backdrop-blur-sm">
+      <div className="border border-gold/10 bg-muted/20 p-5">
         <ColorPreviewCard
           titleColor={colors[0]}
           backgroundColor={colors[1]}
@@ -568,7 +568,7 @@ export function SettingsContent({
       <Tabs defaultValue="colors" className="w-full">
         <TabsList
           className={cn(
-            "grid w-full gap-0.5 border border-border/50 bg-muted/50 p-1 backdrop-blur-sm",
+            "grid w-full gap-0.5 border border-border/50 bg-muted/50 p-1",
             hasAdvancedOptions ? "grid-cols-3" : "grid-cols-2",
           )}
         >
@@ -725,10 +725,7 @@ export function SettingsContent({
           </div>
 
           {/* Enable Border Toggle */}
-          <div className="
-            flex items-center justify-between border border-border/50 bg-muted/30 p-4
-            backdrop-blur-sm
-          ">
+          <div className="flex items-center justify-between border border-border/50 bg-muted/30 p-4">
             <div className="flex items-center gap-3">
               <div className="
                 flex size-8 items-center justify-center bg-gold/10 text-gold
@@ -932,7 +929,7 @@ export function SettingsContent({
             )}
 
             {visibility.showGridSize && (
-              <div className="border border-border/50 bg-muted/30 p-4 backdrop-blur-sm">
+              <div className="border border-border/50 bg-muted/30 p-4">
                 <div className="mb-3 flex items-center gap-2.5">
                   <div className="
                     flex size-7 items-center justify-center bg-gold/10 text-gold
@@ -1080,8 +1077,7 @@ function ToggleRow({
 }>) {
   return (
     <div className="
-      flex items-center justify-between border border-border/50 bg-muted/30 p-4 backdrop-blur-sm
-      transition-colors
+      flex items-center justify-between border border-border/50 bg-muted/30 p-4 transition-colors
     ">
       <div className="flex items-center gap-3">
         <div className="
