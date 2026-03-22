@@ -262,7 +262,7 @@ export const CardPreview = memo(function CardPreview({
   } else if (!resolvedSrc && isLoading) {
     previewNode = (
       <div className={cn("h-full w-full", paddingClass)}>
-        <Skeleton className="h-full w-full rounded-xl" />
+        <Skeleton className="h-full w-full" />
         <span className="sr-only">Loading preview...</span>
       </div>
     );

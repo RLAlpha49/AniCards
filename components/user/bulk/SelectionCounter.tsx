@@ -28,7 +28,7 @@ export function SelectionCounter({
 }: Readonly<SelectionCounterProps>) {
   return (
     <div className="sm:border-gold/20 dark:sm:border-gold/15 flex items-center gap-2 sm:border-r sm:pr-3">
-      <div className="bg-gold/15 dark:bg-gold/10 flex h-8 w-8 items-center justify-center rounded-lg">
+      <div className="bg-gold/15 dark:bg-gold/10 flex h-8 w-8 items-center justify-center">
         <CheckSquare className="text-gold-dim dark:text-gold h-4 w-4" />
       </div>
 
@@ -66,7 +66,7 @@ export function SelectionCounter({
                       key={opt.value}
                       variant="ghost"
                       size="sm"
-                      className="h-9 justify-start rounded-md px-2.5 text-sm"
+                      className="h-9 justify-start px-2.5 text-sm"
                       onClick={() => onSelectGroup(opt.value)}
                     >
                       {opt.label}

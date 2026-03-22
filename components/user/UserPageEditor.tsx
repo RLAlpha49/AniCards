@@ -116,7 +116,7 @@ function getTooltipTriggerChild(mode: TooltipTriggerMode, child: ReactElement) {
 
 function ShortcutHint({ children }: Readonly<{ children: string }>) {
   return (
-    <kbd className="border-gold/20 bg-gold/3 text-foreground dark:border-gold/15 dark:bg-gold/3 ml-2 inline-flex items-center rounded-md border px-1.5 py-0.5 font-mono text-[10px]">
+    <kbd className="border-gold/20 bg-gold/3 text-foreground dark:border-gold/15 dark:bg-gold/3 ml-2 inline-flex items-center border px-1.5 py-0.5 font-mono text-[10px]">
       {children}
     </kbd>
   );
@@ -694,7 +694,7 @@ function ReorderModeToolbarToggle({
       onClick={onToggle}
       data-tour={dataTour}
       className={cn(
-        "h-9 rounded-xl px-3 text-xs font-medium",
+        "h-9 px-3 text-xs font-medium",
         isReorderMode
           ? "border-gold/30 bg-gold/10 text-gold-dim hover:bg-gold/15 dark:border-gold/25 dark:bg-gold/10 dark:text-gold dark:hover:bg-gold/15"
           : "border-gold/15 bg-background text-muted-foreground hover:bg-gold/5 hover:text-foreground dark:border-gold/10",
@@ -1332,7 +1332,7 @@ export function UserPageEditor() {
                 </div>
               </div>
 
-              <div className="border-gold/20 bg-background/80 dark:border-gold/15 dark:bg-background/60 flex items-center justify-between rounded-xl border px-2.5 py-1.5 backdrop-blur-sm">
+              <div className="border-gold/20 bg-background/80 dark:border-gold/15 dark:bg-background/60 flex items-center justify-between border px-2.5 py-1.5 backdrop-blur-sm">
                 <div className="flex items-center gap-1.5">
                   <TooltipProvider delayDuration={200}>
                     <Tooltip>
@@ -1346,7 +1346,7 @@ export function UserPageEditor() {
                             variant="ghost"
                             size="sm"
                             className={cn(
-                              "h-8 rounded-lg px-2 text-xs font-medium sm:px-3",
+                              "h-8 px-2 text-xs font-medium sm:px-3",
                               canSaveNow
                                 ? "text-foreground hover:bg-gold/8"
                                 : "text-muted-foreground",
@@ -1389,7 +1389,7 @@ export function UserPageEditor() {
                             variant="ghost"
                             size="sm"
                             className={cn(
-                              "h-8 rounded-lg px-2 text-xs font-medium sm:px-3",
+                              "h-8 px-2 text-xs font-medium sm:px-3",
                               canDiscardNow
                                 ? "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
                                 : "text-muted-foreground",
@@ -1426,7 +1426,7 @@ export function UserPageEditor() {
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 rounded-lg px-2 text-xs font-medium sm:px-3"
+                          className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 px-2 text-xs font-medium sm:px-3"
                           onClick={() => setIsHelpDialogOpen(true)}
                           aria-haspopup="dialog"
                           aria-keyshortcuts="Control+H Meta+H"
@@ -1463,7 +1463,7 @@ export function UserPageEditor() {
                             <Button
                               type="button"
                               size="sm"
-                              className="from-gold to-gold-dim text-primary-foreground shadow-gold/20 hover:shadow-gold/30 h-8 rounded-lg bg-linear-to-r via-amber-500 px-2 text-xs font-semibold shadow-sm transition-all hover:shadow-md sm:px-3"
+                              className="from-gold to-gold-dim text-primary-foreground shadow-gold/20 hover:shadow-gold/30 h-8 bg-linear-to-r via-amber-500 px-2 text-xs font-semibold shadow-sm transition-all hover:shadow-md sm:px-3"
                               data-tour="global-settings"
                             >
                               <SlidersHorizontal className="h-4 w-4 sm:mr-1.5" />
@@ -1516,7 +1516,7 @@ export function UserPageEditor() {
               </div>
 
               <div
-                className="border-gold/15 bg-gold/3 dark:border-gold/10 dark:bg-gold/3 relative flex flex-col gap-3 rounded-xl border-2 p-3 backdrop-blur-sm"
+                className="border-gold/15 bg-gold/3 dark:border-gold/10 dark:bg-gold/3 relative flex flex-col gap-3 border-2 p-3 backdrop-blur-sm"
                 role="toolbar"
                 aria-label="Card filters"
               >
@@ -1536,7 +1536,7 @@ export function UserPageEditor() {
                       onChange={(e) => setQuery(e.target.value)}
                       placeholder="Search cards… (Ctrl/Cmd+F)"
                       aria-keyshortcuts="Control+F Meta+F"
-                      className="border-gold/20 bg-background dark:border-gold/15 h-9 rounded-xl pr-9 pl-9 text-sm"
+                      className="border-gold/20 bg-background dark:border-gold/15 h-9 pr-9 pl-9 text-sm"
                       title='Try: group:"Core Stats" custom:yes enabled:true'
                     />
 
@@ -1547,7 +1547,7 @@ export function UserPageEditor() {
                             type="button"
                             className={cn(
                               "absolute top-1/2 right-2 -translate-y-1/2",
-                              "flex h-7 w-7 items-center justify-center rounded-lg",
+                              "flex h-7 w-7 items-center justify-center",
                               "text-muted-foreground hover:bg-gold/5 hover:text-foreground",
                               "dark:text-muted-foreground dark:hover:bg-gold/5 dark:hover:text-foreground",
                               "focus-visible:ring-gold/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
@@ -1581,7 +1581,7 @@ export function UserPageEditor() {
                           <SelectTrigger
                             id={groupFilterTriggerId}
                             aria-keyshortcuts="Control+Shift+F Meta+Shift+F"
-                            className="border-gold/20 bg-background dark:border-gold/15 h-9 w-full rounded-xl text-sm sm:w-44"
+                            className="border-gold/20 bg-background dark:border-gold/15 h-9 w-full text-sm sm:w-44"
                           >
                             <SelectValue placeholder="All categories" />
                           </SelectTrigger>
@@ -1630,7 +1630,7 @@ export function UserPageEditor() {
                       variant="ghost"
                       size="sm"
                       onClick={clearAllFilters}
-                      className="text-muted-foreground hover:bg-gold/5 hover:text-foreground ml-auto h-6 rounded-md px-2 text-[11px] font-medium"
+                      className="text-muted-foreground hover:bg-gold/5 hover:text-foreground ml-auto h-6 px-2 text-[11px] font-medium"
                     >
                       Clear filters
                     </Button>
@@ -1641,7 +1641,7 @@ export function UserPageEditor() {
 
                 <div className="flex flex-wrap items-center gap-3">
                   <div
-                    className="border-gold/15 bg-gold/3 dark:border-gold/10 flex items-center gap-0.5 rounded-lg border p-0.5"
+                    className="border-gold/15 bg-gold/3 dark:border-gold/10 flex items-center gap-0.5 border p-0.5"
                     data-tour="visibility-toggle"
                   >
                     <Button
@@ -1650,7 +1650,7 @@ export function UserPageEditor() {
                       size="sm"
                       aria-pressed={visibility === "all"}
                       className={cn(
-                        "h-8 rounded-lg px-3 text-xs font-medium transition-all",
+                        "h-8 px-3 text-xs font-medium transition-all",
                         visibility === "all"
                           ? "bg-gold/10 text-gold-dim dark:bg-gold/10 dark:text-gold shadow-sm"
                           : "text-muted-foreground hover:text-foreground",
@@ -1666,7 +1666,7 @@ export function UserPageEditor() {
                       aria-pressed={visibility === "enabled"}
                       aria-keyshortcuts="Control+E Meta+E"
                       className={cn(
-                        "h-8 rounded-lg px-3 text-xs font-medium transition-all",
+                        "h-8 px-3 text-xs font-medium transition-all",
                         visibility === "enabled"
                           ? "bg-gold/10 text-gold-dim dark:bg-gold/10 dark:text-gold shadow-sm"
                           : "text-muted-foreground hover:text-foreground",
@@ -1683,7 +1683,7 @@ export function UserPageEditor() {
                       size="sm"
                       aria-pressed={visibility === "disabled"}
                       className={cn(
-                        "h-8 rounded-lg px-3 text-xs font-medium transition-all",
+                        "h-8 px-3 text-xs font-medium transition-all",
                         visibility === "disabled"
                           ? "bg-gold/10 text-gold-dim dark:bg-gold/10 dark:text-gold shadow-sm"
                           : "text-muted-foreground hover:text-foreground",
@@ -1701,7 +1701,7 @@ export function UserPageEditor() {
                             type="button"
                             data-testid="disabled-cards-info"
                             className={cn(
-                              "ml-0.5 flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
+                              "ml-0.5 flex h-8 w-8 items-center justify-center transition-colors",
                               "text-muted-foreground hover:bg-gold/5 hover:text-foreground",
                               "dark:text-muted-foreground dark:hover:bg-gold/5 dark:hover:text-foreground",
                               "focus-visible:ring-gold/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
@@ -1725,7 +1725,7 @@ export function UserPageEditor() {
                   <div className="bg-gold/20 dark:bg-gold/15 hidden h-6 w-px sm:block" />
 
                   <div
-                    className="border-gold/15 bg-gold/3 dark:border-gold/10 flex items-center gap-0.5 rounded-lg border p-0.5"
+                    className="border-gold/15 bg-gold/3 dark:border-gold/10 flex items-center gap-0.5 border p-0.5"
                     data-tour="customization-toggle"
                   >
                     <Button
@@ -1734,7 +1734,7 @@ export function UserPageEditor() {
                       size="sm"
                       aria-pressed={customFilter === "all"}
                       className={cn(
-                        "h-8 rounded-lg px-3 text-xs font-medium transition-all",
+                        "h-8 px-3 text-xs font-medium transition-all",
                         customFilter === "all"
                           ? "bg-gold/10 text-gold-dim dark:bg-gold/10 dark:text-gold shadow-sm"
                           : "text-muted-foreground hover:text-foreground",
@@ -1749,7 +1749,7 @@ export function UserPageEditor() {
                       size="sm"
                       aria-pressed={customFilter === "customized"}
                       className={cn(
-                        "h-8 rounded-lg px-3 text-xs font-medium transition-all",
+                        "h-8 px-3 text-xs font-medium transition-all",
                         customFilter === "customized"
                           ? "bg-gold/10 text-gold-dim dark:bg-gold/10 dark:text-gold shadow-sm"
                           : "text-muted-foreground hover:text-foreground",
@@ -1764,7 +1764,7 @@ export function UserPageEditor() {
                       size="sm"
                       aria-pressed={customFilter === "uncustomized"}
                       className={cn(
-                        "h-8 rounded-lg px-3 text-xs font-medium transition-all",
+                        "h-8 px-3 text-xs font-medium transition-all",
                         customFilter === "uncustomized"
                           ? "bg-gold/10 text-gold-dim dark:bg-gold/10 dark:text-gold shadow-sm"
                           : "text-muted-foreground hover:text-foreground",
@@ -1780,7 +1780,7 @@ export function UserPageEditor() {
                           <button
                             type="button"
                             className={cn(
-                              "ml-0.5 flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
+                              "ml-0.5 flex h-8 w-8 items-center justify-center transition-colors",
                               "text-muted-foreground hover:bg-gold/5 hover:text-foreground",
                               "dark:text-muted-foreground dark:hover:bg-gold/5 dark:hover:text-foreground",
                               "focus-visible:ring-gold/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
@@ -1815,7 +1815,7 @@ export function UserPageEditor() {
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 w-8 rounded-lg p-0"
+                          className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 w-8 p-0"
                           onClick={expandAll}
                         >
                           <ChevronsUpDown className="h-4 w-4" />
@@ -1838,7 +1838,7 @@ export function UserPageEditor() {
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 w-8 rounded-lg p-0"
+                          className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 w-8 p-0"
                           onClick={collapseAll}
                         >
                           <ChevronsUpDown className="h-4 w-4 rotate-90" />
@@ -1873,7 +1873,7 @@ export function UserPageEditor() {
                             type="button"
                             size="sm"
                             variant="ghost"
-                            className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 w-8 rounded-lg p-0"
+                            className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 w-8 p-0"
                             onClick={undoBulk}
                             disabled={!canUndoBulk}
                           >
@@ -1899,7 +1899,7 @@ export function UserPageEditor() {
                             type="button"
                             size="sm"
                             variant="ghost"
-                            className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 w-8 rounded-lg p-0"
+                            className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 w-8 p-0"
                             onClick={redoBulk}
                             disabled={!canRedoBulk}
                           >
@@ -1926,7 +1926,7 @@ export function UserPageEditor() {
                             type="button"
                             size="sm"
                             variant="ghost"
-                            className="text-gold-dim hover:bg-gold/8 dark:text-gold h-8 rounded-lg px-2 text-xs font-medium"
+                            className="text-gold-dim hover:bg-gold/8 dark:text-gold h-8 px-2 text-xs font-medium"
                             onClick={() => {
                               if (allCardIds.length === 0) return;
                               try {
@@ -1973,7 +1973,7 @@ export function UserPageEditor() {
                               type="button"
                               size="sm"
                               variant="ghost"
-                              className="h-8 rounded-lg px-2 text-xs font-medium text-red-600 hover:bg-red-50/80 dark:text-red-400 dark:hover:bg-red-950/30"
+                              className="h-8 px-2 text-xs font-medium text-red-600 hover:bg-red-50/80 dark:text-red-400 dark:hover:bg-red-950/30"
                               onClick={() => {
                                 if (enabledCardIds.length === 0) return;
                                 setIsDisableAllDialogOpen(true);
@@ -2003,7 +2003,7 @@ export function UserPageEditor() {
                             type="button"
                             size="sm"
                             variant="ghost"
-                            className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 rounded-lg px-2 text-xs font-medium"
+                            className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 px-2 text-xs font-medium"
                             onClick={() => setIsResetDialogOpen(true)}
                           >
                             <RotateCcw className="h-3.5 w-3.5 lg:mr-1" />
@@ -2027,7 +2027,7 @@ export function UserPageEditor() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 w-8 rounded-lg p-0"
+                          className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 w-8 p-0"
                         >
                           <MoreHorizontal className="h-4 w-4" />
                           <span className="sr-only">More actions</span>

@@ -370,7 +370,7 @@ export function UserPageHeader({
                     aria-atomic="true"
                     title={saveInfo.title}
                     className={cn(
-                      "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all",
+                      "flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all",
                       saveInfo.className,
                     )}
                   >

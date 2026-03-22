@@ -146,7 +146,7 @@ export class ErrorBoundary extends Component<
 
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-linear-to-br from-amber-50/50 via-white to-amber-100/30 px-4 py-12 dark:from-[#0C0A10] dark:via-[#110E18] dark:to-[#0C0A10]">
-        <div className="dark:bg-background/80 w-full max-w-2xl space-y-10 rounded-3xl border border-red-200 bg-white/80 p-8 shadow-2xl backdrop-blur-xl dark:border-red-900/60">
+        <div className="dark:bg-background/80 w-full max-w-2xl space-y-10 border border-red-200 bg-white/80 p-8 shadow-2xl backdrop-blur-xl dark:border-red-900/60">
           <div className="flex items-center gap-3">
             <span className="rounded-full bg-red-100 p-2 text-red-600 dark:bg-red-900/50 dark:text-red-300">
               <AlertCircle className="h-6 w-6" />

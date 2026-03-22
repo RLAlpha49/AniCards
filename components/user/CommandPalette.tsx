@@ -97,7 +97,7 @@ function ShortcutBadge({ hint }: Readonly<{ hint: string }>) {
           )}
           <kbd
             className={cn(
-              "inline-flex h-5 min-w-5 items-center justify-center rounded px-1",
+              "inline-flex h-5 min-w-5 items-center justify-center px-1",
               "border-gold/15 bg-gold/5 border text-[10px] font-semibold",
               "text-gold-dim/70 dark:border-gold/10 dark:bg-gold/5 dark:text-gold/50",
               "shadow-[inset_0_-1px_0_hsl(var(--gold)/0.08)]",
@@ -135,7 +135,7 @@ function CommandItem({
       onSelect={() => onSelect(cmd)}
       onPointerDown={handlePointerDown}
       className={cn(
-        "group/cmd relative mx-1 flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5",
+        "group/cmd relative mx-1 flex cursor-pointer items-center gap-3 px-3 py-2.5",
         "text-foreground transition-all duration-150",
         "aria-selected:bg-gold/[0.07] aria-selected:shadow-[inset_3px_0_0_hsl(var(--gold)/0.6)]",
         "dark:aria-selected:bg-gold/5 dark:aria-selected:shadow-[inset_3px_0_0_hsl(var(--gold)/0.5)]",
@@ -144,7 +144,7 @@ function CommandItem({
     >
       <span
         className={cn(
-          "relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
+          "relative flex h-8 w-8 shrink-0 items-center justify-center",
           "border-gold/15 from-gold/10 to-gold/4 border bg-linear-to-br",
           "text-gold-dim dark:border-gold/10 dark:from-gold/10 dark:to-gold/4 dark:text-gold/80",
           "transition-colors duration-150",
@@ -179,22 +179,22 @@ function PaletteFooter() {
       )}
     >
       <span className="flex items-center gap-1.5">
-        <kbd className="inline-flex h-4.5 w-4.5 items-center justify-center rounded border border-current/20 text-[9px]">
+        <kbd className="inline-flex h-4.5 w-4.5 items-center justify-center border border-current/20 text-[9px]">
           ↑
         </kbd>
-        <kbd className="inline-flex h-4.5 w-4.5 items-center justify-center rounded border border-current/20 text-[9px]">
+        <kbd className="inline-flex h-4.5 w-4.5 items-center justify-center border border-current/20 text-[9px]">
           ↓
         </kbd>
         <span className="ml-0.5">Navigate</span>
       </span>
       <span className="flex items-center gap-1.5">
-        <kbd className="inline-flex h-4.5 min-w-4.5 items-center justify-center rounded border border-current/20 px-1 text-[9px]">
+        <kbd className="inline-flex h-4.5 min-w-4.5 items-center justify-center border border-current/20 px-1 text-[9px]">
           ↵
         </kbd>
         <span>Run</span>
       </span>
       <span className="flex items-center gap-1.5">
-        <kbd className="inline-flex h-4.5 min-w-4.5 items-center justify-center rounded border border-current/20 px-1 text-[9px]">
+        <kbd className="inline-flex h-4.5 min-w-4.5 items-center justify-center border border-current/20 px-1 text-[9px]">
           Esc
         </kbd>
         <span>Close</span>
@@ -356,7 +356,7 @@ export function CommandPalette({
               />
               <kbd
                 className={cn(
-                  "hidden shrink-0 items-center rounded-md border px-2 py-1 text-[10px] font-semibold sm:inline-flex",
+                  "hidden shrink-0 items-center border px-2 py-1 text-[10px] font-semibold sm:inline-flex",
                   "border-gold/20 bg-gold/5 text-gold-dim/70",
                   "dark:border-gold/12 dark:bg-gold/4 dark:text-gold/45",
                 )}
@@ -369,7 +369,7 @@ export function CommandPalette({
           {/* ── Results ── */}
           <Command.List className="cmd-palette-list max-h-[min(60vh,420px)] overflow-y-auto px-2 pb-2">
             <Command.Empty className="flex flex-col items-center justify-center gap-2 px-4 py-14">
-              <div className="text-muted-foreground/20 flex h-12 w-12 items-center justify-center rounded-full border border-current/20">
+              <div className="text-muted-foreground/20 flex h-12 w-12 items-center justify-center border border-current/20">
                 <Search className="h-5 w-5" aria-hidden="true" />
               </div>
               <p className="text-muted-foreground/40 text-sm font-medium">

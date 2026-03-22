@@ -380,15 +380,15 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
   }, []);
 
   return (
-    <div className="border-border/50 bg-card/40 rounded-xl border backdrop-blur-sm transition-colors">
+    <div className="border-border/50 bg-card/40 border backdrop-blur-sm transition-colors">
       {/* Collapsible Header */}
       <button
         type="button"
         onClick={() => setIsExpanded((v) => !v)}
-        className="hover:bg-muted/40 flex w-full items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition-colors"
+        className="hover:bg-muted/40 flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors"
       >
         <div className="flex items-center gap-2.5">
-          <div className="bg-gold/10 text-gold dark:bg-gold/15 flex h-7 w-7 items-center justify-center rounded-lg">
+          <div className="bg-gold/10 text-gold dark:bg-gold/15 flex h-7 w-7 items-center justify-center">
             <Wrench className="h-3.5 w-3.5" />
           </div>
           <div className="min-w-0">
@@ -656,7 +656,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                               id="settings-import-text"
                               value={importText}
                               onChange={(e) => setImportText(e.target.value)}
-                              className="border-border/60 bg-background text-foreground focus-visible:ring-gold/30 h-48 w-full resize-none rounded-lg border p-3 font-mono text-xs shadow-sm focus:outline-none focus-visible:ring-2"
+                              className="border-border/60 bg-background text-foreground focus-visible:ring-gold/30 h-48 w-full resize-none border p-3 font-mono text-xs shadow-sm focus:outline-none focus-visible:ring-2"
                               placeholder={`{\n  "schemaVersion": 1,\n  ...\n}`}
                             />
                           </div>

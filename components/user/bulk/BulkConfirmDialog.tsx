@@ -75,7 +75,7 @@ export function BulkConfirmDialog({
             </AlertDialogDescription>
           ) : null}
 
-          <div className="border-gold/20 bg-gold/3 dark:border-gold/15 dark:bg-gold/3 mt-3 rounded-lg border p-3">
+          <div className="border-gold/20 bg-gold/3 dark:border-gold/15 dark:bg-gold/3 mt-3 border p-3">
             <div className="text-foreground text-xs font-medium">
               Affected cards: {totalAffected}
             </div>
@@ -85,7 +85,7 @@ export function BulkConfirmDialog({
                 {shown.map((item) => (
                   <li
                     key={item.cardId}
-                    className="bg-background text-foreground flex items-center justify-between gap-2 rounded-md px-2 py-1 text-xs shadow-sm"
+                    className="bg-background text-foreground flex items-center justify-between gap-2 px-2 py-1 text-xs shadow-sm"
                   >
                     <span className="min-w-0 truncate">
                       {item.label}
@@ -99,7 +99,7 @@ export function BulkConfirmDialog({
                     {typeof item.enabled === "boolean" ? (
                       <span
                         className={cn(
-                          "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium",
+                          "shrink-0 px-1.5 py-0.5 text-[10px] font-medium",
                           item.enabled
                             ? "bg-gold/15 text-gold-dim dark:bg-gold/10 dark:text-gold"
                             : "bg-gold/5 text-muted-foreground",

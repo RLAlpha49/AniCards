@@ -37,7 +37,7 @@ export function DownloadPopover({
               : "Download cards"
           }
           className={cn(
-            "h-9 gap-1.5 rounded-lg border-2 px-3 font-medium transition-all",
+            "h-9 gap-1.5 border-2 px-3 font-medium transition-all",
             "border-gold/25 bg-gold/5 text-gold-dim hover:border-gold/30 hover:bg-gold/10",
             "dark:border-gold/20 dark:bg-gold/5 dark:text-gold dark:hover:border-gold/30 dark:hover:bg-gold/10",
             "disabled:opacity-70",
@@ -71,7 +71,7 @@ export function DownloadPopover({
           <Button
             variant="ghost"
             size="sm"
-            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 rounded-md px-2.5 text-sm"
+            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 px-2.5 text-sm"
             disabled={isDownloading}
             onClick={() => {
               handleDownloadAll("png");
@@ -86,7 +86,7 @@ export function DownloadPopover({
           <Button
             variant="ghost"
             size="sm"
-            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 rounded-md px-2.5 text-sm"
+            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 px-2.5 text-sm"
             disabled={isDownloading}
             onClick={() => {
               handleDownloadAll("webp");

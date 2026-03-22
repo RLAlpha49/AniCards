@@ -581,7 +581,7 @@ export function BulkActionsToolbar({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="border-gold/20 bg-background text-foreground hover:bg-gold/5 dark:border-gold/15 h-9 gap-1.5 rounded-lg px-3"
+                  className="border-gold/20 bg-background text-foreground hover:bg-gold/5 dark:border-gold/15 h-9 gap-1.5 px-3"
                 >
                   <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Bulk edit</span>
@@ -664,7 +664,7 @@ export function BulkActionsToolbar({
               size="sm"
               onClick={undoBulk}
               disabled={!canUndo}
-              className="text-muted-foreground hover:text-foreground h-9 w-9 rounded-lg p-0 disabled:opacity-50"
+              className="text-muted-foreground hover:text-foreground h-9 w-9 p-0 disabled:opacity-50"
               title={canUndo ? "Undo last bulk action" : "Nothing to undo"}
             >
               <Undo2 className="h-4 w-4" aria-hidden="true" />
@@ -675,7 +675,7 @@ export function BulkActionsToolbar({
               size="sm"
               onClick={redoBulk}
               disabled={!canRedo}
-              className="text-muted-foreground hover:text-foreground h-9 w-9 rounded-lg p-0 disabled:opacity-50"
+              className="text-muted-foreground hover:text-foreground h-9 w-9 p-0 disabled:opacity-50"
               title={canRedo ? "Redo last bulk action" : "Nothing to redo"}
             >
               <Redo2 className="h-4 w-4" aria-hidden="true" />
@@ -686,7 +686,7 @@ export function BulkActionsToolbar({
               variant="ghost"
               size="sm"
               onClick={clearSelection}
-              className="text-muted-foreground hover:text-foreground h-9 w-9 rounded-lg p-0"
+              className="text-muted-foreground hover:text-foreground h-9 w-9 p-0"
               title="Clear selection (Esc)"
               aria-keyshortcuts="Escape"
             >

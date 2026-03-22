@@ -66,7 +66,7 @@ export function DownloadPopover({
           <Button
             variant="ghost"
             size="sm"
-            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 rounded-md px-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-70"
+            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 px-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-70"
             onClick={() => onDownload("png")}
             disabled={!previewUrl || isDownloading}
             aria-describedby={downloadDescrId}
@@ -81,7 +81,7 @@ export function DownloadPopover({
           <Button
             variant="ghost"
             size="sm"
-            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 rounded-md px-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-70"
+            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 px-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-70"
             onClick={() => onDownload("webp")}
             disabled={!previewUrl || isDownloading}
             aria-describedby={downloadDescrId}

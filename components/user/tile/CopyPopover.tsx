@@ -74,7 +74,7 @@ export function CopyPopover({
           <Button
             variant="ghost"
             size="sm"
-            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 rounded-md px-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-70"
+            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 px-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-70"
             onClick={onCopyUrl}
             disabled={!previewUrl}
             aria-disabled={!previewUrl}
@@ -97,7 +97,7 @@ export function CopyPopover({
           <Button
             variant="ghost"
             size="sm"
-            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 rounded-md px-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-70"
+            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 px-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-70"
             onClick={onCopyAniList}
             disabled={!previewUrl}
             aria-disabled={!previewUrl}

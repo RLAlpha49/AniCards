@@ -77,13 +77,13 @@ export const CardTileHeader = memo(function CardTileHeader({
           </h4>
 
           {enabled && isModified ? (
-            <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+            <span className="inline-flex items-center border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
               Unsaved <span className="sr-only">changes</span>
             </span>
           ) : null}
 
           {enabled && isCustomized ? (
-            <span className="border-gold/25 bg-gold/10 text-gold-dim dark:border-gold/20 dark:bg-gold/10 dark:text-gold inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold">
+            <span className="border-gold/25 bg-gold/10 text-gold-dim dark:border-gold/20 dark:bg-gold/10 dark:text-gold inline-flex items-center border px-2 py-0.5 text-[10px] font-semibold">
               Custom <span className="sr-only">settings applied</span>
             </span>
           ) : null}
@@ -95,7 +95,7 @@ export const CardTileHeader = memo(function CardTileHeader({
                   type="button"
                   data-tour="card-info"
                   className={cn(
-                    "flex-shrink-0 rounded-full p-0.5 transition-colors",
+                    "flex-shrink-0 p-0.5 transition-colors",
                     "text-muted-foreground hover:text-foreground",
                     "focus-visible:ring-gold/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
                   )}
@@ -149,7 +149,7 @@ export const CardTileHeader = memo(function CardTileHeader({
               onCheckedChange={onToggleSelection}
               data-tour="card-select"
               className={cn(
-                "h-6 w-6 rounded-lg border-2 transition-all",
+                "h-6 w-6 border-2 transition-all",
                 "data-[state=checked]:border-gold data-[state=checked]:bg-gold",
                 "hover:border-gold/60",
                 !isSelected &&

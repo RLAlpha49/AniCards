@@ -364,14 +364,14 @@ function SettingsSection({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className="border-border/50 bg-card/40 rounded-xl border backdrop-blur-sm transition-colors">
+    <div className="border-border/50 bg-card/40 border backdrop-blur-sm transition-colors">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="hover:bg-muted/40 flex w-full items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition-colors"
+        className="hover:bg-muted/40 flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors"
       >
         <div className="flex items-center gap-2.5">
-          <div className="bg-gold/10 text-gold dark:bg-gold/15 flex h-7 w-7 items-center justify-center rounded-lg">
+          <div className="bg-gold/10 text-gold dark:bg-gold/15 flex h-7 w-7 items-center justify-center">
             <Icon className="h-3.5 w-3.5" />
           </div>
           <span className="text-foreground text-sm font-semibold tracking-tight">
@@ -549,7 +549,7 @@ export function SettingsContent({
   return (
     <div className="space-y-5">
       {/* ── Live Preview ────────────────────────────────── */}
-      <div className="border-border/50 bg-muted/30 rounded-xl border p-5 backdrop-blur-sm">
+      <div className="border-border/50 bg-muted/30 border p-5 backdrop-blur-sm">
         <ColorPreviewCard
           titleColor={colors[0]}
           backgroundColor={colors[1]}
@@ -564,20 +564,20 @@ export function SettingsContent({
       <Tabs defaultValue="colors" className="w-full">
         <TabsList
           className={cn(
-            "bg-muted/50 border-border/50 grid w-full gap-0.5 rounded-xl border p-1 backdrop-blur-sm",
+            "bg-muted/50 border-border/50 grid w-full gap-0.5 border p-1 backdrop-blur-sm",
             hasAdvancedOptions ? "grid-cols-3" : "grid-cols-2",
           )}
         >
           <TabsTrigger
             value="colors"
-            className="data-[state=active]:bg-gold/90 data-[state=active]:shadow-gold/15 gap-1.5 rounded-lg text-xs font-medium transition-all data-[state=active]:text-white data-[state=active]:shadow-sm sm:text-sm"
+            className="data-[state=active]:bg-gold/90 data-[state=active]:shadow-gold/15 gap-1.5 text-xs font-medium transition-all data-[state=active]:text-white data-[state=active]:shadow-sm sm:text-sm"
           >
             <Palette className="h-3.5 w-3.5" aria-hidden="true" />
             Colors
           </TabsTrigger>
           <TabsTrigger
             value="border"
-            className="data-[state=active]:bg-gold/90 data-[state=active]:shadow-gold/15 gap-1.5 rounded-lg text-xs font-medium transition-all data-[state=active]:text-white data-[state=active]:shadow-sm sm:text-sm"
+            className="data-[state=active]:bg-gold/90 data-[state=active]:shadow-gold/15 gap-1.5 text-xs font-medium transition-all data-[state=active]:text-white data-[state=active]:shadow-sm sm:text-sm"
           >
             <Square className="h-3.5 w-3.5" aria-hidden="true" />
             Border
@@ -585,7 +585,7 @@ export function SettingsContent({
           {hasAdvancedOptions && (
             <TabsTrigger
               value="advanced"
-              className="data-[state=active]:bg-gold/90 data-[state=active]:shadow-gold/15 gap-1.5 rounded-lg text-xs font-medium transition-all data-[state=active]:text-white data-[state=active]:shadow-sm sm:text-sm"
+              className="data-[state=active]:bg-gold/90 data-[state=active]:shadow-gold/15 gap-1.5 text-xs font-medium transition-all data-[state=active]:text-white data-[state=active]:shadow-sm sm:text-sm"
             >
               <Sliders className="h-3.5 w-3.5" aria-hidden="true" />
               Advanced
@@ -610,7 +610,7 @@ export function SettingsContent({
                     variant={p.id === colorPreset ? "default" : "outline"}
                     onClick={() => onPresetChange(p.id)}
                     className={cn(
-                      "h-8 rounded-lg text-xs font-medium transition-all",
+                      "h-8 text-xs font-medium transition-all",
                       p.id === colorPreset
                         ? "bg-gold hover:bg-gold/90 text-white shadow-sm"
                         : "border-border/60 hover:border-gold/40 hover:bg-gold/5",
@@ -656,7 +656,7 @@ export function SettingsContent({
                 variant={borderEnabled ? "outline" : "default"}
                 onClick={() => onBorderEnabledChange(false)}
                 className={cn(
-                  "h-8 rounded-lg text-xs font-medium transition-all",
+                  "h-8 text-xs font-medium transition-all",
                   borderEnabled
                     ? "border-border/60 hover:border-gold/40 hover:bg-gold/5"
                     : "bg-gold hover:bg-gold/90 text-white shadow-sm",
@@ -675,7 +675,7 @@ export function SettingsContent({
                   onBorderRadiusChange(0);
                 }}
                 className={cn(
-                  "h-8 rounded-lg text-xs font-medium transition-all",
+                  "h-8 text-xs font-medium transition-all",
                   borderEnabled && borderRadius === 0
                     ? "bg-gold hover:bg-gold/90 text-white shadow-sm"
                     : "border-border/60 hover:border-gold/40 hover:bg-gold/5",
@@ -694,7 +694,7 @@ export function SettingsContent({
                   onBorderRadiusChange(16);
                 }}
                 className={cn(
-                  "h-8 rounded-lg text-xs font-medium transition-all",
+                  "h-8 text-xs font-medium transition-all",
                   borderEnabled && borderRadius === 16
                     ? "bg-gold hover:bg-gold/90 text-white shadow-sm"
                     : "border-border/60 hover:border-gold/40 hover:bg-gold/5",
@@ -706,9 +706,9 @@ export function SettingsContent({
           </div>
 
           {/* Enable Border Toggle */}
-          <div className="border-border/50 bg-muted/30 flex items-center justify-between rounded-xl border p-4 backdrop-blur-sm">
+          <div className="border-border/50 bg-muted/30 flex items-center justify-between border p-4 backdrop-blur-sm">
             <div className="flex items-center gap-3">
-              <div className="bg-gold/10 text-gold dark:bg-gold/15 flex h-8 w-8 items-center justify-center rounded-lg">
+              <div className="bg-gold/10 text-gold dark:bg-gold/15 flex h-8 w-8 items-center justify-center">
                 <Square className="h-4 w-4" />
               </div>
               <span className="text-foreground text-sm font-medium">
@@ -743,7 +743,7 @@ export function SettingsContent({
                     Border Color
                   </Label>
                   <div className="flex items-center gap-3">
-                    <div className="border-border/60 relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border shadow-inner">
+                    <div className="border-border/60 relative h-10 w-10 shrink-0 overflow-hidden border shadow-inner">
                       <Input
                         type="color"
                         value={
@@ -806,7 +806,7 @@ export function SettingsContent({
                     <Label className="text-foreground text-sm font-medium">
                       Border Radius
                     </Label>
-                    <span className="bg-gold/10 text-gold-dim dark:text-gold rounded-md px-2.5 py-1 text-xs font-bold tabular-nums">
+                    <span className="bg-gold/10 text-gold-dim dark:text-gold px-2.5 py-1 text-xs font-bold tabular-nums">
                       {borderRadius}px
                     </span>
                   </div>
@@ -888,9 +888,9 @@ export function SettingsContent({
             )}
 
             {visibility.showGridSize && (
-              <div className="border-border/50 bg-muted/30 rounded-xl border p-4 backdrop-blur-sm">
+              <div className="border-border/50 bg-muted/30 border p-4 backdrop-blur-sm">
                 <div className="mb-3 flex items-center gap-2.5">
-                  <div className="bg-gold/10 text-gold dark:bg-gold/15 flex h-7 w-7 items-center justify-center rounded-lg">
+                  <div className="bg-gold/10 text-gold dark:bg-gold/15 flex h-7 w-7 items-center justify-center">
                     <Grid className="h-3.5 w-3.5" />
                   </div>
                   <span className="text-foreground text-sm font-medium">
@@ -1032,9 +1032,9 @@ function ToggleRow({
   ariaLabel: string;
 }>) {
   return (
-    <div className="border-border/50 bg-muted/30 flex items-center justify-between rounded-xl border p-4 backdrop-blur-sm transition-colors">
+    <div className="border-border/50 bg-muted/30 flex items-center justify-between border p-4 backdrop-blur-sm transition-colors">
       <div className="flex items-center gap-3">
-        <div className="bg-gold/10 text-gold dark:bg-gold/15 flex h-8 w-8 items-center justify-center rounded-lg">
+        <div className="bg-gold/10 text-gold dark:bg-gold/15 flex h-8 w-8 items-center justify-center">
           <Icon className="h-4 w-4" />
         </div>
         <div>
