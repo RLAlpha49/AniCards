@@ -57,14 +57,18 @@ export function ProjectsCTA() {
 
         <motion.p
           variants={fadeIn}
-          className="text-gold/50 mb-5 font-mono text-[0.6rem] tracking-[0.5em] uppercase"
+          className="mb-5 font-mono text-[0.6rem] tracking-[0.5em] text-gold/50 uppercase"
         >
           ◆ Contribute
         </motion.p>
 
         <motion.h2
           variants={fadeIn}
-          className="font-display text-foreground mb-4 text-4xl leading-[0.9] sm:text-5xl md:text-6xl"
+          className="
+            mb-4 font-display text-4xl leading-[0.9] text-foreground
+            sm:text-5xl
+            md:text-6xl
+          "
         >
           BUILD WITH
           <br />
@@ -82,7 +86,10 @@ export function ProjectsCTA() {
 
         <motion.p
           variants={fadeIn}
-          className="font-body-serif text-foreground/40 mx-auto mb-12 max-w-md text-sm leading-[1.85] sm:text-base"
+          className="
+            mx-auto mb-12 max-w-md font-body-serif text-sm leading-[1.85] text-foreground/40
+            sm:text-base
+          "
         >
           Every star, issue, and pull request pushes these tools forward. Jump
           in — contributions of any size are genuinely welcome.
@@ -109,7 +116,7 @@ export function ProjectsCTA() {
               >
                 <SimpleGithubIcon size={20} />
                 Visit My GitHub
-                <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" />
               </a>
             </Button>
           </motion.div>
@@ -124,7 +131,7 @@ export function ProjectsCTA() {
           >
             <Button asChild className="imperial-btn imperial-btn-ghost">
               <Link href="/" className="flex items-center gap-2">
-                <GitFork className="h-4 w-4" />
+                <GitFork className="size-4" />
                 Back to Home
               </Link>
             </Button>

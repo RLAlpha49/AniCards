@@ -134,11 +134,14 @@ function CompareControls({
         size="sm"
         aria-pressed={compareEnabled}
         onClick={onToggleCompare}
-        className="border-gold/30 text-gold/80 hover:border-gold/50 hover:bg-gold/10 hover:text-gold h-8"
+        className="
+          h-8 border-gold/30 text-gold/80
+          hover:border-gold/50 hover:bg-gold/10 hover:text-gold
+        "
         title="Compare variants"
       >
-        <Columns2 className="h-4 w-4" aria-hidden="true" />
-        <span className="font-display ml-2 text-xs tracking-wider uppercase">
+        <Columns2 className="size-4" aria-hidden="true" />
+        <span className="ml-2 font-display text-xs tracking-wider uppercase">
           Compare
         </span>
       </Button>
@@ -147,7 +150,7 @@ function CompareControls({
         <div className="flex items-center gap-2">
           <Label
             htmlFor={compareSelectTriggerId}
-            className="font-display text-gold/50 text-xs tracking-wider uppercase"
+            className="font-display text-xs tracking-wider text-gold/50 uppercase"
           >
             With
           </Label>
@@ -155,7 +158,7 @@ function CompareControls({
             <SelectTrigger
               id={compareSelectTriggerId}
               className={cn(
-                "border-gold/25 hover:border-gold/40 h-8 w-40 text-xs",
+                "h-8 w-40 border-gold/25 text-xs hover:border-gold/40",
                 selectTriggerClassName,
               )}
             >
@@ -202,7 +205,11 @@ function PreviewControlsBar({
   return (
     <div
       className={cn(
-        "border-gold/15 bg-gold/3 dark:border-gold/10 dark:bg-gold/3 flex flex-wrap items-center gap-2 border-b-2 px-4 py-2 backdrop-blur-sm",
+        `
+          flex flex-wrap items-center gap-2 border-b-2 border-gold/15 bg-gold/3 px-4 py-2
+          backdrop-blur-sm
+          dark:border-gold/10 dark:bg-gold/3
+        `,
         className,
       )}
     >
@@ -212,12 +219,15 @@ function PreviewControlsBar({
           variant="outline"
           size="sm"
           onClick={onExpand}
-          className="border-gold/30 text-gold/80 hover:border-gold/50 hover:bg-gold/10 hover:text-gold h-8"
+          className="
+            h-8 border-gold/30 text-gold/80
+            hover:border-gold/50 hover:bg-gold/10 hover:text-gold
+          "
           title="Expand preview"
           data-tour="card-expand"
         >
-          <Maximize2 className="h-4 w-4" aria-hidden="true" />
-          <span className="font-display ml-2 text-xs tracking-wider uppercase">
+          <Maximize2 className="size-4" aria-hidden="true" />
+          <span className="ml-2 font-display text-xs tracking-wider uppercase">
             Expand
           </span>
         </Button>
@@ -282,22 +292,27 @@ function ExpandedPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="border-gold/20 max-h-[90vh] w-[min(98vw,96rem)] max-w-none overflow-y-auto rounded-none border-2 p-0">
+      <DialogContent className="
+        max-h-[90vh] w-[min(98vw,96rem)] max-w-none overflow-y-auto rounded-none border-2
+        border-gold/20 p-0
+      ">
         <AnimatePresence>
           {open && (
             <motion.div
-              className="imperial-card group/card-tile overflow-hidden rounded-none border-0 p-0"
+              className="group/card-tile imperial-card overflow-hidden rounded-none border-0 p-0"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
             >
-              <DialogHeader className="bg-background/90 border-b-0 px-6 pt-5 pb-4 backdrop-blur-sm">
-                <DialogTitle className="font-display text-foreground text-sm tracking-[0.2em] uppercase">
+              <DialogHeader className="border-b-0 bg-background/90 px-6 pt-5 pb-4 backdrop-blur-sm">
+                <DialogTitle className="
+                  font-display text-sm tracking-[0.2em] text-foreground uppercase
+                ">
                   {label}
                 </DialogTitle>
                 {hasVariantOptions ? (
-                  <DialogDescription className="text-gold/50 mt-1 text-xs">
+                  <DialogDescription className="mt-1 text-xs text-gold/50">
                     Variant: {primaryVariantLabel}
                   </DialogDescription>
                 ) : (
@@ -305,7 +320,9 @@ function ExpandedPreviewDialog({
                     Card preview
                   </DialogDescription>
                 )}
-                <div className="via-gold/40 mt-3 h-px w-full bg-linear-to-r from-transparent to-transparent" />
+                <div className="
+                  mt-3 h-px w-full bg-linear-to-r from-transparent via-gold/40 to-transparent
+                " />
               </DialogHeader>
 
               <PreviewControlsBar
@@ -314,7 +331,7 @@ function ExpandedPreviewDialog({
                   ...compareControls,
                   selectTriggerClassName: "w-[200px]",
                 }}
-                className="bg-gold/2 dark:bg-gold/2 border-b-0 px-6 py-3"
+                className="border-b-0 bg-gold/2 px-6 py-3 dark:bg-gold/2"
               />
 
               <div
@@ -325,7 +342,7 @@ function ExpandedPreviewDialog({
                   backgroundSize: "20px 20px",
                 }}
               >
-                <div className="border-gold/10 border p-3 sm:p-5">
+                <div className="border border-gold/10 p-3 sm:p-5">
                   <div
                     className={cn(
                       isComparing
@@ -335,7 +352,10 @@ function ExpandedPreviewDialog({
                   >
                     <div>
                       {isComparing ? (
-                        <p className="font-display text-gold/40 mb-2 text-center text-[10px] tracking-[0.15em] uppercase">
+                        <p className="
+                          mb-2 text-center font-display text-[10px] tracking-[0.15em] text-gold/40
+                          uppercase
+                        ">
                           {primaryVariantLabel}
                         </p>
                       ) : null}
@@ -355,13 +375,19 @@ function ExpandedPreviewDialog({
 
                     {isComparing ? (
                       <div className="mx-3 hidden items-stretch sm:flex">
-                        <div className="via-gold/30 w-px self-stretch bg-linear-to-b from-transparent to-transparent" />
+                        <div className="
+                          w-px self-stretch bg-linear-to-b from-transparent via-gold/30
+                          to-transparent
+                        " />
                       </div>
                     ) : null}
 
                     {isComparing ? (
                       <div>
-                        <p className="font-display text-gold/40 mb-2 text-center text-[10px] tracking-[0.15em] uppercase">
+                        <p className="
+                          mb-2 text-center font-display text-[10px] tracking-[0.15em] text-gold/40
+                          uppercase
+                        ">
                           {compareVariantLabel ?? compareVariant}
                         </p>
                         <CardPreview
@@ -378,7 +404,9 @@ function ExpandedPreviewDialog({
                 </div>
               </div>
 
-              <div className="via-gold/25 h-px w-full bg-linear-to-r from-transparent to-transparent" />
+              <div className="
+                h-px w-full bg-linear-to-r from-transparent via-gold/25 to-transparent
+              " />
 
               <VariantSelector
                 variations={variations}
@@ -725,20 +753,36 @@ export const CardTile = memo(function CardTile({
       data-tour="card-tile"
       className={cn(
         "group/card-tile relative overflow-hidden border-2 transition-all duration-300",
-        "focus-within:ring-gold/70 dark:focus-within:ring-offset-background focus-within:ring-2 focus-within:ring-offset-2",
+        `
+          focus-within:ring-2 focus-within:ring-gold/70 focus-within:ring-offset-2
+          dark:focus-within:ring-offset-background
+        `,
         isDragging && "z-10 cursor-grabbing opacity-80",
         config.enabled
-          ? "border-gold/15 from-gold/5 via-background to-gold/3 hover:border-gold/30 dark:border-gold/10 dark:hover:border-gold/25 bg-linear-to-br shadow-md backdrop-blur-sm hover:shadow-[0_0_20px_hsl(var(--gold)/0.08)]"
-          : "border-gold/15 from-gold/3 via-background to-gold/2 dark:border-gold/10 bg-linear-to-br backdrop-blur-sm",
+          ? `
+            border-gold/15 bg-linear-to-br from-gold/5 via-background to-gold/3 shadow-md
+            backdrop-blur-sm
+            hover:border-gold/30 hover:shadow-[0_0_20px_hsl(var(--gold)/0.08)]
+            dark:border-gold/10
+            dark:hover:border-gold/25
+          `
+          : `
+            border-gold/15 bg-linear-to-br from-gold/3 via-background to-gold/2 backdrop-blur-sm
+            dark:border-gold/10
+          `,
         isSelected &&
           config.enabled &&
-          "ring-gold dark:ring-offset-background ring-2 ring-offset-2",
+          "ring-2 ring-gold ring-offset-2 dark:ring-offset-background",
         (isPreviewHovered || isAnyPopoverOpen) &&
-          "shadow-gold/10 -translate-y-0.5 shadow-xl",
+          "-translate-y-0.5 shadow-xl shadow-gold/10",
       )}
     >
-      <div className="border-gold/60 pointer-events-none absolute top-0 left-0 h-3 w-3 border-t-2 border-l-2" />
-      <div className="border-gold/60 pointer-events-none absolute right-0 bottom-0 h-3 w-3 border-r-2 border-b-2" />
+      <div className="
+        pointer-events-none absolute top-0 left-0 size-3 border-t-2 border-l-2 border-gold/60
+      " />
+      <div className="
+        pointer-events-none absolute right-0 bottom-0 size-3 border-r-2 border-b-2 border-gold/60
+      " />
 
       <CardTileHeader
         label={label}

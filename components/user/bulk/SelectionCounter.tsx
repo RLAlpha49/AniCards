@@ -27,20 +27,31 @@ export function SelectionCounter({
   onSelectGroup,
 }: Readonly<SelectionCounterProps>) {
   return (
-    <div className="sm:border-gold/20 dark:sm:border-gold/15 flex items-center gap-2 sm:border-r sm:pr-3">
-      <div className="bg-gold/15 dark:bg-gold/10 flex h-8 w-8 items-center justify-center">
-        <CheckSquare className="text-gold-dim dark:text-gold h-4 w-4" />
+    <div className="
+      flex items-center gap-2
+      sm:border-r sm:border-gold/20 sm:pr-3
+      dark:sm:border-gold/15
+    ">
+      <div className="flex size-8 items-center justify-center bg-gold/15 dark:bg-gold/10">
+        <CheckSquare className="size-4 text-gold-dim dark:text-gold" />
       </div>
 
       <div className="flex flex-col">
-        <span className="text-foreground text-sm font-semibold">
+        <span className="text-sm font-semibold text-foreground">
           {selectedCount} selected
         </span>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={onSelectAllEnabled}
-            className="text-gold-dim hover:text-gold focus-visible:ring-gold/50 dark:text-gold dark:hover:text-gold text-left text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
+            className="
+              text-left text-xs text-gold-dim
+              hover:text-gold
+              focus:outline-none
+              focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-1
+              dark:text-gold
+              dark:hover:text-gold
+            "
             aria-label="Select all enabled cards"
             aria-keyshortcuts="Control+A Meta+A"
             title="Select all enabled (Ctrl/Cmd+A)"
@@ -53,7 +64,14 @@ export function SelectionCounter({
               <PopoverTrigger asChild>
                 <button
                   type="button"
-                  className="text-gold-dim hover:text-gold focus-visible:ring-gold/50 dark:text-gold dark:hover:text-gold text-left text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
+                  className="
+                    text-left text-xs text-gold-dim
+                    hover:text-gold
+                    focus:outline-none
+                    focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-1
+                    dark:text-gold
+                    dark:hover:text-gold
+                  "
                   aria-label="Select cards by category"
                 >
                   Select by category

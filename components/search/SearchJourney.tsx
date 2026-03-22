@@ -36,10 +36,10 @@ export function SearchJourney() {
         transition={{ duration: 0.6 }}
         className="mb-16 text-center"
       >
-        <p className="text-gold mb-4 text-xs tracking-[0.5em] uppercase sm:text-sm">
+        <p className="mb-4 text-xs tracking-[0.5em] text-gold uppercase sm:text-sm">
           The Process
         </p>
-        <h2 className="font-display text-foreground mb-4 text-3xl tracking-[0.15em] sm:text-4xl">
+        <h2 className="mb-4 font-display text-3xl tracking-[0.15em] text-foreground sm:text-4xl">
           YOUR PATH
         </h2>
         <div className="gold-line-thick mx-auto max-w-20" />
@@ -50,7 +50,7 @@ export function SearchJourney() {
           {/* Horizontal connecting line (desktop) */}
           <div className="absolute top-16 right-[16.67%] left-[16.67%] hidden h-px md:block">
             <motion.div
-              className="from-gold/40 via-gold/15 to-gold/40 h-full w-full origin-left bg-linear-to-r"
+              className="size-full origin-left bg-linear-to-r from-gold/40 via-gold/15 to-gold/40"
               initial={{ scaleX: 0 }}
               whileInView={{ scaleX: 1 }}
               viewport={{ once: true }}
@@ -85,7 +85,11 @@ export function SearchJourney() {
                   delay: i * 0.15 + 0.2,
                   ease: EASE_OUT_EXPO,
                 }}
-                className="font-display text-gold/6 pointer-events-none absolute -top-6 text-8xl font-black select-none md:text-9xl"
+                className="
+                  pointer-events-none absolute -top-6 font-display text-8xl font-black text-gold/6
+                  select-none
+                  md:text-9xl
+                "
               >
                 {step.num}
               </motion.div>
@@ -97,9 +101,12 @@ export function SearchJourney() {
                   borderColor: "hsl(42 63% 55% / 0.5)",
                 }}
                 transition={{ duration: 0.25 }}
-                className="border-gold/20 bg-background relative z-10 mb-6 flex h-32 w-32 items-center justify-center border-2"
+                className="
+                  relative z-10 mb-6 flex size-32 items-center justify-center border-2
+                  border-gold/20 bg-background
+                "
               >
-                <div className="bg-gold/3 absolute inset-0" />
+                <div className="absolute inset-0 bg-gold/3" />
                 <motion.div
                   initial={{ opacity: 0, scale: 0 }}
                   whileInView={{ opacity: 1, scale: 1 }}
@@ -107,21 +114,27 @@ export function SearchJourney() {
                   transition={{ ...SPRING_GENTLE, delay: i * 0.15 + 0.35 }}
                   className="relative z-10"
                 >
-                  <step.icon className="text-gold/70 h-8 w-8" />
+                  <step.icon className="size-8 text-gold/70" />
                 </motion.div>
 
                 {/* Corner ticks */}
-                <div className="border-gold/50 absolute -top-1 -left-1 h-3 w-3 border-t-2 border-l-2" />
-                <div className="border-gold/50 absolute -top-1 -right-1 h-3 w-3 border-t-2 border-r-2" />
-                <div className="border-gold/50 absolute -bottom-1 -left-1 h-3 w-3 border-b-2 border-l-2" />
-                <div className="border-gold/50 absolute -right-1 -bottom-1 h-3 w-3 border-r-2 border-b-2" />
+                <div className="absolute -top-1 -left-1 size-3 border-t-2 border-l-2 border-gold/50" />
+                <div className="
+                  absolute -top-1 -right-1 size-3 border-t-2 border-r-2 border-gold/50
+                " />
+                <div className="
+                  absolute -bottom-1 -left-1 size-3 border-b-2 border-l-2 border-gold/50
+                " />
+                <div className="
+                  absolute -right-1 -bottom-1 size-3 border-r-2 border-b-2 border-gold/50
+                " />
               </motion.div>
 
-              <h3 className="font-display text-foreground mb-3 text-sm tracking-[0.3em]">
+              <h3 className="mb-3 font-display text-sm tracking-[0.3em] text-foreground">
                 {step.title}
               </h3>
               <div className="gold-line mx-auto mb-4 max-w-12" />
-              <p className="font-body-serif text-foreground/45 max-w-xs text-sm leading-relaxed">
+              <p className="max-w-xs font-body-serif text-sm/relaxed text-foreground/45">
                 {step.desc}
               </p>
             </motion.div>

@@ -232,17 +232,20 @@ function ColorPresetSelectorComponent({
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <Label className="text-foreground font-display text-base font-bold">
+        <Label className="font-display text-base font-bold text-foreground">
           Choose a Preset
         </Label>
-        <span className="bg-gold/10 text-gold-dim dark:bg-gold/10 dark:text-gold px-2.5 py-1 text-xs font-medium">
+        <span className="
+          bg-gold/10 px-2.5 py-1 text-xs font-medium text-gold-dim
+          dark:bg-gold/10 dark:text-gold
+        ">
           {filteredPresets.length} of {sortedPresets.length}
         </span>
       </div>
 
       <div className="space-y-3">
         <div className="flex items-center gap-2">
-          <Filter className="text-gold-dim/60 dark:text-gold/60 h-4 w-4" />
+          <Filter className="size-4 text-gold-dim/60 dark:text-gold/60" />
           <div className="flex gap-1.5">
             {[
               { value: "all", label: "All Types" },
@@ -272,11 +275,19 @@ function ColorPresetSelectorComponent({
                 className={cn(
                   "h-8 gap-1.5 px-3 text-xs font-medium transition-all",
                   colorTypeFilter === option.value
-                    ? "from-gold to-gold-dim shadow-gold/20 bg-linear-to-r via-amber-500 text-white shadow-md"
-                    : "border-gold/20 bg-background text-muted-foreground hover:border-gold/40 hover:bg-gold/5 dark:border-gold/15 dark:hover:border-gold/30",
+                    ? `
+                      bg-linear-to-r from-gold via-amber-500 to-gold-dim text-white shadow-md
+                      shadow-gold/20
+                    `
+                    : `
+                      border-gold/20 bg-background text-muted-foreground
+                      hover:border-gold/40 hover:bg-gold/5
+                      dark:border-gold/15
+                      dark:hover:border-gold/30
+                    `,
                 )}
               >
-                {option.icon && <option.icon className="h-3 w-3" />}
+                {option.icon && <option.icon className="size-3" />}
                 {option.label}
                 {option.count !== undefined && (
                   <span className="text-[10px] opacity-70">
@@ -289,7 +300,7 @@ function ColorPresetSelectorComponent({
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="h-4 w-4" />
+          <span className="size-4" />
           <div className="flex gap-1.5">
             {[
               { value: "all", label: "All Themes" },
@@ -317,11 +328,19 @@ function ColorPresetSelectorComponent({
                 className={cn(
                   "h-8 gap-1.5 px-3 text-xs font-medium transition-all",
                   themeFilter === option.value
-                    ? "from-gold to-gold-dim shadow-gold/20 bg-linear-to-r via-amber-500 text-white shadow-md"
-                    : "border-gold/20 bg-background text-muted-foreground hover:border-gold/40 hover:bg-gold/5 dark:border-gold/15 dark:hover:border-gold/30",
+                    ? `
+                      bg-linear-to-r from-gold via-amber-500 to-gold-dim text-white shadow-md
+                      shadow-gold/20
+                    `
+                    : `
+                      border-gold/20 bg-background text-muted-foreground
+                      hover:border-gold/40 hover:bg-gold/5
+                      dark:border-gold/15
+                      dark:hover:border-gold/30
+                    `,
                 )}
               >
-                {option.icon && <option.icon className="h-3 w-3" />}
+                {option.icon && <option.icon className="size-3" />}
                 {option.label}
                 {option.count !== undefined && (
                   <span className="text-[10px] opacity-70">
@@ -357,22 +376,40 @@ function ColorPresetSelectorComponent({
                       type="button"
                       onClick={() => handlePresetChange(key)}
                       className={cn(
-                        "group relative flex aspect-3/2 w-full items-center justify-center overflow-hidden border-2 transition-all duration-200",
+                        `
+                          group relative flex aspect-3/2 w-full items-center justify-center
+                          overflow-hidden border-2 transition-all duration-200
+                        `,
                         isSelected
-                          ? "border-gold ring-gold/20 dark:border-gold dark:ring-gold/20 ring-4"
-                          : "hover:border-gold/40 dark:hover:border-gold/30 border-transparent hover:shadow-lg",
+                          ? "border-gold ring-4 ring-gold/20 dark:border-gold dark:ring-gold/20"
+                          : `
+                            border-transparent
+                            hover:border-gold/40 hover:shadow-lg
+                            dark:hover:border-gold/30
+                          `,
                         "bg-white shadow-sm dark:bg-slate-800",
                       )}
                     >
                       {isCustom ? (
-                        <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-linear-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900">
-                          <Sparkles className="h-5 w-5 text-slate-400 transition-colors group-hover:text-purple-500 dark:text-slate-500" />
-                          <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                        <div className="
+                          flex size-full flex-col items-center justify-center gap-1 bg-linear-to-br
+                          from-slate-50 to-slate-100
+                          dark:from-slate-800 dark:to-slate-900
+                        ">
+                          <Sparkles className="
+                            size-5 text-slate-400 transition-colors
+                            group-hover:text-purple-500
+                            dark:text-slate-500
+                          " />
+                          <span className="
+                            text-[10px] font-medium text-slate-400
+                            dark:text-slate-500
+                          ">
                             Custom
                           </span>
                         </div>
                       ) : (
-                        <div className="flex h-full w-full">
+                        <div className="flex size-full">
                           {colors.map((color, i) => (
                             <div
                               key={`${colorValueToString(color)}-${i}`}
@@ -389,10 +426,16 @@ function ColorPresetSelectorComponent({
                         <motion.div
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
-                          className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-[2px]"
+                          className="
+                            absolute inset-0 flex items-center justify-center bg-black/30
+                            backdrop-blur-[2px]
+                          "
                         >
-                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-lg dark:bg-slate-900">
-                            <Check className="text-gold dark:text-gold h-4 w-4" />
+                          <div className="
+                            flex size-7 items-center justify-center rounded-full bg-white shadow-lg
+                            dark:bg-slate-900
+                          ">
+                            <Check className="size-4 text-gold dark:text-gold" />
                           </div>
                         </motion.div>
                       )}
@@ -401,7 +444,7 @@ function ColorPresetSelectorComponent({
                         <div className="absolute top-1.5 left-1.5 flex gap-1">
                           {containsGradient && (
                             <div className="rounded-full bg-purple-500/90 p-1 shadow-sm">
-                              <Layers className="h-2.5 w-2.5 text-white" />
+                              <Layers className="size-2.5 text-white" />
                             </div>
                           )}
                         </div>
@@ -418,9 +461,9 @@ function ColorPresetSelectorComponent({
                             )}
                           >
                             {mode === "light" ? (
-                              <Sun className="h-2.5 w-2.5 text-white" />
+                              <Sun className="size-2.5 text-white" />
                             ) : (
-                              <Moon className="h-2.5 w-2.5 text-white" />
+                              <Moon className="size-2.5 text-white" />
                             )}
                           </div>
                         </div>
@@ -429,7 +472,11 @@ function ColorPresetSelectorComponent({
                   </TooltipTrigger>
                   <TooltipContent
                     side="bottom"
-                    className="flex items-center gap-2 border-slate-200/50 bg-white/95 px-3 py-2 shadow-lg backdrop-blur-sm dark:border-slate-700/50 dark:bg-slate-900/95"
+                    className="
+                      flex items-center gap-2 border-slate-200/50 bg-white/95 px-3 py-2 shadow-lg
+                      backdrop-blur-sm
+                      dark:border-slate-700/50 dark:bg-slate-900/95
+                    "
                   >
                     <span className="font-semibold text-slate-900 capitalize dark:text-white">
                       {key.replaceAll(/([A-Z])/g, " $1").trim()}
@@ -438,7 +485,10 @@ function ColorPresetSelectorComponent({
                       {mode === "light" ? "Light" : "Dark"}
                     </span>
                     {containsGradient && (
-                      <span className="bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-600 dark:bg-purple-900/50 dark:text-purple-400">
+                      <span className="
+                        bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-600
+                        dark:bg-purple-900/50 dark:text-purple-400
+                      ">
                         Gradient
                       </span>
                     )}
@@ -461,16 +511,22 @@ function ColorPresetSelectorComponent({
             size="sm"
             type="button"
             onClick={() => setIsExpanded(!isExpanded)}
-            className="border-gold/20 bg-background text-muted-foreground hover:border-gold/40 hover:bg-gold/5 dark:border-gold/15 dark:hover:border-gold/30 gap-2 px-4 text-sm font-medium shadow-sm hover:shadow-md"
+            className="
+              gap-2 border-gold/20 bg-background px-4 text-sm font-medium text-muted-foreground
+              shadow-sm
+              hover:border-gold/40 hover:bg-gold/5 hover:shadow-md
+              dark:border-gold/15
+              dark:hover:border-gold/30
+            "
           >
             {isExpanded ? (
               <>
-                <ChevronUp className="h-4 w-4" />
+                <ChevronUp className="size-4" />
                 Show less
               </>
             ) : (
               <>
-                <ChevronDown className="h-4 w-4" />
+                <ChevronDown className="size-4" />
                 Show all {totalPresets} presets
               </>
             )}

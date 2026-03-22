@@ -10,7 +10,7 @@ function Skeleton({
   ...props
 }: Readonly<React.HTMLAttributes<HTMLDivElement>>) {
   return (
-    <div className={cn("bg-primary/10 animate-pulse", className)} {...props} />
+    <div className={cn("animate-pulse bg-primary/10", className)} {...props} />
   );
 }
 

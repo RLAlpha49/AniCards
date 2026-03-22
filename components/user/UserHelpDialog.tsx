@@ -88,17 +88,17 @@ function renderBlock(block: UserHelpBlock) {
   switch (block.type) {
     case "p":
       return (
-        <p className="font-body-serif text-muted-foreground text-[0.9rem] leading-[1.7]">
+        <p className="font-body-serif text-[0.9rem] leading-[1.7] text-muted-foreground">
           {block.text}
         </p>
       );
     case "note":
       return (
-        <div className="border-gold/40 bg-gold/4 dark:bg-gold/4 relative border-l-2 py-3 pr-4 pl-4">
-          <span className="font-display text-gold/70 text-[0.65rem] tracking-[0.2em] uppercase">
+        <div className="relative border-l-2 border-gold/40 bg-gold/4 px-4 py-3 dark:bg-gold/4">
+          <span className="font-display text-[0.65rem] tracking-[0.2em] text-gold/70 uppercase">
             Note
           </span>
-          <p className="font-body-serif text-foreground/80 mt-1 text-[0.85rem] leading-[1.65]">
+          <p className="mt-1 font-body-serif text-[0.85rem] leading-[1.65] text-foreground/80">
             {block.text}
           </p>
         </div>
@@ -111,8 +111,8 @@ function renderBlock(block: UserHelpBlock) {
               key={`${idx}-${item}`}
               className="flex items-start gap-3 text-[0.9rem]"
             >
-              <span className="bg-gold/50 mt-[0.55rem] h-1 w-1 shrink-0 rounded-full" />
-              <span className="text-muted-foreground leading-[1.65]">
+              <span className="mt-[0.55rem] size-1 shrink-0 rounded-full bg-gold/50" />
+              <span className="leading-[1.65] text-muted-foreground">
                 {item}
               </span>
             </li>
@@ -127,10 +127,13 @@ function renderBlock(block: UserHelpBlock) {
               key={`${idx}-${item}`}
               className="flex items-start gap-3 text-[0.9rem]"
             >
-              <span className="font-display text-gold/80 border-gold/25 mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center border text-[0.65rem]">
+              <span className="
+                mt-0.5 flex size-5 shrink-0 items-center justify-center border border-gold/25
+                font-display text-[0.65rem] text-gold/80
+              ">
                 {idx + 1}
               </span>
-              <span className="text-muted-foreground leading-[1.65]">
+              <span className="leading-[1.65] text-muted-foreground">
                 {item}
               </span>
             </li>
@@ -141,7 +144,12 @@ function renderBlock(block: UserHelpBlock) {
       return block.href.startsWith("/") ? (
         <Link
           href={block.href}
-          className="font-display text-gold-dim dark:text-gold group hover:text-gold inline-flex items-center gap-1.5 text-[0.75rem] tracking-[0.12em] uppercase transition-colors"
+          className="
+            group inline-flex items-center gap-1.5 font-display text-[0.75rem] tracking-[0.12em]
+            text-gold-dim uppercase transition-colors
+            hover:text-gold
+            dark:text-gold
+          "
         >
           {block.label}
           <span className="transition-transform group-hover:translate-x-0.5">
@@ -153,7 +161,12 @@ function renderBlock(block: UserHelpBlock) {
           href={block.href}
           target="_blank"
           rel="noopener noreferrer"
-          className="font-display text-gold-dim dark:text-gold group hover:text-gold inline-flex items-center gap-1.5 text-[0.75rem] tracking-[0.12em] uppercase transition-colors"
+          className="
+            group inline-flex items-center gap-1.5 font-display text-[0.75rem] tracking-[0.12em]
+            text-gold-dim uppercase transition-colors
+            hover:text-gold
+            dark:text-gold
+          "
         >
           {block.label}
           <span className="transition-transform group-hover:translate-x-0.5">
@@ -241,25 +254,37 @@ export function UserHelpDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="grid max-h-[88vh] max-w-4xl grid-cols-1 gap-0 overflow-hidden p-0 md:grid-cols-[230px_1fr]">
+      <DialogContent className="
+        grid max-h-[88vh] max-w-4xl grid-cols-1 gap-0 overflow-hidden p-0
+        md:grid-cols-[230px_1fr]
+      ">
         {/* Ambient glow */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="bg-gold/4 absolute -top-32 -right-32 h-64 w-64 rounded-full blur-3xl" />
-          <div className="bg-gold/3 absolute -bottom-24 -left-24 h-48 w-48 rounded-full blur-3xl" />
+          <div className="absolute -top-32 -right-32 size-64 rounded-full bg-gold/4 blur-3xl" />
+          <div className="absolute -bottom-24 -left-24 size-48 rounded-full bg-gold/3 blur-3xl" />
         </div>
 
         {/* Desktop sidebar — spans full height */}
-        <div className="border-gold/10 bg-gold/2 dark:bg-gold/1.5 hidden border-r md:flex md:flex-col">
+        <div className="
+          hidden border-r border-gold/10 bg-gold/2
+          md:flex md:flex-col
+          dark:bg-gold/1.5
+        ">
           <div className="shrink-0 px-4 pt-4 pb-2">
             <div className="relative">
-              <Search className="text-gold/40 absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2" />
+              <Search className="absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-gold/40" />
               <input
                 id="user-help-search"
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search topics..."
-                className="border-gold/15 text-foreground placeholder:text-muted-foreground/50 focus:border-gold/35 h-9 w-full border bg-transparent pr-3 pl-9 text-sm transition-colors focus:outline-none"
+                className="
+                  h-9 w-full border border-gold/15 bg-transparent pr-3 pl-9 text-sm text-foreground
+                  transition-colors
+                  placeholder:text-muted-foreground/50
+                  focus:border-gold/35 focus:outline-none
+                "
                 aria-label="Search help topics"
               />
             </div>
@@ -267,10 +292,10 @@ export function UserHelpDialog({
 
           <nav
             aria-label="Help topics"
-            className="overlay-scrollbar min-h-0 flex-1 overflow-y-auto px-2 pb-3"
+            className="min-h-0 flex-1 overflow-y-auto px-2 pb-3"
           >
             {filteredTopics.length === 0 ? (
-              <p className="text-muted-foreground/50 px-3 py-6 text-center text-xs italic">
+              <p className="px-3 py-6 text-center text-xs text-muted-foreground/50 italic">
                 No matching topics.
               </p>
             ) : (
@@ -284,7 +309,10 @@ export function UserHelpDialog({
                       type="button"
                       onClick={() => setSelectedTopicId(t.id)}
                       className={cn(
-                        "group relative flex w-full items-center gap-3 px-3 py-2.5 text-left transition-all duration-200",
+                        `
+                          group relative flex w-full items-center gap-3 px-3 py-2.5 text-left
+                          transition-all duration-200
+                        `,
                         isActive
                           ? "bg-gold/8 dark:bg-gold/8"
                           : "hover:bg-gold/4 dark:hover:bg-gold/4",
@@ -293,17 +321,23 @@ export function UserHelpDialog({
                     >
                       <div
                         className={cn(
-                          "absolute top-1/2 left-0 h-5 w-0.5 -translate-y-1/2 transition-all duration-300",
+                          `
+                            absolute top-1/2 left-0 h-5 w-0.5 -translate-y-1/2 transition-all
+                            duration-300
+                          `,
                           isActive
                             ? "bg-gold opacity-100"
-                            : "group-hover:bg-gold/30 bg-transparent opacity-0 group-hover:opacity-100",
+                            : `
+                              bg-transparent opacity-0
+                              group-hover:bg-gold/30 group-hover:opacity-100
+                            `,
                         )}
                       />
 
                       {Icon && (
                         <Icon
                           className={cn(
-                            "h-4 w-4 shrink-0 transition-colors duration-200",
+                            "size-4 shrink-0 transition-colors duration-200",
                             isActive
                               ? "text-gold"
                               : "text-muted-foreground/35 group-hover:text-gold/50",
@@ -315,7 +349,7 @@ export function UserHelpDialog({
                         className={cn(
                           "truncate text-sm transition-colors duration-200",
                           isActive
-                            ? "text-foreground font-medium"
+                            ? "font-medium text-foreground"
                             : "text-muted-foreground group-hover:text-foreground/70",
                         )}
                       >
@@ -337,33 +371,39 @@ export function UserHelpDialog({
               <DialogTitle className="text-center text-base tracking-[0.25em] uppercase">
                 Imperial Guide
               </DialogTitle>
-              <DialogDescription className="mx-auto mt-2 max-w-md text-center text-[0.82rem] leading-relaxed">
+              <DialogDescription className="
+                mx-auto mt-2 max-w-md text-center text-[0.82rem] leading-relaxed
+              ">
                 Dig through the topics below or search for what you need.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="gold-ornament mt-4 mb-0">
+            <div className="mt-4 mb-0 gold-ornament">
               <GoldDiamond />
             </div>
           </div>
 
           {/* Mobile topic strip */}
-          <div className="border-gold/10 shrink-0 border-y px-4 py-3 md:hidden">
+          <div className="shrink-0 border-y border-gold/10 px-4 py-3 md:hidden">
             <div className="relative mb-2.5">
-              <Search className="text-gold/40 absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2" />
+              <Search className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-gold/40" />
               <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search topics..."
-                className="border-gold/15 text-foreground placeholder:text-muted-foreground/50 focus:border-gold/35 h-8 w-full border bg-transparent pr-3 pl-8 text-sm focus:outline-none"
+                className="
+                  h-8 w-full border border-gold/15 bg-transparent pr-3 pl-8 text-sm text-foreground
+                  placeholder:text-muted-foreground/50
+                  focus:border-gold/35 focus:outline-none
+                "
                 aria-label="Search help topics"
               />
             </div>
 
-            <div className="overlay-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5">
+            <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5">
               {filteredTopics.length === 0 ? (
-                <p className="text-muted-foreground/50 py-1 text-xs italic">
+                <p className="py-1 text-xs text-muted-foreground/50 italic">
                   No results
                 </p>
               ) : (
@@ -376,13 +416,19 @@ export function UserHelpDialog({
                       type="button"
                       onClick={() => setSelectedTopicId(t.id)}
                       className={cn(
-                        "flex shrink-0 items-center gap-1.5 border px-3 py-1.5 text-xs transition-all",
+                        `
+                          flex shrink-0 items-center gap-1.5 border px-3 py-1.5 text-xs
+                          transition-all
+                        `,
                         isActive
                           ? "border-gold/35 bg-gold/10 text-foreground"
-                          : "border-gold/10 text-muted-foreground hover:border-gold/25 hover:bg-gold/5",
+                          : `
+                            border-gold/10 text-muted-foreground
+                            hover:border-gold/25 hover:bg-gold/5
+                          `,
                       )}
                     >
-                      {Icon && <Icon className="h-3 w-3" />}
+                      {Icon && <Icon className="size-3" />}
                       {t.title}
                     </button>
                   );
@@ -392,15 +438,12 @@ export function UserHelpDialog({
           </div>
 
           {/* Content panel */}
-          <div
-            ref={contentRef}
-            className="overlay-scrollbar min-h-0 flex-1 overflow-y-auto"
-          >
+          <div ref={contentRef} className="min-h-0 flex-1 overflow-y-auto">
             {selectedTopic ? (
               <article
                 aria-label={selectedTopic.title}
                 key={selectedTopic.id}
-                className="animate-in fade-in px-6 py-6 duration-200 md:px-8"
+                className="animate-in p-6 duration-200 fade-in md:px-8"
               >
                 <header className="mb-5">
                   <div className="flex items-center gap-3.5">
@@ -408,16 +451,24 @@ export function UserHelpDialog({
                       const Icon = TOPIC_ICONS[selectedTopic.id];
                       if (!Icon) return null;
                       return (
-                        <div className="border-gold/20 bg-gold/5 flex h-9 w-9 shrink-0 items-center justify-center border">
-                          <Icon className="text-gold h-5 w-5" />
+                        <div className="
+                          flex size-9 shrink-0 items-center justify-center border border-gold/20
+                          bg-gold/5
+                        ">
+                          <Icon className="size-5 text-gold" />
                         </div>
                       );
                     })()}
                     <div>
-                      <h3 className="font-display text-foreground text-[0.95rem] leading-tight tracking-[0.18em] uppercase">
+                      <h3 className="
+                        font-display text-[0.95rem] leading-tight tracking-[0.18em] text-foreground
+                        uppercase
+                      ">
                         {selectedTopic.title}
                       </h3>
-                      <p className="font-body-serif text-muted-foreground/60 mt-0.5 text-[0.78rem] italic">
+                      <p className="
+                        mt-0.5 font-body-serif text-[0.78rem] text-muted-foreground/60 italic
+                      ">
                         {selectedTopic.summary}
                       </p>
                     </div>
@@ -435,7 +486,7 @@ export function UserHelpDialog({
               </article>
             ) : (
               <div className="flex h-full items-center justify-center py-20">
-                <p className="font-body-serif text-muted-foreground/40 text-sm italic">
+                <p className="font-body-serif text-sm text-muted-foreground/40 italic">
                   Pick a topic from the sidebar to get started.
                 </p>
               </div>
@@ -443,9 +494,9 @@ export function UserHelpDialog({
           </div>
 
           {/* Footer */}
-          <div className="border-gold/15 relative shrink-0 border-t px-6 py-3.5 md:px-8">
+          <div className="relative shrink-0 border-t border-gold/15 px-6 py-3.5 md:px-8">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <span className="text-muted-foreground/45 font-mono text-[0.68rem] tracking-wide">
+              <span className="font-mono text-[0.68rem] tracking-wide text-muted-foreground/45">
                 <kbd className="text-gold/50">Ctrl/Cmd + H</kbd> to toggle
               </span>
 
@@ -454,7 +505,11 @@ export function UserHelpDialog({
                   <Button
                     type="button"
                     variant="ghost"
-                    className="font-display border-gold/20 hover:border-gold/40 hover:bg-gold/8 h-8 rounded-none border px-4 text-[0.68rem] tracking-[0.12em] uppercase transition-all"
+                    className="
+                      h-8 rounded-none border border-gold/20 px-4 font-display text-[0.68rem]
+                      tracking-[0.12em] uppercase transition-all
+                      hover:border-gold/40 hover:bg-gold/8
+                    "
                     onClick={onStartTour}
                   >
                     Start Tour
@@ -463,7 +518,11 @@ export function UserHelpDialog({
 
                 <Button
                   variant="ghost"
-                  className="font-display border-gold/20 hover:border-gold/40 hover:bg-gold/8 h-8 rounded-none border px-4 text-[0.68rem] tracking-[0.12em] uppercase transition-all"
+                  className="
+                    h-8 rounded-none border border-gold/20 px-4 font-display text-[0.68rem]
+                    tracking-[0.12em] uppercase transition-all
+                    hover:border-gold/40 hover:bg-gold/8
+                  "
                   asChild
                 >
                   <Link href="/examples">Examples</Link>
@@ -472,7 +531,11 @@ export function UserHelpDialog({
                 <DialogClose asChild>
                   <Button
                     type="button"
-                    className="font-display border-gold/30 bg-gold/10 text-foreground hover:bg-gold/18 h-8 rounded-none border px-5 text-[0.68rem] tracking-[0.12em] uppercase transition-all"
+                    className="
+                      h-8 rounded-none border border-gold/30 bg-gold/10 px-5 font-display
+                      text-[0.68rem] tracking-[0.12em] text-foreground uppercase transition-all
+                      hover:bg-gold/18
+                    "
                   >
                     Close
                   </Button>

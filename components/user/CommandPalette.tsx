@@ -76,13 +76,13 @@ function writeRecentActions(storageKey: string, actions: RecentAction[]) {
 function defaultIconForGroup(group: CommandPaletteCommand["group"]) {
   switch (group) {
     case "editor":
-      return <Search className="h-4 w-4" aria-hidden="true" />;
+      return <Search className="size-4" aria-hidden="true" />;
     case "bulk":
-      return <Layers className="h-4 w-4" aria-hidden="true" />;
+      return <Layers className="size-4" aria-hidden="true" />;
     case "help":
-      return <Info className="h-4 w-4" aria-hidden="true" />;
+      return <Info className="size-4" aria-hidden="true" />;
     default:
-      return <Search className="h-4 w-4" aria-hidden="true" />;
+      return <Search className="size-4" aria-hidden="true" />;
   }
 }
 
@@ -93,12 +93,12 @@ function ShortcutBadge({ hint }: Readonly<{ hint: string }>) {
       {keys.map((key, i) => (
         <React.Fragment key={key}>
           {i > 0 && (
-            <span className="text-muted-foreground/40 text-[9px]">+</span>
+            <span className="text-[9px] text-muted-foreground/40">+</span>
           )}
           <kbd
             className={cn(
               "inline-flex h-5 min-w-5 items-center justify-center px-1",
-              "border-gold/15 bg-gold/5 border text-[10px] font-semibold",
+              "border border-gold/15 bg-gold/5 text-[10px] font-semibold",
               "text-gold-dim/70 dark:border-gold/10 dark:bg-gold/5 dark:text-gold/50",
               "shadow-[inset_0_-1px_0_hsl(var(--gold)/0.08)]",
             )}
@@ -138,28 +138,32 @@ function CommandItem({
         "group/cmd relative mx-1 flex cursor-pointer items-center gap-3 px-3 py-2.5",
         "text-foreground transition-all duration-150",
         "aria-selected:bg-gold/[0.07] aria-selected:shadow-[inset_3px_0_0_hsl(var(--gold)/0.6)]",
-        "dark:aria-selected:bg-gold/5 dark:aria-selected:shadow-[inset_3px_0_0_hsl(var(--gold)/0.5)]",
+        `
+          dark:aria-selected:bg-gold/5
+          dark:aria-selected:shadow-[inset_3px_0_0_hsl(var(--gold)/0.5)]
+        `,
         "data-disabled:pointer-events-none data-disabled:opacity-40",
       )}
     >
       <span
         className={cn(
-          "relative flex h-8 w-8 shrink-0 items-center justify-center",
-          "border-gold/15 from-gold/10 to-gold/4 border bg-linear-to-br",
+          "relative flex size-8 shrink-0 items-center justify-center",
+          "border border-gold/15 bg-linear-to-br from-gold/10 to-gold/4",
           "text-gold-dim dark:border-gold/10 dark:from-gold/10 dark:to-gold/4 dark:text-gold/80",
           "transition-colors duration-150",
-          "group-aria-selected/cmd:border-gold/25 group-aria-selected/cmd:from-gold/15 group-aria-selected/cmd:to-gold/6",
+          `
+            group-aria-selected/cmd:border-gold/25 group-aria-selected/cmd:from-gold/15
+            group-aria-selected/cmd:to-gold/6
+          `,
         )}
       >
         {icon}
       </span>
 
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm leading-tight font-medium">
-          {cmd.label}
-        </div>
+        <div className="truncate text-sm/tight font-medium">{cmd.label}</div>
         {cmd.description ? (
-          <div className="text-muted-foreground mt-0.5 truncate text-xs leading-tight">
+          <div className="mt-0.5 truncate text-xs/tight text-muted-foreground">
             {cmd.description}
           </div>
         ) : null}
@@ -174,32 +178,42 @@ function PaletteFooter() {
   return (
     <div
       className={cn(
-        "border-gold/10 dark:border-gold/6 flex items-center gap-5 border-t px-4 py-2",
-        "text-muted-foreground/50 text-[11px] select-none",
+        "flex items-center gap-5 border-t border-gold/10 px-4 py-2 dark:border-gold/6",
+        "text-[11px] text-muted-foreground/50 select-none",
       )}
     >
       <span className="flex items-center gap-1.5">
-        <kbd className="inline-flex h-4.5 w-4.5 items-center justify-center border border-current/20 text-[9px]">
+        <kbd className="
+          inline-flex h-4.5 w-4.5 items-center justify-center border border-current/20 text-[9px]
+        ">
           ↑
         </kbd>
-        <kbd className="inline-flex h-4.5 w-4.5 items-center justify-center border border-current/20 text-[9px]">
+        <kbd className="
+          inline-flex h-4.5 w-4.5 items-center justify-center border border-current/20 text-[9px]
+        ">
           ↓
         </kbd>
         <span className="ml-0.5">Navigate</span>
       </span>
       <span className="flex items-center gap-1.5">
-        <kbd className="inline-flex h-4.5 min-w-4.5 items-center justify-center border border-current/20 px-1 text-[9px]">
+        <kbd className="
+          inline-flex h-4.5 min-w-4.5 items-center justify-center border border-current/20 px-1
+          text-[9px]
+        ">
           ↵
         </kbd>
         <span>Run</span>
       </span>
       <span className="flex items-center gap-1.5">
-        <kbd className="inline-flex h-4.5 min-w-4.5 items-center justify-center border border-current/20 px-1 text-[9px]">
+        <kbd className="
+          inline-flex h-4.5 min-w-4.5 items-center justify-center border border-current/20 px-1
+          text-[9px]
+        ">
           Esc
         </kbd>
         <span>Close</span>
       </span>
-      <div className="from-gold/20 via-gold/5 ml-auto h-px w-16 bg-linear-to-r to-transparent" />
+      <div className="ml-auto h-px w-16 bg-linear-to-r from-gold/20 via-gold/5 to-transparent" />
     </div>
   );
 }
@@ -335,13 +349,13 @@ export function CommandPalette({
         <Command
           value={selectedValue}
           onValueChange={setSelectedValue}
-          className="flex h-full w-full flex-col"
+          className="flex size-full flex-col"
         >
           {/* ── Search header ── */}
           <div className="cmd-search-area relative px-4 pt-4 pb-3">
             <div className="flex items-center gap-3">
               <div className="text-gold/50 dark:text-gold/40">
-                <Search className="h-5 w-5" aria-hidden="true" />
+                <Search className="size-5" aria-hidden="true" />
               </div>
               <Command.Input
                 value={search}
@@ -356,7 +370,10 @@ export function CommandPalette({
               />
               <kbd
                 className={cn(
-                  "hidden shrink-0 items-center border px-2 py-1 text-[10px] font-semibold sm:inline-flex",
+                  `
+                    hidden shrink-0 items-center border px-2 py-1 text-[10px] font-semibold
+                    sm:inline-flex
+                  `,
                   "border-gold/20 bg-gold/5 text-gold-dim/70",
                   "dark:border-gold/12 dark:bg-gold/4 dark:text-gold/45",
                 )}
@@ -367,15 +384,20 @@ export function CommandPalette({
           </div>
 
           {/* ── Results ── */}
-          <Command.List className="cmd-palette-list max-h-[min(60vh,420px)] overflow-y-auto px-2 pb-2">
+          <Command.List className="
+            cmd-palette-list max-h-[min(60vh,420px)] overflow-y-auto px-2 pb-2
+          ">
             <Command.Empty className="flex flex-col items-center justify-center gap-2 px-4 py-14">
-              <div className="text-muted-foreground/20 flex h-12 w-12 items-center justify-center border border-current/20">
-                <Search className="h-5 w-5" aria-hidden="true" />
+              <div className="
+                flex size-12 items-center justify-center border border-current/20
+                text-muted-foreground/20
+              ">
+                <Search className="size-5" aria-hidden="true" />
               </div>
-              <p className="text-muted-foreground/40 text-sm font-medium">
+              <p className="text-sm font-medium text-muted-foreground/40">
                 No matching commands
               </p>
-              <p className="text-muted-foreground/25 text-xs">
+              <p className="text-xs text-muted-foreground/25">
                 Try a different search term
               </p>
             </Command.Empty>
@@ -386,7 +408,7 @@ export function CommandPalette({
                   <CommandItem
                     key={cmd.id}
                     cmd={cmd}
-                    icon={<Sparkles className="h-4 w-4" aria-hidden="true" />}
+                    icon={<Sparkles className="size-4" aria-hidden="true" />}
                     onSelect={runCommand}
                   />
                 ))}

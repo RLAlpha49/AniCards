@@ -42,7 +42,10 @@ export function ProjectCollection() {
           whileInView="visible"
           viewport={{ once: true, margin: "-40px" }}
           variants={headerStagger}
-          className="mb-14 flex items-center gap-4 font-mono text-[0.6rem] tracking-[0.4em] uppercase sm:text-xs"
+          className="
+            mb-14 flex items-center gap-4 font-mono text-[0.6rem] tracking-[0.4em] uppercase
+            sm:text-xs
+          "
         >
           <motion.span variants={headerChild} className="text-gold/60">
             02

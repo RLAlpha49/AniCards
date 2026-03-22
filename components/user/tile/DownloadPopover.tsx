@@ -42,16 +42,16 @@ export function DownloadPopover({
           title={downloadTitle}
           aria-label={isDownloading ? "Converting..." : "Download"}
           className={cn(
-            "h-10 w-10 rounded-full p-0 shadow-lg transition-all",
-            "border-gold/20 bg-background/80 text-foreground border backdrop-blur-sm",
+            "size-10 rounded-full p-0 shadow-lg transition-all",
+            "border border-gold/20 bg-background/80 text-foreground backdrop-blur-sm",
             "hover:border-gold/40 hover:bg-background/90 hover:shadow-gold/15",
             "disabled:cursor-not-allowed disabled:opacity-70",
           )}
         >
           {isDownloading ? (
-            <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+            <Loader2 className="size-5 animate-spin" aria-hidden="true" />
           ) : (
-            <Download className="h-5 w-5" aria-hidden="true" />
+            <Download className="size-5" aria-hidden="true" />
           )}
           <span className="sr-only">
             {isDownloading ? "Converting..." : "Download"}
@@ -59,21 +59,26 @@ export function DownloadPopover({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="border-gold/20 dark:border-gold/15 w-40 p-1.5"
+        className="w-40 border-gold/20 p-1.5 dark:border-gold/15"
         align="center"
       >
         <div className="flex flex-col gap-0.5">
           <Button
             variant="ghost"
             size="sm"
-            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 px-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-70"
+            className="
+              h-9 justify-start gap-2 px-2.5 text-sm
+              hover:bg-gold/5
+              disabled:cursor-not-allowed disabled:opacity-70
+              dark:hover:bg-gold/5
+            "
             onClick={() => onDownload("png")}
             disabled={!previewUrl || isDownloading}
             aria-describedby={downloadDescrId}
             title={downloadTitle}
           >
-            <span className="text-foreground font-medium">SVG</span>
-            <span className="text-muted-foreground ml-auto text-xs">
+            <span className="font-medium text-foreground">SVG</span>
+            <span className="ml-auto text-xs text-muted-foreground">
               Lossless
             </span>
           </Button>
@@ -81,14 +86,19 @@ export function DownloadPopover({
           <Button
             variant="ghost"
             size="sm"
-            className="hover:bg-gold/5 dark:hover:bg-gold/5 h-9 justify-start gap-2 px-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-70"
+            className="
+              h-9 justify-start gap-2 px-2.5 text-sm
+              hover:bg-gold/5
+              disabled:cursor-not-allowed disabled:opacity-70
+              dark:hover:bg-gold/5
+            "
             onClick={() => onDownload("webp")}
             disabled={!previewUrl || isDownloading}
             aria-describedby={downloadDescrId}
             title={downloadTitle}
           >
-            <span className="text-foreground font-medium">WebP</span>
-            <span className="text-muted-foreground ml-auto text-xs">
+            <span className="font-medium text-foreground">WebP</span>
+            <span className="ml-auto text-xs text-muted-foreground">
               Smaller
             </span>
           </Button>

@@ -380,29 +380,35 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
   }, []);
 
   return (
-    <div className="border-border/50 bg-card/40 border backdrop-blur-sm transition-colors">
+    <div className="border border-border/50 bg-card/40 backdrop-blur-sm transition-colors">
       {/* Collapsible Header */}
       <button
         type="button"
         onClick={() => setIsExpanded((v) => !v)}
-        className="hover:bg-muted/40 flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors"
+        className="
+          flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors
+          hover:bg-muted/40
+        "
       >
         <div className="flex items-center gap-2.5">
-          <div className="bg-gold/10 text-gold dark:bg-gold/15 flex h-7 w-7 items-center justify-center">
-            <Wrench className="h-3.5 w-3.5" />
+          <div className="
+            flex size-7 items-center justify-center bg-gold/10 text-gold
+            dark:bg-gold/15
+          ">
+            <Wrench className="size-3.5" />
           </div>
           <div className="min-w-0">
-            <span className="text-foreground text-sm font-semibold tracking-tight">
+            <span className="text-sm font-semibold tracking-tight text-foreground">
               Settings Tools
             </span>
-            <p className="text-muted-foreground text-[11px]">
+            <p className="text-[11px] text-muted-foreground">
               Copy, templates, import &amp; export
             </p>
           </div>
         </div>
         <ChevronRight
           className={cn(
-            "text-muted-foreground h-4 w-4 shrink-0 transition-transform duration-200",
+            "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
             isExpanded && "rotate-90",
           )}
         />
@@ -419,7 +425,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
             transition={{ duration: 0.2, ease: "easeInOut" }}
             className="overflow-hidden"
           >
-            <div className="border-border/40 space-y-5 border-t px-4 py-4">
+            <div className="space-y-5 border-t border-border/40 p-4">
               {/* ── Copy from Card ─────────────────────────── */}
               {props.mode === "card" && (
                 <ToolGroup label="Copy from another card">
@@ -428,7 +434,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                       value={copyFromCardId}
                       onValueChange={setCopyFromCardId}
                     >
-                      <SelectTrigger className="border-border/60 h-9 w-full sm:w-72">
+                      <SelectTrigger className="h-9 w-full border-border/60 sm:w-72">
                         <SelectValue placeholder="Select a card" />
                       </SelectTrigger>
                       <SelectContent>
@@ -446,9 +452,9 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                       size="sm"
                       onClick={handleCopyFromCard}
                       disabled={!copyFromCardId}
-                      className="border-border/60 hover:bg-gold/5 h-9"
+                      className="h-9 border-border/60 hover:bg-gold/5"
                     >
-                      <Copy className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                      <Copy className="mr-1.5 size-3.5" aria-hidden="true" />
                       Copy
                     </Button>
                   </div>
@@ -463,17 +469,17 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                       value={templateName}
                       onChange={(e) => setTemplateName(e.target.value)}
                       placeholder="Template name"
-                      className="border-border/60 h-9 sm:w-72"
+                      className="h-9 border-border/60 sm:w-72"
                     />
                     <Button
                       type="button"
                       size="sm"
-                      className="bg-gold hover:bg-gold/90 h-9 text-white shadow-sm"
+                      className="h-9 bg-gold text-white shadow-sm hover:bg-gold/90"
                       onClick={handleSaveTemplate}
                       disabled={!templateName.trim()}
                     >
                       <FileDown
-                        className="mr-1.5 h-3.5 w-3.5"
+                        className="mr-1.5 size-3.5"
                         aria-hidden="true"
                       />
                       Save current
@@ -485,7 +491,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                       value={selectedTemplateId}
                       onValueChange={setSelectedTemplateId}
                     >
-                      <SelectTrigger className="border-border/60 h-9 w-full sm:w-72">
+                      <SelectTrigger className="h-9 w-full border-border/60 sm:w-72">
                         <SelectValue placeholder="Select a template" />
                       </SelectTrigger>
                       <SelectContent>
@@ -507,7 +513,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="border-border/60 hover:bg-gold/5 h-9"
+                      className="h-9 border-border/60 hover:bg-gold/5"
                       onClick={handleApplyTemplate}
                       disabled={!selectedTemplateId}
                     >
@@ -524,7 +530,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                           disabled={!selectedTemplateId}
                         >
                           <Trash2
-                            className="mr-1.5 h-3.5 w-3.5"
+                            className="mr-1.5 size-3.5"
                             aria-hidden="true"
                           />
                           Delete
@@ -564,7 +570,7 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                       value={exportKind}
                       onValueChange={handleExportKindChange}
                     >
-                      <SelectTrigger className="border-border/60 h-9 w-full sm:w-72">
+                      <SelectTrigger className="h-9 w-full border-border/60 sm:w-72">
                         <SelectValue placeholder="Export type" />
                       </SelectTrigger>
                       <SelectContent>
@@ -580,10 +586,10 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="border-border/60 hover:bg-gold/5 h-9"
+                      className="h-9 border-border/60 hover:bg-gold/5"
                       onClick={handleCopyJson}
                     >
-                      <Copy className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                      <Copy className="mr-1.5 size-3.5" aria-hidden="true" />
                       Copy JSON
                     </Button>
 
@@ -591,11 +597,11 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="border-border/60 hover:bg-gold/5 h-9"
+                      className="h-9 border-border/60 hover:bg-gold/5"
                       onClick={handleDownloadJson}
                     >
                       <Download
-                        className="mr-1.5 h-3.5 w-3.5"
+                        className="mr-1.5 size-3.5"
                         aria-hidden="true"
                       />
                       Download
@@ -606,10 +612,10 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                         <Button
                           type="button"
                           size="sm"
-                          className="bg-gold hover:bg-gold/90 h-9 text-white shadow-sm"
+                          className="h-9 bg-gold text-white shadow-sm hover:bg-gold/90"
                         >
                           <FileUp
-                            className="mr-1.5 h-3.5 w-3.5"
+                            className="mr-1.5 size-3.5"
                             aria-hidden="true"
                           />
                           Import
@@ -656,7 +662,12 @@ export function SettingsTools(props: Readonly<SettingsToolsProps>) {
                               id="settings-import-text"
                               value={importText}
                               onChange={(e) => setImportText(e.target.value)}
-                              className="border-border/60 bg-background text-foreground focus-visible:ring-gold/30 h-48 w-full resize-none border p-3 font-mono text-xs shadow-sm focus:outline-none focus-visible:ring-2"
+                              className="
+                                h-48 w-full resize-none border border-border/60 bg-background p-3
+                                font-mono text-xs text-foreground shadow-sm
+                                focus:outline-none
+                                focus-visible:ring-2 focus-visible:ring-gold/30
+                              "
                               placeholder={`{\n  "schemaVersion": 1,\n  ...\n}`}
                             />
                           </div>
@@ -721,7 +732,7 @@ function ToolGroup({
 }: Readonly<{ label: string; children: React.ReactNode }>) {
   return (
     <div className="space-y-2">
-      <Label className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
+      <Label className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
         {label}
       </Label>
       {children}

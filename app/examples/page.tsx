@@ -704,9 +704,9 @@ export default function ExamplesPage() {
           className="flex items-center justify-center gap-4 py-2"
         >
           <div className="gold-line max-w-24 flex-1" />
-          <div className="h-1 w-1 rotate-45 bg-[hsl(var(--gold)/0.3)]" />
+          <div className="size-1 rotate-45 bg-[hsl(var(--gold)/0.3)]" />
           <div className="gold-line-thick max-w-32 flex-1" />
-          <div className="h-1 w-1 rotate-45 bg-[hsl(var(--gold)/0.3)]" />
+          <div className="size-1 rotate-45 bg-[hsl(var(--gold)/0.3)]" />
           <div className="gold-line max-w-24 flex-1" />
         </motion.div>
 
@@ -718,7 +718,7 @@ export default function ExamplesPage() {
           viewport={VIEWPORT_ONCE}
           className="sticky top-15 z-30 mx-auto mt-6 max-w-7xl px-4"
         >
-          <div className="border-gold/8 bg-background/85 border backdrop-blur-xl">
+          <div className="border border-gold/8 bg-background/85 backdrop-blur-xl">
             <div className="px-5 pt-4 pb-0">
               <div className="mb-3">
                 <SearchFilterBar
@@ -772,7 +772,7 @@ export default function ExamplesPage() {
                           className="flex items-center justify-center gap-3"
                         >
                           <div className="gold-line max-w-16 flex-1" />
-                          <div className="h-1 w-1 rotate-45 border border-[hsl(var(--gold)/0.25)]" />
+                          <div className="size-1 rotate-45 border border-[hsl(var(--gold)/0.25)]" />
                           <div className="gold-line max-w-16 flex-1" />
                         </div>,
                       );
@@ -794,20 +794,29 @@ export default function ExamplesPage() {
 
               {filteredCardTypes.length === 0 && (
                 <div className="py-32 text-center">
-                  <div className="font-display text-foreground/6 mb-4 text-7xl font-black select-none sm:text-8xl">
+                  <div className="
+                    mb-4 font-display text-7xl font-black text-foreground/6 select-none
+                    sm:text-8xl
+                  ">
                     ∅
                   </div>
-                  <p className="font-display text-foreground/20 mb-2 text-base tracking-[0.25em] uppercase">
+                  <p className="
+                    mb-2 font-display text-base tracking-[0.25em] text-foreground/20 uppercase
+                  ">
                     Nothing Here
                   </p>
-                  <p className="font-body-serif text-foreground/30 mx-auto max-w-xs text-sm leading-relaxed">
+                  <p className="mx-auto max-w-xs font-body-serif text-sm/relaxed text-foreground/30">
                     Your filters came up empty. Try loosening the search or
                     picking a different category.
                   </p>
                   <button
                     type="button"
                     onClick={handleClearFilters}
-                    className="text-gold hover:text-gold/80 mt-8 text-xs font-semibold tracking-widest uppercase transition-colors hover:underline"
+                    className="
+                      mt-8 text-xs font-semibold tracking-widest text-gold uppercase
+                      transition-colors
+                      hover:text-gold/80 hover:underline
+                    "
                   >
                     Start fresh
                   </button>

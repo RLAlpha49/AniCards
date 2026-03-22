@@ -22,7 +22,7 @@ function GoldDiamond({ size = 5 }: Readonly<{ size?: number }>) {
   return (
     <span
       aria-hidden
-      className="bg-gold inline-block shrink-0 rotate-45"
+      className="inline-block shrink-0 rotate-45 bg-gold"
       style={{ width: size, height: size }}
     />
   );
@@ -48,9 +48,14 @@ export default function Header() {
       initial={{ opacity: 0, y: -12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="border-gold/30 sticky top-0 z-50 border-b bg-white/90 backdrop-blur-xl dark:bg-[#0C0A10]"
+      className="
+        sticky top-0 z-50 border-b border-gold/30 bg-white/90 backdrop-blur-xl
+        dark:bg-[#0C0A10]
+      "
     >
-      <div className="via-gold absolute inset-x-0 top-0 h-0.5 bg-linear-to-r from-transparent to-transparent" />
+      <div className="
+        absolute inset-x-0 top-0 h-0.5 bg-linear-to-r from-transparent via-gold to-transparent
+      " />
 
       <div className="mx-auto max-w-6xl px-6 py-4">
         <div className="flex items-center justify-between">
@@ -68,7 +73,7 @@ export default function Header() {
                 />
               ))}
             </div>
-            <span className="font-display text-gold text-lg tracking-[0.35em]">
+            <span className="font-display text-lg tracking-[0.35em] text-gold">
               ANICARDS
             </span>
             <div className="hidden gap-1 sm:flex">
@@ -120,7 +125,9 @@ export default function Header() {
                       trackNavigation(item.label.toLowerCase(), "header"),
                     )
                   }
-                  className={`font-body-serif relative text-xs tracking-[0.15em] uppercase transition-colors ${
+                  className={`
+                    relative font-body-serif text-xs tracking-[0.15em] uppercase transition-colors
+                    ${
                     pathname === item.href
                       ? "text-gold"
                       : "nav-link-underline text-foreground/60 hover:text-gold"
@@ -130,7 +137,7 @@ export default function Header() {
                   {pathname === item.href && (
                     <motion.div
                       layoutId="nav-underline"
-                      className="bg-gold absolute right-0 -bottom-1 left-0 h-0.5 rounded-full"
+                      className="absolute inset-x-0 -bottom-1 h-0.5 rounded-full bg-gold"
                       transition={{
                         type: "spring",
                         stiffness: 400,
@@ -146,7 +153,7 @@ export default function Header() {
           <div className="flex items-center gap-3">
             <DarkModeToggle />
             <button
-              className="text-foreground/60 hover:text-gold transition-colors md:hidden"
+              className="text-foreground/60 transition-colors hover:text-gold md:hidden"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
             >
@@ -159,7 +166,7 @@ export default function Header() {
                     exit={{ rotate: 90, opacity: 0 }}
                     transition={{ duration: 0.15 }}
                   >
-                    <X className="h-5 w-5" />
+                    <X className="size-5" />
                   </motion.span>
                 ) : (
                   <motion.span
@@ -169,7 +176,7 @@ export default function Header() {
                     exit={{ rotate: -90, opacity: 0 }}
                     transition={{ duration: 0.15 }}
                   >
-                    <Menu className="h-5 w-5" />
+                    <Menu className="size-5" />
                   </motion.span>
                 )}
               </AnimatePresence>
@@ -185,7 +192,7 @@ export default function Header() {
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="border-gold/20 overflow-hidden border-t md:hidden"
+            className="overflow-hidden border-t border-gold/20 md:hidden"
             aria-label="Mobile navigation"
           >
             <div className="space-y-1 px-6 py-4">
@@ -199,7 +206,9 @@ export default function Header() {
                       trackNavigation(item.label.toLowerCase(), "header"),
                     );
                   }}
-                  className={`font-body-serif block py-2 text-sm tracking-[0.15em] uppercase transition-colors ${
+                  className={`
+                    block py-2 font-body-serif text-sm tracking-[0.15em] uppercase transition-colors
+                    ${
                     pathname === item.href
                       ? "text-gold"
                       : "text-foreground/60 hover:text-gold"

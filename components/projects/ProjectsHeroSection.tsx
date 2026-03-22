@@ -59,7 +59,7 @@ export function ProjectsHeroSection() {
           variants={fadeIn}
           className="mb-10 flex items-center gap-4 sm:mb-14"
         >
-          <span className="text-gold font-mono text-[0.6rem] tracking-[0.5em] uppercase sm:text-xs">
+          <span className="font-mono text-[0.6rem] tracking-[0.5em] text-gold uppercase sm:text-xs">
             ◆ Portfolio
           </span>
           <span
@@ -75,13 +75,23 @@ export function ProjectsHeroSection() {
         <div className="relative mb-10 sm:mb-14">
           <motion.h1
             variants={rise}
-            className="font-display text-foreground text-[3.5rem] leading-[0.88] tracking-tight sm:text-[5.5rem] md:text-[7.5rem] lg:text-[10rem]"
+            className="
+              font-display text-[3.5rem] leading-[0.88] tracking-tight text-foreground
+              sm:text-[5.5rem]
+              md:text-[7.5rem]
+              lg:text-[10rem]
+            "
           >
             MORE
           </motion.h1>
           <motion.h1
             variants={rise}
-            className="font-display text-gold -mt-1 text-[3.5rem] leading-[0.88] tracking-tight sm:-mt-2 sm:text-[5.5rem] md:-mt-3 md:text-[7.5rem] lg:-mt-4 lg:text-[10rem]"
+            className="
+              -mt-1 font-display text-[3.5rem] leading-[0.88] tracking-tight text-gold
+              sm:-mt-2 sm:text-[5.5rem]
+              md:-mt-3 md:text-[7.5rem]
+              lg:-mt-4 lg:text-[10rem]
+            "
           >
             PROJECTS
           </motion.h1>
@@ -101,7 +111,10 @@ export function ProjectsHeroSection() {
         <div className="grid items-end gap-10 md:grid-cols-[1fr_auto] md:gap-20">
           <motion.p
             variants={rise}
-            className="font-body-serif text-foreground/50 max-w-lg text-base leading-[1.85] sm:text-lg"
+            className="
+              max-w-lg font-body-serif text-base leading-[1.85] text-foreground/50
+              sm:text-lg
+            "
           >
             Open-source tools for anyone tired of clunky anime and media
             tracking setups. Carefully built, steadily maintained, and wide open
@@ -118,10 +131,12 @@ export function ProjectsHeroSection() {
               { value: "100%", label: "Open Source" },
             ].map((stat) => (
               <div key={stat.label} className="text-right">
-                <span className="font-display text-gold block text-2xl sm:text-3xl">
+                <span className="block font-display text-2xl text-gold sm:text-3xl">
                   {stat.value}
                 </span>
-                <span className="text-foreground/35 font-mono text-[0.6rem] tracking-[0.3em] uppercase">
+                <span className="
+                  font-mono text-[0.6rem] tracking-[0.3em] text-foreground/35 uppercase
+                ">
                   {stat.label}
                 </span>
               </div>

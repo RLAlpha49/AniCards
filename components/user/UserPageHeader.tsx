@@ -225,7 +225,12 @@ function Avatar({
       width={100}
       height={100}
       className={cn(
-        "border-gold/40 shadow-gold/10 dark:border-gold/30 relative h-20 w-20 rounded-full border-[3px] object-cover shadow-lg sm:h-24 sm:w-24",
+        `
+          relative size-20 rounded-full border-[3px] border-gold/40 object-cover shadow-lg
+          shadow-gold/10
+          sm:size-24
+          dark:border-gold/30
+        `,
         imageClassName,
       )}
       onError={() => setImageError(true)}
@@ -233,11 +238,16 @@ function Avatar({
   ) : (
     <div
       className={cn(
-        "border-gold/40 from-gold/20 via-gold/10 shadow-gold/10 dark:border-gold/30 dark:from-gold/15 dark:via-gold/5 relative flex h-20 w-20 items-center justify-center rounded-full border-[3px] bg-linear-to-br to-amber-900/20 shadow-lg sm:h-24 sm:w-24 dark:to-amber-900/15",
+        `
+          relative flex size-20 items-center justify-center rounded-full border-[3px] border-gold/40
+          bg-linear-to-br from-gold/20 via-gold/10 to-amber-900/20 shadow-lg shadow-gold/10
+          sm:size-24
+          dark:border-gold/30 dark:from-gold/15 dark:via-gold/5 dark:to-amber-900/15
+        `,
         fallbackClassName,
       )}
     >
-      <UserIcon className="text-gold h-10 w-10 sm:h-12 sm:w-12" />
+      <UserIcon className="size-10 text-gold sm:size-12" />
     </div>
   );
 }
@@ -294,18 +304,28 @@ export function UserPageHeader({
       className="relative"
     >
       <div className="relative mx-auto max-w-4xl">
-        <div className="imperial-card border-gold/20! dark:border-gold/12! bg-transparent! p-0!">
+        <div className="imperial-card border-gold/20! bg-transparent! p-0! dark:border-gold/12!">
           <div className="relative px-6 py-10 sm:px-10 sm:py-14">
             <div className="flex flex-col items-center gap-8 text-center">
               <motion.div variants={itemVariants} className="relative shrink-0">
-                <div className="from-gold/40 to-gold/40 absolute -inset-3 rounded-full bg-linear-to-br via-amber-500/20 opacity-60 blur-lg" />
-                <div className="border-gold/20 dark:border-gold/15 absolute -inset-1 rounded-full border" />
+                <div className="
+                  absolute -inset-3 rounded-full bg-linear-to-br from-gold/40 via-amber-500/20
+                  to-gold/40 opacity-60 blur-lg
+                " />
+                <div className="
+                  absolute -inset-1 rounded-full border border-gold/20
+                  dark:border-gold/15
+                " />
                 {anilistUrl ? (
                   <a
                     href={anilistUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="group relative block transition-transform hover:scale-105 active:scale-95"
+                    className="
+                      group relative block transition-transform
+                      hover:scale-105
+                      active:scale-95
+                    "
                     aria-label={`View ${username || "user"}'s AniList profile`}
                   >
                     <Avatar
@@ -314,8 +334,13 @@ export function UserPageHeader({
                       imageClassName="transition-all group-hover:border-gold/60 dark:group-hover:border-gold/50"
                       fallbackClassName="transition-all group-hover:border-gold/60 dark:group-hover:border-gold/50"
                     />
-                    <div className="border-gold/40 from-gold to-gold-dim text-primary-foreground shadow-gold/20 absolute -right-1 -bottom-1 flex h-7 w-7 items-center justify-center rounded-full border-2 bg-linear-to-br via-amber-500 shadow-lg sm:h-8 sm:w-8">
-                      <ExternalLink className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <div className="
+                      absolute -right-1 -bottom-1 flex size-7 items-center justify-center
+                      rounded-full border-2 border-gold/40 bg-linear-to-br from-gold via-amber-500
+                      to-gold-dim text-primary-foreground shadow-lg shadow-gold/20
+                      sm:size-8
+                    ">
+                      <ExternalLink className="size-3 sm:size-4" />
                     </div>
                   </a>
                 ) : (
@@ -328,23 +353,35 @@ export function UserPageHeader({
               <div className="flex flex-1 flex-col items-center text-center">
                 <motion.h1
                   variants={itemVariants}
-                  className="text-foreground text-3xl leading-tight font-bold tracking-tight sm:text-4xl lg:text-5xl"
+                  className="
+                    text-3xl/tight font-bold tracking-tight text-foreground
+                    sm:text-4xl
+                    lg:text-5xl
+                  "
                 >
                   {username ? (
                     <>
-                      <span className="text-gold-dim dark:text-gold block text-xs tracking-[0.35em] uppercase sm:text-sm">
+                      <span className="
+                        block text-xs tracking-[0.35em] text-gold-dim uppercase
+                        sm:text-sm
+                        dark:text-gold
+                      ">
                         ✦ Welcome back ✦
                       </span>
-                      <span className="font-display mt-3 block">
+                      <span className="mt-3 block font-display">
                         {username}
                       </span>
                     </>
                   ) : (
                     <>
-                      <span className="text-gold-dim dark:text-gold block text-xs tracking-[0.35em] uppercase sm:text-sm">
+                      <span className="
+                        block text-xs tracking-[0.35em] text-gold-dim uppercase
+                        sm:text-sm
+                        dark:text-gold
+                      ">
                         ✦ Dashboard ✦
                       </span>
-                      <span className="font-display mt-3 block">
+                      <span className="mt-3 block font-display">
                         Your Collection
                       </span>
                     </>
@@ -356,7 +393,10 @@ export function UserPageHeader({
                 />
                 <motion.p
                   variants={itemVariants}
-                  className="font-body-serif text-muted-foreground mt-4 max-w-md text-sm leading-relaxed sm:text-base"
+                  className="
+                    mt-4 max-w-md font-body-serif text-sm/relaxed text-muted-foreground
+                    sm:text-base
+                  "
                 >
                   Curate your stat cards, customize their appearance, and share
                   your anime journey.
@@ -375,9 +415,9 @@ export function UserPageHeader({
                     )}
                   >
                     {saveInfo.spinner ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Loader2 className="size-4 animate-spin" />
                     ) : (
-                      <saveInfo.Icon className="h-4 w-4" />
+                      <saveInfo.Icon className="size-4" />
                     )}
                     <span>{saveInfo.text}</span>
                   </output>

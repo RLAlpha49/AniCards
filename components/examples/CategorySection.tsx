@@ -103,25 +103,34 @@ export function CategorySection({
       <div className="mb-14">
         <div className="flex items-start gap-5">
           {/* Large section number */}
-          <span className="font-display text-gold/10 hidden text-6xl leading-none font-black select-none sm:block md:text-7xl">
+          <span className="
+            hidden font-display text-6xl leading-none font-black text-gold/10 select-none
+            sm:block
+            md:text-7xl
+          ">
             {sectionNumber}
           </span>
 
           <div className="flex-1">
             <div className="mb-2 flex items-center gap-3">
-              <div className="border-gold/15 bg-gold/4 flex h-8 w-8 shrink-0 items-center justify-center border">
-                <CategoryIcon className="text-gold h-3.5 w-3.5" />
+              <div className="
+                flex size-8 shrink-0 items-center justify-center border border-gold/15 bg-gold/4
+              ">
+                <CategoryIcon className="size-3.5 text-gold" />
               </div>
-              <h2 className="font-display text-foreground text-sm tracking-[0.25em] uppercase sm:text-base">
+              <h2 className="
+                font-display text-sm tracking-[0.25em] text-foreground uppercase
+                sm:text-base
+              ">
                 {category}
               </h2>
             </div>
 
             <div className="ml-11 flex flex-wrap items-center gap-x-4 gap-y-1">
-              <p className="font-body-serif text-foreground/35 max-w-md text-sm leading-relaxed">
+              <p className="max-w-md font-body-serif text-sm/relaxed text-foreground/35">
                 {CATEGORY_DESCRIPTIONS[category]}
               </p>
-              <span className="text-foreground/20 text-xs tabular-nums">
+              <span className="text-xs text-foreground/20 tabular-nums">
                 {cardTypes.length} type{cardTypes.length === 1 ? "" : "s"} ·{" "}
                 {totalVariants} variant{totalVariants === 1 ? "" : "s"}
               </span>
@@ -137,19 +146,21 @@ export function CategorySection({
             {/* Card type header with line */}
             <div className="mb-6 flex items-center gap-4">
               <div className="flex items-center gap-2.5">
-                <cardType.icon className="text-gold/40 h-3.5 w-3.5 shrink-0" />
-                <h4 className="text-foreground/80 text-sm font-semibold tracking-wide">
+                <cardType.icon className="size-3.5 shrink-0 text-gold/40" />
+                <h4 className="text-sm font-semibold tracking-wide text-foreground/80">
                   {cardType.title}
                 </h4>
               </div>
               <div className="gold-line flex-1" />
-              <span className="text-foreground/15 font-display text-[0.6rem] tracking-widest tabular-nums">
+              <span className="
+                font-display text-[0.6rem] tracking-widest text-foreground/15 tabular-nums
+              ">
                 {String(typeIndex + 1).padStart(2, "0")}
               </span>
             </div>
 
             {/* Description */}
-            <p className="text-foreground/30 mb-6 ml-6 max-w-lg text-xs leading-relaxed">
+            <p className="mb-6 ml-6 max-w-lg text-xs/relaxed text-foreground/30">
               {cardType.description}
             </p>
 

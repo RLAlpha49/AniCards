@@ -94,7 +94,11 @@ export function ColorPreviewCard({
 
   return (
     <div className={cn("flex flex-col items-center gap-4", className)}>
-      <div className="relative w-full overflow-hidden shadow-md ring-1 ring-black/5 transition-shadow duration-300 hover:shadow-lg dark:ring-white/5">
+      <div className="
+        relative w-full overflow-hidden shadow-md ring-1 ring-black/5 transition-shadow duration-300
+        hover:shadow-lg
+        dark:ring-white/5
+      ">
         <div
           dangerouslySetInnerHTML={{ __html: previewSvg }}
           className="transition-all duration-200 [&>svg]:w-full"
@@ -135,17 +139,17 @@ interface ColorSwatchProps {
 
 function ColorSwatch({ label, color, isGradient }: Readonly<ColorSwatchProps>) {
   return (
-    <div className="bg-muted/60 flex items-center gap-2 px-2.5 py-1.5 backdrop-blur-sm">
+    <div className="flex items-center gap-2 bg-muted/60 px-2.5 py-1.5 backdrop-blur-sm">
       <div
         className={cn(
-          "h-3.5 w-3.5 shrink-0 rounded-full border border-black/10 shadow-sm dark:border-white/10",
+          "size-3.5 shrink-0 rounded-full border border-black/10 shadow-sm dark:border-white/10",
           isGradient &&
-            "ring-gold/40 ring-offset-background ring-1 ring-offset-1",
+            "ring-1 ring-gold/40 ring-offset-1 ring-offset-background",
         )}
         style={{ background: color }}
         title={isGradient ? `${label} (gradient)` : label}
       />
-      <span className="text-muted-foreground text-[11px] font-medium tracking-wide">
+      <span className="text-[11px] font-medium tracking-wide text-muted-foreground">
         {label}
       </span>
     </div>

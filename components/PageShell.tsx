@@ -65,7 +65,7 @@ export default function PageShell({
       <div className={cn("relative w-full overflow-hidden", mainClassName)}>
         <div className="relative z-10 h-full">
           {hasHero && (
-            <section className="relative h-full w-full overflow-x-visible overflow-y-hidden">
+            <section className="relative size-full overflow-x-visible overflow-y-hidden">
               <div className="relative z-10 container mx-auto px-0">
                 <motion.div
                   variants={containerVariants}
@@ -79,7 +79,12 @@ export default function PageShell({
 
                   <motion.h1
                     variants={itemVariants}
-                    className="text-foreground mt-8 text-4xl leading-[1.1] font-extrabold tracking-tight sm:text-5xl md:text-6xl lg:text-7xl"
+                    className="
+                      mt-8 text-4xl leading-[1.1] font-extrabold tracking-tight text-foreground
+                      sm:text-5xl
+                      md:text-6xl
+                      lg:text-7xl
+                    "
                   >
                     {title}
                   </motion.h1>
@@ -87,7 +92,7 @@ export default function PageShell({
                   {subtitle && (
                     <motion.p
                       variants={itemVariants}
-                      className="text-foreground/60 mt-6 max-w-2xl text-lg sm:text-xl"
+                      className="mt-6 max-w-2xl text-lg text-foreground/60 sm:text-xl"
                     >
                       {subtitle}
                     </motion.p>

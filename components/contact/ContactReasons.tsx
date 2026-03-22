@@ -89,10 +89,16 @@ export function ContactReasons() {
           >
             What Brings You Here
           </span>
-          <h2 className="font-display text-foreground mt-3 text-2xl font-bold tracking-tight sm:text-3xl">
+          <h2 className="
+            mt-3 font-display text-2xl font-bold tracking-tight text-foreground
+            sm:text-3xl
+          ">
             WHAT&apos;S ON YOUR MIND?
           </h2>
-          <div className="mx-auto mt-5 h-px max-w-16 bg-linear-to-r from-transparent via-[hsl(var(--gold)/0.4)] to-transparent" />
+          <div className="
+            mx-auto mt-5 h-px max-w-16 bg-linear-to-r from-transparent via-[hsl(var(--gold)/0.4)]
+            to-transparent
+          " />
         </div>
 
         {/* Reasons grid */}
@@ -107,7 +113,12 @@ export function ContactReasons() {
             const content = (
               <motion.div
                 variants={card}
-                className="group relative flex h-full flex-col border border-[hsl(var(--gold)/0.08)] bg-[hsl(var(--gold)/0.015)] p-6 transition-all duration-300 hover:border-[hsl(var(--gold)/0.25)] hover:bg-[hsl(var(--gold)/0.03)] sm:p-8"
+                className="
+                  group relative flex h-full flex-col border border-[hsl(var(--gold)/0.08)]
+                  bg-[hsl(var(--gold)/0.015)] p-6 transition-all duration-300
+                  hover:border-[hsl(var(--gold)/0.25)] hover:bg-[hsl(var(--gold)/0.03)]
+                  sm:p-8
+                "
               >
                 {/* Numbered corner */}
                 <span
@@ -123,20 +134,23 @@ export function ContactReasons() {
                 <motion.div variants={cardChild}>
                   <reason.icon
                     size={20}
-                    className="text-gold/50 group-hover:text-gold mb-5 transition-colors"
+                    className="mb-5 text-gold/50 transition-colors group-hover:text-gold"
                     strokeWidth={1.5}
                   />
                 </motion.div>
 
                 <motion.h3
                   variants={cardChild}
-                  className="font-display text-foreground mb-2 text-xs tracking-[0.2em] uppercase sm:text-sm"
+                  className="
+                    mb-2 font-display text-xs tracking-[0.2em] text-foreground uppercase
+                    sm:text-sm
+                  "
                 >
                   {reason.title}
                 </motion.h3>
                 <motion.p
                   variants={cardChild}
-                  className="font-body-serif text-foreground/40 text-sm leading-relaxed"
+                  className="font-body-serif text-sm/relaxed text-foreground/40"
                 >
                   {reason.description}
                 </motion.p>
@@ -144,10 +158,14 @@ export function ContactReasons() {
                 {reason.href && (
                   <motion.div
                     variants={cardChild}
-                    className="text-gold/40 group-hover:text-gold mt-5 flex items-center gap-1.5 text-xs tracking-wider uppercase transition-colors"
+                    className="
+                      mt-5 flex items-center gap-1.5 text-xs tracking-wider text-gold/40 uppercase
+                      transition-colors
+                      group-hover:text-gold
+                    "
                   >
                     Open Issue
-                    <ExternalLink className="h-3 w-3" />
+                    <ExternalLink className="size-3" />
                   </motion.div>
                 )}
               </motion.div>

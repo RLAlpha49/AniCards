@@ -553,7 +553,10 @@ export function BulkActionsToolbar({
               "pointer-events-auto",
               "w-fit max-w-full",
               "flex flex-wrap items-center justify-center gap-2 sm:gap-3",
-              "border-gold/25 bg-background/95 shadow-gold/10 border-2 px-5 py-3.5 shadow-2xl backdrop-blur-xl",
+              `
+                border-2 border-gold/25 bg-background/95 px-5 py-3.5 shadow-2xl shadow-gold/10
+                backdrop-blur-xl
+              `,
               "dark:border-gold/18",
               className,
             )}
@@ -581,16 +584,20 @@ export function BulkActionsToolbar({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="border-gold/20 bg-background text-foreground hover:bg-gold/5 dark:border-gold/15 h-9 gap-1.5 px-3"
+                  className="
+                    h-9 gap-1.5 border-gold/20 bg-background px-3 text-foreground
+                    hover:bg-gold/5
+                    dark:border-gold/15
+                  "
                 >
-                  <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+                  <SlidersHorizontal className="size-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Bulk edit</span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-72 p-3" align="center" side="top">
                 <div className="space-y-3">
                   <div>
-                    <div className="text-muted-foreground mb-1 text-xs font-medium">
+                    <div className="mb-1 text-xs font-medium text-muted-foreground">
                       Variant
                     </div>
                     <Select
@@ -617,7 +624,7 @@ export function BulkActionsToolbar({
                   </div>
 
                   <div>
-                    <div className="text-muted-foreground mb-1 text-xs font-medium">
+                    <div className="mb-1 text-xs font-medium text-muted-foreground">
                       Color preset
                     </div>
                     <Select onValueChange={handleApplyPreset}>
@@ -643,7 +650,7 @@ export function BulkActionsToolbar({
                       className="h-9 flex-1"
                       onClick={handleResetSelected}
                     >
-                      <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                      <RotateCcw className="size-4" aria-hidden="true" />
                       Reset selected
                     </Button>
                   </div>
@@ -664,10 +671,10 @@ export function BulkActionsToolbar({
               size="sm"
               onClick={undoBulk}
               disabled={!canUndo}
-              className="text-muted-foreground hover:text-foreground h-9 w-9 p-0 disabled:opacity-50"
+              className="size-9 p-0 text-muted-foreground hover:text-foreground disabled:opacity-50"
               title={canUndo ? "Undo last bulk action" : "Nothing to undo"}
             >
-              <Undo2 className="h-4 w-4" aria-hidden="true" />
+              <Undo2 className="size-4" aria-hidden="true" />
               <span className="sr-only">Undo</span>
             </Button>
             <Button
@@ -675,10 +682,10 @@ export function BulkActionsToolbar({
               size="sm"
               onClick={redoBulk}
               disabled={!canRedo}
-              className="text-muted-foreground hover:text-foreground h-9 w-9 p-0 disabled:opacity-50"
+              className="size-9 p-0 text-muted-foreground hover:text-foreground disabled:opacity-50"
               title={canRedo ? "Redo last bulk action" : "Nothing to redo"}
             >
-              <Redo2 className="h-4 w-4" aria-hidden="true" />
+              <Redo2 className="size-4" aria-hidden="true" />
               <span className="sr-only">Redo</span>
             </Button>
 
@@ -686,11 +693,11 @@ export function BulkActionsToolbar({
               variant="ghost"
               size="sm"
               onClick={clearSelection}
-              className="text-muted-foreground hover:text-foreground h-9 w-9 p-0"
+              className="size-9 p-0 text-muted-foreground hover:text-foreground"
               title="Clear selection (Esc)"
               aria-keyshortcuts="Escape"
             >
-              <X className="h-4 w-4" />
+              <X className="size-4" />
               <span className="sr-only">Clear selection</span>
             </Button>
 

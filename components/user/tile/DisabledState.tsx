@@ -10,10 +10,13 @@ export const DisabledState = memo(function DisabledState() {
       aria-label="Card disabled"
     >
       <div className="text-center">
-        <div className="border-gold/15 bg-gold/3 dark:border-gold/10 dark:bg-gold/3 mx-auto mb-3 flex h-10 w-10 items-center justify-center border">
-          <EyeOff className="text-gold/40 h-5 w-5" aria-hidden="true" />
+        <div className="
+          mx-auto mb-3 flex size-10 items-center justify-center border border-gold/15 bg-gold/3
+          dark:border-gold/10 dark:bg-gold/3
+        ">
+          <EyeOff className="size-5 text-gold/40" aria-hidden="true" />
         </div>
-        <p className="font-display text-muted-foreground text-[10px] tracking-[0.15em] uppercase">
+        <p className="font-display text-[10px] tracking-[0.15em] text-muted-foreground uppercase">
           Card disabled
         </p>
       </div>

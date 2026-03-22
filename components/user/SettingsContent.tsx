@@ -364,23 +364,29 @@ function SettingsSection({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className="border-border/50 bg-card/40 border backdrop-blur-sm transition-colors">
+    <div className="border border-border/50 bg-card/40 backdrop-blur-sm transition-colors">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="hover:bg-muted/40 flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors"
+        className="
+          flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors
+          hover:bg-muted/40
+        "
       >
         <div className="flex items-center gap-2.5">
-          <div className="bg-gold/10 text-gold dark:bg-gold/15 flex h-7 w-7 items-center justify-center">
-            <Icon className="h-3.5 w-3.5" />
+          <div className="
+            flex size-7 items-center justify-center bg-gold/10 text-gold
+            dark:bg-gold/15
+          ">
+            <Icon className="size-3.5" />
           </div>
-          <span className="text-foreground text-sm font-semibold tracking-tight">
+          <span className="text-sm font-semibold tracking-tight text-foreground">
             {title}
           </span>
         </div>
         <ChevronRight
           className={cn(
-            "text-muted-foreground h-4 w-4 transition-transform duration-200",
+            "size-4 text-muted-foreground transition-transform duration-200",
             open && "rotate-90",
           )}
         />
@@ -395,9 +401,7 @@ function SettingsSection({
             transition={{ duration: 0.2, ease: "easeInOut" }}
             className="overflow-hidden"
           >
-            <div className="border-border/40 border-t px-4 py-4">
-              {children}
-            </div>
+            <div className="border-t border-border/40 p-4">{children}</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -549,7 +553,7 @@ export function SettingsContent({
   return (
     <div className="space-y-5">
       {/* ── Live Preview ────────────────────────────────── */}
-      <div className="border-border/50 bg-muted/30 border p-5 backdrop-blur-sm">
+      <div className="border border-border/50 bg-muted/30 p-5 backdrop-blur-sm">
         <ColorPreviewCard
           titleColor={colors[0]}
           backgroundColor={colors[1]}
@@ -564,30 +568,45 @@ export function SettingsContent({
       <Tabs defaultValue="colors" className="w-full">
         <TabsList
           className={cn(
-            "bg-muted/50 border-border/50 grid w-full gap-0.5 border p-1 backdrop-blur-sm",
+            "grid w-full gap-0.5 border border-border/50 bg-muted/50 p-1 backdrop-blur-sm",
             hasAdvancedOptions ? "grid-cols-3" : "grid-cols-2",
           )}
         >
           <TabsTrigger
             value="colors"
-            className="data-[state=active]:bg-gold/90 data-[state=active]:shadow-gold/15 gap-1.5 text-xs font-medium transition-all data-[state=active]:text-white data-[state=active]:shadow-sm sm:text-sm"
+            className="
+              gap-1.5 text-xs font-medium transition-all
+              data-[state=active]:bg-gold/90 data-[state=active]:text-white
+              data-[state=active]:shadow-sm data-[state=active]:shadow-gold/15
+              sm:text-sm
+            "
           >
-            <Palette className="h-3.5 w-3.5" aria-hidden="true" />
+            <Palette className="size-3.5" aria-hidden="true" />
             Colors
           </TabsTrigger>
           <TabsTrigger
             value="border"
-            className="data-[state=active]:bg-gold/90 data-[state=active]:shadow-gold/15 gap-1.5 text-xs font-medium transition-all data-[state=active]:text-white data-[state=active]:shadow-sm sm:text-sm"
+            className="
+              gap-1.5 text-xs font-medium transition-all
+              data-[state=active]:bg-gold/90 data-[state=active]:text-white
+              data-[state=active]:shadow-sm data-[state=active]:shadow-gold/15
+              sm:text-sm
+            "
           >
-            <Square className="h-3.5 w-3.5" aria-hidden="true" />
+            <Square className="size-3.5" aria-hidden="true" />
             Border
           </TabsTrigger>
           {hasAdvancedOptions && (
             <TabsTrigger
               value="advanced"
-              className="data-[state=active]:bg-gold/90 data-[state=active]:shadow-gold/15 gap-1.5 text-xs font-medium transition-all data-[state=active]:text-white data-[state=active]:shadow-sm sm:text-sm"
+              className="
+                gap-1.5 text-xs font-medium transition-all
+                data-[state=active]:bg-gold/90 data-[state=active]:text-white
+                data-[state=active]:shadow-sm data-[state=active]:shadow-gold/15
+                sm:text-sm
+              "
             >
-              <Sliders className="h-3.5 w-3.5" aria-hidden="true" />
+              <Sliders className="size-3.5" aria-hidden="true" />
               Advanced
             </TabsTrigger>
           )}
@@ -598,7 +617,7 @@ export function SettingsContent({
           {/* Quick Apply */}
           {quickColorPresets.length > 0 && (
             <div className="space-y-2">
-              <Label className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
+              <Label className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
                 Quick Apply
               </Label>
               <div className="flex flex-wrap gap-2">
@@ -612,7 +631,7 @@ export function SettingsContent({
                     className={cn(
                       "h-8 text-xs font-medium transition-all",
                       p.id === colorPreset
-                        ? "bg-gold hover:bg-gold/90 text-white shadow-sm"
+                        ? "bg-gold text-white shadow-sm hover:bg-gold/90"
                         : "border-border/60 hover:border-gold/40 hover:bg-gold/5",
                     )}
                   >
@@ -646,7 +665,7 @@ export function SettingsContent({
         <TabsContent value="border" className="mt-4 space-y-4">
           {/* Quick Apply */}
           <div className="space-y-2">
-            <Label className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
+            <Label className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
               Quick Apply
             </Label>
             <div className="flex flex-wrap gap-2">
@@ -659,7 +678,7 @@ export function SettingsContent({
                   "h-8 text-xs font-medium transition-all",
                   borderEnabled
                     ? "border-border/60 hover:border-gold/40 hover:bg-gold/5"
-                    : "bg-gold hover:bg-gold/90 text-white shadow-sm",
+                    : "bg-gold text-white shadow-sm hover:bg-gold/90",
                 )}
               >
                 No border
@@ -677,7 +696,7 @@ export function SettingsContent({
                 className={cn(
                   "h-8 text-xs font-medium transition-all",
                   borderEnabled && borderRadius === 0
-                    ? "bg-gold hover:bg-gold/90 text-white shadow-sm"
+                    ? "bg-gold text-white shadow-sm hover:bg-gold/90"
                     : "border-border/60 hover:border-gold/40 hover:bg-gold/5",
                 )}
               >
@@ -696,7 +715,7 @@ export function SettingsContent({
                 className={cn(
                   "h-8 text-xs font-medium transition-all",
                   borderEnabled && borderRadius === 16
-                    ? "bg-gold hover:bg-gold/90 text-white shadow-sm"
+                    ? "bg-gold text-white shadow-sm hover:bg-gold/90"
                     : "border-border/60 hover:border-gold/40 hover:bg-gold/5",
                 )}
               >
@@ -706,12 +725,18 @@ export function SettingsContent({
           </div>
 
           {/* Enable Border Toggle */}
-          <div className="border-border/50 bg-muted/30 flex items-center justify-between border p-4 backdrop-blur-sm">
+          <div className="
+            flex items-center justify-between border border-border/50 bg-muted/30 p-4
+            backdrop-blur-sm
+          ">
             <div className="flex items-center gap-3">
-              <div className="bg-gold/10 text-gold dark:bg-gold/15 flex h-8 w-8 items-center justify-center">
-                <Square className="h-4 w-4" />
+              <div className="
+                flex size-8 items-center justify-center bg-gold/10 text-gold
+                dark:bg-gold/15
+              ">
+                <Square className="size-4" />
               </div>
-              <span className="text-foreground text-sm font-medium">
+              <span className="text-sm font-medium text-foreground">
                 Enable Border
               </span>
             </div>
@@ -738,12 +763,14 @@ export function SettingsContent({
                 <div className="space-y-2">
                   <Label
                     htmlFor={`${idPrefix}-borderColor-input`}
-                    className="text-foreground text-sm font-medium"
+                    className="text-sm font-medium text-foreground"
                   >
                     Border Color
                   </Label>
                   <div className="flex items-center gap-3">
-                    <div className="border-border/60 relative h-10 w-10 shrink-0 overflow-hidden border shadow-inner">
+                    <div className="
+                      relative size-10 shrink-0 overflow-hidden border border-border/60 shadow-inner
+                    ">
                       <Input
                         type="color"
                         value={
@@ -754,7 +781,9 @@ export function SettingsContent({
                         onChange={(e) =>
                           borderInputs.handleColorPickerChange(e.target.value)
                         }
-                        className="absolute -top-1/2 -left-1/2 h-[200%] w-[200%] cursor-pointer border-0 p-0"
+                        className="
+                          absolute -top-1/2 -left-1/2 h-[200%] w-[200%] cursor-pointer border-0 p-0
+                        "
                         aria-label="Border color picker"
                       />
                     </div>
@@ -803,10 +832,13 @@ export function SettingsContent({
                 {/* Border Radius */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label className="text-foreground text-sm font-medium">
+                    <Label className="text-sm font-medium text-foreground">
                       Border Radius
                     </Label>
-                    <span className="bg-gold/10 text-gold-dim dark:text-gold px-2.5 py-1 text-xs font-bold tabular-nums">
+                    <span className="
+                      bg-gold/10 px-2.5 py-1 text-xs font-bold text-gold-dim tabular-nums
+                      dark:text-gold
+                    ">
                       {borderRadius}px
                     </span>
                   </div>
@@ -825,7 +857,19 @@ export function SettingsContent({
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-valuenow={borderRadius}
-                    className="from-gold/15 to-gold/25 [&::-moz-range-thumb]:bg-gold [&::-webkit-slider-thumb]:bg-gold h-2 w-full cursor-pointer appearance-none rounded-full bg-linear-to-r px-0 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md"
+                    className="
+                      h-2 w-full cursor-pointer appearance-none rounded-full bg-linear-to-r
+                      from-gold/15 to-gold/25 px-0
+                      [&::-moz-range-thumb]:size-5 [&::-moz-range-thumb]:cursor-pointer
+                      [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full
+                      [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white
+                      [&::-moz-range-thumb]:bg-gold [&::-moz-range-thumb]:shadow-md
+                      [&::-webkit-slider-thumb]:size-5 [&::-webkit-slider-thumb]:cursor-pointer
+                      [&::-webkit-slider-thumb]:appearance-none
+                      [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2
+                      [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-gold
+                      [&::-webkit-slider-thumb]:shadow-md
+                    "
                   />
                 </div>
               </motion.div>
@@ -888,12 +932,15 @@ export function SettingsContent({
             )}
 
             {visibility.showGridSize && (
-              <div className="border-border/50 bg-muted/30 border p-4 backdrop-blur-sm">
+              <div className="border border-border/50 bg-muted/30 p-4 backdrop-blur-sm">
                 <div className="mb-3 flex items-center gap-2.5">
-                  <div className="bg-gold/10 text-gold dark:bg-gold/15 flex h-7 w-7 items-center justify-center">
-                    <Grid className="h-3.5 w-3.5" />
+                  <div className="
+                    flex size-7 items-center justify-center bg-gold/10 text-gold
+                    dark:bg-gold/15
+                  ">
+                    <Grid className="size-3.5" />
                   </div>
-                  <span className="text-foreground text-sm font-medium">
+                  <span className="text-sm font-medium text-foreground">
                     {mode === "global" ? "Favorites Grid Size" : "Grid Size"}
                   </span>
                 </div>
@@ -901,7 +948,7 @@ export function SettingsContent({
                   <div>
                     <Label
                       htmlFor={`${idPrefix}-gridCols`}
-                      className="text-muted-foreground mb-1.5 text-xs font-medium"
+                      className="mb-1.5 text-xs font-medium text-muted-foreground"
                     >
                       Columns
                     </Label>
@@ -944,7 +991,7 @@ export function SettingsContent({
                   <div>
                     <Label
                       htmlFor={`${idPrefix}-gridRows`}
-                      className="text-muted-foreground mb-1.5 text-xs font-medium"
+                      className="mb-1.5 text-xs font-medium text-muted-foreground"
                     >
                       Rows
                     </Label>
@@ -986,7 +1033,7 @@ export function SettingsContent({
                   </div>
                 </div>
                 {mode === "global" && (
-                  <p className="text-muted-foreground mt-2 text-xs">
+                  <p className="mt-2 text-xs text-muted-foreground">
                     Grid dimensions for favorites card (1-5 each)
                   </p>
                 )}
@@ -997,14 +1044,14 @@ export function SettingsContent({
       </Tabs>
 
       {/* ── Reset Footer ────────────────────────────────── */}
-      <div className="border-border/40 flex justify-end border-t pt-4">
+      <div className="flex justify-end border-t border-border/40 pt-4">
         <Button
           variant="ghost"
           size="sm"
           onClick={onReset}
-          className="text-muted-foreground hover:text-foreground gap-2 text-xs transition-colors"
+          className="gap-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
         >
-          <RotateCcw className="h-3.5 w-3.5" />
+          <RotateCcw className="size-3.5" />
           {resetLabel ?? defaultResetLabel}
         </Button>
       </div>
@@ -1032,15 +1079,21 @@ function ToggleRow({
   ariaLabel: string;
 }>) {
   return (
-    <div className="border-border/50 bg-muted/30 flex items-center justify-between border p-4 backdrop-blur-sm transition-colors">
+    <div className="
+      flex items-center justify-between border border-border/50 bg-muted/30 p-4 backdrop-blur-sm
+      transition-colors
+    ">
       <div className="flex items-center gap-3">
-        <div className="bg-gold/10 text-gold dark:bg-gold/15 flex h-8 w-8 items-center justify-center">
-          <Icon className="h-4 w-4" />
+        <div className="
+          flex size-8 items-center justify-center bg-gold/10 text-gold
+          dark:bg-gold/15
+        ">
+          <Icon className="size-4" />
         </div>
         <div>
-          <span className="text-foreground text-sm font-medium">{label}</span>
+          <span className="text-sm font-medium text-foreground">{label}</span>
           {description && (
-            <p className="text-muted-foreground text-xs">{description}</p>
+            <p className="text-xs text-muted-foreground">{description}</p>
           )}
         </div>
       </div>

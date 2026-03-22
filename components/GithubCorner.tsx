@@ -29,9 +29,9 @@ function CornerAccents() {
 function OrnamentalRule() {
   return (
     <div className="flex items-center gap-2.5 py-1.5" aria-hidden="true">
-      <div className="bg-gold/15 h-px flex-1" />
-      <span className="bg-gold/50 inline-block h-1 w-1 rotate-45" />
-      <div className="bg-gold/15 h-px flex-1" />
+      <div className="h-px flex-1 bg-gold/15" />
+      <span className="inline-block size-1 rotate-45 bg-gold/50" />
+      <div className="h-px flex-1 bg-gold/15" />
     </div>
   );
 }
@@ -74,12 +74,25 @@ export default function GithubCorner() {
           target="_blank"
           rel="noopener noreferrer"
           aria-label="View AniCards on GitHub"
-          className="border-gold/20 hover:border-gold/40 focus-visible:ring-gold/50 dark:border-gold/15 dark:hover:border-gold/35 relative flex h-12 w-12 items-center justify-center border bg-white/90 backdrop-blur-sm transition-all duration-300 hover:shadow-[0_0_24px_-6px_hsl(42_58%_42%/0.15)] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none dark:bg-[#0C0A10]/90 dark:hover:shadow-[0_0_24px_-6px_hsl(42_63%_55%/0.2)]"
+          className="
+            relative flex size-12 items-center justify-center border border-gold/20 bg-white/90
+            backdrop-blur-sm transition-all duration-300
+            hover:border-gold/40 hover:shadow-[0_0_24px_-6px_hsl(42_58%_42%/0.15)]
+            focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2
+            focus-visible:outline-none
+            dark:border-gold/15 dark:bg-[#0C0A10]/90
+            dark:hover:border-gold/35 dark:hover:shadow-[0_0_24px_-6px_hsl(42_63%_55%/0.2)]
+          "
         >
           <CornerAccents />
           <SimpleGithubIcon
             size={22}
-            className="text-foreground/50 group-hover:text-gold dark:text-foreground/40 dark:group-hover:text-gold transition-colors duration-300"
+            className="
+              text-foreground/50 transition-colors duration-300
+              group-hover:text-gold
+              dark:text-foreground/40
+              dark:group-hover:text-gold
+            "
           />
         </Link>
 
@@ -89,7 +102,7 @@ export default function GithubCorner() {
           transition={{ delay: 1, duration: 0.3, ease: "easeOut" }}
           className="pointer-events-none absolute -top-1.5 -right-1.5"
         >
-          <Star className="fill-gold text-gold h-3 w-3 drop-shadow-sm" />
+          <Star className="size-3 fill-gold text-gold drop-shadow-sm" />
         </motion.div>
 
         <AnimatePresence>
@@ -101,11 +114,17 @@ export default function GithubCorner() {
               transition={{ duration: 0.2, ease: EASE_OUT_EXPO }}
               className="absolute top-0 right-full mr-3"
             >
-              <div className="border-gold/20 dark:border-gold/15 relative w-52 border bg-white/95 backdrop-blur-sm dark:bg-[#0C0A10]/95">
+              <div className="
+                relative w-52 border border-gold/20 bg-white/95 backdrop-blur-sm
+                dark:border-gold/15 dark:bg-[#0C0A10]/95
+              ">
                 <CornerAccents />
 
                 <div
-                  className="via-gold/40 absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent to-transparent"
+                  className="
+                    absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-gold/40
+                    to-transparent
+                  "
                   aria-hidden="true"
                 />
 
@@ -113,13 +132,18 @@ export default function GithubCorner() {
                   <div className="mb-0.5 flex items-center gap-2.5">
                     <SimpleGithubIcon
                       size={15}
-                      className="text-gold/60 shrink-0"
+                      className="shrink-0 text-gold/60"
                     />
                     <div className="min-w-0">
-                      <p className="font-display text-gold text-[11px] leading-tight tracking-[0.2em]">
+                      <p className="
+                        font-display text-[11px] leading-tight tracking-[0.2em] text-gold
+                      ">
                         ANICARDS
                       </p>
-                      <p className="font-body-serif text-foreground/40 dark:text-foreground/30 text-[10px] tracking-wide">
+                      <p className="
+                        font-body-serif text-[10px] tracking-wide text-foreground/40
+                        dark:text-foreground/30
+                      ">
                         by RLAlpha49
                       </p>
                     </div>
@@ -127,7 +151,10 @@ export default function GithubCorner() {
 
                   <OrnamentalRule />
 
-                  <p className="font-body-serif text-foreground/50 dark:text-foreground/40 mb-3 text-[11px] leading-relaxed">
+                  <p className="
+                    mb-3 font-body-serif text-[11px] leading-relaxed text-foreground/50
+                    dark:text-foreground/40
+                  ">
                     Beautiful stat cards for your AniList profile
                   </p>
 
@@ -137,9 +164,15 @@ export default function GithubCorner() {
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label="Star AniCards on GitHub"
-                      className="border-gold bg-gold hover:border-gold-dim hover:bg-gold-dim focus-visible:ring-gold/50 flex flex-1 items-center justify-center gap-1.5 border px-3 py-1.5 text-[11px] font-semibold tracking-wide text-white transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-none"
+                      className="
+                        flex flex-1 items-center justify-center gap-1.5 border border-gold bg-gold
+                        px-3 py-1.5 text-[11px] font-semibold tracking-wide text-white
+                        transition-colors duration-200
+                        hover:border-gold-dim hover:bg-gold-dim
+                        focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:outline-none
+                      "
                     >
-                      <Star className="h-3 w-3 fill-current" />
+                      <Star className="size-3 fill-current" />
                       Star
                     </Link>
                     <Link
@@ -147,9 +180,17 @@ export default function GithubCorner() {
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label="Fork AniCards on GitHub"
-                      className="border-gold/25 text-foreground/60 hover:border-gold/40 hover:text-gold focus-visible:ring-gold/50 dark:border-gold/20 dark:text-foreground/45 dark:hover:border-gold/35 dark:hover:text-gold flex flex-1 items-center justify-center gap-1.5 border bg-transparent px-3 py-1.5 text-[11px] font-semibold tracking-wide transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-none"
+                      className="
+                        flex flex-1 items-center justify-center gap-1.5 border border-gold/25
+                        bg-transparent px-3 py-1.5 text-[11px] font-semibold tracking-wide
+                        text-foreground/60 transition-colors duration-200
+                        hover:border-gold/40 hover:text-gold
+                        focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:outline-none
+                        dark:border-gold/20 dark:text-foreground/45
+                        dark:hover:border-gold/35 dark:hover:text-gold
+                      "
                     >
-                      <GitFork className="h-3 w-3" />
+                      <GitFork className="size-3" />
                       Fork
                     </Link>
                   </div>
@@ -160,15 +201,24 @@ export default function GithubCorner() {
                     href="https://github.com/RLAlpha49/Anicards"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-body-serif text-foreground/35 hover:text-gold dark:text-foreground/30 dark:hover:text-gold flex items-center justify-center gap-1.5 text-[10px] tracking-[0.15em] transition-colors duration-200"
+                    className="
+                      flex items-center justify-center gap-1.5 font-body-serif text-[10px]
+                      tracking-[0.15em] text-foreground/35 transition-colors duration-200
+                      hover:text-gold
+                      dark:text-foreground/30
+                      dark:hover:text-gold
+                    "
                   >
                     VIEW REPOSITORY
-                    <ExternalLink className="h-2.5 w-2.5" />
+                    <ExternalLink className="size-2.5" />
                   </Link>
                 </div>
 
                 <div className="absolute top-4.75 right-0 translate-x-1.25">
-                  <div className="border-gold/20 dark:border-gold/15 h-2.5 w-2.5 rotate-45 border-t border-r bg-white/95 dark:bg-[#0C0A10]/95" />
+                  <div className="
+                    size-2.5 rotate-45 border-t border-r border-gold/20 bg-white/95
+                    dark:border-gold/15 dark:bg-[#0C0A10]/95
+                  " />
                 </div>
               </div>
             </motion.div>

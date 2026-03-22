@@ -28,7 +28,9 @@ export function SearchFilterBar({
     <div className="flex items-center gap-3">
       {/* Search input */}
       <div className="relative flex-1">
-        <Search className="text-foreground/20 absolute top-1/2 left-3.5 h-3.5 w-3.5 -translate-y-1/2 transition-colors" />
+        <Search className="
+          absolute top-1/2 left-3.5 size-3.5 -translate-y-1/2 text-foreground/20 transition-colors
+        " />
         <input
           type="text"
           placeholder="Find a card by name or keyword…"
@@ -37,7 +39,7 @@ export function SearchFilterBar({
           className={cn(
             "h-10 w-full border bg-transparent pr-9 pl-10 text-sm",
             "border-gold/8 text-foreground placeholder:text-foreground/25",
-            "focus:border-gold/30 focus:ring-gold/6 focus:ring-2 focus:outline-none",
+            "focus:border-gold/30 focus:ring-2 focus:ring-gold/6 focus:outline-none",
             "transition-all duration-300",
           )}
         />
@@ -50,10 +52,13 @@ export function SearchFilterBar({
               exit={{ opacity: 0, scale: 0.6, rotate: 90 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
               onClick={() => onSearchChange("")}
-              className="text-foreground/25 hover:text-foreground/50 absolute top-1/2 right-3 -translate-y-1/2 transition-colors"
+              className="
+                absolute top-1/2 right-3 -translate-y-1/2 text-foreground/25 transition-colors
+                hover:text-foreground/50
+              "
               aria-label="Clear search"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="size-3.5" />
             </motion.button>
           )}
         </AnimatePresence>
@@ -68,10 +73,10 @@ export function SearchFilterBar({
             exit={{ opacity: 0, width: 0 }}
             className="flex shrink-0 items-center gap-1.5 overflow-hidden"
           >
-            <SlidersHorizontal className="text-gold/40 h-3 w-3 shrink-0" />
-            <span className="text-foreground/40 text-xs whitespace-nowrap tabular-nums">
-              <span className="text-gold font-semibold">{resultCount}</span>
-              <span className="text-foreground/15 mx-0.5">/</span>
+            <SlidersHorizontal className="size-3 shrink-0 text-gold/40" />
+            <span className="text-xs whitespace-nowrap text-foreground/40 tabular-nums">
+              <span className="font-semibold text-gold">{resultCount}</span>
+              <span className="mx-0.5 text-foreground/15">/</span>
               {totalCount}
             </span>
           </motion.div>
@@ -91,7 +96,7 @@ export function SearchFilterBar({
             className={cn(
               "shrink-0 px-3 py-1.5 text-[0.65rem] font-semibold tracking-widest uppercase",
               "border border-transparent transition-all duration-300",
-              "text-foreground/40 hover:text-gold hover:border-gold/20 hover:bg-gold/5",
+              "text-foreground/40 hover:border-gold/20 hover:bg-gold/5 hover:text-gold",
             )}
           >
             Clear

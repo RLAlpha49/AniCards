@@ -53,18 +53,23 @@ export function SearchHeroSection({
       />
 
       {/* Central gold glow */}
-      <div className="pointer-events-none absolute top-1/3 left-1/2 h-125 w-150 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[hsl(var(--gold)/0.06)] blur-[140px]" />
+      <div className="
+        pointer-events-none absolute top-1/3 left-1/2 h-125 w-150 -translate-1/2 rounded-full
+        bg-[hsl(var(--gold)/0.06)] blur-[140px]
+      " />
 
       {/* Floating decorative elements */}
       <motion.div
-        className="text-gold/10 pointer-events-none absolute top-24 left-[8%] text-5xl select-none"
+        className="pointer-events-none absolute top-24 left-[8%] text-5xl text-gold/10 select-none"
         animate={{ y: [0, -15, 0], rotate: [0, 12, 0] }}
         transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
       >
         ◆
       </motion.div>
       <motion.div
-        className="text-gold/8 pointer-events-none absolute right-[10%] bottom-32 text-3xl select-none"
+        className="
+          pointer-events-none absolute right-[10%] bottom-32 text-3xl text-gold/8 select-none
+        "
         animate={{ y: [0, 12, 0], rotate: [0, -8, 0] }}
         transition={{
           duration: 7,
@@ -76,7 +81,10 @@ export function SearchHeroSection({
         ✦
       </motion.div>
       <motion.div
-        className="text-gold/6 pointer-events-none absolute top-[50%] left-[5%] hidden text-2xl select-none md:block"
+        className="
+          pointer-events-none absolute top-[50%] left-[5%] hidden text-2xl text-gold/6 select-none
+          md:block
+        "
         animate={{ y: [0, -10, 0], opacity: [0.4, 0.8, 0.4] }}
         transition={{
           duration: 6,
@@ -88,7 +96,10 @@ export function SearchHeroSection({
         ◇
       </motion.div>
       <motion.div
-        className="text-gold/5 pointer-events-none absolute top-[20%] right-[6%] hidden text-xl select-none lg:block"
+        className="
+          pointer-events-none absolute top-[20%] right-[6%] hidden text-xl text-gold/5 select-none
+          lg:block
+        "
         animate={{ y: [0, 8, 0], rotate: [0, -15, 0] }}
         transition={{
           duration: 10,
@@ -108,21 +119,31 @@ export function SearchHeroSection({
       >
         <motion.p
           variants={itemVariants}
-          className="text-gold mb-5 text-xs tracking-[0.6em] uppercase sm:text-sm"
+          className="mb-5 text-xs tracking-[0.6em] text-gold uppercase sm:text-sm"
         >
           Profile Lookup
         </motion.p>
 
         <motion.h1
           variants={itemVariants}
-          className="font-display text-foreground mb-2 text-5xl leading-[1.05] font-black sm:text-6xl md:text-7xl lg:text-8xl"
+          className="
+            mb-2 font-display text-5xl leading-[1.05] font-black text-foreground
+            sm:text-6xl
+            md:text-7xl
+            lg:text-8xl
+          "
         >
           UNLOCK
         </motion.h1>
 
         <motion.h1
           variants={itemVariants}
-          className="font-display text-gold mb-6 text-5xl leading-[1.05] font-black sm:text-6xl md:text-7xl lg:text-8xl"
+          className="
+            mb-6 font-display text-5xl leading-[1.05] font-black text-gold
+            sm:text-6xl
+            md:text-7xl
+            lg:text-8xl
+          "
         >
           ANY PROFILE
         </motion.h1>
@@ -134,7 +155,10 @@ export function SearchHeroSection({
 
         <motion.p
           variants={itemVariants}
-          className="font-body-serif text-foreground/45 mx-auto mb-6 max-w-lg text-base leading-relaxed sm:text-lg"
+          className="
+            mx-auto mb-6 max-w-lg font-body-serif text-base/relaxed text-foreground/45
+            sm:text-lg
+          "
         >
           Punch in a username or ID, and we&apos;ll pull together stunning stat
           cards from any public AniList profile — ready to customize and share
@@ -143,7 +167,10 @@ export function SearchHeroSection({
 
         <motion.div
           variants={itemVariants}
-          className="text-foreground/30 mb-14 flex flex-wrap justify-center gap-x-8 gap-y-2 text-xs tracking-[0.2em] uppercase"
+          className="
+            mb-14 flex flex-wrap justify-center gap-x-8 gap-y-2 text-xs tracking-[0.2em]
+            text-foreground/30 uppercase
+          "
         >
           <span>✦ Instant Results</span>
           <span>✦ No Account Needed</span>

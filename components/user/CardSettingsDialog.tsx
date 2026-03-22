@@ -170,7 +170,11 @@ export function CardSettingsDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="overlay-scrollbar border-border/60 bg-background/95 dark:bg-background/95 max-h-[85vh] max-w-4xl overflow-y-auto border shadow-xl backdrop-blur-md">
+      <DialogContent className="
+        max-h-[85vh] max-w-4xl overflow-y-auto border border-border/60 bg-background/95 shadow-xl
+        backdrop-blur-md
+        dark:bg-background/95
+      ">
         <DialogHeader className="sr-only">
           <DialogTitle>{label} Settings</DialogTitle>
           <DialogDescription>

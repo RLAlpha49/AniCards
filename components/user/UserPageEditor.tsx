@@ -116,7 +116,11 @@ function getTooltipTriggerChild(mode: TooltipTriggerMode, child: ReactElement) {
 
 function ShortcutHint({ children }: Readonly<{ children: string }>) {
   return (
-    <kbd className="border-gold/20 bg-gold/3 text-foreground dark:border-gold/15 dark:bg-gold/3 ml-2 inline-flex items-center border px-1.5 py-0.5 font-mono text-[10px]">
+    <kbd className="
+      ml-2 inline-flex items-center border border-gold/20 bg-gold/3 px-1.5 py-0.5 font-mono
+      text-[10px] text-foreground
+      dark:border-gold/15 dark:bg-gold/3
+    ">
       {children}
     </kbd>
   );
@@ -151,7 +155,9 @@ function UserPageEditorLoadingScreen(
     props.loadingPhase === "saving";
 
   return (
-    <div className="relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4">
+    <div className="
+      relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4
+    ">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -160,20 +166,24 @@ function UserPageEditorLoadingScreen(
         {isSettingUp ? (
           <>
             <div className="relative">
-              <div className="from-gold/15 dark:from-gold/10 flex h-20 w-20 items-center justify-center rounded-full bg-linear-to-br to-amber-100 dark:to-amber-900/20">
-                <UserPlus className="text-gold dark:text-gold h-10 w-10" />
+              <div className="
+                flex size-20 items-center justify-center rounded-full bg-linear-to-br from-gold/15
+                to-amber-100
+                dark:from-gold/10 dark:to-amber-900/20
+              ">
+                <UserPlus className="size-10 text-gold dark:text-gold" />
               </div>
               <motion.div
-                className="border-gold/50 absolute -inset-1 rounded-full border-2"
+                className="absolute -inset-1 rounded-full border-2 border-gold/50"
                 animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.8, 0.5] }}
                 transition={{ duration: 1.5, repeat: Infinity }}
               />
             </div>
             <div className="text-center">
-              <h2 className="font-display text-foreground text-xl">
+              <h2 className="font-display text-xl text-foreground">
                 Welcome to AniCards!
               </h2>
-              <p className="font-body-serif text-muted-foreground mt-2">
+              <p className="mt-2 font-body-serif text-muted-foreground">
                 {loadingMessage}
               </p>
             </div>
@@ -189,27 +199,43 @@ function UserPageEditorLoadingScreen(
 
 function UserPageEditorErrorScreen(props: Readonly<{ loadError: string }>) {
   return (
-    <div className="relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4">
+    <div className="
+      relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4
+    ">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         className="w-full max-w-md"
       >
-        <div className="border-gold/20 bg-background/80 dark:border-gold/15 relative border-2 p-8 text-center shadow-2xl backdrop-blur-xl">
-          <div className="border-gold pointer-events-none absolute top-0 left-0 h-4 w-4 border-t-2 border-l-2" />
-          <div className="border-gold pointer-events-none absolute right-0 bottom-0 h-4 w-4 border-r-2 border-b-2" />
-          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-            <AlertCircle className="h-10 w-10 text-red-500" />
+        <div className="
+          relative border-2 border-gold/20 bg-background/80 p-8 text-center shadow-2xl
+          backdrop-blur-xl
+          dark:border-gold/15
+        ">
+          <div className="
+            pointer-events-none absolute top-0 left-0 size-4 border-t-2 border-l-2 border-gold
+          " />
+          <div className="
+            pointer-events-none absolute right-0 bottom-0 size-4 border-r-2 border-b-2 border-gold
+          " />
+          <div className="
+            mx-auto mb-6 flex size-20 items-center justify-center rounded-full bg-red-100
+            dark:bg-red-900/30
+          ">
+            <AlertCircle className="size-10 text-red-500" />
           </div>
-          <h1 className="font-display text-foreground mb-3 text-2xl">
+          <h1 className="mb-3 font-display text-2xl text-foreground">
             Something Went Wrong
           </h1>
-          <p className="font-body-serif text-muted-foreground mb-6">
+          <p className="mb-6 font-body-serif text-muted-foreground">
             {props.loadError}
           </p>
           <Button
             asChild
-            className="from-gold to-gold-dim text-primary-foreground shadow-gold/20 bg-linear-to-r via-amber-500 shadow-lg"
+            className="
+              bg-linear-to-r from-gold via-amber-500 to-gold-dim text-primary-foreground shadow-lg
+              shadow-gold/20
+            "
           >
             <Link href="/search">Search for User</Link>
           </Button>
@@ -251,14 +277,14 @@ const FAVORITES_CARDS = new Set([
 ]);
 
 const GROUP_ICONS: Record<string, React.ReactNode> = {
-  "Core Stats": <Layers className="h-5 w-5" />,
-  "Anime Deep Dive": <Clapperboard className="h-5 w-5" />,
-  "Manga Deep Dive": <BookOpen className="h-5 w-5" />,
-  "Activity & Engagement": <Activity className="h-5 w-5" />,
-  "Library & Progress": <Library className="h-5 w-5" />,
-  "Advanced Analytics": <BarChart3 className="h-5 w-5" />,
+  "Core Stats": <Layers className="size-5" />,
+  "Anime Deep Dive": <Clapperboard className="size-5" />,
+  "Manga Deep Dive": <BookOpen className="size-5" />,
+  "Activity & Engagement": <Activity className="size-5" />,
+  "Library & Progress": <Library className="size-5" />,
+  "Advanced Analytics": <BarChart3 className="size-5" />,
 };
-const DEFAULT_GROUP_ICON = <LayoutGrid className="h-5 w-5" />;
+const DEFAULT_GROUP_ICON = <LayoutGrid className="size-5" />;
 
 const VALID_VISIBILITY = new Set(["all", "enabled", "disabled"]);
 
@@ -391,7 +417,7 @@ function useUserPageEditorCommandPalette(opts: {
         keywords: ["find", "filter", "query"],
         group: "editor",
         shortcutHint: "Ctrl/Cmd+F",
-        icon: <Search className="h-4 w-4" aria-hidden="true" />,
+        icon: <Search className="size-4" aria-hidden="true" />,
         run: () => {
           searchRef.current?.focus();
         },
@@ -404,9 +430,9 @@ function useUserPageEditorCommandPalette(opts: {
         group: "editor",
         icon:
           visibility === "disabled" ? (
-            <EyeOff className="h-4 w-4" aria-hidden="true" />
+            <EyeOff className="size-4" aria-hidden="true" />
           ) : (
-            <Eye className="h-4 w-4" aria-hidden="true" />
+            <Eye className="size-4" aria-hidden="true" />
           ),
         run: toggleVisibilityFilter,
       },
@@ -416,7 +442,7 @@ function useUserPageEditorCommandPalette(opts: {
         description: "Edit default colors, borders, and advanced options",
         keywords: ["preferences", "theme", "defaults"],
         group: "editor",
-        icon: <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />,
+        icon: <SlidersHorizontal className="size-4" aria-hidden="true" />,
         run: openGlobalSettings,
       },
       {
@@ -428,7 +454,7 @@ function useUserPageEditorCommandPalette(opts: {
         keywords: ["commit", "store", "persist"],
         group: "editor",
         shortcutHint: "Ctrl/Cmd+S",
-        icon: <Save className="h-4 w-4" aria-hidden="true" />,
+        icon: <Save className="size-4" aria-hidden="true" />,
         disabled: !canSaveNow,
         run: saveNow,
       },
@@ -440,7 +466,7 @@ function useUserPageEditorCommandPalette(opts: {
           : "Nothing to discard",
         keywords: ["revert", "reset", "undo all"],
         group: "editor",
-        icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
+        icon: <Trash2 className="size-4" aria-hidden="true" />,
         disabled: !canDiscardNow,
         run: openDiscardDialog,
       },
@@ -450,7 +476,7 @@ function useUserPageEditorCommandPalette(opts: {
         description: "Open the bulk actions toolbar",
         keywords: ["multi", "select", "download", "copy", "bulk edit"],
         group: "bulk",
-        icon: <Layers className="h-4 w-4" aria-hidden="true" />,
+        icon: <Layers className="size-4" aria-hidden="true" />,
         run: openBulkActions,
       },
       {
@@ -460,7 +486,7 @@ function useUserPageEditorCommandPalette(opts: {
         keywords: ["shortcuts", "faq", "guide"],
         group: "help",
         shortcutHint: "Ctrl/Cmd+H",
-        icon: <Info className="h-4 w-4" aria-hidden="true" />,
+        icon: <Info className="size-4" aria-hidden="true" />,
         run: openHelpDialog,
       },
       {
@@ -696,8 +722,17 @@ function ReorderModeToolbarToggle({
       className={cn(
         "h-9 px-3 text-xs font-medium",
         isReorderMode
-          ? "border-gold/30 bg-gold/10 text-gold-dim hover:bg-gold/15 dark:border-gold/25 dark:bg-gold/10 dark:text-gold dark:hover:bg-gold/15"
-          : "border-gold/15 bg-background text-muted-foreground hover:bg-gold/5 hover:text-foreground dark:border-gold/10",
+          ? `
+            border-gold/30 bg-gold/10 text-gold-dim
+            hover:bg-gold/15
+            dark:border-gold/25 dark:bg-gold/10 dark:text-gold
+            dark:hover:bg-gold/15
+          `
+          : `
+            border-gold/15 bg-background text-muted-foreground
+            hover:bg-gold/5 hover:text-foreground
+            dark:border-gold/10
+          `,
       )}
       title={
         canEnterReorderMode
@@ -705,7 +740,7 @@ function ReorderModeToolbarToggle({
           : "Clear search and set visibility to All to reorder"
       }
     >
-      <GripVertical className="mr-1.5 h-3.5 w-3.5" />
+      <GripVertical className="mr-1.5 size-3.5" />
       {isReorderMode ? "Done" : "Reorder"}
     </Button>
   );
@@ -719,7 +754,7 @@ function ReorderModeToolbarToggle({
         <TooltipContent
           side="top"
           sideOffset={8}
-          className="max-w-xs text-xs leading-relaxed"
+          className="max-w-xs text-xs/relaxed"
         >
           {canEnterReorderMode ? (
             <p>
@@ -763,7 +798,7 @@ function ReorderModeMenuToggle({
           : "Clear search and set visibility to All to reorder"
       }
     >
-      <GripVertical className="mr-2 h-4 w-4" />
+      <GripVertical className="mr-2 size-4" />
       {isReorderMode ? "Done reordering" : "Reorder"}
     </Button>
   );
@@ -1314,25 +1349,35 @@ export function UserPageEditor() {
               transition={{ duration: 0.4, ease: "easeOut" }}
               className="space-y-3"
             >
-              <div className="gold-ornament text-gold/50 mb-4 text-xs tracking-[0.3em] uppercase">
+              <div className="mb-4 gold-ornament text-xs tracking-[0.3em] text-gold/50 uppercase">
                 ✦
               </div>
 
               <div className="flex items-center gap-4">
-                <div className="from-gold to-gold-dim shadow-gold/20 flex h-12 w-12 items-center justify-center bg-linear-to-br via-amber-500 shadow-lg">
-                  <LayoutGrid className="text-primary-foreground h-6 w-6" />
+                <div className="
+                  flex size-12 items-center justify-center bg-linear-to-br from-gold via-amber-500
+                  to-gold-dim shadow-lg shadow-gold/20
+                ">
+                  <LayoutGrid className="size-6 text-primary-foreground" />
                 </div>
                 <div>
-                  <h2 className="font-display text-foreground text-lg tracking-[0.15em] uppercase sm:text-xl">
+                  <h2 className="
+                    font-display text-lg tracking-[0.15em] text-foreground uppercase
+                    sm:text-xl
+                  ">
                     Your Cards
                   </h2>
-                  <p className="font-body-serif text-muted-foreground text-sm">
+                  <p className="font-body-serif text-sm text-muted-foreground">
                     Toggle, customize, and preview your stat cards
                   </p>
                 </div>
               </div>
 
-              <div className="border-gold/20 bg-background/80 dark:border-gold/15 dark:bg-background/60 flex items-center justify-between border px-2.5 py-1.5 backdrop-blur-sm">
+              <div className="
+                flex items-center justify-between border border-gold/20 bg-background/80 px-2.5
+                py-1.5 backdrop-blur-sm
+                dark:border-gold/15 dark:bg-background/60
+              ">
                 <div className="flex items-center gap-1.5">
                   <TooltipProvider delayDuration={200}>
                     <Tooltip>
@@ -1357,7 +1402,7 @@ export function UserPageEditor() {
                             data-tour="save-button"
                           >
                             <Save
-                              className="h-4 w-4 sm:mr-1.5"
+                              className="size-4 sm:mr-1.5"
                               aria-hidden="true"
                             />
                             <span className="hidden sm:inline">Save</span>
@@ -1367,7 +1412,7 @@ export function UserPageEditor() {
                       <TooltipContent
                         side="bottom"
                         sideOffset={8}
-                        className="max-w-xs text-xs leading-relaxed"
+                        className="max-w-xs text-xs/relaxed"
                       >
                         <p>
                           Save your changes now. Autosave runs automatically,
@@ -1391,14 +1436,19 @@ export function UserPageEditor() {
                             className={cn(
                               "h-8 px-2 text-xs font-medium sm:px-3",
                               canDiscardNow
-                                ? "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
+                                ? `
+                                  text-red-600
+                                  hover:bg-red-50
+                                  dark:text-red-400
+                                  dark:hover:bg-red-950/30
+                                `
                                 : "text-muted-foreground",
                             )}
                             onClick={() => setIsDiscardDialogOpen(true)}
                             disabled={!canDiscardNow}
                           >
                             <Trash2
-                              className="h-4 w-4 sm:mr-1.5"
+                              className="size-4 sm:mr-1.5"
                               aria-hidden="true"
                             />
                             <span className="hidden sm:inline">Discard</span>
@@ -1408,7 +1458,7 @@ export function UserPageEditor() {
                       <TooltipContent
                         side="bottom"
                         sideOffset={8}
-                        className="max-w-xs text-xs leading-relaxed"
+                        className="max-w-xs text-xs/relaxed"
                       >
                         <p>
                           Discard unsaved changes and revert to your last loaded
@@ -1426,14 +1476,18 @@ export function UserPageEditor() {
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 px-2 text-xs font-medium sm:px-3"
+                          className="
+                            h-8 px-2 text-xs font-medium text-muted-foreground
+                            hover:bg-gold/5 hover:text-foreground
+                            sm:px-3
+                          "
                           onClick={() => setIsHelpDialogOpen(true)}
                           aria-haspopup="dialog"
                           aria-keyshortcuts="Control+H Meta+H"
                           data-tour="help-button"
                         >
                           <Info
-                            className="h-4 w-4 sm:mr-1.5"
+                            className="size-4 sm:mr-1.5"
                             aria-hidden="true"
                           />
                           <span className="hidden sm:inline">Help</span>
@@ -1442,7 +1496,7 @@ export function UserPageEditor() {
                       <TooltipContent
                         side="bottom"
                         sideOffset={8}
-                        className="max-w-xs text-xs leading-relaxed"
+                        className="max-w-xs text-xs/relaxed"
                       >
                         <p>
                           Open help and view all shortcuts.
@@ -1451,7 +1505,7 @@ export function UserPageEditor() {
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
-                  <div className="bg-gold/20 dark:bg-gold/15 h-5 w-px" />
+                  <div className="h-5 w-px bg-gold/20 dark:bg-gold/15" />
                   <Dialog
                     open={isGlobalSettingsOpen}
                     onOpenChange={setIsGlobalSettingsOpen}
@@ -1463,10 +1517,16 @@ export function UserPageEditor() {
                             <Button
                               type="button"
                               size="sm"
-                              className="from-gold to-gold-dim text-primary-foreground shadow-gold/20 hover:shadow-gold/30 h-8 bg-linear-to-r via-amber-500 px-2 text-xs font-semibold shadow-sm transition-all hover:shadow-md sm:px-3"
+                              className="
+                                h-8 bg-linear-to-r from-gold via-amber-500 to-gold-dim px-2 text-xs
+                                font-semibold text-primary-foreground shadow-sm shadow-gold/20
+                                transition-all
+                                hover:shadow-md hover:shadow-gold/30
+                                sm:px-3
+                              "
                               data-tour="global-settings"
                             >
-                              <SlidersHorizontal className="h-4 w-4 sm:mr-1.5" />
+                              <SlidersHorizontal className="size-4 sm:mr-1.5" />
                               <span className="hidden sm:inline">Settings</span>
                             </Button>
                           </DialogTrigger>
@@ -1474,7 +1534,7 @@ export function UserPageEditor() {
                         <TooltipContent
                           side="bottom"
                           sideOffset={8}
-                          className="max-w-xs text-xs leading-relaxed"
+                          className="max-w-xs text-xs/relaxed"
                         >
                           <p>
                             Set your default look (colors, borders, and more).
@@ -1483,7 +1543,7 @@ export function UserPageEditor() {
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
-                    <DialogContent className="overlay-scrollbar max-h-[85vh] max-w-4xl overflow-y-auto">
+                    <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto">
                       <GlobalSettingsPanel onSave={saveNow} />
                     </DialogContent>
                   </Dialog>
@@ -1504,7 +1564,12 @@ export function UserPageEditor() {
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction
-                          className="bg-red-600 text-white hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700"
+                          className="
+                            bg-red-600 text-white
+                            hover:bg-red-700
+                            dark:bg-red-600
+                            dark:hover:bg-red-700
+                          "
                           onClick={handleDiscardChanges}
                         >
                           Discard changes
@@ -1516,16 +1581,29 @@ export function UserPageEditor() {
               </div>
 
               <div
-                className="border-gold/15 bg-gold/3 dark:border-gold/10 dark:bg-gold/3 relative flex flex-col gap-3 border-2 p-3 backdrop-blur-sm"
+                className="
+                  relative flex flex-col gap-3 border-2 border-gold/15 bg-gold/3 p-3
+                  backdrop-blur-sm
+                  dark:border-gold/10 dark:bg-gold/3
+                "
                 role="toolbar"
                 aria-label="Card filters"
               >
-                <div className="border-gold/40 pointer-events-none absolute top-0 left-0 h-3 w-3 border-t-2 border-l-2" />
-                <div className="border-gold/40 pointer-events-none absolute right-0 bottom-0 h-3 w-3 border-r-2 border-b-2" />
+                <div className="
+                  pointer-events-none absolute top-0 left-0 size-3 border-t-2 border-l-2
+                  border-gold/40
+                " />
+                <div className="
+                  pointer-events-none absolute right-0 bottom-0 size-3 border-r-2 border-b-2
+                  border-gold/40
+                " />
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <div className="relative flex-1">
                     <Search
-                      className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2"
+                      className="
+                        pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2
+                        text-muted-foreground
+                      "
                       aria-hidden="true"
                     />
                     <Input
@@ -1536,7 +1614,7 @@ export function UserPageEditor() {
                       onChange={(e) => setQuery(e.target.value)}
                       placeholder="Search cards… (Ctrl/Cmd+F)"
                       aria-keyshortcuts="Control+F Meta+F"
-                      className="border-gold/20 bg-background dark:border-gold/15 h-9 pr-9 pl-9 text-sm"
+                      className="h-9 border-gold/20 bg-background px-9 text-sm dark:border-gold/15"
                       title='Try: group:"Core Stats" custom:yes enabled:true'
                     />
 
@@ -1547,20 +1625,27 @@ export function UserPageEditor() {
                             type="button"
                             className={cn(
                               "absolute top-1/2 right-2 -translate-y-1/2",
-                              "flex h-7 w-7 items-center justify-center",
+                              "flex size-7 items-center justify-center",
                               "text-muted-foreground hover:bg-gold/5 hover:text-foreground",
-                              "dark:text-muted-foreground dark:hover:bg-gold/5 dark:hover:text-foreground",
-                              "focus-visible:ring-gold/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
+                              `
+                                dark:text-muted-foreground
+                                dark:hover:bg-gold/5 dark:hover:text-foreground
+                              `,
+                              `
+                                focus:outline-none
+                                focus-visible:ring-2 focus-visible:ring-gold/50
+                                focus-visible:ring-offset-1
+                              `,
                             )}
                             aria-label="Help: searching cards"
                           >
-                            <Info className="h-4 w-4" aria-hidden="true" />
+                            <Info className="size-4" aria-hidden="true" />
                           </button>
                         </TooltipTrigger>
                         <TooltipContent
                           side="top"
                           sideOffset={8}
-                          className="max-w-xs text-xs leading-relaxed"
+                          className="max-w-xs text-xs/relaxed"
                         >
                           <p>
                             Search cards by name. Use Ctrl/Cmd+F to focus the
@@ -1581,7 +1666,11 @@ export function UserPageEditor() {
                           <SelectTrigger
                             id={groupFilterTriggerId}
                             aria-keyshortcuts="Control+Shift+F Meta+Shift+F"
-                            className="border-gold/20 bg-background dark:border-gold/15 h-9 w-full text-sm sm:w-44"
+                            className="
+                              h-9 w-full border-gold/20 bg-background text-sm
+                              sm:w-44
+                              dark:border-gold/15
+                            "
                           >
                             <SelectValue placeholder="All categories" />
                           </SelectTrigger>
@@ -1589,7 +1678,7 @@ export function UserPageEditor() {
                         <TooltipContent
                           side="top"
                           sideOffset={8}
-                          className="max-w-xs text-xs leading-relaxed"
+                          className="max-w-xs text-xs/relaxed"
                         >
                           <p>
                             Focus the category filter to limit results to a card
@@ -1630,7 +1719,10 @@ export function UserPageEditor() {
                       variant="ghost"
                       size="sm"
                       onClick={clearAllFilters}
-                      className="text-muted-foreground hover:bg-gold/5 hover:text-foreground ml-auto h-6 px-2 text-[11px] font-medium"
+                      className="
+                        ml-auto h-6 px-2 text-[11px] font-medium text-muted-foreground
+                        hover:bg-gold/5 hover:text-foreground
+                      "
                     >
                       Clear filters
                     </Button>
@@ -1641,7 +1733,10 @@ export function UserPageEditor() {
 
                 <div className="flex flex-wrap items-center gap-3">
                   <div
-                    className="border-gold/15 bg-gold/3 dark:border-gold/10 flex items-center gap-0.5 border p-0.5"
+                    className="
+                      flex items-center gap-0.5 border border-gold/15 bg-gold/3 p-0.5
+                      dark:border-gold/10
+                    "
                     data-tour="visibility-toggle"
                   >
                     <Button
@@ -1652,7 +1747,7 @@ export function UserPageEditor() {
                       className={cn(
                         "h-8 px-3 text-xs font-medium transition-all",
                         visibility === "all"
-                          ? "bg-gold/10 text-gold-dim dark:bg-gold/10 dark:text-gold shadow-sm"
+                          ? "bg-gold/10 text-gold-dim shadow-sm dark:bg-gold/10 dark:text-gold"
                           : "text-muted-foreground hover:text-foreground",
                       )}
                       onClick={() => setVisibility("all")}
@@ -1668,13 +1763,13 @@ export function UserPageEditor() {
                       className={cn(
                         "h-8 px-3 text-xs font-medium transition-all",
                         visibility === "enabled"
-                          ? "bg-gold/10 text-gold-dim dark:bg-gold/10 dark:text-gold shadow-sm"
+                          ? "bg-gold/10 text-gold-dim shadow-sm dark:bg-gold/10 dark:text-gold"
                           : "text-muted-foreground hover:text-foreground",
                       )}
                       onClick={() => setVisibility("enabled")}
                       title="Toggle enabled-only view (Ctrl/Cmd+E)"
                     >
-                      <Eye className="mr-1.5 h-3.5 w-3.5" />
+                      <Eye className="mr-1.5 size-3.5" />
                       Enabled
                     </Button>
                     <Button
@@ -1685,12 +1780,12 @@ export function UserPageEditor() {
                       className={cn(
                         "h-8 px-3 text-xs font-medium transition-all",
                         visibility === "disabled"
-                          ? "bg-gold/10 text-gold-dim dark:bg-gold/10 dark:text-gold shadow-sm"
+                          ? "bg-gold/10 text-gold-dim shadow-sm dark:bg-gold/10 dark:text-gold"
                           : "text-muted-foreground hover:text-foreground",
                       )}
                       onClick={() => setVisibility("disabled")}
                     >
-                      <EyeOff className="mr-1.5 h-3.5 w-3.5" />
+                      <EyeOff className="mr-1.5 size-3.5" />
                       Disabled
                     </Button>
 
@@ -1701,19 +1796,26 @@ export function UserPageEditor() {
                             type="button"
                             data-testid="disabled-cards-info"
                             className={cn(
-                              "ml-0.5 flex h-8 w-8 items-center justify-center transition-colors",
+                              "ml-0.5 flex size-8 items-center justify-center transition-colors",
                               "text-muted-foreground hover:bg-gold/5 hover:text-foreground",
-                              "dark:text-muted-foreground dark:hover:bg-gold/5 dark:hover:text-foreground",
-                              "focus-visible:ring-gold/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
+                              `
+                                dark:text-muted-foreground
+                                dark:hover:bg-gold/5 dark:hover:text-foreground
+                              `,
+                              `
+                                focus:outline-none
+                                focus-visible:ring-2 focus-visible:ring-gold/50
+                                focus-visible:ring-offset-1
+                              `,
                             )}
                             aria-label="Info about disabled cards"
                           >
-                            <Info className="h-4 w-4" aria-hidden="true" />
+                            <Info className="size-4" aria-hidden="true" />
                           </button>
                         </TooltipTrigger>
                         <TooltipContent
                           side="top"
-                          className="max-w-xs text-xs leading-relaxed"
+                          className="max-w-xs text-xs/relaxed"
                           sideOffset={8}
                         >
                           <p>{DISABLED_CARD_INFO}</p>
@@ -1722,10 +1824,13 @@ export function UserPageEditor() {
                     </TooltipProvider>
                   </div>
 
-                  <div className="bg-gold/20 dark:bg-gold/15 hidden h-6 w-px sm:block" />
+                  <div className="hidden h-6 w-px bg-gold/20 sm:block dark:bg-gold/15" />
 
                   <div
-                    className="border-gold/15 bg-gold/3 dark:border-gold/10 flex items-center gap-0.5 border p-0.5"
+                    className="
+                      flex items-center gap-0.5 border border-gold/15 bg-gold/3 p-0.5
+                      dark:border-gold/10
+                    "
                     data-tour="customization-toggle"
                   >
                     <Button
@@ -1736,7 +1841,7 @@ export function UserPageEditor() {
                       className={cn(
                         "h-8 px-3 text-xs font-medium transition-all",
                         customFilter === "all"
-                          ? "bg-gold/10 text-gold-dim dark:bg-gold/10 dark:text-gold shadow-sm"
+                          ? "bg-gold/10 text-gold-dim shadow-sm dark:bg-gold/10 dark:text-gold"
                           : "text-muted-foreground hover:text-foreground",
                       )}
                       onClick={() => setCustomFilter("all")}
@@ -1751,7 +1856,7 @@ export function UserPageEditor() {
                       className={cn(
                         "h-8 px-3 text-xs font-medium transition-all",
                         customFilter === "customized"
-                          ? "bg-gold/10 text-gold-dim dark:bg-gold/10 dark:text-gold shadow-sm"
+                          ? "bg-gold/10 text-gold-dim shadow-sm dark:bg-gold/10 dark:text-gold"
                           : "text-muted-foreground hover:text-foreground",
                       )}
                       onClick={() => setCustomFilter("customized")}
@@ -1766,7 +1871,7 @@ export function UserPageEditor() {
                       className={cn(
                         "h-8 px-3 text-xs font-medium transition-all",
                         customFilter === "uncustomized"
-                          ? "bg-gold/10 text-gold-dim dark:bg-gold/10 dark:text-gold shadow-sm"
+                          ? "bg-gold/10 text-gold-dim shadow-sm dark:bg-gold/10 dark:text-gold"
                           : "text-muted-foreground hover:text-foreground",
                       )}
                       onClick={() => setCustomFilter("uncustomized")}
@@ -1780,19 +1885,26 @@ export function UserPageEditor() {
                           <button
                             type="button"
                             className={cn(
-                              "ml-0.5 flex h-8 w-8 items-center justify-center transition-colors",
+                              "ml-0.5 flex size-8 items-center justify-center transition-colors",
                               "text-muted-foreground hover:bg-gold/5 hover:text-foreground",
-                              "dark:text-muted-foreground dark:hover:bg-gold/5 dark:hover:text-foreground",
-                              "focus-visible:ring-gold/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
+                              `
+                                dark:text-muted-foreground
+                                dark:hover:bg-gold/5 dark:hover:text-foreground
+                              `,
+                              `
+                                focus:outline-none
+                                focus-visible:ring-2 focus-visible:ring-gold/50
+                                focus-visible:ring-offset-1
+                              `,
                             )}
                             aria-label="Info about customizations filter"
                           >
-                            <Info className="h-4 w-4" aria-hidden="true" />
+                            <Info className="size-4" aria-hidden="true" />
                           </button>
                         </TooltipTrigger>
                         <TooltipContent
                           side="top"
-                          className="max-w-xs text-xs leading-relaxed"
+                          className="max-w-xs text-xs/relaxed"
                           sideOffset={8}
                         >
                           <p>
@@ -1815,10 +1927,13 @@ export function UserPageEditor() {
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 w-8 p-0"
+                          className="
+                            size-8 p-0 text-muted-foreground
+                            hover:bg-gold/5 hover:text-foreground
+                          "
                           onClick={expandAll}
                         >
-                          <ChevronsUpDown className="h-4 w-4" />
+                          <ChevronsUpDown className="size-4" />
                           <span className="sr-only">Expand all</span>
                         </Button>
                       </TooltipTrigger>
@@ -1838,10 +1953,13 @@ export function UserPageEditor() {
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 w-8 p-0"
+                          className="
+                            size-8 p-0 text-muted-foreground
+                            hover:bg-gold/5 hover:text-foreground
+                          "
                           onClick={collapseAll}
                         >
-                          <ChevronsUpDown className="h-4 w-4 rotate-90" />
+                          <ChevronsUpDown className="size-4 rotate-90" />
                           <span className="sr-only">Collapse all</span>
                         </Button>
                       </TooltipTrigger>
@@ -1854,7 +1972,7 @@ export function UserPageEditor() {
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
-                  <div className="bg-gold/15 h-5 w-px" />
+                  <div className="h-5 w-px bg-gold/15" />
 
                   <ReorderModeToolbarToggle
                     isReorderMode={isReorderMode}
@@ -1863,7 +1981,7 @@ export function UserPageEditor() {
                     dataTour="reorder-toggle"
                   />
 
-                  <div className="bg-gold/15 h-5 w-px" />
+                  <div className="h-5 w-px bg-gold/15" />
 
                   <div className="hidden items-center gap-1 sm:flex">
                     <TooltipProvider delayDuration={200}>
@@ -1873,11 +1991,14 @@ export function UserPageEditor() {
                             type="button"
                             size="sm"
                             variant="ghost"
-                            className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 w-8 p-0"
+                            className="
+                              size-8 p-0 text-muted-foreground
+                              hover:bg-gold/5 hover:text-foreground
+                            "
                             onClick={undoBulk}
                             disabled={!canUndoBulk}
                           >
-                            <Undo2 className="h-4 w-4" />
+                            <Undo2 className="size-4" />
                             <span className="sr-only">Undo</span>
                           </Button>
                         </TooltipTrigger>
@@ -1899,11 +2020,14 @@ export function UserPageEditor() {
                             type="button"
                             size="sm"
                             variant="ghost"
-                            className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 w-8 p-0"
+                            className="
+                              size-8 p-0 text-muted-foreground
+                              hover:bg-gold/5 hover:text-foreground
+                            "
                             onClick={redoBulk}
                             disabled={!canRedoBulk}
                           >
-                            <Redo2 className="h-4 w-4" />
+                            <Redo2 className="size-4" />
                             <span className="sr-only">Redo</span>
                           </Button>
                         </TooltipTrigger>
@@ -1918,7 +2042,7 @@ export function UserPageEditor() {
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
-                    <div className="bg-gold/15 h-5 w-px" />
+                    <div className="h-5 w-px bg-gold/15" />
                     <TooltipProvider delayDuration={200}>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -1926,7 +2050,11 @@ export function UserPageEditor() {
                             type="button"
                             size="sm"
                             variant="ghost"
-                            className="text-gold-dim hover:bg-gold/8 dark:text-gold h-8 px-2 text-xs font-medium"
+                            className="
+                              h-8 px-2 text-xs font-medium text-gold-dim
+                              hover:bg-gold/8
+                              dark:text-gold
+                            "
                             onClick={() => {
                               if (allCardIds.length === 0) return;
                               try {
@@ -1949,7 +2077,7 @@ export function UserPageEditor() {
                               }
                             }}
                           >
-                            <Eye className="h-3.5 w-3.5 lg:mr-1" />
+                            <Eye className="size-3.5 lg:mr-1" />
                             <span className="hidden lg:inline">Enable All</span>
                           </Button>
                         </TooltipTrigger>
@@ -1973,14 +2101,19 @@ export function UserPageEditor() {
                               type="button"
                               size="sm"
                               variant="ghost"
-                              className="h-8 px-2 text-xs font-medium text-red-600 hover:bg-red-50/80 dark:text-red-400 dark:hover:bg-red-950/30"
+                              className="
+                                h-8 px-2 text-xs font-medium text-red-600
+                                hover:bg-red-50/80
+                                dark:text-red-400
+                                dark:hover:bg-red-950/30
+                              "
                               onClick={() => {
                                 if (enabledCardIds.length === 0) return;
                                 setIsDisableAllDialogOpen(true);
                               }}
                               disabled={enabledCardIds.length === 0}
                             >
-                              <EyeOff className="h-3.5 w-3.5 lg:mr-1" />
+                              <EyeOff className="size-3.5 lg:mr-1" />
                               <span className="hidden lg:inline">
                                 Disable All
                               </span>
@@ -2003,10 +2136,13 @@ export function UserPageEditor() {
                             type="button"
                             size="sm"
                             variant="ghost"
-                            className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 px-2 text-xs font-medium"
+                            className="
+                              h-8 px-2 text-xs font-medium text-muted-foreground
+                              hover:bg-gold/5 hover:text-foreground
+                            "
                             onClick={() => setIsResetDialogOpen(true)}
                           >
-                            <RotateCcw className="h-3.5 w-3.5 lg:mr-1" />
+                            <RotateCcw className="size-3.5 lg:mr-1" />
                             <span className="hidden lg:inline">Reset All</span>
                           </Button>
                         </TooltipTrigger>
@@ -2027,9 +2163,12 @@ export function UserPageEditor() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-muted-foreground hover:bg-gold/5 hover:text-foreground h-8 w-8 p-0"
+                          className="
+                            size-8 p-0 text-muted-foreground
+                            hover:bg-gold/5 hover:text-foreground
+                          "
                         >
-                          <MoreHorizontal className="h-4 w-4" />
+                          <MoreHorizontal className="size-4" />
                           <span className="sr-only">More actions</span>
                         </Button>
                       </PopoverTrigger>
@@ -2049,7 +2188,7 @@ export function UserPageEditor() {
                             onClick={undoBulk}
                             disabled={!canUndoBulk}
                           >
-                            <Undo2 className="mr-2 h-4 w-4" />
+                            <Undo2 className="mr-2 size-4" />
                             Undo
                           </Button>
                           <Button
@@ -2059,14 +2198,14 @@ export function UserPageEditor() {
                             onClick={redoBulk}
                             disabled={!canRedoBulk}
                           >
-                            <Redo2 className="mr-2 h-4 w-4" />
+                            <Redo2 className="mr-2 size-4" />
                             Redo
                           </Button>
 
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-gold-dim dark:text-gold justify-start"
+                            className="justify-start text-gold-dim dark:text-gold"
                             onClick={() => {
                               if (allCardIds.length === 0) return;
                               try {
@@ -2089,7 +2228,7 @@ export function UserPageEditor() {
                               }
                             }}
                           >
-                            <Eye className="mr-2 h-4 w-4" />
+                            <Eye className="mr-2 size-4" />
                             Enable All
                           </Button>
                           <Button
@@ -2102,16 +2241,16 @@ export function UserPageEditor() {
                             }}
                             disabled={enabledCardIds.length === 0}
                           >
-                            <EyeOff className="mr-2 h-4 w-4" />
+                            <EyeOff className="mr-2 size-4" />
                             Disable All
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-muted-foreground justify-start"
+                            className="justify-start text-muted-foreground"
                             onClick={() => setIsResetDialogOpen(true)}
                           >
-                            <RotateCcw className="mr-2 h-4 w-4" />
+                            <RotateCcw className="mr-2 size-4" />
                             Reset All
                           </Button>
                         </div>
@@ -2203,13 +2342,22 @@ export function UserPageEditor() {
             </motion.div>
 
             {visibleGroupNames.length === 0 ? (
-              <div className="border-gold/20 bg-gold/3 dark:border-gold/15 dark:bg-gold/3 relative border-2 p-10 text-center shadow-xl backdrop-blur-sm">
-                <div className="border-gold pointer-events-none absolute top-0 left-0 h-4 w-4 border-t-2 border-l-2" />
-                <div className="border-gold pointer-events-none absolute right-0 bottom-0 h-4 w-4 border-r-2 border-b-2" />
-                <p className="font-display text-foreground text-base tracking-widest uppercase">
+              <div className="
+                relative border-2 border-gold/20 bg-gold/3 p-10 text-center shadow-xl
+                backdrop-blur-sm
+                dark:border-gold/15 dark:bg-gold/3
+              ">
+                <div className="
+                  pointer-events-none absolute top-0 left-0 size-4 border-t-2 border-l-2 border-gold
+                " />
+                <div className="
+                  pointer-events-none absolute right-0 bottom-0 size-4 border-r-2 border-b-2
+                  border-gold
+                " />
+                <p className="font-display text-base tracking-widest text-foreground uppercase">
                   No cards match your filters
                 </p>
-                <p className="font-body-serif text-muted-foreground mt-2 text-sm">
+                <p className="mt-2 font-body-serif text-sm text-muted-foreground">
                   Try clearing the search box or switching visibility.
                 </p>
                 <div className="mt-6 flex flex-wrap justify-center gap-2">

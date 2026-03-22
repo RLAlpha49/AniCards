@@ -79,13 +79,25 @@ export function ExampleCard({
         />
 
         {/* Image area with cinematic treatment */}
-        <div className="relative overflow-hidden bg-[hsl(var(--foreground)/0.02)] dark:bg-[hsl(var(--foreground)/0.02)]">
+        <div className="
+          relative overflow-hidden bg-[hsl(var(--foreground)/0.02)]
+          dark:bg-[hsl(var(--foreground)/0.02)]
+        ">
           {/* Subtle vignette on hover */}
-          <div className="pointer-events-none absolute inset-0 z-2 opacity-0 transition-opacity duration-500 group-hover/card:opacity-100">
-            <div className="h-full w-full bg-[radial-gradient(ellipse_at_center,transparent_40%,hsl(var(--background)/0.3))]" />
+          <div className="
+            pointer-events-none absolute inset-0 z-2 opacity-0 transition-opacity duration-500
+            group-hover/card:opacity-100
+          ">
+            <div className="
+              size-full
+              bg-[radial-gradient(ellipse_at_center,transparent_40%,hsl(var(--background)/0.3))]
+            " />
           </div>
 
-          <div className="flex justify-center p-4 transition-transform duration-700 ease-out group-hover/card:scale-[1.03]">
+          <div className="
+            flex justify-center p-4 transition-transform duration-700 ease-out
+            group-hover/card:scale-[1.03]
+          ">
             <ImageWithSkeleton
               src={variant.url}
               alt={`${cardTypeTitle} - ${variant.name}`}
@@ -96,18 +108,26 @@ export function ExampleCard({
           {/* Hover action badge */}
           <div className="pointer-events-none absolute inset-0 z-3 flex items-center justify-center">
             <motion.div
-              className="flex items-center gap-1.5 bg-[hsl(var(--gold)/0.9)] px-3 py-1.5 text-[0.65rem] font-semibold tracking-wider text-[#0c0a10] uppercase opacity-0 shadow-lg transition-all duration-400 group-hover/card:opacity-100"
+              className="
+                flex items-center gap-1.5 bg-[hsl(var(--gold)/0.9)] px-3 py-1.5 text-[0.65rem]
+                font-semibold tracking-wider text-[#0c0a10] uppercase opacity-0 shadow-lg
+                transition-all duration-400
+                group-hover/card:opacity-100
+              "
               style={{ transitionDelay: "50ms" }}
             >
-              <ExternalLink className="h-3 w-3" />
+              <ExternalLink className="size-3" />
               Open Full Size
             </motion.div>
           </div>
         </div>
 
         {/* Footer bar */}
-        <div className="flex items-center justify-between gap-2 border-t border-[hsl(var(--gold)/0.06)] bg-[hsl(var(--gold)/0.01)] px-4 py-3">
-          <p className="text-foreground/55 line-clamp-1 text-xs font-medium tracking-wide">
+        <div className="
+          flex items-center justify-between gap-2 border-t border-[hsl(var(--gold)/0.06)]
+          bg-[hsl(var(--gold)/0.01)] px-4 py-3
+        ">
+          <p className="line-clamp-1 text-xs font-medium tracking-wide text-foreground/55">
             {variant.name}
           </p>
           <button
@@ -122,9 +142,9 @@ export function ExampleCard({
             aria-label={copied ? "Copied!" : "Copy embed URL"}
           >
             {copied ? (
-              <Check className="h-3.5 w-3.5" />
+              <Check className="size-3.5" />
             ) : (
-              <Copy className="h-3.5 w-3.5" />
+              <Copy className="size-3.5" />
             )}
           </button>
         </div>

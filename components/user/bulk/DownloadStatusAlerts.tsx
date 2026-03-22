@@ -49,7 +49,7 @@ export function DownloadStatusAlerts({
             aria-live="assertive"
             className="border-red-200/50 bg-red-50/80 dark:border-red-800/50 dark:bg-red-950/30"
           >
-            <Info className="h-4 w-4" aria-hidden="true" />
+            <Info className="size-4" aria-hidden="true" />
             <AlertTitle className="text-red-800 dark:text-red-200">
               Download Error
             </AlertTitle>
@@ -87,7 +87,7 @@ export function DownloadStatusAlerts({
               "mt-2 sm:mt-0",
             )}
           >
-            <Info className="h-4 w-4" aria-hidden="true" />
+            <Info className="size-4" aria-hidden="true" />
             <AlertTitle
               className={
                 downloadSummary.failed > 0

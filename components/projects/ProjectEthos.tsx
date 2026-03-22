@@ -64,7 +64,10 @@ export function ProjectEthos() {
           whileInView={{ opacity: 1 }}
           viewport={{ once: true, margin: "-40px" }}
           transition={{ duration: 0.5 }}
-          className="mb-14 flex items-center gap-4 font-mono text-[0.6rem] tracking-[0.4em] uppercase sm:text-xs"
+          className="
+            mb-14 flex items-center gap-4 font-mono text-[0.6rem] tracking-[0.4em] uppercase
+            sm:text-xs
+          "
         >
           <span className="text-gold/60">03</span>
           <span
@@ -107,7 +110,11 @@ export function ProjectEthos() {
               {/* Node dot on the timeline */}
               <motion.div
                 variants={dotScale}
-                className="bg-background border-gold/40 absolute -top-[3.35rem] left-1/2 hidden h-3 w-3 -translate-x-1/2 border md:block"
+                className="
+                  absolute -top-[3.35rem] left-1/2 hidden size-3 -translate-x-1/2 border
+                  border-gold/40 bg-background
+                  md:block
+                "
                 aria-hidden="true"
                 style={{
                   transform: "translateX(-50%) rotate(45deg)",
@@ -118,11 +125,15 @@ export function ProjectEthos() {
                 {/* Icon container */}
                 <motion.div
                   variants={childFade}
-                  className="border-gold/20 group-hover:border-gold/40 group-hover:bg-gold/5 mx-auto mb-6 inline-flex border p-3.5 transition-all duration-300 md:mx-0"
+                  className="
+                    mx-auto mb-6 inline-flex border border-gold/20 p-3.5 transition-all duration-300
+                    group-hover:border-gold/40 group-hover:bg-gold/5
+                    md:mx-0
+                  "
                 >
                   <item.icon
                     size={22}
-                    className="text-gold/70 group-hover:text-gold transition-colors duration-300"
+                    className="text-gold/70 transition-colors duration-300 group-hover:text-gold"
                   />
                 </motion.div>
 
@@ -131,7 +142,7 @@ export function ProjectEthos() {
                   variants={childFade}
                   className="mb-4 flex items-center justify-center gap-3 md:justify-start"
                 >
-                  <span className="text-gold/30 font-mono text-xs tracking-[0.3em]">
+                  <span className="font-mono text-xs tracking-[0.3em] text-gold/30">
                     {String(i + 1).padStart(2, "0")}
                   </span>
                   <div
@@ -145,14 +156,21 @@ export function ProjectEthos() {
 
                 <motion.h3
                   variants={childFade}
-                  className="font-display text-foreground group-hover:text-gold/90 mb-4 text-sm tracking-[0.2em] transition-colors duration-300"
+                  className="
+                    mb-4 font-display text-sm tracking-[0.2em] text-foreground transition-colors
+                    duration-300
+                    group-hover:text-gold/90
+                  "
                 >
                   {item.title}
                 </motion.h3>
 
                 <motion.p
                   variants={childFade}
-                  className="font-body-serif text-foreground/40 mx-auto max-w-xs text-sm leading-[1.75] md:mx-0"
+                  className="
+                    mx-auto max-w-xs font-body-serif text-sm leading-[1.75] text-foreground/40
+                    md:mx-0
+                  "
                 >
                   {item.description}
                 </motion.p>

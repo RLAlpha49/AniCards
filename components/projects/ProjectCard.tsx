@@ -46,7 +46,11 @@ export function ProjectCard({
         href={project.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="border-gold/10 bg-card/40 hover:border-gold/30 relative flex h-full flex-col overflow-hidden border-2 backdrop-blur-sm transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_8px_40px_hsl(var(--gold)/0.08)]"
+        className="
+          relative flex h-full flex-col overflow-hidden border-2 border-gold/10 bg-card/40
+          backdrop-blur-sm transition-all duration-500
+          hover:-translate-y-1 hover:border-gold/30 hover:shadow-[0_8px_40px_hsl(var(--gold)/0.08)]
+        "
       >
         {/* Gold top accent */}
         <div
@@ -60,7 +64,11 @@ export function ProjectCard({
         <div className="relative flex flex-1 flex-col p-7 sm:p-8">
           {/* Watermark number */}
           <span
-            className="font-display text-gold/5 group-hover:text-gold/8 pointer-events-none absolute -top-4 -right-2 text-[8rem] leading-none transition-all duration-500 select-none"
+            className="
+              pointer-events-none absolute -top-4 -right-2 font-display text-[8rem] leading-none
+              text-gold/5 transition-all duration-500 select-none
+              group-hover:text-gold/8
+            "
             aria-hidden="true"
           >
             {num}
@@ -72,7 +80,10 @@ export function ProjectCard({
             className="relative z-10 mb-5 flex items-start justify-between gap-4"
           >
             <div className="flex items-center gap-3">
-              <span className="text-gold/40 group-hover:text-gold/70 font-mono text-xs tracking-[0.3em]">
+              <span className="
+                font-mono text-xs tracking-[0.3em] text-gold/40
+                group-hover:text-gold/70
+              ">
                 {num}
               </span>
               <div
@@ -86,16 +97,28 @@ export function ProjectCard({
             <motion.div
               whileHover={{ scale: 1.12 }}
               transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
-              className="border-gold/15 group-hover:border-gold/40 group-hover:bg-gold/5 flex h-9 w-9 items-center justify-center border transition-all duration-300"
+              className="
+                flex size-9 items-center justify-center border border-gold/15 transition-all
+                duration-300
+                group-hover:border-gold/40 group-hover:bg-gold/5
+              "
             >
-              <ArrowUpRight className="text-foreground/25 group-hover:text-gold h-4 w-4 transition-all duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+              <ArrowUpRight className="
+                size-4 text-foreground/25 transition-all duration-300
+                group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-gold
+              " />
             </motion.div>
           </motion.div>
 
           {/* Project name */}
           <motion.h3
             variants={childFade}
-            className="font-display text-foreground group-hover:text-gold relative z-10 mb-3 text-lg tracking-[0.12em] uppercase transition-colors duration-300 sm:text-xl"
+            className="
+              relative z-10 mb-3 font-display text-lg tracking-[0.12em] text-foreground uppercase
+              transition-colors duration-300
+              group-hover:text-gold
+              sm:text-xl
+            "
           >
             {project.name}
           </motion.h3>
@@ -103,7 +126,9 @@ export function ProjectCard({
           {/* Description */}
           <motion.p
             variants={childFade}
-            className="font-body-serif text-foreground/40 relative z-10 mb-6 flex-1 text-sm leading-[1.75]"
+            className="
+              relative z-10 mb-6 flex-1 font-body-serif text-sm leading-[1.75] text-foreground/40
+            "
           >
             {project.highlight}
           </motion.p>
@@ -117,18 +142,22 @@ export function ProjectCard({
               {project.tags.map((tag, i) => (
                 <span
                   key={tag}
-                  className="text-foreground/30 group-hover:text-foreground/50 font-mono text-[0.55rem] tracking-[0.2em] uppercase transition-colors"
+                  className="
+                    font-mono text-[0.55rem] tracking-[0.2em] text-foreground/30 uppercase
+                    transition-colors
+                    group-hover:text-foreground/50
+                  "
                 >
                   {tag}
                   {i < project.tags.length - 1 && (
-                    <span className="text-gold/20 ml-3">·</span>
+                    <span className="ml-3 text-gold/20">·</span>
                   )}
                 </span>
               ))}
             </div>
             <SimpleGithubIcon
               size={16}
-              className="text-foreground/15 group-hover:text-gold/50 shrink-0 transition-colors"
+              className="shrink-0 text-foreground/15 transition-colors group-hover:text-gold/50"
             />
           </motion.div>
         </div>
