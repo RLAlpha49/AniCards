@@ -568,14 +568,14 @@ export function SettingsContent({
       <Tabs defaultValue="colors" className="w-full">
         <TabsList
           className={cn(
-            "grid w-full gap-0.5 border border-border/50 bg-muted/50 p-1",
+            "grid w-full gap-0.5 border border-border/50 bg-muted/50 p-1 pb-9.5",
             hasAdvancedOptions ? "grid-cols-3" : "grid-cols-2",
           )}
         >
           <TabsTrigger
             value="colors"
             className="
-              gap-1.5 text-xs font-medium transition-all
+              mb-2 gap-1.5 text-xs font-medium transition-all
               data-[state=active]:bg-gold/90 data-[state=active]:text-white
               data-[state=active]:shadow-sm data-[state=active]:shadow-gold/15
               sm:text-sm
@@ -587,7 +587,7 @@ export function SettingsContent({
           <TabsTrigger
             value="border"
             className="
-              gap-1.5 text-xs font-medium transition-all
+              mb-2 gap-1.5 text-xs font-medium transition-all
               data-[state=active]:bg-gold/90 data-[state=active]:text-white
               data-[state=active]:shadow-sm data-[state=active]:shadow-gold/15
               sm:text-sm
@@ -600,7 +600,7 @@ export function SettingsContent({
             <TabsTrigger
               value="advanced"
               className="
-                gap-1.5 text-xs font-medium transition-all
+                mb-2 gap-1.5 text-xs font-medium transition-all
                 data-[state=active]:bg-gold/90 data-[state=active]:text-white
                 data-[state=active]:shadow-sm data-[state=active]:shadow-gold/15
                 sm:text-sm
