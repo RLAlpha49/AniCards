@@ -11,10 +11,15 @@ import sharp from "sharp";
 
 import {
   apiJsonHeaders,
+  checkRateLimit,
+  createRateLimiter,
+  getRequestIp,
   incrementAnalytics,
   jsonWithCors,
 } from "@/lib/api-utils";
 import type { ConversionFormat } from "@/lib/utils";
+
+const ratelimit = createRateLimiter({ limit: 20, window: "1 m" });
 
 /**
  * Determines whether a CSS fragment contains only whitespace or block comments.
@@ -729,7 +734,19 @@ async function convertSvgToDataUrl(
  */
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
-  const ip = request.headers.get("x-forwarded-for") || "unknown IP";
+  const ip = getRequestIp(request);
+
+  const rateLimitResponse = await checkRateLimit(
+    request,
+    ip,
+    "Convert API",
+    "convert_api",
+    ratelimit,
+  );
+  if (rateLimitResponse) {
+    return rateLimitResponse;
+  }
+
   console.log(`🚀 [Convert API] Request received from ${ip}`);
 
   try {

@@ -152,7 +152,13 @@ describe("AniList API Proxy Endpoint", () => {
   beforeEach(() => {
     process.env = { ...originalEnv };
     sharedRatelimitMockLimit.mockReset();
-    sharedRatelimitMockLimit.mockResolvedValue({ success: true });
+    sharedRatelimitMockLimit.mockResolvedValue({
+      success: true,
+      limit: 10,
+      remaining: 9,
+      reset: Date.now() + 5_000,
+      pending: Promise.resolve(),
+    });
   });
 
   afterEach(() => {

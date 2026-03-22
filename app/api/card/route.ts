@@ -12,6 +12,7 @@ import {
   checkRateLimit,
   createRateLimiter,
   getAllowedCardSvgOrigin,
+  getRequestIp,
   incrementAnalytics,
 } from "@/lib/api-utils";
 import {
@@ -535,7 +536,7 @@ function createInternalErrorResponse(request: Request): Response {
  */
 export async function GET(request: Request) {
   const startTime = Date.now();
-  const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
+  const ip = getRequestIp(request);
 
   const rateLimitResponse = await checkRateLimit(
     request,

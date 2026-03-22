@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import { GET, OPTIONS } from "@/app/api/get-user/route";
 import {
+  sharedRatelimitMockLimit,
   sharedRedisMockGet,
   sharedRedisMockIncr,
 } from "@/tests/unit/__setup__";
@@ -119,6 +120,13 @@ describe("User API GET Endpoint", () => {
   beforeEach(() => {
     mock.clearAllMocks();
     sharedRedisMockIncr.mockResolvedValue(1);
+    sharedRatelimitMockLimit.mockResolvedValue({
+      success: true,
+      limit: 60,
+      remaining: 59,
+      reset: Date.now() + 10_000,
+      pending: Promise.resolve(),
+    });
   });
 
   afterEach(() => {
@@ -396,6 +404,29 @@ describe("User API GET Endpoint", () => {
       mockRedisSequence(JSON.stringify(userData));
       const res = await callGet("userId=123");
       expect(res.status).toBe(200);
+    });
+  });
+
+  describe("Rate Limiting", () => {
+    it("should return 429 before touching Redis when the Upstash limiter blocks the request", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({
+        success: false,
+        limit: 60,
+        remaining: 0,
+        reset: Date.now() + 5_000,
+        pending: Promise.resolve(),
+      });
+
+      const res = await callGet("userId=123");
+
+      expect(res.status).toBe(429);
+      const json = await getResponseJson<{ error?: string }>(res);
+      expect(json.error).toBe("Too many requests");
+      expect(sharedRedisMockGet).not.toHaveBeenCalled();
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:user_api:failed_requests",
+      );
+      expect(res.headers.get("Retry-After")).toBeTruthy();
     });
   });
 
