@@ -8,10 +8,15 @@ import { motion } from "framer-motion";
 import {
   Activity,
   AlertCircle,
+  ArrowUp,
   BarChart3,
   BookOpen,
+  CheckSquare,
+  ChevronsDown,
+  ChevronsUp,
   ChevronsUpDown,
   Clapperboard,
+  Download,
   Eye,
   EyeOff,
   GripVertical,
@@ -25,12 +30,15 @@ import {
   Save,
   Search,
   SlidersHorizontal,
+  Square,
+  Sun,
   Trash2,
   Undo2,
   UserPlus,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useTheme } from "next-themes";
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -117,9 +125,8 @@ function getTooltipTriggerChild(mode: TooltipTriggerMode, child: ReactElement) {
 function ShortcutHint({ children }: Readonly<{ children: string }>) {
   return (
     <kbd className="
-      ml-2 inline-flex items-center border border-gold/20 bg-gold/3 px-1.5 py-0.5 font-mono
-      text-[10px] text-foreground
-      dark:border-gold/15 dark:bg-gold/3
+      ml-2 inline-flex items-center border border-primary-foreground/25 bg-primary-foreground/10
+      px-1.5 py-0.5 font-mono text-[10px] text-primary-foreground
     ">
       {children}
     </kbd>
@@ -348,6 +355,11 @@ function useUserPageEditorCommandPalette(opts: {
   setVisibility: React.Dispatch<React.SetStateAction<VisibilityFilter>>;
   searchRef: React.RefObject<HTMLInputElement | null>;
   selectAllEnabled: () => void;
+  deselectAll: () => void;
+  toggleTheme: () => void;
+  expandAll: () => void;
+  collapseAll: () => void;
+  exportSettings: () => void;
   canSaveNow: boolean;
   canDiscardNow: boolean;
   saveNow: () => void | Promise<void>;
@@ -365,6 +377,11 @@ function useUserPageEditorCommandPalette(opts: {
     setVisibility,
     searchRef,
     selectAllEnabled,
+    deselectAll,
+    toggleTheme,
+    expandAll,
+    collapseAll,
+    exportSettings,
     canSaveNow,
     canDiscardNow,
     saveNow,
@@ -497,6 +514,72 @@ function useUserPageEditorCommandPalette(opts: {
         group: "help",
         run: startTour,
       },
+      {
+        id: "select-all",
+        label: "Select all enabled cards",
+        description: "Select all enabled cards for bulk operations",
+        keywords: ["check", "mark", "all"],
+        group: "bulk",
+        shortcutHint: "Ctrl/Cmd+A",
+        icon: <CheckSquare className="size-4" aria-hidden="true" />,
+        run: selectAllEnabled,
+      },
+      {
+        id: "deselect-all",
+        label: "Deselect all cards",
+        description: "Clear the current selection",
+        keywords: ["uncheck", "clear", "none"],
+        group: "bulk",
+        icon: <Square className="size-4" aria-hidden="true" />,
+        run: deselectAll,
+      },
+      {
+        id: "toggle-theme",
+        label: "Toggle dark/light mode",
+        description: "Switch between dark and light appearance",
+        keywords: ["dark", "light", "theme", "mode", "appearance"],
+        group: "editor",
+        icon: <Sun className="size-4" aria-hidden="true" />,
+        run: toggleTheme,
+      },
+      {
+        id: "expand-all",
+        label: "Expand all card categories",
+        description: "Open every category section",
+        keywords: ["open", "unfold", "show all"],
+        group: "editor",
+        icon: <ChevronsDown className="size-4" aria-hidden="true" />,
+        run: expandAll,
+      },
+      {
+        id: "collapse-all",
+        label: "Collapse all card categories",
+        description: "Close every category section",
+        keywords: ["close", "fold", "hide all"],
+        group: "editor",
+        icon: <ChevronsUp className="size-4" aria-hidden="true" />,
+        run: collapseAll,
+      },
+      {
+        id: "export-settings",
+        label: "Export settings as JSON",
+        description: "Download a backup of all settings and templates",
+        keywords: ["backup", "download", "json", "export"],
+        group: "editor",
+        icon: <Download className="size-4" aria-hidden="true" />,
+        run: exportSettings,
+      },
+      {
+        id: "scroll-to-top",
+        label: "Scroll to top",
+        description: "Scroll the page to the top",
+        keywords: ["top", "beginning"],
+        group: "editor",
+        icon: <ArrowUp className="size-4" aria-hidden="true" />,
+        run: () => {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        },
+      },
     ],
     [
       openBulkActions,
@@ -510,6 +593,12 @@ function useUserPageEditorCommandPalette(opts: {
       startTour,
       visibility,
       toggleVisibilityFilter,
+      selectAllEnabled,
+      deselectAll,
+      toggleTheme,
+      expandAll,
+      collapseAll,
+      exportSettings,
     ],
   );
 
@@ -1105,6 +1194,32 @@ export function UserPageEditor() {
     Boolean(userId) && isDirty && !isSaving && !showConflictNotice;
   const canDiscardNow = isDirty && !isSaving;
 
+  const { setTheme, resolvedTheme } = useTheme();
+  const handleToggleTheme = useCallback(() => {
+    setTheme(resolvedTheme === "dark" ? "light" : "dark");
+  }, [resolvedTheme, setTheme]);
+
+  const handleExportSettings = useCallback(() => {
+    const state = useUserPageEditor.getState();
+    const global = state.getGlobalSettingsSnapshot();
+    const payload = {
+      schemaVersion: 1,
+      scope: "all",
+      exportedAt: new Date().toISOString(),
+      global,
+      templates: state.settingsTemplates,
+    };
+    const json = JSON.stringify(payload, null, 2);
+    const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `anicards-settings-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast.success("Settings exported");
+  }, []);
+
   const { recentActionsStorageKey, commandPaletteCommands } =
     useUserPageEditorCommandPalette({
       userId,
@@ -1112,6 +1227,11 @@ export function UserPageEditor() {
       setVisibility,
       searchRef,
       selectAllEnabled,
+      deselectAll: clearSelection,
+      toggleTheme: handleToggleTheme,
+      expandAll,
+      collapseAll,
+      exportSettings: handleExportSettings,
       canSaveNow,
       canDiscardNow,
       saveNow,
