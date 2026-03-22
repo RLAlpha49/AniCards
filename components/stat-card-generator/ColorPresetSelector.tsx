@@ -246,7 +246,7 @@ function ColorPresetSelectorComponent({
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Filter className="size-4 text-gold-dim/60 dark:text-gold/60" />
-          <div className="flex gap-1.5">
+          <div className="flex transform-[translateZ(0)] gap-1.5">
             {[
               { value: "all", label: "All Types" },
               {
@@ -301,7 +301,7 @@ function ColorPresetSelectorComponent({
 
         <div className="flex items-center gap-2">
           <span className="size-4" />
-          <div className="flex gap-1.5">
+          <div className="flex transform-[translateZ(0)] gap-1.5">
             {[
               { value: "all", label: "All Themes" },
               {
@@ -358,8 +358,8 @@ function ColorPresetSelectorComponent({
         className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-2.5"
       >
         <TooltipProvider delayDuration={0}>
-          <AnimatePresence mode="popLayout">
-            {visiblePresets.map(([key, { colors, mode }], index) => {
+          <AnimatePresence>
+            {visiblePresets.map(([key, { colors, mode }]) => {
               const isSelected = selectedPreset === key;
               const isCustom = key === "custom";
               const containsGradient = hasGradient(colors);
@@ -368,11 +368,10 @@ function ColorPresetSelectorComponent({
                 <Tooltip key={key}>
                   <TooltipTrigger asChild>
                     <motion.button
-                      layout
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.9 }}
-                      transition={{ duration: 0.2, delay: index * 0.02 }}
+                      transition={{ duration: 0.2 }}
                       type="button"
                       onClick={() => handlePresetChange(key)}
                       className={cn(
