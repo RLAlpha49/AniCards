@@ -15,9 +15,8 @@ const TabsList = React.forwardRef<
     ref={ref}
     className={cn(
       `
-        inline-flex h-10 items-center justify-center border border-slate-200/60 bg-slate-100 p-1
-        text-slate-500
-        dark:border-slate-700/60 dark:bg-slate-800 dark:text-slate-400
+        inline-flex h-10 items-center justify-center border border-gold/15 bg-muted p-1
+        text-muted-foreground
       `,
       className,
     )}
@@ -35,16 +34,13 @@ const TabsTrigger = React.forwardRef<
     className={cn(
       `
         inline-flex items-center justify-center border border-transparent px-3 py-1.5 text-sm
-        font-medium whitespace-nowrap ring-offset-white transition-all
-        focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2
+        font-medium whitespace-nowrap ring-offset-background transition-all
+        focus-visible:ring-2 focus-visible:ring-gold/40 focus-visible:ring-offset-2
         focus-visible:outline-none
         disabled:pointer-events-none disabled:opacity-50
-        data-[state=active]:border-slate-200/80 data-[state=active]:bg-white
-        data-[state=active]:text-slate-950 data-[state=active]:shadow-sm
-        dark:ring-offset-slate-950
-        dark:focus-visible:ring-slate-300
-        dark:data-[state=active]:border-slate-600/80 dark:data-[state=active]:bg-slate-950
-        dark:data-[state=active]:text-slate-50
+        data-[state=active]:border-gold/25 data-[state=active]:bg-gold/90
+        data-[state=active]:text-white data-[state=active]:shadow-sm
+        data-[state=active]:shadow-gold/15
       `,
       className,
     )}
@@ -61,11 +57,9 @@ const TabsContent = React.forwardRef<
     ref={ref}
     className={cn(
       `
-        mt-2 ring-offset-white
-        focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2
+        mt-2 ring-offset-background
+        focus-visible:ring-2 focus-visible:ring-gold/40 focus-visible:ring-offset-2
         focus-visible:outline-none
-        dark:ring-offset-slate-950
-        dark:focus-visible:ring-slate-300
       `,
       className,
     )}
