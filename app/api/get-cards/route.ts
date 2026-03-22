@@ -1,11 +1,16 @@
 import {
   apiJsonHeaders,
+  checkRateLimit,
+  createRateLimiter,
+  getRequestIp,
   incrementAnalytics,
   jsonWithCors,
   redisClient,
 } from "@/lib/api-utils";
 import { CardsRecord } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
+
+const ratelimit = createRateLimiter({ limit: 60, window: "10 s" });
 
 /**
  * Serves cached card configurations for the requested user from Redis.
@@ -17,7 +22,19 @@ export async function GET(request: Request) {
   const startTime = Date.now();
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get("userId");
-  const ip = request.headers.get("x-forwarded-for") || "unknown IP";
+  const ip = getRequestIp(request);
+
+  const rateLimitResponse = await checkRateLimit(
+    request,
+    ip,
+    "Cards API",
+    "cards_api",
+    ratelimit,
+  );
+  if (rateLimitResponse) {
+    return rateLimitResponse;
+  }
+
   console.log(`🚀 [Cards API] New request from ${ip} for userId: ${userId}`);
 
   if (!userId) {

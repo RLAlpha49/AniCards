@@ -68,6 +68,10 @@ mock.module("@upstash/redis", () => ({
  */
 export const sharedRatelimitMockLimit = mock().mockResolvedValue({
   success: true,
+  limit: 10,
+  remaining: 9,
+  reset: Date.now() + 10_000,
+  pending: Promise.resolve(),
 });
 export const sharedRatelimitMockSlidingWindow = mock(() => "fake-limiter");
 

@@ -91,6 +91,91 @@ export async function scanAllKeys(
   return allKeys;
 }
 
+function readBooleanEnv(name: string): boolean | undefined {
+  const raw = process.env[name]?.trim().toLowerCase();
+  if (raw === "true") return true;
+  if (raw === "false") return false;
+  return undefined;
+}
+
+function readPositiveIntegerEnv(name: string): number | undefined {
+  const raw = process.env[name]?.trim();
+  if (!raw) return undefined;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+  return parsed;
+}
+
+function shouldEnableRateLimitAnalytics(): boolean {
+  return readBooleanEnv("UPSTASH_RATELIMIT_ANALYTICS") ?? true;
+}
+
+function shouldEnableRateLimitProtection(): boolean {
+  return readBooleanEnv("UPSTASH_RATELIMIT_PROTECTION") ?? false;
+}
+
+function getRateLimitPrefix(): string | undefined {
+  const prefix = process.env.UPSTASH_RATELIMIT_PREFIX?.trim();
+  return prefix && prefix.length > 0 ? prefix : undefined;
+}
+
+function getRateLimitTimeoutMs(): number | undefined {
+  return readPositiveIntegerEnv("UPSTASH_RATELIMIT_TIMEOUT_MS");
+}
+
+function createConfiguredRateLimiter(options?: {
+  limit?: number;
+  window?: Parameters<typeof Ratelimit.slidingWindow>[1];
+  redis?: Redis;
+  analytics?: boolean;
+  enableProtection?: boolean;
+  prefix?: string;
+  timeout?: number;
+}): Ratelimit {
+  const limit = options?.limit ?? 10;
+  const window =
+    options?.window ?? ("5 s" as Parameters<typeof Ratelimit.slidingWindow>[1]);
+  const redis = options?.redis ?? createRealRedisClient();
+  const analytics = options?.analytics ?? shouldEnableRateLimitAnalytics();
+  const enableProtection =
+    options?.enableProtection ?? shouldEnableRateLimitProtection();
+  const prefix = options?.prefix ?? getRateLimitPrefix();
+  const timeout = options?.timeout ?? getRateLimitTimeoutMs();
+
+  return new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(limit, window),
+    analytics,
+    enableProtection,
+    ...(prefix ? { prefix } : {}),
+    ...(typeof timeout === "number" ? { timeout } : {}),
+  });
+}
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+  return (
+    (typeof value === "object" || typeof value === "function") &&
+    value !== null &&
+    "then" in value &&
+    typeof (value as { then?: unknown }).then === "function"
+  );
+}
+
+async function flushRateLimitPendingWork(
+  pending: unknown,
+  endpointName: string,
+): Promise<void> {
+  if (!isPromiseLike(pending)) return;
+  try {
+    await pending;
+  } catch (error) {
+    console.warn(
+      `[${endpointName}] Upstash Ratelimit background sync failed:`,
+      error,
+    );
+  }
+}
+
 let _realRatelimit: Ratelimit | undefined;
 /**
  * A lazily-initialized Upstash rate limiter proxy which creates the
@@ -99,10 +184,7 @@ let _realRatelimit: Ratelimit | undefined;
  */
 export const ratelimit: Ratelimit = new Proxy({} as Record<string, unknown>, {
   get(_: unknown, prop: string | symbol) {
-    _realRatelimit ??= new Ratelimit({
-      redis: createRealRedisClient(),
-      limiter: Ratelimit.slidingWindow(10, "5 s"),
-    });
+    _realRatelimit ??= createConfiguredRateLimiter();
     const val: unknown = (_realRatelimit as unknown as Record<string, unknown>)[
       prop as keyof typeof _realRatelimit
     ];
@@ -112,10 +194,7 @@ export const ratelimit: Ratelimit = new Proxy({} as Record<string, unknown>, {
     return val;
   },
   set(_: unknown, prop: string | symbol, value: unknown) {
-    _realRatelimit ??= new Ratelimit({
-      redis: createRealRedisClient(),
-      limiter: Ratelimit.slidingWindow(10, "5 s"),
-    });
+    _realRatelimit ??= createConfiguredRateLimiter();
     (_realRatelimit as unknown as Record<string, unknown>)[
       prop as keyof typeof _realRatelimit
     ] = value;
@@ -128,22 +207,22 @@ export const ratelimit: Ratelimit = new Proxy({} as Record<string, unknown>, {
  * Allows per-endpoint overrides for window/limit settings.
  * @param options.limit - Maximum number of requests allowed per window
  * @param options.window - Duration string (e.g. "10 s", "1 m")
+ * @param options.analytics - Override analytics collection for the Upstash dashboard
+ * @param options.enableProtection - Enable deny lists / auto IP protection when configured
+ * @param options.prefix - Optional Redis key prefix for the Upstash rate limiter
+ * @param options.timeout - Optional fail-open timeout in milliseconds
  * @returns A configured Ratelimit instance ready to be used for limiting
  */
 export function createRateLimiter(options?: {
   limit?: number;
   window?: Parameters<typeof Ratelimit.slidingWindow>[1];
   redis?: Redis;
+  analytics?: boolean;
+  enableProtection?: boolean;
+  prefix?: string;
+  timeout?: number;
 }): Ratelimit {
-  const limit = options?.limit ?? 10;
-  const window =
-    options?.window ?? ("5 s" as Parameters<typeof Ratelimit.slidingWindow>[1]);
-  const redis = options?.redis ?? createRealRedisClient();
-
-  return new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(limit, window),
-  });
+  return createConfiguredRateLimiter(options);
 }
 
 /**
@@ -245,15 +324,66 @@ export function jsonWithCors<T = unknown>(
   data: T,
   request?: Request,
   status?: number,
+  headers?: Record<string, string>,
 ): NextResponse<T> {
+  const responseHeaders = apiJsonHeaders(request);
+  if (headers) {
+    Object.assign(responseHeaders, headers);
+  }
+
   const opts: Record<string, unknown> = {
-    headers: apiJsonHeaders(request),
+    headers: responseHeaders,
   };
   if (typeof status === "number") opts.status = status;
   return NextResponse.json(
     data as unknown,
     opts as ResponseInit,
   ) as NextResponse<T>;
+}
+
+/**
+ * Extracts the best available client IP address from common proxy headers.
+ * Falls back to localhost in non-production environments for local testing.
+ * @param request - Incoming request whose headers may contain proxy IPs.
+ * @returns The normalized client IP or a development fallback.
+ */
+export function getRequestIp(request?: Request): string {
+  if (!request) return "127.0.0.1";
+
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    const firstForwardedIp = forwardedFor
+      .split(",")
+      .map((value) => value.trim())
+      .find(Boolean);
+    if (firstForwardedIp) return firstForwardedIp;
+  }
+
+  const directIpHeaders = ["cf-connecting-ip", "x-real-ip"];
+  for (const headerName of directIpHeaders) {
+    const headerValue = request.headers.get(headerName)?.trim();
+    if (headerValue) return headerValue;
+  }
+
+  return process.env.NODE_ENV === "production" ? "unknown" : "127.0.0.1";
+}
+
+function createRateLimitHeaders(options: {
+  limit: number;
+  remaining: number;
+  reset: number;
+}): Record<string, string> {
+  const retryAfterSeconds = Math.max(
+    1,
+    Math.ceil((options.reset - Date.now()) / 1000),
+  );
+
+  return {
+    "X-RateLimit-Limit": String(options.limit),
+    "X-RateLimit-Remaining": String(Math.max(options.remaining, 0)),
+    "X-RateLimit-Reset": String(options.reset),
+    "Retry-After": String(retryAfterSeconds),
+  };
 }
 
 /**
@@ -274,13 +404,55 @@ export async function checkRateLimit(
   limiter?: Ratelimit,
 ): Promise<NextResponse<ApiError> | null> {
   const effectiveLimiter = limiter ?? ratelimit;
-  const { success } = await effectiveLimiter.limit(ip);
+  const userAgent = request?.headers.get("user-agent") ?? undefined;
+  const country =
+    request?.headers.get("x-vercel-ip-country") ??
+    request?.headers.get("cf-ipcountry") ??
+    undefined;
+
+  const result = await effectiveLimiter.limit(ip, {
+    ip,
+    userAgent,
+    country,
+  });
+  await flushRateLimitPendingWork(result.pending, endpointName);
+
+  const limit = typeof result.limit === "number" ? result.limit : 0;
+  const remaining = typeof result.remaining === "number" ? result.remaining : 0;
+  const reset = typeof result.reset === "number" ? result.reset : Date.now();
+
+  let denialDetails = "";
+  if (result.reason) {
+    const deniedValueSuffix = result.deniedValue
+      ? `: ${result.deniedValue}`
+      : "";
+    denialDetails = ` (${result.reason}${deniedValueSuffix})`;
+  }
+
+  const rateLimitHeaders = createRateLimitHeaders({
+    limit,
+    remaining,
+    reset,
+  });
+
+  if (result.reason === "timeout") {
+    console.warn(
+      `⏱️ [${endpointName}] Upstash Ratelimit timed out, allowing request to pass fail-open.`,
+    );
+  }
+
+  const { success } = result;
   if (!success) {
-    console.warn(`🚨 [${endpointName}] Rate limited IP: ${ip}`);
+    console.warn(`🚨 [${endpointName}] Rate limited IP: ${ip}${denialDetails}`);
     await incrementAnalytics(
       buildAnalyticsMetricKey(endpointKey, "failed_requests"),
     );
-    return jsonWithCors({ error: "Too many requests" }, request, 429);
+    return jsonWithCors(
+      { error: "Too many requests" },
+      request,
+      429,
+      rateLimitHeaders,
+    );
   }
   return null;
 }
@@ -1159,7 +1331,7 @@ export async function initializeApiRequest(
   limiter?: Ratelimit,
 ): Promise<ApiInitResult> {
   const startTime = Date.now();
-  const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
+  const ip = getRequestIp(request);
   const endpoint = endpointName;
 
   logRequest(endpoint, ip);

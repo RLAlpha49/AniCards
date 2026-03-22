@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import {
+  sharedRatelimitMockLimit,
   sharedRedisMockGet,
   sharedRedisMockIncr,
   sharedRedisMockSet,
@@ -22,6 +23,13 @@ describe("Cards API GET Endpoint", () => {
 
   beforeEach(() => {
     sharedRedisMockIncr.mockResolvedValue(1);
+    sharedRatelimitMockLimit.mockResolvedValue({
+      success: true,
+      limit: 60,
+      remaining: 59,
+      reset: Date.now() + 10_000,
+      pending: Promise.resolve(),
+    });
   });
 
   afterEach(() => {
@@ -263,6 +271,32 @@ describe("Cards API GET Endpoint", () => {
       expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:cards_api:failed_requests",
       );
+    });
+  });
+
+  describe("Rate Limiting", () => {
+    it("should return 429 before reading Redis when the request is rate limited", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({
+        success: false,
+        limit: 60,
+        remaining: 0,
+        reset: Date.now() + 5_000,
+        pending: Promise.resolve(),
+      });
+
+      const req = new Request(`${baseUrl}?userId=456`, {
+        headers: { "x-forwarded-for": "127.0.0.1" },
+      });
+      const res = await GET(req);
+
+      expect(res.status).toBe(429);
+      const json = await getResponseJson(res);
+      expect(json.error).toBe("Too many requests");
+      expect(sharedRedisMockGet).not.toHaveBeenCalled();
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:cards_api:failed_requests",
+      );
+      expect(res.headers.get("Retry-After")).toBeTruthy();
     });
   });
 

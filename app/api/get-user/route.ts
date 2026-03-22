@@ -9,6 +9,9 @@
  */
 import {
   apiJsonHeaders,
+  checkRateLimit,
+  createRateLimiter,
+  getRequestIp,
   incrementAnalytics,
   isValidUsername,
   jsonWithCors,
@@ -20,6 +23,8 @@ import {
   UserDataPart,
 } from "@/lib/server/user-data";
 
+const ratelimit = createRateLimiter({ limit: 60, window: "10 s" });
+
 /**
  * Retrieves user data by userId or username and records analytics around the lookup.
  * @param request - Incoming request with query parameters and headers.
@@ -28,7 +33,19 @@ import {
  */
 export async function GET(request: Request) {
   const startTime = Date.now();
-  const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
+  const ip = getRequestIp(request);
+
+  const rateLimitResponse = await checkRateLimit(
+    request,
+    ip,
+    "User API",
+    "user_api",
+    ratelimit,
+  );
+  if (rateLimitResponse) {
+    return rateLimitResponse;
+  }
+
   console.log(`🚀 [User API] Received request from IP: ${ip}`);
 
   const { searchParams } = new URL(request.url);

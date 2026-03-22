@@ -339,7 +339,10 @@ describe("Card SVG Route", () => {
         "Client Error: Too many requests - try again later",
         429,
       );
-      expect(sharedRatelimitMockLimit).toHaveBeenCalledWith("127.0.0.1");
+      expect(sharedRatelimitMockLimit.mock.calls[0]?.[0]).toBe("127.0.0.1");
+      expect(sharedRatelimitMockLimit.mock.calls[0]?.[1]).toMatchObject({
+        ip: "127.0.0.1",
+      });
       expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:card_svg:failed_requests",
       );
@@ -354,7 +357,10 @@ describe("Card SVG Route", () => {
       );
 
       await GET(req);
-      expect(sharedRatelimitMockLimit).toHaveBeenCalledWith("192.168.1.1");
+      expect(sharedRatelimitMockLimit.mock.calls[0]?.[0]).toBe("192.168.1.1");
+      expect(sharedRatelimitMockLimit.mock.calls[0]?.[1]).toMatchObject({
+        ip: "192.168.1.1",
+      });
     });
 
     it("should default to 127.0.0.1 when x-forwarded-for is missing", async () => {
@@ -365,7 +371,10 @@ describe("Card SVG Route", () => {
       );
 
       await GET(req);
-      expect(sharedRatelimitMockLimit).toHaveBeenCalledWith("127.0.0.1");
+      expect(sharedRatelimitMockLimit.mock.calls[0]?.[0]).toBe("127.0.0.1");
+      expect(sharedRatelimitMockLimit.mock.calls[0]?.[1]).toMatchObject({
+        ip: "127.0.0.1",
+      });
     });
   });
 

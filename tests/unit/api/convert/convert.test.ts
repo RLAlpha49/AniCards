@@ -14,6 +14,7 @@ import {
   sanitizeCssContent,
   sanitizeInlineStyleAttributes,
 } from "@/app/api/convert/route";
+import { sharedRatelimitMockLimit } from "@/tests/unit/__setup__";
 
 /**
  * Captures the buffer passed into `sharp` so tests can inspect the SVG payload.
@@ -84,6 +85,13 @@ describe("Convert API POST Endpoint", () => {
   beforeEach(() => {
     lastSharpBuffer = null;
     lastSharpFormat = "png";
+    sharedRatelimitMockLimit.mockResolvedValue({
+      success: true,
+      limit: 20,
+      remaining: 19,
+      reset: Date.now() + 60_000,
+      pending: Promise.resolve(),
+    });
   });
 
   afterEach(() => {
@@ -579,6 +587,45 @@ describe("Convert API POST Endpoint", () => {
       expect(res.status).toBe(500);
       const data = await res.json();
       expect(data.error).toBe("Failed to fetch SVG");
+    });
+  });
+
+  describe("Rate Limiting", () => {
+    it("should return 429 before attempting fetch or conversion when rate limited", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({
+        success: false,
+        limit: 20,
+        remaining: 0,
+        reset: Date.now() + 5_000,
+        pending: Promise.resolve(),
+      });
+
+      const fetchSpy = mock(
+        async () =>
+          new Response("<svg></svg>", {
+            status: 200,
+            headers: { "Content-Type": "image/svg+xml" },
+          }),
+      );
+      globalThis.fetch = fetchSpy as unknown as typeof globalThis.fetch;
+
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+          host: "localhost",
+        },
+        body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+
+      expect(res.status).toBe(429);
+      const data = await res.json();
+      expect(data.error).toBe("Too many requests");
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(res.headers.get("Retry-After")).toBeTruthy();
     });
   });
 
