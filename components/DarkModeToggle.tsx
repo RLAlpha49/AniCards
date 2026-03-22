@@ -1,34 +1,30 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useState } from "react";
 
 import { safeTrack, trackSettingsChanged } from "@/lib/utils/google-analytics";
 
-/**
- * Interactive toggle to switch between light and dark themes.
- * - Uses `next-themes` to toggle between 'dark' and 'light', honoring 'system'.
- * - Tracks setting changes using the analytics helper.
- * - Uses a mount check to avoid SSR hydration mismatch.
- * @returns A button element representing the theme switch.
- * @source
- */
+const ICON_TRANSITION = { duration: 0.16, ease: [0.16, 1, 0.3, 1] } as const;
+const RING_TRANSITION = { duration: 0.5, ease: [0.22, 1, 0.36, 1] } as const;
+
 export default function DarkModeToggle() {
   const [mounted, setMounted] = useState(false);
   const { theme, resolvedTheme, setTheme } = useTheme();
   const currentTheme = theme === "system" ? resolvedTheme : theme;
+  const isDark = currentTheme === "dark";
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   const handleThemeToggle = useCallback(() => {
-    const newTheme = currentTheme === "dark" ? "light" : "dark";
+    const newTheme = isDark ? "light" : "dark";
     setTheme(newTheme);
     safeTrack(() => trackSettingsChanged(`theme_${newTheme}`));
-  }, [currentTheme, setTheme]);
+  }, [isDark, setTheme]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" || e.key === " ") {
@@ -39,66 +35,81 @@ export default function DarkModeToggle() {
 
   if (!mounted) return null;
 
-  const sunAnimate =
-    currentTheme === "dark"
-      ? { opacity: 0.6, scale: 0.9, rotate: -90 }
-      : { opacity: 1, scale: 1, rotate: 0 };
-  const moonAnimate =
-    currentTheme === "dark"
-      ? { opacity: 1, scale: 1, rotate: 0 }
-      : { opacity: 0.6, scale: 0.9, rotate: 90 };
-  const thumbX = currentTheme === "dark" ? 26 : -2;
-
   return (
-    <button
+    <motion.button
       type="button"
       onClick={handleThemeToggle}
       onKeyDown={onKeyDown}
-      aria-label={`Switch to ${currentTheme === "dark" ? "light" : "dark"} mode`}
+      aria-label={`Switch to ${isDark ? "light" : "dark"} mode`}
       role="switch"
-      aria-checked={currentTheme === "dark"}
+      aria-checked={isDark}
       className="
-        relative inline-flex h-7 w-14 items-center rounded-full p-1
-        focus:outline-none
-        focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2
+        group relative isolate flex size-9 cursor-pointer items-center justify-center rounded-full
+        border border-gold/40 bg-transparent transition-[border-color] duration-300 outline-none
+        hover:border-gold/80
+        focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2
+        focus-visible:ring-offset-background
       "
-      style={{
-        backgroundColor: currentTheme === "dark" ? "#e8dcc8" : "#d4c9a8",
-      }}
+      whileHover={{ scale: 1.08 }}
+      whileTap={{ scale: 0.92 }}
+      transition={RING_TRANSITION}
     >
+      {/* Ambient gold glow — visible on hover */}
       <motion.span
-        className="absolute left-1 flex items-center justify-center"
         aria-hidden
-        initial={false}
-        animate={sunAnimate}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        style={{ color: "#8B7A3E" }}
-      >
-        <Sun className="size-5" strokeWidth={2.5} />
-      </motion.span>
-
-      <motion.span
         className="
-          absolute right-1 flex items-center justify-center text-gray-800
-          dark:text-gray-100
+          pointer-events-none absolute inset-0 rounded-full opacity-0 transition-opacity
+          duration-300
+          group-hover:opacity-100
         "
-        aria-hidden
-        initial={false}
-        animate={moonAnimate}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      >
-        <Moon className="size-5" />
-      </motion.span>
-
-      <motion.span
-        className="absolute size-6 rounded-full bg-white shadow-md"
-        initial={false}
-        animate={{ x: thumbX }}
-        transition={{ type: "spring", stiffness: 700, damping: 30 }}
         style={{
-          backgroundColor: currentTheme === "dark" ? "#0C0A10" : "#fff",
+          boxShadow:
+            "0 0 14px 2px hsl(var(--gold) / 0.25), inset 0 0 8px hsl(var(--gold) / 0.08)",
         }}
       />
-    </button>
+
+      {/* Radial bloom on theme change */}
+      <AnimatePresence mode="wait">
+        <motion.span
+          key={isDark ? "bloom-dark" : "bloom-light"}
+          aria-hidden
+          className="pointer-events-none absolute inset-0 rounded-full"
+          initial={{ opacity: 0.6, scale: 1 }}
+          animate={{ opacity: 0, scale: 2.2 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          style={{
+            background: `radial-gradient(circle, hsl(var(--gold) / 0.3) 0%, transparent 70%)`,
+          }}
+        />
+      </AnimatePresence>
+
+      {/* Icon crossfade with rotation */}
+      <AnimatePresence mode="wait" initial={false}>
+        {isDark ? (
+          <motion.span
+            key="moon"
+            className="flex items-center justify-center text-gold"
+            initial={{ opacity: 0, rotate: -90, scale: 0.5 }}
+            animate={{ opacity: 1, rotate: 0, scale: 1 }}
+            exit={{ opacity: 0, rotate: 90, scale: 0.5 }}
+            transition={ICON_TRANSITION}
+          >
+            <Moon className="size-[18px]" strokeWidth={1.75} />
+          </motion.span>
+        ) : (
+          <motion.span
+            key="sun"
+            className="flex items-center justify-center text-gold"
+            initial={{ opacity: 0, rotate: 90, scale: 0.5 }}
+            animate={{ opacity: 1, rotate: 0, scale: 1 }}
+            exit={{ opacity: 0, rotate: -90, scale: 0.5 }}
+            transition={ICON_TRANSITION}
+          >
+            <Sun className="size-[18px]" strokeWidth={1.75} />
+          </motion.span>
+        )}
+      </AnimatePresence>
+    </motion.button>
   );
 }
