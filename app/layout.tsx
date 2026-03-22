@@ -13,7 +13,6 @@ import { headers } from "next/headers";
 import { Suspense } from "react";
 
 import AnalyticsProvider from "@/components/AnalyticsProvider";
-import { CustomScrollbar } from "@/components/CustomScrollbar";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import GithubCorner from "@/components/GithubCorner";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
@@ -133,7 +132,6 @@ export default async function RootLayout({
               <ErrorBoundary>
                 <LayoutShell>
                   <GithubCorner />
-                  <CustomScrollbar />
                   {children}
                 </LayoutShell>
               </ErrorBoundary>
