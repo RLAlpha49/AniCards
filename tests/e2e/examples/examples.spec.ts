@@ -24,7 +24,9 @@ test.describe("Examples gallery", () => {
     expect(initialCount).toBeGreaterThan(0);
 
     await test.step("Filter by Voice Actors", async () => {
-      await page.getByPlaceholder(/search cards/i).fill("Voice Actors");
+      await page
+        .getByPlaceholder(/find a card by name or keyword/i)
+        .fill("Voice Actors");
     });
 
     await expect
@@ -38,7 +40,7 @@ test.describe("Examples gallery", () => {
   test("navigates to search from examples CTA", async ({ page }) => {
     await test.step("Navigate to search from CTA", async () => {
       await page
-        .getByRole("button", { name: /create your cards/i })
+        .getByRole("button", { name: /create yours/i })
         .first()
         .click();
       await expect(page).toHaveURL(/\/search(?:\?|$)/);

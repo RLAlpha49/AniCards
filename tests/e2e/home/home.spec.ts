@@ -7,42 +7,22 @@ test.describe("Home page", () => {
     });
 
     await test.step("Navigate to search via hero CTA", async () => {
-      await page.getByRole("button", { name: /create your card/i }).click();
+      await page.getByRole("button", { name: /get started/i }).click();
       await expect(page).toHaveURL(/\/search(?:\?|$)/);
       await expect(page.getByLabel(/anilist username/i)).toBeVisible();
     });
   });
 
-  test("scrolls to preview showcase from View Examples CTA", async ({
-    page,
-  }) => {
+  test("navigates to examples from View Gallery CTA", async ({ page }) => {
     await page.goto("/");
 
-    const showcase = page.locator("#preview-showcase");
-    await expect(showcase).toBeVisible();
-    const initialScrollY = await page.evaluate(() => window.scrollY);
-
-    await test.step("Trigger smooth scroll", async () => {
-      await page
-        .getByRole("button", { name: /view examples/i })
-        .first()
-        .click();
+    await test.step("Open the examples gallery", async () => {
+      await page.getByRole("link", { name: /view gallery/i }).click();
     });
 
-    await expect
-      .poll(async () => await page.evaluate(() => window.scrollY))
-      .toBeGreaterThan(initialScrollY);
-
-    const viewportState = await showcase.evaluate((element) => {
-      const rect = element.getBoundingClientRect();
-      return {
-        top: rect.top,
-        bottom: rect.bottom,
-        viewportHeight: window.innerHeight,
-      };
-    });
-
-    expect(viewportState.top).toBeLessThan(viewportState.viewportHeight);
-    expect(viewportState.bottom).toBeGreaterThan(0);
+    await expect(page).toHaveURL(/\/examples(?:\?|$)/);
+    await expect(
+      page.getByRole("heading", { name: /every card, every variant/i }),
+    ).toBeVisible();
   });
 });
