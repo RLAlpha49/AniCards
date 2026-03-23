@@ -1,6 +1,13 @@
 import { describe, expect, it } from "bun:test";
 
-const SITEMAP_PATHS = ["/", "/search", "/user", "/projects", "/contact"];
+const SITEMAP_PATHS = [
+  "/",
+  "/search",
+  "/examples",
+  "/user",
+  "/projects",
+  "/contact",
+];
 const DEFAULT_BASE_URL = "https://anicards.alpha49.com";
 
 async function getSitemap(siteUrl?: string) {
@@ -30,7 +37,7 @@ async function getSitemap(siteUrl?: string) {
 }
 
 describe("sitemap.xml route", () => {
-  it("returns XML sitemap with default base URL and valid lastmod values", async () => {
+  it("returns XML sitemap with the curated public routes", async () => {
     const { response, xml } = await getSitemap();
 
     expect(response.headers.get("Content-Type")).toBe("application/xml");
@@ -39,14 +46,7 @@ describe("sitemap.xml route", () => {
       expect(xml).toContain(`${DEFAULT_BASE_URL}${path}`);
     });
 
-    const lastmodMatches = [...xml.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)];
-    expect(lastmodMatches.length).toBe(SITEMAP_PATHS.length);
-
-    lastmodMatches.forEach(([, value]) => {
-      const parsed = Date.parse(value);
-      expect(Number.isNaN(parsed)).toBe(false);
-      expect(new Date(parsed).toISOString()).toBe(value);
-    });
+    expect(xml).not.toContain("<lastmod>");
   });
 
   it("uses NEXT_PUBLIC_SITE_URL when provided", async () => {
