@@ -184,12 +184,12 @@ function PaletteFooter() {
     >
       <span className="flex items-center gap-1.5">
         <kbd className="
-          inline-flex h-4.5 w-4.5 items-center justify-center border border-current/20 text-[9px]
+          inline-flex size-4.5 items-center justify-center border border-current/20 text-[9px]
         ">
           ↑
         </kbd>
         <kbd className="
-          inline-flex h-4.5 w-4.5 items-center justify-center border border-current/20 text-[9px]
+          inline-flex size-4.5 items-center justify-center border border-current/20 text-[9px]
         ">
           ↓
         </kbd>

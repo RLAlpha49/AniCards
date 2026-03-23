@@ -95,8 +95,8 @@ export function HeroSection() {
     <section className="relative min-h-[90vh] overflow-hidden px-6 sm:px-12">
       <div className="pointer-events-none absolute inset-0">
         <div className="
-          absolute top-1/4 left-1/2 h-150 w-150 -translate-1/2 rounded-full
-          bg-[hsl(var(--gold)/0.06)] blur-[120px]
+          absolute top-1/4 left-1/2 size-150 -translate-1/2 rounded-full bg-[hsl(var(--gold)/0.06)]
+          blur-[120px]
         " />
       </div>
 
