@@ -72,30 +72,20 @@ export function ProjectsHeroSection() {
         </motion.div>
 
         {/* Headline stack — massive scale contrast */}
-        <div className="relative mb-10 sm:mb-14">
-          <motion.h1
-            variants={rise}
-            className="
-              font-display text-[3.5rem] leading-[0.88] tracking-tight text-foreground
-              sm:text-[5.5rem]
-              md:text-[7.5rem]
-              lg:text-[10rem]
-            "
-          >
-            MORE
-          </motion.h1>
-          <motion.h1
-            variants={rise}
-            className="
-              -mt-1 font-display text-[3.5rem] leading-[0.88] tracking-tight text-gold
-              sm:-mt-2 sm:text-[5.5rem]
-              md:-mt-3 md:text-[7.5rem]
-              lg:-mt-4 lg:text-[10rem]
-            "
-          >
+        <motion.h1
+          variants={rise}
+          className="
+            relative mb-10 font-display text-[3.5rem] leading-[0.88] tracking-tight
+            sm:mb-14 sm:text-[5.5rem]
+            md:text-[7.5rem]
+            lg:text-[10rem]
+          "
+        >
+          <span className="block text-foreground">MORE</span>
+          <span className="-mt-1 block text-gold sm:-mt-2 md:-mt-3 lg:-mt-4">
             PROJECTS
-          </motion.h1>
-        </div>
+          </span>
+        </motion.h1>
 
         {/* Gold ruled divider */}
         <motion.div

@@ -127,25 +127,14 @@ export function SearchHeroSection({
         <motion.h1
           variants={itemVariants}
           className="
-            mb-2 font-display text-5xl leading-[1.05] font-black text-foreground
+            mb-6 font-display text-5xl leading-[1.05] font-black
             sm:text-6xl
             md:text-7xl
             lg:text-8xl
           "
         >
-          UNLOCK
-        </motion.h1>
-
-        <motion.h1
-          variants={itemVariants}
-          className="
-            mb-6 font-display text-5xl leading-[1.05] font-black text-gold
-            sm:text-6xl
-            md:text-7xl
-            lg:text-8xl
-          "
-        >
-          ANY PROFILE
+          <span className="block text-foreground">UNLOCK</span>
+          <span className="block text-gold">ANY PROFILE</span>
         </motion.h1>
 
         <motion.div

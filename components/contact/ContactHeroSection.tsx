@@ -57,19 +57,10 @@ export function ContactHeroSection() {
         <div className="text-center">
           <motion.h1
             variants={fadeUp}
-            className="
-              font-display text-[clamp(3.5rem,13vw,11rem)] leading-[0.82] font-black text-foreground
-            "
+            className="font-display text-[clamp(3.5rem,13vw,11rem)] leading-[0.82] font-black"
           >
-            GET IN
-          </motion.h1>
-          <motion.h1
-            variants={fadeUp}
-            className="
-              font-display text-[clamp(3.5rem,13vw,11rem)] leading-[0.82] font-black text-gold
-            "
-          >
-            TOUCH
+            <span className="block text-foreground">GET IN</span>
+            <span className="block text-gold">TOUCH</span>
           </motion.h1>
         </div>
 
