@@ -1,3 +1,11 @@
+import { seoConfigs } from "@/lib/seo";
+import {
+  getSiteUrl,
+  resolveSiteUrl,
+  SITE_AUTHOR_NAME,
+  SITE_NAME,
+} from "@/lib/site-config";
+
 /**
  * Schema.org WebPage type used for structured data (JSON-LD) metadata.
  * @source
@@ -41,6 +49,15 @@ interface SoftwareApplication {
   };
 }
 
+interface StructuredDataOverrides {
+  title?: string;
+  description?: string;
+  canonical?: string;
+  keywords?: string[];
+}
+
+export type StructuredDataEntry = WebPage | SoftwareApplication;
+
 /**
  * Generates structured JSON-LD schema for a specific page type. When
  * `home` is requested it includes both WebPage and SoftwareApplication
@@ -50,22 +67,33 @@ interface SoftwareApplication {
  * @source
  */
 export const generateStructuredData = (
-  pageType: "home" | "user" | "search" = "home",
-) => {
+  pageType: keyof typeof seoConfigs = "home",
+  overrides: StructuredDataOverrides = {},
+): StructuredDataEntry[] => {
+  const config = {
+    ...seoConfigs[pageType],
+    ...overrides,
+  };
+  const siteUrl = getSiteUrl();
+  const canonicalUrl = resolveSiteUrl(
+    overrides.canonical ?? config.canonical ?? "/",
+  );
+  const fullTitle = config.title.includes(SITE_NAME)
+    ? config.title
+    : `${config.title} | ${SITE_NAME}`;
+
   const baseSchema: WebPage = {
     "@type": "WebPage",
     "@context": "https://schema.org",
-    name: "AniCards - AniList Stat Cards Generator",
-    description:
-      "Generate beautiful AniList stat cards from your anime and manga data. Create stunning visualizations of your AniList statistics.",
-    url: process.env.NEXT_PUBLIC_SITE_URL || "https://anicards.alpha49.com",
-    keywords:
-      "anilist stat cards, anime statistics, manga statistics, anilist data visualization",
+    name: fullTitle,
+    description: config.description,
+    url: canonicalUrl,
+    keywords: (config.keywords ?? []).join(", "),
     inLanguage: "en-US",
     isPartOf: {
       "@type": "WebSite",
-      name: "AniCards",
-      url: process.env.NEXT_PUBLIC_SITE_URL || "https://anicards.alpha49.com",
+      name: SITE_NAME,
+      url: siteUrl,
     },
   };
 
@@ -73,10 +101,9 @@ export const generateStructuredData = (
     const appSchema: SoftwareApplication = {
       "@type": "SoftwareApplication",
       "@context": "https://schema.org",
-      name: "AniCards",
-      description:
-        "AniList stat cards generator - Create beautiful, shareable AniList statistics cards from your anime and manga data",
-      url: process.env.NEXT_PUBLIC_SITE_URL || "https://anicards.alpha49.com",
+      name: SITE_NAME,
+      description: config.description,
+      url: siteUrl,
       applicationCategory: "Entertainment",
       operatingSystem: "Web",
       offers: {
@@ -84,11 +111,10 @@ export const generateStructuredData = (
         price: "0",
         priceCurrency: "USD",
       },
-      keywords:
-        "anilist stat cards, anime statistics, manga statistics, anilist visualization, anime cards",
+      keywords: (config.keywords ?? []).join(", "),
       author: {
         "@type": "Person",
-        name: "RLAlpha49",
+        name: SITE_AUTHOR_NAME,
       },
     };
 
@@ -105,8 +131,11 @@ export const generateStructuredData = (
  * @returns An object with an `__html` key containing the JSON-LD string.
  * @source
  */
-export const generateJsonLd = (data: (WebPage | SoftwareApplication)[]) => {
+export const generateJsonLd = (data: StructuredDataEntry[]) => {
   return {
-    __html: JSON.stringify(data.length === 1 ? data[0] : data),
+    __html: JSON.stringify(data.length === 1 ? data[0] : data).replaceAll(
+      "<",
+      String.raw`\u003c`,
+    ),
   };
 };

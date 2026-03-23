@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 
+import { getSiteUrl } from "@/lib/site-config";
+
 /**
  * Base URL for sitemap entries, defaulting to the hosted site when the environment variable is missing.
  * @source
  */
-const BASE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL || "https://anicards.alpha49.com";
+const BASE_URL = getSiteUrl();
 
 /**
  * Static route metadata that drives sitemap priorities and update frequencies.
@@ -20,6 +21,11 @@ const pages = [
   {
     path: "/search",
     priority: 0.9,
+    changefreq: "weekly" as const,
+  },
+  {
+    path: "/examples",
+    priority: 0.85,
     changefreq: "weekly" as const,
   },
   {
@@ -45,14 +51,11 @@ const pages = [
  * @source
  */
 export async function GET() {
-  const lastmod = new Date().toISOString();
-
   const urls = pages
     .map((page) => {
       return `
     <url>
       <loc>${BASE_URL}${page.path}</loc>
-      <lastmod>${lastmod}</lastmod>
       <changefreq>${page.changefreq}</changefreq>
       <priority>${page.priority}</priority>
     </url>`;

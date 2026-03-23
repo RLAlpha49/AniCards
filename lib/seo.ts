@@ -1,5 +1,12 @@
 import type { Metadata } from "next";
 
+import {
+  buildCanonicalUrl,
+  getSiteUrlObject,
+  resolveSiteUrl,
+  SITE_NAME,
+} from "@/lib/site-config";
+
 /**
  * Configuration object used to generate SEO metadata for pages.
  * @source
@@ -22,11 +29,15 @@ interface SEOConfig {
   canonical?: string;
 }
 
-/** Base site URL used when canonical links or OpenGraph urls are not provided. @source */
-const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL || "https://anicards.alpha49.com";
-/** Canonical site name used across generated metadata. @source */
-const SITE_NAME = "AniCards";
+export type SEOPageKey = keyof typeof seoConfigs;
+export type SearchParamValue = string | string[] | undefined;
+
+function getSearchParamValue(value: SearchParamValue): string | undefined {
+  const normalizedValue = Array.isArray(value) ? value[0] : value;
+  const trimmedValue = normalizedValue?.trim();
+
+  return trimmedValue || undefined;
+}
 
 /**
  * Generate a Next.js-compatible Metadata object from a lightweight
@@ -44,21 +55,24 @@ export function generateMetadata(config: SEOConfig): Metadata {
     openGraph = {},
     canonical,
   } = config;
+  const canonicalReference = canonical || "/";
+  const canonicalUrl = resolveSiteUrl(canonicalReference);
 
   const fullTitle = title.includes(SITE_NAME)
     ? title
     : `${title} | ${SITE_NAME}`;
 
   return {
+    metadataBase: getSiteUrlObject(),
     title: fullTitle,
     description,
-    keywords: keywords.join(", "),
+    keywords,
 
     // Open Graph (Facebook, LinkedIn, etc.)
     openGraph: {
       title: openGraph.title || fullTitle,
       description: openGraph.description || description,
-      url: canonical || SITE_URL,
+      url: canonicalUrl,
       siteName: SITE_NAME,
       type: (openGraph.type as "website" | "article") || "website",
       locale: "en_US",
@@ -79,7 +93,7 @@ export function generateMetadata(config: SEOConfig): Metadata {
 
     // Canonical URL
     alternates: {
-      canonical: canonical || SITE_URL,
+      canonical: canonicalReference,
     },
 
     // Additional metadata
@@ -119,7 +133,7 @@ export const seoConfigs = {
       "anime dashboard",
       "weeb stats",
     ],
-    canonical: SITE_URL,
+    canonical: "/",
   },
 
   search: {
@@ -134,7 +148,7 @@ export const seoConfigs = {
       "anilist lookup",
       "user statistics",
     ],
-    canonical: `${SITE_URL}/search`,
+    canonical: "/search",
   },
 
   examples: {
@@ -152,7 +166,7 @@ export const seoConfigs = {
       "anilist card gallery",
       "anime cards showcase",
     ],
-    canonical: `${SITE_URL}/examples`,
+    canonical: "/examples",
   },
 
   contact: {
@@ -160,7 +174,7 @@ export const seoConfigs = {
     description:
       "Get in touch with the AniCards team. Find our social media links, GitHub repository, and contact information for support or feedback.",
     keywords: ["contact", "support", "feedback", "github", "social media"],
-    canonical: `${SITE_URL}/contact`,
+    canonical: "/contact",
   },
 
   projects: {
@@ -175,7 +189,7 @@ export const seoConfigs = {
       "anilist utilities",
       "anime applications",
     ],
-    canonical: `${SITE_URL}/projects`,
+    canonical: "/projects",
   },
 
   user: {
@@ -191,52 +205,55 @@ export const seoConfigs = {
       "download cards",
       "custom colors",
     ],
-    canonical: `${SITE_URL}/user`,
+    canonical: "/user",
   },
-};
+} as const satisfies Record<string, SEOConfig>;
 
 /**
- * Dynamically updates the current document's metadata like title,
- * description, keywords, and canonical link for client components.
- * This function performs DOM operations only when `document` is available.
- * @param pageKey - Key of the page in the `seoConfigs` map.
- * @source
+ * Returns a canonical SEO configuration for the user page based on resolved search params.
  */
-export function updatePageTitle(pageKey: keyof typeof seoConfigs) {
-  const config = seoConfigs[pageKey];
-  if (typeof document !== "undefined") {
-    document.title = config.title.includes(SITE_NAME)
-      ? config.title
-      : `${config.title} | ${SITE_NAME}`;
+export function getUserPageSEOConfig({
+  username,
+  userId,
+}: {
+  username?: SearchParamValue;
+  userId?: SearchParamValue;
+}): SEOConfig {
+  const normalizedUsername = getSearchParamValue(username);
+  const normalizedUserId = getSearchParamValue(userId);
 
-    const metaDescription = document.querySelector('meta[name="description"]');
-    if (metaDescription) {
-      metaDescription.setAttribute("content", config.description);
-    } else {
-      const meta = document.createElement("meta");
-      meta.name = "description";
-      meta.content = config.description;
-      document.head.appendChild(meta);
-    }
-
-    const metaKeywords = document.querySelector('meta[name="keywords"]');
-    if (metaKeywords) {
-      metaKeywords.setAttribute("content", config.keywords?.join(", ") || "");
-    } else if (config.keywords) {
-      const meta = document.createElement("meta");
-      meta.name = "keywords";
-      meta.content = config.keywords.join(", ");
-      document.head.appendChild(meta);
-    }
-
-    let canonical = document.querySelector('link[rel="canonical"]');
-    if (canonical) {
-      canonical.setAttribute("href", config.canonical || SITE_URL);
-    } else {
-      canonical = document.createElement("link");
-      canonical.setAttribute("rel", "canonical");
-      canonical.setAttribute("href", config.canonical || SITE_URL);
-      document.head.appendChild(canonical);
-    }
+  if (normalizedUsername) {
+    return {
+      title: `${normalizedUsername}'s AniList Stats - AniCards`,
+      description: `View ${normalizedUsername}'s anime and manga statistics from AniList. Generate and download beautiful stat cards showcasing their viewing habits, preferences, and achievements.`,
+      keywords: [
+        `${normalizedUsername} anilist`,
+        `${normalizedUsername} anime stats`,
+        `${normalizedUsername} manga stats`,
+        "anilist profile",
+        "anime statistics",
+        "manga statistics",
+        "stat cards",
+      ],
+      canonical: `/user?username=${encodeURIComponent(normalizedUsername)}`,
+    };
   }
+
+  if (normalizedUserId) {
+    return {
+      ...seoConfigs.user,
+      title: `AniList User ${normalizedUserId} Stats - AniCards`,
+      description: `View anime and manga statistics for AniList user ${normalizedUserId}. Generate and download beautiful stat cards showcasing viewing habits, preferences, and achievements.`,
+      keywords: [
+        `anilist user ${normalizedUserId}`,
+        "anilist user stats",
+        "anime statistics",
+        "manga statistics",
+        "stat cards",
+      ],
+      canonical: buildCanonicalUrl("/user", { userId: normalizedUserId }),
+    };
+  }
+
+  return seoConfigs.user;
 }

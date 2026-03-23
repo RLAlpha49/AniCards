@@ -4,8 +4,13 @@ import { Suspense } from "react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import PageShell from "@/components/PageShell";
+import { StructuredDataScript } from "@/components/StructuredDataScript";
 import { UserPageEditor } from "@/components/user/UserPageEditor";
-import { generateMetadata as createMetadata, seoConfigs } from "@/lib/seo";
+import {
+  generateMetadata as createMetadata,
+  getUserPageSEOConfig,
+} from "@/lib/seo";
+import { generateStructuredData } from "@/lib/structured-data";
 
 /**
  * Forces Next.js to render this route on each request so user data stays fresh.
@@ -31,53 +36,56 @@ export async function generateMetadata({
     mangaStatusColors?: string;
   }>;
 }): Promise<Metadata> {
-  const { username } = await searchParams;
-  const normalizedUsername = username?.trim();
+  const params = await searchParams;
 
-  if (normalizedUsername) {
-    return createMetadata({
-      title: `${normalizedUsername}'s AniList Stats - AniCards`,
-      description: `View ${normalizedUsername}'s anime and manga statistics from AniList. Generate and download beautiful stat cards showcasing their viewing habits, preferences, and achievements.`,
-      keywords: [
-        `${normalizedUsername} anilist`,
-        `${normalizedUsername} anime stats`,
-        `${normalizedUsername} manga stats`,
-        "anilist profile",
-        "anime statistics",
-        "manga statistics",
-        "stat cards",
-      ],
-      canonical: `https://anicards.vercel.app/user?username=${encodeURIComponent(
-        normalizedUsername,
-      )}`,
-    });
-  }
-
-  return createMetadata(seoConfigs.user);
+  return createMetadata(
+    getUserPageSEOConfig({
+      username: params.username,
+      userId: params.userId,
+    }),
+  );
 }
 
 /**
  * Wraps the client-side user page in a suspense boundary with a spinner fallback.
  * @source
  */
-export default function UserPage() {
+export default async function UserPage({
+  searchParams,
+}: Readonly<{
+  searchParams: Promise<{
+    userId?: string;
+    username?: string;
+  }>;
+}>) {
+  const params = await searchParams;
+  const userPageSeo = getUserPageSEOConfig({
+    username: params.username,
+    userId: params.userId,
+  });
+
   return (
-    <Suspense
-      fallback={
-        <PageShell>
-          <div className="
-            relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4
-          ">
-            <LoadingSpinner size="lg" text="Loading user data..." />
-          </div>
-        </PageShell>
-      }
-    >
-      <ErrorBoundary>
-        <PageShell>
-          <UserPageEditor />
-        </PageShell>
-      </ErrorBoundary>
-    </Suspense>
+    <>
+      <StructuredDataScript
+        data={generateStructuredData("user", userPageSeo)}
+      />
+      <Suspense
+        fallback={
+          <PageShell>
+            <div className="
+              relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4
+            ">
+              <LoadingSpinner size="lg" text="Loading user data..." />
+            </div>
+          </PageShell>
+        }
+      >
+        <ErrorBoundary>
+          <PageShell>
+            <UserPageEditor />
+          </PageShell>
+        </ErrorBoundary>
+      </Suspense>
+    </>
   );
 }
