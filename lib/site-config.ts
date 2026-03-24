@@ -9,7 +9,13 @@ type CanonicalSearchParams = Record<
 >;
 
 function stripTrailingSlash(url: string): string {
-  return url.replace(/\/+$/, "");
+  let end = url.length;
+
+  while (end > 0 && url.endsWith("/", end)) {
+    end -= 1;
+  }
+
+  return end === url.length ? url : url.slice(0, end);
 }
 
 /**
@@ -75,7 +81,9 @@ export function buildCanonicalUrl(
  * Resolves either a relative path or a fully qualified URL into an absolute canonical URL.
  */
 export function resolveSiteUrl(pathOrUrl: string): string {
-  return /^https?:\/\//i.test(pathOrUrl)
+  const lowerCased = pathOrUrl.toLowerCase();
+
+  return lowerCased.startsWith("http://") || lowerCased.startsWith("https://")
     ? stripTrailingSlash(pathOrUrl)
     : buildCanonicalUrl(pathOrUrl);
 }
