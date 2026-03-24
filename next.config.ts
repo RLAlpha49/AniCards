@@ -10,7 +10,6 @@ import type { NextConfig } from "next";
  */
 const nextConfig: NextConfig = {
   env: {
-    API_SECRET_TOKEN: process.env.API_SECRET_TOKEN,
     NEXT_PUBLIC_GOOGLE_ANALYTICS_ID:
       process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID,
     NEXT_PUBLIC_API_URL:
@@ -93,6 +92,12 @@ const nextConfig: NextConfig = {
             // This prevents attacks based on MIME type confusion
             key: "X-Content-Type-Options",
             value: "nosniff",
+          },
+          {
+            // HSTS is intentionally scoped to the apex host policy for now.
+            // Add includeSubDomains/preload only when every served subdomain is HTTPS-only.
+            key: "Strict-Transport-Security",
+            value: "max-age=31536000",
           },
           {
             // strict-origin-when-cross-origin: Full URL for same-origin, only origin for cross-origin
