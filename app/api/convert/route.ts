@@ -13,13 +13,29 @@ import {
   apiJsonHeaders,
   checkRateLimit,
   createRateLimiter,
+  fetchUpstreamWithRetry,
   getRequestIp,
   incrementAnalytics,
   jsonWithCors,
+  UpstreamTransportError,
 } from "@/lib/api-utils";
 import type { ConversionFormat } from "@/lib/utils";
 
 const ratelimit = createRateLimiter({ limit: 20, window: "1 m" });
+const SVG_FETCH_TIMEOUT_MS = 5_000;
+const SVG_MAX_BYTES = 1_000_000;
+const SVG_MAX_DIMENSION_PX = 4_096;
+const SVG_MAX_RASTER_PIXELS = 16_777_216;
+
+class ConvertRouteError extends Error {
+  readonly statusCode: number;
+
+  constructor(message: string, statusCode: number) {
+    super(message);
+    this.name = "ConvertRouteError";
+    this.statusCode = statusCode;
+  }
+}
 
 /**
  * Determines whether a CSS fragment contains only whitespace or block comments.
@@ -624,6 +640,207 @@ function isLocalhost(hostname: string): boolean {
   );
 }
 
+function isAllowedSvgContentType(contentType: string | null): boolean {
+  if (!contentType) return false;
+  const mimeType = contentType.split(";")[0]?.trim().toLowerCase();
+  return [
+    "image/svg+xml",
+    "text/plain",
+    "application/xml",
+    "text/xml",
+  ].includes(mimeType);
+}
+
+function looksLikeSvgDocument(content: string): boolean {
+  return /^\s*(?:<\?xml[\s\S]*?\?>\s*)?<svg\b/i.test(content);
+}
+
+async function readTextResponseWithLimit(
+  response: Response,
+  maxBytes: number,
+): Promise<string> {
+  const contentLengthHeader = response.headers.get("content-length");
+  const contentLength = contentLengthHeader
+    ? Number.parseInt(contentLengthHeader, 10)
+    : Number.NaN;
+
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    throw new ConvertRouteError("SVG response too large", 413);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    const text = await response.text();
+    if (Buffer.byteLength(text, "utf8") > maxBytes) {
+      throw new ConvertRouteError("SVG response too large", 413);
+    }
+    return text;
+  }
+
+  const decoder = new TextDecoder();
+  let totalBytes = 0;
+  let svgContent = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+
+    totalBytes += value.byteLength;
+    if (totalBytes > maxBytes) {
+      await reader.cancel();
+      throw new ConvertRouteError("SVG response too large", 413);
+    }
+
+    svgContent += decoder.decode(value, { stream: true });
+  }
+
+  svgContent += decoder.decode();
+  return svgContent;
+}
+
+function parseSvgLength(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const match = /^\s*(\d+(?:\.\d+)?)(?:px)?\s*$/i.exec(value);
+  if (!match) return undefined;
+  const parsed = Number.parseFloat(match[1]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function getAllowedConvertDomains(): {
+  allowedDomains: string[];
+  isDevelopment: boolean;
+} {
+  const allowedDomains: string[] = [
+    ...(process.env.NEXT_PUBLIC_API_URL
+      ? [new URL(process.env.NEXT_PUBLIC_API_URL).hostname]
+      : []),
+  ];
+  const isDevelopment =
+    process.env.NODE_ENV === "development" ||
+    allowedDomains.some(
+      (domain) =>
+        domain === "localhost" ||
+        domain?.startsWith("127.") ||
+        domain === "::1",
+    );
+
+  if (isDevelopment) {
+    allowedDomains.push("localhost", "api.localhost", "127.0.0.1", "::1");
+  }
+
+  return { allowedDomains, isDevelopment };
+}
+
+function parseSvgRequestBody(body: unknown): {
+  svgUrl: string;
+  requestedFormat: ConversionFormat;
+} {
+  const parsedBody =
+    typeof body === "object" && body !== null
+      ? (body as { format?: unknown; svgUrl?: unknown })
+      : undefined;
+  const svgUrl = parsedBody?.svgUrl;
+  const format = parsedBody?.format;
+
+  if (!svgUrl || typeof svgUrl !== "string") {
+    throw new ConvertRouteError("Missing svgUrl parameter", 400);
+  }
+
+  const allowedFormats: ConversionFormat[] = ["png", "webp"];
+  const normalizedFormat =
+    typeof format === "string" ? format.toLowerCase() : "png";
+  if (!allowedFormats.includes(normalizedFormat as ConversionFormat)) {
+    throw new ConvertRouteError("Invalid format parameter", 400);
+  }
+
+  return {
+    svgUrl,
+    requestedFormat: normalizedFormat as ConversionFormat,
+  };
+}
+
+function parseSvgTargetUrl(request: NextRequest, svgUrl: string): URL {
+  try {
+    const baseUrl =
+      request.headers.get("origin") ||
+      request.headers.get("referer")?.split("?")[0] ||
+      `${request.headers.get("x-forwarded-proto") || "https"}://${request.headers.get("host")}`;
+    return new URL(svgUrl, baseUrl);
+  } catch {
+    throw new ConvertRouteError("Invalid URL format", 400);
+  }
+}
+
+function validateSvgTargetUrl(parsedUrl: URL): URL {
+  const { allowedDomains, isDevelopment } = getAllowedConvertDomains();
+
+  if (!isUrlAuthorized(parsedUrl, allowedDomains, isDevelopment)) {
+    throw new ConvertRouteError("Unauthorized or unsafe domain/protocol", 403);
+  }
+
+  if (isDevelopment && parsedUrl.hostname === "api.localhost") {
+    parsedUrl.hostname = "localhost";
+  }
+
+  return parsedUrl;
+}
+
+function createConvertErrorResponse(
+  error: ConvertRouteError,
+  request: NextRequest,
+): NextResponse {
+  incrementAnalytics("analytics:convert_api:failed_requests").catch(() => {});
+  return jsonWithCors({ error: error.message }, request, error.statusCode);
+}
+
+function validateSvgRasterizationBounds(svg: string): void {
+  const svgTagMatch = /<svg\b([^>]*)>/i.exec(svg);
+  const attributes = svgTagMatch?.[1] ?? "";
+  const width = parseSvgLength(
+    /\bwidth=(['"])(.*?)\1/i.exec(attributes)?.[2] ?? null,
+  );
+  const height = parseSvgLength(
+    /\bheight=(['"])(.*?)\1/i.exec(attributes)?.[2] ?? null,
+  );
+  const viewBoxMatch = /\bviewBox=(['"])(.*?)\1/i.exec(attributes);
+  const viewBoxParts = viewBoxMatch?.[2]
+    ?.trim()
+    .split(/[\s,]+/)
+    .map((part) => Number.parseFloat(part));
+  const viewBoxWidth =
+    viewBoxParts?.length === 4 && Number.isFinite(viewBoxParts[2])
+      ? Math.abs(viewBoxParts[2])
+      : undefined;
+  const viewBoxHeight =
+    viewBoxParts?.length === 4 && Number.isFinite(viewBoxParts[3])
+      ? Math.abs(viewBoxParts[3])
+      : undefined;
+
+  const effectiveWidth = width ?? viewBoxWidth;
+  const effectiveHeight = height ?? viewBoxHeight;
+
+  if (
+    typeof effectiveWidth === "number" &&
+    typeof effectiveHeight === "number" &&
+    effectiveWidth * effectiveHeight > SVG_MAX_RASTER_PIXELS
+  ) {
+    throw new ConvertRouteError("SVG rasterization exceeds pixel limits", 413);
+  }
+
+  if (
+    (typeof effectiveWidth === "number" &&
+      effectiveWidth > SVG_MAX_DIMENSION_PX) ||
+    (typeof effectiveHeight === "number" &&
+      effectiveHeight > SVG_MAX_DIMENSION_PX)
+  ) {
+    throw new ConvertRouteError(
+      "SVG rasterization exceeds dimension limits",
+      413,
+    );
+  }
+}
+
 /**
  * Sanitizes an SVG by extracting <style> blocks and inline styles, cleaning both,
  * and returning the updated markup and a list of class tokens to strip.
@@ -679,11 +896,37 @@ function isUrlAuthorized(
  */
 async function fetchSvgContent(
   parsedUrl: URL,
-  ip: string,
   request: NextRequest,
 ): Promise<{ errorResponse?: NextResponse; svg?: string }> {
   try {
-    const response = await fetch(parsedUrl.href);
+    const response = await fetchUpstreamWithRetry({
+      service: "SVG Fetch",
+      url: parsedUrl.href,
+      init: {
+        headers: {
+          Accept:
+            "image/svg+xml,text/plain;q=0.9,application/xml;q=0.8,text/xml;q=0.7",
+        },
+        redirect: "manual",
+      },
+      timeoutMs: SVG_FETCH_TIMEOUT_MS,
+      maxAttempts: 1,
+      circuitBreaker: false,
+    });
+
+    if (response.status >= 300 && response.status < 400) {
+      incrementAnalytics("analytics:convert_api:failed_requests").catch(
+        () => {},
+      );
+      return {
+        errorResponse: jsonWithCors(
+          { error: "SVG redirects are not allowed" },
+          request,
+          403,
+        ),
+      };
+    }
+
     if (!response.ok) {
       incrementAnalytics("analytics:convert_api:failed_requests").catch(
         () => {},
@@ -696,11 +939,62 @@ async function fetchSvgContent(
         ),
       };
     }
-    const svgText = await response.text();
+
+    const contentType = response.headers.get("content-type");
+    const svgText = await readTextResponseWithLimit(response, SVG_MAX_BYTES);
+    if (
+      !isAllowedSvgContentType(contentType) ||
+      !looksLikeSvgDocument(svgText)
+    ) {
+      incrementAnalytics("analytics:convert_api:failed_requests").catch(
+        () => {},
+      );
+      return {
+        errorResponse: jsonWithCors(
+          { error: "Fetched content is not a valid SVG" },
+          request,
+          415,
+        ),
+      };
+    }
+
     return { svg: svgText };
   } catch (err: unknown) {
     console.error("🔴 [Convert API] fetchSvgContent error:", err);
     incrementAnalytics("analytics:convert_api:failed_requests").catch(() => {});
+
+    if (err instanceof ConvertRouteError) {
+      return {
+        errorResponse: jsonWithCors(
+          { error: err.message },
+          request,
+          err.statusCode,
+        ),
+      };
+    }
+
+    if (err instanceof UpstreamTransportError) {
+      return {
+        errorResponse: jsonWithCors(
+          {
+            error:
+              err.statusCode === 504
+                ? "SVG fetch timed out"
+                : "Failed to fetch SVG",
+          },
+          request,
+          err.statusCode,
+          typeof err.retryAfterMs === "number"
+            ? {
+                "Retry-After": String(
+                  Math.max(1, Math.ceil(err.retryAfterMs / 1000)),
+                ),
+              }
+            : undefined,
+        ),
+      };
+    }
+
     return {
       errorResponse: jsonWithCors(
         { error: "Failed to fetch SVG" },
@@ -718,7 +1012,34 @@ async function convertSvgToDataUrl(
   svg: string,
   requestedFormat: ConversionFormat,
 ) {
-  const transformer = sharp(Buffer.from(svg));
+  validateSvgRasterizationBounds(svg);
+
+  const inputBuffer = Buffer.from(svg);
+  const metadata = await sharp(inputBuffer, {
+    limitInputPixels: SVG_MAX_RASTER_PIXELS,
+  }).metadata();
+
+  if (
+    (metadata.width && metadata.width > SVG_MAX_DIMENSION_PX) ||
+    (metadata.height && metadata.height > SVG_MAX_DIMENSION_PX)
+  ) {
+    throw new ConvertRouteError(
+      "SVG rasterization exceeds dimension limits",
+      413,
+    );
+  }
+
+  if (
+    metadata.width &&
+    metadata.height &&
+    metadata.width * metadata.height > SVG_MAX_RASTER_PIXELS
+  ) {
+    throw new ConvertRouteError("SVG rasterization exceeds pixel limits", 413);
+  }
+
+  const transformer = sharp(inputBuffer, {
+    limitInputPixels: SVG_MAX_RASTER_PIXELS,
+  });
   if (requestedFormat === "webp") transformer.webp({ quality: 90 });
   else transformer.png();
   const convertedBuffer = await transformer.toBuffer();
@@ -750,83 +1071,13 @@ export async function POST(request: NextRequest) {
   console.log(`🚀 [Convert API] Request received from ${ip}`);
 
   try {
-    const { svgUrl, format } = await request.json();
-    if (!svgUrl) {
-      console.warn(`⚠️ [Convert API] Missing 'svgUrl' parameter from ${ip}`);
-      incrementAnalytics("analytics:convert_api:failed_requests").catch(
-        () => {},
-      );
-      return jsonWithCors({ error: "Missing svgUrl parameter" }, request, 400);
-    }
-
-    const allowedFormats: ConversionFormat[] = ["png", "webp"];
-    const normalizedFormat =
-      typeof format === "string" ? format.toLowerCase() : "png";
-    if (!allowedFormats.includes(normalizedFormat as ConversionFormat)) {
-      console.warn(
-        `⚠️ [Convert API] Unsupported format '${format}' from ${ip}`,
-      );
-      // Increment analytics for failed requests to keep metrics consistent
-      incrementAnalytics("analytics:convert_api:failed_requests").catch(
-        () => {},
-      );
-      return jsonWithCors({ error: "Invalid format parameter" }, request, 400);
-    }
-    const requestedFormat = normalizedFormat;
-
-    let parsedUrl;
-    try {
-      // Handle relative URLs by using the request origin as base
-      const baseUrl =
-        request.headers.get("origin") ||
-        request.headers.get("referer")?.split("?")[0] ||
-        `${request.headers.get("x-forwarded-proto") || "https"}://${request.headers.get("host")}`;
-      parsedUrl = new URL(svgUrl, baseUrl);
-    } catch {
-      console.warn(
-        `⚠️ [Convert API] Invalid URL format for 'svgUrl' from ${ip}`,
-      );
-      return jsonWithCors({ error: "Invalid URL format" }, request, 400);
-    }
-
-    const allowedDomains: string[] = [
-      ...(process.env.NEXT_PUBLIC_API_URL
-        ? [new URL(process.env.NEXT_PUBLIC_API_URL).hostname]
-        : []),
-    ];
-    // In development, allow localhost/127.0.0.1 with HTTP
-    const isDevelopment =
-      process.env.NODE_ENV === "development" ||
-      allowedDomains.some(
-        (domain) =>
-          domain === "localhost" ||
-          domain?.startsWith("127.") ||
-          domain === "::1",
-      );
-
-    if (isDevelopment) {
-      allowedDomains.push("localhost", "api.localhost", "127.0.0.1", "::1");
-    }
-
-    // In production, require HTTPS. In development, allow HTTP for localhost
-    if (!isUrlAuthorized(parsedUrl, allowedDomains, isDevelopment)) {
-      console.warn(
-        `⚠️ [Convert API] Unauthorized or unsafe domain/protocol in 'svgUrl': ${parsedUrl.href} from ${ip}`,
-      );
-      return jsonWithCors(
-        { error: "Unauthorized or unsafe domain/protocol" },
-        request,
-        403,
-      );
-    }
-
-    // In development, normalize api.localhost to localhost for DNS resolution
-    if (isDevelopment && parsedUrl.hostname === "api.localhost") {
-      parsedUrl.hostname = "localhost";
-    }
+    const { svgUrl, requestedFormat } = parseSvgRequestBody(
+      await request.json(),
+    );
+    const parsedUrl = validateSvgTargetUrl(parseSvgTargetUrl(request, svgUrl));
 
     console.log(`🔍 [Convert API] Fetching SVG from: ${parsedUrl.href}`);
-    const fetched = await fetchSvgContent(parsedUrl, ip, request);
+    const fetched = await fetchSvgContent(parsedUrl, request);
     if (fetched.errorResponse) return fetched.errorResponse;
     let svgContent = fetched.svg || "";
     console.log(
@@ -840,10 +1091,7 @@ export async function POST(request: NextRequest) {
     console.log(
       `🔄 [Convert API] Converting SVG to ${requestedFormat.toUpperCase()} using sharp...`,
     );
-    const pngDataUrl = await convertSvgToDataUrl(
-      svgContent,
-      requestedFormat as ConversionFormat,
-    );
+    const pngDataUrl = await convertSvgToDataUrl(svgContent, requestedFormat);
     const conversionDuration = Date.now() - startTime;
     console.log(
       `✅ [Convert API] SVG converted to ${requestedFormat.toUpperCase()} successfully in ${conversionDuration}ms`,
@@ -854,6 +1102,10 @@ export async function POST(request: NextRequest) {
     return jsonWithCors({ pngDataUrl }, request);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
+    if (error instanceof ConvertRouteError) {
+      return createConvertErrorResponse(error, request);
+    }
+
     const errorDuration = Date.now() - startTime;
     console.error(
       `🔥 [Convert API] Conversion error after ${errorDuration}ms: ${error.message}`,

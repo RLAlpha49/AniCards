@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 
+import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
 import {
   apiJsonHeaders,
   buildAnalyticsMetricKey,
+  fetchUpstreamWithRetry,
   incrementAnalytics,
   initializeApiRequest,
+  isValidUsername,
   jsonWithCors,
+  logPrivacySafe,
+  redactUserIdentifier,
+  UpstreamTransportError,
 } from "@/lib/api-utils";
 import { categorizeByStatusCode, categorizeError } from "@/lib/error-messages";
 import { trackUserActionError } from "@/lib/error-tracking";
@@ -15,8 +21,30 @@ import { trackUserActionError } from "@/lib/error-tracking";
  * @source
  */
 interface GraphQLRequest {
-  query: string;
+  operation?: string;
+  query?: string;
   variables?: Record<string, unknown>;
+}
+
+type AllowedAniListOperationName = "GetUserId" | "GetUserStats";
+
+interface ResolvedAniListRequest {
+  operationName: AllowedAniListOperationName;
+  userIdentifier: string;
+  query: string;
+  variables: Record<string, string | number>;
+}
+
+class AniListRequestError extends Error {
+  readonly statusCode: number;
+  readonly retryAfterSeconds?: number;
+
+  constructor(message: string, statusCode: number, retryAfterSeconds?: number) {
+    super(message);
+    this.name = "AniListRequestError";
+    this.statusCode = statusCode;
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
 }
 
 /**
@@ -63,29 +91,176 @@ function handleTestSimulation(request: Request): NextResponse | null {
   return null;
 }
 
+function normalizeGraphQlDocument(document: string): string {
+  return document.replaceAll(/\s+/g, " ").trim();
+}
+
+const ALLOWED_ANILIST_QUERY_BY_OPERATION: Record<
+  AllowedAniListOperationName,
+  string
+> = {
+  GetUserId: USER_ID_QUERY,
+  GetUserStats: USER_STATS_QUERY,
+};
+
+const ALLOWED_ANILIST_OPERATION_BY_QUERY = new Map(
+  Object.entries(ALLOWED_ANILIST_QUERY_BY_OPERATION).map(
+    ([operation, query]) => [
+      normalizeGraphQlDocument(query),
+      operation as AllowedAniListOperationName,
+    ],
+  ),
+);
+
+function resolveAniListOperationName(
+  requestData: GraphQLRequest,
+): AllowedAniListOperationName {
+  if (
+    typeof requestData.operation === "string" &&
+    requestData.operation in ALLOWED_ANILIST_QUERY_BY_OPERATION
+  ) {
+    return requestData.operation as AllowedAniListOperationName;
+  }
+
+  if (typeof requestData.query !== "string") {
+    throw new AniListRequestError("Unsupported AniList operation", 400);
+  }
+
+  const normalizedQuery = normalizeGraphQlDocument(requestData.query);
+  const operationName = ALLOWED_ANILIST_OPERATION_BY_QUERY.get(normalizedQuery);
+  if (!operationName) {
+    throw new AniListRequestError("Unsupported AniList operation", 400);
+  }
+
+  return operationName;
+}
+
+function resolveAniListVariables(
+  operationName: AllowedAniListOperationName,
+  variables: Record<string, unknown> | undefined,
+): { userIdentifier: string; variables: Record<string, string | number> } {
+  if (operationName === "GetUserId") {
+    const userName = variables?.userName;
+    if (!isValidUsername(userName)) {
+      throw new AniListRequestError("Invalid AniList username", 400);
+    }
+
+    const normalizedUserName = String(userName).trim();
+    return {
+      userIdentifier: normalizedUserName,
+      variables: { userName: normalizedUserName },
+    };
+  }
+
+  const rawUserId = variables?.userId;
+  const numericUserId =
+    typeof rawUserId === "number" ? rawUserId : Number(rawUserId);
+  if (!Number.isInteger(numericUserId) || numericUserId <= 0) {
+    throw new AniListRequestError("Invalid AniList userId", 400);
+  }
+
+  return {
+    userIdentifier: String(numericUserId),
+    variables: { userId: numericUserId },
+  };
+}
+
+function resolveAniListRequest(
+  requestData: GraphQLRequest,
+): ResolvedAniListRequest {
+  const operationName = resolveAniListOperationName(requestData);
+  const resolvedVariables = resolveAniListVariables(
+    operationName,
+    requestData.variables,
+  );
+
+  return {
+    operationName,
+    userIdentifier: resolvedVariables.userIdentifier,
+    query: ALLOWED_ANILIST_QUERY_BY_OPERATION[operationName],
+    variables: resolvedVariables.variables,
+  };
+}
+
 /**
  * Derives the GraphQL operation name and a related user identifier for analytics.
  * @param requestData - GraphQL payload containing the query and variables.
  * @returns OperationInfo populated with defaults when the query lacks context.
  * @source
  */
-function parseOperationInfo(requestData: GraphQLRequest): OperationInfo {
-  const { query, variables } = requestData;
+function parseOperationInfo(
+  requestData: ResolvedAniListRequest,
+): OperationInfo {
+  return {
+    name: requestData.operationName,
+    userIdentifier: requestData.userIdentifier,
+  };
+}
 
-  const operationPattern = /(query|mutation)\s+(\w+)/;
-  const operationMatch = operationPattern.exec(query);
-  const operationName = operationMatch?.[2] || "anonymous_operation";
-
-  let userIdentifier = "not_provided";
-  if (operationName === "GetUserId") {
-    userIdentifier = variables?.userName
-      ? String(variables.userName)
-      : "no_username";
-  } else if (operationName === "GetUserStats") {
-    userIdentifier = variables?.userId ? String(variables.userId) : "no_userid";
+function getAniListStatusCode(error: unknown, errorMessage: string): number {
+  if (
+    error instanceof AniListRequestError ||
+    error instanceof UpstreamTransportError
+  ) {
+    return error.statusCode;
   }
 
-  return { name: operationName, userIdentifier };
+  const statusMatch = /status:\s?(\d+)/.exec(errorMessage);
+  return statusMatch ? Number.parseInt(statusMatch[1], 10) : 500;
+}
+
+function getAniListResponseHeaders(
+  error: unknown,
+): Record<string, string> | undefined {
+  const responseHeaders: Record<string, string> = {};
+
+  if (error instanceof AniListRequestError && error.retryAfterSeconds) {
+    responseHeaders["Retry-After"] = String(error.retryAfterSeconds);
+  }
+
+  if (
+    error instanceof UpstreamTransportError &&
+    typeof error.retryAfterMs === "number"
+  ) {
+    responseHeaders["Retry-After"] = String(
+      Math.max(1, Math.ceil(error.retryAfterMs / 1000)),
+    );
+  }
+
+  return Object.keys(responseHeaders).length > 0 ? responseHeaders : undefined;
+}
+
+async function executeAniListRequest(
+  request: Request,
+  startTime: number,
+): Promise<{ data: unknown; operationInfo: OperationInfo }> {
+  const requestData = resolveAniListRequest(
+    (await request.json()) as GraphQLRequest,
+  );
+  const operationInfo = parseOperationInfo(requestData);
+
+  logPrivacySafe("log", "AniList API", "Forwarding AniList operation", {
+    operation: operationInfo.name,
+    userIdentifier: operationInfo.userIdentifier,
+  });
+
+  const data = await makeAniListRequest(requestData, request);
+  const duration = Date.now() - startTime;
+
+  if (duration > 1000) {
+    logPrivacySafe("warn", "AniList API", "Slow AniList request", {
+      operation: operationInfo.name,
+      durationMs: duration,
+    });
+  }
+
+  logPrivacySafe("log", "AniList API", "AniList operation completed", {
+    operation: operationInfo.name,
+    userIdentifier: operationInfo.userIdentifier,
+    durationMs: duration,
+  });
+
+  return { data, operationInfo };
 }
 
 /**
@@ -114,8 +289,12 @@ interface ErrorResponse {
  * @returns An Error describing the failed AniList call.
  * @source
  */
-function createApiError(response: Response, errorData: unknown): Error {
+function createApiError(
+  response: Response,
+  errorData: unknown,
+): AniListRequestError {
   const retryAfter = response.headers.get("retry-after");
+  const retryAfterSeconds = retryAfter ? Number(retryAfter) : undefined;
   const retryAfterMsg = retryAfter ? ` (Retry-After: ${retryAfter})` : "";
 
   const errorResponse = errorData as ErrorResponse;
@@ -125,8 +304,10 @@ function createApiError(response: Response, errorData: unknown): Error {
       : (errorResponse.error as string) ||
         `HTTP error! status: ${response.status}`;
 
-  return new Error(
+  return new AniListRequestError(
     `HTTP error! status: ${response.status} - ${errorMessage}${retryAfterMsg}`,
+    response.status,
+    Number.isFinite(retryAfterSeconds) ? retryAfterSeconds : undefined,
   );
 }
 
@@ -139,7 +320,7 @@ function createApiError(response: Response, errorData: unknown): Error {
  * @source
  */
 async function makeAniListRequest(
-  requestData: GraphQLRequest,
+  requestData: ResolvedAniListRequest,
   request: Request,
 ): Promise<unknown> {
   const headers: Record<string, string> = {
@@ -154,10 +335,21 @@ async function makeAniListRequest(
     headers["X-Test-Status"] = request.headers.get("X-Test-Status") || "";
   }
 
-  const response = await fetch("https://graphql.anilist.co", {
-    method: "POST",
-    headers,
-    body: JSON.stringify(requestData),
+  const response = await fetchUpstreamWithRetry({
+    service: "AniList GraphQL",
+    url: "https://graphql.anilist.co",
+    init: {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        query: requestData.query,
+        variables: requestData.variables,
+      }),
+    },
+    circuitBreaker: {
+      key: "anilist-graphql",
+      degradedModeEnvVar: "ANILIST_UPSTREAM_DEGRADED_MODE",
+    },
   });
 
   const rateLimitLimit = response.headers.get("X-RateLimit-Limit");
@@ -176,9 +368,15 @@ async function makeAniListRequest(
     throw createApiError(response, errorData);
   }
 
-  const json = await response.json();
+  const json = (await response.json()) as {
+    data?: unknown;
+    errors?: Array<{ message?: string }>;
+  };
   if (json.errors) {
-    throw new Error(json.errors[0].message);
+    throw new AniListRequestError(
+      json.errors[0]?.message || "AniList request failed",
+      500,
+    );
   }
 
   return json.data;
@@ -209,54 +407,31 @@ export async function POST(request: Request) {
   };
 
   try {
-    const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
-    console.log(`🚀 [AniList API] Incoming request from IP: ${ip}`);
-
-    const requestData = (await request.json()) as GraphQLRequest;
-    operationInfo = parseOperationInfo(requestData);
-
-    console.log(
-      `🚀 [AniList API] Anilist request: ${operationInfo.name} for ${operationInfo.userIdentifier}`,
-    );
-
-    const data = await makeAniListRequest(requestData, request);
-
-    const duration = Date.now() - startTime;
-
-    if (duration > 1000) {
-      console.warn(
-        `⏳ [AniList API] Slow request detected: ${operationInfo.name} took ${duration}ms`,
-      );
-    }
-
-    console.log(
-      `✅ [AniList API] Anilist response: ${operationInfo.name} [200] ${duration}ms | Identifier: ${operationInfo.userIdentifier}`,
-    );
-
-    console.log(
-      `✅ [AniList API] Anilist operation ${operationInfo.name} completed successfully.`,
-    );
+    const result = await executeAniListRequest(request, startTime);
+    operationInfo = result.operationInfo;
 
     await trackAnalytics(
       buildAnalyticsMetricKey("anilist_api", "successful_requests"),
     );
-    return jsonWithCors(data, request);
+    return jsonWithCors(result.data, request);
   } catch (error: unknown) {
     const duration = Date.now() - startTime;
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
 
-    console.error(
-      `🔥 [AniList API] Anilist failed: ${operationInfo.name} [${duration}ms] | Identifier: ${operationInfo.userIdentifier} - ${errorMessage}`,
-    );
+    const statusCode = getAniListStatusCode(error, errorMessage);
+
+    logPrivacySafe("error", "AniList API", "AniList request failed", {
+      operation: operationInfo.name,
+      userIdentifier: operationInfo.userIdentifier,
+      durationMs: duration,
+      statusCode,
+      error: errorMessage,
+    });
 
     if (error instanceof Error && error.stack) {
       console.error(`💥 [AniList API] Stack Trace: ${error.stack}`);
     }
-
-    const statusPattern = /status:\s?(\d+)/;
-    const statusMatch = statusPattern.exec(errorMessage);
-    const statusCode = statusMatch ? Number.parseInt(statusMatch[1], 10) : 500;
 
     const errorCategory =
       statusCode === 500
@@ -268,7 +443,7 @@ export async function POST(request: Request) {
       error instanceof Error ? error : new Error(errorMessage),
       errorCategory,
       {
-        userId: operationInfo.userIdentifier,
+        userId: redactUserIdentifier(operationInfo.userIdentifier),
         statusCode,
       },
     );
@@ -281,6 +456,7 @@ export async function POST(request: Request) {
       { error: errorMessage || "Failed to fetch AniList data" },
       request,
       statusCode,
+      getAniListResponseHeaders(error),
     );
   }
 }

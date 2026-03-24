@@ -42,10 +42,12 @@ function createToBufferSuccess() {
 function createSharpInstance(buf?: Buffer) {
   if (buf) lastSharpBuffer = Buffer.from(buf);
   const instance: {
+    metadata: () => Promise<{ height: number; width: number }>;
     toBuffer: () => Promise<Buffer>;
     png: () => unknown;
     webp: (opts: { quality: number }) => unknown;
   } = {
+    metadata: mock(async () => ({ width: 100, height: 100 })),
     toBuffer: createToBufferSuccess(),
     png: mock(() => {
       lastSharpFormat = "png";
@@ -413,7 +415,7 @@ describe("Convert API POST Endpoint", () => {
       mockFetchReject(new Error("Network error"));
 
       const res = await POST(req);
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(502);
       const data = await res.json();
       expect(data.error).toBe("Failed to fetch SVG");
     });
@@ -584,7 +586,7 @@ describe("Convert API POST Endpoint", () => {
       mockFetchReject(new Error("Network error"));
 
       const res = await POST(req);
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(502);
       const data = await res.json();
       expect(data.error).toBe("Failed to fetch SVG");
     });
@@ -870,7 +872,7 @@ describe("Convert API POST Endpoint", () => {
       );
 
       const res = await POST(req);
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(415);
     });
 
     it("should handle relative URLs by using request origin", async () => {

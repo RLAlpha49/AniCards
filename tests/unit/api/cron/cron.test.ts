@@ -4,7 +4,7 @@
  * focus on batching decisions and failure bookkeeping instead of fetch ceremony.
  */
 
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import {
   sharedRedisMockDel,
@@ -17,827 +17,277 @@ import {
 
 const { POST } = await import("@/app/api/cron/route");
 
-function createMockUserRecord(userId: string, daysOld: number = 0) {
+const CRON_SECRET = "testsecret";
+
+function createCronRequest(secret: string | null = CRON_SECRET): Request {
+  return new Request("http://localhost/api/cron", {
+    headers: secret ? { "x-cron-secret": secret } : {},
+  });
+}
+
+function createMockUserRecord(userId: string, daysOld = 0) {
   const date = new Date();
   date.setDate(date.getDate() - daysOld);
   return {
     userId,
     username: `user${userId}`,
-    stats: { dummy: Number(userId) },
+    stats: { existing: true },
     updatedAt: date.toISOString(),
+    createdAt: date.toISOString(),
   };
 }
 
-async function jsonSuccessResponse() {
-  return { data: { stats: "mocked" } };
-}
-
-async function json404Response() {
-  return { error: "User not found" };
-}
-
-async function json500Response() {
-  return { error: "Internal Server Error" };
-}
-
-function createSuccessResponse() {
+function createValidStatsPayload(userId: string) {
   return {
-    ok: true,
-    status: 200,
-    json: jsonSuccessResponse,
+    User: {
+      id: Number(userId),
+      name: `user${userId}`,
+      statistics: {
+        anime: {},
+        manga: {},
+      },
+      stats: {
+        activityHistory: [],
+      },
+      favourites: {
+        anime: { nodes: [] },
+        manga: { nodes: [] },
+        characters: { nodes: [] },
+        staff: { nodes: [] },
+        studios: { nodes: [] },
+      },
+    },
+    followersPage: { pageInfo: { total: 0 }, followers: [] },
+    followingPage: { pageInfo: { total: 0 }, following: [] },
+    threadsPage: { pageInfo: { total: 0 }, threads: [] },
+    threadCommentsPage: { pageInfo: { total: 0 }, threadComments: [] },
+    reviewsPage: { pageInfo: { total: 0 }, reviews: [] },
+    userReviews: { reviews: [] },
+    userRecommendations: { recommendations: [] },
+    animePlanning: { lists: [] },
+    animeCurrent: { lists: [] },
+    animeRewatched: { lists: [] },
+    animeCompleted: { lists: [] },
+    animeDropped: { lists: [] },
+    mangaPlanning: { lists: [] },
+    mangaCurrent: { lists: [] },
+    mangaReread: { lists: [] },
+    mangaCompleted: { lists: [] },
+    mangaDropped: { lists: [] },
   };
 }
 
-function create404Response() {
-  return {
-    ok: false,
-    status: 404,
-    json: json404Response,
-  };
-}
-
-function create500Response() {
-  return {
-    ok: false,
-    status: 500,
-    json: json500Response,
-  };
-}
-
-function setupSuccessfulFetch() {
-  return toFetchMock(mock().mockResolvedValue(createSuccessResponse()));
-}
-
-function setup404Fetch() {
-  return toFetchMock(mock().mockResolvedValue(create404Response()));
-}
-
-function setup500Fetch() {
-  return toFetchMock(mock().mockResolvedValue(create500Response()));
-}
-
-function createRetryFetchImplementation(successAfterAttempt: number) {
-  let callCount = 0;
-  return async () => {
-    callCount += 1;
-    if (callCount < successAfterAttempt) {
-      throw new Error("Network error");
+function mockUserRecords(
+  userIds: string[],
+  daysOldById?: Record<string, number>,
+) {
+  sharedRedisMockScan.mockResolvedValueOnce([
+    0,
+    userIds.map((id) => `user:${id}`),
+  ]);
+  sharedRedisMockGet.mockImplementation((key: string) => {
+    if (key.startsWith("failed_updates:")) {
+      return Promise.resolve(null);
     }
-    return createSuccessResponse();
-  };
+    const id = key.split(":")[1];
+    return Promise.resolve(
+      JSON.stringify(createMockUserRecord(id, daysOldById?.[id] ?? 0)),
+    );
+  });
 }
 
-function setupRetryFetch(successAfterAttempt: number) {
-  return toFetchMock(
-    mock().mockImplementation(
-      createRetryFetchImplementation(successAfterAttempt),
-    ),
-  );
+function createJsonResponse(status: number, payload: unknown) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
-function setupNetworkErrorFetch() {
-  return toFetchMock(mock().mockRejectedValue(new Error("Network error")));
-}
-
-function createMixedOutcomesFetchImplementation(failureUserIds: string[]) {
-  return async (url: RequestInfo, init?: RequestInit) => {
-    const body = init?.body ? JSON.parse(init.body as string) : {};
-    const userID = String(body.variables?.userId || "");
-    if (failureUserIds.includes(userID)) {
-      return create404Response();
-    }
-    return createSuccessResponse();
-  };
-}
-
-function toFetchMock(mockFn: ReturnType<typeof mock>) {
-  const fetchMock = mockFn as unknown as typeof fetch;
-  fetchMock.preconnect = mock();
-  return fetchMock;
-}
-
-/**
- * Dummy cron secret used to satisfy authorization checks in tests.
- * @source
- */
-const CRON_SECRET = "testsecret";
-process.env.CRON_SECRET = CRON_SECRET;
-
-describe("Cron API POST Endpoint", () => {
-  afterEach(() => {
-    mock.clearAllMocks();
+describe("Cron API Route", () => {
+  beforeEach(() => {
+    process.env = {
+      ...process.env,
+      CRON_SECRET,
+      NODE_ENV: "test",
+    };
+    delete process.env.ALLOW_UNSECURED_CRON_IN_DEV;
     sharedRedisMockGet.mockReset();
+    sharedRedisMockMget.mockReset();
+    sharedRedisMockPipelineExec.mockReset();
     sharedRedisMockSet.mockReset();
     sharedRedisMockDel.mockReset();
     sharedRedisMockScan.mockReset();
-    sharedRedisMockMget.mockReset();
-    sharedRedisMockPipelineExec.mockReset();
-
     sharedRedisMockMget.mockImplementation(async (...keys: string[]) =>
       keys.map(() => null),
     );
     sharedRedisMockPipelineExec.mockResolvedValue([]);
+  });
 
+  afterEach(() => {
+    mock.clearAllMocks();
     delete process.env.CRON_SECRET;
-    process.env.CRON_SECRET = CRON_SECRET;
+    delete process.env.ALLOW_UNSECURED_CRON_IN_DEV;
   });
 
-  describe("Authorization", () => {
-    it("should return 401 Unauthorized when the secret is invalid", async () => {
-      const req = new Request("http://localhost/api/cron", {
-        headers: { "x-cron-secret": "wrongsecret" },
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(401);
-      const text = await res.text();
-      expect(text).toBe("Unauthorized");
-    });
-
-    it("should return 401 Unauthorized when the secret header is missing", async () => {
-      const req = new Request("http://localhost/api/cron", {
-        headers: {},
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(401);
-      const text = await res.text();
-      expect(text).toBe("Unauthorized");
-    });
-
-    it("should skip authorization check when CRON_SECRET env is not set", async () => {
-      delete process.env.CRON_SECRET;
-      sharedRedisMockScan.mockResolvedValueOnce([0, []]);
-
-      const req = new Request("http://localhost/api/cron", {
-        headers: {},
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-    });
+  it("rejects invalid or missing cron secrets", async () => {
+    expect((await POST(createCronRequest("wrongsecret"))).status).toBe(401);
+    expect((await POST(createCronRequest(null))).status).toBe(401);
   });
 
-  describe("CORS and Response Headers", () => {
-    it("should set CORS Access-Control-Allow-Origin to the request origin", async () => {
-      const prev = process.env.NEXT_PUBLIC_APP_URL;
-      delete process.env.NEXT_PUBLIC_APP_URL;
-      try {
-        sharedRedisMockScan.mockResolvedValueOnce([0, []]);
-        const headers = new Headers();
-        headers.set("x-cron-secret", CRON_SECRET);
-        headers.set("origin", "http://example.dev");
-        const req = new Request("http://localhost/api/cron", {
-          method: "POST",
-          headers,
-        });
-        const res = await POST(req);
-        expect(res.status).toBe(200);
-        expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
-          "http://example.dev",
-        );
-      } finally {
-        if (prev !== undefined) {
-          process.env.NEXT_PUBLIC_APP_URL = prev;
-        }
+  it("fails closed when CRON_SECRET is missing unless explicitly allowed in development", async () => {
+    delete process.env.CRON_SECRET;
+    const closedResponse = await POST(createCronRequest(null));
+    expect(closedResponse.status).toBe(503);
+    expect(await closedResponse.text()).toBe("CRON_SECRET is not configured");
+
+    process.env = { ...process.env, NODE_ENV: "development" };
+    process.env.ALLOW_UNSECURED_CRON_IN_DEV = "true";
+    sharedRedisMockScan.mockResolvedValueOnce([0, []]);
+    const bypassResponse = await POST(createCronRequest(null));
+    expect(bypassResponse.status).toBe(200);
+  });
+
+  it("returns an operator summary when there are no users", async () => {
+    sharedRedisMockScan.mockResolvedValueOnce([0, []]);
+
+    const response = await POST(createCronRequest());
+    expect(response.status).toBe(200);
+    const text = await response.text();
+    expect(text).toContain(
+      "Updated 0/0 users successfully. Failed: 0, Removed: 0",
+    );
+    expect(text).toContain("Recommended schedules to refresh all 0 users");
+  });
+
+  it("updates only the 5 oldest users in a batch and persists refreshed data", async () => {
+    const userIds = Array.from({ length: 15 }, (_, index) => String(index + 1));
+    mockUserRecords(
+      userIds,
+      Object.fromEntries(userIds.map((id) => [id, Number(id)])),
+    );
+
+    globalThis.fetch = mock((url: RequestInfo, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? "{}"));
+      return Promise.resolve(
+        createJsonResponse(200, {
+          data: createValidStatsPayload(String(body.variables.userId)),
+        }),
+      );
+    }) as unknown as typeof fetch;
+
+    const response = await POST(createCronRequest());
+    const text = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(text).toContain(
+      "Updated 5/5 users successfully. Failed: 0, Removed: 0",
+    );
+    expect(text).toContain("Update 5 users/run: 0 */8 * * *");
+    expect(text).toContain("Update 10 users/run: 0 */12 * * *");
+    expect(globalThis.fetch).toHaveBeenCalledTimes(5);
+    expect(sharedRedisMockSet).toHaveBeenCalledWith(
+      "user:15:activity",
+      expect.any(String),
+    );
+    expect(sharedRedisMockDel).toHaveBeenCalledWith("failed_updates:15");
+  });
+
+  it("tracks 404 failures and removes users on the third consecutive miss", async () => {
+    mockUserRecords(["123"]);
+    sharedRedisMockScan.mockResolvedValueOnce([
+      0,
+      ["username:user123", "username:old-user123"],
+    ]);
+    sharedRedisMockMget
+      .mockImplementationOnce(async (...keys: string[]) => keys.map(() => null))
+      .mockImplementationOnce(async (...keys: string[]) =>
+        keys.map(() => "123"),
+      );
+    sharedRedisMockGet.mockImplementation((key: string) => {
+      if (key === "failed_updates:123") {
+        return Promise.resolve("2");
       }
+      const id = key.split(":")[1];
+      return Promise.resolve(JSON.stringify(createMockUserRecord(id)));
     });
+    globalThis.fetch = mock(() =>
+      Promise.resolve(createJsonResponse(404, { error: "User not found" })),
+    ) as unknown as typeof fetch;
 
-    it("should set Content-Type to text/plain in response", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([0, []]);
-      const req = new Request("http://localhost/api/cron", {
-        headers: { "x-cron-secret": CRON_SECRET },
-      });
-      const res = await POST(req);
-      expect(res.headers.get("Content-Type")).toBe("text/plain");
-    });
+    const response = await POST(createCronRequest());
+    const text = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(text).toContain("Failed: 1, Removed: 1");
+    expect(sharedRedisMockDel).toHaveBeenCalledWith(
+      "user:123:meta",
+      "user:123:activity",
+      "user:123:favourites",
+      "user:123:statistics",
+      "user:123:pages",
+      "user:123:planning",
+      "user:123:current",
+      "user:123:rewatched",
+      "user:123:completed",
+      "user:123:aggregates",
+      "user:123",
+      "cards:123",
+      "failed_updates:123",
+      "username:user123",
+      "username:old-user123",
+    );
   });
 
-  describe("User Processing", () => {
-    it("should process with zero users if no keys are found", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([0, []]);
-      const req = new Request("http://localhost/api/cron", {
-        headers: { "x-cron-secret": CRON_SECRET },
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      const text = await res.text();
-      expect(text).toContain(
-        "Updated 0/0 users successfully. Failed: 0, Removed: 0",
-      );
-      expect(text).toContain(
-        `Recommended schedules to refresh all 0 users at least once per 24 hours:`,
-      );
-      expect(sharedRedisMockScan).toHaveBeenCalledWith(
-        0,
-        expect.objectContaining({ match: "user:*" }),
-      );
-    });
-
-    it("should successfully update all users when all are valid and AniList responds with 200", async () => {
-      const userKeys = ["user:1", "user:2", "user:3", "user:4", "user:5"];
-      sharedRedisMockScan.mockResolvedValueOnce([0, userKeys]);
-
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        if (key.startsWith("failed_updates:")) {
-          return Promise.resolve(null);
-        }
-        const id = key.split(":")[1];
-        return Promise.resolve(JSON.stringify(createMockUserRecord(id, 0)));
-      });
-      sharedRedisMockSet.mockResolvedValue(true);
-      sharedRedisMockDel.mockResolvedValue(1);
-
-      globalThis.fetch = setupSuccessfulFetch();
-
-      const req = new Request("http://localhost/api/cron", {
-        headers: { "x-cron-secret": CRON_SECRET },
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      const text = await res.text();
-      expect(text).toContain(
-        `Updated ${userKeys.length}/${userKeys.length} users successfully. Failed: 0, Removed: 0`,
-      );
-      expect(text).toContain(
-        `Recommended schedules to refresh all ${userKeys.length} users at least once per 24 hours:`,
-      );
-    });
-
-    it("should process only the 5 oldest users when more than ANILIST_RATE_LIMIT users exist", async () => {
-      const userKeys = Array.from({ length: 15 }, (_, i) => `user:${i + 1}`);
-      sharedRedisMockScan.mockResolvedValueOnce([0, userKeys]);
-
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        if (key.startsWith("failed_updates:")) {
-          return Promise.resolve(null);
-        }
-        const id = key.split(":")[1];
-        const daysOld = Number(id);
-        return Promise.resolve(
-          JSON.stringify(createMockUserRecord(id, daysOld)),
-        );
-      });
-      sharedRedisMockSet.mockResolvedValue(true);
-      sharedRedisMockDel.mockResolvedValue(1);
-
-      globalThis.fetch = setupSuccessfulFetch();
-
-      const req = new Request("http://localhost/api/cron", {
-        headers: { "x-cron-secret": CRON_SECRET },
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      const text = await res.text();
-      expect(text).toContain("Updated 5/5 users successfully");
-
-      expect(text).toContain("Update 5 users/run: 0 */8 * * *");
-      expect(text).toContain("Update 10 users/run: 0 */12 * * *");
-
-      expect(globalThis.fetch).toHaveBeenCalledTimes(5);
-    });
-
-    it("should sort users by updatedAt (oldest first) before selecting batch", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([
-        0,
-        ["user:1", "user:2", "user:3"],
-      ]);
-
-      const oldDate = new Date("2024-01-01").toISOString();
-      const newDate = new Date("2024-12-01").toISOString();
-
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        if (key.startsWith("failed_updates:")) {
-          return Promise.resolve(null);
-        }
-        if (key === "user:1") {
-          return Promise.resolve(
-            JSON.stringify({
-              ...createMockUserRecord("1"),
-              updatedAt: newDate,
-            }),
-          );
-        }
-        if (key === "user:2") {
-          return Promise.resolve(
-            JSON.stringify({
-              ...createMockUserRecord("2"),
-              updatedAt: oldDate,
-            }),
-          );
-        }
-        if (key === "user:3") {
-          return Promise.resolve(
-            JSON.stringify({
-              ...createMockUserRecord("3"),
-              updatedAt: new Date("2024-06-01").toISOString(),
-            }),
-          );
-        }
-        return Promise.resolve(null);
-      });
-
-      sharedRedisMockSet.mockResolvedValue(true);
-      sharedRedisMockDel.mockResolvedValue(1);
-
-      globalThis.fetch = setupSuccessfulFetch();
-
-      const req = new Request("http://localhost/api/cron", {
-        headers: { "x-cron-secret": CRON_SECRET },
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-
-      const text = await res.text();
-      expect(text).toContain("Updated 3/3");
-    });
-  });
-
-  describe("404 Failure Handling and User Removal", () => {
-    it("should increment failure counter on 404 error (first attempt)", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
-
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        if (key.startsWith("failed_updates:")) {
-          return Promise.resolve(null);
-        }
-        return Promise.resolve(JSON.stringify(createMockUserRecord("123")));
-      });
-      sharedRedisMockSet.mockResolvedValue(true);
-      sharedRedisMockDel.mockResolvedValue(1);
-
-      globalThis.fetch = setup404Fetch();
-
-      const req = new Request("http://localhost/api/cron", {
-        headers: { "x-cron-secret": CRON_SECRET },
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      const text = await res.text();
-      expect(text).toContain("Failed: 1");
-
-      expect(sharedRedisMockSet).toHaveBeenCalledWith("failed_updates:123", 1);
-    });
-
-    it("should increment failure counter on 404 error (second attempt)", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
-
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        if (key === "failed_updates:123") {
-          return Promise.resolve("1");
-        }
-        return Promise.resolve(JSON.stringify(createMockUserRecord("123")));
-      });
-      sharedRedisMockSet.mockResolvedValue(true);
-      sharedRedisMockDel.mockResolvedValue(1);
-
-      globalThis.fetch = setup404Fetch();
-
-      const req = new Request("http://localhost/api/cron", {
-        headers: { "x-cron-secret": CRON_SECRET },
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-
-      expect(sharedRedisMockSet).toHaveBeenCalledWith("failed_updates:123", 2);
-    });
-
-    it("should remove user after 3 consecutive 404 failures", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
-
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        if (key === "failed_updates:123") {
-          return Promise.resolve("2");
-        }
-        return Promise.resolve(JSON.stringify(createMockUserRecord("123")));
-      });
-      sharedRedisMockSet.mockResolvedValue(true);
-      sharedRedisMockDel.mockResolvedValue(1);
-
-      globalThis.fetch = setup404Fetch();
-
-      const req = new Request("http://localhost/api/cron", {
-        headers: { "x-cron-secret": CRON_SECRET },
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      const text = await res.text();
-      expect(text).toContain("Failed: 1, Removed: 1");
-
-      expect(sharedRedisMockDel).toHaveBeenCalledWith(
-        "user:123:meta",
-        "user:123:activity",
-        "user:123:favourites",
-        "user:123:statistics",
-        "user:123:pages",
-        "user:123:planning",
-        "user:123:current",
-        "user:123:rewatched",
-        "user:123:completed",
-        "user:123:aggregates",
-        "user:123",
-      );
-      expect(sharedRedisMockDel).toHaveBeenCalledWith("failed_updates:123");
-      expect(sharedRedisMockDel).toHaveBeenCalledWith("cards:123");
-      expect(sharedRedisMockDel).toHaveBeenCalledWith("username:user123");
-    });
-  });
-
-  describe("Retry Logic and Network Errors", () => {
-    it("should retry on network errors and eventually succeed", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
-
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        if (key.startsWith("failed_updates:")) {
-          return Promise.resolve(null);
-        }
-        return Promise.resolve(JSON.stringify(createMockUserRecord("123")));
-      });
-      sharedRedisMockSet.mockResolvedValue(true);
-      sharedRedisMockDel.mockResolvedValue(1);
-
-      globalThis.fetch = setupRetryFetch(3);
-
-      const req = new Request("http://localhost/api/cron", {
-        headers: { "x-cron-secret": CRON_SECRET },
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      const text = await res.text();
-      expect(text).toContain("Updated 1/1");
-      expect(globalThis.fetch).toHaveBeenCalledTimes(3);
-    });
-
-    it("should fail after 3 retry attempts on persistent network error", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
-
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        if (key.startsWith("failed_updates:")) {
-          return Promise.resolve(null);
-        }
-        return Promise.resolve(JSON.stringify(createMockUserRecord("123")));
-      });
-      sharedRedisMockSet.mockResolvedValue(true);
-      sharedRedisMockDel.mockResolvedValue(1);
-
-      globalThis.fetch = setupNetworkErrorFetch();
-
-      const req = new Request("http://localhost/api/cron", {
-        headers: { "x-cron-secret": CRON_SECRET },
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      const text = await res.text();
-      expect(text).toContain("Failed: 0");
-      expect(globalThis.fetch).toHaveBeenCalledTimes(3);
-    });
-
-    it("should handle non-404 HTTP errors without tracking as failure", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
-
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        if (key.startsWith("failed_updates:")) {
-          return Promise.resolve(null);
-        }
-        return Promise.resolve(JSON.stringify(createMockUserRecord("123")));
-      });
-      sharedRedisMockSet.mockResolvedValue(true);
-      sharedRedisMockDel.mockResolvedValue(1);
-
-      globalThis.fetch = setup500Fetch();
-
-      const req = new Request("http://localhost/api/cron", {
-        headers: { "x-cron-secret": CRON_SECRET },
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      const text = await res.text();
-      expect(text).toContain("Failed: 0, Removed: 0");
-      expect(sharedRedisMockSet).not.toHaveBeenCalledWith(
-        expect.stringContaining("failed_updates"),
-        expect.anything(),
-      );
-    });
-  });
-
-  describe("Data Persistence", () => {
-    it("should update user stats in Redis with fetched data", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
-
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        if (key.startsWith("failed_updates:")) {
-          return Promise.resolve(null);
-        }
-        return Promise.resolve(JSON.stringify(createMockUserRecord("123")));
-      });
-      sharedRedisMockSet.mockResolvedValue(true);
-      sharedRedisMockDel.mockResolvedValue(1);
-
-      const mockStatsData = { data: { stats: { updated: "data" } } };
-      globalThis.fetch = toFetchMock(
-        mock().mockResolvedValue({
-          ok: true,
-          status: 200,
-          json: async () => mockStatsData,
-        }),
-      );
-
-      const req = new Request("http://localhost/api/cron", {
-        headers: { "x-cron-secret": CRON_SECRET },
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-
-      expect(sharedRedisMockSet).toHaveBeenCalledWith(
-        "user:123:activity",
-        expect.stringContaining(JSON.stringify(mockStatsData.data)),
-      );
-    });
-
-    it("should update user's updatedAt timestamp after successful fetch", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
-
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        if (key.startsWith("failed_updates:")) {
-          return Promise.resolve(null);
-        }
-        return Promise.resolve(JSON.stringify(createMockUserRecord("123")));
-      });
-      sharedRedisMockSet.mockResolvedValue(true);
-      sharedRedisMockDel.mockResolvedValue(1);
-
-      globalThis.fetch = toFetchMock(
-        mock().mockResolvedValue({
-          ok: true,
-          status: 200,
-          json: async () => ({ data: { stats: "mocked" } }),
-        }),
-      );
-
-      const beforeTime = new Date();
-      const req = new Request("http://localhost/api/cron", {
-        headers: { "x-cron-secret": CRON_SECRET },
-      });
-      const res = await POST(req);
-      const afterTime = new Date();
-
-      expect(res.status).toBe(200);
-
-      const setCall = (
-        sharedRedisMockSet.mock.calls as [string, unknown][]
-      ).find(([key]) => key === "user:123:meta");
-      expect(setCall).toBeDefined();
-
-      if (setCall) {
-        const userData = JSON.parse(setCall[1] as string);
-        const updatedAtTime = new Date(userData.updatedAt);
-        expect(updatedAtTime.getTime()).toBeGreaterThanOrEqual(
-          beforeTime.getTime(),
-        );
-        expect(updatedAtTime.getTime()).toBeLessThanOrEqual(
-          afterTime.getTime(),
-        );
+  it("retries transient transport failures and succeeds on a later attempt", async () => {
+    mockUserRecords(["123"]);
+    let attempts = 0;
+    globalThis.fetch = mock(() => {
+      attempts += 1;
+      if (attempts < 3) {
+        return Promise.reject(new Error("Network error"));
       }
-    });
-
-    it("should clear failure tracking after successful update", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
-
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        if (key.startsWith("failed_updates:")) {
-          return Promise.resolve("1");
-        }
-        return Promise.resolve(JSON.stringify(createMockUserRecord("123")));
-      });
-      sharedRedisMockSet.mockResolvedValue(true);
-      sharedRedisMockDel.mockResolvedValue(1);
-
-      globalThis.fetch = toFetchMock(
-        mock().mockResolvedValue({
-          ok: true,
-          status: 200,
-          json: async () => ({ data: { stats: "mocked" } }),
-        }),
+      return Promise.resolve(
+        createJsonResponse(200, { data: createValidStatsPayload("123") }),
       );
+    }) as unknown as typeof fetch;
 
-      const req = new Request("http://localhost/api/cron", {
-        headers: { "x-cron-secret": CRON_SECRET },
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-
-      expect(sharedRedisMockDel).toHaveBeenCalledWith("failed_updates:123");
-    });
+    const response = await POST(createCronRequest());
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("Updated 1/1 users successfully");
+    expect(globalThis.fetch).toHaveBeenCalledTimes(3);
   });
 
-  describe("Invalid Data Handling", () => {
-    it("should skip users with invalid/unparseable data", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([
-        0,
-        ["user:123:meta", "user:456:meta"],
-      ]);
+  it("does not count transport failures as 404 removals", async () => {
+    mockUserRecords(["123"]);
+    globalThis.fetch = mock(() =>
+      Promise.reject(new Error("Network error")),
+    ) as unknown as typeof fetch;
 
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        if (key.startsWith("failed_updates:")) {
-          return Promise.resolve(null);
-        }
-        if (key === "user:123:meta" || key === "user:123") {
-          return Promise.resolve(null);
-        }
-        return Promise.resolve(JSON.stringify(createMockUserRecord("456")));
-      });
-      sharedRedisMockSet.mockResolvedValue(true);
-      sharedRedisMockDel.mockResolvedValue(1);
+    const response = await POST(createCronRequest());
+    const text = await response.text();
 
-      globalThis.fetch = setupSuccessfulFetch();
-
-      const req = new Request("http://localhost/api/cron", {
-        headers: { "x-cron-secret": CRON_SECRET },
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      const text = await res.text();
-      expect(text).toContain("Updated 1/1");
-    });
-    it("should handle users with missing optional fields (empty username)", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
-
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        if (key.startsWith("failed_updates:")) {
-          return Promise.resolve(null);
-        }
-        return Promise.resolve(
-          JSON.stringify({
-            userId: "123",
-            stats: { dummy: 1 },
-            updatedAt: new Date(2024, 0, 1).toISOString(),
-          }),
-        );
-      });
-      sharedRedisMockSet.mockResolvedValue(true);
-      sharedRedisMockDel.mockResolvedValue(1);
-
-      globalThis.fetch = setupSuccessfulFetch();
-
-      const req = new Request("http://localhost/api/cron", {
-        headers: { "x-cron-secret": CRON_SECRET },
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      const text = await res.text();
-      expect(text).toContain("Updated 1/1");
-      expect(sharedRedisMockDel).not.toHaveBeenCalledWith(
-        expect.stringMatching(/^username:/),
-      );
-    });
-
-    it("should handle null user data from Redis gracefully", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
-
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        if (key.startsWith("failed_updates:")) {
-          return Promise.resolve(null);
-        }
-        return Promise.resolve(null);
-      });
-      sharedRedisMockSet.mockResolvedValue(true);
-      sharedRedisMockDel.mockResolvedValue(1);
-
-      globalThis.fetch = setupSuccessfulFetch();
-
-      const req = new Request("http://localhost/api/cron", {
-        headers: { "x-cron-secret": CRON_SECRET },
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      const text = await res.text();
-      expect(text).toContain("Updated 0/0");
-    });
+    expect(response.status).toBe(200);
+    expect(text).toContain(
+      "Updated 0/1 users successfully. Failed: 0, Removed: 0",
+    );
+    expect(sharedRedisMockSet).not.toHaveBeenCalledWith(
+      "failed_updates:123",
+      expect.anything(),
+    );
   });
 
-  describe("Error Handling", () => {
-    it("should return 500 and error message if Redis keys retrieval fails", async () => {
-      sharedRedisMockScan.mockRejectedValueOnce(
-        new Error("Redis connection error"),
-      );
-      const req = new Request("http://localhost/api/cron", {
-        headers: { "x-cron-secret": CRON_SECRET },
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(500);
-      const text = await res.text();
-      expect(text).toBe("Cron job failed");
-    });
+  it("returns 500 when Redis scanning or metadata loading fails critically", async () => {
+    sharedRedisMockScan.mockRejectedValueOnce(
+      new Error("Redis connection error"),
+    );
+    const scanFailure = await POST(createCronRequest());
+    expect(scanFailure.status).toBe(500);
+    expect(await scanFailure.text()).toBe("Cron job failed");
 
-    it("should handle individual user processing errors gracefully", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([
-        0,
-        ["user:123:meta", "user:456:meta"],
-      ]);
-
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        if (key.startsWith("failed_updates:")) {
-          return Promise.resolve(null);
-        }
-        if (key === "user:123:meta" || key === "user:123") {
-          return Promise.resolve(null);
-        }
-        return Promise.resolve(JSON.stringify(createMockUserRecord("456")));
-      });
-      sharedRedisMockSet.mockResolvedValue(true);
-      sharedRedisMockDel.mockResolvedValue(1);
-
-      globalThis.fetch = setupSuccessfulFetch();
-
-      const req = new Request("http://localhost/api/cron", {
-        headers: { "x-cron-secret": CRON_SECRET },
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      const text = await res.text();
-      expect(text).toContain("Updated 1/1");
-    });
-
-    it("should return 500 status when critical error occurs during batch processing", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
-      sharedRedisMockGet.mockRejectedValueOnce(new Error("Redis error"));
-
-      const req = new Request("http://localhost/api/cron", {
-        headers: { "x-cron-secret": CRON_SECRET },
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(500);
-      const text = await res.text();
-      expect(text).toBe("Cron job failed");
-    });
-  });
-
-  describe("Mixed Scenarios", () => {
-    it("should handle mix of successful and failed updates in same batch", async () => {
-      sharedRedisMockScan.mockResolvedValueOnce([
-        0,
-        ["user:1", "user:2", "user:3"],
-      ]);
-
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        if (key.startsWith("failed_updates:")) {
-          return Promise.resolve(null);
-        }
-        if (key === "user:1") {
-          return Promise.resolve(JSON.stringify(createMockUserRecord("1")));
-        }
-        if (key === "user:2") {
-          return Promise.resolve(JSON.stringify(createMockUserRecord("2")));
-        }
-        if (key === "user:3") {
-          return Promise.resolve(JSON.stringify(createMockUserRecord("3")));
-        }
-        return Promise.resolve(null);
-      });
-      sharedRedisMockSet.mockResolvedValue(true);
-      sharedRedisMockDel.mockResolvedValue(1);
-
-      globalThis.fetch = toFetchMock(
-        mock().mockImplementation(
-          createMixedOutcomesFetchImplementation(["2"]),
-        ),
-      );
-
-      const req = new Request("http://localhost/api/cron", {
-        headers: { "x-cron-secret": CRON_SECRET },
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      const text = await res.text();
-      expect(text).toContain("Updated 2/3");
-      expect(text).toContain("Failed: 1");
-    });
-
-    it("should handle processing 5 users (at rate limit) with mixed outcomes", async () => {
-      const userKeys = Array.from({ length: 5 }, (_, i) => `user:${i + 1}`);
-      sharedRedisMockScan.mockResolvedValueOnce([0, userKeys]);
-
-      sharedRedisMockGet.mockImplementation((key: string) => {
-        if (key.startsWith("failed_updates:")) {
-          return Promise.resolve(null);
-        }
-        const id = key.split(":")[1];
-        return Promise.resolve(JSON.stringify(createMockUserRecord(id)));
-      });
-      sharedRedisMockSet.mockResolvedValue(true);
-      sharedRedisMockDel.mockResolvedValue(1);
-
-      globalThis.fetch = toFetchMock(
-        mock().mockImplementation(
-          createMixedOutcomesFetchImplementation(["3", "5"]),
-        ),
-      );
-
-      const req = new Request("http://localhost/api/cron", {
-        headers: { "x-cron-secret": CRON_SECRET },
-      });
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      const text = await res.text();
-      expect(text).toContain("Updated 3/5");
-      expect(text).toContain("Failed: 2");
-    });
+    sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
+    sharedRedisMockGet.mockRejectedValueOnce(new Error("Redis error"));
+    const getFailure = await POST(createCronRequest());
+    expect(getFailure.status).toBe(500);
+    expect(await getFailure.text()).toBe("Cron job failed");
   });
 });

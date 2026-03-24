@@ -228,6 +228,13 @@ const STATUS_CODE_CATEGORIES: Record<number, ErrorCategory> = {
   504: "timeout",
 };
 
+const RETRYABLE_ERROR_CATEGORIES = new Set<ErrorCategory>([
+  "network_error",
+  "rate_limited",
+  "server_error",
+  "timeout",
+]);
+
 /**
  * Map a status code to an error category.
  * @param statusCode - HTTP status code.
@@ -237,6 +244,27 @@ const STATUS_CODE_CATEGORIES: Record<number, ErrorCategory> = {
 export function categorizeByStatusCode(statusCode?: number): ErrorCategory {
   if (!statusCode) return "unknown";
   return STATUS_CODE_CATEGORIES[statusCode] || "server_error";
+}
+
+/**
+ * Determine whether a categorized failure should be treated as retryable.
+ * @param category - Error category to evaluate.
+ * @returns True when retry/backoff is appropriate.
+ * @source
+ */
+export function isRetryableErrorCategory(category: ErrorCategory): boolean {
+  return RETRYABLE_ERROR_CATEGORIES.has(category);
+}
+
+/**
+ * Determine whether an HTTP status code should be retried for transient upstream failures.
+ * @param statusCode - HTTP status code from an upstream response.
+ * @returns True when the status represents a transient condition.
+ * @source
+ */
+export function isRetryableStatusCode(statusCode?: number): boolean {
+  if (!statusCode) return false;
+  return isRetryableErrorCategory(categorizeByStatusCode(statusCode));
 }
 
 /**
@@ -303,6 +331,16 @@ export function categorizeError(message: string): ErrorCategory {
   }
 
   return "unknown";
+}
+
+/**
+ * Determine whether a free-form error message looks retryable.
+ * @param message - Error message to classify.
+ * @returns True when retry/backoff is appropriate.
+ * @source
+ */
+export function isRetryableErrorMessage(message: string): boolean {
+  return isRetryableErrorCategory(categorizeError(message));
 }
 
 /**

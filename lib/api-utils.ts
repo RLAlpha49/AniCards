@@ -10,6 +10,11 @@ import { Redis } from "@upstash/redis";
 import { NextResponse } from "next/server";
 
 import { displayNames, isValidCardType } from "@/lib/card-data/validation";
+import {
+  categorizeError,
+  isRetryableErrorCategory,
+  isRetryableStatusCode,
+} from "@/lib/error-messages";
 import type { StoredCardConfig } from "@/lib/types/records";
 import {
   getColorInvalidReason,
@@ -233,6 +238,87 @@ export interface ApiError {
   error: string;
 }
 
+export class UpstreamTransportError extends Error {
+  readonly statusCode: number;
+  readonly retryAfterMs?: number;
+
+  constructor(message: string, statusCode: number, retryAfterMs?: number) {
+    super(message);
+    this.name = "UpstreamTransportError";
+    this.statusCode = statusCode;
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+export class UpstreamCircuitOpenError extends UpstreamTransportError {
+  readonly service: string;
+  readonly degradedMode: boolean;
+
+  constructor(options: {
+    service: string;
+    retryAfterMs: number;
+    degradedMode?: boolean;
+  }) {
+    const retryAfterSeconds = Math.max(
+      1,
+      Math.ceil(options.retryAfterMs / 1000),
+    );
+    super(
+      options.degradedMode
+        ? `${options.service} degraded mode is enabled`
+        : `${options.service} circuit breaker is open`,
+      503,
+      options.retryAfterMs,
+    );
+    this.name = "UpstreamCircuitOpenError";
+    this.service = options.service;
+    this.degradedMode = options.degradedMode ?? false;
+
+    if (!this.message.includes("Retry-After")) {
+      this.message = `${this.message} (Retry-After: ${retryAfterSeconds})`;
+    }
+  }
+}
+
+interface UpstreamCircuitState {
+  consecutiveFailures: number;
+  openedUntil: number;
+}
+
+interface UpstreamCircuitBreakerOptions {
+  key: string;
+  failureThreshold?: number;
+  cooldownMs?: number;
+  degradedModeEnvVar?: string;
+}
+
+interface UpstreamFetchOptions {
+  service: string;
+  url: string;
+  init?: RequestInit;
+  timeoutMs?: number;
+  maxAttempts?: number;
+  backoffBaseMs?: number;
+  maxBackoffMs?: number;
+  circuitBreaker?: UpstreamCircuitBreakerOptions | false;
+}
+
+interface NormalizedUpstreamFetchOptions extends UpstreamFetchOptions {
+  timeoutMs: number;
+  maxAttempts: number;
+  backoffBaseMs: number;
+  maxBackoffMs: number;
+}
+
+const DEFAULT_UPSTREAM_TIMEOUT_MS = 5_000;
+const DEFAULT_UPSTREAM_MAX_ATTEMPTS = 3;
+const DEFAULT_UPSTREAM_BACKOFF_BASE_MS = 250;
+const DEFAULT_UPSTREAM_MAX_BACKOFF_MS = 5_000;
+const DEFAULT_CIRCUIT_BREAKER_FAILURE_THRESHOLD = 5;
+const DEFAULT_CIRCUIT_BREAKER_COOLDOWN_MS = 30_000;
+const upstreamCircuitStates = new Map<string, UpstreamCircuitState>();
+let hasLoggedMissingApiOriginInProduction = false;
+
 function normalizeOrigin(value: string | null | undefined): string | null {
   if (!value) return null;
   try {
@@ -280,23 +366,27 @@ export function getAllowedCardSvgOrigin(request?: Request): string {
  * This helper centralizes CORS policy for JSON APIs.
  * @param request - Optional Request used to extract the request origin in development.
  */
-export function getAllowedApiOrigin(request?: Request): string {
+export function getAllowedApiOrigin(request?: Request): string | null {
   const rawConfigured = process.env.NEXT_PUBLIC_APP_URL;
   const configured = normalizeOrigin(rawConfigured);
 
-  let origin: string | undefined;
-
   if (configured) {
-    origin = configured;
-  } else if (process.env.NODE_ENV === "production") {
-    origin = normalizeOrigin(process.env.NEXT_PUBLIC_APP_URL) ?? "*";
-  } else {
-    const requestOrigin = request?.headers?.get("origin");
-    const requestNormalized = normalizeOrigin(requestOrigin);
-    origin = requestNormalized ?? "*";
+    return configured;
   }
 
-  return origin;
+  if (process.env.NODE_ENV === "production") {
+    if (!hasLoggedMissingApiOriginInProduction) {
+      console.error(
+        "[API CORS] NEXT_PUBLIC_APP_URL is missing or invalid in production; omitting Access-Control-Allow-Origin to fail closed.",
+      );
+      hasLoggedMissingApiOriginInProduction = true;
+    }
+    return null;
+  }
+
+  const requestOrigin = request?.headers?.get("origin");
+  const requestNormalized = normalizeOrigin(requestOrigin);
+  return requestNormalized ?? "*";
 }
 
 /**
@@ -305,12 +395,462 @@ export function getAllowedApiOrigin(request?: Request): string {
  */
 export function apiJsonHeaders(request?: Request): Record<string, string> {
   const allowedOrigin = getAllowedApiOrigin(request);
-  return {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS, POST",
     Vary: "Origin",
   };
+
+  if (allowedOrigin) {
+    headers["Access-Control-Allow-Origin"] = allowedOrigin;
+  }
+
+  return headers;
+}
+
+function getRetryAfterMs(retryAfterHeader: string | null): number | undefined {
+  if (!retryAfterHeader) return undefined;
+
+  const asSeconds = Number(retryAfterHeader);
+  if (Number.isFinite(asSeconds) && asSeconds >= 0) {
+    return asSeconds * 1000;
+  }
+
+  const retryAt = Date.parse(retryAfterHeader);
+  if (Number.isNaN(retryAt)) return undefined;
+
+  return Math.max(0, retryAt - Date.now());
+}
+
+function clampDelayMs(delayMs: number, maxDelayMs: number): number {
+  return Math.max(0, Math.min(delayMs, maxDelayMs));
+}
+
+function computeRetryDelayMs(options: {
+  attempt: number;
+  retryAfterMs?: number;
+  backoffBaseMs: number;
+  maxBackoffMs: number;
+}): number {
+  if (typeof options.retryAfterMs === "number") {
+    return clampDelayMs(options.retryAfterMs, options.maxBackoffMs);
+  }
+
+  const exponentialDelay =
+    options.backoffBaseMs * Math.pow(2, Math.max(0, options.attempt - 1));
+  const jitterMultiplier = 0.75 + Math.random() * 0.5;
+  return clampDelayMs(
+    Math.round(exponentialDelay * jitterMultiplier),
+    options.maxBackoffMs,
+  );
+}
+
+function isAbortErrorLike(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.name === "AbortError" || error.name === "TimeoutError";
+}
+
+function getAbortSignal(signal?: AbortSignal | null): AbortSignal | undefined {
+  return signal ?? undefined;
+}
+
+function sleep(delayMs: number, signal?: AbortSignal): Promise<void> {
+  if (delayMs <= 0) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, delayMs);
+
+    const onAbort = () => {
+      clearTimeout(timeoutId);
+      signal?.removeEventListener("abort", onAbort);
+      const reason = signal?.reason;
+      reject(
+        reason instanceof Error ? reason : new Error("Aborted during backoff"),
+      );
+    };
+
+    if (signal) {
+      if (signal.aborted) {
+        onAbort();
+        return;
+      }
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
+  });
+}
+
+function createAbortContext(
+  timeoutMs: number,
+  signal?: AbortSignal,
+): {
+  signal: AbortSignal;
+  didTimeout: () => boolean;
+  cleanup: () => void;
+} {
+  const controller = new AbortController();
+  let timedOut = false;
+  let abortListener: (() => void) | undefined;
+
+  if (signal) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+    } else {
+      abortListener = () => controller.abort(signal.reason);
+      signal.addEventListener("abort", abortListener, { once: true });
+    }
+  }
+
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort(
+      new DOMException(
+        `Request timed out after ${timeoutMs}ms`,
+        "TimeoutError",
+      ),
+    );
+  }, timeoutMs);
+
+  return {
+    signal: controller.signal,
+    didTimeout: () => timedOut,
+    cleanup: () => {
+      clearTimeout(timeoutId);
+      if (signal && abortListener) {
+        signal.removeEventListener("abort", abortListener);
+      }
+    },
+  };
+}
+
+function getCircuitBreakerState(key: string): UpstreamCircuitState {
+  const existing = upstreamCircuitStates.get(key);
+  if (existing) return existing;
+
+  const initialState: UpstreamCircuitState = {
+    consecutiveFailures: 0,
+    openedUntil: 0,
+  };
+  upstreamCircuitStates.set(key, initialState);
+  return initialState;
+}
+
+function getCircuitBreakerFailureThreshold(
+  options?: UpstreamCircuitBreakerOptions,
+): number {
+  return (
+    options?.failureThreshold ??
+    readPositiveIntegerEnv("ANILIST_UPSTREAM_CIRCUIT_FAILURE_THRESHOLD") ??
+    DEFAULT_CIRCUIT_BREAKER_FAILURE_THRESHOLD
+  );
+}
+
+function getCircuitBreakerCooldownMs(
+  options?: UpstreamCircuitBreakerOptions,
+): number {
+  return (
+    options?.cooldownMs ??
+    readPositiveIntegerEnv("ANILIST_UPSTREAM_CIRCUIT_COOLDOWN_MS") ??
+    DEFAULT_CIRCUIT_BREAKER_COOLDOWN_MS
+  );
+}
+
+function isCircuitBreakerDegradedModeEnabled(
+  options?: UpstreamCircuitBreakerOptions,
+): boolean {
+  const envVar = options?.degradedModeEnvVar;
+  if (!envVar) return false;
+  return readBooleanEnv(envVar) === true;
+}
+
+function ensureCircuitBreakerAllowsRequest(
+  service: string,
+  options?: UpstreamCircuitBreakerOptions | false,
+): void {
+  if (!options) return;
+
+  const cooldownMs = getCircuitBreakerCooldownMs(options);
+
+  if (isCircuitBreakerDegradedModeEnabled(options)) {
+    throw new UpstreamCircuitOpenError({
+      service,
+      retryAfterMs: cooldownMs,
+      degradedMode: true,
+    });
+  }
+
+  const state = getCircuitBreakerState(options.key);
+  if (state.openedUntil > Date.now()) {
+    throw new UpstreamCircuitOpenError({
+      service,
+      retryAfterMs: state.openedUntil - Date.now(),
+    });
+  }
+}
+
+function recordCircuitBreakerSuccess(
+  options?: UpstreamCircuitBreakerOptions | false,
+): void {
+  if (!options) return;
+  const state = getCircuitBreakerState(options.key);
+  state.consecutiveFailures = 0;
+  state.openedUntil = 0;
+}
+
+function recordCircuitBreakerFailure(
+  options?: UpstreamCircuitBreakerOptions | false,
+): void {
+  if (!options) return;
+
+  const state = getCircuitBreakerState(options.key);
+  state.consecutiveFailures += 1;
+
+  const threshold = getCircuitBreakerFailureThreshold(options);
+  if (state.consecutiveFailures < threshold) return;
+
+  state.openedUntil = Date.now() + getCircuitBreakerCooldownMs(options);
+}
+
+function normalizeUpstreamFetchOptions(
+  options: UpstreamFetchOptions,
+): NormalizedUpstreamFetchOptions {
+  return {
+    ...options,
+    timeoutMs: options.timeoutMs ?? DEFAULT_UPSTREAM_TIMEOUT_MS,
+    maxAttempts: Math.max(
+      1,
+      options.maxAttempts ?? DEFAULT_UPSTREAM_MAX_ATTEMPTS,
+    ),
+    backoffBaseMs: options.backoffBaseMs ?? DEFAULT_UPSTREAM_BACKOFF_BASE_MS,
+    maxBackoffMs: options.maxBackoffMs ?? DEFAULT_UPSTREAM_MAX_BACKOFF_MS,
+  };
+}
+
+function shouldRetryUpstreamResponse(
+  response: Response,
+  attempt: number,
+  maxAttempts: number,
+): boolean {
+  return (
+    !response.ok &&
+    isRetryableStatusCode(response.status) &&
+    attempt < maxAttempts
+  );
+}
+
+async function waitForUpstreamRetryDelay(options: {
+  attempt: number;
+  retryAfterMs?: number;
+  normalizedOptions: NormalizedUpstreamFetchOptions;
+}): Promise<void> {
+  const delayMs = computeRetryDelayMs({
+    attempt: options.attempt,
+    retryAfterMs: options.retryAfterMs,
+    backoffBaseMs: options.normalizedOptions.backoffBaseMs,
+    maxBackoffMs: options.normalizedOptions.maxBackoffMs,
+  });
+
+  await sleep(delayMs, getAbortSignal(options.normalizedOptions.init?.signal));
+}
+
+function finalizeUpstreamResponse(
+  response: Response,
+  circuitBreaker?: UpstreamCircuitBreakerOptions | false,
+): Response {
+  if (!response.ok && isRetryableStatusCode(response.status)) {
+    recordCircuitBreakerFailure(circuitBreaker);
+  } else if (response.ok) {
+    recordCircuitBreakerSuccess(circuitBreaker);
+  }
+
+  return response;
+}
+
+function buildUpstreamTransportError(options: {
+  service: string;
+  error: unknown;
+  timedOut: boolean;
+  timeoutMs: number;
+}): UpstreamTransportError {
+  const message =
+    options.error instanceof Error
+      ? options.error.message
+      : String(options.error);
+
+  if (options.error instanceof UpstreamTransportError) {
+    return options.error;
+  }
+
+  if (options.timedOut || isAbortErrorLike(options.error)) {
+    return new UpstreamTransportError(
+      `${options.service} request timed out after ${options.timeoutMs}ms`,
+      504,
+    );
+  }
+
+  return new UpstreamTransportError(
+    `${options.service} request failed: ${message}`,
+    502,
+  );
+}
+
+function shouldRetryUpstreamError(
+  error: unknown,
+  attempt: number,
+  maxAttempts: number,
+  didTimeout: boolean,
+): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const category = didTimeout ? "timeout" : categorizeError(message);
+  return isRetryableErrorCategory(category) && attempt < maxAttempts;
+}
+
+function recordUpstreamErrorFailure(
+  error: unknown,
+  didTimeout: boolean,
+  circuitBreaker?: UpstreamCircuitBreakerOptions | false,
+): void {
+  const message = error instanceof Error ? error.message : String(error);
+  const category = didTimeout ? "timeout" : categorizeError(message);
+
+  if (isRetryableErrorCategory(category)) {
+    recordCircuitBreakerFailure(circuitBreaker);
+  }
+}
+
+export async function fetchUpstreamWithRetry(
+  options: UpstreamFetchOptions,
+): Promise<Response> {
+  const normalizedOptions = normalizeUpstreamFetchOptions(options);
+
+  ensureCircuitBreakerAllowsRequest(
+    normalizedOptions.service,
+    normalizedOptions.circuitBreaker,
+  );
+
+  for (
+    let attempt = 1;
+    attempt <= normalizedOptions.maxAttempts;
+    attempt += 1
+  ) {
+    const abortContext = createAbortContext(
+      normalizedOptions.timeoutMs,
+      getAbortSignal(normalizedOptions.init?.signal),
+    );
+
+    try {
+      const response = await fetch(normalizedOptions.url, {
+        ...normalizedOptions.init,
+        signal: abortContext.signal,
+      });
+
+      const retryAfterMs = getRetryAfterMs(response.headers.get("retry-after"));
+      if (
+        shouldRetryUpstreamResponse(
+          response,
+          attempt,
+          normalizedOptions.maxAttempts,
+        )
+      ) {
+        await waitForUpstreamRetryDelay({
+          attempt,
+          retryAfterMs,
+          normalizedOptions,
+        });
+        continue;
+      }
+
+      return finalizeUpstreamResponse(
+        response,
+        normalizedOptions.circuitBreaker,
+      );
+    } catch (error) {
+      if (
+        shouldRetryUpstreamError(
+          error,
+          attempt,
+          normalizedOptions.maxAttempts,
+          abortContext.didTimeout(),
+        )
+      ) {
+        await waitForUpstreamRetryDelay({
+          attempt,
+          normalizedOptions,
+        });
+        continue;
+      }
+
+      recordUpstreamErrorFailure(
+        error,
+        abortContext.didTimeout(),
+        normalizedOptions.circuitBreaker,
+      );
+
+      throw buildUpstreamTransportError({
+        service: normalizedOptions.service,
+        error,
+        timedOut: abortContext.didTimeout(),
+        timeoutMs: normalizedOptions.timeoutMs,
+      });
+    } finally {
+      abortContext.cleanup();
+    }
+  }
+
+  throw new UpstreamTransportError(
+    `${normalizedOptions.service} request failed after ${normalizedOptions.maxAttempts} attempts`,
+    502,
+  );
+}
+
+function shouldAllowUnsecuredCronInDevelopment(): boolean {
+  return (
+    process.env.NODE_ENV === "development" &&
+    readBooleanEnv("ALLOW_UNSECURED_CRON_IN_DEV") === true
+  );
+}
+
+export function authorizeCronRequest(
+  request: Request,
+  endpointName: string,
+): Response | null {
+  const cronSecret = process.env.CRON_SECRET?.trim();
+  const cronSecretHeader = request.headers.get("x-cron-secret")?.trim();
+
+  if (!cronSecret) {
+    if (shouldAllowUnsecuredCronInDevelopment()) {
+      console.warn(
+        `🔓 [${endpointName}] Allowing unsecured cron request in development because ALLOW_UNSECURED_CRON_IN_DEV=true.`,
+      );
+      return null;
+    }
+
+    console.error(
+      `🔒 [${endpointName}] Rejected request because CRON_SECRET is not configured.`,
+    );
+    return new Response("CRON_SECRET is not configured", {
+      status: 503,
+      headers: {
+        ...apiJsonHeaders(request),
+        "Content-Type": "text/plain",
+      },
+    });
+  }
+
+  if (cronSecretHeader !== cronSecret) {
+    console.error(`🔒 [${endpointName}] Unauthorized: Invalid Cron secret`);
+    return new Response("Unauthorized", {
+      status: 401,
+      headers: {
+        ...apiJsonHeaders(request),
+        "Content-Type": "text/plain",
+      },
+    });
+  }
+
+  return null;
 }
 
 /**
@@ -366,6 +906,105 @@ export function getRequestIp(request?: Request): string {
   }
 
   return process.env.NODE_ENV === "production" ? "unknown" : "127.0.0.1";
+}
+
+function truncateLogString(value: string, maxLength = 120): string {
+  return value.length <= maxLength
+    ? value
+    : `${value.slice(0, Math.max(0, maxLength - 1))}…`;
+}
+
+export function redactIp(ip: string): string {
+  const normalized = ip.trim();
+  if (!normalized || normalized === "unknown") return "unknown";
+  if (normalized === "127.0.0.1" || normalized === "::1") {
+    return "loopback";
+  }
+
+  const ipv4Match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(
+    normalized,
+  );
+  if (ipv4Match) {
+    const [a, b, c, d] = ipv4Match.slice(1).map(Number);
+    const validOctets = [a, b, c, d].every(
+      (octet) => octet >= 0 && octet <= 255,
+    );
+    if (!validOctets) return "invalid_ip";
+
+    const isPrivateRange =
+      a === 10 ||
+      a === 127 ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168);
+
+    if (isPrivateRange) return "private_ipv4";
+    return `${a}.${b}.x.x`;
+  }
+
+  if (normalized.includes(":")) {
+    return "ipv6";
+  }
+
+  return "redacted";
+}
+
+export function redactUserIdentifier(value: unknown): string {
+  if (value === undefined || value === null) return "missing";
+
+  const normalized = String(value).trim();
+  if (!normalized) return "missing";
+
+  if (/^\d+$/.test(normalized)) {
+    return `id:***${normalized.slice(-2)}`;
+  }
+
+  const prefix = normalized.slice(0, Math.min(2, normalized.length));
+  return `${prefix}${normalized.length > 2 ? "***" : "*"}(${normalized.length})`;
+}
+
+function sanitizeLogContextValue(
+  key: string,
+  value: unknown,
+): string | number | boolean | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value === "number" || typeof value === "boolean") return value;
+
+  const normalizedKey = key.toLowerCase();
+  if (normalizedKey.includes("ip")) {
+    return redactIp(String(value));
+  }
+
+  if (
+    normalizedKey.includes("userid") ||
+    normalizedKey.includes("username") ||
+    normalizedKey.includes("identifier")
+  ) {
+    return redactUserIdentifier(value);
+  }
+
+  return truncateLogString(safeStringifyValue(value));
+}
+
+export function logPrivacySafe(
+  level: "log" | "warn" | "error",
+  endpoint: string,
+  message: string,
+  context?: Record<string, unknown>,
+): void {
+  const safeContextEntries = Object.entries(context ?? {}).flatMap(
+    ([key, value]) => {
+      const sanitizedValue = sanitizeLogContextValue(key, value);
+      return sanitizedValue === undefined ? [] : [[key, sanitizedValue]];
+    },
+  );
+
+  const safeContext = Object.fromEntries(safeContextEntries);
+  const serializedContext = Object.keys(safeContext).length
+    ? ` ${JSON.stringify(safeContext)}`
+    : "";
+
+  console[level](`[${endpoint}] ${message}${serializedContext}`);
 }
 
 function createRateLimitHeaders(options: {
@@ -436,14 +1075,19 @@ export async function checkRateLimit(
   });
 
   if (result.reason === "timeout") {
-    console.warn(
-      `⏱️ [${endpointName}] Upstash Ratelimit timed out, allowing request to pass fail-open.`,
+    logPrivacySafe(
+      "warn",
+      endpointName,
+      "Upstash Ratelimit timed out; allowing request to pass fail-open.",
     );
   }
 
   const { success } = result;
   if (!success) {
-    console.warn(`🚨 [${endpointName}] Rate limited IP: ${ip}${denialDetails}`);
+    logPrivacySafe("warn", endpointName, "Rate limited request", {
+      ip,
+      denialDetails,
+    });
     await incrementAnalytics(
       buildAnalyticsMetricKey(endpointKey, "failed_requests"),
     );
@@ -471,13 +1115,39 @@ export function validateSameOrigin(
   request: Request,
   endpointName: string,
   endpointKey: string,
+  options?: {
+    requireOrigin?: boolean;
+  },
 ): NextResponse<ApiError> | null {
-  const origin = request.headers.get("origin");
+  const origin = normalizeOrigin(request.headers.get("origin"));
   const requestOrigin = new URL(request.url).origin;
   const configuredAppOrigin = normalizeOrigin(process.env.NEXT_PUBLIC_APP_URL);
+  const requireOrigin = options?.requireOrigin ?? false;
+
+  if (process.env.NODE_ENV === "production" && !configuredAppOrigin) {
+    console.error(
+      `🔐 [${endpointName}] Rejected request because NEXT_PUBLIC_APP_URL is not configured in production.`,
+    );
+
+    const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
+    incrementAnalytics(metric).catch(() => {});
+
+    return jsonWithCors({ error: "Server misconfigured" }, request, 503);
+  }
+
   const allowedOrigin = configuredAppOrigin ?? requestOrigin;
 
-  // Allow internal requests (no origin) or same-origin requests
+  if (requireOrigin && !origin) {
+    console.warn(
+      `🔐 [${endpointName}] Rejected request with missing Origin header (allowed: ${allowedOrigin})`,
+    );
+
+    const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
+    incrementAnalytics(metric).catch(() => {});
+
+    return jsonWithCors({ error: "Unauthorized" }, request, 401);
+  }
+
   const isSameOrigin = !origin || origin === allowedOrigin;
 
   if (!isSameOrigin) {
@@ -546,10 +1216,10 @@ export function logRequest(
   ip: string,
   details?: string,
 ): void {
-  const message = details
-    ? `🚀 [${endpoint}] Incoming request from IP: ${ip} - ${details}`
-    : `🚀 [${endpoint}] Incoming request from IP: ${ip}`;
-  console.log(message);
+  logPrivacySafe("log", endpoint, "Incoming request", {
+    ip,
+    ...(details ? { details } : {}),
+  });
 }
 
 /**
@@ -572,7 +1242,10 @@ export function handleError(
   request?: Request,
 ): NextResponse<ApiError> {
   const duration = Date.now() - startTime;
-  console.error(`🔥 [${endpoint}] Error after ${duration}ms: ${error.message}`);
+  logPrivacySafe("error", endpoint, "Request failed", {
+    durationMs: duration,
+    error: error.message,
+  });
 
   if (error.stack) {
     console.error(`💥 [${endpoint}] Stack Trace: ${error.stack}`);
@@ -597,10 +1270,10 @@ export function logSuccess(
   duration: number,
   details?: string,
 ): void {
-  const message = details
-    ? `✅ [${endpoint}] ${details} for user ${userId} in ${duration}ms`
-    : `✅ [${endpoint}] Successfully processed user ${userId} [${duration}ms]`;
-  console.log(message);
+  logPrivacySafe("log", endpoint, details ?? "Successfully processed request", {
+    userId,
+    durationMs: duration,
+  });
 }
 
 /**
@@ -611,14 +1284,150 @@ export function logSuccess(
  * @returns A NextResponse with an ApiError when invalid, or null otherwise.
  * @source
  */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+const STORE_USER_REQUEST_KEYS = new Set(["userId", "username", "stats"]);
+const STORE_USER_STATS_KEYS = new Set([
+  "User",
+  "followersPage",
+  "followingPage",
+  "threadsPage",
+  "threadCommentsPage",
+  "reviewsPage",
+  "userReviews",
+  "userRecommendations",
+  "animePlanning",
+  "mangaPlanning",
+  "animeCurrent",
+  "mangaCurrent",
+  "animeRewatched",
+  "mangaReread",
+  "animeCompleted",
+  "mangaCompleted",
+  "animeDropped",
+  "mangaDropped",
+]);
+const STORE_USER_STATS_USER_KEYS = new Set([
+  "stats",
+  "favourites",
+  "statistics",
+  "avatar",
+  "createdAt",
+  "name",
+]);
+
+function hasOnlyAllowedKeys(
+  value: Record<string, unknown>,
+  allowedKeys: Set<string>,
+): boolean {
+  return Object.keys(value).every((key) => allowedKeys.has(key));
+}
+
+function validateStoreUserStatsShape(
+  stats: Record<string, unknown>,
+  endpoint: string,
+  request?: Request,
+): NextResponse<ApiError> | null {
+  if (!hasOnlyAllowedKeys(stats, STORE_USER_STATS_KEYS)) {
+    console.warn(
+      `⚠️ [${endpoint}] Stats payload contains unsupported sections`,
+    );
+    return jsonWithCors({ error: "Invalid data" }, request, 400);
+  }
+
+  if (!isPlainObject(stats.User)) {
+    console.warn(`⚠️ [${endpoint}] Stats payload missing User section`);
+    return jsonWithCors({ error: "Invalid data" }, request, 400);
+  }
+
+  const userStats = stats.User;
+  if (!hasOnlyAllowedKeys(userStats, STORE_USER_STATS_USER_KEYS)) {
+    console.warn(`⚠️ [${endpoint}] Stats.User contains unsupported fields`);
+    return jsonWithCors({ error: "Invalid data" }, request, 400);
+  }
+
+  if (!isPlainObject(userStats.statistics)) {
+    console.warn(`⚠️ [${endpoint}] Stats.User.statistics must be an object`);
+    return jsonWithCors({ error: "Invalid data" }, request, 400);
+  }
+
+  const statistics = userStats.statistics;
+  const hasAnimeStats = isPlainObject(statistics.anime);
+  const hasMangaStats = isPlainObject(statistics.manga);
+  if (!hasAnimeStats && !hasMangaStats) {
+    console.warn(
+      `⚠️ [${endpoint}] Stats.User.statistics must include anime or manga data`,
+    );
+    return jsonWithCors({ error: "Invalid data" }, request, 400);
+  }
+
+  const objectFields = [
+    "followersPage",
+    "followingPage",
+    "threadsPage",
+    "threadCommentsPage",
+    "reviewsPage",
+    "userReviews",
+    "userRecommendations",
+    "animePlanning",
+    "mangaPlanning",
+    "animeCurrent",
+    "mangaCurrent",
+    "animeRewatched",
+    "mangaReread",
+    "animeCompleted",
+    "mangaCompleted",
+    "animeDropped",
+    "mangaDropped",
+  ] as const;
+
+  for (const field of objectFields) {
+    const fieldValue = stats[field];
+    if (fieldValue !== undefined && !isPlainObject(fieldValue)) {
+      console.warn(
+        `⚠️ [${endpoint}] Stats.${field} must be an object when provided`,
+      );
+      return jsonWithCors({ error: "Invalid data" }, request, 400);
+    }
+  }
+
+  return null;
+}
+
+export type ValidateUserDataResult =
+  | {
+      success: true;
+      data: {
+        userId: number;
+        username?: string;
+        stats: Record<string, unknown>;
+      };
+    }
+  | { success: false; error: NextResponse<ApiError> };
+
 export function validateUserData(
   data: Record<string, unknown>,
   endpoint: string,
   request?: Request,
-): NextResponse<ApiError> | null {
+): ValidateUserDataResult {
+  if (!hasOnlyAllowedKeys(data, STORE_USER_REQUEST_KEYS)) {
+    console.warn(
+      `⚠️ [${endpoint}] Request contains unsupported top-level fields`,
+    );
+    return {
+      success: false,
+      error: jsonWithCors({ error: "Invalid data" }, request, 400),
+    };
+  }
+
   if (data.userId === undefined || data.userId === null) {
     console.warn(`⚠️ [${endpoint}] Missing userId`);
-    return jsonWithCors({ error: "Invalid data" }, request, 400);
+    return {
+      success: false,
+      error: jsonWithCors({ error: "Invalid data" }, request, 400),
+    };
   }
 
   const userId = Number(data.userId);
@@ -626,24 +1435,48 @@ export function validateUserData(
     console.warn(
       `⚠️ [${endpoint}] Invalid userId format: ${safeStringifyValue(data.userId)}`,
     );
-    return jsonWithCors({ error: "Invalid data" }, request, 400);
+    return {
+      success: false,
+      error: jsonWithCors({ error: "Invalid data" }, request, 400),
+    };
   }
 
+  let username: string | undefined;
   if (data.username !== undefined && data.username !== null) {
     if (!isValidUsername(data.username)) {
       console.warn(
         `⚠️ [${endpoint}] Username invalid: ${safeStringifyValue(data.username)}`,
       );
-      return jsonWithCors({ error: "Invalid data" }, request, 400);
+      return {
+        success: false,
+        error: jsonWithCors({ error: "Invalid data" }, request, 400),
+      };
     }
+
+    username = String(data.username).trim();
   }
 
-  if (!data.stats || typeof data.stats !== "object") {
+  if (!isPlainObject(data.stats)) {
     console.warn(`⚠️ [${endpoint}] Stats must be a valid object`);
-    return jsonWithCors({ error: "Invalid data" }, request, 400);
+    return {
+      success: false,
+      error: jsonWithCors({ error: "Invalid data" }, request, 400),
+    };
   }
 
-  return null;
+  const statsError = validateStoreUserStatsShape(data.stats, endpoint, request);
+  if (statsError) {
+    return { success: false, error: statsError };
+  }
+
+  return {
+    success: true,
+    data: {
+      userId,
+      ...(username ? { username } : {}),
+      stats: data.stats,
+    },
+  };
 }
 
 /**
@@ -1329,6 +2162,9 @@ export async function initializeApiRequest(
   endpointName: string,
   endpointKey: string,
   limiter?: Ratelimit,
+  options?: {
+    requireOrigin?: boolean;
+  },
 ): Promise<ApiInitResult> {
   const startTime = Date.now();
   const ip = getRequestIp(request);
@@ -1353,7 +2189,14 @@ export async function initializeApiRequest(
     };
   }
 
-  const sameOriginResponse = validateSameOrigin(request, endpoint, endpointKey);
+  const sameOriginResponse = validateSameOrigin(
+    request,
+    endpoint,
+    endpointKey,
+    {
+      requireOrigin: options?.requireOrigin ?? true,
+    },
+  );
   if (sameOriginResponse) {
     return {
       startTime,

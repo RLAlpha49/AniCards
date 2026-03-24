@@ -1,6 +1,11 @@
 import type { Redis as UpstashRedis } from "@upstash/redis";
 
-import { apiJsonHeaders, redisClient, scanAllKeys } from "@/lib/api-utils";
+import {
+  apiJsonHeaders,
+  authorizeCronRequest,
+  redisClient,
+  scanAllKeys,
+} from "@/lib/api-utils";
 import { safeParse } from "@/lib/utils";
 
 /**
@@ -10,25 +15,7 @@ import { safeParse } from "@/lib/utils";
  * @source
  */
 function checkCronAuthorization(request: Request): Response | null {
-  const CRON_SECRET = process.env.CRON_SECRET;
-  const cronSecretHeader = request.headers.get("x-cron-secret");
-
-  if (CRON_SECRET) {
-    if (cronSecretHeader !== CRON_SECRET) {
-      console.error(
-        "🔒 [Analytics & Reporting] Unauthorized: Invalid Cron secret",
-      );
-      return new Response("Unauthorized", {
-        status: 401,
-        headers: apiJsonHeaders(request),
-      });
-    }
-  } else {
-    console.warn(
-      "No CRON_SECRET env variable set. Skipping authorization check.",
-    );
-  }
-  return null;
+  return authorizeCronRequest(request, "Analytics & Reporting");
 }
 
 /**

@@ -11,7 +11,14 @@
 import type { Redis as UpstashRedis } from "@upstash/redis";
 
 import { USER_STATS_QUERY } from "@/lib/anilist/queries";
-import { apiJsonHeaders, redisClient, scanAllKeys } from "@/lib/api-utils";
+import {
+  apiJsonHeaders,
+  authorizeCronRequest,
+  fetchUpstreamWithRetry,
+  redisClient,
+  scanAllKeys,
+  UpstreamTransportError,
+} from "@/lib/api-utils";
 import { validateAndNormalizeUserRecord } from "@/lib/card-data/validation";
 import {
   deleteUserRecord,
@@ -41,85 +48,53 @@ interface UpdateResult {
  * @source
  */
 async function updateUserStats(userId: string): Promise<UpdateResult> {
-  let retries = 3;
-  let is404Error = false;
+  try {
+    console.log(`🔄 [Cron Job] User ${userId}: Fetching AniList data`);
 
-  while (retries > 0) {
-    try {
-      console.log(
-        `🔄 [Cron Job] User ${userId}: Attempt ${4 - retries}/3 - Fetching AniList data`,
-      );
-
-      const statsResponse = await fetch("https://graphql.anilist.co", {
+    const statsResponse = await fetchUpstreamWithRetry({
+      service: "AniList GraphQL",
+      url: "https://graphql.anilist.co",
+      init: {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           query: USER_STATS_QUERY,
           variables: { userId },
         }),
-      });
+      },
+      circuitBreaker: {
+        key: "anilist-graphql",
+        degradedModeEnvVar: "ANILIST_UPSTREAM_DEGRADED_MODE",
+      },
+    });
 
-      if (!statsResponse.ok) {
-        is404Error = statsResponse.status === 404;
-        throw new Error(`HTTP ${statsResponse.status}`);
-      }
-
-      const statsData = await statsResponse.json();
-      return { success: true, is404Error: false, statsData };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (error: any) {
-      retries--;
-      if (error.stack) {
-        console.error(
-          `💥 [Cron Job] User ${userId}: Error detail: ${error.stack}`,
-        );
-      }
-      if (retries === 0) {
-        console.error(
-          `🔥 [Cron Job] User ${userId}: Final attempt failed - ${error.message}`,
-        );
-      } else {
-        console.warn(
-          `⚠️ [Cron Job] User ${userId}: Retrying (${retries} left) - ${error.message}`,
-        );
-      }
+    if (!statsResponse.ok) {
+      const is404Error = statsResponse.status === 404;
+      console.warn(
+        `⚠️ [Cron Job] User ${userId}: AniList returned HTTP ${statsResponse.status}`,
+      );
+      return { success: false, is404Error };
     }
-  }
 
-  return { success: false, is404Error };
-}
-
-/**
- * Looks up the normalized username index key for a stored user.
- * @param redisClient - Redis client used to read the user's stored metadata.
- * @param userId - AniList identifier whose username index key should be derived.
- * @returns The matching `username:*` key, or null when no username is stored.
- * @source
- */
-async function getUsernameIndexKey(
-  redisClient: UpstashRedis,
-  userId: string,
-): Promise<string | null> {
-  try {
-    const metaRaw = await redisClient.get(`user:${userId}:meta`);
-    if (!metaRaw) return null;
-
-    const parsed =
-      typeof metaRaw === "string"
-        ? safeParse<Record<string, unknown>>(metaRaw)
-        : (metaRaw as Record<string, unknown>);
-
-    const rawUsername = parsed ? parsed["username"] : undefined;
-    if (typeof rawUsername === "string" && rawUsername.trim()) {
-      return `username:${rawUsername.trim().toLowerCase()}`;
+    const statsData = await statsResponse.json();
+    return { success: true, is404Error: false, statsData };
+  } catch (error) {
+    if (error instanceof UpstreamTransportError) {
+      console.error(`🔥 [Cron Job] User ${userId}: ${error.message}`);
+      return { success: false, is404Error: false };
     }
-  } catch (err) {
-    console.warn(
-      `⚠️ [Cron Job] User ${userId}: Failed to read meta for username cleanup: ${err}`,
+
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(
+      `🔥 [Cron Job] User ${userId}: Final attempt failed - ${message}`,
     );
+    if (error instanceof Error && error.stack) {
+      console.error(
+        `💥 [Cron Job] User ${userId}: Error detail: ${error.stack}`,
+      );
+    }
+    return { success: false, is404Error: false };
   }
-
-  return null;
 }
 
 /**
@@ -142,21 +117,13 @@ async function handleFailureTracking(
   );
 
   if (newFailureCount >= 3) {
-    const cardsKey = `cards:${userId}`;
-    const usernameIndexKey = await getUsernameIndexKey(redisClient, userId);
-
-    const deletions = [
-      deleteUserRecord(userId),
-      redisClient.del(failureKey),
-      redisClient.del(cardsKey),
-      ...(usernameIndexKey ? [redisClient.del(usernameIndexKey)] : []),
-    ];
-
-    await Promise.all(deletions);
+    const deleteResult = await deleteUserRecord(userId);
 
     console.log(
       `🗑️ [Cron Job] User ${userId}: Removed from database after 3 failed attempts${
-        usernameIndexKey ? ` (removed ${usernameIndexKey})` : ""
+        deleteResult.usernameIndexKeys.length > 0
+          ? ` (removed ${deleteResult.usernameIndexKeys.join(", ")})`
+          : ""
       }`,
     );
     return true;
@@ -272,22 +239,8 @@ function computeCronForBatch(
  * @source
  */
 export async function POST(request: Request) {
-  const CRON_SECRET = process.env.CRON_SECRET;
-  const cronSecretHeader = request.headers.get("x-cron-secret");
-
-  if (CRON_SECRET) {
-    if (cronSecretHeader !== CRON_SECRET) {
-      console.error("🔒 [Cron Job] Unauthorized: Invalid Cron secret");
-      return new Response("Unauthorized", {
-        status: 401,
-        headers: apiJsonHeaders(request),
-      });
-    }
-  } else {
-    console.warn(
-      "No CRON_SECRET env variable set. Skipping authorization check.",
-    );
-  }
+  const authorizationError = authorizeCronRequest(request, "Cron Job");
+  if (authorizationError) return authorizationError;
 
   try {
     console.log(
