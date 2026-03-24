@@ -41,8 +41,10 @@ jobs:
       - name: Check for package updates
         id: check-updates
         run: |
+          # Capture ncu output for updates
           NCU_OUTPUT=$(ncu)
 
+          # Add to step summary
           echo "## 📦 Package Updates Available" >> $GITHUB_STEP_SUMMARY
           echo "The following packages can be updated:" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
@@ -50,11 +52,13 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "To update all packages, run: bun run update" >> $GITHUB_STEP_SUMMARY
 
+          # Capture update info in structured format
           UPDATE_INFO=$(ncu --jsonUpgraded)
           echo "update_info<<EOF" >> $GITHUB_OUTPUT
           echo "$UPDATE_INFO" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+          # Check if there are updates
           UPDATE_COUNT=$(echo "$UPDATE_INFO" | jq 'length')
           if [ "$UPDATE_COUNT" -gt 0 ]; then
             echo "[INFO] Found $UPDATE_COUNT package updates available"
@@ -94,10 +98,12 @@ jobs:
         id: checkout
         if: ${{ (github.event_name == 'workflow_dispatch' && inputs.update-packages == true || github.event_name != 'workflow_dispatch') && steps.check-updates.outputs.has_updates == 'true' }}
         run: |
+          # Use branch name from previous steps, or fallback to default
           PR_BRANCH="${{ steps.check-pr.outputs.pr_branch }}"
           if [ -z "$PR_BRANCH" ]; then
             PR_BRANCH="${{ steps.set-default-branch.outputs.pr_branch }}"
             if [ -z "$PR_BRANCH" ]; then
+              # Hardcoded fallback
               PR_BRANCH="deps/update-packages"
               echo "[WARNING] Using hardcoded PR branch name: $PR_BRANCH"
             fi
@@ -105,8 +111,11 @@ jobs:
 
           echo "[INFO] Using branch: $PR_BRANCH"
 
+          # First fetch all remote refs to ensure we're up to date
+          echo "[INFO] Fetching all remote refs"
           git fetch --all
 
+          # Check if branch exists on remote
           REMOTE_BRANCH_EXISTS=false
           if git ls-remote --exit-code --heads origin "$PR_BRANCH" &>/dev/null; then
             REMOTE_BRANCH_EXISTS=true
@@ -115,6 +124,7 @@ jobs:
             echo "[INFO] Branch $PR_BRANCH does not exist on remote"
           fi
 
+          # Check if branch exists locally
           LOCAL_BRANCH_EXISTS=false
           if git show-ref --verify --quiet refs/heads/$PR_BRANCH; then
             LOCAL_BRANCH_EXISTS=true
@@ -123,36 +133,47 @@ jobs:
             echo "[INFO] Branch $PR_BRANCH does not exist locally"
           fi
 
+          # Handle branch creation/checkout based on existence
           if [ "$REMOTE_BRANCH_EXISTS" = "true" ]; then
+            # If branch exists locally, delete it to avoid conflicts with remote
             if [ "$LOCAL_BRANCH_EXISTS" = "true" ]; then
               echo "[INFO] Deleting local branch to avoid conflicts with remote"
               git checkout main
               git branch -D "$PR_BRANCH"
             fi
-
+            
+            # Checkout from remote
             echo "[INFO] Checking out branch from remote"
             git checkout -b "$PR_BRANCH" "origin/$PR_BRANCH"
           else
+            # Branch doesn't exist on remote
             if [ "$LOCAL_BRANCH_EXISTS" = "true" ]; then
+              # Just checkout the local branch
               echo "[INFO] Checking out existing local branch"
               git checkout "$PR_BRANCH"
             else
+              # Create a new branch from current HEAD
               echo "[INFO] Creating new branch from current HEAD (main)"
               git checkout -b "$PR_BRANCH"
             fi
           fi
 
+          # Output the branch name for use in later steps
           echo "pr_branch=$PR_BRANCH" >> $GITHUB_OUTPUT
 
       - name: Update packages with npm-check-updates
         id: update-packages
         if: ${{ (github.event_name == 'workflow_dispatch' && inputs.update-packages == true) || (github.event_name != 'workflow_dispatch' && steps.check-updates.outputs.has_updates == 'true') }}
         run: |
+          # Just prepare the update info without actually modifying files yet
+          # Capture ncu output for updates info only
           cp package.json /tmp/package.json.before
 
+          # Capture update info in structured format without modifying files
           UPDATE_INFO=$(ncu --jsonUpgraded)
           echo "actual_changes<<EOF" >> $GITHUB_OUTPUT
 
+          # Extract the changes in a format we can use later
           for pkg in $(echo "$UPDATE_INFO" | jq -r 'keys[]'); do
             version=$(echo "$UPDATE_INFO" | jq -r --arg pkg "$pkg" '.[$pkg]')
             echo "\"$pkg\": \"$version\"" >> $GITHUB_OUTPUT
@@ -165,12 +186,14 @@ jobs:
         id: push-changes
         if: ${{ (github.event_name == 'workflow_dispatch' && inputs.update-packages == true || github.event_name != 'workflow_dispatch') && steps.check-updates.outputs.has_updates == 'true' }}
         run: |
+          # Use branch name from previous steps, or fallback to default
           PR_BRANCH="${{ steps.checkout.outputs.pr_branch }}"
           if [ -z "$PR_BRANCH" ]; then
           PR_BRANCH="${{ steps.check-pr.outputs.pr_branch }}"
             if [ -z "$PR_BRANCH" ]; then
               PR_BRANCH="${{ steps.set-default-branch.outputs.pr_branch }}"
               if [ -z "$PR_BRANCH" ]; then
+                # Hardcoded fallback
                 PR_BRANCH="deps/update-packages"
                 echo "[WARNING] Using hardcoded PR branch name: $PR_BRANCH"
               fi
@@ -182,47 +205,62 @@ jobs:
           CHANGES_TO_COMMIT=false
           NEEDS_PUSH=false
 
+          # Fetch latest information about remote branches
           git fetch origin
 
+          # Configure git identity
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
+          # Check if branch exists remotely
           if git ls-remote --exit-code --heads origin "$PR_BRANCH" &>/dev/null; then
             BRANCH_EXISTS_REMOTELY=true
             echo "[INFO] Branch exists remotely"
-
+            
+            # Check if we have a local branch with the same name
             if git show-ref --verify --quiet refs/heads/$PR_BRANCH; then
+              # Delete the local branch to avoid conflicts with remote
               echo "[INFO] Deleting local branch to avoid conflicts with remote"
               git checkout main
               git branch -D "$PR_BRANCH"
             fi
-
+            
+            # Checkout from remote to ensure we're tracking properly
             echo "[INFO] Checking out branch from remote"
             git checkout -b "$PR_BRANCH" "origin/$PR_BRANCH"
           else
             echo "[INFO] Branch does not exist remotely"
-
+            # If branch doesn't exist remotely, we need to create it from main
+            
+            # Checkout main first to ensure we start clean
             git checkout main
-
+            
+            # Check if the branch exists locally
             if git show-ref --verify --quiet refs/heads/$PR_BRANCH; then
               echo "[INFO] Branch $PR_BRANCH exists locally, checking it out"
               git checkout "$PR_BRANCH"
             else
+              # Create our branch from main
               echo "[INFO] Creating new branch from main"
               git checkout -b "$PR_BRANCH"
             fi
-
+            
+            # Mark that we need to push regardless of other conditions
             NEEDS_PUSH=true
             echo "[INFO] Setting NEEDS_PUSH=true because branch needs to be created remotely"
           fi
 
+          # Now that we're on the correct branch, perform the updates
           if [ "${{ steps.check-updates.outputs.has_updates }}" = "true" ]; then
+            # Update packages
             echo "[INFO] Updating packages to latest versions on branch $PR_BRANCH"
             ncu -u
-
+            
+            # Install updated packages
             echo "[INFO] Installing updated packages"
             bun install
 
+            # Check for changes and commit them
             git add package.json bun.lock
             if ! git diff --staged --quiet; then
               echo "[INFO] Committing package updates"
@@ -231,18 +269,21 @@ jobs:
               NEEDS_PUSH=true
             fi
           fi
-
+            
+          # Check for uncommitted changes from other steps
           git add -A
           if ! git diff --cached --quiet; then
+            # We have actual changes to commit
             CHANGES_TO_COMMIT=true
             echo "[INFO] Found additional uncommitted changes to commit"
             NEEDS_PUSH=true
-
+            
+            # Commit these changes
             git commit -m "chore: update dependencies via workflow"
           else
             if [ "$CHANGES_TO_COMMIT" != "true" ]; then
               echo "[INFO] No uncommitted changes found"
-
+              
               if [ "${{ steps.update-packages.outputs.has_actual_changes }}" = "true" ]; then
                 echo "[INFO] Note: Changes were reported by earlier steps but nothing to commit"
                 echo "[INFO] These changes may have already been committed in a previous run"
@@ -250,12 +291,14 @@ jobs:
             fi
           fi
 
+          # Save changes status for later steps
           if [ "$CHANGES_TO_COMMIT" = "true" ]; then
             echo "changes_committed=true" >> $GITHUB_OUTPUT
           else
             echo "changes_committed=false" >> $GITHUB_OUTPUT
           fi
 
+          # Count unpushed changes for later status reporting
           UNPUSHED_COUNT=0
           if [ "$BRANCH_EXISTS_REMOTELY" = "true" ]; then
             UNPUSHED_COUNT=$(git rev-list --count "origin/$PR_BRANCH..HEAD" 2>/dev/null || echo "0")
@@ -267,6 +310,7 @@ jobs:
               echo "unpushed_count=0" >> $GITHUB_OUTPUT
             fi
           else
+            # For new branches, check if we have any commits at all
             COMMIT_COUNT=$(git rev-list --count HEAD 2>/dev/null || echo "0")
             if [ "$COMMIT_COUNT" -gt 0 ]; then
               echo "[INFO] Branch has $COMMIT_COUNT commit(s) that need to be pushed to the new remote branch"
@@ -277,22 +321,25 @@ jobs:
             fi
           fi
 
+          # Only push if we have changes that need to be pushed
           if [ "$NEEDS_PUSH" = "true" ]; then
             echo "[INFO] Pushing changes to remote"
             git push -u origin "$PR_BRANCH"
+            # Set flag to indicate we pushed changes
             echo "changes_pushed=true" >> $GITHUB_OUTPUT
           else
             echo "[INFO] Skipping push as no changes need to be pushed"
             echo "changes_pushed=false" >> $GITHUB_OUTPUT
           fi
 
+          # Verify branch exists remotely
           if git ls-remote --exit-code --heads origin "$PR_BRANCH" &>/dev/null; then
             echo "[SUCCESS] Branch $PR_BRANCH exists remotely"
             echo "pr_branch=$PR_BRANCH" >> $GITHUB_OUTPUT
           else
             if [ "$CHANGES_TO_COMMIT" = "true" ] || [ "$UNPUSHED_COUNT" -gt 0 ]; then
               echo "[ERROR] Failed to push branch $PR_BRANCH to remote"
-              exit 1
+            exit 1
             else
               echo "[WARNING] Branch doesn't exist remotely but there were no changes to push"
               echo "pr_branch=$PR_BRANCH" >> $GITHUB_OUTPUT
@@ -309,12 +356,15 @@ jobs:
         run: |
           PR_BRANCH="${{ steps.check-pr.outputs.pr_branch }}"
 
+          # Store original branch to return to it later
           ORIGINAL_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
           echo "[INFO] Adding PR comment with updates to PR #$PR_NUMBER"
 
+          # Create the PR comment
           COMMENT_FILE=$(mktemp)
 
+          # Write the header
           cat > "$COMMENT_FILE" << EOF
           ## 📦 New dependency updates added
 
@@ -326,37 +376,44 @@ jobs:
           \`\`\`json
           EOF
 
+          # Flag to track if we successfully added package info
           PACKAGE_INFO_ADDED=false
 
+          # Try to use UPDATE_INFO directly if it's valid JSON 
           if [ -n "$UPDATE_INFO" ] && echo "$UPDATE_INFO" | jq empty >/dev/null 2>&1; then
             echo "$UPDATE_INFO" >> "$COMMENT_FILE"
             PACKAGE_INFO_ADDED=true
+          # If UPDATE_INFO isn't valid, extract package info from ACTUAL_CHANGES and format as JSON
           elif [ -n "$ACTUAL_CHANGES" ]; then
-            echo "{" >> "$COMMENT_FILE"
+                echo "{" >> "$COMMENT_FILE"
             FIRST_ENTRY=true
-
+            
             echo "$ACTUAL_CHANGES" | while IFS= read -r line; do
-              if [ -n "$line" ]; then
+                    if [ -n "$line" ]; then
+                # Extract package name and version
                 if [[ "$line" =~ \"([^\"]+)\":[[:space:]]*\"([^\"]+)\" ]]; then
                   PACKAGE="${BASH_REMATCH[1]}"
                   VERSION="${BASH_REMATCH[2]}"
-
+                  
+                  # Add comma before all but the first entry
                   if [ "$FIRST_ENTRY" = "true" ]; then
                     FIRST_ENTRY=false
                   else
                     echo "," >> "$COMMENT_FILE"
                   fi
-
+                  
+                  # Write as JSON key-value pair
                   echo "  \"$PACKAGE\": \"$VERSION\"" >> "$COMMENT_FILE"
                   PACKAGE_INFO_ADDED=true
                 fi
               fi
             done
-
+            
             echo "" >> "$COMMENT_FILE"
             echo "}" >> "$COMMENT_FILE"
           fi
 
+          # If no valid package info was added, add error message
           if [ "$PACKAGE_INFO_ADDED" != "true" ]; then
             cat >> "$COMMENT_FILE" << EOF
           {
@@ -365,17 +422,21 @@ jobs:
           EOF
           fi
 
+          # Close the code block and details
           cat >> "$COMMENT_FILE" << EOF
           \`\`\`
           </details>
           EOF
 
+          # Post the comment
           echo "[INFO] Posting update comment to PR #$PR_NUMBER"
           gh pr comment "$PR_NUMBER" --body-file "$COMMENT_FILE"
           echo "[SUCCESS] Comment posted successfully"
 
+          # Clean up
           rm -f "$COMMENT_FILE" 2>/dev/null || true
 
+          # Return to original branch if needed
           if [ "$ORIGINAL_BRANCH" != "$(git rev-parse --abbrev-ref HEAD)" ]; then
             git checkout "$ORIGINAL_BRANCH"
           fi
@@ -391,6 +452,7 @@ jobs:
         run: |
           echo "[INFO] Creating new PR from branch $PR_BRANCH"
 
+          # Build PR body with package updates information
           PR_BODY_FILE=$(mktemp)
 
           cat > "$PR_BODY_FILE" << EOF
@@ -404,44 +466,61 @@ jobs:
           \`\`\`json
           EOF
 
+          # Flag to track if we successfully added package info
           PACKAGE_INFO_ADDED=false
 
+          # Try to use UPDATE_INFO directly if it's valid JSON
           if [ -n "$UPDATE_INFO" ] && echo "$UPDATE_INFO" | jq empty >/dev/null 2>&1; then
             echo "$UPDATE_INFO" >> "$PR_BODY_FILE"
             PACKAGE_INFO_ADDED=true
+          # If UPDATE_INFO isn't valid, extract package info from ACTUAL_CHANGES and format as JSON
           elif [ -n "$ACTUAL_CHANGES" ]; then
+            # Create a temporary file to build the JSON object
             TEMP_JSON=$(mktemp)
             echo "{" > "$TEMP_JSON"
-
+            
             FIRST_ENTRY=true
             while IFS= read -r line; do
               if [ -n "$line" ]; then
+                # Extract package name and version
                 if [[ "$line" =~ \"([^\"]+)\":[[:space:]]*\"([^\"]+)\" ]]; then
                   PACKAGE="${BASH_REMATCH[1]}"
                   VERSION="${BASH_REMATCH[2]}"
-
+                  
+                  # Add comma before all but the first entry
                   if [ "$FIRST_ENTRY" = "true" ]; then
                     FIRST_ENTRY=false
                   else
                     echo "," >> "$TEMP_JSON"
                   fi
-
+                  
+                  # Write as JSON key-value pair
                   echo "  \"$PACKAGE\": \"$VERSION\"" >> "$TEMP_JSON"
                   PACKAGE_INFO_ADDED=true
                 fi
               fi
             done <<< "$ACTUAL_CHANGES"
-
+            
             echo "}" >> "$TEMP_JSON"
+            
+            # Copy the built JSON to the PR body file
             cat "$TEMP_JSON" >> "$PR_BODY_FILE"
+            
+            # Clean up
             rm -f "$TEMP_JSON" 2>/dev/null || true
           else
+            # Log what's happening for debugging
             echo "[INFO] No valid package info found. UPDATE_INFO empty: $([[ -z "$UPDATE_INFO" ]] && echo 'yes' || echo 'no')"
+            echo "[INFO] ACTUAL_CHANGES empty: $([[ -z "$ACTUAL_CHANGES" ]] && echo 'yes' || echo 'no')"
+            # Fallback to empty object
             echo "{}" >> "$PR_BODY_FILE"
           fi
 
+          # If no valid package info was added, add error message
           if [ "$PACKAGE_INFO_ADDED" != "true" ]; then
+            # Remove the empty JSON object we added as fallback
             sed -i '$ d' "$PR_BODY_FILE"
+            # Add a more informative message
             cat >> "$PR_BODY_FILE" << EOF
           {
             "note": "Package updates were detected, but the specific version information couldn't be extracted for display here. Please check the workflow logs for more details."
@@ -449,6 +528,7 @@ jobs:
           EOF
           fi
 
+          # Close the code block
           cat >> "$PR_BODY_FILE" << EOF
           \`\`\`
           </details>
@@ -459,16 +539,18 @@ jobs:
           This PR was automatically created by the dependency update workflow.
           EOF
 
+          # Create the PR using the GitHub CLI
           PR_URL=$(gh pr create \
             --title "chore: update dependencies" \
             --body-file "$PR_BODY_FILE" \
             --base main \
             --head "$PR_BRANCH")
-
+            
           if [ $? -eq 0 ]; then
             echo "[SUCCESS] Pull request created: $PR_URL"
             echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
-
+            
+            # Extract PR number from URL
             PR_NUMBER=$(echo "$PR_URL" | awk -F'/' '{print $NF}')
             echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
           else
@@ -476,4 +558,5 @@ jobs:
             exit 1
           fi
 
+          # Clean up
           rm -f "$PR_BODY_FILE" 2>/dev/null || true
