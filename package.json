@@ -47,7 +47,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
-    "dompurify": "^3.3.3",
+    "dompurify": "3.3.3",
     "driver.js": "^1.4.0",
     "framer-motion": "^12.38.0",
     "fuse.js": "^7.1.0",
@@ -93,7 +93,6 @@
     "typescript-eslint": "^8.57.2"
   },
   "overrides": {
-    "dompurify": "3.3.3",
     "flatted": "3.4.2",
     "minimatch": "3.1.5"
   }
