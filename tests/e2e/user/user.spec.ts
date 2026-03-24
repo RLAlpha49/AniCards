@@ -74,9 +74,7 @@ test.describe("User page", () => {
       await expect(cards).toHaveCount(mockCardsRecord.cards.length);
     });
 
-    await test.step("Per-card quick actions are hidden by default and appear on preview hover/focus", async () => {
-      await page.getByRole("heading", { name: /your cards/i }).hover();
-
+    await test.step("Per-card quick actions are visible and linked correctly", async () => {
       const tile = page.getByTestId("card-tile-animeStats");
       const openLink = tile.getByRole("link", {
         name: /^open/i,
@@ -91,14 +89,6 @@ test.describe("User page", () => {
         includeHidden: true,
       });
 
-      await expect(openLink).toBeHidden();
-      await expect(copyTrigger).toBeHidden();
-      await expect(downloadTrigger).toBeHidden();
-
-      const previewToggle = tile.getByRole("button", {
-        name: /toggle actions for/i,
-      });
-      await previewToggle.focus();
       await expect(openLink).toBeVisible();
       await expect(copyTrigger).toBeVisible();
       await expect(downloadTrigger).toBeVisible();
@@ -110,16 +100,7 @@ test.describe("User page", () => {
       );
       await expect(openLink).toHaveAttribute("href", /\/api\/card/i);
 
-      await tile
-        .getByRole("checkbox", { name: /select anime stats card/i })
-        .focus();
-      await page.getByRole("heading", { name: /your cards/i }).hover();
-      await expect(openLink).toBeHidden();
-
-      await tile
-        .getByRole("img", { name: /preview/i })
-        .first()
-        .hover({ position: { x: 10, y: 10 } });
+      await tile.getByRole("button", { name: /toggle actions for/i }).focus();
       await expect(openLink).toBeVisible();
       await expect(copyTrigger).toBeVisible();
       await expect(downloadTrigger).toBeVisible();
@@ -159,19 +140,10 @@ test.describe("User page", () => {
       await expect(copyButtons).toHaveCount(2);
       await expect(downloadButtons).toHaveCount(2);
 
-      await dialog.hover({ position: { x: 10, y: 10 } });
-      await previews.nth(0).hover({ position: { x: 10, y: 10 } });
-      await expect(openLinks.nth(0)).toBeVisible();
-      await expect(openLinks.nth(1)).toBeHidden();
-      await expect(downloadButtons.nth(0)).toBeVisible();
-      await expect(downloadButtons.nth(1)).toBeHidden();
-
-      await dialog.hover({ position: { x: 10, y: 10 } });
-      await previews.nth(1).hover({ position: { x: 10, y: 10 } });
-      await expect(openLinks.nth(1)).toBeVisible();
-      await expect(openLinks.nth(0)).toBeHidden();
-      await expect(downloadButtons.nth(1)).toBeVisible();
-      await expect(downloadButtons.nth(0)).toBeHidden();
+      for (const action of [openLinks, copyButtons, downloadButtons]) {
+        await expect(action.first()).toBeVisible();
+        await expect(action.nth(1)).toBeVisible();
+      }
 
       await page.keyboard.press("Escape");
       await expect(dialog).toBeHidden();

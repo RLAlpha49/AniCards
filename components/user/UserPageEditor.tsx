@@ -1518,6 +1518,7 @@ export function UserPageEditor() {
                             )}
                             onClick={() => saveNow()}
                             disabled={!canSaveNow}
+                            aria-label="Save changes"
                             aria-keyshortcuts="Control+S Meta+S"
                             data-tour="save-button"
                           >
@@ -1566,6 +1567,7 @@ export function UserPageEditor() {
                             )}
                             onClick={() => setIsDiscardDialogOpen(true)}
                             disabled={!canDiscardNow}
+                            aria-label="Discard unsaved changes"
                           >
                             <Trash2
                               className="size-4 sm:mr-1.5"

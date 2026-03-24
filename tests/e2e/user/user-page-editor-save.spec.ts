@@ -93,7 +93,7 @@ test.describe("User page editor - save UX", () => {
     });
 
     await test.step("Editor should become clean after save", async () => {
-      const saveButton = page.getByRole("button", { name: /^save$/i });
+      const saveButton = page.getByRole("button", { name: /save changes/i });
       await expect(saveButton).toBeDisabled();
     });
   });
@@ -155,12 +155,17 @@ test.describe("User page editor - save UX", () => {
       await animeToggle.click();
       await expect(animeToggle).toHaveAttribute("aria-checked", "false");
 
-      await page.getByRole("button", { name: /^discard$/i }).click();
-      await page.getByRole("button", { name: /discard changes/i }).click();
+      await page
+        .getByRole("button", { name: /discard unsaved changes/i })
+        .click();
+      await page
+        .getByRole("alertdialog")
+        .getByRole("button", { name: /discard changes/i })
+        .click();
 
       await expect(animeToggle).toHaveAttribute("aria-checked", "true");
       await expect(
-        page.getByRole("button", { name: /^save$/i }),
+        page.getByRole("button", { name: /save changes/i }),
       ).toBeDisabled();
     });
 
