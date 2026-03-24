@@ -113,7 +113,11 @@ export function truncateWithEllipsis(text: string, maxChars: number): string {
  */
 export function calculateCompletionRatio(
   statuses: { status: string; count: number }[],
-): { completedCount: number; totalCount: number; percentage: string } {
+): {
+  completedCount: number;
+  totalCount: number;
+  percentage: string;
+} {
   const completedCount =
     statuses.find((s) => s.status === "COMPLETED")?.count ?? 0;
   const totalCount = statuses.reduce((sum, s) => sum + s.count, 0);

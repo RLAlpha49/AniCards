@@ -279,7 +279,9 @@ test.describe("User page", () => {
 
     await expect(
       page.getByRole("heading", { level: 1, name: /newuser/i }),
-    ).toBeVisible({ timeout: 15000 });
+    ).toBeVisible({
+      timeout: 15000,
+    });
 
     const images = page.locator("main").getByRole("img");
     await expect(images.first()).toBeVisible();

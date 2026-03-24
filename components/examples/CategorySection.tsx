@@ -132,7 +132,8 @@ export function CategorySection({
               </p>
               <span className="text-xs text-foreground/20 tabular-nums">
                 {cardTypes.length} type{cardTypes.length === 1 ? "" : "s"} ·{" "}
-                {totalVariants} variant{totalVariants === 1 ? "" : "s"}
+                {totalVariants} variant
+                {totalVariants === 1 ? "" : "s"}
               </span>
             </div>
           </div>

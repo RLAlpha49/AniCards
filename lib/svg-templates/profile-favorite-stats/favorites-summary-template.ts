@@ -83,10 +83,7 @@ export const favoritesSummaryTemplate = (data: {
   </desc>
 
   <style>
-    ${generateCommonStyles(
-      resolvedColors,
-      Number.parseFloat(calculateDynamicFontSize(title)),
-    )}
+    ${generateCommonStyles(resolvedColors, Number.parseFloat(calculateDynamicFontSize(title)))}
 
     .total-count {
       fill: ${resolvedColors.circleColor};

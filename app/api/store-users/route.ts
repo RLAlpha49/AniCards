@@ -37,30 +37,32 @@ export async function POST(request: Request): Promise<NextResponse> {
       `📝 [${endpoint}] Processing user ${data.userId} (${data.username || "no username"})`,
     );
 
-    const validationError = validateUserData(
+    const validationResult = validateUserData(
       data as Record<string, unknown>,
       endpoint,
       request,
     );
-    if (validationError) {
+    if (!validationResult.success) {
       await incrementAnalytics(
         buildAnalyticsMetricKey(endpointKey, "failed_requests"),
       );
-      return validationError;
+      return validationResult.error;
     }
+
+    const { userId, username, stats } = validationResult.data;
 
     let createdAt = new Date().toISOString();
 
-    const partsData = await fetchUserDataParts(data.userId, ["meta"]);
+    const partsData = await fetchUserDataParts(userId, ["meta"]);
     if (partsData.meta) {
       const meta = partsData.meta as Record<string, unknown>;
       createdAt = (meta.createdAt as string) || createdAt;
     }
 
     const userData: UserRecord = {
-      userId: data.userId,
-      username: data.username,
-      stats: data.stats,
+      userId: String(userId),
+      username,
+      stats: stats as unknown as UserRecord["stats"],
       ip,
       createdAt,
       updatedAt: new Date().toISOString(),
@@ -73,27 +75,27 @@ export async function POST(request: Request): Promise<NextResponse> {
         : userData;
 
     console.log(
-      `📝 [${endpoint}] Saving user data to Redis in split format for userId: ${data.userId}`,
+      `📝 [${endpoint}] Saving user data to Redis in split format for userId: ${userId}`,
     );
 
     await saveUserRecord(finalUserData);
 
-    if (data.username) {
-      const normalizedUsername = data.username.trim().toLowerCase();
+    if (username) {
+      const normalizedUsername = username.trim().toLowerCase();
       const usernameIndexKey = `username:${normalizedUsername}`;
       console.log(
         `📝 [${endpoint}] Updating username index for: ${normalizedUsername}`,
       );
-      await redisClient.set(usernameIndexKey, data.userId.toString());
+      await redisClient.set(usernameIndexKey, userId.toString());
     }
 
     const duration = Date.now() - startTime;
-    logSuccess(endpoint, data.userId, duration);
+    logSuccess(endpoint, userId, duration);
     await incrementAnalytics(
       buildAnalyticsMetricKey(endpointKey, "successful_requests"),
     );
 
-    return jsonWithCors({ success: true, userId: data.userId }, request);
+    return jsonWithCors({ success: true, userId }, request);
   } catch (error) {
     return handleError(
       error as Error,

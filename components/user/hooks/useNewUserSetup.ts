@@ -343,7 +343,10 @@ export function useNewUserSetup() {
           "new_user_setup_fetch_cards",
           new Error(msg),
           details.category,
-          { userId: String(uid), username: uname ?? undefined },
+          {
+            userId: String(uid),
+            username: uname ?? undefined,
+          },
         );
         console.warn(msg, { userId: uid });
         const initialCards = buildInitialCardsSnapshot();

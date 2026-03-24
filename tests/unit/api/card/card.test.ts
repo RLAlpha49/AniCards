@@ -303,6 +303,29 @@ type MockFunction<T> = T & {
   };
 };
 
+function resetSharedRouteMocks() {
+  sharedRedisMockGet.mockReset();
+  sharedRedisMockSet.mockReset();
+  sharedRedisMockMget.mockReset();
+  sharedRedisMockIncr.mockReset();
+  sharedRatelimitMockLimit.mockReset();
+
+  sharedRedisMockMget.mockImplementation(
+    async (...keys: string[]): Promise<(string | null)[]> =>
+      keys.map(() => null),
+  );
+  sharedRedisMockIncr.mockImplementation(async () => 1);
+  sharedRatelimitMockLimit.mockResolvedValue({
+    success: true,
+    limit: 10,
+    remaining: 9,
+    reset: Date.now() + 10_000,
+    pending: Promise.resolve(),
+  });
+}
+
+resetSharedRouteMocks();
+
 describe("Card SVG Route", () => {
   const baseUrl = "http://localhost/api/card.svg";
 
@@ -310,11 +333,7 @@ describe("Card SVG Route", () => {
     mock.clearAllMocks();
     clearSvgCache();
     clearUserRequestStats();
-    sharedRatelimitMockLimit.mockResolvedValue({ success: true });
-    sharedRedisMockGet.mockClear();
-    sharedRedisMockMget.mockClear();
-    sharedRedisMockSet.mockClear();
-    sharedRedisMockIncr.mockClear();
+    resetSharedRouteMocks();
   });
 
   describe("Rate Limiting", () => {
@@ -1457,10 +1476,15 @@ describe("Card SVG Route", () => {
 
       sharedRedisMockSet.mockResolvedValueOnce("OK");
 
-      const postReq = new Request("http://localhost/api/store-cards", {
+      const appOrigin = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost";
+
+      const postReq = new Request(`${appOrigin}/api/store-cards`, {
         method: "POST",
         body: JSON.stringify({ userId: 542244, cards: cardsPayload }),
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          origin: appOrigin,
+        },
       });
 
       const postRes = await storeCardsPOST(postReq);

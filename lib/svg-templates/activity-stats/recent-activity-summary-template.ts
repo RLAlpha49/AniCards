@@ -64,7 +64,10 @@ export function recentActivitySummaryTemplate(data: {
 
   const bestDay = sorted.reduce(
     (best, curr) => (curr.amount > best.amount ? curr : best),
-    { date: 0, amount: 0 },
+    {
+      date: 0,
+      amount: 0,
+    },
   );
   const bestDayStr = bestDay.date
     ? new Date(bestDay.date * 1000).toLocaleDateString("en-US", {

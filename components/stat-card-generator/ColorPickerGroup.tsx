@@ -172,9 +172,7 @@ function createDefaultGradient(baseColor: string): GradientDefinition {
  * The ID is not cryptographically unique but is deterministic per generation.
  */
 function generateStopId(prefix = "s") {
-  return `${prefix}-${Math.random().toString(36).slice(2, 9)}-${Date.now()
-    .toString(36)
-    .slice(-6)}`;
+  return `${prefix}-${Math.random().toString(36).slice(2, 9)}-${Date.now().toString(36).slice(-6)}`;
 }
 
 /**

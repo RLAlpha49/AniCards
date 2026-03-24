@@ -5,7 +5,7 @@
  * rendering can fetch only the sections each card needs, while still supporting
  * reconstruction and legacy-record migration when older keys are encountered.
  */
-import { redisClient } from "@/lib/api-utils";
+import { redisClient, scanAllKeys } from "@/lib/api-utils";
 import {
   AnimeGenreSynergyTotalsEntry,
   FollowersPage,
@@ -58,6 +58,11 @@ interface UserAggregates {
   animeSeasonalPreferenceTotals?: SeasonalPreferenceTotalsEntry[];
   animeGenreSynergyTotals?: AnimeGenreSynergyTotalsEntry[];
   studioCollaborationTotals?: StudioCollaborationTotalsEntry[];
+}
+
+export interface DeleteUserRecordResult {
+  deletedKeys: string[];
+  usernameIndexKeys: string[];
 }
 
 /* Helpers and defaults for extracting data from loosely-typed legacy shapes. */
@@ -558,9 +563,39 @@ export async function saveUserRecord(record: UserRecord): Promise<void> {
 }
 
 /**
- * Deletes all parts of a user record.
+ * Finds every username index that currently points at the specified user.
+ *
+ * Scanning the full username index is only used during rare destructive
+ * cleanup so we can remove both the current username mapping and any stale
+ * aliases left behind by historical username changes.
  */
-export async function deleteUserRecord(userId: string | number): Promise<void> {
+async function findUsernameIndexKeysForUser(
+  userId: string | number,
+): Promise<string[]> {
+  const usernameIndexKeys = await scanAllKeys("username:*");
+
+  if (usernameIndexKeys.length === 0) {
+    return [];
+  }
+
+  const normalizedUserId = String(userId);
+  const usernameIndexValues = await redisClient.mget(...usernameIndexKeys);
+
+  return usernameIndexKeys.filter((key, index) => {
+    const value = usernameIndexValues[index];
+    return value !== null && String(value) === normalizedUserId;
+  });
+}
+
+/**
+ * Deletes all persisted keys owned by a user record.
+ *
+ * Besides the split user payload, this also removes saved cards, 404 failure
+ * tracking, and every username index that currently resolves to the same user.
+ */
+export async function deleteUserRecord(
+  userId: string | number,
+): Promise<DeleteUserRecordResult> {
   const parts: UserDataPart[] = [
     "meta",
     "activity",
@@ -573,9 +608,20 @@ export async function deleteUserRecord(userId: string | number): Promise<void> {
     "completed",
     "aggregates",
   ];
+  const usernameIndexKeys = await findUsernameIndexKeysForUser(userId);
   const keys = parts.map((part) => getUserDataKey(userId, part));
-  keys.push(`user:${userId}`);
+  keys.push(
+    `user:${userId}`,
+    `cards:${userId}`,
+    `failed_updates:${userId}`,
+    ...usernameIndexKeys,
+  );
   await redisClient.del(...keys);
+
+  return {
+    deletedKeys: keys,
+    usernameIndexKeys,
+  };
 }
 
 /**

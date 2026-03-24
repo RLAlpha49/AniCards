@@ -420,7 +420,10 @@ async function resolveEffectiveUserId(
     return {
       error: new Response(
         toCleanSvgResponse(svgError("Not Found: User not found")),
-        { headers: errorHeaders(request), status: 404 },
+        {
+          headers: errorHeaders(request),
+          status: 404,
+        },
       ),
     };
   }
@@ -429,7 +432,10 @@ async function resolveEffectiveUserId(
   return {
     error: new Response(
       toCleanSvgResponse(svgError("Client Error: Missing user identifier")),
-      { headers: errorHeaders(request), status: 400 },
+      {
+        headers: errorHeaders(request),
+        status: 400,
+      },
     ),
   };
 }
@@ -457,7 +463,10 @@ function handleValidationError(
 
   return new Response(
     toCleanSvgResponse(svgError(`Server Error: ${validationResult.error}`)),
-    { headers: errorHeaders(request), status },
+    {
+      headers: errorHeaders(request),
+      status,
+    },
   );
 }
 
@@ -483,7 +492,10 @@ async function handleCardDataError(
 
   return new Response(
     toCleanSvgResponse(svgError(formatCardDataErrorMessage(err))),
-    { headers: errorHeaders(request), status: err.status },
+    {
+      headers: errorHeaders(request),
+      status: err.status,
+    },
   );
 }
 
@@ -512,7 +524,10 @@ function createSuccessResponse(
 function createInternalErrorResponse(request: Request): Response {
   return new Response(
     toCleanSvgResponse(svgError("Server Error: An internal error occurred")),
-    { headers: errorHeaders(request), status: 500 },
+    {
+      headers: errorHeaders(request),
+      status: 500,
+    },
   );
 }
 

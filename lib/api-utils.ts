@@ -1289,7 +1289,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 const STORE_USER_REQUEST_KEYS = new Set(["userId", "username", "stats"]);
-const STORE_USER_STATS_KEYS = new Set([
+const STORE_USER_STATS_OBJECT_KEYS = new Set([
   "User",
   "followersPage",
   "followingPage",
@@ -1309,13 +1309,11 @@ const STORE_USER_STATS_KEYS = new Set([
   "animeDropped",
   "mangaDropped",
 ]);
-const STORE_USER_STATS_USER_KEYS = new Set([
+const STORE_USER_STATS_USER_OBJECT_KEYS = new Set([
   "stats",
   "favourites",
   "statistics",
   "avatar",
-  "createdAt",
-  "name",
 ]);
 
 function hasOnlyAllowedKeys(
@@ -1330,64 +1328,31 @@ function validateStoreUserStatsShape(
   endpoint: string,
   request?: Request,
 ): NextResponse<ApiError> | null {
-  if (!hasOnlyAllowedKeys(stats, STORE_USER_STATS_KEYS)) {
-    console.warn(
-      `⚠️ [${endpoint}] Stats payload contains unsupported sections`,
-    );
-    return jsonWithCors({ error: "Invalid data" }, request, 400);
-  }
-
-  if (!isPlainObject(stats.User)) {
-    console.warn(`⚠️ [${endpoint}] Stats payload missing User section`);
-    return jsonWithCors({ error: "Invalid data" }, request, 400);
-  }
-
-  const userStats = stats.User;
-  if (!hasOnlyAllowedKeys(userStats, STORE_USER_STATS_USER_KEYS)) {
-    console.warn(`⚠️ [${endpoint}] Stats.User contains unsupported fields`);
-    return jsonWithCors({ error: "Invalid data" }, request, 400);
-  }
-
-  if (!isPlainObject(userStats.statistics)) {
-    console.warn(`⚠️ [${endpoint}] Stats.User.statistics must be an object`);
-    return jsonWithCors({ error: "Invalid data" }, request, 400);
-  }
-
-  const statistics = userStats.statistics;
-  const hasAnimeStats = isPlainObject(statistics.anime);
-  const hasMangaStats = isPlainObject(statistics.manga);
-  if (!hasAnimeStats && !hasMangaStats) {
-    console.warn(
-      `⚠️ [${endpoint}] Stats.User.statistics must include anime or manga data`,
-    );
-    return jsonWithCors({ error: "Invalid data" }, request, 400);
-  }
-
-  const objectFields = [
-    "followersPage",
-    "followingPage",
-    "threadsPage",
-    "threadCommentsPage",
-    "reviewsPage",
-    "userReviews",
-    "userRecommendations",
-    "animePlanning",
-    "mangaPlanning",
-    "animeCurrent",
-    "mangaCurrent",
-    "animeRewatched",
-    "mangaReread",
-    "animeCompleted",
-    "mangaCompleted",
-    "animeDropped",
-    "mangaDropped",
-  ] as const;
-
-  for (const field of objectFields) {
+  for (const field of STORE_USER_STATS_OBJECT_KEYS) {
     const fieldValue = stats[field];
     if (fieldValue !== undefined && !isPlainObject(fieldValue)) {
       console.warn(
         `⚠️ [${endpoint}] Stats.${field} must be an object when provided`,
+      );
+      return jsonWithCors({ error: "Invalid data" }, request, 400);
+    }
+  }
+
+  const userStats = stats.User;
+  if (userStats === undefined) {
+    return null;
+  }
+
+  if (!isPlainObject(userStats)) {
+    console.warn(`⚠️ [${endpoint}] Stats.User must be an object when provided`);
+    return jsonWithCors({ error: "Invalid data" }, request, 400);
+  }
+
+  for (const field of STORE_USER_STATS_USER_OBJECT_KEYS) {
+    const fieldValue = userStats[field];
+    if (fieldValue !== undefined && !isPlainObject(fieldValue)) {
+      console.warn(
+        `⚠️ [${endpoint}] Stats.User.${field} must be an object when provided`,
       );
       return jsonWithCors({ error: "Invalid data" }, request, 400);
     }

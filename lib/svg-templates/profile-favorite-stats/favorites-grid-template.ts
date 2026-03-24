@@ -250,16 +250,11 @@ export const favoritesGridTemplate = (data: {
   ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
   <title id="title-id">${safeTitle}</title>
   <desc id="desc-id">
-    ${escapeForXml(
-      `${variantLabel}: ${gridItems.map((item) => item.name).join(", ") || "None"}.`,
-    )}
+    ${escapeForXml(`${variantLabel}: ${gridItems.map((item) => item.name).join(", ") || "None"}.`)}
   </desc>
 
   <style>
-    ${generateCommonStyles(
-      resolvedColors,
-      Number.parseFloat(calculateDynamicFontSize(title)),
-    )}
+    ${generateCommonStyles(resolvedColors, Number.parseFloat(calculateDynamicFontSize(title)))}
 
     .item-name {
       fill: ${resolvedColors.textColor};
@@ -326,11 +321,7 @@ export const favoritesGridTemplate = (data: {
                     font-family="'Segoe UI', Ubuntu, Sans-Serif">${escapeForXml(initials)}</text>
             </a>
             <text class="item-name" style="font-size:${TYPOGRAPHY.LARGE_TEXT_SIZE}px" x="0" y="${cellHeight - 3}">
-              ${escapeForXml(
-                item.name.length > 15
-                  ? item.name.substring(0, 15) + "…"
-                  : item.name,
-              )}
+              ${escapeForXml(item.name.length > 15 ? item.name.substring(0, 15) + "…" : item.name)}
             </text>
           </g>
         `;
@@ -358,11 +349,7 @@ export const favoritesGridTemplate = (data: {
             `
             }
             <text class="item-name" style="font-size:${TYPOGRAPHY.LARGE_TEXT_SIZE}px" x="0" y="${cellHeight - 3}">
-              ${escapeForXml(
-                item.name.length > 15
-                  ? item.name.substring(0, 15) + "…"
-                  : item.name,
-              )}
+              ${escapeForXml(item.name.length > 15 ? item.name.substring(0, 15) + "…" : item.name)}
             </text>
           </g>
         `;
