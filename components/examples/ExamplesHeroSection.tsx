@@ -2,13 +2,14 @@
 
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { ArrowDown, Sparkles } from "lucide-react";
-import { useEffect, useRef } from "react";
+import Link from "next/link";
+import { type MouseEvent, useEffect, useRef } from "react";
 
 interface HeroSectionProps {
   totalCardTypes: number;
   totalVariants: number;
   categoryCount: number;
-  onStartCreating: () => void;
+  createHref: string;
 }
 
 const orchestrate = {
@@ -62,7 +63,7 @@ export function ExamplesHeroSection({
   totalCardTypes,
   totalVariants,
   categoryCount,
-  onStartCreating,
+  createHref,
 }: Readonly<HeroSectionProps>) {
   const scrollToGallery = () => {
     const el = document.getElementById("card-gallery");
@@ -74,6 +75,11 @@ export function ExamplesHeroSection({
         once: true,
       });
     }
+  };
+
+  const handleBrowseGalleryClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    scrollToGallery();
   };
 
   return (
@@ -185,20 +191,21 @@ export function ExamplesHeroSection({
           variants={riseIn}
           className="mt-12 flex flex-wrap items-center gap-4"
         >
-          <button
-            onClick={onStartCreating}
+          <Link
+            href={createHref}
             className="imperial-btn inline-flex imperial-btn-fill items-center"
           >
             <Sparkles className="mr-2 size-4" />
             Create Yours
-          </button>
-          <button
-            onClick={scrollToGallery}
+          </Link>
+          <Link
+            href="#card-gallery"
+            onClick={handleBrowseGalleryClick}
             className="group imperial-btn inline-flex imperial-btn-ghost items-center"
           >
             Browse the Gallery
             <ArrowDown className="ml-2 size-4 transition-transform group-hover:translate-y-0.5" />
-          </button>
+          </Link>
         </motion.div>
       </motion.div>
     </section>

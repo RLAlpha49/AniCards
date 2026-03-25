@@ -2,12 +2,13 @@
 
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
+import Link from "next/link";
 
 interface CTASectionProps {
-  onStartCreating: () => void;
+  createHref: string;
 }
 
-export function CTASection({ onStartCreating }: Readonly<CTASectionProps>) {
+export function CTASection({ createHref }: Readonly<CTASectionProps>) {
   return (
     <section className="relative overflow-x-clip px-6 py-24 sm:px-12 lg:py-32">
       {/* Atmospheric glow */}
@@ -62,8 +63,8 @@ export function CTASection({ onStartCreating }: Readonly<CTASectionProps>) {
           cards — no cost, no wait, and you control every detail.
         </p>
 
-        <button
-          onClick={onStartCreating}
+        <Link
+          href={createHref}
           className="group imperial-btn inline-flex imperial-btn-fill items-center"
         >
           Start Building
@@ -71,7 +72,7 @@ export function CTASection({ onStartCreating }: Readonly<CTASectionProps>) {
             ml-2 size-4 transition-transform duration-300
             group-hover:translate-x-1
           " />
-        </button>
+        </Link>
       </motion.div>
     </section>
   );

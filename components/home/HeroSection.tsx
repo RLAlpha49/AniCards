@@ -2,9 +2,8 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
 import {
@@ -73,7 +72,6 @@ const cardFloat = {
 };
 
 export function HeroSection() {
-  const router = useRouter();
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -86,10 +84,9 @@ export function HeroSection() {
       ? "anicardsDarkGradient"
       : "anicardsLightGradient";
 
-  const handleGetStarted = useCallback(() => {
+  const handleGetStartedClick = () => {
     safeTrack(() => trackButtonClick("get_started", "homepage_hero"));
-    router.push("/search");
-  }, [router]);
+  };
 
   return (
     <section className="relative min-h-[90vh] overflow-hidden px-6 sm:px-12">
@@ -155,12 +152,13 @@ export function HeroSection() {
             variants={fadeUp}
             className="flex flex-col gap-4 sm:flex-row"
           >
-            <button
-              onClick={handleGetStarted}
+            <Link
+              href="/search"
+              onClick={handleGetStartedClick}
               className="imperial-btn imperial-btn-fill"
             >
               Get Started
-            </button>
+            </Link>
             <Link href="/examples" className="imperial-btn imperial-btn-ghost">
               View Gallery
             </Link>

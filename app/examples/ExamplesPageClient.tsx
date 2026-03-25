@@ -15,7 +15,6 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -476,6 +475,7 @@ const CATEGORIES = [
 ] as const;
 
 const BASE_URL = DEFAULT_BASE_CARD_URL;
+const SEARCH_PAGE_HREF = "/search";
 const USER_ID = DEFAULT_EXAMPLE_USER_ID;
 
 export default function ExamplesPageClient() {
@@ -492,12 +492,6 @@ export default function ExamplesPageClient() {
     isMounted && resolvedTheme === "dark"
       ? "anicardsDarkGradient"
       : "anicardsLightGradient";
-
-  const router = useRouter();
-
-  const handleStartCreating = useCallback(() => {
-    router.push("/search");
-  }, [router]);
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value);
@@ -668,7 +662,7 @@ export default function ExamplesPageClient() {
           totalCardTypes={totalCardTypes}
           totalVariants={totalVariants}
           categoryCount={CATEGORIES.length}
-          onStartCreating={handleStartCreating}
+          createHref={SEARCH_PAGE_HREF}
         />
 
         <motion.div
@@ -805,7 +799,7 @@ export default function ExamplesPageClient() {
           whileInView="visible"
           viewport={VIEWPORT_ONCE}
         >
-          <CTASection onStartCreating={handleStartCreating} />
+          <CTASection createHref={SEARCH_PAGE_HREF} />
         </motion.div>
       </div>
     </ErrorBoundary>

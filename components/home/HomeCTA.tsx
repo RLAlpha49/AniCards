@@ -1,18 +1,14 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useRouter } from "next/navigation";
-import { useCallback } from "react";
+import Link from "next/link";
 
 import { safeTrack, trackButtonClick } from "@/lib/utils/google-analytics";
 
 export function HomeCTA() {
-  const router = useRouter();
-
-  const handleClick = useCallback(() => {
+  const handleClick = () => {
     safeTrack(() => trackButtonClick("cta_create_cards", "homepage_cta"));
-    router.push("/search");
-  }, [router]);
+  };
 
   return (
     <section className="relative border-y-2 border-gold/20 px-6 py-20 text-center sm:px-12 md:py-28">
@@ -46,9 +42,8 @@ export function HomeCTA() {
             than a spreadsheet.
           </p>
 
-          <motion.button
-            onClick={handleClick}
-            className="imperial-btn imperial-btn-fill"
+          <motion.div
+            className="inline-block"
             whileHover={{
               scale: 1.04,
               boxShadow: "0 0 40px hsl(42 63% 55% / 0.4)",
@@ -56,8 +51,14 @@ export function HomeCTA() {
             whileTap={{ scale: 0.97 }}
             transition={{ type: "spring", stiffness: 400, damping: 20 }}
           >
-            ❖ Build Your Cards ❖
-          </motion.button>
+            <Link
+              href="/search"
+              onClick={handleClick}
+              className="imperial-btn imperial-btn-fill"
+            >
+              ❖ Build Your Cards ❖
+            </Link>
+          </motion.div>
         </motion.div>
       </div>
     </section>
