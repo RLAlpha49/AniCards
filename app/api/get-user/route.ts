@@ -15,11 +15,12 @@ import {
   incrementAnalytics,
   isValidUsername,
   jsonWithCors,
+  logPrivacySafe,
   redisClient,
 } from "@/lib/api-utils";
 import {
   fetchUserDataParts,
-  reconstructUserRecord,
+  reconstructPublicUserRecord,
   UserDataPart,
 } from "@/lib/server/user-data";
 
@@ -46,14 +47,16 @@ export async function GET(request: Request) {
     return rateLimitResponse;
   }
 
-  console.log(`🚀 [User API] Received request from IP: ${ip}`);
+  logPrivacySafe("log", "User API", "Received public user lookup request", {
+    ip,
+  });
 
   const { searchParams } = new URL(request.url);
   const userIdParam = searchParams.get("userId");
   const usernameParam = searchParams.get("username");
 
   if (!userIdParam && !usernameParam) {
-    console.warn("⚠️ [User API] Missing userId or username parameter");
+    logPrivacySafe("warn", "User API", "Missing userId or username parameter");
     incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
     return jsonWithCors(
       { error: "Missing userId or username parameter" },
@@ -62,23 +65,28 @@ export async function GET(request: Request) {
     );
   }
   let numericUserId: number | null = null;
-  let key: string;
 
   if (userIdParam) {
     numericUserId = Number.parseInt(userIdParam, 10);
     if (Number.isNaN(numericUserId)) {
-      console.warn(
-        `⚠️ [User API] Invalid userId parameter provided: ${userIdParam}`,
-      );
+      logPrivacySafe("warn", "User API", "Invalid userId parameter provided", {
+        userId: userIdParam,
+      });
       incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
       return jsonWithCors({ error: "Invalid userId parameter" }, request, 400);
     }
-    key = `user:${numericUserId}`;
-    console.log(`🚀 [User API] Request received for userId: ${numericUserId}`);
+    logPrivacySafe("log", "User API", "Resolved lookup by userId", {
+      userId: numericUserId,
+    });
   } else {
     if (!isValidUsername(usernameParam)) {
-      console.warn(
-        `⚠️ [User API] Invalid username parameter provided: ${usernameParam}`,
+      logPrivacySafe(
+        "warn",
+        "User API",
+        "Invalid username parameter provided",
+        {
+          username: usernameParam,
+        },
       );
       incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
       return jsonWithCors(
@@ -101,30 +109,30 @@ export async function GET(request: Request) {
     ): Promise<number | null> {
       const normalizedUsername = u.trim().toLowerCase();
       const usernameIndexKey = `username:${normalizedUsername}`;
-      console.log(
-        `🔍 [User API] Searching user index for username: ${normalizedUsername}`,
-      );
+      logPrivacySafe("log", "User API", "Searching username index", {
+        username: normalizedUsername,
+      });
       const userIdFromIndex = await redisClient.get(usernameIndexKey);
       if (!userIdFromIndex) return null;
       const candidate = Number.parseInt(userIdFromIndex as string, 10);
       if (Number.isNaN(candidate)) return null;
-      console.log(
-        `🚀 [User API] Request received for username: ${normalizedUsername} (userId: ${candidate})`,
-      );
+      logPrivacySafe("log", "User API", "Resolved lookup by username", {
+        username: normalizedUsername,
+        userId: candidate,
+      });
       return candidate;
     }
 
     const userId = await resolveUserIdFromUsername(usernameParam!);
     if (!userId) {
-      console.warn(
-        `⚠️ [User API] User not found for username: ${usernameParam}`,
-      );
+      logPrivacySafe("warn", "User API", "User not found for username", {
+        username: usernameParam,
+      });
       incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
       return jsonWithCors({ error: "User not found" }, request, 404);
     }
 
     numericUserId = userId;
-    key = `user:${numericUserId}`;
   }
 
   try {
@@ -147,16 +155,18 @@ export async function GET(request: Request) {
     const duration = Date.now() - startTime;
 
     if (!userDataParts.meta) {
-      console.warn(
-        `⚠️ [User API] User record not found for userId ${numericUserId} [${duration}ms]`,
-      );
+      logPrivacySafe("warn", "User API", "User record not found", {
+        userId: numericUserId,
+        durationMs: duration,
+      });
       return jsonWithCors({ error: "User not found" }, request, 404);
     }
 
-    const userData = reconstructUserRecord(userDataParts);
-    console.log(
-      `✅ [User API] Successfully fetched and reconstructed user data for user ${numericUserId} [${duration}ms]`,
-    );
+    const userData = reconstructPublicUserRecord(userDataParts);
+    logPrivacySafe("log", "User API", "Successfully fetched public user data", {
+      userId: numericUserId,
+      durationMs: duration,
+    });
     incrementAnalytics("analytics:user_api:successful_requests").catch(
       () => {},
     );
@@ -164,9 +174,11 @@ export async function GET(request: Request) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     const duration = Date.now() - startTime;
-    console.error(
-      `🔥 [User API] Error fetching user data for key ${key} [${duration}ms]: ${error.message}`,
-    );
+    logPrivacySafe("error", "User API", "Error fetching user data", {
+      userId: numericUserId,
+      durationMs: duration,
+      error: error.message,
+    });
     if (error.stack) {
       console.error(`💥 [User API] Stack Trace: ${error.stack}`);
     }

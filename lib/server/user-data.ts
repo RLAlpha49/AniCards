@@ -5,12 +5,20 @@
  * rendering can fetch only the sections each card needs, while still supporting
  * reconstruction and legacy-record migration when older keys are encountered.
  */
-import { redisClient, scanAllKeys } from "@/lib/api-utils";
+import {
+  buildPersistedRequestMetadata,
+  logPrivacySafe,
+  redisClient,
+  scanAllKeys,
+} from "@/lib/api-utils";
 import {
   AnimeGenreSynergyTotalsEntry,
   FollowersPage,
   FollowingPage,
   MediaListCollection,
+  PersistedRequestMetadata,
+  PersistedUserRecord,
+  PublicUserRecord,
   ReconstructedUserRecord,
   ReviewsPage,
   SeasonalPreferenceTotalsEntry,
@@ -45,12 +53,14 @@ export const getUserDataKey = (userId: string | number, part: UserDataPart) =>
 interface UserMeta {
   userId: string;
   username?: string;
-  ip: string;
   createdAt: string;
   updatedAt: string;
+  requestMetadata?: PersistedRequestMetadata;
   name?: string;
   avatar?: UserAvatar;
   userCreatedAt?: number;
+  /** @deprecated Legacy raw IP field retained only for migration reads. */
+  ip?: string;
 }
 
 interface UserAggregates {
@@ -289,6 +299,21 @@ function extractMediaListCollection(
     : undefined;
 }
 
+function normalizePersistedRequestMetadata(
+  value: unknown,
+): PersistedRequestMetadata | undefined {
+  if (!isObject(value)) {
+    return undefined;
+  }
+
+  const lastSeenIpBucket = getStringProp(value, "lastSeenIpBucket")?.trim();
+  if (!lastSeenIpBucket) {
+    return undefined;
+  }
+
+  return { lastSeenIpBucket };
+}
+
 /**
  * Splits a full UserRecord into its constituent parts for granular storage.
  *
@@ -308,7 +333,18 @@ export function splitUserRecord(record: UserRecord) {
         .aggregates as UserAggregates)
     : undefined;
 
-  const metaBaseRest = metaBase as Record<string, unknown>;
+  const metaBaseRecord = metaBase as Record<string, unknown>;
+  const {
+    ip: legacyIp,
+    requestMetadata: rawRequestMetadata,
+    ...metaBaseRest
+  } = metaBaseRecord;
+
+  const requestMetadata =
+    normalizePersistedRequestMetadata(rawRequestMetadata) ??
+    (typeof legacyIp === "string"
+      ? buildPersistedRequestMetadata(legacyIp)
+      : undefined);
 
   const statsObj = (rawStats || {}) as unknown;
   const userObj = isObject((statsObj as Record<string, unknown>)["User"])
@@ -352,9 +388,9 @@ export function splitUserRecord(record: UserRecord) {
       typeof metaBaseRest.username === "string"
         ? metaBaseRest.username
         : undefined,
-    ip: String(metaBaseRest.ip || ""),
     createdAt: String(metaBaseRest.createdAt || new Date().toISOString()),
     updatedAt: String(metaBaseRest.updatedAt || new Date().toISOString()),
+    ...(requestMetadata ? { requestMetadata } : {}),
     name:
       getStringProp(userMeta, "name") ||
       getStringProp(record as unknown, "name"),
@@ -511,8 +547,8 @@ export function reconstructUserRecord(
   delete rest.userId;
   delete rest.username;
   delete rest.updatedAt;
-  delete rest.ip;
   delete rest.createdAt;
+  delete rest.requestMetadata;
   delete rest.name;
   delete rest.avatar;
   delete rest.userCreatedAt;
@@ -521,9 +557,9 @@ export function reconstructUserRecord(
   return {
     userId: meta?.userId || "",
     username: meta?.username,
-    ip: meta?.ip || "",
     createdAt: meta?.createdAt || "",
     updatedAt: meta?.updatedAt || "",
+    ...(meta?.requestMetadata ? { requestMetadata: meta.requestMetadata } : {}),
     stats: userStatsData,
     statistics: userSection.statistics,
     favourites: userSection.favourites,
@@ -540,9 +576,30 @@ export function reconstructUserRecord(
 }
 
 /**
+ * Reconstructs the bounded public DTO returned by `/api/get-user`.
+ */
+export function reconstructPublicUserRecord(
+  parts: Partial<Record<UserDataPart, unknown>>,
+): PublicUserRecord {
+  const record = reconstructUserRecord(parts);
+
+  return {
+    userId: record.userId,
+    username: record.username,
+    stats: record.stats,
+    statistics: record.statistics,
+    favourites: record.favourites,
+    pages: record.pages,
+    ...(record.aggregates ? { aggregates: record.aggregates } : {}),
+  };
+}
+
+/**
  * Saves a full UserRecord in the split format.
  */
-export async function saveUserRecord(record: UserRecord): Promise<void> {
+export async function saveUserRecord(
+  record: PersistedUserRecord,
+): Promise<void> {
   const split = splitUserRecord(record) as unknown as Record<
     UserDataPart,
     unknown
@@ -661,12 +718,11 @@ export async function fetchUserDataParts(
       try {
         data[parts[i]] = typeof val === "string" ? JSON.parse(val) : val;
       } catch (e) {
-        console.error(
-          "Failed to parse user data part %s for user %s:",
-          parts[i],
+        logPrivacySafe("error", "User Data", "Failed to parse user data part", {
           userId,
-          e,
-        );
+          part: parts[i],
+          error: e instanceof Error ? e.message : String(e),
+        });
         missingAny = true;
       }
     } else {

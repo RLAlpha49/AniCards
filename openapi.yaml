@@ -331,19 +331,16 @@ paths:
             the username index. Either `userId` or `username` must be supplied.
       responses:
         "200":
-          description: "Reconstructed stored user record"
+          description: "Bounded public user record"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserRecord"
+                $ref: "#/components/schemas/PublicUserRecord"
               examples:
                 user:
                   value:
                     userId: "12345"
                     username: "sampleuser"
-                    ip: "127.0.0.1"
-                    createdAt: "2026-03-20T08:00:00.000Z"
-                    updatedAt: "2026-03-21T10:00:00.000Z"
                     stats:
                       User:
                         name: "sampleuser"
@@ -1405,6 +1402,10 @@ components:
     StoreUserRequest:
       type: object
       additionalProperties: false
+      description: >-
+        Explicit minimized persistence input. Top-level fields are allow-listed,
+        while `stats` intentionally stays open-ended as a JSON object so AniList-
+        shaped nested payloads can evolve without widening the public contract.
       properties:
         userId:
           type: integer
@@ -1415,6 +1416,7 @@ components:
         stats:
           type: object
           additionalProperties: true
+          description: "Open-ended AniList-derived payload. Must be a JSON object; arrays are rejected."
       required:
         - userId
         - stats
@@ -1503,9 +1505,13 @@ components:
           type: object
           additionalProperties: true
 
-    UserRecord:
+    PublicUserRecord:
       type: object
-      additionalProperties: true
+      additionalProperties: false
+      description: >-
+        Bounded public lookup DTO returned by `/api/get-user`. Internal
+        persistence metadata such as request IP buckets and record timestamps are
+        intentionally excluded.
       properties:
         userId:
           type: string
@@ -1548,20 +1554,12 @@ components:
           items:
             type: object
             additionalProperties: true
-        ip:
-          type: string
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
       required:
         - userId
         - stats
-        - ip
-        - createdAt
-        - updatedAt
+        - statistics
+        - favourites
+        - pages
 
     AnalyticsReport:
       type: object

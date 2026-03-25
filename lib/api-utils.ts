@@ -15,7 +15,10 @@ import {
   isRetryableErrorCategory,
   isRetryableStatusCode,
 } from "@/lib/error-messages";
-import type { StoredCardConfig } from "@/lib/types/records";
+import type {
+  PersistedRequestMetadata,
+  StoredCardConfig,
+} from "@/lib/types/records";
 import {
   getColorInvalidReason,
   validateBorderRadius,
@@ -962,6 +965,17 @@ export function redactUserIdentifier(value: unknown): string {
   return `${prefix}${normalized.length > 2 ? "***" : "*"}(${normalized.length})`;
 }
 
+export function buildPersistedRequestMetadata(
+  ip: string,
+): PersistedRequestMetadata | undefined {
+  const lastSeenIpBucket = redactIp(ip);
+  if (!lastSeenIpBucket || lastSeenIpBucket === "unknown") {
+    return undefined;
+  }
+
+  return { lastSeenIpBucket };
+}
+
 function sanitizeLogContextValue(
   key: string,
   value: unknown,
@@ -1289,32 +1303,6 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 const STORE_USER_REQUEST_KEYS = new Set(["userId", "username", "stats"]);
-const STORE_USER_STATS_OBJECT_KEYS = new Set([
-  "User",
-  "followersPage",
-  "followingPage",
-  "threadsPage",
-  "threadCommentsPage",
-  "reviewsPage",
-  "userReviews",
-  "userRecommendations",
-  "animePlanning",
-  "mangaPlanning",
-  "animeCurrent",
-  "mangaCurrent",
-  "animeRewatched",
-  "mangaReread",
-  "animeCompleted",
-  "mangaCompleted",
-  "animeDropped",
-  "mangaDropped",
-]);
-const STORE_USER_STATS_USER_OBJECT_KEYS = new Set([
-  "stats",
-  "favourites",
-  "statistics",
-  "avatar",
-]);
 
 function hasOnlyAllowedKeys(
   value: Record<string, unknown>,
@@ -1323,42 +1311,17 @@ function hasOnlyAllowedKeys(
   return Object.keys(value).every((key) => allowedKeys.has(key));
 }
 
-function validateStoreUserStatsShape(
-  stats: Record<string, unknown>,
+function invalidStoreUserData(
   endpoint: string,
-  request?: Request,
-): NextResponse<ApiError> | null {
-  for (const field of STORE_USER_STATS_OBJECT_KEYS) {
-    const fieldValue = stats[field];
-    if (fieldValue !== undefined && !isPlainObject(fieldValue)) {
-      console.warn(
-        `⚠️ [${endpoint}] Stats.${field} must be an object when provided`,
-      );
-      return jsonWithCors({ error: "Invalid data" }, request, 400);
-    }
-  }
-
-  const userStats = stats.User;
-  if (userStats === undefined) {
-    return null;
-  }
-
-  if (!isPlainObject(userStats)) {
-    console.warn(`⚠️ [${endpoint}] Stats.User must be an object when provided`);
-    return jsonWithCors({ error: "Invalid data" }, request, 400);
-  }
-
-  for (const field of STORE_USER_STATS_USER_OBJECT_KEYS) {
-    const fieldValue = userStats[field];
-    if (fieldValue !== undefined && !isPlainObject(fieldValue)) {
-      console.warn(
-        `⚠️ [${endpoint}] Stats.User.${field} must be an object when provided`,
-      );
-      return jsonWithCors({ error: "Invalid data" }, request, 400);
-    }
-  }
-
-  return null;
+  request: Request | undefined,
+  reason: string,
+  context?: Record<string, unknown>,
+): { success: false; error: NextResponse<ApiError> } {
+  logPrivacySafe("warn", endpoint, reason, context);
+  return {
+    success: false,
+    error: jsonWithCors({ error: "Invalid data" }, request, 400),
+  };
 }
 
 export type ValidateUserDataResult =
@@ -1378,60 +1341,49 @@ export function validateUserData(
   request?: Request,
 ): ValidateUserDataResult {
   if (!hasOnlyAllowedKeys(data, STORE_USER_REQUEST_KEYS)) {
-    console.warn(
-      `⚠️ [${endpoint}] Request contains unsupported top-level fields`,
+    return invalidStoreUserData(
+      endpoint,
+      request,
+      "Request contains unsupported top-level fields",
+      {
+        providedKeys: Object.keys(data)
+          .sort((left, right) => left.localeCompare(right))
+          .join(","),
+      },
     );
-    return {
-      success: false,
-      error: jsonWithCors({ error: "Invalid data" }, request, 400),
-    };
   }
 
   if (data.userId === undefined || data.userId === null) {
-    console.warn(`⚠️ [${endpoint}] Missing userId`);
-    return {
-      success: false,
-      error: jsonWithCors({ error: "Invalid data" }, request, 400),
-    };
+    return invalidStoreUserData(endpoint, request, "Missing userId");
   }
 
   const userId = Number(data.userId);
   if (!Number.isInteger(userId) || userId <= 0) {
-    console.warn(
-      `⚠️ [${endpoint}] Invalid userId format: ${safeStringifyValue(data.userId)}`,
-    );
-    return {
-      success: false,
-      error: jsonWithCors({ error: "Invalid data" }, request, 400),
-    };
+    return invalidStoreUserData(endpoint, request, "Invalid userId format", {
+      userId: data.userId,
+    });
   }
 
   let username: string | undefined;
   if (data.username !== undefined && data.username !== null) {
     if (!isValidUsername(data.username)) {
-      console.warn(
-        `⚠️ [${endpoint}] Username invalid: ${safeStringifyValue(data.username)}`,
-      );
-      return {
-        success: false,
-        error: jsonWithCors({ error: "Invalid data" }, request, 400),
-      };
+      return invalidStoreUserData(endpoint, request, "Username invalid", {
+        username: data.username,
+      });
     }
 
     username = String(data.username).trim();
   }
 
   if (!isPlainObject(data.stats)) {
-    console.warn(`⚠️ [${endpoint}] Stats must be a valid object`);
-    return {
-      success: false,
-      error: jsonWithCors({ error: "Invalid data" }, request, 400),
-    };
-  }
-
-  const statsError = validateStoreUserStatsShape(data.stats, endpoint, request);
-  if (statsError) {
-    return { success: false, error: statsError };
+    return invalidStoreUserData(
+      endpoint,
+      request,
+      "Stats must be a non-array object",
+      {
+        statsType: Array.isArray(data.stats) ? "array" : typeof data.stats,
+      },
+    );
   }
 
   return {

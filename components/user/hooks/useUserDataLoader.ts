@@ -12,7 +12,7 @@ import { getErrorDetails } from "@/lib/error-messages";
 import { trackUserActionError } from "@/lib/error-tracking";
 import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 import type { LoadingPhase } from "@/lib/types/loading";
-import type { ReconstructedUserRecord } from "@/lib/types/records";
+import type { PublicUserRecord } from "@/lib/types/records";
 import { getResponseErrorMessage, parseResponsePayload } from "@/lib/utils";
 
 import { useNewUserSetup } from "./useNewUserSetup";
@@ -42,7 +42,7 @@ async function fetchUserData(
       return { error: msg };
     }
 
-    const data = payload as ReconstructedUserRecord;
+    const data = payload as PublicUserRecord;
 
     // Accept numeric userId values even when they're returned as strings
     // (reconstructed records store many fields as strings). Normalize to a

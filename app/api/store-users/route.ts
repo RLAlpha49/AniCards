@@ -3,17 +3,19 @@ import type { NextResponse } from "next/server";
 import {
   apiJsonHeaders,
   buildAnalyticsMetricKey,
+  buildPersistedRequestMetadata,
   handleError,
   incrementAnalytics,
   initializeApiRequest,
   jsonWithCors,
+  logPrivacySafe,
   logSuccess,
   redisClient,
   validateUserData,
 } from "@/lib/api-utils";
 import { validateAndNormalizeUserRecord } from "@/lib/card-data";
 import { fetchUserDataParts, saveUserRecord } from "@/lib/server/user-data";
-import { UserRecord } from "@/lib/types/records";
+import { PersistedUserRecord, UserRecord } from "@/lib/types/records";
 
 /**
  * Persists or updates a user record in Redis while keeping analytics and the username index aligned.
@@ -33,9 +35,10 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   try {
     const data = await request.json();
-    console.log(
-      `📝 [${endpoint}] Processing user ${data.userId} (${data.username || "no username"})`,
-    );
+    logPrivacySafe("log", endpoint, "Processing store-users payload", {
+      userId: data.userId,
+      username: data.username,
+    });
 
     const validationResult = validateUserData(
       data as Record<string, unknown>,
@@ -50,6 +53,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     const { userId, username, stats } = validationResult.data;
+    const requestMetadata = buildPersistedRequestMetadata(ip);
 
     let createdAt = new Date().toISOString();
 
@@ -63,7 +67,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       userId: String(userId),
       username,
       stats: stats as unknown as UserRecord["stats"],
-      ip,
+      ...(requestMetadata ? { requestMetadata } : {}),
       createdAt,
       updatedAt: new Date().toISOString(),
     };
@@ -73,19 +77,35 @@ export async function POST(request: Request): Promise<NextResponse> {
       "normalized" in normalizationResult
         ? normalizationResult.normalized
         : userData;
+    const persistedRequestMetadata =
+      finalUserData.requestMetadata ?? requestMetadata;
 
-    console.log(
-      `📝 [${endpoint}] Saving user data to Redis in split format for userId: ${userId}`,
-    );
+    const persistedUserData: PersistedUserRecord = {
+      userId: finalUserData.userId,
+      username: finalUserData.username,
+      stats: finalUserData.stats,
+      createdAt: finalUserData.createdAt,
+      updatedAt: finalUserData.updatedAt,
+      ...(finalUserData.aggregates
+        ? { aggregates: finalUserData.aggregates }
+        : {}),
+      ...(persistedRequestMetadata
+        ? { requestMetadata: persistedRequestMetadata }
+        : {}),
+    };
 
-    await saveUserRecord(finalUserData);
+    logPrivacySafe("log", endpoint, "Saving user data to split Redis record", {
+      userId,
+    });
+
+    await saveUserRecord(persistedUserData);
 
     if (username) {
       const normalizedUsername = username.trim().toLowerCase();
       const usernameIndexKey = `username:${normalizedUsername}`;
-      console.log(
-        `📝 [${endpoint}] Updating username index for: ${normalizedUsername}`,
-      );
+      logPrivacySafe("log", endpoint, "Updating username index", {
+        username: normalizedUsername,
+      });
       await redisClient.set(usernameIndexKey, userId.toString());
     }
 

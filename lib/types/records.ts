@@ -400,16 +400,35 @@ export interface UserAggregates {
   studioCollaborationTotals?: StudioCollaborationTotalsEntry[];
 }
 
-/** Redis user record shape used for persisting user data and stats. @source */
-export interface UserRecord {
+/**
+ * Minimized internal request metadata retained with persisted user records.
+ *
+ * Raw client IPs are intentionally not stored. The bucket is coarse enough for
+ * abuse correlation while avoiding direct re-identification in normal reads.
+ */
+export interface PersistedRequestMetadata {
+  lastSeenIpBucket?: string;
+}
+
+/**
+ * Explicit minimized schema written by the store-users persistence path.
+ */
+export interface PersistedUserRecord {
   userId: string;
   username?: string;
   stats: UserStatsData;
+  aggregates?: UserAggregates;
+  requestMetadata?: PersistedRequestMetadata;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Redis user record shape used for persisting user data and stats. @source */
+export interface UserRecord extends PersistedUserRecord {
   animeSourceMaterialDistributionTotals?: SourceMaterialDistributionTotalsEntry[];
   animeSeasonalPreferenceTotals?: SeasonalPreferenceTotalsEntry[];
   animeGenreSynergyTotals?: AnimeGenreSynergyTotalsEntry[];
   studioCollaborationTotals?: StudioCollaborationTotalsEntry[];
-  aggregates?: UserAggregates;
   statistics?: UserSection["statistics"];
   favourites?: UserSection["favourites"];
   pages?: {
@@ -419,9 +438,28 @@ export interface UserRecord {
     threadCommentsPage?: ThreadCommentsPage;
     reviewsPage?: ReviewsPage;
   };
-  ip: string;
-  createdAt: string;
-  updatedAt: string;
+  /**
+   * @deprecated Legacy raw IP field retained only so old records can be
+   * normalized and migrated into the minimized persisted schema.
+   */
+  ip?: string;
+}
+
+/** Public DTO returned by `/api/get-user`. */
+export interface PublicUserRecord {
+  userId: string;
+  username?: string;
+  stats: UserStatsData;
+  statistics: UserSection["statistics"];
+  favourites: UserSection["favourites"];
+  pages: {
+    followersPage: FollowersPage;
+    followingPage: FollowingPage;
+    threadsPage: ThreadsPage;
+    threadCommentsPage: ThreadCommentsPage;
+    reviewsPage: ReviewsPage;
+  };
+  aggregates?: UserAggregates;
 }
 
 /**

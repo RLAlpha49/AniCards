@@ -118,8 +118,8 @@ describe("Store Users API", () => {
     });
 
     it("should reject cross-origin requests in production when origin differs", async () => {
-      const originalEnv = process.env.NODE_ENV;
-      (process.env as unknown as { NODE_ENV?: string }).NODE_ENV = "production";
+      const originalEnv = process.env;
+      process.env = { ...process.env, NODE_ENV: "production" };
 
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
 
@@ -134,7 +134,7 @@ describe("Store Users API", () => {
         "analytics:store_users:failed_requests",
       );
 
-      (process.env as unknown as { NODE_ENV?: string }).NODE_ENV = originalEnv;
+      process.env = originalEnv;
     });
 
     it("should reject request with missing userId", async () => {
@@ -314,7 +314,9 @@ describe("Store Users API", () => {
       const metaValue = JSON.parse(sharedRedisMockSet.mock.calls[0][1]);
       expect(String(metaValue.userId)).toBe(String(1));
       expect(metaValue.username).toBe("UserOne");
-      expect(metaValue.ip).toBe("127.0.0.1");
+      expect(metaValue.requestMetadata).toEqual({
+        lastSeenIpBucket: "loopback",
+      });
       expect(metaValue).toHaveProperty("createdAt");
       expect(metaValue).toHaveProperty("updatedAt");
 
