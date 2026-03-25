@@ -7,7 +7,7 @@ test.describe("User page error states", () => {
   }) => {
     void mockRateLimitedApi;
 
-    await page.goto("/user?username=RateLimitedUser");
+    await page.goto("/user/RateLimitedUser");
 
     await expect(
       page.getByRole("heading", { name: /something went wrong/i }),
@@ -28,7 +28,7 @@ test.describe("User page error states", () => {
   }) => {
     void mockNetworkError;
 
-    await page.goto("/user?username=OfflineUser");
+    await page.goto("/user/OfflineUser");
 
     await expect(
       page.getByRole("heading", { name: /something went wrong/i }),

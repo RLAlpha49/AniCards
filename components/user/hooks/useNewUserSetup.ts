@@ -412,7 +412,11 @@ export function useNewUserSetup() {
 
         setLoadingPhase?.("complete");
 
-        return { success: true } as const;
+        return {
+          success: true,
+          userId: setupResult.userId,
+          username: setupResult.username,
+        } as const;
       } catch (err) {
         setIsNewUser(false);
         setLoadingPhase?.("error");

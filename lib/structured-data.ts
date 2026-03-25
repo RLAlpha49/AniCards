@@ -6,23 +6,83 @@ import {
   SITE_NAME,
 } from "@/lib/site-config";
 
+const JSON_LD_CONTEXT = "https://schema.org";
+const DEFAULT_LANGUAGE = "en-US";
+const CONTACT_EMAIL = "contact@alpha49.com";
+const AUTHOR_GITHUB_URL = "https://github.com/RLAlpha49";
+const REPOSITORY_URL = "https://github.com/RLAlpha49/AniCards";
+
+const PROJECT_COLLECTION_ITEMS = [
+  {
+    name: "AniCards",
+    description:
+      "Stat cards pulled straight from your AniList profile with flexible layouts, themes, and crisp SVG rendering.",
+    url: REPOSITORY_URL,
+  },
+  {
+    name: "Anilist Custom List Manager",
+    description:
+      "Rule-based sorting for AniList custom lists so anime and manga collections stay organized automatically.",
+    url: "https://github.com/RLAlpha49/Anilist-Custom-List-Manager",
+  },
+  {
+    name: "Kenmai to Anilist",
+    description:
+      "A migration tool that imports Kenmai exports and syncs them into AniList.",
+    url: "https://github.com/RLAlpha49/KenmeiToAnilist",
+  },
+] as const;
+
+type ThingReference = {
+  "@id": string;
+};
+
+type WebPageType = "CollectionPage" | "ContactPage" | "WebPage";
+
+interface Person {
+  "@type": "Person";
+  "@context": string;
+  "@id"?: string;
+  name: string;
+  url?: string;
+}
+
+interface Organization {
+  "@type": "Organization";
+  "@context": string;
+  "@id": string;
+  name: string;
+  url: string;
+  email: string;
+  founder: ThingReference;
+}
+
+interface WebSite {
+  "@type": "WebSite";
+  "@context": string;
+  "@id": string;
+  name: string;
+  url: string;
+  inLanguage: string;
+  publisher: ThingReference;
+}
+
 /**
  * Schema.org WebPage type used for structured data (JSON-LD) metadata.
  * @source
  */
 interface WebPage {
-  "@type": "WebPage";
+  "@type": WebPageType;
   "@context": string;
+  "@id": string;
   name: string;
   description: string;
   url: string;
   keywords: string;
   inLanguage: string;
-  isPartOf: {
-    "@type": "WebSite";
-    name: string;
-    url: string;
-  };
+  isPartOf: ThingReference;
+  about?: ThingReference | ThingReference[];
+  mainEntity?: ThingReference;
 }
 
 /**
@@ -32,21 +92,41 @@ interface WebPage {
 interface SoftwareApplication {
   "@type": "SoftwareApplication";
   "@context": string;
+  "@id": string;
   name: string;
   description: string;
   url: string;
   applicationCategory: string;
   operatingSystem: string;
+  isAccessibleForFree: boolean;
   offers: {
     "@type": "Offer";
     price: string;
     priceCurrency: string;
   };
   keywords: string;
-  author: {
-    "@type": "Person";
-    name: string;
-  };
+  author: ThingReference;
+}
+
+interface ItemList {
+  "@type": "ItemList";
+  "@context": string;
+  "@id": string;
+  name: string;
+  description: string;
+  url: string;
+  numberOfItems: number;
+  itemListOrder: "https://schema.org/ItemListOrderAscending";
+  itemListElement: Array<{
+    "@type": "ListItem";
+    position: number;
+    item: {
+      "@type": "SoftwareApplication";
+      name: string;
+      description: string;
+      url: string;
+    };
+  }>;
 }
 
 interface StructuredDataOverrides {
@@ -56,7 +136,191 @@ interface StructuredDataOverrides {
   keywords?: string[];
 }
 
-export type StructuredDataEntry = WebPage | SoftwareApplication;
+export type StructuredDataEntry =
+  | ItemList
+  | Organization
+  | Person
+  | SoftwareApplication
+  | WebPage
+  | WebSite;
+
+function buildReference(id: string): ThingReference {
+  return { "@id": id };
+}
+
+function getEntityIds(siteUrl: string) {
+  return {
+    founder: `${siteUrl}/#founder`,
+    organization: `${siteUrl}/#organization`,
+    softwareApplication: `${siteUrl}/#software-application`,
+    webSite: `${siteUrl}/#website`,
+  };
+}
+
+function getPageSchemaType(pageType: keyof typeof seoConfigs): WebPageType {
+  switch (pageType) {
+    case "contact":
+      return "ContactPage";
+    case "examples":
+    case "projects":
+      return "CollectionPage";
+    default:
+      return "WebPage";
+  }
+}
+
+function buildFounderEntry(siteUrl: string): Person {
+  const entityIds = getEntityIds(siteUrl);
+
+  return {
+    "@type": "Person",
+    "@context": JSON_LD_CONTEXT,
+    "@id": entityIds.founder,
+    name: SITE_AUTHOR_NAME,
+    url: AUTHOR_GITHUB_URL,
+  };
+}
+
+function buildOrganizationEntry(siteUrl: string): Organization {
+  const entityIds = getEntityIds(siteUrl);
+
+  return {
+    "@type": "Organization",
+    "@context": JSON_LD_CONTEXT,
+    "@id": entityIds.organization,
+    name: SITE_NAME,
+    url: siteUrl,
+    email: CONTACT_EMAIL,
+    founder: buildReference(entityIds.founder),
+  };
+}
+
+function buildWebSiteEntry(siteUrl: string): WebSite {
+  const entityIds = getEntityIds(siteUrl);
+
+  return {
+    "@type": "WebSite",
+    "@context": JSON_LD_CONTEXT,
+    "@id": entityIds.webSite,
+    name: SITE_NAME,
+    url: siteUrl,
+    inLanguage: DEFAULT_LANGUAGE,
+    publisher: buildReference(entityIds.organization),
+  };
+}
+
+function buildSoftwareApplicationEntry(
+  description: string,
+  keywords: string[],
+  siteUrl: string,
+): SoftwareApplication {
+  const entityIds = getEntityIds(siteUrl);
+
+  return {
+    "@type": "SoftwareApplication",
+    "@context": JSON_LD_CONTEXT,
+    "@id": entityIds.softwareApplication,
+    name: SITE_NAME,
+    description,
+    url: siteUrl,
+    applicationCategory: "EntertainmentApplication",
+    operatingSystem: "Web",
+    isAccessibleForFree: true,
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "USD",
+    },
+    keywords: keywords.join(", "),
+    author: buildReference(entityIds.founder),
+  };
+}
+
+function buildProjectsItemListEntry(canonicalUrl: string): ItemList {
+  return {
+    "@type": "ItemList",
+    "@context": JSON_LD_CONTEXT,
+    "@id": `${canonicalUrl}#projects-list`,
+    name: "AniCards Project Collection",
+    description:
+      "Open-source anime and manga tools maintained alongside AniCards.",
+    url: canonicalUrl,
+    numberOfItems: PROJECT_COLLECTION_ITEMS.length,
+    itemListOrder: "https://schema.org/ItemListOrderAscending",
+    itemListElement: PROJECT_COLLECTION_ITEMS.map((project, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      item: {
+        "@type": "SoftwareApplication",
+        name: project.name,
+        description: project.description,
+        url: project.url,
+      },
+    })),
+  };
+}
+
+function buildPageEntry(
+  pageType: keyof typeof seoConfigs,
+  config: {
+    canonical?: string;
+    description: string;
+    keywords?: string[];
+    title: string;
+  },
+  canonicalUrl: string,
+  siteUrl: string,
+): WebPage {
+  const entityIds = getEntityIds(siteUrl);
+  const fullTitle = config.title.includes(SITE_NAME)
+    ? config.title
+    : `${config.title} | ${SITE_NAME}`;
+  const pageEntry: WebPage = {
+    "@type": getPageSchemaType(pageType),
+    "@context": JSON_LD_CONTEXT,
+    "@id": `${canonicalUrl}#webpage`,
+    name: fullTitle,
+    description: config.description,
+    url: canonicalUrl,
+    keywords: (config.keywords ?? []).join(", "),
+    inLanguage: DEFAULT_LANGUAGE,
+    isPartOf: buildReference(entityIds.webSite),
+  };
+
+  switch (pageType) {
+    case "contact":
+      pageEntry.about = buildReference(entityIds.organization);
+      pageEntry.mainEntity = buildReference(entityIds.organization);
+      break;
+    case "examples":
+      pageEntry.about = buildReference(entityIds.softwareApplication);
+      break;
+    case "home":
+      pageEntry.about = buildReference(entityIds.organization);
+      pageEntry.mainEntity = buildReference(entityIds.softwareApplication);
+      break;
+    case "projects":
+      pageEntry.about = buildReference(entityIds.organization);
+      pageEntry.mainEntity = buildReference(`${canonicalUrl}#projects-list`);
+      break;
+    case "search":
+    case "user":
+      pageEntry.about = buildReference(entityIds.softwareApplication);
+      break;
+  }
+
+  return pageEntry;
+}
+
+export function generateSiteStructuredData(): StructuredDataEntry[] {
+  const siteUrl = getSiteUrl();
+
+  return [
+    buildFounderEntry(siteUrl),
+    buildOrganizationEntry(siteUrl),
+    buildWebSiteEntry(siteUrl),
+  ];
+}
 
 /**
  * Generates structured JSON-LD schema for a specific page type. When
@@ -78,50 +342,25 @@ export const generateStructuredData = (
   const canonicalUrl = resolveSiteUrl(
     overrides.canonical ?? config.canonical ?? "/",
   );
-  const fullTitle = config.title.includes(SITE_NAME)
-    ? config.title
-    : `${config.title} | ${SITE_NAME}`;
-
-  const baseSchema: WebPage = {
-    "@type": "WebPage",
-    "@context": "https://schema.org",
-    name: fullTitle,
-    description: config.description,
-    url: canonicalUrl,
-    keywords: (config.keywords ?? []).join(", "),
-    inLanguage: "en-US",
-    isPartOf: {
-      "@type": "WebSite",
-      name: SITE_NAME,
-      url: siteUrl,
-    },
-  };
+  const entries: StructuredDataEntry[] = [
+    buildPageEntry(pageType, config, canonicalUrl, siteUrl),
+  ];
 
   if (pageType === "home") {
-    const appSchema: SoftwareApplication = {
-      "@type": "SoftwareApplication",
-      "@context": "https://schema.org",
-      name: SITE_NAME,
-      description: config.description,
-      url: siteUrl,
-      applicationCategory: "Entertainment",
-      operatingSystem: "Web",
-      offers: {
-        "@type": "Offer",
-        price: "0",
-        priceCurrency: "USD",
-      },
-      keywords: (config.keywords ?? []).join(", "),
-      author: {
-        "@type": "Person",
-        name: SITE_AUTHOR_NAME,
-      },
-    };
-
-    return [baseSchema, appSchema];
+    entries.push(
+      buildSoftwareApplicationEntry(
+        config.description,
+        config.keywords ?? [],
+        siteUrl,
+      ),
+    );
   }
 
-  return [baseSchema];
+  if (pageType === "projects") {
+    entries.push(buildProjectsItemListEntry(canonicalUrl));
+  }
+
+  return entries;
 };
 
 /**

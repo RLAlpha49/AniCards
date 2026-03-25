@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { EASE_OUT_EXPO, scaleIn, VIEWPORT_ONCE } from "@/lib/animations";
+import { getUserProfilePath } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import {
   safeTrack,
@@ -78,22 +79,18 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
       safeTrack(() => trackFormSubmission("user_search", true));
       safeTrack(() => trackNavigation("user_page", "search_form"));
 
-      const params = new URLSearchParams();
-      if (searchMethod === "username") {
-        params.set("username", trimmedValue);
-      } else {
-        params.set("userId", trimmedValue);
-      }
+      const nextUrl =
+        searchMethod === "username"
+          ? getUserProfilePath(trimmedValue)
+          : `/user?${new URLSearchParams({ userId: trimmedValue }).toString()}`;
 
       scheduleAfterPaint(() => {
         try {
-          Promise.resolve(router.push(`/user?${params.toString()}`)).catch(
-            () => {
-              setLoading(false);
-              onLoadingChange?.(false);
-              setError("Something went wrong with navigation. Try again?");
-            },
-          );
+          Promise.resolve(router.push(nextUrl)).catch(() => {
+            setLoading(false);
+            onLoadingChange?.(false);
+            setError("Something went wrong with navigation. Try again?");
+          });
         } catch {
           setLoading(false);
           onLoadingChange?.(false);

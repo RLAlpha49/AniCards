@@ -25,12 +25,90 @@ interface SEOConfig {
     title?: string;
     description?: string;
     images?: string[];
+    card?: "summary" | "summary_large_image";
   };
   canonical?: string;
+  robots?: Metadata["robots"];
 }
 
 export type SEOPageKey = keyof typeof seoConfigs;
 export type SearchParamValue = string | string[] | undefined;
+export type StaticSitemapChangeFrequency =
+  | "daily"
+  | "weekly"
+  | "monthly"
+  | "yearly";
+
+const DEFAULT_ROBOTS: Metadata["robots"] = {
+  index: true,
+  follow: true,
+  googleBot: {
+    index: true,
+    follow: true,
+    "max-video-preview": -1,
+    "max-image-preview": "large",
+    "max-snippet": -1,
+  },
+};
+
+const NOINDEX_ROBOTS: Metadata["robots"] = {
+  index: false,
+  follow: true,
+  googleBot: {
+    index: false,
+    follow: true,
+    "max-video-preview": -1,
+    "max-image-preview": "large",
+    "max-snippet": -1,
+  },
+};
+
+const DEFAULT_SOCIAL_PREVIEW_CARD_QUERY = {
+  cardType: "animeStats",
+  userId: "542244",
+  variation: "compact",
+  colorPreset: "anicardsDarkGradient",
+} as const;
+
+const DEFAULT_TWITTER_CARD = "summary_large_image" as const;
+
+function resolveSocialPreviewImages(images?: readonly string[]): string[] {
+  const normalizedImages = (
+    images?.length ? [...images] : [getDefaultSocialPreviewImage()]
+  ).map(resolveSiteUrl);
+
+  return normalizedImages.length
+    ? normalizedImages
+    : [getDefaultSocialPreviewImage()];
+}
+
+export function getDefaultSocialPreviewImage(): string {
+  return buildCanonicalUrl("/card.svg", DEFAULT_SOCIAL_PREVIEW_CARD_QUERY);
+}
+
+export function getDefaultSocialPreviewImages(): string[] {
+  return [getDefaultSocialPreviewImage()];
+}
+
+export function buildUserSocialPreviewImage(params: {
+  username?: string;
+  userId?: string;
+}): string | undefined {
+  const normalizedUsername = params.username?.trim();
+  const normalizedUserId = params.userId?.trim();
+
+  if (!normalizedUsername && !normalizedUserId) {
+    return undefined;
+  }
+
+  return buildCanonicalUrl("/card.svg", {
+    cardType: "profileOverview",
+    colorPreset: "anilistDark",
+    ...(normalizedUsername
+      ? { username: normalizedUsername }
+      : { userId: normalizedUserId }),
+  });
+}
 
 function getSearchParamValue(value: SearchParamValue): string | undefined {
   const normalizedValue = Array.isArray(value) ? value[0] : value;
@@ -53,16 +131,24 @@ export function generateMetadata(config: SEOConfig): Metadata {
     description,
     keywords = [],
     openGraph = {},
+    twitter = {},
     canonical,
+    robots,
   } = config;
-  const canonicalReference = canonical || "/";
-  const canonicalUrl = resolveSiteUrl(canonicalReference);
+  const canonicalReference = canonical?.trim();
+  const canonicalUrl = canonicalReference
+    ? resolveSiteUrl(canonicalReference)
+    : undefined;
+  const openGraphImages = resolveSocialPreviewImages(openGraph.images);
+  const twitterImages = resolveSocialPreviewImages(
+    twitter.images ?? openGraph.images,
+  );
 
   const fullTitle = title.includes(SITE_NAME)
     ? title
     : `${title} | ${SITE_NAME}`;
 
-  return {
+  const metadata: Metadata = {
     metadataBase: getSiteUrlObject(),
     title: fullTitle,
     description,
@@ -72,33 +158,34 @@ export function generateMetadata(config: SEOConfig): Metadata {
     openGraph: {
       title: openGraph.title || fullTitle,
       description: openGraph.description || description,
-      url: canonicalUrl,
       siteName: SITE_NAME,
-      type: (openGraph.type as "website" | "article") || "website",
+      type: (openGraph.type as "article" | "profile" | "website") || "website",
       locale: "en_US",
+      images: openGraphImages,
+      ...(canonicalUrl ? { url: canonicalUrl } : {}),
+    },
+
+    twitter: {
+      card: twitter.card ?? DEFAULT_TWITTER_CARD,
+      title: twitter.title || openGraph.title || fullTitle,
+      description: twitter.description || openGraph.description || description,
+      images: twitterImages,
     },
 
     // Additional SEO
-    robots: {
-      index: true,
-      follow: true,
-      googleBot: {
-        index: true,
-        follow: true,
-        "max-video-preview": -1,
-        "max-image-preview": "large",
-        "max-snippet": -1,
-      },
-    },
-
-    // Canonical URL
-    alternates: {
-      canonical: canonicalReference,
-    },
+    robots: robots ?? DEFAULT_ROBOTS,
 
     // Additional metadata
     category: "Technology",
   };
+
+  if (canonicalReference) {
+    metadata.alternates = {
+      canonical: canonicalReference,
+    };
+  }
+
+  return metadata;
 }
 
 /** Canonical SEO configurations for static app pages. @source */
@@ -209,21 +296,152 @@ export const seoConfigs = {
   },
 } as const satisfies Record<string, SEOConfig>;
 
+type StaticSitemapEntryDef = {
+  seoKey: Exclude<SEOPageKey, "user">;
+  priority: number;
+  changefreq: StaticSitemapChangeFrequency;
+  sourceFiles: readonly string[];
+};
+
+const staticSitemapEntryDefs = [
+  {
+    seoKey: "home",
+    priority: 1,
+    changefreq: "daily",
+    sourceFiles: ["app/page.tsx"],
+  },
+  {
+    seoKey: "search",
+    priority: 0.9,
+    changefreq: "weekly",
+    sourceFiles: ["app/search/page.tsx", "components/search/SearchForm.tsx"],
+  },
+  {
+    seoKey: "examples",
+    priority: 0.85,
+    changefreq: "weekly",
+    sourceFiles: ["app/examples/page.tsx"],
+  },
+  {
+    seoKey: "projects",
+    priority: 0.6,
+    changefreq: "monthly",
+    sourceFiles: ["app/projects/page.tsx"],
+  },
+  {
+    seoKey: "contact",
+    priority: 0.6,
+    changefreq: "yearly",
+    sourceFiles: ["app/contact/page.tsx"],
+  },
+] as const satisfies readonly StaticSitemapEntryDef[];
+
+export function getStaticSitemapEntries() {
+  return staticSitemapEntryDefs.map((entry) => ({
+    ...entry,
+    path: seoConfigs[entry.seoKey].canonical ?? "/",
+  }));
+}
+
+export function getUserProfilePath(username: string): string {
+  return `/user/${encodeURIComponent(username.trim())}`;
+}
+
+function createUserSeoConfig(params: {
+  canonical?: string;
+  description: string;
+  keywords: string[];
+  previewImage?: string;
+  robots?: Metadata["robots"];
+  title: string;
+}): SEOConfig {
+  return {
+    title: params.title,
+    description: params.description,
+    keywords: params.keywords,
+    ...(params.canonical ? { canonical: params.canonical } : {}),
+    openGraph: {
+      ...(params.previewImage ? { images: [params.previewImage] } : {}),
+      type: "profile",
+    },
+    ...(params.previewImage
+      ? {
+          twitter: {
+            images: [params.previewImage],
+          },
+        }
+      : {}),
+    ...(params.robots ? { robots: params.robots } : {}),
+  };
+}
+
+function hasUserPageStatefulParams({
+  q,
+  visibility,
+  group,
+}: {
+  q?: SearchParamValue;
+  visibility?: SearchParamValue;
+  group?: SearchParamValue;
+}): boolean {
+  const normalizedQuery = getSearchParamValue(q);
+  const normalizedVisibility = getSearchParamValue(visibility);
+  const normalizedGroup = getSearchParamValue(group);
+
+  return Boolean(
+    normalizedQuery ||
+    (normalizedVisibility && normalizedVisibility !== "all") ||
+    (normalizedGroup && normalizedGroup !== "All"),
+  );
+}
+
 /**
  * Returns a canonical SEO configuration for the user page based on resolved search params.
  */
 export function getUserPageSEOConfig({
   username,
   userId,
+  q,
+  visibility,
+  group,
+  routeType = "lookup",
 }: {
   username?: SearchParamValue;
   userId?: SearchParamValue;
+  q?: SearchParamValue;
+  visibility?: SearchParamValue;
+  group?: SearchParamValue;
+  routeType?: "lookup" | "profile";
 }): SEOConfig {
   const normalizedUsername = getSearchParamValue(username);
   const normalizedUserId = getSearchParamValue(userId);
+  const profilePreviewImage = buildUserSocialPreviewImage({
+    username: normalizedUsername,
+    userId: normalizedUserId,
+  });
+  const shouldNoIndex =
+    routeType === "lookup" ||
+    hasUserPageStatefulParams({ q, visibility, group });
+  const robots = shouldNoIndex ? NOINDEX_ROBOTS : undefined;
+
+  if (routeType === "lookup" && normalizedUserId) {
+    return createUserSeoConfig({
+      title: `AniList User ${normalizedUserId} Stats - AniCards`,
+      description: `View anime and manga statistics for AniList user ${normalizedUserId}. Generate and download beautiful stat cards showcasing viewing habits, preferences, and achievements.`,
+      keywords: [
+        `anilist user ${normalizedUserId}`,
+        "anilist user stats",
+        "anime statistics",
+        "manga statistics",
+        "stat cards",
+      ],
+      robots,
+      previewImage: profilePreviewImage,
+    });
+  }
 
   if (normalizedUsername) {
-    return {
+    return createUserSeoConfig({
       title: `${normalizedUsername}'s AniList Stats - AniCards`,
       description: `View ${normalizedUsername}'s anime and manga statistics from AniList. Generate and download beautiful stat cards showcasing their viewing habits, preferences, and achievements.`,
       keywords: [
@@ -235,13 +453,14 @@ export function getUserPageSEOConfig({
         "manga statistics",
         "stat cards",
       ],
-      canonical: `/user?username=${encodeURIComponent(normalizedUsername)}`,
-    };
+      canonical: getUserProfilePath(normalizedUsername),
+      robots,
+      previewImage: profilePreviewImage,
+    });
   }
 
   if (normalizedUserId) {
-    return {
-      ...seoConfigs.user,
+    return createUserSeoConfig({
       title: `AniList User ${normalizedUserId} Stats - AniCards`,
       description: `View anime and manga statistics for AniList user ${normalizedUserId}. Generate and download beautiful stat cards showcasing viewing habits, preferences, and achievements.`,
       keywords: [
@@ -251,9 +470,13 @@ export function getUserPageSEOConfig({
         "manga statistics",
         "stat cards",
       ],
-      canonical: buildCanonicalUrl("/user", { userId: normalizedUserId }),
-    };
+      robots,
+      previewImage: profilePreviewImage,
+    });
   }
 
-  return seoConfigs.user;
+  return {
+    ...seoConfigs.user,
+    robots,
+  };
 }

@@ -29,7 +29,7 @@ test.describe("User page", () => {
     });
   });
 
-  test("renders stat cards for a username query and exposes export controls", async ({
+  test("renders stat cards for a canonical username route and exposes export controls", async ({
     page,
   }) => {
     await test.step("Mock user and cards API responses", async () => {
@@ -59,7 +59,7 @@ test.describe("User page", () => {
     });
 
     await test.step("Load the user page", async () => {
-      await page.goto("/user?username=TestUser");
+      await page.goto("/user/TestUser");
     });
 
     await test.step("Verify hero heading and rendered cards", async () => {
@@ -194,7 +194,7 @@ test.describe("User page", () => {
     });
 
     await test.step("Visit user page with invalid username", async () => {
-      await page.goto("/user?username=BrokenUser");
+      await page.goto("/user/BrokenUser");
     });
 
     await test.step("Show error UI with recovery", async () => {
@@ -276,6 +276,8 @@ test.describe("User page", () => {
     });
 
     await page.goto("/user?userId=999");
+
+    await expect(page).toHaveURL(/\/user\/NewUser/i, { timeout: 15000 });
 
     await expect(
       page.getByRole("heading", { level: 1, name: /newuser/i }),

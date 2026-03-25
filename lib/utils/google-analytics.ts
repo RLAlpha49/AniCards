@@ -20,6 +20,7 @@ const PAGE_TITLE_BY_PATH: Record<string, string> = {
   "/projects": "projects",
   "/search": "search",
   "/user": "user_profile",
+  "/user/[username]": "user_profile",
   "/StatCards/[username]": "stat_cards_profile",
 };
 
@@ -118,6 +119,10 @@ const normalizePathname = (pathname: string): string => {
     return "/StatCards/[username]";
   }
 
+  if (/^\/user\/[^/]+$/i.test(withoutTrailingSlash)) {
+    return "/user/[username]";
+  }
+
   return withoutTrailingSlash || "/";
 };
 
@@ -209,6 +214,15 @@ const buildSafePageQuery = (
     else if (params.has("userId")) safeParams.set("lookup", "user_id");
 
     if (params.has("q")) safeParams.set("filter", "search");
+  } else if (normalizedPath === "/user/[username]") {
+    if (params.has("q")) {
+      safeParams.set("filter", "search");
+    } else if (
+      (params.has("visibility") && params.get("visibility") !== "all") ||
+      (params.has("group") && params.get("group") !== "All")
+    ) {
+      safeParams.set("filter", "filtered");
+    }
   }
 
   return safeParams.toString();

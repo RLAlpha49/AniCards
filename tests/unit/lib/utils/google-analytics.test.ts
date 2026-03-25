@@ -133,13 +133,13 @@ describe("google analytics privacy utilities", () => {
   it("normalizes user routes and stat card paths without leaking identifiers", () => {
     expect(
       normalizeAnalyticsPage({
-        pathname: "/user",
-        search: "username=Alex&q=naruto&visibility=all",
+        pathname: "/user/Alex",
+        search: "q=naruto&visibility=all",
       }),
     ).toEqual({
-      pagePath: "/user?lookup=username&filter=search",
+      pagePath: "/user/[username]?filter=search",
       pageTitle: "user_profile",
-      pageLocation: "https://anicards.test/user?lookup=username&filter=search",
+      pageLocation: "https://anicards.test/user/[username]?filter=search",
     });
 
     expect(
@@ -180,8 +180,8 @@ describe("google analytics privacy utilities", () => {
     setAnalyticsConsentState("granted");
 
     pageview({
-      pathname: "/user",
-      search: "username=Alex&q=naruto",
+      pathname: "/user/Alex",
+      search: "q=naruto",
     });
     event({
       action: "editor_tour_dismissed",
@@ -200,10 +200,9 @@ describe("google analytics privacy utilities", () => {
       "event",
       "page_view",
       expect.objectContaining({
-        page_path: "/user?lookup=username&filter=search",
+        page_path: "/user/[username]?filter=search",
         page_title: "user_profile",
-        page_location:
-          "https://anicards.test/user?lookup=username&filter=search",
+        page_location: "https://anicards.test/user/[username]?filter=search",
       }),
     );
     expect(gtagMock).toHaveBeenNthCalledWith(

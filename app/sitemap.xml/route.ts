@@ -1,49 +1,38 @@
+import { stat } from "node:fs/promises";
+import { resolve } from "node:path";
+
 import { NextResponse } from "next/server";
 
-import { getSiteUrl } from "@/lib/site-config";
+import { getStaticSitemapEntries } from "@/lib/seo";
+import { resolveSiteUrl } from "@/lib/site-config";
 
-/**
- * Base URL for sitemap entries, defaulting to the hosted site when the environment variable is missing.
- * @source
- */
-const BASE_URL = getSiteUrl();
+async function getLastModified(
+  sourceFiles: readonly string[],
+): Promise<string> {
+  const stats = await Promise.all(
+    [...sourceFiles, "lib/seo.ts"].map(async (sourceFile) => {
+      try {
+        return await stat(resolve(process.cwd(), sourceFile));
+      } catch {
+        return null;
+      }
+    }),
+  );
 
-/**
- * Static route metadata that drives sitemap priorities and update frequencies.
- * @source
- */
-const pages = [
-  {
-    path: "/",
-    priority: 1,
-    changefreq: "daily" as const,
-  },
-  {
-    path: "/search",
-    priority: 0.9,
-    changefreq: "weekly" as const,
-  },
-  {
-    path: "/examples",
-    priority: 0.85,
-    changefreq: "weekly" as const,
-  },
-  {
-    path: "/user",
-    priority: 0.8,
-    changefreq: "weekly" as const,
-  },
-  {
-    path: "/projects",
-    priority: 0.6,
-    changefreq: "monthly" as const,
-  },
-  {
-    path: "/contact",
-    priority: 0.6,
-    changefreq: "yearly" as const,
-  },
-];
+  const mostRecentMtime = stats.reduce<Date | null>((latest, current) => {
+    if (!current) {
+      return latest;
+    }
+
+    if (!latest || current.mtime > latest) {
+      return current.mtime;
+    }
+
+    return latest;
+  }, null);
+
+  return (mostRecentMtime ?? new Date()).toISOString();
+}
 
 /**
  * Builds the sitemap XML string covering curated routes and returns it as an XML response.
@@ -51,11 +40,19 @@ const pages = [
  * @source
  */
 export async function GET() {
+  const pages = await Promise.all(
+    getStaticSitemapEntries().map(async (page) => ({
+      ...page,
+      lastmod: await getLastModified(page.sourceFiles),
+    })),
+  );
+
   const urls = pages
     .map((page) => {
       return `
     <url>
-      <loc>${BASE_URL}${page.path}</loc>
+      <loc>${resolveSiteUrl(page.path)}</loc>
+      <lastmod>${page.lastmod}</lastmod>
       <changefreq>${page.changefreq}</changefreq>
       <priority>${page.priority}</priority>
     </url>`;

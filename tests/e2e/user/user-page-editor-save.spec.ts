@@ -52,7 +52,7 @@ test.describe("User page editor - save UX", () => {
     });
 
     await test.step("Load the user editor", async () => {
-      await page.goto("/user?username=TestUser");
+      await page.goto("/user/TestUser");
       await expect(
         page.getByRole("heading", { level: 1, name: /testuser/i }),
       ).toBeVisible();
@@ -140,7 +140,7 @@ test.describe("User page editor - save UX", () => {
     });
 
     await test.step("Load the user editor", async () => {
-      await page.goto("/user?username=TestUser");
+      await page.goto("/user/TestUser");
       await expect(
         page.getByRole("heading", { name: "Your Cards" }),
       ).toBeVisible();

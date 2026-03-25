@@ -57,7 +57,7 @@ test.describe("Search page", () => {
     const input = page.getByLabel(/AniList Username/i);
     await input.fill("Alpha49");
 
-    const navigation = page.waitForURL(/\/user\?username=Alpha49/i, {
+    const navigation = page.waitForURL(/\/user\/Alpha49/i, {
       timeout: 15000,
     });
 

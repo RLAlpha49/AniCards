@@ -14,7 +14,10 @@ import AnalyticsProvider from "@/components/AnalyticsProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import GithubCorner from "@/components/GithubCorner";
 import { LayoutShell } from "@/components/LayoutShell";
+import { StructuredDataScript } from "@/components/StructuredDataScript";
+import { getDefaultSocialPreviewImages } from "@/lib/seo";
 import { getSiteUrlObject } from "@/lib/site-config";
+import { generateSiteStructuredData } from "@/lib/structured-data";
 
 import { Providers } from "./providers";
 
@@ -51,6 +54,13 @@ const libreBaskerville = Libre_Baskerville({
 
 export const metadata: Metadata = {
   metadataBase: getSiteUrlObject(),
+  openGraph: {
+    images: getDefaultSocialPreviewImages(),
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: getDefaultSocialPreviewImages(),
+  },
 };
 
 /**
@@ -85,6 +95,7 @@ export default async function RootLayout({
         <GithubCorner />
         <Providers>
           <Suspense fallback={<div>Loading...</div>}>
+            <StructuredDataScript data={generateSiteStructuredData()} />
             <AnalyticsProvider
               enableRuntimeTelemetry={isVercelDeployment}
               trackingId={process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID}

@@ -1,13 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-const SITEMAP_PATHS = [
-  "/",
-  "/search",
-  "/examples",
-  "/user",
-  "/projects",
-  "/contact",
-];
+const SITEMAP_PATHS = ["/", "/search", "/examples", "/projects", "/contact"];
 const DEFAULT_BASE_URL = "https://anicards.alpha49.com";
 
 async function getSitemap(siteUrl?: string) {
@@ -46,7 +39,8 @@ describe("sitemap.xml route", () => {
       expect(xml).toContain(`${DEFAULT_BASE_URL}${path}`);
     });
 
-    expect(xml).not.toContain("<lastmod>");
+    expect(xml).toContain("<lastmod>");
+    expect(xml).not.toContain(`${DEFAULT_BASE_URL}/user`);
   });
 
   it("uses NEXT_PUBLIC_SITE_URL when provided", async () => {

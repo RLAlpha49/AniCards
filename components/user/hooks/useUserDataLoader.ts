@@ -2,7 +2,7 @@
 // bootstrap flow, while keeping the editor store's loading/error phases in sync
 // with what the surrounding UI expects to render.
 
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { fetchUserCards } from "@/lib/api/cards";
@@ -10,6 +10,7 @@ import { isValidUsername } from "@/lib/api-utils";
 import { statCardTypes } from "@/lib/card-types";
 import { getErrorDetails } from "@/lib/error-messages";
 import { trackUserActionError } from "@/lib/error-tracking";
+import { getUserProfilePath } from "@/lib/seo";
 import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 import type { LoadingPhase } from "@/lib/types/loading";
 import type { PublicUserRecord } from "@/lib/types/records";
@@ -77,7 +78,23 @@ async function fetchUserData(
   }
 }
 
-export function useUserDataLoader() {
+function buildCanonicalUserPageUrl(
+  username: string,
+  searchParams: URLSearchParams,
+): string {
+  const nextSearchParams = new URLSearchParams(searchParams.toString());
+  nextSearchParams.delete("userId");
+  nextSearchParams.delete("username");
+
+  const pathname = getUserProfilePath(username);
+  const search = nextSearchParams.toString();
+
+  return search ? `${pathname}?${search}` : pathname;
+}
+
+export function useUserDataLoader(options?: { routeUsername?: string }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const lastLoadedUserRef = useRef<string | null>(null);
   const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>("idle");
@@ -91,6 +108,33 @@ export function useUserDataLoader() {
     loadError,
   } = useUserPageEditor();
   const { startSetup } = useNewUserSetup();
+
+  const navigateToCanonicalUserRoute = useCallback(
+    (username: string | null | undefined) => {
+      const normalizedUsername = username?.trim();
+
+      if (!normalizedUsername || pathname !== "/user") {
+        return;
+      }
+
+      const currentSearch = new URLSearchParams(searchParams.toString());
+      const nextUrl = buildCanonicalUserPageUrl(
+        normalizedUsername,
+        currentSearch,
+      );
+      const currentUrl = currentSearch.toString()
+        ? `${pathname}?${currentSearch.toString()}`
+        : pathname;
+
+      if (nextUrl === currentUrl) {
+        return;
+      }
+
+      lastLoadedUserRef.current = `|${normalizedUsername}`;
+      router.replace(nextUrl);
+    },
+    [pathname, router, searchParams],
+  );
 
   const handleCardsForExistingUser = useCallback(
     async (userIdStr: string, uname: string | null, aUrl: string | null) => {
@@ -152,7 +196,8 @@ export function useUserDataLoader() {
 
   const load = useCallback(async () => {
     const rawUserIdParam = searchParams.get("userId");
-    const rawUsernameParam = searchParams.get("username");
+    const rawUsernameParam =
+      searchParams.get("username") ?? options?.routeUsername ?? null;
 
     let userIdParam = rawUserIdParam?.trim() ?? null;
     let usernameParam = rawUsernameParam?.trim() ?? null;
@@ -206,6 +251,7 @@ export function useUserDataLoader() {
         return;
       }
 
+      navigateToCanonicalUserRoute(setupResult.username);
       setLoadingPhase("complete");
       return;
     }
@@ -233,9 +279,13 @@ export function useUserDataLoader() {
       userResult.avatarUrl,
     );
 
+    navigateToCanonicalUserRoute(userResult.username);
+
     setLoading(false);
     setLoadingPhase("complete");
   }, [
+    options?.routeUsername,
+    navigateToCanonicalUserRoute,
     searchParams,
     setLoading,
     setLoadError,

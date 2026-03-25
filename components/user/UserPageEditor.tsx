@@ -942,7 +942,11 @@ function useStableCardCustomizedById(): Record<string, boolean> {
   );
 }
 
-export function UserPageEditor() {
+export function UserPageEditor({
+  routeUsername,
+}: Readonly<{
+  routeUsername?: string;
+}>) {
   const expectedCardCount = statCardTypes.length;
   const searchParams = useSearchParams();
   const {
@@ -1081,7 +1085,7 @@ export function UserPageEditor() {
     customFilter,
   });
 
-  const { loadingPhase, reload } = useUserDataLoader();
+  const { loadingPhase, reload } = useUserDataLoader({ routeUsername });
 
   const {
     saveNow,

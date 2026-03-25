@@ -28,9 +28,6 @@ function generateNonce(): string {
  *    - Builds and sets CSP headers to protect against XSS and code injection
  *    - Passes the nonce to components via a custom x-nonce header
  *
- * 2. **Route Guards**
- *    - Redirects `/user` to `/user/lookup` when `userId` param is missing
- *
  * Security Benefits:
  * - Prevents XSS attacks by only allowing scripts with valid nonces
  * - Blocks unauthorized resource loading from untrusted sources
@@ -45,13 +42,6 @@ function generateNonce(): string {
  * @source
  */
 export function middleware(request: NextRequest) {
-  const path = request.nextUrl.pathname;
-  const params = request.nextUrl.searchParams;
-
-  if (path === "/user" && !params.get("userId")) {
-    return NextResponse.redirect(new URL("/user/lookup", request.url));
-  }
-
   const nonce = generateNonce();
 
   const cspHeader = buildCSPHeader(nonce);
