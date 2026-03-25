@@ -28,43 +28,6 @@ import {
   embedFavoritesGridImages,
   fetchImageAsDataUrl,
 } from "@/lib/image-utils";
-import { activityStreaksTemplate } from "@/lib/svg-templates/activity-stats/activity-streaks-template";
-import { recentActivitySummaryTemplate } from "@/lib/svg-templates/activity-stats/recent-activity-summary-template";
-import { topActivityDaysTemplate } from "@/lib/svg-templates/activity-stats/top-activity-days-template";
-import { animeMangaOverviewTemplate } from "@/lib/svg-templates/comparative-distribution-stats/anime-manga-overview-template";
-import { countryDiversityTemplate } from "@/lib/svg-templates/comparative-distribution-stats/country-diversity-template";
-import { formatPreferenceOverviewTemplate } from "@/lib/svg-templates/comparative-distribution-stats/format-preference-overview-template";
-import { genreDiversityTemplate } from "@/lib/svg-templates/comparative-distribution-stats/genre-diversity-template";
-import { lengthPreferenceTemplate } from "@/lib/svg-templates/comparative-distribution-stats/length-preference-template";
-import { releaseEraPreferenceTemplate } from "@/lib/svg-templates/comparative-distribution-stats/release-era-preference-template";
-import { scoreCompareAnimeMangaTemplate } from "@/lib/svg-templates/comparative-distribution-stats/score-compare-anime-manga-template";
-import { startYearMomentumTemplate } from "@/lib/svg-templates/comparative-distribution-stats/start-year-momentum-template";
-import { currentlyWatchingReadingTemplate } from "@/lib/svg-templates/completion-progress-stats/currently-watching-reading-template";
-import { milestonesTemplate } from "@/lib/svg-templates/completion-progress-stats/milestones-template";
-import { mostRewatchedTemplate } from "@/lib/svg-templates/completion-progress-stats/most-rewatched-template";
-import { personalRecordsTemplate } from "@/lib/svg-templates/completion-progress-stats/personal-records-template";
-import { planningBacklogTemplate } from "@/lib/svg-templates/completion-progress-stats/planning-backlog-template";
-import { statusCompletionOverviewTemplate } from "@/lib/svg-templates/completion-progress-stats/status-completion-overview-template";
-import { distributionTemplate } from "@/lib/svg-templates/distribution/shared";
-import { animeEpisodeLengthPreferencesTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-episode-length-preferences-template";
-import { animeGenreSynergyTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-genre-synergy-template";
-import { animeSeasonalPreferenceTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-seasonal-preference-template";
-import { animeSourceMaterialDistributionTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/anime-source-material-distribution-template";
-import { extraAnimeMangaStatsTemplate } from "@/lib/svg-templates/extra-anime-manga-stats/shared";
-import { mediaStatsTemplate } from "@/lib/svg-templates/media-stats/shared";
-import { favoritesGridTemplate } from "@/lib/svg-templates/profile-favorite-stats/favorites-grid-template";
-import { favoritesSummaryTemplate } from "@/lib/svg-templates/profile-favorite-stats/favorites-summary-template";
-import { profileOverviewTemplate } from "@/lib/svg-templates/profile-favorite-stats/profile-overview-template";
-import { socialMilestonesTemplate } from "@/lib/svg-templates/social-community/social-milestones-template";
-import { socialStatsTemplate } from "@/lib/svg-templates/social-stats";
-import { studioCollaborationTemplate } from "@/lib/svg-templates/studio-stats";
-import {
-  droppedMediaTemplate,
-  reviewStatsTemplate,
-  seasonalViewingPatternsTemplate,
-  tagCategoryDistributionTemplate,
-  tagDiversityTemplate,
-} from "@/lib/svg-templates/user-analytics";
 import {
   AnimeStats as TemplateAnimeStats,
   MangaStats as TemplateMangaStats,
@@ -79,6 +42,197 @@ import {
 import { TrustedSVG } from "@/lib/types/svg";
 import { extractStyles } from "@/lib/utils";
 import { calculateMilestones } from "@/lib/utils/milestones";
+
+function createLazyLoader<T>(loader: () => Promise<T>): () => Promise<T> {
+  let modulePromise: Promise<T> | undefined;
+
+  return () => {
+    modulePromise ??= loader();
+    return modulePromise;
+  };
+}
+
+const loadActivityStatsTemplates = createLazyLoader(async () => {
+  const [
+    activityStreaksModule,
+    recentActivitySummaryModule,
+    topActivityDaysModule,
+  ] = await Promise.all([
+    import("@/lib/svg-templates/activity-stats/activity-streaks-template"),
+    import("@/lib/svg-templates/activity-stats/recent-activity-summary-template"),
+    import("@/lib/svg-templates/activity-stats/top-activity-days-template"),
+  ]);
+
+  return {
+    activityStreaksTemplate: activityStreaksModule.activityStreaksTemplate,
+    recentActivitySummaryTemplate:
+      recentActivitySummaryModule.recentActivitySummaryTemplate,
+    topActivityDaysTemplate: topActivityDaysModule.topActivityDaysTemplate,
+  };
+});
+
+const loadComparativeDistributionTemplates = createLazyLoader(async () => {
+  const [
+    animeMangaOverviewModule,
+    countryDiversityModule,
+    formatPreferenceOverviewModule,
+    genreDiversityModule,
+    lengthPreferenceModule,
+    releaseEraPreferenceModule,
+    scoreCompareAnimeMangaModule,
+    startYearMomentumModule,
+  ] = await Promise.all([
+    import("@/lib/svg-templates/comparative-distribution-stats/anime-manga-overview-template"),
+    import("@/lib/svg-templates/comparative-distribution-stats/country-diversity-template"),
+    import("@/lib/svg-templates/comparative-distribution-stats/format-preference-overview-template"),
+    import("@/lib/svg-templates/comparative-distribution-stats/genre-diversity-template"),
+    import("@/lib/svg-templates/comparative-distribution-stats/length-preference-template"),
+    import("@/lib/svg-templates/comparative-distribution-stats/release-era-preference-template"),
+    import("@/lib/svg-templates/comparative-distribution-stats/score-compare-anime-manga-template"),
+    import("@/lib/svg-templates/comparative-distribution-stats/start-year-momentum-template"),
+  ]);
+
+  return {
+    animeMangaOverviewTemplate:
+      animeMangaOverviewModule.animeMangaOverviewTemplate,
+    countryDiversityTemplate: countryDiversityModule.countryDiversityTemplate,
+    formatPreferenceOverviewTemplate:
+      formatPreferenceOverviewModule.formatPreferenceOverviewTemplate,
+    genreDiversityTemplate: genreDiversityModule.genreDiversityTemplate,
+    lengthPreferenceTemplate: lengthPreferenceModule.lengthPreferenceTemplate,
+    releaseEraPreferenceTemplate:
+      releaseEraPreferenceModule.releaseEraPreferenceTemplate,
+    scoreCompareAnimeMangaTemplate:
+      scoreCompareAnimeMangaModule.scoreCompareAnimeMangaTemplate,
+    startYearMomentumTemplate:
+      startYearMomentumModule.startYearMomentumTemplate,
+  };
+});
+
+const loadCompletionProgressTemplates = createLazyLoader(async () => {
+  const [
+    currentlyWatchingReadingModule,
+    milestonesModule,
+    mostRewatchedModule,
+    personalRecordsModule,
+    planningBacklogModule,
+    statusCompletionOverviewModule,
+  ] = await Promise.all([
+    import("@/lib/svg-templates/completion-progress-stats/currently-watching-reading-template"),
+    import("@/lib/svg-templates/completion-progress-stats/milestones-template"),
+    import("@/lib/svg-templates/completion-progress-stats/most-rewatched-template"),
+    import("@/lib/svg-templates/completion-progress-stats/personal-records-template"),
+    import("@/lib/svg-templates/completion-progress-stats/planning-backlog-template"),
+    import("@/lib/svg-templates/completion-progress-stats/status-completion-overview-template"),
+  ]);
+
+  return {
+    currentlyWatchingReadingTemplate:
+      currentlyWatchingReadingModule.currentlyWatchingReadingTemplate,
+    milestonesTemplate: milestonesModule.milestonesTemplate,
+    mostRewatchedTemplate: mostRewatchedModule.mostRewatchedTemplate,
+    personalRecordsTemplate: personalRecordsModule.personalRecordsTemplate,
+    planningBacklogTemplate: planningBacklogModule.planningBacklogTemplate,
+    statusCompletionOverviewTemplate:
+      statusCompletionOverviewModule.statusCompletionOverviewTemplate,
+  };
+});
+
+const loadDistributionTemplates = createLazyLoader(async () => {
+  const { distributionTemplate } =
+    await import("@/lib/svg-templates/distribution/shared");
+
+  return { distributionTemplate };
+});
+
+const loadExtraAnimeMangaTemplates = createLazyLoader(async () => {
+  const [
+    animeEpisodeLengthPreferencesModule,
+    animeGenreSynergyModule,
+    animeSeasonalPreferenceModule,
+    animeSourceMaterialDistributionModule,
+    sharedModule,
+  ] = await Promise.all([
+    import("@/lib/svg-templates/extra-anime-manga-stats/anime-episode-length-preferences-template"),
+    import("@/lib/svg-templates/extra-anime-manga-stats/anime-genre-synergy-template"),
+    import("@/lib/svg-templates/extra-anime-manga-stats/anime-seasonal-preference-template"),
+    import("@/lib/svg-templates/extra-anime-manga-stats/anime-source-material-distribution-template"),
+    import("@/lib/svg-templates/extra-anime-manga-stats/shared"),
+  ]);
+
+  return {
+    animeEpisodeLengthPreferencesTemplate:
+      animeEpisodeLengthPreferencesModule.animeEpisodeLengthPreferencesTemplate,
+    animeGenreSynergyTemplate:
+      animeGenreSynergyModule.animeGenreSynergyTemplate,
+    animeSeasonalPreferenceTemplate:
+      animeSeasonalPreferenceModule.animeSeasonalPreferenceTemplate,
+    animeSourceMaterialDistributionTemplate:
+      animeSourceMaterialDistributionModule.animeSourceMaterialDistributionTemplate,
+    extraAnimeMangaStatsTemplate: sharedModule.extraAnimeMangaStatsTemplate,
+  };
+});
+
+const loadMediaStatsTemplateModule = createLazyLoader(async () => {
+  const { mediaStatsTemplate } =
+    await import("@/lib/svg-templates/media-stats/shared");
+
+  return { mediaStatsTemplate };
+});
+
+const loadProfileFavoriteTemplates = createLazyLoader(async () => {
+  const [favoritesGridModule, favoritesSummaryModule, profileOverviewModule] =
+    await Promise.all([
+      import("@/lib/svg-templates/profile-favorite-stats/favorites-grid-template"),
+      import("@/lib/svg-templates/profile-favorite-stats/favorites-summary-template"),
+      import("@/lib/svg-templates/profile-favorite-stats/profile-overview-template"),
+    ]);
+
+  return {
+    favoritesGridTemplate: favoritesGridModule.favoritesGridTemplate,
+    favoritesSummaryTemplate: favoritesSummaryModule.favoritesSummaryTemplate,
+    profileOverviewTemplate: profileOverviewModule.profileOverviewTemplate,
+  };
+});
+
+const loadSocialMilestonesTemplateModule = createLazyLoader(async () => {
+  const { socialMilestonesTemplate } =
+    await import("@/lib/svg-templates/social-community/social-milestones-template");
+
+  return { socialMilestonesTemplate };
+});
+
+const loadSocialStatsTemplateModule = createLazyLoader(async () => {
+  const { socialStatsTemplate } =
+    await import("@/lib/svg-templates/social-stats");
+
+  return { socialStatsTemplate };
+});
+
+const loadStudioCollaborationTemplateModule = createLazyLoader(async () => {
+  const { studioCollaborationTemplate } =
+    await import("@/lib/svg-templates/studio-stats");
+
+  return { studioCollaborationTemplate };
+});
+
+const loadUserAnalyticsTemplates = createLazyLoader(async () => {
+  const {
+    droppedMediaTemplate,
+    reviewStatsTemplate,
+    seasonalViewingPatternsTemplate,
+    tagCategoryDistributionTemplate,
+    tagDiversityTemplate,
+  } = await import("@/lib/svg-templates/user-analytics");
+
+  return {
+    droppedMediaTemplate,
+    reviewStatsTemplate,
+    seasonalViewingPatternsTemplate,
+    tagCategoryDistributionTemplate,
+    tagDiversityTemplate,
+  };
+});
 
 /**
  * Supported visual variants for generated cards.
@@ -315,11 +469,12 @@ function normalizeVariant(
  * @throws {CardDataError} If the user has no stats for the requested media type.
  * @source
  */
-function generateStatsCard(
+async function generateStatsCard(
   params: CardGenerationParams,
   mediaType: "anime" | "manga",
-) {
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { mediaStatsTemplate } = await loadMediaStatsTemplateModule();
   const recordsStats = userRecord.stats?.User?.statistics?.[mediaType] as
     | UserStatsData["User"]["statistics"]["anime"]
     | UserStatsData["User"]["statistics"]["manga"]
@@ -370,8 +525,11 @@ function extractActivityHistory(statsRoot: unknown): ActivityHistoryItem[] {
   return Array.isArray(v) ? (v as ActivityHistoryItem[]) : [];
 }
 
-function generateSocialStatsCard(params: CardGenerationParams) {
+async function generateSocialStatsCard(
+  params: CardGenerationParams,
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { socialStatsTemplate } = await loadSocialStatsTemplateModule();
   return socialStatsTemplate({
     username: userRecord.username ?? userRecord.userId,
     variant: variant as SocialVariant,
@@ -385,10 +543,12 @@ function generateSocialStatsCard(params: CardGenerationParams) {
  * Generate a social milestones card showing progress towards fixed community tiers.
  * @source
  */
-function generateSocialMilestonesCard(
+async function generateSocialMilestonesCard(
   params: CardGenerationParams,
-): TrustedSVG {
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { socialMilestonesTemplate } =
+    await loadSocialMilestonesTemplateModule();
 
   const followers = userRecord.stats?.followersPage?.pageInfo?.total ?? 0;
   const following = userRecord.stats?.followingPage?.pageInfo?.total ?? 0;
@@ -451,7 +611,7 @@ async function generateCardSvg(
 
   const comparativeDispatch: Record<
     string,
-    (p: CardGenerationParams) => TrustedSVG
+    (p: CardGenerationParams) => Promise<TrustedSVG>
   > = {
     animeMangaOverview: generateAnimeMangaOverviewCard,
     scoreCompareAnimeManga: generateScoreCompareAnimeMangaCard,
@@ -549,10 +709,12 @@ async function generateCardSvg(
  * Generate an Anime vs Manga Overview card.
  * @source
  */
-function generateAnimeMangaOverviewCard(
+async function generateAnimeMangaOverviewCard(
   params: CardGenerationParams,
-): TrustedSVG {
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { animeMangaOverviewTemplate } =
+    await loadComparativeDistributionTemplates();
   const animeStats = userRecord.stats?.User?.statistics?.anime;
   const mangaStats = userRecord.stats?.User?.statistics?.manga;
 
@@ -569,10 +731,12 @@ function generateAnimeMangaOverviewCard(
  * Generate an Anime vs Manga Score Comparison card.
  * @source
  */
-function generateScoreCompareAnimeMangaCard(
+async function generateScoreCompareAnimeMangaCard(
   params: CardGenerationParams,
-): TrustedSVG {
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { scoreCompareAnimeMangaTemplate } =
+    await loadComparativeDistributionTemplates();
   const animeStats = userRecord.stats?.User?.statistics?.anime;
   const mangaStats = userRecord.stats?.User?.statistics?.manga;
 
@@ -589,10 +753,12 @@ function generateScoreCompareAnimeMangaCard(
  * Generate a Country Diversity card.
  * @source
  */
-function generateCountryDiversityCard(
+async function generateCountryDiversityCard(
   params: CardGenerationParams,
-): TrustedSVG {
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { countryDiversityTemplate } =
+    await loadComparativeDistributionTemplates();
   return countryDiversityTemplate({
     username: userRecord.username ?? userRecord.userId,
     variant: variant as ComparativeVariant,
@@ -606,8 +772,12 @@ function generateCountryDiversityCard(
  * Generate a Genre Diversity card.
  * @source
  */
-function generateGenreDiversityCard(params: CardGenerationParams): TrustedSVG {
+async function generateGenreDiversityCard(
+  params: CardGenerationParams,
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { genreDiversityTemplate } =
+    await loadComparativeDistributionTemplates();
   return genreDiversityTemplate({
     username: userRecord.username ?? userRecord.userId,
     variant: variant as ComparativeVariant,
@@ -621,10 +791,12 @@ function generateGenreDiversityCard(params: CardGenerationParams): TrustedSVG {
  * Generate a Format Preference Overview card.
  * @source
  */
-function generateFormatPreferenceOverviewCard(
+async function generateFormatPreferenceOverviewCard(
   params: CardGenerationParams,
-): TrustedSVG {
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { formatPreferenceOverviewTemplate } =
+    await loadComparativeDistributionTemplates();
   return formatPreferenceOverviewTemplate({
     username: userRecord.username ?? userRecord.userId,
     variant: variant as ComparativeVariant,
@@ -638,10 +810,12 @@ function generateFormatPreferenceOverviewCard(
  * Generate a Release Era Preference card.
  * @source
  */
-function generateReleaseEraPreferenceCard(
+async function generateReleaseEraPreferenceCard(
   params: CardGenerationParams,
-): TrustedSVG {
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { releaseEraPreferenceTemplate } =
+    await loadComparativeDistributionTemplates();
   return releaseEraPreferenceTemplate({
     username: userRecord.username ?? userRecord.userId,
     variant: variant as ComparativeVariant,
@@ -655,10 +829,12 @@ function generateReleaseEraPreferenceCard(
  * Generate a Start-Year Momentum card.
  * @source
  */
-function generateStartYearMomentumCard(
+async function generateStartYearMomentumCard(
   params: CardGenerationParams,
-): TrustedSVG {
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { startYearMomentumTemplate } =
+    await loadComparativeDistributionTemplates();
   return startYearMomentumTemplate({
     username: userRecord.username ?? userRecord.userId,
     variant: variant as ComparativeVariant,
@@ -672,10 +848,12 @@ function generateStartYearMomentumCard(
  * Generate a Length Preference card.
  * @source
  */
-function generateLengthPreferenceCard(
+async function generateLengthPreferenceCard(
   params: CardGenerationParams,
-): TrustedSVG {
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { lengthPreferenceTemplate } =
+    await loadComparativeDistributionTemplates();
   return lengthPreferenceTemplate({
     username: userRecord.username ?? userRecord.userId,
     variant: variant as ComparativeVariant,
@@ -694,11 +872,12 @@ function generateLengthPreferenceCard(
  * @throws {CardDataError} If no category data is available for the user.
  * @source
  */
-function generateCategoryCard(
+async function generateCategoryCard(
   params: CardGenerationParams,
   baseCardType: string,
-) {
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant, favorites } = params;
+  const { extraAnimeMangaStatsTemplate } = await loadExtraAnimeMangaTemplates();
   const isAnime = baseCardType.startsWith("anime");
   // Map normalized suffix to the stats property name used in the records
   const categoryMap: Record<string, string> = {
@@ -806,10 +985,12 @@ function generateFormatDistributionCard(
  * Data is computed from the user's anime CURRENT + COMPLETED lists.
  * @source
  */
-function generateSourceMaterialDistributionCard(
+async function generateSourceMaterialDistributionCard(
   params: CardGenerationParams,
-): TrustedSVG {
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { animeSourceMaterialDistributionTemplate } =
+    await loadExtraAnimeMangaTemplates();
 
   const statsList = toTemplateAnimeSourceMaterialDistribution(userRecord);
   if (!statsList.length) {
@@ -838,10 +1019,12 @@ function generateSourceMaterialDistributionCard(
  * Data is computed from the user's anime CURRENT + COMPLETED lists.
  * @source
  */
-function generateSeasonalPreferenceCard(
+async function generateSeasonalPreferenceCard(
   params: CardGenerationParams,
-): TrustedSVG {
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { animeSeasonalPreferenceTemplate } =
+    await loadExtraAnimeMangaTemplates();
 
   const statsList = toTemplateAnimeSeasonalPreference(userRecord);
   if (!statsList.length) {
@@ -871,10 +1054,12 @@ function generateSeasonalPreferenceCard(
  * Uses the user's anime statistics `lengths` and buckets into Short/Standard/Long.
  * @source
  */
-function generateEpisodeLengthPreferencesCard(
+async function generateEpisodeLengthPreferencesCard(
   params: CardGenerationParams,
-): TrustedSVG {
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { animeEpisodeLengthPreferencesTemplate } =
+    await loadExtraAnimeMangaTemplates();
 
   const statsList = toTemplateAnimeEpisodeLengthPreferences(userRecord);
   if (!statsList.length) {
@@ -904,8 +1089,11 @@ function generateEpisodeLengthPreferencesCard(
  * Uses pre-aggregated totals stored on the user record at write time.
  * @source
  */
-function generateGenreSynergyCard(params: CardGenerationParams): TrustedSVG {
+async function generateGenreSynergyCard(
+  params: CardGenerationParams,
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord } = params;
+  const { animeGenreSynergyTemplate } = await loadExtraAnimeMangaTemplates();
 
   const statsList = toTemplateAnimeGenreSynergy(userRecord);
   if (!statsList.length) {
@@ -936,15 +1124,16 @@ function generateGenreSynergyCard(params: CardGenerationParams): TrustedSVG {
  * @throws {CardDataError} If the list is empty.
  * @source
  */
-function generateSimpleListCard(
+async function generateSimpleListCard(
   params: CardGenerationParams,
   baseCardType: string,
   listKey: string,
   nameKey: string,
   notFoundMessage: string,
   extraTemplateProps?: Record<string, unknown>,
-): TrustedSVG {
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { extraAnimeMangaStatsTemplate } = await loadExtraAnimeMangaTemplates();
   const isAnime = baseCardType.startsWith("anime");
   const statsRoot = isAnime
     ? userRecord.stats?.User?.statistics?.anime
@@ -985,12 +1174,13 @@ function generateSimpleListCard(
  * @throws {CardDataError} If distribution data is not present for the user.
  * @source
  */
-function generateDistributionCard(
+async function generateDistributionCard(
   params: CardGenerationParams,
   baseCardType: string,
   kind: "score" | "year",
-) {
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { distributionTemplate } = await loadDistributionTemplates();
   const isAnime = baseCardType.startsWith("anime");
   const stats = isAnime
     ? userRecord.stats?.User?.statistics?.anime
@@ -1051,11 +1241,12 @@ function generateDistributionCard(
  * @throws {CardDataError} If no country data is present for the user.
  * @source
  */
-function generateCountryCard(
+async function generateCountryCard(
   params: CardGenerationParams,
   baseCardType: string,
-) {
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { extraAnimeMangaStatsTemplate } = await loadExtraAnimeMangaTemplates();
   const isAnime = baseCardType.startsWith("anime");
   const statsRoot = isAnime
     ? userRecord.stats?.User?.statistics?.anime
@@ -1097,6 +1288,7 @@ async function generateProfileOverviewCard(
   params: CardGenerationParams,
 ): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { profileOverviewTemplate } = await loadProfileFavoriteTemplates();
   const user = userRecord.stats?.User;
 
   if (!user?.statistics) {
@@ -1123,10 +1315,11 @@ async function generateProfileOverviewCard(
  * @returns A TrustedSVG with the rendered favourites summary card.
  * @source
  */
-function generateFavoritesSummaryCard(
+async function generateFavoritesSummaryCard(
   params: CardGenerationParams,
-): TrustedSVG {
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { favoritesSummaryTemplate } = await loadProfileFavoriteTemplates();
   const user = userRecord.stats?.User;
 
   if (!user?.favourites) {
@@ -1151,6 +1344,7 @@ async function generateFavoritesGridCard(
   params: CardGenerationParams,
 ): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { favoritesGridTemplate } = await loadProfileFavoriteTemplates();
   const user = userRecord.stats?.User;
 
   if (!user?.favourites) {
@@ -1218,10 +1412,11 @@ type ActivityCompactVariant = "default";
  * @returns A TrustedSVG with the rendered activity summary card.
  * @source
  */
-function generateRecentActivitySummaryCard(
+async function generateRecentActivitySummaryCard(
   params: CardGenerationParams,
-): TrustedSVG {
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { recentActivitySummaryTemplate } = await loadActivityStatsTemplates();
   const activityHistory = extractActivityHistory(userRecord.stats?.User?.stats);
 
   return recentActivitySummaryTemplate({
@@ -1238,8 +1433,11 @@ function generateRecentActivitySummaryCard(
  * @returns A TrustedSVG with the rendered activity streaks card.
  * @source
  */
-function generateActivityStreaksCard(params: CardGenerationParams): TrustedSVG {
+async function generateActivityStreaksCard(
+  params: CardGenerationParams,
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { activityStreaksTemplate } = await loadActivityStatsTemplates();
   const activityHistory = extractActivityHistory(userRecord.stats?.User?.stats);
 
   return activityStreaksTemplate({
@@ -1256,8 +1454,11 @@ function generateActivityStreaksCard(params: CardGenerationParams): TrustedSVG {
  * @returns A TrustedSVG with the rendered top activity days card.
  * @source
  */
-function generateTopActivityDaysCard(params: CardGenerationParams): TrustedSVG {
+async function generateTopActivityDaysCard(
+  params: CardGenerationParams,
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { topActivityDaysTemplate } = await loadActivityStatsTemplates();
   const activityHistory = extractActivityHistory(userRecord.stats?.User?.stats);
 
   return topActivityDaysTemplate({
@@ -1287,10 +1488,12 @@ function extractMediaListEntries(
  * @returns A TrustedSVG with the rendered status completion overview card.
  * @source
  */
-function generateStatusCompletionOverviewCard(
+async function generateStatusCompletionOverviewCard(
   params: CardGenerationParams,
-): TrustedSVG {
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { statusCompletionOverviewTemplate } =
+    await loadCompletionProgressTemplates();
   const animeStats = userRecord.stats?.User?.statistics?.anime;
   const mangaStats = userRecord.stats?.User?.statistics?.manga;
 
@@ -1318,8 +1521,11 @@ function generateStatusCompletionOverviewCard(
  * @returns A TrustedSVG with the rendered milestones card.
  * @source
  */
-function generateMilestonesCard(params: CardGenerationParams): TrustedSVG {
+async function generateMilestonesCard(
+  params: CardGenerationParams,
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { milestonesTemplate } = await loadCompletionProgressTemplates();
   const animeStats = userRecord.stats?.User?.statistics?.anime;
   const mangaStats = userRecord.stats?.User?.statistics?.manga;
 
@@ -1344,8 +1550,11 @@ function generateMilestonesCard(params: CardGenerationParams): TrustedSVG {
  * @returns A TrustedSVG with the rendered personal records card.
  * @source
  */
-function generatePersonalRecordsCard(params: CardGenerationParams): TrustedSVG {
+async function generatePersonalRecordsCard(
+  params: CardGenerationParams,
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { personalRecordsTemplate } = await loadCompletionProgressTemplates();
 
   const animeCompleted = extractMediaListEntries(
     userRecord.stats?.animeCompleted,
@@ -1375,8 +1584,11 @@ function generatePersonalRecordsCard(params: CardGenerationParams): TrustedSVG {
  * @returns A TrustedSVG with the rendered planning backlog card.
  * @source
  */
-function generatePlanningBacklogCard(params: CardGenerationParams): TrustedSVG {
+async function generatePlanningBacklogCard(
+  params: CardGenerationParams,
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { planningBacklogTemplate } = await loadCompletionProgressTemplates();
 
   const animePlanning = extractMediaListEntries(
     userRecord.stats?.animePlanning,
@@ -1402,8 +1614,11 @@ function generatePlanningBacklogCard(params: CardGenerationParams): TrustedSVG {
  * @returns A TrustedSVG with the rendered most rewatched card.
  * @source
  */
-function generateMostRewatchedCard(params: CardGenerationParams): TrustedSVG {
+async function generateMostRewatchedCard(
+  params: CardGenerationParams,
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { mostRewatchedTemplate } = await loadCompletionProgressTemplates();
 
   const animeRewatched = extractMediaListEntries(
     userRecord.stats?.animeRewatched,
@@ -1430,6 +1645,8 @@ async function generateCurrentlyWatchingReadingCard(
   params: CardGenerationParams,
 ): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { currentlyWatchingReadingTemplate } =
+    await loadCompletionProgressTemplates();
 
   const typedVariant = variant as CurrentlyWatchingReadingVariant;
 
@@ -1510,10 +1727,12 @@ type UserAnalyticsVariant = "default";
  * Generate a Tag Category Distribution card.
  * @source
  */
-function generateTagCategoryDistributionCard(
+async function generateTagCategoryDistributionCard(
   params: CardGenerationParams,
-): TrustedSVG {
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { tagCategoryDistributionTemplate } =
+    await loadUserAnalyticsTemplates();
 
   return tagCategoryDistributionTemplate({
     username: userRecord.username ?? userRecord.userId,
@@ -1528,8 +1747,11 @@ function generateTagCategoryDistributionCard(
  * Generate a Tag Diversity card.
  * @source
  */
-function generateTagDiversityCard(params: CardGenerationParams): TrustedSVG {
+async function generateTagDiversityCard(
+  params: CardGenerationParams,
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { tagDiversityTemplate } = await loadUserAnalyticsTemplates();
 
   return tagDiversityTemplate({
     username: userRecord.username ?? userRecord.userId,
@@ -1544,10 +1766,12 @@ function generateTagDiversityCard(params: CardGenerationParams): TrustedSVG {
  * Generate a Seasonal Viewing Patterns card.
  * @source
  */
-function generateSeasonalViewingPatternsCard(
+async function generateSeasonalViewingPatternsCard(
   params: CardGenerationParams,
-): TrustedSVG {
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord, variant } = params;
+  const { seasonalViewingPatternsTemplate } =
+    await loadUserAnalyticsTemplates();
   const activityHistory = extractActivityHistory(userRecord.stats?.User?.stats);
 
   return seasonalViewingPatternsTemplate({
@@ -1562,8 +1786,11 @@ function generateSeasonalViewingPatternsCard(
  * Generate a Dropped Media card.
  * @source
  */
-function generateDroppedMediaCard(params: CardGenerationParams): TrustedSVG {
+async function generateDroppedMediaCard(
+  params: CardGenerationParams,
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord } = params;
+  const { droppedMediaTemplate } = await loadUserAnalyticsTemplates();
 
   const animeDropped = extractMediaListEntries(userRecord.stats?.animeDropped);
   const mangaDropped = extractMediaListEntries(userRecord.stats?.mangaDropped);
@@ -1581,8 +1808,11 @@ function generateDroppedMediaCard(params: CardGenerationParams): TrustedSVG {
  * Generate a Review Stats card.
  * @source
  */
-function generateReviewStatsCard(params: CardGenerationParams): TrustedSVG {
+async function generateReviewStatsCard(
+  params: CardGenerationParams,
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord } = params;
+  const { reviewStatsTemplate } = await loadUserAnalyticsTemplates();
 
   const reviews = userRecord.stats?.userReviews?.reviews;
 
@@ -1598,10 +1828,12 @@ function generateReviewStatsCard(params: CardGenerationParams): TrustedSVG {
  * Generate a Studio Collaboration card showing top studio co-occurrence pairs.
  * @source
  */
-function generateStudioCollaborationCard(
+async function generateStudioCollaborationCard(
   params: CardGenerationParams,
-): TrustedSVG {
+): Promise<TrustedSVG> {
   const { cardConfig, userRecord } = params;
+  const { studioCollaborationTemplate } =
+    await loadStudioCollaborationTemplateModule();
 
   const statsList = toTemplateStudioCollaboration(userRecord);
   if (!statsList.length) {

@@ -5,6 +5,9 @@
  * SECURITY: All image fetches are allow-listed to known AniList hosts to prevent SSRF.
  */
 
+import { createHash } from "node:crypto";
+
+import { redisClient } from "@/lib/api-utils";
 import type { UserFavourites } from "@/lib/types/records";
 
 /**
@@ -28,9 +31,107 @@ export const IMAGE_FETCH_TIMEOUT_MS = 6_000;
 /** Maximum allowed image size (2.5MB). */
 export const IMAGE_MAX_BYTES = 2_500_000;
 
+/** Durable cache key prefix for transformed remote assets. */
+export const IMAGE_DATA_URL_SHARED_CACHE_KEY_PREFIX = "image-data-url:v1";
+
+/** Maximum number of transformed assets retained in memory per process. */
+export const IMAGE_DATA_URL_MEMORY_CACHE_MAX_ENTRIES = 500;
+
 /** In-memory cache for fetched image data URLs. */
 type ImageCacheEntry = { dataUrl: string; expiresAt: number };
 export const imageDataUrlCache = new Map<string, ImageCacheEntry>();
+const imageDataUrlInflightCache = new Map<string, Promise<string | null>>();
+
+function getImageDataUrlCacheKey(urlString: string): string {
+  const digest = createHash("sha256").update(urlString).digest("hex");
+  return `${IMAGE_DATA_URL_SHARED_CACHE_KEY_PREFIX}:${digest}`;
+}
+
+function isImageCacheEntry(value: unknown): value is ImageCacheEntry {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    typeof (value as ImageCacheEntry).dataUrl === "string" &&
+    typeof (value as ImageCacheEntry).expiresAt === "number" &&
+    Number.isFinite((value as ImageCacheEntry).expiresAt)
+  );
+}
+
+function getFreshMemoryCachedDataUrl(
+  urlString: string,
+  now: number,
+): string | null {
+  const cached = imageDataUrlCache.get(urlString);
+  if (!cached) return null;
+  if (cached.expiresAt <= now) {
+    imageDataUrlCache.delete(urlString);
+    return null;
+  }
+  return cached.dataUrl;
+}
+
+function setMemoryCachedDataUrl(
+  urlString: string,
+  dataUrl: string,
+  expiresAt: number,
+): void {
+  imageDataUrlCache.set(urlString, { dataUrl, expiresAt });
+
+  if (imageDataUrlCache.size > IMAGE_DATA_URL_MEMORY_CACHE_MAX_ENTRIES) {
+    const oldestKey = imageDataUrlCache.keys().next().value;
+    if (oldestKey) {
+      imageDataUrlCache.delete(oldestKey);
+    }
+  }
+}
+
+async function readSharedCachedDataUrl(
+  urlString: string,
+  now: number,
+): Promise<string | null> {
+  try {
+    const rawEntry = await redisClient.get(getImageDataUrlCacheKey(urlString));
+    if (typeof rawEntry !== "string") return null;
+
+    const parsedEntry = JSON.parse(rawEntry) as unknown;
+    if (!isImageCacheEntry(parsedEntry)) return null;
+
+    if (parsedEntry.expiresAt <= now) {
+      void redisClient.del(getImageDataUrlCacheKey(urlString)).catch(() => {});
+      return null;
+    }
+
+    setMemoryCachedDataUrl(
+      urlString,
+      parsedEntry.dataUrl,
+      parsedEntry.expiresAt,
+    );
+    return parsedEntry.dataUrl;
+  } catch {
+    return null;
+  }
+}
+
+async function writeSharedCachedDataUrl(
+  urlString: string,
+  entry: ImageCacheEntry,
+): Promise<void> {
+  try {
+    await redisClient.set(
+      getImageDataUrlCacheKey(urlString),
+      JSON.stringify(entry),
+      { ex: Math.max(1, Math.ceil(IMAGE_DATA_URL_CACHE_TTL_MS / 1000)) },
+    );
+  } catch {
+    // Swallow cache write failures so render-time asset embedding stays fail-open.
+  }
+}
+
+/** Clears all local image data URL caches. Intended for tests. */
+export function clearImageDataUrlCaches(): void {
+  imageDataUrlCache.clear();
+  imageDataUrlInflightCache.clear();
+}
 
 /**
  * Validates if a URL is allowed for AniList image fetching.
@@ -67,49 +168,65 @@ export async function fetchImageAsDataUrl(
   if (!isAllowedAniListImageUrl(urlString)) return null;
 
   const now = Date.now();
-  const cached = imageDataUrlCache.get(urlString);
-  if (cached && cached.expiresAt > now) return cached.dataUrl;
+  const memoryCached = getFreshMemoryCachedDataUrl(urlString, now);
+  if (memoryCached) return memoryCached;
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), IMAGE_FETCH_TIMEOUT_MS);
+  const inflight = imageDataUrlInflightCache.get(urlString);
+  if (inflight) {
+    return inflight;
+  }
 
-  try {
-    const response = await fetch(urlString, {
-      signal: controller.signal,
-      headers: {
-        "User-Agent": "AniCards/1.0",
-        Accept: "image/webp,image/avif,image/png,image/jpeg,image/*,*/*;q=0.8",
-      },
-    });
-
-    if (!response.ok) return null;
-
-    const contentType = response.headers.get("content-type");
-    if (!contentType?.startsWith("image/")) return null;
-
-    const buffer = await response.arrayBuffer();
-    if (buffer.byteLength > IMAGE_MAX_BYTES) return null;
-
-    const base64 = Buffer.from(buffer).toString("base64");
-    const dataUrl = `data:${contentType};base64,${base64}`;
-
-    imageDataUrlCache.set(urlString, {
-      dataUrl,
-      expiresAt: now + IMAGE_DATA_URL_CACHE_TTL_MS,
-    });
-
-    if (imageDataUrlCache.size > 500) {
-      const oldestKey = imageDataUrlCache.keys().next().value;
-      if (oldestKey) {
-        imageDataUrlCache.delete(oldestKey);
-      }
+  const fetchPromise = (async (): Promise<string | null> => {
+    const sharedCached = await readSharedCachedDataUrl(urlString, now);
+    if (sharedCached) {
+      return sharedCached;
     }
 
-    return dataUrl;
-  } catch {
-    return null;
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      IMAGE_FETCH_TIMEOUT_MS,
+    );
+
+    try {
+      const response = await fetch(urlString, {
+        signal: controller.signal,
+        headers: {
+          "User-Agent": "AniCards/1.0",
+          Accept:
+            "image/webp,image/avif,image/png,image/jpeg,image/*,*/*;q=0.8",
+        },
+      });
+
+      if (!response.ok) return null;
+
+      const contentType = response.headers.get("content-type");
+      if (!contentType?.startsWith("image/")) return null;
+
+      const buffer = await response.arrayBuffer();
+      if (buffer.byteLength > IMAGE_MAX_BYTES) return null;
+
+      const base64 = Buffer.from(buffer).toString("base64");
+      const dataUrl = `data:${contentType};base64,${base64}`;
+      const expiresAt = Date.now() + IMAGE_DATA_URL_CACHE_TTL_MS;
+
+      setMemoryCachedDataUrl(urlString, dataUrl, expiresAt);
+      await writeSharedCachedDataUrl(urlString, { dataUrl, expiresAt });
+
+      return dataUrl;
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timeout);
+    }
+  })();
+
+  imageDataUrlInflightCache.set(urlString, fetchPromise);
+
+  try {
+    return await fetchPromise;
   } finally {
-    clearTimeout(timeout);
+    imageDataUrlInflightCache.delete(urlString);
   }
 }
 
