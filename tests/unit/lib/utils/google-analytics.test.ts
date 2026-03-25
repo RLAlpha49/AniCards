@@ -149,6 +149,23 @@ describe("google analytics privacy utilities", () => {
     ).toBe("/StatCards/[username]");
   });
 
+  it("collapses long separator runs in analytics labels", () => {
+    setAnalyticsConsentState("granted");
+
+    event({
+      action: "navigation",
+      category: "engagement",
+      label: `source${"!".repeat(50)}dest`,
+    });
+
+    expect(gtagMock).toHaveBeenNthCalledWith(
+      2,
+      "event",
+      "navigation",
+      expect.objectContaining({ event_label: "source_dest" }),
+    );
+  });
+
   it("blocks analytics events until consent is granted", () => {
     event({
       action: "button_clicked",

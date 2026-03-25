@@ -25,6 +25,27 @@ const PAGE_TITLE_BY_PATH: Record<string, string> = {
 
 let cachedConsentState: AnalyticsConsentState = "unset";
 
+const isAsciiLowerAlphaNumeric = (char: string): boolean => {
+  const code = char.codePointAt(0);
+
+  return (
+    code !== undefined &&
+    ((code >= 97 && code <= 122) || (code >= 48 && code <= 57))
+  );
+};
+
+const appendAnalyticsTokenSeparator = (value: string): string => {
+  if (value.length >= MAX_ANALYTICS_TOKEN_LENGTH) return value;
+
+  return `${value}_`;
+};
+
+const appendAnalyticsTokenChar = (value: string, char: string): string => {
+  if (value.length >= MAX_ANALYTICS_TOKEN_LENGTH) return value;
+
+  return `${value}${char}`;
+};
+
 /**
  * Safely retrieve the global gtag function from globalThis in a way that
  * works both in browser and server environments.
@@ -50,12 +71,23 @@ const sanitizeAnalyticsToken = (
   value: string,
   fallback = "unknown",
 ): string => {
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]+/g, "_")
-    .replaceAll(/^_+|_+$/g, "")
-    .slice(0, MAX_ANALYTICS_TOKEN_LENGTH);
+  const normalizedInput = value.trim().toLowerCase();
+  let normalized = "";
+  let pendingSeparator = false;
+
+  for (const char of normalizedInput) {
+    if (!isAsciiLowerAlphaNumeric(char)) {
+      pendingSeparator = normalized.length > 0;
+      continue;
+    }
+
+    if (pendingSeparator && normalized.length > 0) {
+      normalized = appendAnalyticsTokenSeparator(normalized);
+    }
+
+    pendingSeparator = false;
+    normalized = appendAnalyticsTokenChar(normalized, char);
+  }
 
   return normalized.length > 0 ? normalized : fallback;
 };
