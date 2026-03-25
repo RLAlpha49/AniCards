@@ -1,29 +1,29 @@
-/**
- * Configuration shape used by Google Analytics gtag calls.
- * @source
- */
-interface GAConfig {
-  page_path?: string;
-  page_title?: string;
-  page_location?: string;
-  event_category?: string;
-  event_label?: string;
-  value?: number;
-  [key: string]: string | number | boolean | undefined;
-}
+export type AnalyticsConsentState = "unset" | "granted" | "denied";
+
+export const ANALYTICS_CONSENT_STORAGE_KEY = "anicards:analytics-consent:v1";
+export const ANALYTICS_CONSENT_EVENT = "anicards:analytics-consent-changed";
 
 declare global {
   interface Window {
-    gtag: (command: string, targetId: string, config?: GAConfig) => void;
+    dataLayer?: unknown[];
+    gtag?: (...args: unknown[]) => void;
   }
 }
 
-// A typed alias for the gtag function to avoid repeating the signature.
-type GtagFunction = (
-  command: string,
-  targetId: string,
-  config?: GAConfig,
-) => void;
+type GtagFunction = (...args: unknown[]) => void;
+
+const MAX_ANALYTICS_TOKEN_LENGTH = 48;
+const PAGE_TITLE_BY_PATH: Record<string, string> = {
+  "/": "home",
+  "/contact": "contact",
+  "/examples": "examples",
+  "/projects": "projects",
+  "/search": "search",
+  "/user": "user_profile",
+  "/StatCards/[username]": "stat_cards_profile",
+};
+
+let cachedConsentState: AnalyticsConsentState = "unset";
 
 /**
  * Safely retrieve the global gtag function from globalThis in a way that
@@ -33,21 +33,327 @@ const getGtag = (): GtagFunction | undefined => {
   if (typeof globalThis === "undefined") return undefined;
   // globalThis in browsers is the Window object; cast safely to the Window type
   const win = globalThis as unknown as Window;
-  return win.gtag as GtagFunction | undefined;
+  return win.gtag;
 };
+
+const getStorage = (): Storage | undefined => {
+  if (globalThis.window === undefined) return undefined;
+
+  try {
+    return globalThis.window.localStorage;
+  } catch {
+    return undefined;
+  }
+};
+
+const sanitizeAnalyticsToken = (
+  value: string,
+  fallback = "unknown",
+): string => {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, "_")
+    .replaceAll(/^_+|_+$/g, "")
+    .slice(0, MAX_ANALYTICS_TOKEN_LENGTH);
+
+  return normalized.length > 0 ? normalized : fallback;
+};
+
+const looksLikeUrl = (value: string): boolean => {
+  return value.startsWith("/") || /^https?:\/\//i.test(value);
+};
+
+const looksSensitiveValue = (value: string): boolean => {
+  return (
+    /@/.test(value) ||
+    /[?&=]/.test(value) ||
+    /^\d{4,}$/.test(value) ||
+    /^[a-f0-9-]{16,}$/i.test(value) ||
+    value.length > 72
+  );
+};
+
+const normalizePathname = (pathname: string): string => {
+  const trimmed = pathname.trim();
+  const withLeadingSlash = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  const withoutTrailingSlash =
+    withLeadingSlash.length > 1
+      ? withLeadingSlash.replaceAll(/\/+$/g, "")
+      : withLeadingSlash;
+
+  if (/^\/statcards\/[^/]+$/i.test(withoutTrailingSlash)) {
+    return "/StatCards/[username]";
+  }
+
+  return withoutTrailingSlash || "/";
+};
+
+const toSearchParams = (search?: string | URLSearchParams): URLSearchParams => {
+  if (!search) return new URLSearchParams();
+
+  if (typeof search === "string") {
+    return new URLSearchParams(
+      search.startsWith("?") ? search.slice(1) : search,
+    );
+  }
+
+  return new URLSearchParams(search.toString());
+};
+
+const classifyAnalyticsError = (value?: string): string => {
+  const text = (value ?? "").toLowerCase();
+
+  if (text.includes("abort")) return "aborted";
+  if (text.includes("timeout")) return "timeout";
+  if (
+    text.includes("network") ||
+    text.includes("fetch") ||
+    text.includes("load failed")
+  ) {
+    return "network";
+  }
+  if (
+    text.includes("unauthorized") ||
+    text.includes("forbidden") ||
+    text.includes("permission")
+  ) {
+    return "authorization";
+  }
+  if (text.includes("not found") || text.includes("404")) {
+    return "not_found";
+  }
+  if (
+    text.includes("validation") ||
+    text.includes("invalid") ||
+    text.includes("required") ||
+    text.includes("parse")
+  ) {
+    return "validation";
+  }
+  if (
+    text.includes("quota") ||
+    text.includes("too many") ||
+    text.includes("429") ||
+    text.includes("rate")
+  ) {
+    return "rate_limited";
+  }
+  if (text.includes("storage") || text.includes("localstorage")) {
+    return "storage";
+  }
+  if (
+    text.includes("typeerror") ||
+    text.includes("referenceerror") ||
+    text.includes("render")
+  ) {
+    return "runtime";
+  }
+
+  return "unknown";
+};
+
+const buildAnalyticsErrorLabel = (
+  errorType: string,
+  errorMessage?: string,
+): string => {
+  const typeToken = sanitizeAnalyticsToken(errorType, "error");
+  const errorBucket = classifyAnalyticsError(
+    `${errorType} ${errorMessage ?? ""}`,
+  );
+  return sanitizeAnalyticsToken(`${typeToken}_${errorBucket}`, "error_unknown");
+};
+
+const buildSafePageQuery = (
+  pathname: string,
+  search?: string | URLSearchParams,
+): string => {
+  const normalizedPath = normalizePathname(pathname);
+  const params = toSearchParams(search);
+  const safeParams = new URLSearchParams();
+
+  if (normalizedPath === "/user") {
+    if (params.has("username")) safeParams.set("lookup", "username");
+    else if (params.has("userId")) safeParams.set("lookup", "user_id");
+
+    if (params.has("q")) safeParams.set("filter", "search");
+  }
+
+  return safeParams.toString();
+};
+
+const normalizeAnalyticsLabel = ({
+  action,
+  category,
+  label,
+}: {
+  action: string;
+  category: string;
+  label?: string;
+}): string | undefined => {
+  if (!label) return undefined;
+
+  const trimmed = label.trim();
+  if (!trimmed) return undefined;
+
+  if (category === "error") {
+    if (/^[a-z0-9_]{1,48}$/.test(trimmed) && trimmed.includes("_")) {
+      return sanitizeAnalyticsToken(trimmed, "error_unknown");
+    }
+
+    return buildAnalyticsErrorLabel(action, trimmed);
+  }
+
+  if (looksLikeUrl(trimmed)) {
+    if (/^https?:\/\//i.test(trimmed)) {
+      try {
+        const parsedUrl = new URL(trimmed);
+        return normalizeAnalyticsPage({
+          pathname: parsedUrl.pathname,
+          search: parsedUrl.search,
+        }).pagePath;
+      } catch {
+        return "redacted";
+      }
+    }
+
+    const [pathPart, searchPart] = trimmed.split("?", 2);
+    return normalizeAnalyticsPage({
+      pathname: pathPart,
+      search: searchPart,
+    }).pagePath;
+  }
+
+  if (/^\d{4,}$/.test(trimmed)) {
+    return "numeric_value";
+  }
+
+  if (looksSensitiveValue(trimmed)) {
+    return "redacted";
+  }
+
+  return sanitizeAnalyticsToken(trimmed);
+};
+
+export function buildAnalyticsConsentMode(granted: boolean): {
+  analytics_storage: "granted" | "denied";
+  ad_storage: "denied";
+  ad_user_data: "denied";
+  ad_personalization: "denied";
+} {
+  return {
+    analytics_storage: granted ? "granted" : "denied",
+    ad_storage: "denied",
+    ad_user_data: "denied",
+    ad_personalization: "denied",
+  };
+}
+
+export function updateAnalyticsConsentMode(granted: boolean): void {
+  const gtag = getGtag();
+  if (!gtag) return;
+
+  try {
+    gtag("consent", "update", buildAnalyticsConsentMode(granted));
+  } catch {
+    console.error("Google Analytics consent update failed");
+  }
+}
+
+export function getAnalyticsConsentState(): AnalyticsConsentState {
+  const storage = getStorage();
+  const rawValue = storage?.getItem(ANALYTICS_CONSENT_STORAGE_KEY) ?? null;
+
+  cachedConsentState =
+    rawValue === "granted" || rawValue === "denied" ? rawValue : "unset";
+
+  return cachedConsentState;
+}
+
+export function setAnalyticsConsentState(
+  nextState: Exclude<AnalyticsConsentState, "unset">,
+): void {
+  cachedConsentState = nextState;
+
+  try {
+    getStorage()?.setItem(ANALYTICS_CONSENT_STORAGE_KEY, nextState);
+  } catch {
+    // Ignore storage failures; in-memory consent still applies for this tab.
+  }
+
+  updateAnalyticsConsentMode(nextState === "granted");
+
+  if (globalThis.window !== undefined) {
+    globalThis.window.dispatchEvent(
+      new CustomEvent(ANALYTICS_CONSENT_EVENT, {
+        detail: nextState,
+      }),
+    );
+  }
+}
+
+export function hasAnalyticsConsent(): boolean {
+  return getAnalyticsConsentState() === "granted";
+}
+
+export function normalizeAnalyticsPage({
+  pathname,
+  search,
+}: {
+  pathname: string;
+  search?: string | URLSearchParams;
+}): {
+  pagePath: string;
+  pageTitle: string;
+  pageLocation: string;
+} {
+  const normalizedPath = normalizePathname(pathname);
+  const safeQuery = buildSafePageQuery(normalizedPath, search);
+  const pagePath = safeQuery
+    ? `${normalizedPath}?${safeQuery}`
+    : normalizedPath;
+  const pageTitle =
+    PAGE_TITLE_BY_PATH[normalizedPath] ??
+    sanitizeAnalyticsToken(normalizedPath.replaceAll("/", "_"), "page");
+  const pageLocation =
+    globalThis.location === undefined
+      ? pagePath
+      : new URL(pagePath, globalThis.location.origin).toString();
+
+  return {
+    pagePath,
+    pageTitle,
+    pageLocation,
+  };
+}
 
 /**
  * Send a pageview event to Google Analytics using the configured GA property.
- * @param url - The path of the page to report.
+ * @param pathname - The current route pathname.
+ * @param search - Optional query string used for route normalization.
  * @source
  */
-export const pageview = (url: string): void => {
+export const pageview = ({
+  pathname,
+  search,
+}: {
+  pathname: string;
+  search?: string | URLSearchParams;
+}): void => {
   const gaId = process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
   const gtag = getGtag();
-  if (gtag && gaId) {
+  if (gtag && gaId && hasAnalyticsConsent()) {
+    const { pageLocation, pagePath, pageTitle } = normalizeAnalyticsPage({
+      pathname,
+      search,
+    });
+
     try {
-      gtag("config", gaId, {
-        page_path: url,
+      gtag("event", "page_view", {
+        send_to: gaId,
+        page_path: pagePath,
+        page_title: pageTitle,
+        page_location: pageLocation,
       });
     } catch {
       console.error("Google Analytics pageview failed");
@@ -74,13 +380,26 @@ export const event = ({
   label?: string;
   value?: number;
 }) => {
+  const gaId = process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
   const gtag = getGtag();
-  if (gtag) {
+  if (gtag && gaId && hasAnalyticsConsent()) {
+    const normalizedAction = sanitizeAnalyticsToken(action, "event");
+    const normalizedCategory = sanitizeAnalyticsToken(category, "engagement");
+    const normalizedLabel = normalizeAnalyticsLabel({
+      action: normalizedAction,
+      category: normalizedCategory,
+      label,
+    });
+
     try {
-      gtag("event", action, {
-        event_category: category,
-        event_label: label,
-        value: value,
+      gtag("event", normalizedAction, {
+        send_to: gaId,
+        event_category: normalizedCategory,
+        event_label: normalizedLabel,
+        value:
+          typeof value === "number" && Number.isFinite(value)
+            ? value
+            : undefined,
       });
     } catch {
       console.error("Google Analytics event failed");
@@ -93,6 +412,8 @@ export const event = ({
  * allowing exceptions thrown by analytics shims to crash the UI.
  */
 export const safeTrack = (fn: () => void) => {
+  if (!hasAnalyticsConsent()) return;
+
   try {
     fn();
   } catch {
@@ -167,6 +488,6 @@ export const trackError = (errorType: string, errorMessage?: string) => {
   event({
     action: "error_occurred",
     category: "error",
-    label: errorMessage ? `${errorType}_${errorMessage}` : errorType,
+    label: buildAnalyticsErrorLabel(errorType, errorMessage),
   });
 };

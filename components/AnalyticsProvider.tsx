@@ -1,6 +1,34 @@
 "use client";
 
+import { Analytics as VercelAnalytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
+import { BarChart3, Shield } from "lucide-react";
+import { useEffect, useId, useState } from "react";
+
+import GoogleAnalytics from "@/components/GoogleAnalytics";
+import { Button } from "@/components/ui/Button";
+import { Label } from "@/components/ui/Label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover";
+import { Switch } from "@/components/ui/Switch";
 import { useGoogleAnalytics } from "@/hooks/useGoogleAnalytics";
+import {
+  ANALYTICS_CONSENT_EVENT,
+  ANALYTICS_CONSENT_STORAGE_KEY,
+  type AnalyticsConsentState,
+  getAnalyticsConsentState,
+  setAnalyticsConsentState,
+} from "@/lib/utils/google-analytics";
+
+interface AnalyticsProviderProps {
+  children: React.ReactNode;
+  enableRuntimeTelemetry?: boolean;
+  trackingId?: string;
+  nonce?: string;
+}
 
 /**
  * Client wrapper that initializes Google Analytics once on the client
@@ -11,9 +39,194 @@ import { useGoogleAnalytics } from "@/hooks/useGoogleAnalytics";
  */
 export default function AnalyticsProvider({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  useGoogleAnalytics();
-  return <>{children}</>;
+  enableRuntimeTelemetry = false,
+  trackingId,
+  nonce,
+}: Readonly<AnalyticsProviderProps>) {
+  const [consentState, setConsentState] =
+    useState<AnalyticsConsentState>("unset");
+  const [hasLoadedPreference, setHasLoadedPreference] = useState(false);
+  const consentDescriptionId = useId();
+  const manageSwitchId = useId();
+
+  useEffect(() => {
+    const syncConsentState = () => {
+      setConsentState(getAnalyticsConsentState());
+      setHasLoadedPreference(true);
+    };
+
+    syncConsentState();
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key && event.key !== ANALYTICS_CONSENT_STORAGE_KEY) return;
+      syncConsentState();
+    };
+    const handleConsentChanged = () => {
+      syncConsentState();
+    };
+
+    globalThis.addEventListener("storage", handleStorage);
+    globalThis.addEventListener(
+      ANALYTICS_CONSENT_EVENT,
+      handleConsentChanged as EventListener,
+    );
+
+    return () => {
+      globalThis.removeEventListener("storage", handleStorage);
+      globalThis.removeEventListener(
+        ANALYTICS_CONSENT_EVENT,
+        handleConsentChanged as EventListener,
+      );
+    };
+  }, []);
+
+  const consentGranted = consentState === "granted";
+  const analyticsEnabled = Boolean(trackingId) && consentGranted;
+  const shouldRenderConsentControls =
+    Boolean(trackingId) && hasLoadedPreference;
+  const shouldShowBanner =
+    shouldRenderConsentControls && consentState === "unset";
+  const shouldShowManager =
+    shouldRenderConsentControls && consentState !== "unset";
+
+  useGoogleAnalytics(analyticsEnabled);
+
+  const updateConsent = (nextGranted: boolean) => {
+    const nextState: Exclude<AnalyticsConsentState, "unset"> = nextGranted
+      ? "granted"
+      : "denied";
+    setConsentState(nextState);
+    setHasLoadedPreference(true);
+    setAnalyticsConsentState(nextState);
+  };
+
+  return (
+    <>
+      {trackingId ? (
+        <GoogleAnalytics
+          trackingId={trackingId}
+          consentGranted={consentGranted}
+          nonce={nonce}
+        />
+      ) : null}
+
+      {children}
+
+      {enableRuntimeTelemetry && consentGranted ? (
+        <>
+          <VercelAnalytics />
+          <SpeedInsights />
+        </>
+      ) : null}
+
+      {shouldShowManager ? (
+        <div className="fixed right-4 bottom-4 z-50">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="
+                  border-gold/20 bg-background/90 text-foreground shadow-lg backdrop-blur-sm
+                  hover:bg-gold/5
+                "
+              >
+                <BarChart3 className="size-4 text-gold" aria-hidden="true" />
+                Analytics {consentGranted ? "On" : "Off"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              side="top"
+              className="w-80 space-y-4 border-gold/20 bg-background/95 p-4 backdrop-blur-sm"
+            >
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-foreground">
+                  Privacy-safe analytics
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  AniCards only records consented page and error metrics using
+                  redacted route patterns and bounded event labels.
+                </p>
+              </div>
+
+              <div className="space-y-3 rounded-md border border-border/60 bg-muted/20 p-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <Label htmlFor={manageSwitchId}>Allow analytics</Label>
+                    <p
+                      id={consentDescriptionId}
+                      className="text-xs text-muted-foreground"
+                    >
+                      You can turn this off any time. Turning it off stops
+                      future pageview and error events.
+                    </p>
+                  </div>
+                  <Switch
+                    id={manageSwitchId}
+                    checked={consentGranted}
+                    onCheckedChange={updateConsent}
+                    aria-describedby={consentDescriptionId}
+                    className="data-[state=checked]:bg-gold"
+                  />
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+      ) : null}
+
+      {shouldShowBanner ? (
+        <div className="
+          fixed inset-x-0 bottom-0 z-50 border-t border-gold/20 bg-background/95 p-4 shadow-2xl
+          backdrop-blur-sm
+        ">
+          <div className="
+            container mx-auto flex max-w-5xl flex-col gap-4
+            sm:flex-row sm:items-end sm:justify-between
+          ">
+            <div className="flex items-start gap-3">
+              <span className="
+                flex size-10 shrink-0 items-center justify-center rounded-full bg-gold/10 text-gold
+              ">
+                <Shield className="size-5" aria-hidden="true" />
+              </span>
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-foreground">
+                  Allow privacy-safe analytics?
+                </p>
+                <p
+                  id={consentDescriptionId}
+                  className="max-w-3xl text-sm text-muted-foreground"
+                >
+                  Analytics is off by default. If you opt in, AniCards only
+                  sends redacted route patterns and bounded error categories for
+                  product insights. You can change this later from the analytics
+                  control.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => updateConsent(false)}
+              >
+                Keep it off
+              </Button>
+              <Button
+                type="button"
+                className="bg-gold text-white hover:bg-gold/90"
+                onClick={() => updateConsent(true)}
+              >
+                Allow analytics
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
 }

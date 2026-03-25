@@ -83,25 +83,9 @@ export class ErrorBoundary extends Component<
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("[ErrorBoundary] Caught error:", error, errorInfo);
 
-    const compStack = (errorInfo?.componentStack ?? "").trim();
-    const stackLines = compStack
-      ? compStack
-          .split(/\r?\n/)
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : [];
-    const trimmedStack = stackLines.slice(0, 3).join(" | ");
-
-    const messageParts: string[] = [];
-    if (error?.message) messageParts.push(error.message);
-    if (trimmedStack) messageParts.push(trimmedStack);
-    let eventMessage = messageParts.join(" — ");
-    const MAX_LEN = 200;
-    if (eventMessage.length > MAX_LEN) {
-      eventMessage = eventMessage.slice(0, MAX_LEN - 3) + "...";
-    }
-
-    safeTrack(() => trackError(error.name ?? "ErrorBoundary", eventMessage));
+    safeTrack(() =>
+      trackError(error.name ?? "ErrorBoundary", error.message ?? undefined),
+    );
   }
 
   /**

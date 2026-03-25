@@ -1,7 +1,5 @@
 import "./globals.css";
 
-import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
 import {
   Geist,
@@ -15,7 +13,6 @@ import { Suspense } from "react";
 import AnalyticsProvider from "@/components/AnalyticsProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import GithubCorner from "@/components/GithubCorner";
-import GoogleAnalytics from "@/components/GoogleAnalytics";
 import { LayoutShell } from "@/components/LayoutShell";
 import { getSiteUrlObject } from "@/lib/site-config";
 
@@ -86,22 +83,18 @@ export default async function RootLayout({
         `}
       >
         <GithubCorner />
-        {process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID && (
-          <GoogleAnalytics
-            GA_TRACKING_ID={process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID}
-            nonce={nonce}
-          />
-        )}
         <Providers>
           <Suspense fallback={<div>Loading...</div>}>
-            <AnalyticsProvider>
+            <AnalyticsProvider
+              enableRuntimeTelemetry={isVercelDeployment}
+              trackingId={process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID}
+              nonce={nonce}
+            >
               <ErrorBoundary>
                 <LayoutShell>{children}</LayoutShell>
               </ErrorBoundary>
             </AnalyticsProvider>
           </Suspense>
-          {isVercelDeployment && <Analytics />}
-          {isVercelDeployment && <SpeedInsights />}
         </Providers>
       </body>
     </html>
