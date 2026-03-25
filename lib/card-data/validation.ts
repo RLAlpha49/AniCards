@@ -185,6 +185,10 @@ export function getFavoritesForCardType(
   }
 }
 
+export interface ValidateAndNormalizeUserRecordOptions {
+  mode?: "write" | "render";
+}
+
 /**
  * Validates and normalizes a raw user record for card generation.
  * Returns either a normalized UserRecord or an error object with an optional HTTP status.
@@ -195,10 +199,6 @@ export function getFavoritesForCardType(
  * @returns Normalized object on success or an { error, status } object on failure.
  * @source
  */
-export interface ValidateAndNormalizeUserRecordOptions {
-  mode?: "write" | "render";
-}
-
 export function validateAndNormalizeUserRecord(
   raw: unknown,
   options: ValidateAndNormalizeUserRecordOptions = {},
