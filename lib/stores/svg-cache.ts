@@ -1,6 +1,16 @@
 import { LRUCache } from "lru-cache";
 
-import { buildAnalyticsMetricKey, incrementAnalytics } from "@/lib/api-utils";
+import {
+  buildAnalyticsMetricKey,
+  incrementAnalytics,
+  redisClient,
+} from "@/lib/api-utils";
+
+const DEFAULT_MEMORY_TTL_MS = 12 * 60 * 60 * 1000;
+const DEFAULT_SHARED_TTL_MS = 24 * 60 * 60 * 1000;
+const SHARED_CACHE_KEY_PREFIX = "svg-cache";
+
+type CacheMetricSource = "memory" | "redis";
 
 /**
  * Represents a cached SVG entry with metadata.
@@ -15,6 +25,15 @@ export interface CachedSvgEntry {
   ttl: number;
   /** Whether this entry is stale but still usable (stale-while-revalidate) */
   isStale: boolean;
+  /** Border radius used to render the card so headers stay accurate on cache hits. */
+  borderRadius?: number;
+}
+
+interface PersistedCachedSvgEntry {
+  svg: string;
+  cachedAt: number;
+  ttl: number;
+  borderRadius?: number;
 }
 
 /**
@@ -123,19 +142,114 @@ export function getSvgFromMemoryCache(cacheKey: string): CachedSvgEntry | null {
 export function setSvgInMemoryCache(
   cacheKey: string,
   svg: string,
-  ttl: number = 12 * 60 * 60 * 1000, // 12 hours
+  ttl: number = DEFAULT_MEMORY_TTL_MS,
   userId?: number,
+  borderRadius?: number,
 ): void {
   const entry: CachedSvgEntry = {
     svg,
     cachedAt: Date.now(),
     ttl,
     isStale: false,
+    ...(typeof borderRadius === "number" ? { borderRadius } : {}),
   };
 
   svgCache.set(cacheKey, entry);
 
   // Track user request statistics for cache warming
+  if (userId) {
+    updateUserRequestStats(userId);
+  }
+}
+
+function getSharedCacheKey(cacheKey: string): string {
+  return `${SHARED_CACHE_KEY_PREFIX}:${cacheKey}`;
+}
+
+function isPersistedCachedSvgEntry(
+  value: unknown,
+): value is PersistedCachedSvgEntry {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.svg === "string" &&
+    typeof candidate.cachedAt === "number" &&
+    Number.isFinite(candidate.cachedAt) &&
+    typeof candidate.ttl === "number" &&
+    Number.isFinite(candidate.ttl) &&
+    (candidate.borderRadius === undefined ||
+      (typeof candidate.borderRadius === "number" &&
+        Number.isFinite(candidate.borderRadius)))
+  );
+}
+
+/**
+ * Retrieves a cached SVG from the shared Redis-backed cache layer.
+ *
+ * This acts as an L2 cache so separate server instances can reuse previously
+ * rendered SVGs even after their local L1 memory caches are cold.
+ *
+ * @param cacheKey - The normalized cache key to load.
+ * @returns A cached SVG entry or null when missing/corrupt.
+ * @source
+ */
+export async function getSvgFromSharedCache(
+  cacheKey: string,
+): Promise<CachedSvgEntry | null> {
+  try {
+    const raw = await redisClient.get(getSharedCacheKey(cacheKey));
+    if (!raw) return null;
+
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (!isPersistedCachedSvgEntry(parsed)) {
+      return null;
+    }
+
+    return {
+      ...parsed,
+      isStale: false,
+    };
+  } catch (error) {
+    console.warn("[Card SVG] Failed to read shared SVG cache entry:", error);
+    return null;
+  }
+}
+
+/**
+ * Persists a rendered SVG to the shared Redis-backed cache layer.
+ *
+ * @param cacheKey - The normalized cache key to store under.
+ * @param svg - The rendered SVG content.
+ * @param ttl - Time-to-live in milliseconds.
+ * @param userId - Optional user ID for request tracking.
+ * @param borderRadius - Optional border radius metadata for response headers.
+ * @source
+ */
+export async function setSvgInSharedCache(
+  cacheKey: string,
+  svg: string,
+  ttl: number = DEFAULT_SHARED_TTL_MS,
+  userId?: number,
+  borderRadius?: number,
+): Promise<void> {
+  const entry: PersistedCachedSvgEntry = {
+    svg,
+    cachedAt: Date.now(),
+    ttl,
+    ...(typeof borderRadius === "number" ? { borderRadius } : {}),
+  };
+
+  try {
+    await redisClient.set(getSharedCacheKey(cacheKey), JSON.stringify(entry), {
+      ex: Math.max(1, Math.ceil(ttl / 1000)),
+    });
+  } catch (error) {
+    console.warn("[Card SVG] Failed to write shared SVG cache entry:", error);
+  }
+
   if (userId) {
     updateUserRequestStats(userId);
   }
@@ -206,16 +320,20 @@ export function clearUserRequestStats(): void {
  */
 export async function trackCacheMetric(
   hit: boolean,
-  source: "memory" | "redis",
+  source: CacheMetricSource,
+  options?: { includeOverall?: boolean },
 ): Promise<void> {
   const metricType = hit ? "cache_hits" : "cache_misses";
   const metric = buildAnalyticsMetricKey("card_svg", metricType);
   const suffixedMetric = `${metric}:${source}`;
+  const includeOverall = options?.includeOverall ?? true;
 
-  await Promise.all([
-    incrementAnalytics(metric), // Overall cache metric
-    incrementAnalytics(suffixedMetric), // Source-specific metric
-  ]).catch(() => {
+  const operations = [incrementAnalytics(suffixedMetric)];
+  if (includeOverall) {
+    operations.unshift(incrementAnalytics(metric));
+  }
+
+  await Promise.all(operations).catch(() => {
     // Silently fail analytics to not affect primary functionality
   });
 }

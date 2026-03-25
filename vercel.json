@@ -4,15 +4,27 @@
     {
       "source": "/api/card.svg",
       "headers": [
-        { "key": "CDN-Cache-Control", "value": "no-store" },
-        { "key": "Edge-Cache-Control", "value": "no-store" }
+        {
+          "key": "CDN-Cache-Control",
+          "value": "public, s-maxage=86400, stale-while-revalidate=604800, stale-if-error=1209600"
+        },
+        {
+          "key": "Edge-Cache-Control",
+          "value": "public, s-maxage=86400, stale-while-revalidate=604800, stale-if-error=1209600"
+        }
       ]
     },
     {
       "source": "/api/card",
       "headers": [
-        { "key": "CDN-Cache-Control", "value": "no-store" },
-        { "key": "Edge-Cache-Control", "value": "no-store" }
+        {
+          "key": "CDN-Cache-Control",
+          "value": "public, s-maxage=86400, stale-while-revalidate=604800, stale-if-error=1209600"
+        },
+        {
+          "key": "Edge-Cache-Control",
+          "value": "public, s-maxage=86400, stale-while-revalidate=604800, stale-if-error=1209600"
+        }
       ]
     }
   ]

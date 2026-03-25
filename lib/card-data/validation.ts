@@ -190,12 +190,21 @@ export function getFavoritesForCardType(
  * Returns either a normalized UserRecord or an error object with an optional HTTP status.
  * This prepares nested pages, statistics blocks, and favourites into consistent shapes.
  * @param raw - Raw object pulled from the data store (redis), often JSON-parsed.
+ * @param options - Validation mode. Use `write` for persistence-time normalization,
+ * or `render` to trust pre-pruned stored lists and skip aggregate recomputation.
  * @returns Normalized object on success or an { error, status } object on failure.
  * @source
  */
+export interface ValidateAndNormalizeUserRecordOptions {
+  mode?: "write" | "render";
+}
+
 export function validateAndNormalizeUserRecord(
   raw: unknown,
+  options: ValidateAndNormalizeUserRecordOptions = {},
 ): { normalized: UserRecord } | { error: string; status?: number } {
+  const isRenderValidation = options.mode === "render";
+
   if (!raw || typeof raw !== "object") {
     return { error: "Invalid user record: not an object" };
   }
@@ -813,6 +822,16 @@ export function validateAndNormalizeUserRecord(
     };
   };
 
+  const normalizeStoredMediaListCollection = (
+    raw: unknown,
+  ): MediaListCollection | undefined => {
+    if (!raw || typeof raw !== "object") return undefined;
+    const candidate = raw as { lists?: unknown };
+    return Array.isArray(candidate.lists)
+      ? (raw as MediaListCollection)
+      : normalizeMediaListCollection(raw);
+  };
+
   const isPrunedAllList = (raw: unknown): boolean =>
     !!raw &&
     typeof raw === "object" &&
@@ -830,6 +849,18 @@ export function validateAndNormalizeUserRecord(
     const entries = coll.lists.flatMap((l) => l.entries);
     const pruned = pruner(entries);
     return { ...coll, lists: [{ name: "All", entries: pruned }] };
+  };
+
+  const normalizeMediaCollectionForMode = (
+    raw: unknown,
+    pruner: (entries: MediaListEntry[]) => MediaListEntry[],
+  ): MediaListCollection | undefined => {
+    if (isRenderValidation) {
+      return normalizeStoredMediaListCollection(raw);
+    }
+
+    const coll = normalizeMediaListCollection(raw);
+    return pruneIfNeeded(raw, coll, pruner);
   };
 
   /**
@@ -1278,13 +1309,19 @@ export function validateAndNormalizeUserRecord(
   }
 
   const aggregatedAnimeSource =
-    storedAnimeSourceTotals ?? computeAnimeSourceMaterialDistributionTotals();
+    storedAnimeSourceTotals ??
+    (isRenderValidation
+      ? undefined
+      : computeAnimeSourceMaterialDistributionTotals());
   const aggregatedAnimeSeason =
-    storedAnimeSeasonTotals ?? computeAnimeSeasonalPreferenceTotals();
+    storedAnimeSeasonTotals ??
+    (isRenderValidation ? undefined : computeAnimeSeasonalPreferenceTotals());
   const aggregatedAnimeGenreSynergy =
-    storedAnimeGenreSynergyTotals ?? computeAnimeGenreSynergyTotals();
+    storedAnimeGenreSynergyTotals ??
+    (isRenderValidation ? undefined : computeAnimeGenreSynergyTotals());
   const aggregatedStudioCollaboration =
-    storedStudioCollaborationTotals ?? computeStudioCollaborationTotals();
+    storedStudioCollaborationTotals ??
+    (isRenderValidation ? undefined : computeStudioCollaborationTotals());
 
   const aggregatesObj: Record<string, unknown> = {};
   if (Array.isArray(aggregatedAnimeSource) && aggregatedAnimeSource.length)
@@ -1333,66 +1370,53 @@ export function validateAndNormalizeUserRecord(
       userRecommendations: normalizeUserRecommendationsPage(
         statsData.userRecommendations,
       ),
-      // We limit the entries saved to the database to only what's needed for the cards
-      animePlanning: (() => {
-        const raw = statsData.animePlanning;
-        const coll = normalizeMediaListCollection(raw);
-        return pruneIfNeeded(raw, coll, (entries) =>
+      // Persistence-time normalization prunes large lists; render-time validation trusts
+      // the stored list slices and avoids re-sorting/re-pruning the hot path.
+      animePlanning: normalizeMediaCollectionForMode(
+        statsData.animePlanning,
+        (entries) =>
           [...entries]
             .sort(
               (a, b) =>
                 (b.media.averageScore ?? 0) - (a.media.averageScore ?? 0),
             )
             .slice(0, 5),
-        );
-      })(),
-      mangaPlanning: (() => {
-        const raw = statsData.mangaPlanning;
-        const coll = normalizeMediaListCollection(raw);
-        return pruneIfNeeded(raw, coll, (entries) =>
+      ),
+      mangaPlanning: normalizeMediaCollectionForMode(
+        statsData.mangaPlanning,
+        (entries) =>
           [...entries]
             .sort(
               (a, b) =>
                 (b.media.averageScore ?? 0) - (a.media.averageScore ?? 0),
             )
             .slice(0, 5),
-        );
-      })(),
-      animeCurrent: (() => {
-        const raw = statsData.animeCurrent;
-        const coll = normalizeMediaListCollection(raw);
-        return pruneIfNeeded(raw, coll, (entries) =>
-          // Keep most recent items as returned by the AniList sort (UPDATED_TIME_DESC)
-          entries.slice(0, 6),
-        );
-      })(),
-      mangaCurrent: (() => {
-        const raw = statsData.mangaCurrent;
-        const coll = normalizeMediaListCollection(raw);
-        return pruneIfNeeded(raw, coll, (entries) => entries.slice(0, 6));
-      })(),
-      animeRewatched: (() => {
-        const raw = statsData.animeRewatched;
-        const coll = normalizeMediaListCollection(raw);
-        return pruneIfNeeded(raw, coll, (entries) =>
+      ),
+      animeCurrent: normalizeMediaCollectionForMode(
+        statsData.animeCurrent,
+        (entries) => entries.slice(0, 6),
+      ),
+      mangaCurrent: normalizeMediaCollectionForMode(
+        statsData.mangaCurrent,
+        (entries) => entries.slice(0, 6),
+      ),
+      animeRewatched: normalizeMediaCollectionForMode(
+        statsData.animeRewatched,
+        (entries) =>
           [...entries]
             .sort((a, b) => (b.repeat ?? 0) - (a.repeat ?? 0))
             .slice(0, 10),
-        );
-      })(),
-      mangaReread: (() => {
-        const raw = statsData.mangaReread;
-        const coll = normalizeMediaListCollection(raw);
-        return pruneIfNeeded(raw, coll, (entries) =>
+      ),
+      mangaReread: normalizeMediaCollectionForMode(
+        statsData.mangaReread,
+        (entries) =>
           [...entries]
             .sort((a, b) => (b.repeat ?? 0) - (a.repeat ?? 0))
             .slice(0, 10),
-        );
-      })(),
-      animeCompleted: (() => {
-        const raw = statsData.animeCompleted;
-        const coll = normalizeMediaListCollection(raw);
-        return pruneIfNeeded(raw, coll, (entries) => {
+      ),
+      animeCompleted: normalizeMediaCollectionForMode(
+        statsData.animeCompleted,
+        (entries) => {
           const topByScore = [...entries]
             .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
             .slice(0, 5);
@@ -1400,12 +1424,11 @@ export function validateAndNormalizeUserRecord(
             .sort((a, b) => (b.media.episodes ?? 0) - (a.media.episodes ?? 0))
             .slice(0, 5);
           return combineUnique(topByScore, topByLength);
-        });
-      })(),
-      mangaCompleted: (() => {
-        const raw = statsData.mangaCompleted;
-        const coll = normalizeMediaListCollection(raw);
-        return pruneIfNeeded(raw, coll, (entries) => {
+        },
+      ),
+      mangaCompleted: normalizeMediaCollectionForMode(
+        statsData.mangaCompleted,
+        (entries) => {
           const topByScore = [...entries]
             .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
             .slice(0, 5);
@@ -1413,21 +1436,16 @@ export function validateAndNormalizeUserRecord(
             .sort((a, b) => (b.media.chapters ?? 0) - (a.media.chapters ?? 0))
             .slice(0, 5);
           return combineUnique(topByScore, topByLength);
-        });
-      })(),
-      animeDropped: (() => {
-        const raw = statsData.animeDropped;
-        const coll = normalizeMediaListCollection(raw);
-        return pruneIfNeeded(raw, coll, (entries) =>
-          // Keep most recent items as returned by the AniList sort (UPDATED_TIME_DESC)
-          entries.slice(0, 30),
-        );
-      })(),
-      mangaDropped: (() => {
-        const raw = statsData.mangaDropped;
-        const coll = normalizeMediaListCollection(raw);
-        return pruneIfNeeded(raw, coll, (entries) => entries.slice(0, 30));
-      })(),
+        },
+      ),
+      animeDropped: normalizeMediaCollectionForMode(
+        statsData.animeDropped,
+        (entries) => entries.slice(0, 30),
+      ),
+      mangaDropped: normalizeMediaCollectionForMode(
+        statsData.mangaDropped,
+        (entries) => entries.slice(0, 30),
+      ),
       User: {
         stats: {
           activityHistory: normalizedActivityHistory,
@@ -1491,6 +1509,17 @@ export function validateAndNormalizeUserRecord(
   }
 
   return { normalized: normalizedUser };
+}
+
+/**
+ * Render-time validator that trusts persisted list pruning and stored
+ * aggregates, avoiding write-path recomputation in the SVG hot path.
+ * @param raw - Raw object pulled from the data store (redis), often JSON-parsed.
+ * @returns Normalized object on success or an { error, status } object on failure.
+ * @source
+ */
+export function validateUserRecordForCardRender(raw: unknown) {
+  return validateAndNormalizeUserRecord(raw, { mode: "render" });
 }
 
 /** Fields representing milestone progress used by card templates. @source */
