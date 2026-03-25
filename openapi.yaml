@@ -392,7 +392,7 @@ paths:
                   value:
                     error: "User not found"
         "500":
-          description: "Unexpected storage failure"
+          description: "Unexpected storage failure or detected record corruption"
           content:
             application/json:
               schema:
@@ -400,7 +400,7 @@ paths:
               examples:
                 failure:
                   value:
-                    error: "Failed to fetch user data"
+                    error: "Stored user record is incomplete or corrupted"
 
   /api/store-cards:
     post:
@@ -526,9 +526,11 @@ paths:
         - "store"
       summary: "Store or update a user's AniCards record"
       description: >-
-        Persists a split user record and updates the normalized username index.
-        In production this route also enforces same-origin validation and shared
-        rate limiting.
+        Persists a versioned split user record, atomically flips the active
+        commit pointer, maintains the normalized username alias and stale-user
+        refresh index, and optionally enforces optimistic concurrency via
+        `ifMatchUpdatedAt`. In production this route also enforces same-origin
+        validation and shared rate limiting.
       requestBody:
         required: true
         content:
@@ -540,6 +542,7 @@ paths:
                 value:
                   userId: 12345
                   username: "sampleuser"
+                  ifMatchUpdatedAt: "2026-03-21T10:15:00.000Z"
                   stats:
                     User:
                       name: "sampleuser"
@@ -558,6 +561,7 @@ paths:
                   value:
                     success: true
                     userId: 12345
+                    updatedAt: "2026-03-21T10:16:00.000Z"
         "400":
           description: "Validation failure for the incoming payload"
           content:
@@ -570,6 +574,17 @@ paths:
                     error: "Invalid user data"
         "401":
           $ref: "#/components/responses/UnauthorizedJson"
+        "409":
+          description: "Optimistic concurrency conflict"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConflictError"
+              examples:
+                conflict:
+                  value:
+                    error: "Conflict: data was updated elsewhere. Please reload and try again."
+                    currentUpdatedAt: "2026-03-21T10:15:00.000Z"
         "429":
           $ref: "#/components/responses/TooManyRequestsJson"
         "500":
@@ -672,8 +687,9 @@ paths:
       summary: "Refresh the stalest stored users from AniList"
       description: >-
         Operator-facing cron endpoint that refreshes the five stalest stored user
-        records, tracks repeated AniList 404 failures, and returns scheduling
-        guidance in a plain-text summary.
+        records from the maintained stale-user refresh index, tracks repeated
+        AniList 404 failures, and returns scheduling guidance in a plain-text
+        summary.
       parameters:
         - $ref: "#/components/parameters/CronSecretHeader"
       security:
@@ -699,6 +715,75 @@ paths:
           $ref: "#/components/responses/InternalErrorPlain"
 
   /api/cron/analytics-reporting:
+    get:
+      operationId: "listAnalyticsReports"
+      tags:
+        - "cron"
+      summary: "List recent persisted analytics reports"
+      description: >-
+        Returns recent stored analytics reports from the bounded
+        `analytics:reports` Redis list. Reports are returned newest first. The
+        `limit` query is capped by the server-side retention policy.
+      parameters:
+        - $ref: "#/components/parameters/CronSecretHeader"
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+          description: >-
+            Maximum number of recent reports to return. Values above the
+            retention cap are clamped to the configured maximum.
+      security:
+        - CronSecret: []
+      responses:
+        "200":
+          description: "Recent analytics reports, newest first"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsReportList"
+              examples:
+                reports:
+                  value:
+                    reports:
+                      - summary:
+                          visits: 250
+                        raw_data:
+                          analytics:visits: 250
+                        generatedAt: "2026-03-22T10:30:00.000Z"
+                      - summary:
+                          visits: 100
+                        raw_data:
+                          analytics:visits: 100
+                        generatedAt: "2026-03-21T10:30:00.000Z"
+                    count: 2
+                    retentionLimit: 50
+        "400":
+          description: "Invalid list query parameters"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                invalidLimit:
+                  value:
+                    error: "Invalid limit parameter"
+        "401":
+          $ref: "#/components/responses/UnauthorizedPlain"
+        "500":
+          description: "Unexpected analytics report read failure"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                failure:
+                  value:
+                    error: "Failed to fetch analytics reports"
     post:
       operationId: "generateAnalyticsReport"
       tags:
@@ -706,7 +791,8 @@ paths:
       summary: "Generate and persist an analytics report"
       description: >-
         Collects all `analytics:*` Redis keys except `analytics:reports`, groups
-        them into a nested summary object, persists the report, and returns it.
+        them into a nested summary object, appends the latest report to the
+        bounded `analytics:reports` Redis list, and returns it.
       parameters:
         - $ref: "#/components/parameters/CronSecretHeader"
       security:
@@ -1413,6 +1499,13 @@ components:
           type: string
           minLength: 1
           maxLength: 100
+        ifMatchUpdatedAt:
+          type: string
+          format: date-time
+          description: >-
+            Optional optimistic-concurrency token. When supplied, the write is
+            rejected with `409` if the stored record has a different
+            `updatedAt`.
         stats:
           type: object
           additionalProperties: true
@@ -1430,9 +1523,13 @@ components:
           const: true
         userId:
           type: integer
+        updatedAt:
+          type: string
+          format: date-time
       required:
         - success
         - userId
+        - updatedAt
 
     ConvertRequest:
       type: object
@@ -1578,3 +1675,22 @@ components:
         - summary
         - raw_data
         - generatedAt
+
+    AnalyticsReportList:
+      type: object
+      additionalProperties: false
+      properties:
+        reports:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalyticsReport"
+        count:
+          type: integer
+          minimum: 0
+        retentionLimit:
+          type: integer
+          minimum: 1
+      required:
+        - reports
+        - count
+        - retentionLimit

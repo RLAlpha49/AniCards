@@ -23,12 +23,18 @@ export const sharedRedisMockDel = mock();
 export const sharedRedisMockIncr = mock(async () => 1);
 export const sharedRedisMockRpush = mock();
 export const sharedRedisMockLrange = mock();
+export const sharedRedisMockLtrim = mock();
 export const sharedRedisMockMget = mock(
   async (...keys: string[]): Promise<(string | null)[]> => keys.map(() => null),
 );
 export const sharedRedisMockPipeline = mock();
 export const sharedRedisMockPipelineSet = mock();
 export const sharedRedisMockPipelineDel = mock();
+export const sharedRedisMockPipelineZadd = mock();
+export const sharedRedisMockZadd = mock(async () => 1);
+export const sharedRedisMockZrange = mock(async () => [] as string[]);
+export const sharedRedisMockZcard = mock(async () => 0);
+export const sharedRedisMockZrem = mock(async () => 1);
 export const sharedRedisMockPipelineExec = mock(async () => []);
 
 const sharedRedisPipelineMock = {
@@ -42,6 +48,14 @@ const sharedRedisPipelineMock = {
     sharedRedisMockDel(...args);
     return sharedRedisPipelineMock;
   }),
+  zadd: mock((...args: unknown[]) => {
+    sharedRedisMockPipelineZadd(...args);
+    const invokeSharedRedisMockZadd = sharedRedisMockZadd as unknown as (
+      ...callArgs: unknown[]
+    ) => unknown;
+    invokeSharedRedisMockZadd(...args);
+    return sharedRedisPipelineMock;
+  }),
   exec: sharedRedisMockPipelineExec,
 };
 
@@ -53,7 +67,12 @@ const sharedRedisFakeClient = {
   incr: sharedRedisMockIncr,
   rpush: sharedRedisMockRpush,
   lrange: sharedRedisMockLrange,
+  ltrim: sharedRedisMockLtrim,
   mget: sharedRedisMockMget,
+  zadd: sharedRedisMockZadd,
+  zrange: sharedRedisMockZrange,
+  zcard: sharedRedisMockZcard,
+  zrem: sharedRedisMockZrem,
   pipeline: mock(() => sharedRedisPipelineMock),
 };
 

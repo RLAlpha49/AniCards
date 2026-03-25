@@ -19,12 +19,138 @@ import {
   redisClient,
 } from "@/lib/api-utils";
 import {
+  ALL_USER_DATA_PARTS,
   fetchUserDataParts,
+  normalizeUsernameIndexValue,
   reconstructPublicUserRecord,
-  UserDataPart,
+  UserDataIntegrityError,
 } from "@/lib/server/user-data";
 
 const ratelimit = createRateLimiter({ limit: 60, window: "10 s" });
+const USER_API_ENDPOINT = "User API";
+const USER_API_FAILED_METRIC = "analytics:user_api:failed_requests";
+const USER_API_SUCCESS_METRIC = "analytics:user_api:successful_requests";
+
+function trackUserApiMetric(metric: string): void {
+  incrementAnalytics(metric).catch(() => {});
+}
+
+function respondWithUserApiError(
+  request: Request,
+  status: number,
+  error: string,
+  logMessage: string,
+  context?: Record<string, unknown>,
+): Response {
+  logPrivacySafe("warn", USER_API_ENDPOINT, logMessage, context);
+  trackUserApiMetric(USER_API_FAILED_METRIC);
+  return jsonWithCors({ error }, request, status);
+}
+
+async function resolveUserIdFromUsername(
+  username: string,
+): Promise<number | null> {
+  const normalizedUsername = normalizeUsernameIndexValue(username);
+  if (!normalizedUsername) return null;
+
+  const usernameIndexKey = `username:${normalizedUsername}`;
+  logPrivacySafe("log", USER_API_ENDPOINT, "Searching username index", {
+    username: normalizedUsername,
+  });
+  const userIdFromIndex = await redisClient.get(usernameIndexKey);
+  if (!userIdFromIndex) return null;
+
+  const candidate = Number.parseInt(userIdFromIndex as string, 10);
+  if (Number.isNaN(candidate)) return null;
+
+  logPrivacySafe("log", USER_API_ENDPOINT, "Resolved lookup by username", {
+    username: normalizedUsername,
+    userId: candidate,
+  });
+  return candidate;
+}
+
+async function resolveLookupTarget(
+  request: Request,
+  userIdParam: string | null,
+  usernameParam: string | null,
+): Promise<
+  | {
+      userId: number;
+      normalizedLookupUsername?: string;
+    }
+  | Response
+> {
+  if (!userIdParam && !usernameParam) {
+    return respondWithUserApiError(
+      request,
+      400,
+      "Missing userId or username parameter",
+      "Missing userId or username parameter",
+    );
+  }
+
+  if (userIdParam) {
+    const numericUserId = Number.parseInt(userIdParam, 10);
+    if (Number.isNaN(numericUserId)) {
+      return respondWithUserApiError(
+        request,
+        400,
+        "Invalid userId parameter",
+        "Invalid userId parameter provided",
+        { userId: userIdParam },
+      );
+    }
+
+    logPrivacySafe("log", USER_API_ENDPOINT, "Resolved lookup by userId", {
+      userId: numericUserId,
+    });
+    return { userId: numericUserId };
+  }
+
+  if (!isValidUsername(usernameParam)) {
+    return respondWithUserApiError(
+      request,
+      400,
+      "Invalid username parameter",
+      "Invalid username parameter provided",
+      { username: usernameParam },
+    );
+  }
+
+  const normalizedLookupUsername = normalizeUsernameIndexValue(usernameParam);
+  const userId = await resolveUserIdFromUsername(usernameParam!);
+  if (!userId) {
+    return respondWithUserApiError(
+      request,
+      404,
+      "User not found",
+      "User not found for username",
+      { username: usernameParam },
+    );
+  }
+
+  return { userId, normalizedLookupUsername };
+}
+
+async function handleStaleUsernameAlias(
+  request: Request,
+  userId: number,
+  normalizedLookupUsername: string,
+): Promise<Response> {
+  await redisClient.del(`username:${normalizedLookupUsername}`);
+  logPrivacySafe(
+    "warn",
+    USER_API_ENDPOINT,
+    "Removed stale username alias that no longer matches stored record",
+    {
+      userId,
+      username: normalizedLookupUsername,
+    },
+  );
+  trackUserApiMetric(USER_API_FAILED_METRIC);
+  return jsonWithCors({ error: "User not found" }, request, 404);
+}
 
 /**
  * Retrieves user data by userId or username and records analytics around the lookup.
@@ -47,111 +173,36 @@ export async function GET(request: Request) {
     return rateLimitResponse;
   }
 
-  logPrivacySafe("log", "User API", "Received public user lookup request", {
-    ip,
-  });
+  logPrivacySafe(
+    "log",
+    USER_API_ENDPOINT,
+    "Received public user lookup request",
+    {
+      ip,
+    },
+  );
 
   const { searchParams } = new URL(request.url);
   const userIdParam = searchParams.get("userId");
   const usernameParam = searchParams.get("username");
 
-  if (!userIdParam && !usernameParam) {
-    logPrivacySafe("warn", "User API", "Missing userId or username parameter");
-    incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
-    return jsonWithCors(
-      { error: "Missing userId or username parameter" },
-      request,
-      400,
-    );
+  const resolvedLookup = await resolveLookupTarget(
+    request,
+    userIdParam,
+    usernameParam,
+  );
+  if (resolvedLookup instanceof Response) {
+    return resolvedLookup;
   }
-  let numericUserId: number | null = null;
 
-  if (userIdParam) {
-    numericUserId = Number.parseInt(userIdParam, 10);
-    if (Number.isNaN(numericUserId)) {
-      logPrivacySafe("warn", "User API", "Invalid userId parameter provided", {
-        userId: userIdParam,
-      });
-      incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
-      return jsonWithCors({ error: "Invalid userId parameter" }, request, 400);
-    }
-    logPrivacySafe("log", "User API", "Resolved lookup by userId", {
-      userId: numericUserId,
-    });
-  } else {
-    if (!isValidUsername(usernameParam)) {
-      logPrivacySafe(
-        "warn",
-        "User API",
-        "Invalid username parameter provided",
-        {
-          username: usernameParam,
-        },
-      );
-      incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
-      return jsonWithCors(
-        { error: "Invalid username parameter" },
-        request,
-        400,
-      );
-    }
-
-    // Username lookups use the same trim+lowercase normalization as the write
-    // path in `/api/store-users`, so searches stay case-insensitive and stable.
-    /**
-     * Resolves a normalized username to a numeric user ID via the Redis username index.
-     * @param u - The username to normalize and resolve.
-     * @returns The resolved user ID or null when the lookup fails.
-     * @source
-     */
-    async function resolveUserIdFromUsername(
-      u: string,
-    ): Promise<number | null> {
-      const normalizedUsername = u.trim().toLowerCase();
-      const usernameIndexKey = `username:${normalizedUsername}`;
-      logPrivacySafe("log", "User API", "Searching username index", {
-        username: normalizedUsername,
-      });
-      const userIdFromIndex = await redisClient.get(usernameIndexKey);
-      if (!userIdFromIndex) return null;
-      const candidate = Number.parseInt(userIdFromIndex as string, 10);
-      if (Number.isNaN(candidate)) return null;
-      logPrivacySafe("log", "User API", "Resolved lookup by username", {
-        username: normalizedUsername,
-        userId: candidate,
-      });
-      return candidate;
-    }
-
-    const userId = await resolveUserIdFromUsername(usernameParam!);
-    if (!userId) {
-      logPrivacySafe("warn", "User API", "User not found for username", {
-        username: usernameParam,
-      });
-      incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
-      return jsonWithCors({ error: "User not found" }, request, 404);
-    }
-
-    numericUserId = userId;
-  }
+  const { userId: numericUserId, normalizedLookupUsername } = resolvedLookup;
 
   try {
-    const allParts: UserDataPart[] = [
-      "meta",
-      "activity",
-      "favourites",
-      "statistics",
-      "pages",
-      "planning",
-      "current",
-      "rewatched",
-      "completed",
-      "aggregates",
-    ];
-
     // Fetch every persisted section up front so the editor and public user page
     // can bootstrap from one payload instead of making section-specific reads.
-    const userDataParts = await fetchUserDataParts(numericUserId, allParts);
+    const userDataParts = await fetchUserDataParts(numericUserId, [
+      ...ALL_USER_DATA_PARTS,
+    ]);
     const duration = Date.now() - startTime;
 
     if (!userDataParts.meta) {
@@ -163,27 +214,48 @@ export async function GET(request: Request) {
     }
 
     const userData = reconstructPublicUserRecord(userDataParts);
-    logPrivacySafe("log", "User API", "Successfully fetched public user data", {
-      userId: numericUserId,
-      durationMs: duration,
-    });
-    incrementAnalytics("analytics:user_api:successful_requests").catch(
-      () => {},
+    const persistedNormalizedUsername = normalizeUsernameIndexValue(
+      userData.username,
     );
+    if (
+      normalizedLookupUsername &&
+      persistedNormalizedUsername !== normalizedLookupUsername
+    ) {
+      return handleStaleUsernameAlias(
+        request,
+        numericUserId,
+        normalizedLookupUsername,
+      );
+    }
+
+    logPrivacySafe(
+      "log",
+      USER_API_ENDPOINT,
+      "Successfully fetched public user data",
+      {
+        userId: numericUserId,
+        durationMs: duration,
+      },
+    );
+    trackUserApiMetric(USER_API_SUCCESS_METRIC);
     return jsonWithCors(userData, request);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     const duration = Date.now() - startTime;
-    logPrivacySafe("error", "User API", "Error fetching user data", {
+    const errorMessage =
+      error instanceof UserDataIntegrityError
+        ? "Stored user record is incomplete or corrupted"
+        : "Failed to fetch user data";
+    logPrivacySafe("error", USER_API_ENDPOINT, "Error fetching user data", {
       userId: numericUserId,
       durationMs: duration,
       error: error.message,
     });
     if (error.stack) {
-      console.error(`💥 [User API] Stack Trace: ${error.stack}`);
+      console.error(`💥 [${USER_API_ENDPOINT}] Stack Trace: ${error.stack}`);
     }
-    incrementAnalytics("analytics:user_api:failed_requests").catch(() => {});
-    return jsonWithCors({ error: "Failed to fetch user data" }, request, 500);
+    trackUserApiMetric(USER_API_FAILED_METRIC);
+    return jsonWithCors({ error: errorMessage }, request, 500);
   }
 }
 

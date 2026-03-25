@@ -10,11 +10,14 @@ import {
   jsonWithCors,
   logPrivacySafe,
   logSuccess,
-  redisClient,
   validateUserData,
 } from "@/lib/api-utils";
 import { validateAndNormalizeUserRecord } from "@/lib/card-data";
-import { fetchUserDataParts, saveUserRecord } from "@/lib/server/user-data";
+import {
+  getPersistedUserState,
+  saveUserRecord,
+  UserDataIntegrityError,
+} from "@/lib/server/user-data";
 import { PersistedUserRecord, UserRecord } from "@/lib/types/records";
 
 /**
@@ -52,15 +55,52 @@ export async function POST(request: Request): Promise<NextResponse> {
       return validationResult.error;
     }
 
-    const { userId, username, stats } = validationResult.data;
+    const { userId, username, stats, ifMatchUpdatedAt } = validationResult.data;
     const requestMetadata = buildPersistedRequestMetadata(ip);
 
-    let createdAt = new Date().toISOString();
+    const now = new Date().toISOString();
+    let createdAt = now;
 
-    const partsData = await fetchUserDataParts(userId, ["meta"]);
-    if (partsData.meta) {
-      const meta = partsData.meta as Record<string, unknown>;
-      createdAt = (meta.createdAt as string) || createdAt;
+    let existingState;
+    try {
+      existingState = await getPersistedUserState(userId);
+    } catch (error) {
+      if (error instanceof UserDataIntegrityError) {
+        logPrivacySafe(
+          "warn",
+          endpoint,
+          "Ignoring corrupt persisted user state during overwrite",
+          {
+            userId,
+            error: error.message,
+          },
+        );
+      } else {
+        throw error;
+      }
+    }
+
+    if (existingState?.createdAt) {
+      createdAt = existingState.createdAt;
+    }
+
+    if (
+      ifMatchUpdatedAt &&
+      existingState?.updatedAt &&
+      existingState.updatedAt !== ifMatchUpdatedAt
+    ) {
+      await incrementAnalytics(
+        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+      );
+      return jsonWithCors(
+        {
+          error:
+            "Conflict: data was updated elsewhere. Please reload and try again.",
+          currentUpdatedAt: existingState.updatedAt,
+        },
+        request,
+        409,
+      );
     }
 
     const userData: UserRecord = {
@@ -69,7 +109,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       stats: stats as unknown as UserRecord["stats"],
       ...(requestMetadata ? { requestMetadata } : {}),
       createdAt,
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
     };
 
     const normalizationResult = validateAndNormalizeUserRecord(userData);
@@ -98,16 +138,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       userId,
     });
 
-    await saveUserRecord(persistedUserData);
-
-    if (username) {
-      const normalizedUsername = username.trim().toLowerCase();
-      const usernameIndexKey = `username:${normalizedUsername}`;
-      logPrivacySafe("log", endpoint, "Updating username index", {
-        username: normalizedUsername,
-      });
-      await redisClient.set(usernameIndexKey, userId.toString());
-    }
+    const saveResult = await saveUserRecord(persistedUserData, {
+      existingState: existingState ?? undefined,
+    });
 
     const duration = Date.now() - startTime;
     logSuccess(endpoint, userId, duration);
@@ -115,7 +148,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       buildAnalyticsMetricKey(endpointKey, "successful_requests"),
     );
 
-    return jsonWithCors({ success: true, userId }, request);
+    return jsonWithCors(
+      { success: true, userId, updatedAt: saveResult.updatedAt },
+      request,
+    );
   } catch (error) {
     return handleError(
       error as Error,

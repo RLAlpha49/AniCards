@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { GET, OPTIONS } from "@/app/api/get-user/route";
 import {
   sharedRatelimitMockLimit,
+  sharedRedisMockDel,
   sharedRedisMockGet,
   sharedRedisMockIncr,
   sharedRedisMockMget,
@@ -129,7 +130,12 @@ function mockStoredParts(
   }
 
   sharedRedisMockMget.mockResolvedValueOnce(
-    USER_PART_KEYS.map((part) => JSON.stringify(parts[part])),
+    USER_PART_KEYS.map((part) => {
+      const value = parts[part];
+      return value === null || value === undefined
+        ? null
+        : JSON.stringify(value);
+    }),
   );
 }
 
@@ -250,9 +256,9 @@ describe("User API GET Endpoint", () => {
     it("should resolve username to userId via index and fetch split user data", async () => {
       mockStoredParts(undefined, { usernameIndex: "123" });
 
-      await expectOkJson("username=alice");
+      await expectOkJson("username=testuser");
 
-      expect(sharedRedisMockGet).toHaveBeenCalledWith("username:alice");
+      expect(sharedRedisMockGet).toHaveBeenCalledWith("username:testuser");
       expect(sharedRedisMockMget).toHaveBeenCalledWith(
         ...USER_PART_KEYS.map((part) => `user:123:${part}`),
       );
@@ -299,6 +305,42 @@ describe("User API GET Endpoint", () => {
       );
 
       await expectError("userId=123", 500, "Failed to fetch user data");
+    });
+
+    it("should return 500 when a stored split user record is incomplete", async () => {
+      const incomplete = createStoredUserParts();
+      sharedRedisMockMget.mockResolvedValueOnce([
+        JSON.stringify(incomplete.meta),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+      ]);
+
+      await expectError(
+        "userId=123",
+        500,
+        "Stored user record is incomplete or corrupted",
+      );
+    });
+
+    it("should delete a stale username alias when it resolves to a different stored username", async () => {
+      mockStoredParts(
+        createStoredUserParts({
+          meta: {
+            username: "different-user",
+          },
+        }),
+        { usernameIndex: "123" },
+      );
+
+      await expectError("username=alice", 404, "User not found");
+      expect(sharedRedisMockDel).toHaveBeenCalledWith("username:alice");
     });
   });
 

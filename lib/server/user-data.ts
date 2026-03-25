@@ -50,11 +50,96 @@ export type UserDataPart =
 export const getUserDataKey = (userId: string | number, part: UserDataPart) =>
   `user:${userId}:${part}`;
 
+export const ALL_USER_DATA_PARTS: readonly UserDataPart[] = [
+  "meta",
+  "activity",
+  "favourites",
+  "statistics",
+  "pages",
+  "planning",
+  "current",
+  "rewatched",
+  "completed",
+  "aggregates",
+];
+
+const OPTIONAL_USER_DATA_PARTS = new Set<UserDataPart>(["aggregates"]);
+const USER_STORAGE_FORMAT = "split-user-v2";
+export const USER_RECORD_SCHEMA_VERSION = 2;
+const USER_REFRESH_INDEX_KEY = "users:stale-by-updated-at";
+
+const getUserCommitKey = (userId: string | number) => `user:${userId}:commit`;
+
+const getVersionedUserDataKey = (
+  userId: string | number,
+  revision: number,
+  part: UserDataPart,
+) => `user:${userId}:r:${revision}:${part}`;
+
+interface VersionedUserCommitPointer {
+  userId: string;
+  storageFormat: typeof USER_STORAGE_FORMAT;
+  schemaVersion: number;
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
+  username?: string;
+  usernameNormalized?: string;
+  committedAt: string;
+}
+
+export interface PersistedUserState {
+  userId: string;
+  storageFormat: "versioned" | "split" | "legacy";
+  schemaVersion: number;
+  revision: number;
+  createdAt?: string;
+  updatedAt?: string;
+  username?: string;
+  normalizedUsername?: string;
+}
+
+export class UserDataIntegrityError extends Error {
+  readonly kind = "corrupt" as const;
+  readonly userId: string;
+
+  constructor(userId: string | number, message: string) {
+    super(message);
+    this.name = "UserDataIntegrityError";
+    this.userId = String(userId);
+  }
+}
+
+type RedisSortedSetEntry = {
+  score: number;
+  member: string;
+};
+
+type RedisSortedSetClient = {
+  zadd: (key: string, ...entries: RedisSortedSetEntry[]) => Promise<unknown>;
+  zrange: (key: string, start: number, stop: number) => Promise<string[]>;
+  zcard: (key: string) => Promise<number>;
+  zrem: (key: string, ...members: string[]) => Promise<unknown>;
+};
+
+type RedisPipeline = {
+  set: (key: string, value: string) => RedisPipeline;
+  del: (...keys: string[]) => RedisPipeline;
+  zadd: (key: string, ...entries: RedisSortedSetEntry[]) => RedisPipeline;
+  exec: () => Promise<unknown>;
+};
+
+const redisSortedSetClient = redisClient as unknown as RedisSortedSetClient;
+
 interface UserMeta {
   userId: string;
   username?: string;
   createdAt: string;
   updatedAt: string;
+  schemaVersion?: number;
+  revision?: number;
+  storageFormat?: string;
+  usernameNormalized?: string;
   requestMetadata?: PersistedRequestMetadata;
   name?: string;
   avatar?: UserAvatar;
@@ -314,6 +399,478 @@ function normalizePersistedRequestMetadata(
   return { lastSeenIpBucket };
 }
 
+export function normalizeUsernameIndexValue(
+  value: unknown,
+): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function isOptionalUserDataPart(part: UserDataPart): boolean {
+  return OPTIONAL_USER_DATA_PARTS.has(part);
+}
+
+function getUpdatedAtScore(updatedAt: string | undefined): number {
+  if (!updatedAt) {
+    return 0;
+  }
+
+  const parsed = Date.parse(updatedAt);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function logIntegrityFailure(
+  userId: string | number,
+  message: string,
+  context?: Record<string, unknown>,
+): UserDataIntegrityError {
+  logPrivacySafe("error", "User Data", message, {
+    userId,
+    ...context,
+  });
+
+  return new UserDataIntegrityError(userId, message);
+}
+
+function safeParseStoredJson<T>(
+  raw: unknown,
+  userId: string | number,
+  context: string,
+): T {
+  try {
+    return safeParse<T>(raw, context);
+  } catch {
+    throw logIntegrityFailure(userId, "Stored user payload is not valid JSON", {
+      context,
+    });
+  }
+}
+
+function isValidUserDataPartPayload(
+  part: UserDataPart,
+  value: unknown,
+): boolean {
+  if (part === "statistics") {
+    return value === null || isObject(value);
+  }
+
+  return isObject(value);
+}
+
+function parseUserDataPartPayload(
+  userId: string | number,
+  part: UserDataPart,
+  raw: unknown,
+  storageLabel: string,
+): unknown {
+  const parsed = safeParseStoredJson<unknown>(
+    raw,
+    userId,
+    `${storageLabel}:${part}`,
+  );
+
+  if (!isValidUserDataPartPayload(part, parsed)) {
+    throw logIntegrityFailure(userId, "Stored user part has an invalid shape", {
+      part,
+      storageLabel,
+    });
+  }
+
+  return parsed;
+}
+
+function buildPersistedUserState(options: {
+  userId: string | number;
+  storageFormat: PersistedUserState["storageFormat"];
+  schemaVersion?: number;
+  revision?: number;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+  username?: unknown;
+  normalizedUsername?: unknown;
+}): PersistedUserState {
+  const username =
+    typeof options.username === "string" ? options.username : undefined;
+  const normalizedUsername =
+    normalizeUsernameIndexValue(options.normalizedUsername) ??
+    normalizeUsernameIndexValue(username);
+
+  return {
+    userId: String(options.userId),
+    storageFormat: options.storageFormat,
+    schemaVersion:
+      typeof options.schemaVersion === "number" && options.schemaVersion > 0
+        ? options.schemaVersion
+        : 1,
+    revision:
+      typeof options.revision === "number" && options.revision > 0
+        ? options.revision
+        : 0,
+    createdAt:
+      typeof options.createdAt === "string" && options.createdAt.length > 0
+        ? options.createdAt
+        : undefined,
+    updatedAt:
+      typeof options.updatedAt === "string" && options.updatedAt.length > 0
+        ? options.updatedAt
+        : undefined,
+    ...(username ? { username } : {}),
+    ...(normalizedUsername ? { normalizedUsername } : {}),
+  };
+}
+
+function parseVersionedUserCommitPointer(
+  userId: string | number,
+  raw: unknown,
+): VersionedUserCommitPointer {
+  const parsed = safeParseStoredJson<Record<string, unknown>>(
+    raw,
+    userId,
+    `user-commit:${userId}`,
+  );
+
+  if (!isObject(parsed)) {
+    throw logIntegrityFailure(userId, "Stored user commit pointer is invalid", {
+      key: getUserCommitKey(userId),
+    });
+  }
+
+  const revision = Number(parsed.revision);
+  if (
+    parsed.storageFormat !== USER_STORAGE_FORMAT ||
+    !Number.isInteger(revision) ||
+    revision <= 0
+  ) {
+    throw logIntegrityFailure(userId, "Stored user commit pointer is invalid", {
+      key: getUserCommitKey(userId),
+    });
+  }
+
+  return {
+    userId: String(parsed.userId ?? userId),
+    storageFormat: USER_STORAGE_FORMAT,
+    schemaVersion:
+      typeof parsed.schemaVersion === "number" && parsed.schemaVersion > 0
+        ? parsed.schemaVersion
+        : USER_RECORD_SCHEMA_VERSION,
+    revision,
+    createdAt: typeof parsed.createdAt === "string" ? parsed.createdAt : "",
+    updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : "",
+    username: typeof parsed.username === "string" ? parsed.username : undefined,
+    usernameNormalized: normalizeUsernameIndexValue(parsed.usernameNormalized),
+    committedAt:
+      typeof parsed.committedAt === "string"
+        ? parsed.committedAt
+        : new Date().toISOString(),
+  };
+}
+
+async function readVersionedUserCommitPointer(
+  userId: string | number,
+): Promise<VersionedUserCommitPointer | null> {
+  const raw = await redisClient.get(getUserCommitKey(userId));
+  if (!raw) {
+    return null;
+  }
+
+  return parseVersionedUserCommitPointer(userId, raw);
+}
+
+function buildPersistedStateFromMeta(
+  userId: string | number,
+  meta: UserMeta & Record<string, unknown>,
+  storageFormat: PersistedUserState["storageFormat"],
+): PersistedUserState {
+  return buildPersistedUserState({
+    userId: meta.userId || String(userId),
+    storageFormat,
+    schemaVersion: meta.schemaVersion,
+    revision: meta.revision,
+    createdAt: meta.createdAt,
+    updatedAt: meta.updatedAt,
+    username: meta.username,
+    normalizedUsername: meta.usernameNormalized,
+  });
+}
+
+function buildPersistedStateFromLegacyRecord(
+  userId: string | number,
+  record: UserRecord,
+): PersistedUserState {
+  return buildPersistedUserState({
+    userId: record.userId || String(userId),
+    storageFormat: "legacy",
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+    username: record.username,
+  });
+}
+
+export async function getPersistedUserState(
+  userId: string | number,
+): Promise<PersistedUserState | null> {
+  const commitPointer = await readVersionedUserCommitPointer(userId);
+  if (commitPointer) {
+    return buildPersistedUserState({
+      userId: commitPointer.userId,
+      storageFormat: "versioned",
+      schemaVersion: commitPointer.schemaVersion,
+      revision: commitPointer.revision,
+      createdAt: commitPointer.createdAt,
+      updatedAt: commitPointer.updatedAt,
+      username: commitPointer.username,
+      normalizedUsername: commitPointer.usernameNormalized,
+    });
+  }
+
+  const splitMetaRaw = await redisClient.get(getUserDataKey(userId, "meta"));
+  if (splitMetaRaw) {
+    const meta = safeParseStoredJson<UserMeta & Record<string, unknown>>(
+      splitMetaRaw,
+      userId,
+      `legacy-split-meta:${userId}`,
+    );
+
+    if (!isObject(meta)) {
+      throw logIntegrityFailure(
+        userId,
+        "Stored split-user metadata is invalid",
+        {
+          key: getUserDataKey(userId, "meta"),
+        },
+      );
+    }
+
+    return buildPersistedStateFromMeta(userId, meta, "split");
+  }
+
+  const legacyRaw = await redisClient.get(`user:${userId}`);
+  if (!legacyRaw) {
+    return null;
+  }
+
+  const legacyRecord = safeParseStoredJson<UserRecord>(
+    legacyRaw,
+    userId,
+    `legacy-user:${userId}`,
+  );
+
+  return buildPersistedStateFromLegacyRecord(userId, legacyRecord);
+}
+
+async function loadVersionedUserDataParts(
+  userId: string | number,
+  parts: UserDataPart[],
+  commitPointer: VersionedUserCommitPointer,
+): Promise<Partial<Record<UserDataPart, unknown>>> {
+  const keys = parts.map((part) =>
+    getVersionedUserDataKey(userId, commitPointer.revision, part),
+  );
+  const results = await redisClient.mget(...keys);
+
+  const data: Partial<Record<UserDataPart, unknown>> = {};
+  const missingRequiredParts: UserDataPart[] = [];
+
+  results.forEach((rawValue, index) => {
+    const part = parts[index];
+
+    if (rawValue === null || rawValue === undefined) {
+      if (!isOptionalUserDataPart(part)) {
+        missingRequiredParts.push(part);
+      }
+      return;
+    }
+
+    data[part] = parseUserDataPartPayload(
+      userId,
+      part,
+      rawValue,
+      `versioned-user:${commitPointer.revision}`,
+    );
+  });
+
+  if (missingRequiredParts.length > 0) {
+    throw logIntegrityFailure(
+      userId,
+      "Stored versioned user record is incomplete",
+      {
+        revision: commitPointer.revision,
+        missingParts: missingRequiredParts.join(","),
+      },
+    );
+  }
+
+  return data;
+}
+
+function canReconstructFullUserRecord(
+  parts: Partial<Record<UserDataPart, unknown>>,
+): boolean {
+  return ALL_USER_DATA_PARTS.every(
+    (part) => isOptionalUserDataPart(part) || parts[part] !== undefined,
+  );
+}
+
+async function loadLegacyCompatibleUserDataParts(
+  userId: string | number,
+  parts: UserDataPart[],
+): Promise<Partial<Record<UserDataPart, unknown>>> {
+  const keys = parts.map((part) => getUserDataKey(userId, part));
+  const results = await redisClient.mget(...keys);
+
+  const data: Partial<Record<UserDataPart, unknown>> = {};
+  let foundAnyRequestedPart = false;
+  const missingRequiredParts: UserDataPart[] = [];
+
+  results.forEach((rawValue, index) => {
+    const part = parts[index];
+
+    if (rawValue === null || rawValue === undefined) {
+      if (!isOptionalUserDataPart(part)) {
+        missingRequiredParts.push(part);
+      }
+      return;
+    }
+
+    foundAnyRequestedPart = true;
+    data[part] = parseUserDataPartPayload(
+      userId,
+      part,
+      rawValue,
+      "legacy-split-user",
+    );
+  });
+
+  if (!foundAnyRequestedPart) {
+    const migratedRecord = await migrateUserRecord(userId);
+    if (!migratedRecord) {
+      return {};
+    }
+
+    const split = splitUserRecord(migratedRecord) as Partial<
+      Record<UserDataPart, unknown>
+    >;
+    parts.forEach((part) => {
+      if (split[part] !== undefined) {
+        data[part] = split[part];
+      }
+    });
+    return data;
+  }
+
+  if (missingRequiredParts.length > 0) {
+    throw logIntegrityFailure(
+      userId,
+      "Stored split user record is incomplete",
+      {
+        missingParts: missingRequiredParts.join(","),
+      },
+    );
+  }
+
+  if (canReconstructFullUserRecord(data)) {
+    const reconstructed = reconstructUserRecord(data);
+    const meta = data.meta as (UserMeta & Record<string, unknown>) | undefined;
+    await saveUserRecord(reconstructed, {
+      existingState: meta
+        ? buildPersistedStateFromMeta(userId, meta, "split")
+        : undefined,
+    });
+  }
+
+  return data;
+}
+
+async function rebuildUserRefreshIndex(): Promise<number> {
+  const allKeys = await scanAllKeys("user:*");
+  const userIds = Array.from(
+    new Set(
+      allKeys
+        .map((key) => key.split(":")[1])
+        .filter((candidate): candidate is string =>
+          Boolean(candidate && /^\d+$/.test(candidate)),
+        ),
+    ),
+  );
+
+  if (userIds.length === 0) {
+    return 0;
+  }
+
+  const states = await Promise.all(
+    userIds.map(async (candidateUserId) => {
+      try {
+        return await getPersistedUserState(candidateUserId);
+      } catch (error) {
+        if (error instanceof UserDataIntegrityError) {
+          logPrivacySafe(
+            "warn",
+            "User Data",
+            "Skipping corrupt user while rebuilding stale-user index",
+            {
+              userId: candidateUserId,
+              error: error.message,
+            },
+          );
+          return null;
+        }
+
+        throw error;
+      }
+    }),
+  );
+
+  const validStates = states.filter(
+    (state): state is PersistedUserState => state !== null,
+  );
+
+  if (validStates.length === 0) {
+    return 0;
+  }
+
+  const pipeline = redisClient.pipeline() as unknown as RedisPipeline;
+  validStates.forEach((state) => {
+    pipeline.zadd(USER_REFRESH_INDEX_KEY, {
+      score: getUpdatedAtScore(state.updatedAt),
+      member: state.userId,
+    });
+  });
+  await pipeline.exec();
+
+  return validStates.length;
+}
+
+export async function listStalestUserIds(
+  limit: number,
+): Promise<{ userIds: string[]; totalUsers: number }> {
+  let totalUsers = Number(
+    await redisSortedSetClient.zcard(USER_REFRESH_INDEX_KEY),
+  );
+
+  if (totalUsers === 0) {
+    totalUsers = await rebuildUserRefreshIndex();
+  }
+
+  if (totalUsers === 0 || limit <= 0) {
+    return { userIds: [], totalUsers: 0 };
+  }
+
+  const userIds = await redisSortedSetClient.zrange(
+    USER_REFRESH_INDEX_KEY,
+    0,
+    Math.max(0, limit - 1),
+  );
+
+  return {
+    userIds: userIds.map(String),
+    totalUsers,
+  };
+}
+
 /**
  * Splits a full UserRecord into its constituent parts for granular storage.
  *
@@ -552,6 +1109,10 @@ export function reconstructUserRecord(
   delete rest.name;
   delete rest.avatar;
   delete rest.userCreatedAt;
+  delete rest.schemaVersion;
+  delete rest.revision;
+  delete rest.storageFormat;
+  delete rest.usernameNormalized;
   const aggregates = parts.aggregates as UserAggregates | undefined;
 
   return {
@@ -599,24 +1160,95 @@ export function reconstructPublicUserRecord(
  */
 export async function saveUserRecord(
   record: PersistedUserRecord,
-): Promise<void> {
+  options?: {
+    existingState?: PersistedUserState;
+  },
+): Promise<{ updatedAt: string; revision: number }> {
+  const currentState =
+    options && Object.hasOwn(options, "existingState")
+      ? options.existingState
+      : await getPersistedUserState(record.userId);
   const split = splitUserRecord(record) as unknown as Record<
     UserDataPart,
     unknown
   >;
-  const pipeline = redisClient.pipeline();
+  const userId = String(record.userId);
+  const nextRevision = Math.max(0, currentState?.revision ?? 0) + 1;
+  const normalizedUsername = normalizeUsernameIndexValue(record.username);
+  const previousNormalizedUsername = currentState?.normalizedUsername;
+  const pipeline = redisClient.pipeline() as unknown as RedisPipeline;
+
+  const meta = split.meta as UserMeta & Record<string, unknown>;
+  meta.schemaVersion = USER_RECORD_SCHEMA_VERSION;
+  meta.revision = nextRevision;
+  meta.storageFormat = USER_STORAGE_FORMAT;
+  if (normalizedUsername) {
+    meta.usernameNormalized = normalizedUsername;
+  } else {
+    delete meta.usernameNormalized;
+  }
+
+  const commitPointer: VersionedUserCommitPointer = {
+    userId,
+    storageFormat: USER_STORAGE_FORMAT,
+    schemaVersion: USER_RECORD_SCHEMA_VERSION,
+    revision: nextRevision,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+    ...(record.username ? { username: record.username } : {}),
+    ...(normalizedUsername ? { usernameNormalized: normalizedUsername } : {}),
+    committedAt: new Date().toISOString(),
+  };
 
   (Object.keys(split) as UserDataPart[]).forEach((part) => {
     pipeline.set(
-      getUserDataKey(record.userId, part),
+      getVersionedUserDataKey(userId, nextRevision, part),
       JSON.stringify(split[part]),
     );
   });
 
-  // Ensure legacy key is removed if it exists
-  pipeline.del(`user:${record.userId}`);
+  if (normalizedUsername) {
+    pipeline.set(`username:${normalizedUsername}`, userId);
+  }
+
+  pipeline.zadd(USER_REFRESH_INDEX_KEY, {
+    score: getUpdatedAtScore(record.updatedAt),
+    member: userId,
+  });
+
+  pipeline.set(getUserCommitKey(userId), JSON.stringify(commitPointer));
+
+  const staleAliasKeys: string[] = [];
+  if (
+    previousNormalizedUsername &&
+    previousNormalizedUsername !== normalizedUsername
+  ) {
+    staleAliasKeys.push(`username:${previousNormalizedUsername}`);
+  }
+  if (staleAliasKeys.length > 0) {
+    pipeline.del(...staleAliasKeys);
+  }
+
+  pipeline.del(
+    `user:${userId}`,
+    ...ALL_USER_DATA_PARTS.map((part) => getUserDataKey(userId, part)),
+  );
+
+  const previousSnapshotRevision = currentState?.revision ?? 0;
+  if (previousSnapshotRevision > 1) {
+    pipeline.del(
+      ...ALL_USER_DATA_PARTS.map((part) =>
+        getVersionedUserDataKey(userId, previousSnapshotRevision - 1, part),
+      ),
+    );
+  }
 
   await pipeline.exec();
+
+  return {
+    updatedAt: record.updatedAt,
+    revision: nextRevision,
+  };
 }
 
 /**
@@ -653,27 +1285,19 @@ async function findUsernameIndexKeysForUser(
 export async function deleteUserRecord(
   userId: string | number,
 ): Promise<DeleteUserRecordResult> {
-  const parts: UserDataPart[] = [
-    "meta",
-    "activity",
-    "favourites",
-    "statistics",
-    "pages",
-    "planning",
-    "current",
-    "rewatched",
-    "completed",
-    "aggregates",
-  ];
   const usernameIndexKeys = await findUsernameIndexKeysForUser(userId);
-  const keys = parts.map((part) => getUserDataKey(userId, part));
+  const versionedKeys = await scanAllKeys(`user:${userId}:r:*`);
+  const keys = ALL_USER_DATA_PARTS.map((part) => getUserDataKey(userId, part));
   keys.push(
+    getUserCommitKey(userId),
     `user:${userId}`,
     `cards:${userId}`,
     `failed_updates:${userId}`,
+    ...versionedKeys,
     ...usernameIndexKeys,
   );
   await redisClient.del(...keys);
+  await redisSortedSetClient.zrem(USER_REFRESH_INDEX_KEY, String(userId));
 
   return {
     deletedKeys: keys,
@@ -692,10 +1316,15 @@ export async function migrateUserRecord(
 
   if (!legacyDataRaw) return null;
 
-  const record = safeParse<UserRecord>(legacyDataRaw as string);
-  if (!record) return null;
+  const record = safeParseStoredJson<UserRecord>(
+    legacyDataRaw,
+    userId,
+    `legacy-user:${userId}`,
+  );
 
-  await saveUserRecord(record);
+  await saveUserRecord(record, {
+    existingState: buildPersistedStateFromLegacyRecord(userId, record),
+  });
 
   return record;
 }
@@ -707,43 +1336,12 @@ export async function fetchUserDataParts(
   userId: string | number,
   parts: UserDataPart[],
 ): Promise<Partial<Record<UserDataPart, unknown>>> {
-  const keys = parts.map((part) => getUserDataKey(userId, part));
-  const results = await redisClient.mget(...keys);
-
-  const data: Partial<Record<UserDataPart, unknown>> = {};
-  let missingAny = false;
-
-  results.forEach((val, i) => {
-    if (val) {
-      try {
-        data[parts[i]] = typeof val === "string" ? JSON.parse(val) : val;
-      } catch (e) {
-        logPrivacySafe("error", "User Data", "Failed to parse user data part", {
-          userId,
-          part: parts[i],
-          error: e instanceof Error ? e.message : String(e),
-        });
-        missingAny = true;
-      }
-    } else {
-      missingAny = true;
-    }
-  });
-
-  if (missingAny) {
-    const fullRecord = await migrateUserRecord(userId);
-    if (!fullRecord) return data;
-
-    const split = splitUserRecord(fullRecord) as unknown as Record<
-      UserDataPart,
-      unknown
-    >;
-    parts.forEach((part) => {
-      data[part] = split[part];
-    });
+  const commitPointer = await readVersionedUserCommitPointer(userId);
+  if (commitPointer) {
+    return loadVersionedUserDataParts(userId, parts, commitPointer);
   }
 
-  return data;
+  return loadLegacyCompatibleUserDataParts(userId, parts);
 }
 
 /**

@@ -13,6 +13,9 @@ import {
   sharedRedisMockPipelineExec,
   sharedRedisMockScan,
   sharedRedisMockSet,
+  sharedRedisMockZadd,
+  sharedRedisMockZcard,
+  sharedRedisMockZrange,
 } from "@/tests/unit/__setup__";
 
 const { POST } = await import("@/app/api/cron/route");
@@ -35,6 +38,48 @@ function createMockUserRecord(userId: string, daysOld = 0) {
     updatedAt: date.toISOString(),
     createdAt: date.toISOString(),
   };
+}
+
+function createStoredSplitUser(userId: string, daysOld = 0) {
+  const record = createMockUserRecord(userId, daysOld);
+  return {
+    meta: {
+      userId,
+      username: record.username,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    },
+    activity: {
+      activityHistory: [],
+    },
+    favourites: {
+      anime: { nodes: [] },
+      manga: { nodes: [] },
+      characters: { nodes: [] },
+      staff: { nodes: [] },
+      studios: { nodes: [] },
+    },
+    statistics: {
+      anime: {},
+      manga: {},
+    },
+    pages: {
+      followersPage: { pageInfo: { total: 0 }, followers: [] },
+      followingPage: { pageInfo: { total: 0 }, following: [] },
+      threadsPage: { pageInfo: { total: 0 }, threads: [] },
+      threadCommentsPage: { pageInfo: { total: 0 }, threadComments: [] },
+      reviewsPage: { pageInfo: { total: 0 }, reviews: [] },
+    },
+    planning: {},
+    current: {},
+    rewatched: {},
+    completed: {},
+  };
+}
+
+function mockStaleUserIndex(userIds: string[], totalUsers = userIds.length) {
+  sharedRedisMockZcard.mockResolvedValueOnce(totalUsers);
+  sharedRedisMockZrange.mockResolvedValueOnce(userIds);
 }
 
 function createValidStatsPayload(userId: string) {
@@ -81,19 +126,55 @@ function mockUserRecords(
   userIds: string[],
   daysOldById?: Record<string, number>,
 ) {
-  sharedRedisMockScan.mockResolvedValueOnce([
-    0,
-    userIds.map((id) => `user:${id}`),
-  ]);
+  const staleOrderedUserIds = [...userIds].sort(
+    (left, right) => (daysOldById?.[right] ?? 0) - (daysOldById?.[left] ?? 0),
+  );
+  mockStaleUserIndex(staleOrderedUserIds.slice(0, 5), userIds.length);
   sharedRedisMockGet.mockImplementation((key: string) => {
     if (key.startsWith("failed_updates:")) {
       return Promise.resolve(null);
     }
-    const id = key.split(":")[1];
-    return Promise.resolve(
-      JSON.stringify(createMockUserRecord(id, daysOldById?.[id] ?? 0)),
-    );
+
+    const commitMatch = /^user:(\d+):commit$/.exec(key);
+    if (commitMatch) {
+      return Promise.resolve(null);
+    }
+
+    const metaMatch = /^user:(\d+):meta$/.exec(key);
+    if (metaMatch) {
+      const id = metaMatch[1];
+      return Promise.resolve(
+        JSON.stringify(createStoredSplitUser(id, daysOldById?.[id] ?? 0).meta),
+      );
+    }
+
+    const legacyMatch = /^user:(\d+)$/.exec(key);
+    if (legacyMatch) {
+      const id = legacyMatch[1];
+      return Promise.resolve(
+        JSON.stringify(createMockUserRecord(id, daysOldById?.[id] ?? 0)),
+      );
+    }
+
+    return Promise.resolve(null);
   });
+  sharedRedisMockMget.mockImplementation(async (...keys: string[]) =>
+    keys.map((key) => {
+      if (key.startsWith("username:")) {
+        return null;
+      }
+
+      const match = /^user:(\d+):([^:]+)$/.exec(key);
+      if (!match) {
+        return null;
+      }
+
+      const [, id, part] = match;
+      const splitUser = createStoredSplitUser(id, daysOldById?.[id] ?? 0);
+      const value = splitUser[part as keyof typeof splitUser];
+      return value === undefined ? null : JSON.stringify(value);
+    }),
+  );
 }
 
 function createJsonResponse(status: number, payload: unknown) {
@@ -117,10 +198,16 @@ describe("Cron API Route", () => {
     sharedRedisMockSet.mockReset();
     sharedRedisMockDel.mockReset();
     sharedRedisMockScan.mockReset();
+    sharedRedisMockZadd.mockReset();
+    sharedRedisMockZcard.mockReset();
+    sharedRedisMockZrange.mockReset();
     sharedRedisMockMget.mockImplementation(async (...keys: string[]) =>
       keys.map(() => null),
     );
     sharedRedisMockPipelineExec.mockResolvedValue([]);
+    sharedRedisMockZadd.mockResolvedValue(1);
+    sharedRedisMockZcard.mockResolvedValue(0);
+    sharedRedisMockZrange.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -186,29 +273,66 @@ describe("Cron API Route", () => {
     expect(text).toContain("Update 10 users/run: 0 */12 * * *");
     expect(globalThis.fetch).toHaveBeenCalledTimes(5);
     expect(sharedRedisMockSet).toHaveBeenCalledWith(
-      "user:15:activity",
+      "user:15:r:1:activity",
       expect.any(String),
     );
     expect(sharedRedisMockDel).toHaveBeenCalledWith("failed_updates:15");
+    expect(sharedRedisMockZrange).toHaveBeenCalledWith(
+      "users:stale-by-updated-at",
+      0,
+      4,
+    );
   });
 
   it("tracks 404 failures and removes users on the third consecutive miss", async () => {
     mockUserRecords(["123"]);
+    sharedRedisMockScan.mockResolvedValueOnce([0, []]);
     sharedRedisMockScan.mockResolvedValueOnce([
       0,
       ["username:user123", "username:old-user123"],
     ]);
-    sharedRedisMockMget
-      .mockImplementationOnce(async (...keys: string[]) => keys.map(() => null))
-      .mockImplementationOnce(async (...keys: string[]) =>
-        keys.map(() => "123"),
-      );
     sharedRedisMockGet.mockImplementation((key: string) => {
       if (key === "failed_updates:123") {
         return Promise.resolve("2");
       }
-      const id = key.split(":")[1];
-      return Promise.resolve(JSON.stringify(createMockUserRecord(id)));
+
+      const commitMatch = /^user:(\d+):commit$/.exec(key);
+      if (commitMatch) {
+        return Promise.resolve(null);
+      }
+
+      const metaMatch = /^user:(\d+):meta$/.exec(key);
+      if (metaMatch) {
+        return Promise.resolve(
+          JSON.stringify(createStoredSplitUser(metaMatch[1]).meta),
+        );
+      }
+
+      const legacyMatch = /^user:(\d+)$/.exec(key);
+      if (legacyMatch) {
+        return Promise.resolve(
+          JSON.stringify(createMockUserRecord(legacyMatch[1])),
+        );
+      }
+
+      return Promise.resolve(null);
+    });
+    sharedRedisMockMget.mockImplementation(async (...keys: string[]) => {
+      if (keys.every((key) => key.startsWith("username:"))) {
+        return keys.map(() => "123");
+      }
+
+      return keys.map((key) => {
+        const match = /^user:(\d+):([^:]+)$/.exec(key);
+        if (!match) {
+          return null;
+        }
+
+        const [, id, part] = match;
+        const splitUser = createStoredSplitUser(id);
+        const value = splitUser[part as keyof typeof splitUser];
+        return value === undefined ? null : JSON.stringify(value);
+      });
     });
     globalThis.fetch = mock(() =>
       Promise.resolve(createJsonResponse(404, { error: "User not found" })),
@@ -230,6 +354,7 @@ describe("Cron API Route", () => {
       "user:123:rewatched",
       "user:123:completed",
       "user:123:aggregates",
+      "user:123:commit",
       "user:123",
       "cards:123",
       "failed_updates:123",

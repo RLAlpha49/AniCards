@@ -1302,7 +1302,12 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-const STORE_USER_REQUEST_KEYS = new Set(["userId", "username", "stats"]);
+const STORE_USER_REQUEST_KEYS = new Set([
+  "userId",
+  "username",
+  "stats",
+  "ifMatchUpdatedAt",
+]);
 
 function hasOnlyAllowedKeys(
   value: Record<string, unknown>,
@@ -1331,6 +1336,7 @@ export type ValidateUserDataResult =
         userId: number;
         username?: string;
         stats: Record<string, unknown>;
+        ifMatchUpdatedAt?: string;
       };
     }
   | { success: false; error: NextResponse<ApiError> };
@@ -1392,6 +1398,10 @@ export function validateUserData(
       userId,
       ...(username ? { username } : {}),
       stats: data.stats,
+      ...(typeof data.ifMatchUpdatedAt === "string" &&
+      data.ifMatchUpdatedAt.length > 0
+        ? { ifMatchUpdatedAt: data.ifMatchUpdatedAt }
+        : {}),
     },
   };
 }

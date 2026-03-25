@@ -16,19 +16,17 @@ import {
   authorizeCronRequest,
   fetchUpstreamWithRetry,
   redisClient,
-  scanAllKeys,
   UpstreamTransportError,
 } from "@/lib/api-utils";
 import { validateAndNormalizeUserRecord } from "@/lib/card-data/validation";
 import {
+  ALL_USER_DATA_PARTS,
   deleteUserRecord,
   fetchUserDataParts,
+  listStalestUserIds,
   reconstructUserRecord,
   saveUserRecord,
-  UserDataPart,
 } from "@/lib/server/user-data";
-import { UserRecord } from "@/lib/types/records";
-import { safeParse } from "@/lib/utils";
 
 /**
  * Tracks the outcome of a user's AniList stats refresh.
@@ -247,59 +245,10 @@ export async function POST(request: Request) {
       "🛠️ [Cron Job] QStash authorized, starting background update...",
     );
 
-    const allKeys = await scanAllKeys("user:*");
-    const userIds = Array.from(
-      new Set(
-        allKeys
-          .map((k) => k.split(":")[1])
-          .filter((id) => id && /^\d+$/.test(id)),
-      ),
-    );
-    const totalUsers = userIds.length;
-
-    const metaKeys = userIds.map((id) => `user:${id}:meta`);
-    const metaResults = await Promise.all(
-      metaKeys.map((key) => redisClient.get(key)),
-    );
-
-    const missingMetaIndices: number[] = [];
-    const validUsers: { id: string; updatedAt: string | number }[] = [];
-
-    metaResults.forEach((meta, i) => {
-      if (meta) {
-        const parsed = typeof meta === "string" ? JSON.parse(meta) : meta;
-        validUsers.push({ id: userIds[i], updatedAt: parsed.updatedAt || 0 });
-      } else {
-        missingMetaIndices.push(i);
-      }
-    });
-
-    if (missingMetaIndices.length > 0) {
-      const legacyKeys = missingMetaIndices.map((i) => `user:${userIds[i]}`);
-      const legacyResults = await Promise.all(
-        legacyKeys.map((key) => redisClient.get(key)),
-      );
-
-      legacyResults.forEach((legacy, i) => {
-        if (legacy) {
-          const record = safeParse<UserRecord>(legacy as string);
-          validUsers.push({
-            id: userIds[missingMetaIndices[i]],
-            updatedAt: record?.updatedAt || 0,
-          });
-        }
-      });
-    }
-
-    validUsers.sort((a, b) => {
-      const dateA = new Date(a.updatedAt || 0).getTime();
-      const dateB = new Date(b.updatedAt || 0).getTime();
-      return dateA - dateB;
-    });
-
     // Refresh the stalest records first and keep the batch small. That trades a
     // little peak freshness for predictable AniList load and more stable cron runs.
-    const batch = validUsers.slice(0, 5);
+    const { userIds, totalUsers } = await listStalestUserIds(5);
+    const batch = userIds.map((id) => ({ id }));
 
     console.log(
       `🚀 [Cron Job] Starting background update for ${batch.length} users (5 oldest out of ${totalUsers}).`,
@@ -309,23 +258,12 @@ export async function POST(request: Request) {
     let failedUpdates = 0;
     let removedUsers = 0;
 
-    const allParts: UserDataPart[] = [
-      "meta",
-      "activity",
-      "favourites",
-      "statistics",
-      "pages",
-      "planning",
-      "current",
-      "rewatched",
-      "completed",
-      "aggregates",
-    ];
-
     await Promise.all(
       batch.map(async ({ id }) => {
         try {
-          const partsData = await fetchUserDataParts(id, allParts);
+          const partsData = await fetchUserDataParts(id, [
+            ...ALL_USER_DATA_PARTS,
+          ]);
           const user = reconstructUserRecord(partsData);
 
           console.log(
