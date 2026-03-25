@@ -67,8 +67,14 @@ export function buildApiUrl(path: string): string {
 /** Export formats supported for image conversion. @source */
 export type ConversionFormat = "png" | "webp";
 
+export interface SvgConversionSource {
+  svgContent?: string;
+  svgUrl?: string;
+}
+
 /** A card entry used for batch export operations. @source */
 export interface BatchExportCard {
+  cachedSvgObjectUrl?: string | null;
   type: string;
   svgUrl: string;
   rawType: string;
@@ -544,6 +550,123 @@ export function processColorsForSVG(
 }
 
 /**
+ * Maps any public/absolute card preview URL back to the in-app `/api/card` endpoint.
+ * This preserves the query string while letting callers share the normalized preview cache.
+ */
+export function toCardApiHref(previewUrl: string): string | null {
+  try {
+    const url = new URL(previewUrl, "https://example.invalid");
+
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return null;
+    }
+
+    return `/api/card${url.search}`;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeSvgConversionSource(
+  source: string | SvgConversionSource,
+): SvgConversionSource {
+  if (typeof source === "string") {
+    return { svgUrl: source };
+  }
+
+  return source;
+}
+
+async function blobToDataUrl(blob: Blob): Promise<string> {
+  const mimeType = blob.type || "application/octet-stream";
+
+  if (typeof FileReader === "undefined") {
+    const arrayBuffer = await blob.arrayBuffer();
+    return `data:${mimeType};base64,${Buffer.from(arrayBuffer).toString("base64")}`;
+  }
+
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => {
+      reject(reader.error ?? new Error("Failed to read conversion response"));
+    };
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error("Failed to read conversion response"));
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Reads SVG markup from a browser object URL so callers can reuse a previously fetched preview.
+ */
+export async function readSvgMarkupFromObjectUrl(
+  objectUrl: string,
+): Promise<string> {
+  const response = await fetch(objectUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to read cached preview SVG: ${response.status}`);
+  }
+
+  return await response.text();
+}
+
+/**
+ * Converts SVG input into a raster blob using the conversion API's binary response mode.
+ */
+export async function convertSvgToBlob(
+  source: string | SvgConversionSource,
+  format: ConversionFormat = "png",
+): Promise<Blob> {
+  const payloadSource = normalizeSvgConversionSource(source);
+
+  if (!payloadSource.svgUrl && !payloadSource.svgContent) {
+    throw new Error("Missing SVG source for conversion");
+  }
+
+  const isClient =
+    (globalThis as unknown as { window?: unknown }).window !== undefined;
+  const convertEndpoint = isClient ? "/api/convert" : buildApiUrl("/convert");
+  const response = await fetch(convertEndpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...payloadSource,
+      format,
+      responseType: "binary",
+    }),
+  });
+
+  if (!response.ok) {
+    const payload = await parseResponsePayload(response);
+    throw new Error(
+      `Failed to convert SVG: ${getResponseErrorMessage(response, payload)}`,
+    );
+  }
+
+  const blob = await response.blob();
+  const expectedMimeType = format === "webp" ? "image/webp" : "image/png";
+  const mimeType = blob.type || expectedMimeType;
+
+  if (mimeType !== expectedMimeType) {
+    throw new Error(
+      `Invalid response from convert API: expected ${expectedMimeType} but received ${mimeType}`,
+    );
+  }
+
+  if (blob.type === expectedMimeType) {
+    return blob;
+  }
+
+  return new Blob([await blob.arrayBuffer()], { type: expectedMimeType });
+}
+
+/**
  * Converts an SVG file referenced by a URL to a raster image data URL via an API call.
  *
  * Makes a POST request to the conversion API endpoint with the SVG URL and requested format.
@@ -555,28 +678,12 @@ export function processColorsForSVG(
  * @source
  */
 export async function svgToPng(
-  svgUrl: string,
+  source: string | SvgConversionSource,
   format: ConversionFormat = "png",
 ): Promise<string> {
   try {
-    const isClient =
-      (globalThis as unknown as { window?: unknown }).window !== undefined;
-    const convertEndpoint = isClient ? "/api/convert" : buildApiUrl("/convert");
-    const response = await fetch(convertEndpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ svgUrl, format }),
-    });
-
-    const payload = await parseResponsePayload(response);
-
-    if (!response.ok) {
-      throw new Error(
-        `Failed to convert SVG: ${getResponseErrorMessage(response, payload)}`,
-      );
-    }
-
-    return extractImageDataUrl(payload);
+    const blob = await convertSvgToBlob(source, format);
+    return await blobToDataUrl(blob);
   } catch (error) {
     console.error("Conversion failed:", error);
     throw error;
@@ -622,25 +729,6 @@ export function getResponseErrorMessage(
   }
   if (typeof payload === "string" && payload.trim()) return payload;
   return message;
-}
-
-/**
- * Validate the parsed payload and extract the pngDataUrl property. Throws on invalid payloads.
- * @source
- */
-function extractImageDataUrl(payload: unknown): string {
-  if (!payload || typeof payload !== "object") {
-    throw new Error(
-      "Invalid response from convert API: missing or invalid pngDataUrl",
-    );
-  }
-  const maybe = (payload as Record<string, unknown>).pngDataUrl;
-  if (typeof maybe !== "string" || !maybe.trim()) {
-    throw new Error(
-      "Invalid response from convert API: missing or invalid pngDataUrl",
-    );
-  }
-  return maybe;
 }
 
 /**
@@ -903,8 +991,8 @@ export function markTrustedSvg(svg: string): TrustedSVG {
 /** Successful result for a single conversion in a batch. @source */
 type BatchConversionSuccess = {
   success: true;
+  blob: Blob;
   card: BatchExportCard;
-  dataUrl: string;
   format: ConversionFormat;
   cardIndex: number;
 };
@@ -925,7 +1013,7 @@ export type BatchConversionResult =
 /** Image data used internally when packaging converted images into a ZIP. @source */
 interface BatchConversionImage {
   filename: string;
-  dataUrl: string;
+  blob: Blob;
   format: ConversionFormat;
 }
 
@@ -965,12 +1053,29 @@ export async function batchConvertSvgsToPngs(
     index: number,
   ): Promise<BatchConversionResult> => {
     try {
-      const dataUrl = await svgToPng(card.svgUrl, format);
+      let source: string | SvgConversionSource = card.svgUrl;
+
+      if (card.cachedSvgObjectUrl) {
+        try {
+          source = {
+            svgContent: await readSvgMarkupFromObjectUrl(
+              card.cachedSvgObjectUrl,
+            ),
+          };
+        } catch (error) {
+          console.warn(
+            `Failed to reuse cached preview SVG for ${card.rawType || card.type}; falling back to URL conversion.`,
+            error,
+          );
+        }
+      }
+
+      const blob = await convertSvgToBlob(source, format);
       successCount += 1;
       return {
         success: true,
+        blob,
         card,
-        dataUrl,
         format,
         cardIndex: index,
       };
@@ -1026,9 +1131,7 @@ export async function generateZipFromImages(
 ): Promise<Blob> {
   const zip = new JSZip();
   for (const image of images) {
-    const [, base64] = image.dataUrl.split(",");
-    if (!base64) continue;
-    zip.file(image.filename, base64, { base64: true });
+    zip.file(image.filename, await image.blob.arrayBuffer());
   }
   return await zip.generateAsync({ type: "blob" });
 }
@@ -1085,7 +1188,7 @@ export async function batchConvertAndZip(
 
   const images: BatchConversionImage[] = successful.map((result) => ({
     filename: `${result.card.rawType || result.card.type}.${format}`,
-    dataUrl: result.dataUrl,
+    blob: result.blob,
     format: result.format,
   }));
 

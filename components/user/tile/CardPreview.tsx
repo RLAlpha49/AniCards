@@ -12,27 +12,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { CopyPopover } from "@/components/user/tile/CopyPopover";
 import { DownloadPopover } from "@/components/user/tile/DownloadPopover";
 import { useCachedCardPreview } from "@/components/user/tile/useCachedCardPreview";
-import { cn, type ConversionFormat } from "@/lib/utils";
-
-/**
- * Maps a preview URL to the internal /api/card endpoint.
- * Extracts only the query parameters from the preview URL,
- * allowing the local API to handle card rendering regardless
- * of the original URL's hostname or path.
- */
-function toCardApiHref(previewUrl: string): string | null {
-  try {
-    const url = new URL(previewUrl, "https://example.invalid");
-
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      return null;
-    }
-
-    return `/api/card${url.search}`;
-  } catch {
-    return null;
-  }
-}
+import { cn, type ConversionFormat, toCardApiHref } from "@/lib/utils";
 
 function withCacheBust(apiHref: string, cacheBust: string | null): string {
   if (!cacheBust) return apiHref;

@@ -7,7 +7,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { type ConversionFormat, getAbsoluteUrl, svgToPng } from "@/lib/utils";
+import { getCachedPreviewObjectUrl } from "@/components/user/tile/preview-cache";
+import {
+  type ConversionFormat,
+  convertSvgToBlob,
+  getAbsoluteUrl,
+  readSvgMarkupFromObjectUrl,
+  toCardApiHref,
+} from "@/lib/utils";
 
 export function useDownload(
   previewUrl: string | null,
@@ -40,14 +47,39 @@ export function useDownload(
         setStatus("downloading");
       }
       let link: HTMLAnchorElement | null = null;
-      let dataUrl: string | null = null;
+      let downloadUrl: string | null = null;
       try {
         const absoluteUrl = getAbsoluteUrl(previewUrl);
-        dataUrl = await svgToPng(absoluteUrl, format);
+        const previewApiHref = toCardApiHref(previewUrl);
+        const cachedSvgObjectUrl = previewApiHref
+          ? getCachedPreviewObjectUrl(previewApiHref)
+          : null;
+
+        let conversionSource:
+          | string
+          | {
+              svgContent: string;
+            } = absoluteUrl;
+
+        if (cachedSvgObjectUrl) {
+          try {
+            conversionSource = {
+              svgContent: await readSvgMarkupFromObjectUrl(cachedSvgObjectUrl),
+            };
+          } catch (error) {
+            console.warn(
+              "Failed to reuse cached preview SVG for download; falling back to URL conversion.",
+              error,
+            );
+          }
+        }
+
+        const rasterBlob = await convertSvgToBlob(conversionSource, format);
+        downloadUrl = URL.createObjectURL(rasterBlob);
         // Browsers still behave most consistently when downloads come from a
-        // real anchor click instead of navigating directly to the data URL.
+        // real anchor click instead of navigating directly to the response.
         link = document.createElement("a");
-        link.href = dataUrl;
+        link.href = downloadUrl;
         link.download = `${cardId}-${variant}.${format}`;
         document.body.appendChild(link);
         link.click();
@@ -62,6 +94,9 @@ export function useDownload(
         }
       } finally {
         link?.remove();
+        if (downloadUrl) {
+          URL.revokeObjectURL(downloadUrl);
+        }
         isDownloadingRef.current = false;
         if (isMountedRef.current) {
           setIsDownloading(false);

@@ -114,7 +114,23 @@ describe("Convert API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(400);
       const data = await res.json();
-      expect(data.error).toBe("Missing svgUrl parameter");
+      expect(data.error).toBe("Missing svgUrl or svgContent parameter");
+    });
+
+    it("should reject invalid inline svgContent", async () => {
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({ svgContent: "definitely-not-svg" }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+      expect(res.status).toBe(415);
+      const data = await res.json();
+      expect(data.error).toBe("Provided content is not a valid SVG");
     });
 
     it("should return 400 error for invalid URL format", async () => {
@@ -501,6 +517,58 @@ describe("Convert API POST Endpoint", () => {
       expect(data.pngDataUrl).toContain("data:image/webp;base64,");
       const expectedBase64 = Buffer.from("FAKEWEBP").toString("base64");
       expect(data.pngDataUrl).toBe(`data:image/webp;base64,${expectedBase64}`);
+    });
+
+    it("should convert inline svgContent without refetching upstream", async () => {
+      const fetchSpy = mock(
+        async () =>
+          new Response("<svg></svg>", {
+            status: 200,
+            headers: { "Content-Type": "image/svg+xml" },
+          }),
+      );
+      globalThis.fetch = fetchSpy as unknown as typeof globalThis.fetch;
+
+      const dummySVG = `<svg><circle cx="50" cy="50" r="40"/></svg>`;
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({
+          svgContent: dummySVG,
+          format: "png",
+        }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.pngDataUrl).toContain("data:image/png;base64,");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("should stream binary image data when responseType is binary", async () => {
+      const dummySVG = `<svg><circle cx="50" cy="50" r="40"/></svg>`;
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({
+          responseType: "binary",
+          svgContent: dummySVG,
+          format: "webp",
+        }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toBe("image/webp");
+      const body = Buffer.from(await res.arrayBuffer()).toString();
+      expect(body).toBe("FAKEWEBP");
     });
 
     it("should return 500 error when sharp conversion fails", async () => {

@@ -44,6 +44,7 @@ import {
   type BatchExportCard,
   cn,
   type ConversionFormat,
+  toCardApiHref,
 } from "@/lib/utils";
 
 import { BulkConfirmDialog } from "./bulk/BulkConfirmDialog";
@@ -51,6 +52,7 @@ import { CopyUrlsPopover } from "./bulk/CopyUrlsPopover";
 import { DownloadPopover } from "./bulk/DownloadPopover";
 import { DownloadStatusAlerts } from "./bulk/DownloadStatusAlerts";
 import { SelectionCounter } from "./bulk/SelectionCounter";
+import { getCachedPreviewObjectUrl } from "./tile/preview-cache";
 
 interface BulkActionsToolbarProps {
   /** Additional className for the toolbar container */
@@ -267,13 +269,22 @@ export function BulkActionsToolbar({
         );
 
         const url = buildCardUrlWithParams(urlParams);
-        return { cardId, config, url };
+        const previewApiHref = toCardApiHref(url);
+        const cachedSvgObjectUrl = previewApiHref
+          ? getCachedPreviewObjectUrl(previewApiHref)
+          : null;
+
+        return { cardId, config, url, cachedSvgObjectUrl };
       })
       .filter(
         (
           item,
-        ): item is { cardId: string; config: CardEditorConfig; url: string } =>
-          item !== null,
+        ): item is {
+          cardId: string;
+          cachedSvgObjectUrl: string | null;
+          config: CardEditorConfig;
+          url: string;
+        } => item !== null,
       );
   }, [
     userId,
@@ -418,6 +429,7 @@ export function BulkActionsToolbar({
 
       try {
         const batchCards: BatchExportCard[] = selectedCards.map((card) => ({
+          cachedSvgObjectUrl: card.cachedSvgObjectUrl,
           type: card.cardId,
           rawType: `${card.cardId}-${card.config.variant}`,
           svgUrl: card.url,

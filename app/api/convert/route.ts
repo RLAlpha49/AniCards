@@ -27,6 +27,8 @@ const SVG_MAX_BYTES = 1_000_000;
 const SVG_MAX_DIMENSION_PX = 4_096;
 const SVG_MAX_RASTER_PIXELS = 16_777_216;
 
+type ConvertResponseMode = "binary" | "json";
+
 class ConvertRouteError extends Error {
   readonly statusCode: number;
 
@@ -732,31 +734,74 @@ function getAllowedConvertDomains(): {
   return { allowedDomains, isDevelopment };
 }
 
-function parseSvgRequestBody(body: unknown): {
-  svgUrl: string;
-  requestedFormat: ConversionFormat;
-} {
-  const parsedBody =
-    typeof body === "object" && body !== null
-      ? (body as { format?: unknown; svgUrl?: unknown })
-      : undefined;
-  const svgUrl = parsedBody?.svgUrl;
-  const format = parsedBody?.format;
+function normalizeSvgUrl(svgUrl: unknown): string | undefined {
+  return typeof svgUrl === "string" && svgUrl.trim() ? svgUrl : undefined;
+}
 
-  if (!svgUrl || typeof svgUrl !== "string") {
-    throw new ConvertRouteError("Missing svgUrl parameter", 400);
+function normalizeInlineSvgContent(svgContent: unknown): string | undefined {
+  if (typeof svgContent !== "string" || !svgContent.trim()) {
+    return undefined;
   }
 
+  if (Buffer.byteLength(svgContent, "utf8") > SVG_MAX_BYTES) {
+    throw new ConvertRouteError("SVG response too large", 413);
+  }
+
+  if (!looksLikeSvgDocument(svgContent)) {
+    throw new ConvertRouteError("Provided content is not a valid SVG", 415);
+  }
+
+  return svgContent;
+}
+
+function parseRequestedFormat(format: unknown): ConversionFormat {
   const allowedFormats: ConversionFormat[] = ["png", "webp"];
   const normalizedFormat =
     typeof format === "string" ? format.toLowerCase() : "png";
+
   if (!allowedFormats.includes(normalizedFormat as ConversionFormat)) {
     throw new ConvertRouteError("Invalid format parameter", 400);
   }
 
+  return normalizedFormat as ConversionFormat;
+}
+
+function parseResponseMode(responseType: unknown): ConvertResponseMode {
+  return responseType === "binary" ? "binary" : "json";
+}
+
+function parseSvgRequestBody(body: unknown): {
+  responseMode: ConvertResponseMode;
+  requestedFormat: ConversionFormat;
+  svgContent?: string;
+  svgUrl?: string;
+} {
+  const parsedBody =
+    typeof body === "object" && body !== null
+      ? (body as {
+          format?: unknown;
+          responseType?: unknown;
+          svgContent?: unknown;
+          svgUrl?: unknown;
+        })
+      : undefined;
+  const svgUrl = parsedBody?.svgUrl;
+  const svgContent = parsedBody?.svgContent;
+  const format = parsedBody?.format;
+  const responseType = parsedBody?.responseType;
+
+  const normalizedSvgUrl = normalizeSvgUrl(svgUrl);
+  const normalizedSvgContent = normalizeInlineSvgContent(svgContent);
+
+  if (!normalizedSvgUrl && !normalizedSvgContent) {
+    throw new ConvertRouteError("Missing svgUrl or svgContent parameter", 400);
+  }
+
   return {
-    svgUrl,
-    requestedFormat: normalizedFormat as ConversionFormat,
+    requestedFormat: parseRequestedFormat(format),
+    responseMode: parseResponseMode(responseType),
+    ...(normalizedSvgUrl ? { svgUrl: normalizedSvgUrl } : {}),
+    ...(normalizedSvgContent ? { svgContent: normalizedSvgContent } : {}),
   };
 }
 
@@ -1008,10 +1053,10 @@ async function fetchSvgContent(
 /**
  * Converts an SVG string into a raster data URL using sharp.
  */
-async function convertSvgToDataUrl(
+async function convertSvgToRaster(
   svg: string,
   requestedFormat: ConversionFormat,
-) {
+): Promise<{ convertedBuffer: Buffer; mimeType: string }> {
   validateSvgRasterizationBounds(svg);
 
   const inputBuffer = Buffer.from(svg);
@@ -1044,7 +1089,27 @@ async function convertSvgToDataUrl(
   else transformer.png();
   const convertedBuffer = await transformer.toBuffer();
   const mimeType = requestedFormat === "webp" ? "image/webp" : "image/png";
+  return { convertedBuffer, mimeType };
+}
+
+function encodeRasterDataUrl(
+  convertedBuffer: Buffer,
+  mimeType: string,
+): string {
   return `data:${mimeType};base64,${convertedBuffer.toString("base64")}`;
+}
+
+function binaryWithCors(
+  body: Blob,
+  mimeType: string,
+  request: NextRequest,
+): Response {
+  return new Response(body, {
+    headers: {
+      ...apiJsonHeaders(request),
+      "Content-Type": mimeType,
+    },
+  });
 }
 
 /**
@@ -1071,27 +1136,39 @@ export async function POST(request: NextRequest) {
   console.log(`🚀 [Convert API] Request received from ${ip}`);
 
   try {
-    const { svgUrl, requestedFormat } = parseSvgRequestBody(
-      await request.json(),
-    );
-    const parsedUrl = validateSvgTargetUrl(parseSvgTargetUrl(request, svgUrl));
+    const { requestedFormat, responseMode, svgContent, svgUrl } =
+      parseSvgRequestBody(await request.json());
+    let resolvedSvgContent = svgContent || "";
 
-    console.log(`🔍 [Convert API] Fetching SVG from: ${parsedUrl.href}`);
-    const fetched = await fetchSvgContent(parsedUrl, request);
-    if (fetched.errorResponse) return fetched.errorResponse;
-    let svgContent = fetched.svg || "";
-    console.log(
-      `📝 [Convert API] Received SVG content (${svgContent.length} characters)`,
-    );
+    if (resolvedSvgContent) {
+      console.log(
+        `📝 [Convert API] Received inline SVG content (${resolvedSvgContent.length} characters)`,
+      );
+    } else {
+      const parsedUrl = validateSvgTargetUrl(
+        parseSvgTargetUrl(request, svgUrl || ""),
+      );
 
-    const { svg: sanitizedSvg } = sanitizeFullSvg(svgContent);
-    svgContent = sanitizedSvg;
+      console.log(`🔍 [Convert API] Fetching SVG from: ${parsedUrl.href}`);
+      const fetched = await fetchSvgContent(parsedUrl, request);
+      if (fetched.errorResponse) return fetched.errorResponse;
+      resolvedSvgContent = fetched.svg || "";
+      console.log(
+        `📝 [Convert API] Received SVG content (${resolvedSvgContent.length} characters)`,
+      );
+    }
+
+    const { svg: sanitizedSvg } = sanitizeFullSvg(resolvedSvgContent);
+    resolvedSvgContent = sanitizedSvg;
     console.log("🧼 [Convert API] Final SVG cleanup completed.");
 
     console.log(
       `🔄 [Convert API] Converting SVG to ${requestedFormat.toUpperCase()} using sharp...`,
     );
-    const pngDataUrl = await convertSvgToDataUrl(svgContent, requestedFormat);
+    const { convertedBuffer, mimeType } = await convertSvgToRaster(
+      resolvedSvgContent,
+      requestedFormat,
+    );
     const conversionDuration = Date.now() - startTime;
     console.log(
       `✅ [Convert API] SVG converted to ${requestedFormat.toUpperCase()} successfully in ${conversionDuration}ms`,
@@ -1099,7 +1176,19 @@ export async function POST(request: NextRequest) {
     incrementAnalytics("analytics:convert_api:successful_requests").catch(
       () => {},
     );
-    return jsonWithCors({ pngDataUrl }, request);
+
+    if (responseMode === "binary") {
+      return binaryWithCors(
+        new Blob([Uint8Array.from(convertedBuffer)], { type: mimeType }),
+        mimeType,
+        request,
+      );
+    }
+
+    return jsonWithCors(
+      { pngDataUrl: encodeRasterDataUrl(convertedBuffer, mimeType) },
+      request,
+    );
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     if (error instanceof ConvertRouteError) {
