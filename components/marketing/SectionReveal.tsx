@@ -1,0 +1,41 @@
+"use client";
+
+import type { MotionStyle } from "framer-motion";
+import { motion } from "framer-motion";
+import type { ReactNode } from "react";
+
+import { fadeUp, lineExpand, VIEWPORT_ONCE } from "@/lib/animations";
+
+const REVEAL_VARIANTS = {
+  fadeUp,
+  lineExpand,
+} as const;
+
+type RevealVariant = keyof typeof REVEAL_VARIANTS;
+
+interface SectionRevealProps {
+  children?: ReactNode;
+  variant?: RevealVariant;
+  className?: string;
+  style?: MotionStyle;
+}
+
+export function SectionReveal({
+  children,
+  variant = "fadeUp",
+  className,
+  style,
+}: Readonly<SectionRevealProps>) {
+  return (
+    <motion.div
+      variants={REVEAL_VARIANTS[variant]}
+      initial="hidden"
+      whileInView="visible"
+      viewport={VIEWPORT_ONCE}
+      className={className}
+      style={style}
+    >
+      {children}
+    </motion.div>
+  );
+}

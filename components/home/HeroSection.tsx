@@ -2,43 +2,52 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
 
+import { CardPreviewPlaceholder } from "@/components/CardPreviewPlaceholder";
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
+import { usePreviewColorPreset } from "@/hooks/usePreviewColorPreset";
 import {
-  buildCardUrlWithParams,
-  DEFAULT_EXAMPLE_USER_ID,
-  mapStoredConfigToCardUrlParams,
-} from "@/lib/card-groups";
-import { buildApiUrl } from "@/lib/utils";
+  buildThemePreviewUrls,
+  getPreviewCardDimensions,
+} from "@/lib/card-preview";
+import { selectThemePreviewUrl } from "@/lib/preview-theme";
 import { safeTrack, trackButtonClick } from "@/lib/utils/google-analytics";
 
-const BASE_URL = buildApiUrl("/card.svg");
-
 const HERO_CARDS = [
-  { cardType: "animeStats", variation: "default", rotate: -6, z: 3 },
-  { cardType: "animeGenres", variation: "pie", rotate: 4, z: 2 },
-  { cardType: "socialStats", variation: "default", rotate: -2, z: 1 },
+  {
+    cardType: "animeStats",
+    variation: "default",
+    rotate: -6,
+    z: 3,
+    previewUrls: buildThemePreviewUrls({
+      cardType: "animeStats",
+      variation: "default",
+    }),
+    dimensions: getPreviewCardDimensions("animeStats", "default"),
+  },
+  {
+    cardType: "animeGenres",
+    variation: "pie",
+    rotate: 4,
+    z: 2,
+    previewUrls: buildThemePreviewUrls({
+      cardType: "animeGenres",
+      variation: "pie",
+    }),
+    dimensions: getPreviewCardDimensions("animeGenres", "pie"),
+  },
+  {
+    cardType: "socialStats",
+    variation: "default",
+    rotate: -2,
+    z: 1,
+    previewUrls: buildThemePreviewUrls({
+      cardType: "socialStats",
+      variation: "default",
+    }),
+    dimensions: getPreviewCardDimensions("socialStats", "default"),
+  },
 ];
-
-function buildPreviewSrc(
-  cardType: string,
-  variation: string,
-  colorPreset: string,
-) {
-  return buildCardUrlWithParams(
-    mapStoredConfigToCardUrlParams(
-      {
-        cardName: cardType,
-        variation,
-        colorPreset,
-      },
-      { userId: DEFAULT_EXAMPLE_USER_ID, includeColors: false },
-    ),
-    BASE_URL,
-  );
-}
 
 const staggerContainer = {
   hidden: { opacity: 0 },
@@ -72,17 +81,7 @@ const cardFloat = {
 };
 
 export function HeroSection() {
-  const { resolvedTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const colorPreset =
-    mounted && resolvedTheme === "dark"
-      ? "anicardsDarkGradient"
-      : "anicardsLightGradient";
+  const previewColorPreset = usePreviewColorPreset();
 
   const handleGetStartedClick = () => {
     safeTrack(() => trackButtonClick("get_started", "homepage_hero"));
@@ -182,35 +181,45 @@ export function HeroSection() {
           sm:h-105
           md:h-120
         ">
-          {HERO_CARDS.map((card, i) => (
-            <motion.div
-              key={card.cardType}
-              custom={i}
-              variants={cardFloat}
-              initial="hidden"
-              animate="visible"
-              className="absolute hero-card-float shadow-2xl shadow-black/20 dark:shadow-black/50"
-              style={{
-                rotate: `${card.rotate}deg`,
-                zIndex: card.z,
-                top: `${10 + i * 12}%`,
-                left: `${5 + i * 18}%`,
-                width: "clamp(200px, 55%, 320px)",
-              }}
-            >
-              <div className="overflow-hidden rounded-lg border-2 border-[hsl(var(--gold)/0.2)]">
-                <ImageWithSkeleton
-                  src={buildPreviewSrc(
-                    card.cardType,
-                    card.variation,
-                    colorPreset,
+          {HERO_CARDS.map((card, i) => {
+            const previewUrl = selectThemePreviewUrl(
+              card.previewUrls,
+              previewColorPreset,
+            );
+
+            return (
+              <motion.div
+                key={card.cardType}
+                custom={i}
+                variants={cardFloat}
+                initial="hidden"
+                animate="visible"
+                className="absolute hero-card-float shadow-2xl shadow-black/20 dark:shadow-black/50"
+                style={{
+                  rotate: `${card.rotate}deg`,
+                  zIndex: card.z,
+                  top: `${10 + i * 12}%`,
+                  left: `${5 + i * 18}%`,
+                  width: "clamp(200px, 55%, 320px)",
+                }}
+              >
+                <div className="overflow-hidden rounded-lg border-2 border-[hsl(var(--gold)/0.2)]">
+                  {previewUrl ? (
+                    <ImageWithSkeleton
+                      src={previewUrl}
+                      alt={`${card.cardType} preview`}
+                      className="h-auto w-full"
+                    />
+                  ) : (
+                    <CardPreviewPlaceholder
+                      className="w-full"
+                      aspectRatio={card.dimensions.w / card.dimensions.h}
+                    />
                   )}
-                  alt={`${card.cardType} preview`}
-                  className="h-auto w-full"
-                />
-              </div>
-            </motion.div>
-          ))}
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
       </div>
     </section>
