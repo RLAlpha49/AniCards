@@ -2,43 +2,31 @@
 
 import { motion } from "framer-motion";
 import {
+  Activity,
   BarChart2,
   BookOpen,
+  Building2,
   Calendar,
+  Clock,
+  Heart,
+  LayoutGrid,
   type LucideIcon,
+  Mic,
   PieChart,
   TrendingUp,
   Users,
 } from "lucide-react";
 
+import type { PreviewColorPreset } from "@/lib/preview-theme";
+
 import { ExampleCard } from "./ExampleCard";
-
-interface CardVariant {
-  name: string;
-  url: string;
-  description?: string;
-}
-
-interface CardType {
-  title: string;
-  description: string;
-  variants: CardVariant[];
-  category:
-    | "Core Stats"
-    | "Anime Deep Dive"
-    | "Manga Deep Dive"
-    | "Activity & Engagement"
-    | "Library & Progress"
-    | "Advanced Analytics";
-  icon: LucideIcon;
-  color: string;
-  gradient: string;
-}
+import type { ExampleCardType, ExampleIconKey } from "./types";
 
 interface CategorySectionProps {
   category: string;
-  cardTypes: CardType[];
+  cardTypes: ExampleCardType[];
   isFirstCategory: boolean;
+  previewColorPreset: PreviewColorPreset | null;
 }
 
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
@@ -48,6 +36,21 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
   "Activity & Engagement": Calendar,
   "Library & Progress": Users,
   "Advanced Analytics": TrendingUp,
+};
+
+const CARD_TYPE_ICONS: Record<ExampleIconKey, LucideIcon> = {
+  activity: Activity,
+  barChart2: BarChart2,
+  bookOpen: BookOpen,
+  building2: Building2,
+  calendar: Calendar,
+  clock: Clock,
+  heart: Heart,
+  layoutGrid: LayoutGrid,
+  mic: Mic,
+  pieChart: PieChart,
+  trendingUp: TrendingUp,
+  users: Users,
 };
 
 const CATEGORY_DESCRIPTIONS: Record<string, string> = {
@@ -78,6 +81,7 @@ export function CategorySection({
   category,
   cardTypes,
   isFirstCategory,
+  previewColorPreset,
 }: Readonly<CategorySectionProps>) {
   if (cardTypes.length === 0) return null;
 
@@ -147,7 +151,14 @@ export function CategorySection({
             {/* Card type header with line */}
             <div className="mb-6 flex items-center gap-4">
               <div className="flex items-center gap-2.5">
-                <cardType.icon className="size-3.5 shrink-0 text-gold/40" />
+                {(() => {
+                  const CardTypeIcon =
+                    CARD_TYPE_ICONS[cardType.iconKey] || BarChart2;
+
+                  return (
+                    <CardTypeIcon className="size-3.5 shrink-0 text-gold/40" />
+                  );
+                })()}
                 <h4 className="text-sm font-semibold tracking-wide text-foreground/80">
                   {cardType.title}
                 </h4>
@@ -172,7 +183,7 @@ export function CategorySection({
                   key={variant.name}
                   variant={variant}
                   cardTypeTitle={cardType.title}
-                  gradient={cardType.gradient}
+                  previewColorPreset={previewColorPreset}
                   index={variantIndex}
                 />
               ))}
@@ -183,5 +194,3 @@ export function CategorySection({
     </motion.section>
   );
 }
-
-export type { CardType, CardVariant };

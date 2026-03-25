@@ -4,28 +4,40 @@ import { motion } from "framer-motion";
 import { Check, Copy, ExternalLink } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
+import { CardPreviewPlaceholder } from "@/components/CardPreviewPlaceholder";
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
+import {
+  type PreviewColorPreset,
+  selectThemePreviewUrl,
+} from "@/lib/preview-theme";
 import { cn } from "@/lib/utils";
 
-interface CardVariant {
-  name: string;
-  url: string;
-  description?: string;
-}
+import type { ExampleCardVariant } from "./types";
 
 interface ExampleCardProps {
-  variant: CardVariant;
+  variant: ExampleCardVariant;
   cardTypeTitle: string;
-  gradient: string;
+  previewColorPreset: PreviewColorPreset | null;
   index?: number;
 }
 
 export function ExampleCard({
   variant,
   cardTypeTitle,
+  previewColorPreset,
   index = 0,
 }: Readonly<ExampleCardProps>) {
   const [copied, setCopied] = useState(false);
+  const previewUrl = selectThemePreviewUrl(
+    variant.previewUrls,
+    previewColorPreset,
+  );
+  const isPreviewReady = previewUrl !== undefined;
+  let copyButtonLabel = "Preview is still loading";
+
+  if (isPreviewReady) {
+    copyButtonLabel = copied ? "Copied!" : "Copy embed URL";
+  }
 
   useEffect(() => {
     if (copied) {
@@ -38,15 +50,15 @@ export function ExampleCard({
     async (e: React.MouseEvent) => {
       e.stopPropagation();
       e.preventDefault();
-      if (!navigator.clipboard) return;
+      if (!isPreviewReady || !navigator.clipboard || !previewUrl) return;
       try {
-        await navigator.clipboard.writeText(variant.url);
+        await navigator.clipboard.writeText(previewUrl);
         setCopied(true);
       } catch (error) {
         console.error("Failed to copy:", error);
       }
     },
-    [variant.url],
+    [isPreviewReady, previewUrl],
   );
 
   return (
@@ -70,13 +82,15 @@ export function ExampleCard({
         )}
       >
         {/* Full-card link overlay */}
-        <a
-          href={variant.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={`Open ${cardTypeTitle} — ${variant.name} in new tab`}
-          className="absolute inset-0 z-10"
-        />
+        {isPreviewReady && previewUrl && (
+          <a
+            href={previewUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Open ${cardTypeTitle} — ${variant.name} in new tab`}
+            className="absolute inset-0 z-10"
+          />
+        )}
 
         {/* Image area with cinematic treatment */}
         <div className="
@@ -98,28 +112,43 @@ export function ExampleCard({
             flex justify-center p-4 transition-transform duration-700 ease-out
             group-hover/card:scale-[1.03]
           ">
-            <ImageWithSkeleton
-              src={variant.url}
-              alt={`${cardTypeTitle} - ${variant.name}`}
-              className="h-auto w-full"
-            />
+            {isPreviewReady && previewUrl ? (
+              <ImageWithSkeleton
+                src={previewUrl}
+                alt={`${cardTypeTitle} - ${variant.name}`}
+                className="h-auto w-full"
+              />
+            ) : (
+              <CardPreviewPlaceholder
+                className="w-full"
+                aspectRatio={
+                  variant.width && variant.height
+                    ? variant.width / variant.height
+                    : undefined
+                }
+              />
+            )}
           </div>
 
           {/* Hover action badge */}
-          <div className="pointer-events-none absolute inset-0 z-3 flex items-center justify-center">
-            <motion.div
-              className="
-                flex items-center gap-1.5 bg-[hsl(var(--gold)/0.9)] px-3 py-1.5 text-[0.65rem]
-                font-semibold tracking-wider text-[#0c0a10] uppercase opacity-0 shadow-lg
-                transition-all duration-400
-                group-hover/card:opacity-100
-              "
-              style={{ transitionDelay: "50ms" }}
-            >
-              <ExternalLink className="size-3" />
-              Open Full Size
-            </motion.div>
-          </div>
+          {isPreviewReady && previewUrl && (
+            <div className="
+              pointer-events-none absolute inset-0 z-3 flex items-center justify-center
+            ">
+              <motion.div
+                className="
+                  flex items-center gap-1.5 bg-[hsl(var(--gold)/0.9)] px-3 py-1.5 text-[0.65rem]
+                  font-semibold tracking-wider text-[#0c0a10] uppercase opacity-0 shadow-lg
+                  transition-all duration-400
+                  group-hover/card:opacity-100
+                "
+                style={{ transitionDelay: "50ms" }}
+              >
+                <ExternalLink className="size-3" />
+                Open Full Size
+              </motion.div>
+            </div>
+          )}
         </div>
 
         {/* Footer bar */}
@@ -135,11 +164,13 @@ export function ExampleCard({
             onClick={handleCopy}
             className={cn(
               "pointer-events-auto relative z-20 shrink-0 p-1.5 transition-all duration-200",
+              !isPreviewReady && "cursor-not-allowed opacity-50",
               copied
                 ? "text-emerald-500 dark:text-emerald-400"
                 : "text-foreground/15 hover:text-gold",
             )}
-            aria-label={copied ? "Copied!" : "Copy embed URL"}
+            aria-label={copyButtonLabel}
+            disabled={!isPreviewReady}
           >
             {copied ? (
               <Check className="size-3.5" />
