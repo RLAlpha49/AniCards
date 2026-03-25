@@ -484,16 +484,43 @@ describe("Card SVG Route", () => {
       );
     });
 
-    it("should return 400 when both userId and userName are missing", async () => {
+    it("should return 400 when both userId and username are missing", async () => {
       const req = new Request(
         createRequestUrl(baseUrl, { cardType: "animeStats" }),
       );
       const res = await GET(req);
       await expectErrorResponse(
         res,
-        "Client Error: Missing parameter: userId or userName",
+        "Client Error: Missing parameter: userId or username",
         400,
       );
+    });
+
+    it("should accept the deprecated userName alias when username is omitted", async () => {
+      const cardsData = createMockCardData("animeStats", "default");
+      const userData = createMockUserData(123, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+
+      sharedRedisMockGet
+        .mockResolvedValueOnce("123")
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(cardsData)
+        .mockResolvedValueOnce(null);
+      sharedRedisMockMget.mockResolvedValueOnce(
+        buildMockUserParts(userData, "animeStats"),
+      );
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userName: "testUser",
+          cardType: "animeStats",
+        }),
+      );
+
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+      expect(sharedRedisMockGet).toHaveBeenCalledWith("username:testuser");
     });
 
     it("should return 400 when userId is not a valid number", async () => {

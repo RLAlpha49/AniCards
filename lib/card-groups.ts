@@ -345,6 +345,8 @@ export interface CardUrlParams {
   /** User ID (numeric) */
   userId?: string;
   /** Username (alternative to userId) */
+  username?: string;
+  /** @deprecated Legacy alias for backward compatibility; prefer username. */
   userName?: string;
   /** Variation name (default, vertical, pie, etc.) */
   variation?: string;
@@ -512,6 +514,8 @@ export function mapStoredConfigToCardUrlParams(
   >,
   opts?: {
     userId?: string;
+    username?: string;
+    /** Legacy alias for backward compatibility; prefer username. */
     userName?: string;
     includeColors?: boolean;
     defaultToCustomPreset?: boolean;
@@ -542,7 +546,7 @@ export function mapStoredConfigToCardUrlParams(
   const params: CardUrlParams = {
     cardType,
     userId: opts?.userId,
-    userName: opts?.userName,
+    username: opts?.username ?? opts?.userName,
     variation,
     colorPreset,
     borderColor,
@@ -632,7 +636,11 @@ export function buildCardUrlWithParams(
   const searchParams = new URLSearchParams();
 
   setParamIfDefined(searchParams, "userId", params.userId);
-  setParamIfDefined(searchParams, "userName", params.userName);
+  setParamIfDefined(
+    searchParams,
+    "username",
+    params.username ?? params.userName,
+  );
 
   searchParams.set("cardType", params.cardType);
 

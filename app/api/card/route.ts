@@ -230,7 +230,7 @@ function errorHeaders(request?: Request) {
  */
 interface ValidatedParams {
   userId: string;
-  userName: string | null;
+  username: string | null;
   cardType: string;
   numericUserId: number;
   baseCardType: string;
@@ -268,7 +268,7 @@ function extractAndValidateParams(
 ): ValidatedParams | Response {
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get("userId");
-  const userName = searchParams.get("userName");
+  const username = searchParams.get("username") ?? searchParams.get("userName");
   const cardType = searchParams.get("cardType");
 
   if (!cardType) {
@@ -282,11 +282,11 @@ function extractAndValidateParams(
     );
   }
 
-  if (!userId && !userName) {
-    console.warn(`⚠️ [Card SVG] Missing parameter: userId or userName`);
+  if (!userId && !username) {
+    console.warn(`⚠️ [Card SVG] Missing parameter: userId or username`);
     return new Response(
       toCleanSvgResponse(
-        svgError(`Client Error: Missing parameter: userId or userName`),
+        svgError(`Client Error: Missing parameter: userId or username`),
       ),
       {
         headers: errorHeaders(request),
@@ -324,7 +324,7 @@ function extractAndValidateParams(
 
   return {
     userId: userId || "",
-    userName,
+    username,
     cardType,
     numericUserId,
     baseCardType,
@@ -403,10 +403,10 @@ async function trackSuccessfulRequest(baseCardType: string): Promise<void> {
 }
 
 /**
- * Resolves the effective user ID from either the numeric userId or userName.
- * Returns the userId if provided, otherwise looks up the userId from userName.
+ * Resolves the effective user ID from either the numeric userId or username.
+ * Returns the userId if provided, otherwise looks up the userId from username.
  *
- * @param params - Validated parameters containing userId and userName.
+ * @param params - Validated parameters containing userId and username.
  * @returns Object with resolved userId or an error response.
  * @source
  */
@@ -418,14 +418,14 @@ async function resolveEffectiveUserId(
     return { userId: params.numericUserId };
   }
 
-  if (params.userName) {
-    const resolvedUserId = await resolveUserIdFromUsername(params.userName);
+  if (params.username) {
+    const resolvedUserId = await resolveUserIdFromUsername(params.username);
     if (resolvedUserId) {
       return { userId: resolvedUserId };
     }
 
     console.warn(
-      `⚠️ [Card SVG] User not found for userName: ${params.userName}`,
+      `⚠️ [Card SVG] User not found for username: ${params.username}`,
     );
     await trackFailedRequest(params.baseCardType, 404);
     return {

@@ -112,11 +112,13 @@ paths:
       summary: "Render a stat card as SVG"
       description: >-
         Canonical Next.js route handler for AniCards SVG generation. At least one
-        of `userId` or `userName` must be supplied. Public aliases also exist at
-        `/card.svg` and `/api/card.svg`.
+        of `userId` or `username` must be supplied. The legacy `userName`
+        alias remains accepted for backward compatibility. Public aliases also
+        exist at `/card.svg` and `/api/card.svg`.
       parameters:
         - $ref: "#/components/parameters/CardUserId"
-        - $ref: "#/components/parameters/CardUserName"
+        - $ref: "#/components/parameters/CardUsername"
+        - $ref: "#/components/parameters/CardUserNameDeprecated"
         - $ref: "#/components/parameters/CardType"
         - $ref: "#/components/parameters/CardVariation"
         - $ref: "#/components/parameters/CardColorPreset"
@@ -155,7 +157,8 @@ paths:
         are identical to the canonical handler.
       parameters:
         - $ref: "#/components/parameters/CardUserId"
-        - $ref: "#/components/parameters/CardUserName"
+        - $ref: "#/components/parameters/CardUsername"
+        - $ref: "#/components/parameters/CardUserNameDeprecated"
         - $ref: "#/components/parameters/CardType"
         - $ref: "#/components/parameters/CardVariation"
         - $ref: "#/components/parameters/CardColorPreset"
@@ -194,7 +197,8 @@ paths:
         identical to the canonical handler.
       parameters:
         - $ref: "#/components/parameters/CardUserId"
-        - $ref: "#/components/parameters/CardUserName"
+        - $ref: "#/components/parameters/CardUsername"
+        - $ref: "#/components/parameters/CardUserNameDeprecated"
         - $ref: "#/components/parameters/CardType"
         - $ref: "#/components/parameters/CardVariation"
         - $ref: "#/components/parameters/CardColorPreset"
@@ -856,12 +860,12 @@ components:
         type: integer
         minimum: 1
       description: >-
-        Numeric AniList user ID. Either `userId` or `userName` is required. When
-        both are present, `userId` is used.
+        Numeric AniList user ID. Either `userId` or `username` is required.
+        When both are present, `userId` is used.
 
-    CardUserName:
+    CardUsername:
       in: query
-      name: userName
+      name: username
       required: false
       schema:
         type: string
@@ -870,6 +874,19 @@ components:
       description: >-
         AniList username lookup key. The route resolves it through the stored
         username index when `userId` is omitted.
+
+    CardUserNameDeprecated:
+      in: query
+      name: userName
+      required: false
+      deprecated: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+      description: >-
+        Deprecated alias for `username`. Kept for backward compatibility with
+        older stat card links.
 
     CardType:
       in: query
