@@ -1,6 +1,6 @@
 "use client";
 
-import Fuse from "fuse.js";
+import type Fuse from "fuse.js";
 import {
   Command,
   Copy,
@@ -67,6 +67,11 @@ const TOPIC_ICONS: Record<string, LucideIcon> = {
   "advanced-search": Filter,
   "advanced-card-settings": Settings,
   "copy-download": Download,
+};
+
+type IndexedUserHelpTopic = {
+  topic: UserHelpTopic;
+  searchText: string;
 };
 
 function GoldDiamond() {
@@ -191,7 +196,7 @@ export function UserHelpDialog({
     USER_HELP_TOPICS[0]?.id ?? "quick-start",
   );
 
-  const indexedTopics = useMemo(
+  const indexedTopics = useMemo<IndexedUserHelpTopic[]>(
     () =>
       USER_HELP_TOPICS.map((topic) => ({
         topic,
@@ -200,22 +205,56 @@ export function UserHelpDialog({
     [],
   );
 
-  const fuse = useMemo(
-    () =>
-      new Fuse(indexedTopics, {
-        includeScore: true,
-        threshold: 0.35,
-        ignoreLocation: true,
-        keys: ["topic.title", "topic.summary", "topic.keywords", "searchText"],
-      }),
-    [indexedTopics],
-  );
+  const [fuse, setFuse] = useState<Fuse<IndexedUserHelpTopic> | null>(null);
+
+  useEffect(() => {
+    if (!open || fuse) return;
+
+    let cancelled = false;
+
+    void (async () => {
+      const { default: Fuse } = await import("fuse.js");
+      if (cancelled) return;
+
+      setFuse(
+        new Fuse(indexedTopics, {
+          includeScore: true,
+          threshold: 0.35,
+          ignoreLocation: true,
+          keys: [
+            "topic.title",
+            "topic.summary",
+            "topic.keywords",
+            "searchText",
+          ],
+        }),
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fuse, indexedTopics, open]);
 
   const filteredTopics: UserHelpTopic[] = useMemo(() => {
     const q = query.trim();
     if (!q) return USER_HELP_TOPICS;
+    if (!fuse) {
+      const normalizedQuery = q.toLowerCase();
+      return indexedTopics
+        .filter(({ searchText, topic }) => {
+          const title = topic.title.toLowerCase();
+          const summary = topic.summary.toLowerCase();
+          return (
+            title.includes(normalizedQuery) ||
+            summary.includes(normalizedQuery) ||
+            searchText.toLowerCase().includes(normalizedQuery)
+          );
+        })
+        .map(({ topic }) => topic);
+    }
     return fuse.search(q).map((r) => r.item.topic);
-  }, [fuse, query]);
+  }, [fuse, indexedTopics, query]);
 
   const selectedTopic = useMemo(
     () =>

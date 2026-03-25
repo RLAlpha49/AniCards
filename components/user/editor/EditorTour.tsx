@@ -4,7 +4,7 @@
 // Many tour targets are conditional on card state, so the fallback resolution
 // keeps onboarding stable instead of silently dropping steps.
 
-import { driver, type DriveStep } from "driver.js";
+import type { DriveStep } from "driver.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { event, safeTrack } from "@/lib/utils/google-analytics";
@@ -12,6 +12,15 @@ import { event, safeTrack } from "@/lib/utils/google-analytics";
 import { shouldAutoStartTour } from "./tour-utils";
 
 const TOUR_STORAGE_VERSION = "v1";
+type DriverModule = typeof import("driver.js");
+type DriverInstance = ReturnType<DriverModule["driver"]>;
+
+let driverModulePromise: Promise<DriverModule> | null = null;
+
+function loadDriverModule(): Promise<DriverModule> {
+  driverModulePromise ??= import("driver.js");
+  return driverModulePromise;
+}
 
 // Fallbacks for Driver.js tour step targets.
 // Some tour UI only renders when a card is enabled (or when a group is expanded).
@@ -180,7 +189,7 @@ export function useEditorTour({
   const [isTourRunning, setIsTourRunning] = useState(false);
   const [isTourCompleted, setIsTourCompleted] = useState(false);
   const [lastDismissedAt, setLastDismissedAt] = useState<number | null>(null);
-  const tourRef = useRef<ReturnType<typeof driver> | null>(null);
+  const tourRef = useRef<DriverInstance | null>(null);
   const startTourTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const tourSteps = useMemo<DriveStep[]>(
@@ -456,6 +465,84 @@ export function useEditorTour({
     };
   }, []);
 
+  const handleTourDestroyed = useCallback(
+    (resolvedSteps: DriveStep[], activeStep?: DriveStep) => {
+      setIsTourRunning(false);
+      tourRef.current = null;
+
+      // Determine whether the tour ended on the final step by checking if the
+      // active step's index matches the last step index. This is more reliable
+      // than reference equality which depends on driver.js implementation details.
+      const activeIndex = findActiveStepIndex(resolvedSteps, activeStep);
+      const isFinalStep =
+        activeIndex !== -1 && activeIndex === resolvedSteps.length - 1;
+
+      if (isFinalStep) {
+        // Consider the tour completed only when the user finished the last step.
+        markTourCompleted();
+        trackEditorTourEvent("completed");
+      } else {
+        // Record a dismissal separately so we can differentiate it from a full completion.
+        const dismissedAt = markTourDismissed();
+        trackEditorTourEvent("dismissed", dismissedAt ?? undefined);
+      }
+
+      // Once the tour is done (completed or dismissed), hide the new-user callouts.
+      setIsNewUser(false);
+    },
+    [markTourCompleted, markTourDismissed, setIsNewUser, trackEditorTourEvent],
+  );
+
+  const runTour = useCallback(async () => {
+    if (!isMountedRef.current) return;
+    if (!globalThis.document?.body) return;
+
+    // Resolve selectors to elements so missing targets don't break the tour.
+    // If a target is missing (e.g., card-only controls while all cards are disabled),
+    // fall back to a stable container or show the step as a centered popover.
+    const resolvedSteps = resolveTourStepsForDriver(
+      tourSteps,
+      globalThis.document,
+    );
+
+    if (resolvedSteps.length === 0) return;
+
+    setIsTourRunning(true);
+
+    try {
+      const { driver } = await loadDriverModule();
+      if (!isMountedRef.current) return;
+
+      const onDestroyed = (
+        _el?: Element | undefined,
+        activeStep?: DriveStep,
+      ) => {
+        handleTourDestroyed(resolvedSteps, activeStep);
+      };
+
+      const driverObj = driver({
+        showProgress: true,
+        showButtons: ["next", "previous", "close"],
+        nextBtnText: "Next",
+        prevBtnText: "Back",
+        doneBtnText: "Done",
+        smoothScroll: true,
+        stagePadding: 8,
+        stageRadius: 10,
+        overlayOpacity: 0.6,
+        steps: resolvedSteps,
+        onDestroyed,
+      });
+
+      tourRef.current = driverObj;
+      driverObj.drive();
+    } catch (err) {
+      console.error("Failed to start guided tour:", err);
+      setIsTourRunning(false);
+      tourRef.current = null;
+    }
+  }, [handleTourDestroyed, tourSteps]);
+
   const startTour = useCallback(() => {
     closeHelpDialog();
 
@@ -470,76 +557,9 @@ export function useEditorTour({
     // Delay by one tick so dialogs/menus can close before the tour overlay mounts.
     startTourTimerRef.current = globalThis.setTimeout(() => {
       startTourTimerRef.current = null;
-
-      if (!isMountedRef.current) return;
-      if (!globalThis.document?.body) return;
-
-      // Resolve selectors to elements so missing targets don't break the tour.
-      // If a target is missing (e.g., card-only controls while all cards are disabled),
-      // fall back to a stable container or show the step as a centered popover.
-      const resolvedSteps = resolveTourStepsForDriver(
-        tourSteps,
-        globalThis.document,
-      );
-
-      if (resolvedSteps.length === 0) return;
-
-      setIsTourRunning(true);
-
-      try {
-        const driverObj = driver({
-          showProgress: true,
-          showButtons: ["next", "previous", "close"],
-          nextBtnText: "Next",
-          prevBtnText: "Back",
-          doneBtnText: "Done",
-          smoothScroll: true,
-          stagePadding: 8,
-          stageRadius: 10,
-          overlayOpacity: 0.6,
-          steps: resolvedSteps,
-          onDestroyed: (_el?: Element | undefined, activeStep?: DriveStep) => {
-            setIsTourRunning(false);
-            tourRef.current = null;
-
-            // Determine whether the tour ended on the final step by checking if the
-            // active step's index matches the last step index. This is more reliable
-            // than reference equality which depends on driver.js implementation details.
-            const activeIndex = findActiveStepIndex(resolvedSteps, activeStep);
-            const isFinalStep =
-              activeIndex !== -1 && activeIndex === resolvedSteps.length - 1;
-
-            if (isFinalStep) {
-              // Consider the tour completed only when the user finished the last step.
-              markTourCompleted();
-              trackEditorTourEvent("completed");
-            } else {
-              // Record a dismissal separately so we can differentiate it from a full completion.
-              const dismissedAt = markTourDismissed();
-              trackEditorTourEvent("dismissed", dismissedAt ?? undefined);
-            }
-
-            // Once the tour is done (completed or dismissed), hide the new-user callouts.
-            setIsNewUser(false);
-          },
-        });
-
-        tourRef.current = driverObj;
-        driverObj.drive();
-      } catch (err) {
-        console.error("Failed to start guided tour:", err);
-        setIsTourRunning(false);
-        tourRef.current = null;
-      }
+      void runTour();
     }, 0);
-  }, [
-    closeHelpDialog,
-    markTourCompleted,
-    markTourDismissed,
-    trackEditorTourEvent,
-    setIsNewUser,
-    tourSteps,
-  ]);
+  }, [closeHelpDialog, runTour]);
 
   useEffect(() => {
     return () => {
@@ -551,6 +571,17 @@ export function useEditorTour({
       tourRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    if (!isNewUser && isTourCompleted) return;
+
+    const timer = globalThis.setTimeout(() => {
+      void loadDriverModule();
+    }, 1500);
+
+    return () => globalThis.clearTimeout(timer);
+  }, [isNewUser, isTourCompleted, userId]);
 
   // Auto-run the tour for new users once per userId (versioned).
   useEffect(() => {

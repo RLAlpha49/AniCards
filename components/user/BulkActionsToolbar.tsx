@@ -31,6 +31,11 @@ import {
   SelectValue,
 } from "@/components/ui/Select";
 import {
+  batchConvertAndZip,
+  type BatchExportCard,
+  type ConversionFormat,
+} from "@/lib/batch-export";
+import {
   buildCardUrlWithParams,
   mapStoredConfigToCardUrlParams,
 } from "@/lib/card-groups";
@@ -39,13 +44,7 @@ import {
   type CardEditorConfig,
   useUserPageEditor,
 } from "@/lib/stores/user-page-editor";
-import {
-  batchConvertAndZip,
-  type BatchExportCard,
-  cn,
-  type ConversionFormat,
-  toCardApiHref,
-} from "@/lib/utils";
+import { cn, toCardApiHref } from "@/lib/utils";
 
 import { BulkConfirmDialog } from "./bulk/BulkConfirmDialog";
 import { CopyUrlsPopover } from "./bulk/CopyUrlsPopover";

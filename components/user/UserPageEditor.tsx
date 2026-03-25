@@ -36,6 +36,7 @@ import {
   Undo2,
   UserPlus,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -94,7 +95,6 @@ import {
 import { cn } from "@/lib/utils";
 
 import { BulkConfirmDialog } from "./bulk/BulkConfirmDialog";
-import { BulkActionsToolbar } from "./BulkActionsToolbar";
 import {
   CardCategorySection,
   type CardTileDragHandleProps,
@@ -109,8 +109,19 @@ import { GlobalSettingsPanel } from "./GlobalSettingsPanel";
 import { CustomFilter, useCardFiltering } from "./hooks/useCardFiltering";
 import { useNewUserSetup } from "./hooks/useNewUserSetup";
 import { useUserDataLoader } from "./hooks/useUserDataLoader";
-import { UserHelpDialog } from "./UserHelpDialog";
 import { UserPageHeader } from "./UserPageHeader";
+
+const loadBulkActionsToolbar = () => import("./BulkActionsToolbar");
+const LazyBulkActionsToolbar = dynamic(
+  () => loadBulkActionsToolbar().then((mod) => mod.BulkActionsToolbar),
+  { loading: () => null },
+);
+
+const loadUserHelpDialog = () => import("./UserHelpDialog");
+const LazyUserHelpDialog = dynamic(
+  () => loadUserHelpDialog().then((mod) => mod.UserHelpDialog),
+  { loading: () => null },
+);
 
 type TooltipTriggerMode = "enabled" | "disabled";
 
@@ -614,7 +625,7 @@ function useUserPageEditorKeyboardShortcuts(opts: {
   visibility: VisibilityFilter;
   setVisibility: React.Dispatch<React.SetStateAction<VisibilityFilter>>;
   saveNow: () => void | Promise<void>;
-  setIsHelpDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  openHelpDialog: () => void;
   setIsCommandPaletteOpen: React.Dispatch<React.SetStateAction<boolean>>;
   searchRef: React.RefObject<HTMLInputElement | null>;
   groupFilterTriggerId: string;
@@ -667,7 +678,7 @@ function useUserPageEditorKeyboardShortcuts(opts: {
 
     const handleHelpShortcut = (e: KeyboardEvent) => {
       e.preventDefault();
-      opts.setIsHelpDialogOpen(true);
+      opts.openHelpDialog();
     };
 
     const handleReorderShortcut = (e: KeyboardEvent) => {
@@ -772,11 +783,11 @@ function useUserPageEditorKeyboardShortcuts(opts: {
     opts.clearSelection,
     opts.groupFilterTriggerId,
     opts.isReorderMode,
+    opts.openHelpDialog,
     opts.saveNow,
     opts.searchRef,
     opts.selectAllEnabled,
     opts.setIsCommandPaletteOpen,
-    opts.setIsHelpDialogOpen,
     opts.setIsReorderMode,
     opts.setVisibility,
     opts.visibility,
@@ -958,6 +969,7 @@ export function UserPageEditor({
     isDirty,
     isSaving,
     saveError,
+    selectedCount,
     lastSavedAt,
     cardOrder,
     enableAllCards,
@@ -983,6 +995,7 @@ export function UserPageEditor({
       isDirty: s.isDirty,
       isSaving: s.isSaving,
       saveError: s.saveError,
+      selectedCount: s.selectedCardIds.size,
       lastSavedAt: s.lastSavedAt,
       cardOrder: s.cardOrder,
       enableAllCards: s.enableAllCards,
@@ -1008,6 +1021,7 @@ export function UserPageEditor({
 
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false);
+  const [hasRequestedHelpDialog, setHasRequestedHelpDialog] = useState(false);
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
   const [isGlobalSettingsOpen, setIsGlobalSettingsOpen] = useState(false);
 
@@ -1050,8 +1064,25 @@ export function UserPageEditor({
   const { isNewUser, setIsNewUser, cardsWarning, setCardsWarning } =
     useNewUserSetup();
 
+  const prefetchHelpDialog = useCallback(() => {
+    void loadUserHelpDialog();
+  }, []);
+
+  const openHelpDialog = useCallback(() => {
+    prefetchHelpDialog();
+    setHasRequestedHelpDialog(true);
+    setIsHelpDialogOpen(true);
+  }, [prefetchHelpDialog]);
+
   const closeHelpDialog = useCallback(() => {
     setIsHelpDialogOpen(false);
+  }, []);
+
+  const handleHelpDialogOpenChange = useCallback((open: boolean) => {
+    if (open) {
+      setHasRequestedHelpDialog(true);
+    }
+    setIsHelpDialogOpen(open);
   }, []);
 
   const { startTour } = useEditorTour({
@@ -1175,7 +1206,7 @@ export function UserPageEditor({
     visibility,
     setVisibility,
     saveNow,
-    setIsHelpDialogOpen,
+    openHelpDialog,
     setIsCommandPaletteOpen,
     searchRef,
     groupFilterTriggerId,
@@ -1242,7 +1273,7 @@ export function UserPageEditor({
       startTour,
       openGlobalSettings: () => setIsGlobalSettingsOpen(true),
       openDiscardDialog: () => setIsDiscardDialogOpen(true),
-      openHelpDialog: () => setIsHelpDialogOpen(true),
+      openHelpDialog,
     });
 
   const handleResolveConflictKeepEdits = useCallback(async () => {
@@ -1436,11 +1467,13 @@ export function UserPageEditor({
           saveState={saveState}
         />
 
-        <UserHelpDialog
-          open={isHelpDialogOpen}
-          onOpenChange={setIsHelpDialogOpen}
-          onStartTour={startTour}
-        />
+        {hasRequestedHelpDialog ? (
+          <LazyUserHelpDialog
+            open={isHelpDialogOpen}
+            onOpenChange={handleHelpDialogOpenChange}
+            onStartTour={startTour}
+          />
+        ) : null}
 
         <CommandPalette
           open={isCommandPaletteOpen}
@@ -1459,7 +1492,7 @@ export function UserPageEditor({
           onDismissDraftNotice={() => setIsDraftNoticeDismissed(true)}
           isNewUser={isNewUser}
           onDismissNewUser={() => setIsNewUser(false)}
-          onOpenHelp={() => setIsHelpDialogOpen(true)}
+          onOpenHelp={openHelpDialog}
           onStartTour={startTour}
           cardsWarning={cardsWarning}
           onDismissCardsWarning={() => setCardsWarning(null)}
@@ -1607,7 +1640,9 @@ export function UserPageEditor({
                             hover:bg-gold/5 hover:text-foreground
                             sm:px-3
                           "
-                          onClick={() => setIsHelpDialogOpen(true)}
+                          onClick={openHelpDialog}
+                          onPointerEnter={prefetchHelpDialog}
+                          onFocus={prefetchHelpDialog}
                           aria-haspopup="dialog"
                           aria-keyshortcuts="Control+H Meta+H"
                           data-tour="help-button"
@@ -2562,7 +2597,7 @@ export function UserPageEditor({
         </div>
       </div>
 
-      <BulkActionsToolbar />
+      {selectedCount > 0 ? <LazyBulkActionsToolbar /> : null}
     </div>
   );
 }
