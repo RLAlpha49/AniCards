@@ -56,27 +56,31 @@ jobs:
           NCU_OUTPUT=$(bunx npm-check-updates --target minor)
           UPDATE_INFO=$(bunx npm-check-updates --target minor --jsonUpgraded)
 
-          echo "## 📦 Package Updates Available" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          if [ -n "$NCU_OUTPUT" ]; then
-            echo "$NCU_OUTPUT" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "No patch/minor dependency updates found." >> $GITHUB_STEP_SUMMARY
-          fi
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "Update policy: patch/minor releases only." >> $GITHUB_STEP_SUMMARY
+          {
+            printf '%s\n' "## 📦 Package Updates Available"
+            printf '%s\n' '```'
+            if [ -n "$NCU_OUTPUT" ]; then
+              printf '%s\n' "$NCU_OUTPUT"
+            else
+              printf '%s\n' "No patch/minor dependency updates found."
+            fi
+            printf '%s\n' '```'
+            printf '%s\n' "Update policy: patch/minor releases only."
+          } >> "$GITHUB_STEP_SUMMARY"
 
-          echo "update_info<<EOF" >> $GITHUB_OUTPUT
-          echo "$UPDATE_INFO" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          {
+            printf '%s\n' "update_info<<EOF"
+            printf '%s\n' "$UPDATE_INFO"
+            printf '%s\n' "EOF"
+          } >> "$GITHUB_OUTPUT"
 
           UPDATE_COUNT=$(echo "$UPDATE_INFO" | jq 'length')
           if [ "$UPDATE_COUNT" -gt 0 ]; then
             echo "[INFO] Found $UPDATE_COUNT package updates available"
-            echo "has_updates=true" >> $GITHUB_OUTPUT
+            printf '%s\n' "has_updates=true" >> "$GITHUB_OUTPUT"
           else
             echo "[INFO] No package updates found"
-            echo "has_updates=false" >> $GITHUB_OUTPUT
+            printf '%s\n' "has_updates=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Prepare update branch
@@ -93,7 +97,7 @@ jobs:
             git checkout -B "$PR_BRANCH" origin/main
           fi
 
-          echo "pr_branch=$PR_BRANCH" >> $GITHUB_OUTPUT
+          printf '%s\n' "pr_branch=$PR_BRANCH" >> "$GITHUB_OUTPUT"
 
       - name: Update dependencies and validate before commit
         id: validate-update
@@ -111,11 +115,11 @@ jobs:
           git add package.json bun.lock
           if git diff --cached --quiet; then
             echo "[INFO] No package.json or bun.lock changes remain after validation"
-            echo "has_changes=false" >> $GITHUB_OUTPUT
+            printf '%s\n' "has_changes=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          echo "has_changes=true" >> $GITHUB_OUTPUT
+          printf '%s\n' "has_changes=true" >> "$GITHUB_OUTPUT"
 
       - name: Commit and push validated dependency updates
         id: push-updates
@@ -135,19 +139,19 @@ jobs:
           PR_NUMBER=$(gh pr list --head "$PR_BRANCH" --json number --jq '.[0].number')
           COMMENT_FILE=$(mktemp)
 
-          cat > "$COMMENT_FILE" << EOF
-          ## 📦 Dependency Updates
-
-          This branch was regenerated after passing lockfile refresh and validation.
-
-          <details>
-          <summary>Updated packages</summary>
-
-          \`\`\`json
-          $UPDATE_INFO
-          \`\`\`
-          </details>
-          EOF
+          {
+            printf '%s\n' '## 📦 Dependency Updates'
+            printf '%s\n' ''
+            printf '%s\n' 'This branch was regenerated after passing lockfile refresh and validation.'
+            printf '%s\n' ''
+            printf '%s\n' '<details>'
+            printf '%s\n' '<summary>Updated packages</summary>'
+            printf '%s\n' ''
+            printf '%s\n' '```json'
+            printf '%s\n' "$UPDATE_INFO"
+            printf '%s\n' '```'
+            printf '%s\n' '</details>'
+          } > "$COMMENT_FILE"
 
           if [ -n "$PR_NUMBER" ]; then
             echo "[INFO] Commenting on existing dependency PR #$PR_NUMBER"
