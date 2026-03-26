@@ -1,38 +1,7 @@
-import { stat } from "node:fs/promises";
-import { resolve } from "node:path";
-
 import { NextResponse } from "next/server";
 
 import { getStaticSitemapEntries } from "@/lib/seo";
 import { resolveSiteUrl } from "@/lib/site-config";
-
-async function getLastModified(
-  sourceFiles: readonly string[],
-): Promise<string> {
-  const stats = await Promise.all(
-    [...sourceFiles, "lib/seo.ts"].map(async (sourceFile) => {
-      try {
-        return await stat(resolve(process.cwd(), sourceFile));
-      } catch {
-        return null;
-      }
-    }),
-  );
-
-  const mostRecentMtime = stats.reduce<Date | null>((latest, current) => {
-    if (!current) {
-      return latest;
-    }
-
-    if (!latest || current.mtime > latest) {
-      return current.mtime;
-    }
-
-    return latest;
-  }, null);
-
-  return (mostRecentMtime ?? new Date()).toISOString();
-}
 
 /**
  * Builds the sitemap XML string covering curated routes and returns it as an XML response.
@@ -40,10 +9,11 @@ async function getLastModified(
  * @source
  */
 export async function GET() {
+  const lastmod = new Date().toISOString();
   const pages = await Promise.all(
     getStaticSitemapEntries().map(async (page) => ({
       ...page,
-      lastmod: await getLastModified(page.sourceFiles),
+      lastmod,
     })),
   );
 

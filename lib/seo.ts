@@ -300,7 +300,6 @@ type StaticSitemapEntryDef = {
   seoKey: Exclude<SEOPageKey, "user">;
   priority: number;
   changefreq: StaticSitemapChangeFrequency;
-  sourceFiles: readonly string[];
 };
 
 const staticSitemapEntryDefs = [
@@ -308,31 +307,26 @@ const staticSitemapEntryDefs = [
     seoKey: "home",
     priority: 1,
     changefreq: "daily",
-    sourceFiles: ["app/page.tsx"],
   },
   {
     seoKey: "search",
     priority: 0.9,
     changefreq: "weekly",
-    sourceFiles: ["app/search/page.tsx", "components/search/SearchForm.tsx"],
   },
   {
     seoKey: "examples",
     priority: 0.85,
     changefreq: "weekly",
-    sourceFiles: ["app/examples/page.tsx"],
   },
   {
     seoKey: "projects",
     priority: 0.6,
     changefreq: "monthly",
-    sourceFiles: ["app/projects/page.tsx"],
   },
   {
     seoKey: "contact",
     priority: 0.6,
     changefreq: "yearly",
-    sourceFiles: ["app/contact/page.tsx"],
   },
 ] as const satisfies readonly StaticSitemapEntryDef[];
 
