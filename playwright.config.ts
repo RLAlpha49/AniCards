@@ -1,18 +1,25 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+const playwrightArtifactsDir = "./.artifacts";
 const shouldLaunchLocalServer = !process.env.PLAYWRIGHT_BASE_URL;
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  outputDir: "./tests/e2e/test-results",
+  outputDir: `${playwrightArtifactsDir}/playwright-test-results`,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? "50%" : 5,
   reporter: [
     ["list"],
-    ["html", { outputFolder: "./tests/e2e/playwright-report", open: "never" }],
+    [
+      "html",
+      {
+        outputFolder: `${playwrightArtifactsDir}/playwright-report`,
+        open: "never",
+      },
+    ],
   ],
   use: {
     baseURL,
