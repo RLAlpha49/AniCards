@@ -281,6 +281,59 @@ describe("Store Cards API POST Endpoint", () => {
     });
   });
 
+  describe("Optimistic concurrency", () => {
+    it("should return 409 with currentUpdatedAt when ifMatchUpdatedAt is stale", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const userId = 4242;
+      const currentUpdatedAt = "2025-02-02T02:02:02.000Z";
+
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [
+            {
+              cardName: "animeStats",
+              variation: "default",
+              titleColor: "#111111",
+              backgroundColor: "#222222",
+              textColor: "#333333",
+              circleColor: "#444444",
+            },
+          ],
+          updatedAt: currentUpdatedAt,
+        }),
+      );
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        ifMatchUpdatedAt: "2025-01-01T00:00:00.000Z",
+        cards: [
+          {
+            cardName: "animeStats",
+            disabled: true,
+          },
+        ],
+      });
+
+      const res = await POST(req);
+
+      expect(res.status).toBe(409);
+
+      const data = await res.json();
+      expect(data.error).toBe(
+        "Conflict: data was updated elsewhere. Please reload and try again.",
+      );
+      expect(data.currentUpdatedAt).toBe(currentUpdatedAt);
+
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:store_cards:failed_requests",
+      );
+    });
+  });
+
   describe("Basic Storage", () => {
     it("should store card configurations successfully", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });

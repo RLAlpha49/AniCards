@@ -173,4 +173,158 @@ test.describe("User page editor - save UX", () => {
       await expect.poll(() => saveCount, { timeout: 2500 }).toBe(0);
     });
   });
+
+  test("Queued autosave surfaces conflict recovery and preserves edits after reload", async ({
+    page,
+  }) => {
+    const savePayloads: Array<Record<string, unknown>> = [];
+    const conflictUpdatedAt = "2025-02-02T00:00:10.000Z";
+    const recoveredUpdatedAt = "2025-02-02T00:00:20.000Z";
+    let storeCardsCallCount = 0;
+    let getCardsCount = 0;
+    let currentCardsRecord = structuredClone(mockCardsRecord);
+
+    await test.step("Mock user, cards, preview, and conflict-on-first-save behavior", async () => {
+      await page.route("**/api/get-user**", async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(mockUserRecord),
+        });
+      });
+
+      await page.route("**/api/get-cards**", async (route) => {
+        getCardsCount += 1;
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(currentCardsRecord),
+        });
+      });
+
+      await page.route("**/api/card**", async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "image/svg+xml",
+          body: mockSvgCard,
+        });
+      });
+
+      await page.route("**/api/store-cards", async (route) => {
+        storeCardsCallCount += 1;
+        const postData = route.request().postData();
+        const payload = postData
+          ? (JSON.parse(postData) as Record<string, unknown>)
+          : {};
+
+        savePayloads.push(payload);
+
+        if (storeCardsCallCount === 1) {
+          currentCardsRecord = {
+            ...currentCardsRecord,
+            updatedAt: conflictUpdatedAt,
+          };
+
+          await route.fulfill({
+            status: 409,
+            contentType: "application/json",
+            body: JSON.stringify({
+              error:
+                "Conflict: data was updated elsewhere. Please reload and try again.",
+              currentUpdatedAt: conflictUpdatedAt,
+            }),
+          });
+          return;
+        }
+
+        currentCardsRecord = {
+          ...currentCardsRecord,
+          cards:
+            (payload.cards as typeof mockCardsRecord.cards) ??
+            currentCardsRecord.cards,
+          updatedAt: recoveredUpdatedAt,
+        };
+
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            success: true,
+            updatedAt: recoveredUpdatedAt,
+          }),
+        });
+      });
+    });
+
+    await test.step("Load the user editor and queue an autosave", async () => {
+      await page.goto("/user/TestUser");
+      await expect(
+        page.getByRole("heading", { name: "Your Cards" }),
+      ).toBeVisible();
+
+      const animeToggle = page.getByRole("switch", {
+        name: /toggle anime stats card/i,
+      });
+
+      await expect(animeToggle).toHaveAttribute("aria-checked", "true");
+      await animeToggle.click();
+      await expect(animeToggle).toHaveAttribute("aria-checked", "false");
+
+      await expect(page.getByText(/Auto-save in/i)).toBeVisible();
+
+      await page.waitForTimeout(750);
+      expect(savePayloads).toHaveLength(0);
+    });
+
+    await test.step("Autosave should hit a save conflict and surface recovery UI", async () => {
+      const saveButton = page.getByRole("button", { name: /save changes/i });
+
+      await expect.poll(() => savePayloads.length, { timeout: 5000 }).toBe(1);
+
+      expect(savePayloads[0]?.ifMatchUpdatedAt).toBe(mockCardsRecord.updatedAt);
+
+      await expect(
+        page.getByText(
+          /another tab saved changes\. Reload to sync, then re-apply your edits\./i,
+        ),
+      ).toBeVisible();
+      await expect(page.getByText("Out of sync")).toBeVisible();
+      await expect(saveButton).toBeDisabled();
+    });
+
+    await test.step("Reload & keep edits should fetch the latest version and re-save the queued patch", async () => {
+      const getCardsCountBeforeRecovery = getCardsCount;
+      const animeToggle = page.getByRole("switch", {
+        name: /toggle anime stats card/i,
+      });
+
+      await page.getByRole("button", { name: /reload & keep edits/i }).click();
+
+      await expect
+        .poll(() => getCardsCount > getCardsCountBeforeRecovery, {
+          timeout: 5000,
+        })
+        .toBe(true);
+      await expect.poll(() => savePayloads.length, { timeout: 5000 }).toBe(2);
+
+      expect(savePayloads[1]?.ifMatchUpdatedAt).toBe(conflictUpdatedAt);
+
+      const recoveredCards = savePayloads[1]?.cards as Array<
+        Record<string, unknown>
+      >;
+      expect(Array.isArray(recoveredCards)).toBe(true);
+      expect(recoveredCards).toHaveLength(1);
+      expect(recoveredCards[0]?.cardName).toBe("animeStats");
+      expect(recoveredCards[0]?.disabled).toBe(true);
+
+      await expect(
+        page.getByRole("button", { name: /reload & keep edits/i }),
+      ).toHaveCount(0);
+      await expect(page.getByText(/Auto-save in/i)).toHaveCount(0);
+      await expect(animeToggle).toHaveAttribute("aria-checked", "false");
+      await expect(
+        page.getByRole("button", { name: /save changes/i }),
+      ).toBeDisabled();
+    });
+  });
 });
