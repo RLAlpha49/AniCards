@@ -42,7 +42,7 @@ export default function HeaderClient() {
         <div
           className={cn(
             "grid grid-cols-[1fr_auto] items-center gap-4",
-            "md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]",
+            "grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]",
           )}
         >
           <Link
