@@ -1,24 +1,24 @@
 # AniCards privacy notes
 
-This document summarizes the privacy posture currently implemented in the repository. It is intended as a maintainer-facing technical note, not a legal commitment and not a replacement for review of any public-facing privacy policy.
+A maintainer-facing technical summary of the privacy posture baked into the repository. Not a legal document — not a substitute for a real privacy policy review. Just a plain account of what data the code handles and how.
 
-## Data categories currently handled by the repo
+## Data currently handled by the repo
 
 ### Persisted AniList-derived user snapshots
 
-`/api/store-users` persists a minimized server-side record derived from AniList data.
+`/api/store-users` persists a minimized server-side record built from AniList data.
 
-The persisted shape currently includes:
+The stored shape currently looks like this:
 
 - `userId`
 - optional `username`
-- `stats` (AniList-derived user, list, favourites, and related page data)
+- `stats` — AniList-derived user, list, favourites, and related page data
 - optional derived `aggregates`
 - `createdAt`
 - `updatedAt`
 - optional `requestMetadata.lastSeenIpBucket`
 
-The current write path does not intentionally persist raw IP addresses.
+The write path does not intentionally persist raw IP addresses.
 
 ### Persisted card editor configuration
 
@@ -31,25 +31,25 @@ The current write path does not intentionally persist raw IP addresses.
 
 ### Browser-stored consent state
 
-Analytics consent is stored client-side in local storage under:
+Analytics consent lives client-side in local storage under:
 
 - `anicards:analytics-consent:v1`
 
-Allowed values are `granted` and `denied`, while `unset` is treated as the default state before a user makes a choice.
+Values are `granted` or `denied`. The `unset` state is the default before a user makes a choice — analytics stays off until they actively grant it.
 
 ### Consented telemetry
 
-When analytics is enabled and the user has granted consent, the app can send:
+When analytics is enabled and the user has granted consent, the app may send:
 
 - pageview events with normalized route patterns
 - bounded custom event labels
 - bounded error categories
 
-Before sending, the code intentionally redacts or normalizes route and label values that look sensitive.
+Route and label values that look sensitive are intentionally redacted or normalized before transmission.
 
 ### Structured error reports
 
-The app also supports structured error reporting through `/api/error-reports`.
+The app supports structured error reporting through `/api/error-reports`.
 
 Those reports can include sanitized versions of:
 
@@ -60,47 +60,47 @@ Those reports can include sanitized versions of:
 - bounded metadata
 - optionally redacted user identifiers
 
-## Third-party and infrastructure services currently in use
+## Third-party and infrastructure services
 
-The codebase currently integrates with these external services:
+The codebase touches these external services:
 
 - **AniList GraphQL** — upstream source for profile and statistics data
 - **Upstash Redis / Ratelimit** — persistence, analytics counters, and retention-limited reports
 - **Google Analytics / Google Tag Manager** — consent-gated analytics when `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID` is configured
-- **Vercel Analytics / Speed Insights** — consent-gated runtime telemetry when deployed on Vercel
+- **Vercel Analytics / Speed Insights** — consent-gated runtime telemetry on Vercel deployments
 
 ## Analytics consent model
 
-The implemented consent model is opt-in.
+The consent model is opt-in. No gray area here.
 
-Current behavior:
+How it works:
 
 - analytics is disabled by default
-- the consent banner appears only when a tracking ID is configured
+- the consent banner only appears when a tracking ID is actually configured
 - granting consent enables Google Analytics pageviews and events
-- Vercel Analytics and Speed Insights render only when consent is granted and the app is running on Vercel
-- denying or revoking consent stops future analytics events from being sent
+- Vercel Analytics and Speed Insights only render when consent is granted and the app is running on Vercel
+- revoking consent stops future events immediately
 
-Google Analytics is configured with:
+Google Analytics is initialized with:
 
 - `anonymize_ip: true`
 - `allow_google_signals: false`
 - `allow_ad_personalization_signals: false`
 - consent mode defaults with ad-related storage denied
 
-## Retention and lifecycle notes
+## Retention and lifecycle
 
 ### User snapshots and saved cards
 
-The current code does **not** apply a general TTL to saved user snapshots or card settings.
+There is currently no general TTL applied to saved user snapshots or card settings.
 
-At present, those records remain until one of the following occurs:
+Records stick around until one of the following occurs:
 
-- they are overwritten by a newer save
-- maintainers invoke the delete path
+- a newer save overwrites them
+- maintainers invoke the delete path directly
 - the scheduled stale-user refresh flow removes a user after repeated AniList 404s
 
-The cron refresh route deletes a stored user after **three consecutive** scheduled 404 refresh failures. That delete path also removes:
+That cron flow deletes a stored user after **three consecutive** scheduled 404 refresh failures. The deletion also clears:
 
 - saved cards
 - username aliases
@@ -111,44 +111,37 @@ The cron refresh route deletes a stored user after **three consecutive** schedul
 
 `/api/cron/analytics-reporting` stores generated analytics reports in a bounded Redis list.
 
-Current cap:
+Cap:
 
 - maximum stored reports: **50**
 
 ### Structured error report retention
 
-Structured error reports are stored in a bounded Redis list.
+Error reports are stored in a bounded Redis list.
 
-Current cap:
+Cap:
 
 - maximum stored error reports: **250**
 
 ### Aggregate counters
 
-The repository increments analytics counters under `analytics:*` Redis keys.
-
-Those counters are currently limited by operational cleanup and reporting patterns, but the code shown here does **not** assign a per-key TTL to the underlying raw counters.
+Analytics counters accumulate under `analytics:*` Redis keys. These are bounded by operational cleanup and reporting patterns, but the current code does not assign per-key TTLs to the underlying raw counters.
 
 ## Public access and data minimization
 
-The public `/api/get-user` response is intentionally designed to omit internal persistence metadata such as:
+The public `/api/get-user` response is deliberately designed to omit internal persistence metadata — things like request IP buckets and internal record timestamps. It returns a bounded public DTO rather than the full internal storage shape.
 
-- request IP buckets
-- internal record timestamps
+## Export and deletion
 
-That route returns a bounded public DTO instead of the full internal storage shape.
+There is currently no public self-serve API for exporting or deleting server-side stored data.
 
-## Export and deletion path today
-
-The repository currently does **not** provide a public self-serve API for exporting or deleting saved AniCards user/card data on the server side.
-
-What exists today:
+What actually exists today:
 
 - maintainers have a server-side delete primitive in `lib/server/user-data.ts`
 - the UI includes local settings export/import helpers for editor settings JSON
-- those local exports are not equivalent to deleting or exporting server-side stored user snapshots
+- those local exports are not the same as deleting or exporting server-side user snapshots
 
-Until a self-serve flow exists, deletion and export requests require manual maintainer handling. The repository's current contact channel is `contact@alpha49.com`.
+Until a self-serve flow exists, deletion and export requests require manual maintainer handling. The repo's contact address is `contact@alpha49.com`.
 
 ## Related docs
 

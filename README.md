@@ -1,8 +1,8 @@
-# AniCards - AniList Statistics Cards
+# AniCards — AniList Statistics Cards
 
-AniCards is a dynamic and customizable tool designed to generate beautiful statistic cards from your AniList profile data. Effortlessly display your anime and manga stats with vibrant, animated SVGs that you can share on any platform!
+Your AniList profile is sitting on a goldmine of stats. AniCards turns them into something worth actually showing off — animated, customizable SVG cards generated straight from your profile data. Drop them in a GitHub README, a personal site, a Discord bio, wherever an image will fit.
 
-## 📚 Durable Project Docs
+## 📚 Project Docs
 
 - [`docs/README.md`](docs/README.md) — index of the maintained project docs
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — app/runtime, data, and storage overview
@@ -13,16 +13,16 @@ AniCards is a dynamic and customizable tool designed to generate beautiful stati
 
 Experience AniCards live at [anicards.alpha49.com](https://anicards.alpha49.com)
 
-## 🎨 Card Style Requests
+## 🎨 Card Design Requests
 
-**I especially encourage design submissions!** If you have an idea for:
+**Design submissions are a priority.** If something's been rattling around in your head:
 
-- New color schemes or themes 🎨
-- Creative layout concepts 🖼️
-- Animated elements to enhance the card's appeal ✨
-- New card types for additional statistics or different variants 📊
+- Fresh color schemes or theme variations 🎨
+- Layout concepts that do something different 🖼️
+- Animated elements that actually add something ✨
+- New card types or stat breakdowns you'd personally use 📊
 
-Submit your design concepts (sketches, Figma files, or detailed descriptions) and I'll work on implementing them!
+Send a sketch, a Figma file, a wall of text — whatever gets the concept across. I'll handle the build.
 
 ## 📊 Available Card Types
 
@@ -107,9 +107,9 @@ Each card has a `cardType` ID and supports one or more `variation` values.
 
 ## 🛠️ Customization
 
-You can easily generate your cards using the [Live Generator](https://anicards.alpha49.com).
+The quickest path is the [Live Generator](https://anicards.alpha49.com).
 
-Alternatively, construct the URL manually:
+Or build the URL yourself:
 
 ```text
 https://api.anicards.alpha49.com/card.svg?cardType={CARD_TYPE}&userId={USER_ID}&variation={VARIATION}&colorPreset={PRESET_NAME}
@@ -131,8 +131,8 @@ https://api.anicards.alpha49.com/card.svg?cardType={CARD_TYPE}&userId={USER_ID}&
 
 ### Notes
 
-- When `colorPreset=custom`, the server will load color data from the card stored in the database and ignore any `titleColor` / `backgroundColor` / `textColor` / `circleColor` URL overrides.
-- Certain flags (like `showFavorites`, `statusColors`, and `piePercentages`) are only relevant to specific card types. If omitted, the API will use the stored card configuration if present, otherwise fall back to sensible defaults.
+- When `colorPreset=custom`, the server loads color data from the card stored in the database and ignores any `titleColor` / `backgroundColor` / `textColor` / `circleColor` URL overrides.
+- Flags like `showFavorites`, `statusColors`, and `piePercentages` only apply to specific card types. Leave them out and the API falls back to the stored card configuration if one exists, or sensible defaults otherwise.
 
 Example (URL-encoded colors):
 
@@ -152,10 +152,10 @@ https://api.anicards.alpha49.com/card.svg?cardType=animeStats&userName=Alpha49&v
 
 ## 🏗️ Local Development
 
-AniCards supports two useful local modes:
+There are two ways to run this locally, depending on what you're actually working on:
 
-- **UI-only/local shell work** — good for README/docs updates, marketing pages, styling, and other changes that do not need AniList or Redis-backed API flows.
-- **Full app/API work** — needed when you are touching route handlers, stored user/card data, cron flows, or anything that depends on AniList and Upstash Redis.
+- **UI-only mode** — docs, marketing pages, styling, anything that doesn't need live AniList or Redis-backed API flows.
+- **Full app/API mode** — route handlers, stored user/card data, cron flows, or anything touching AniList and Upstash Redis.
 
 ### 1. Clone and install
 
@@ -165,7 +165,7 @@ cd AniCards
 bun install
 ```
 
-`bun install` also runs the repository `prepare` script, which installs the Husky git hooks used during local contribution.
+`bun install` runs the `prepare` script as part of its flow — that's what installs the Husky git hooks.
 
 ### 2. Copy the env template
 
@@ -198,11 +198,11 @@ The template in [`.env.example`](.env.example) is grouped by concern. Use the li
 
 #### UI-only mode
 
-For docs, frontend shell, or styling work, keeping the local URL variables set is usually enough. In this mode, pages that depend on AniList, Redis, or cron secrets may stay unavailable or degraded locally — that is expected.
+For docs, styling, or frontend shell work, the local URL variables are usually all you need. Pages that depend on AniList, Redis, or cron secrets may degrade or stay offline — that's expected and fine.
 
 #### Full app/API mode
 
-For API/storage work, populate the AniList token, Upstash Redis credentials, and any cron-related settings you need to exercise. Keep `VERCEL` empty in local `.env.local`; the platform sets that in hosted environments.
+For anything touching API handlers or storage, fill in the AniList token, Upstash Redis credentials, and whatever cron settings apply to what you're testing. Leave `VERCEL` unset in your local `.env.local` — the platform injects that in hosted environments.
 
 ### 4. Start the dev server
 
@@ -214,7 +214,7 @@ Then open [http://localhost:3000](http://localhost:3000).
 
 ## ✅ Validation and contributor workflow
 
-Use the script surface from [`package.json`](package.json) when validating changes:
+The full command surface lives in [`package.json`](package.json):
 
 | Command | What it does | When to use it |
 | --- | --- | --- |
@@ -230,25 +230,25 @@ Use the script surface from [`package.json`](package.json) when validating chang
 | `bun run check:unused` | Knip unused-code analysis | Optional hygiene pass |
 | `bun run check:licenses` | License policy check | Optional dependency/compliance pass |
 
-Recommended local contributor path for most changes:
+For most changes, this is the path:
 
-1. Run `bun run format:write`
-2. Run `bun run test:unit` for logic-affecting changes, or `bun run test` when browser behavior may have changed
-3. Run `bun run typecheck`
-4. Run `bun run lint:check`
+1. `bun run format:write`
+2. `bun run test:unit` for logic changes — `bun run test` when browser behavior might be affected
+3. `bun run typecheck`
+4. `bun run lint:check`
 
 ### Husky hooks
 
-This repository uses Husky to catch common issues before they leave your machine:
+Husky catches things before they become future problems:
 
 - **pre-commit** → `bun run lint-staged`
 - **pre-push** → `bun run typecheck`
 
-That means staged source/docs files get auto-formatted before commit, and pushes are blocked if the TypeScript check fails.
+Staged source and docs files get auto-formatted on commit. Pushes fail if the TypeScript check doesn't pass.
 
 ## 🔌 API contract and OpenAPI maintenance
 
-AniCards keeps its public API contract in [`openapi.yaml`](openapi.yaml). The README is a contributor guide; the OpenAPI file is the canonical contract for request/response shape, path aliases, and endpoint-level behavior.
+The public API contract lives in [`openapi.yaml`](openapi.yaml). This README is a contributor guide. The OpenAPI spec is the ground truth for request/response shape, path aliases, and endpoint behavior — when they conflict, trust the spec.
 
 ### What lives in the contract
 
@@ -268,51 +268,51 @@ The current spec covers the main public route families:
 - **Pretty public alias:** `/card.svg`
 - **Compatibility alias:** `/api/card.svg`
 
-When you update docs or examples, prefer the canonical handler language and call out aliases only where they matter for compatibility or public URLs.
+In docs and examples, use the canonical handler path. Only mention aliases when compatibility or public-facing URLs make it relevant.
 
-### How contributors should maintain `openapi.yaml`
+### Maintaining `openapi.yaml`
 
-AniCards does **not** currently generate `openapi.yaml` from route code. The file is hand-maintained and should be updated in the same pull request as any public API change.
+`openapi.yaml` is hand-maintained — it's not generated from route code. Update it in the same PR as any public API change.
 
-Update the contract whenever you change:
+Update the contract when you change:
 
 - a public route path or alias
 - accepted query/body fields
 - response shapes, status codes, or headers
 - canonical parameter names vs deprecated aliases
-- documented storage/privacy behavior that is surfaced directly in the contract
+- documented storage/privacy behavior surfaced in the contract
 
-Recommended maintenance workflow:
+Sensible maintenance flow:
 
-1. Change the route handler/tests first or in parallel
-2. Update [`openapi.yaml`](openapi.yaml) in the same PR so the contract matches runtime behavior
-3. Keep the README API section high-level and push detailed behavior into the spec
-4. Run the normal validation commands for the touched surface (`bun run format:write`, relevant tests, `bun run typecheck`, `bun run lint:check`)
-5. Manually review any examples you changed so canonical paths and aliases stay truthful
+1. Change the route handler or tests first — or in parallel
+2. Update [`openapi.yaml`](openapi.yaml) in the same PR so the contract reflects actual runtime behavior
+3. Keep the README API section high-level; push the detail into the spec
+4. Run the normal validation commands (`bun run format:write`, relevant tests, `bun run typecheck`, `bun run lint:check`)
+5. Manually review changed examples so canonical paths and aliases stay accurate
 
-For broader system context beyond the API contract, start with [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/SECURITY.md`](docs/SECURITY.md), and [`docs/PRIVACY.md`](docs/PRIVACY.md).
+For broader context beyond the API contract, start with [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/SECURITY.md`](docs/SECURITY.md), and [`docs/PRIVACY.md`](docs/PRIVACY.md).
 
 ## 🤝 Contributing
 
-Contributions are very welcome.
+Pull requests are open. Here's the basic flow:
 
 1. Fork the repository.
 2. Create a feature branch.
 3. Make your change and run the relevant validation commands above.
-4. Let the Husky hooks do their thing.
-5. Open a Pull Request that explains what changed, how you validated it, and whether any API contract/docs updates were required.
+4. Let Husky do its thing.
+5. Open a Pull Request — explain what changed, how you tested it, and whether any API contract or docs updates were needed.
 
 ## 🐛 Issues & Feature Requests
 
-Found a bug or have an idea for improvement? Let me know!
+Found something broken? Got an idea? Either way:
 
-1. Check the existing [issues](https://github.com/RLAlpha49/AniCards/issues).
-2. If your issue or idea isn't listed, [open a new issue](https://github.com/RLAlpha49/AniCards/issues/new).
+1. Check the existing [issues](https://github.com/RLAlpha49/AniCards/issues) — it might already be tracked.
+2. If it's not, [open a new one](https://github.com/RLAlpha49/AniCards/issues/new).
 
 ## 📄 License
 
-Distributed under the MIT License. See the [LICENSE](LICENSE) file for more information.
+MIT. See [LICENSE](LICENSE).
 
 ---
 
-**Disclaimer**: AniCards is not affiliated with AniList.co. Use of AniList's API is subject to their terms of service.
+**Disclaimer**: AniCards has no affiliation with AniList.co. API usage is subject to their terms of service.

@@ -1,34 +1,30 @@
 # AniCards security notes
 
-This document is the long-lived reference for the security-sensitive behavior that existing code comments point to.
+The long-lived reference for security-sensitive behavior in the codebase. Code comments throughout the app point here — that's intentional.
 
-## Content Security Policy (CSP)
+## Content Security Policy
 
-AniCards applies a nonce-based CSP on HTML routes.
+AniCards applies a nonce-based CSP on all HTML routes. No `unsafe-inline` for scripts.
 
-### How the nonce flow works
+### The nonce flow
 
-1. `app/middleware.ts` creates a new 128-bit nonce for each matching request.
-2. The middleware calls `buildCSPHeader()` from `lib/csp-config.ts` and adds that nonce to `script-src`.
-3. The nonce is passed into the app through the `x-nonce` request header.
-4. `app/layout.tsx` reads the header with `getRequestNonce()` and passes the nonce to components that render inline scripts.
+1. `app/middleware.ts` creates a fresh 128-bit nonce per matching request.
+2. The middleware calls `buildCSPHeader()` from `lib/csp-config.ts` and includes that nonce in `script-src`.
+3. The nonce travels into the app via the `x-nonce` request header.
+4. `app/layout.tsx` reads it with `getRequestNonce()` and passes it to any component that renders inline scripts.
 
-This allows inline scripts to work under a strict CSP without relying on `unsafe-inline` for scripts.
-
-### Development-only `unsafe-eval`
+### Development `unsafe-eval`
 
 `app/middleware.ts` passes `allowUnsafeEval: process.env.NODE_ENV !== "production"` into `buildCSPHeader(...)`.
 
-In practice, that means:
+What that actually means:
 
-- production keeps the stricter nonce-based policy
-- development allows `unsafe-eval` only so Next.js/Turbopack debugging tooling can run
+- production retains the strict nonce-based policy
+- development allows `unsafe-eval` so Next.js/Turbopack debugging tools can run
 
 ### Allowed CSP sources
 
-The shared directive list is defined in `lib/csp-config.ts`.
-
-Notable allowlists include:
+The directive list is defined in `lib/csp-config.ts`. Notable allowlists cover:
 
 - AniCards same-origin assets
 - AniList GraphQL
@@ -37,13 +33,13 @@ Notable allowlists include:
 - Vercel Analytics / Speed Insights
 - Google Fonts
 
-### Nonce-bearing inline scripts during hydration
+### Nonce and hydration
 
-Browsers redact nonce attributes during hydration. Any inline script component that renders nonce-bearing markup should follow the existing hydration-safe pattern already used in the app, including `suppressHydrationWarning` where needed.
+Browsers strip nonce attributes during hydration. Inline script components carrying nonce-bearing markup should follow the established pattern already used in the app — including `suppressHydrationWarning` where it applies. Look at existing implementations before adding new nonce-bearing scripts.
 
 ## Static response hardening
 
-`next.config.ts` defines the static security headers that do not rely on a per-request nonce:
+`next.config.ts` defines security headers that don't need a per-request nonce:
 
 - `X-DNS-Prefetch-Control: on`
 - `X-Frame-Options: DENY`
@@ -52,43 +48,43 @@ Browsers redact nonce attributes during hydration. Any inline script component t
 - `Referrer-Policy: strict-origin-when-cross-origin`
 - `Permissions-Policy: camera=(), microphone=(), geolocation=()`
 
-CSP is not duplicated there because middleware generates it dynamically.
+CSP is excluded here — middleware generates it dynamically.
 
 ## Route protections
 
 ### Shared API protections
 
-`lib/api-utils.ts` is the shared home for common API protections:
+`lib/api-utils.ts` centralizes the common API protections:
 
 - shared rate limiting
 - request ID creation and propagation
-- privacy-safe logs
-- structured JSON/text helpers
+- privacy-safe logging
+- structured JSON/text response helpers
 - same-origin enforcement for browser-facing mutation routes
 
-Most browser-facing `POST` routes call `initializeApiRequest()`, so they pick up rate limiting and same-origin checks by default.
+Calling `initializeApiRequest()` gives a route handler all of that automatically.
 
 ### Public read routes
 
-Some routes are intentionally public and skip same-origin validation so consumers can read stored or rendered public data:
+Some routes intentionally skip same-origin validation — they're designed to work as public endpoints:
 
 - `/api/get-user`
 - `/api/get-cards`
 - `/api/card` and its aliases
 
-Those routes still enforce bounded DTOs, CORS policy, and rate limiting.
+These still enforce bounded DTOs, CORS policy, and rate limiting.
 
-### Operator-only cron routes
+### Operator cron routes
 
-Cron endpoints use `authorizeCronRequest()` and require `x-cron-secret` when `CRON_SECRET` is configured.
+Cron endpoints use `authorizeCronRequest()` and require an `x-cron-secret` header whenever `CRON_SECRET` is configured.
 
-In development only, unsecured cron access can be enabled with `ALLOW_UNSECURED_CRON_IN_DEV=true`. That is a local-development escape hatch, not a production posture.
+There's a local-dev escape hatch: `ALLOW_UNSECURED_CRON_IN_DEV=true` bypasses that check in development. That's a local-development escape hatch only — not a production posture.
 
 ## Abuse controls
 
-The repository already uses shared Upstash rate limiting.
+Shared Upstash rate limiting is applied throughout the repository.
 
-Examples:
+Current limits:
 
 - default shared limiter: `10 / 5s`
 - public card rendering route: `150 / 10s`
@@ -96,14 +92,14 @@ Examples:
 
 ## Data minimization and logging
 
-Security and privacy intentionally overlap here.
+Security and privacy overlap here in ways worth calling out explicitly.
 
-Implemented guardrails include:
+The implemented guardrails:
 
-- request logs are emitted through `logPrivacySafe(...)`
-- IP addresses are redacted before persistence/logging
-- persisted user records only retain `requestMetadata.lastSeenIpBucket`, not raw IP values
-- `/api/get-user` returns a bounded public DTO that omits internal request metadata and record timestamps
+- request logs go through `logPrivacySafe(...)`
+- IP addresses are redacted before persistence or logging
+- persisted user records retain only `requestMetadata.lastSeenIpBucket`, never raw IPs
+- `/api/get-user` returns a bounded public DTO that strips internal request metadata and record timestamps
 
 ## Related docs
 
