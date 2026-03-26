@@ -120,7 +120,13 @@ export default function HeaderClient() {
 
             <button
               type="button"
-              className="text-foreground/60 transition-colors hover:text-gold md:hidden"
+              className="
+                flex size-11 shrink-0 items-center justify-center rounded-full border border-gold/20
+                bg-background/70 text-foreground/60 transition-colors
+                hover:border-gold/35 hover:text-gold
+                focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:outline-none
+                md:hidden
+              "
               onClick={() => setMobileMenuOpen((current) => !current)}
               aria-expanded={mobileMenuOpen}
               aria-controls="mobile-navigation"
@@ -178,7 +184,7 @@ export default function HeaderClient() {
                       );
                     }}
                     className={`
-                      block py-2 font-body-serif text-sm tracking-[0.15em] uppercase
+                      block rounded-sm px-2 py-3 font-body-serif text-sm tracking-[0.15em] uppercase
                       transition-colors
                       ${
                       isActive

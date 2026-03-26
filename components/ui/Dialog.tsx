@@ -88,43 +88,56 @@ const DialogContent = React.forwardRef<
   ) => (
     <DialogPortal>
       <DialogOverlay />
-      <DialogPrimitive.Content
-        ref={ref}
-        className={cn(
-          `
-            fixed top-[50%] left-[50%] z-50 grid w-full max-w-lg translate-x-[-50%]
-            translate-y-[-50%]
-          `,
-          "border-2 border-gold/15 bg-background",
-          "shadow-[0_24px_80px_-12px_hsl(var(--gold)/0.12),0_8px_24px_-4px_hsl(0_0%_0%/0.25)]",
-          "gap-4 p-6 duration-300",
-          "data-[state=closed]:animate-out data-[state=open]:animate-in",
-          "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-          "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-          "data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%]",
-          "data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]",
-          className,
-        )}
-        {...props}
+      <div
+        className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center"
+        style={{
+          paddingTop: "max(0.5rem, calc(env(safe-area-inset-top) + 0.5rem))",
+          paddingRight:
+            "max(0.5rem, calc(env(safe-area-inset-right) + 0.5rem))",
+          paddingBottom:
+            "max(0.5rem, calc(env(safe-area-inset-bottom) + 0.5rem))",
+          paddingLeft: "max(0.5rem, calc(env(safe-area-inset-left) + 0.5rem))",
+        }}
       >
-        {children}
-        {!hideCloseButton && (
-          <DialogPrimitive.Close
-            className={cn(
-              "absolute top-4 right-4 z-10 flex size-8 items-center justify-center",
-              "border border-gold/25 bg-transparent text-gold/60",
-              "transition-all duration-300",
-              "hover:border-gold/50 hover:bg-gold/10 hover:text-gold",
-              "focus:ring-1 focus:ring-gold/30 focus:outline-none",
-              "disabled:pointer-events-none",
-              closeButtonClassName,
-            )}
-          >
-            <X className="size-4" />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-        )}
-      </DialogPrimitive.Content>
+        <DialogPrimitive.Content
+          ref={ref}
+          className={cn(
+            `
+              pointer-events-auto relative z-50 grid max-h-full w-full max-w-lg overflow-y-auto
+              overscroll-contain
+            `,
+            "border-2 border-gold/15 bg-background",
+            "shadow-[0_24px_80px_-12px_hsl(var(--gold)/0.12),0_8px_24px_-4px_hsl(0_0%_0%/0.25)]",
+            "gap-4 p-4 duration-300 sm:p-6",
+            "data-[state=closed]:animate-out data-[state=open]:animate-in",
+            "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+            "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+            className,
+          )}
+          {...props}
+        >
+          {children}
+          {!hideCloseButton && (
+            <DialogPrimitive.Close
+              className={cn(
+                `
+                  absolute top-3 right-3 z-10 flex size-12 items-center justify-center
+                  sm:top-4 sm:right-4 sm:size-10
+                `,
+                "border border-gold/25 bg-transparent text-gold/60",
+                "transition-all duration-300",
+                "hover:border-gold/50 hover:bg-gold/10 hover:text-gold",
+                "focus:ring-2 focus:ring-gold/30 focus:outline-none",
+                "disabled:pointer-events-none",
+                closeButtonClassName,
+              )}
+            >
+              <X className="size-4" />
+              <span className="sr-only">Close</span>
+            </DialogPrimitive.Close>
+          )}
+        </DialogPrimitive.Content>
+      </div>
     </DialogPortal>
   ),
 );

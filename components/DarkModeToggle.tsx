@@ -40,8 +40,10 @@ export default function DarkModeToggle() {
         aria-label="Toggle color mode"
         disabled
         className="
-          group relative isolate flex size-9 cursor-default items-center justify-center rounded-full
-          border border-gold/40 bg-transparent transition-[border-color] duration-300 outline-none
+          group relative isolate flex size-11 cursor-default items-center justify-center
+          rounded-full border border-gold/40 bg-transparent transition-[border-color] duration-300
+          outline-none
+          md:size-9
         "
       >
         <span
@@ -61,11 +63,12 @@ export default function DarkModeToggle() {
       role="switch"
       aria-checked={isDark}
       className="
-        group relative isolate flex size-9 cursor-pointer items-center justify-center rounded-full
+        group relative isolate flex size-11 cursor-pointer items-center justify-center rounded-full
         border border-gold/40 bg-transparent transition-[border-color] duration-300 outline-none
         hover:border-gold/80
         focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2
         focus-visible:ring-offset-background
+        md:size-9
       "
       whileHover={{ scale: 1.08 }}
       whileTap={{ scale: 0.92 }}
