@@ -319,10 +319,11 @@ export function UserHelpDialog({
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search topics..."
                 className="
-                  h-9 w-full border border-gold/15 bg-transparent pr-3 pl-9 text-sm text-foreground
+                  h-11 w-full border border-gold/15 bg-transparent pr-3 pl-9 text-sm text-foreground
                   transition-colors
                   placeholder:text-muted-foreground/50
                   focus:border-gold/35 focus:outline-none
+                  md:h-9
                 "
                 aria-label="Search help topics"
               />
@@ -432,7 +433,7 @@ export function UserHelpDialog({
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search topics..."
                 className="
-                  h-8 w-full border border-gold/15 bg-transparent pr-3 pl-8 text-sm text-foreground
+                  h-11 w-full border border-gold/15 bg-transparent pr-3 pl-8 text-sm text-foreground
                   placeholder:text-muted-foreground/50
                   focus:border-gold/35 focus:outline-none
                 "
@@ -456,8 +457,8 @@ export function UserHelpDialog({
                       onClick={() => setSelectedTopicId(t.id)}
                       className={cn(
                         `
-                          flex shrink-0 items-center gap-1.5 border px-3 py-1.5 text-xs
-                          transition-all
+                          flex min-h-11 shrink-0 items-center gap-1.5 rounded-md border px-3.5 py-2
+                          text-xs transition-all
                         `,
                         isActive
                           ? "border-gold/35 bg-gold/10 text-foreground"

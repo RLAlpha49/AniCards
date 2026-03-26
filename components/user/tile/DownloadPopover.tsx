@@ -19,6 +19,8 @@ interface DownloadPopoverProps {
   onDownload: (format: ConversionFormat) => Promise<void> | void;
   downloadDescrId?: string;
   downloadTitle?: string;
+  triggerClassName?: string;
+  triggerLabel?: string;
 }
 
 export function DownloadPopover({
@@ -29,6 +31,8 @@ export function DownloadPopover({
   onDownload,
   downloadDescrId,
   downloadTitle,
+  triggerClassName,
+  triggerLabel,
 }: Readonly<DownloadPopoverProps>) {
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
@@ -42,10 +46,13 @@ export function DownloadPopover({
           title={downloadTitle}
           aria-label={isDownloading ? "Converting..." : "Download"}
           className={cn(
-            "size-10 rounded-full p-0 shadow-lg transition-all",
+            triggerLabel
+              ? "h-11 w-full justify-center gap-2 rounded-xl px-3 text-sm shadow-none"
+              : "size-10 rounded-full p-0 shadow-lg transition-all",
             "border border-gold/20 bg-background/80 text-foreground backdrop-blur-sm",
             "hover:border-gold/40 hover:bg-background/90 hover:shadow-gold/15",
             "disabled:cursor-not-allowed disabled:opacity-70",
+            triggerClassName,
           )}
         >
           {isDownloading ? (
@@ -53,6 +60,7 @@ export function DownloadPopover({
           ) : (
             <Download className="size-5" aria-hidden="true" />
           )}
+          {triggerLabel ? <span>{triggerLabel}</span> : null}
           <span className="sr-only">
             {isDownloading ? "Converting..." : "Download"}
           </span>

@@ -69,6 +69,9 @@ function OpenInNewTabButton(
     label: string;
     isPreviewAvailable: boolean;
     previewUnavailableId: string;
+    className?: string;
+    iconClassName?: string;
+    visibleLabel?: string;
   }>,
 ) {
   if (args.openHref) {
@@ -77,6 +80,7 @@ function OpenInNewTabButton(
         href={args.openHref}
         target="_blank"
         rel="noopener noreferrer"
+        aria-label={`Open preview in new tab ${args.label}`}
         title="Preview in new tab"
         className={cn(
           "pointer-events-auto",
@@ -87,9 +91,14 @@ function OpenInNewTabButton(
             focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2
             focus-visible:outline-none
           `,
+          args.className,
         )}
       >
-        <ExternalLink className="size-5" aria-hidden="true" />
+        <ExternalLink
+          className={cn("size-5", args.iconClassName)}
+          aria-hidden="true"
+        />
+        {args.visibleLabel ? <span>{args.visibleLabel}</span> : null}
         <span className="sr-only">Open preview in new tab {args.label}</span>
       </a>
     );
@@ -100,6 +109,7 @@ function OpenInNewTabButton(
       type="button"
       disabled
       aria-disabled="true"
+      aria-label={`Open preview in new tab ${args.label}`}
       aria-describedby={
         args.isPreviewAvailable ? undefined : args.previewUnavailableId
       }
@@ -115,9 +125,14 @@ function OpenInNewTabButton(
           focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2
           focus-visible:outline-none
         `,
+        args.className,
       )}
     >
-      <ExternalLink className="size-5" aria-hidden="true" />
+      <ExternalLink
+        className={cn("size-5", args.iconClassName)}
+        aria-hidden="true"
+      />
+      {args.visibleLabel ? <span>{args.visibleLabel}</span> : null}
       <span className="sr-only">Open preview in new tab {args.label}</span>
     </button>
   );
@@ -129,6 +144,9 @@ function RefreshPreviewButton(
     onRefresh: () => void;
     title: string;
     ariaLabel: string;
+    className?: string;
+    iconClassName?: string;
+    visibleLabel?: string;
   }>,
 ) {
   return (
@@ -149,9 +167,14 @@ function RefreshPreviewButton(
           focus-visible:outline-none
         `,
         args.disabled && "cursor-not-allowed opacity-70",
+        args.className,
       )}
     >
-      <RotateCw className="size-5" aria-hidden="true" />
+      <RotateCw
+        className={cn("size-5", args.iconClassName)}
+        aria-hidden="true"
+      />
+      {args.visibleLabel ? <span>{args.visibleLabel}</span> : null}
     </button>
   );
 }
@@ -294,117 +317,167 @@ export const CardPreview = memo(function CardPreview({
   const overlayPinned = isAnyPopoverOpen || showActions || forceActionsVisible;
 
   return (
-    <div
-      data-tour="card-preview"
-      className="group/card-preview relative aspect-2/1 overflow-hidden bg-gold/3 dark:bg-gold/2"
-      onPointerEnter={() => onHoverChange?.(true)}
-      onPointerLeave={() => onHoverChange?.(false)}
-    >
-      {previewNode}
-
-      {/* Subtle scrim for better hierarchy when actions appear */}
+    <div className="bg-gold/3 dark:bg-gold/2">
       <div
-        aria-hidden="true"
-        className={cn(
-          "pointer-events-none absolute inset-0 bg-linear-to-t from-black/15 via-black/0 to-black/0",
-          "transition-opacity duration-200",
-          overlayPinned
-            ? "opacity-100"
-            : `
-              opacity-0
-              group-focus-within/card-preview:opacity-100
-              group-hover/card-preview:opacity-100
+        data-tour="card-preview"
+        className="group/card-preview relative aspect-2/1 overflow-hidden"
+        onPointerEnter={() => onHoverChange?.(true)}
+        onPointerLeave={() => onHoverChange?.(false)}
+      >
+        {previewNode}
+
+        {/* Subtle scrim for better hierarchy when actions appear */}
+        <div
+          aria-hidden="true"
+          className={cn(
+            `
+              pointer-events-none absolute inset-0 hidden bg-linear-to-t from-black/15 via-black/0
+              to-black/0
+              md:block
             `,
-        )}
-      />
-
-      {/* Touch-friendly toggle for small screens (tap to reveal actions) */}
-      <button
-        type="button"
-        aria-label={`Toggle actions for ${label}`}
-        aria-pressed={showActions}
-        onClick={() => setShowActions((v) => !v)}
-        className="
-          absolute top-2 right-2 z-20 inline-flex size-8 items-center justify-center rounded-full
-          bg-white/10 text-white
-          hover:bg-white/20
-          focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:outline-none
-          sm:hidden
-        "
-      >
-        <MoreHorizontal className="size-4" aria-hidden="true" />
-      </button>
-
-      {/* Keyboard-only toggle for desktop — hidden visually but becomes visible when focused */}
-      <button
-        type="button"
-        aria-label={`Toggle actions for ${label}`}
-        aria-pressed={showActions}
-        onClick={() => setShowActions((v) => !v)}
-        className="
-          pointer-events-none absolute top-2 right-2 z-20 hidden size-8 items-center justify-center
-          rounded-full bg-white/10 text-white opacity-0
-          focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:ring-2
-          focus-visible:ring-white/70 focus-visible:outline-none
-          sm:inline-flex
-        "
-      >
-        <MoreHorizontal className="size-4" aria-hidden="true" />
-      </button>
-
-      {!previewUrl && (
-        <span id={previewUnavailableId} className="sr-only">
-          Preview not available
-        </span>
-      )}
-      {isDownloading && (
-        <span id={convertingId} className="sr-only">
-          Converting...
-        </span>
-      )}
-      <div
-        className={cn(
-          `
-            pointer-events-none absolute inset-0 flex items-center justify-center gap-3
-            transition-opacity duration-300
-          `,
-          overlayPinned
-            ? "opacity-100"
-            : `
-              opacity-0
-              group-focus-within/card-preview:opacity-100
-              group-hover/card-preview:opacity-100
-            `,
-        )}
-      >
-        <OpenInNewTabButton
-          openHref={openHref}
-          label={label}
-          isPreviewAvailable={Boolean(previewUrl)}
-          previewUnavailableId={previewUnavailableId}
+            "transition-opacity duration-200",
+            overlayPinned
+              ? "opacity-100"
+              : `
+                opacity-0
+                group-focus-within/card-preview:opacity-100
+                group-hover/card-preview:opacity-100
+              `,
+          )}
         />
 
-        <RefreshPreviewButton
-          disabled={!previewUrl || isLoading}
-          title={previewUrl ? "Refresh preview" : "Preview not available"}
-          ariaLabel={`Refresh preview for ${label}`}
-          onRefresh={() => {
-            void (async () => {
-              try {
-                const token = await refresh();
-                if (token) setLastRefreshToken(token);
-              } catch (err) {
-                const error =
-                  err instanceof Error ? err : new Error(String(err));
-                console.error("Failed to refresh preview:", error);
-              }
-            })();
-          }}
-        />
+        {/* Keyboard-only toggle for desktop — hidden visually but becomes visible when focused */}
+        <button
+          type="button"
+          aria-label={`Toggle actions for ${label}`}
+          aria-pressed={showActions}
+          onClick={() => setShowActions((v) => !v)}
+          className="
+            pointer-events-none absolute top-2 right-2 z-20 hidden size-10 items-center
+            justify-center rounded-full bg-white/10 text-white opacity-0
+            focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:ring-2
+            focus-visible:ring-white/70 focus-visible:outline-none
+            md:inline-flex
+          "
+        >
+          <MoreHorizontal className="size-4" aria-hidden="true" />
+        </button>
 
-        {hideCopyDownload ? null : (
-          <>
-            <div className="pointer-events-auto">
+        {!previewUrl && (
+          <span id={previewUnavailableId} className="sr-only">
+            Preview not available
+          </span>
+        )}
+        {isDownloading && (
+          <span id={convertingId} className="sr-only">
+            Converting...
+          </span>
+        )}
+        <div
+          className={cn(
+            `
+              pointer-events-none absolute inset-0 hidden items-center justify-center gap-3
+              transition-opacity duration-300
+              md:flex
+            `,
+            overlayPinned
+              ? "opacity-100"
+              : `
+                opacity-0
+                group-focus-within/card-preview:opacity-100
+                group-hover/card-preview:opacity-100
+              `,
+          )}
+        >
+          <OpenInNewTabButton
+            openHref={openHref}
+            label={label}
+            isPreviewAvailable={Boolean(previewUrl)}
+            previewUnavailableId={previewUnavailableId}
+          />
+
+          <RefreshPreviewButton
+            disabled={!previewUrl || isLoading}
+            title={previewUrl ? "Refresh preview" : "Preview not available"}
+            ariaLabel={`Refresh preview for ${label}`}
+            onRefresh={() => {
+              void (async () => {
+                try {
+                  const token = await refresh();
+                  if (token) setLastRefreshToken(token);
+                } catch (err) {
+                  const error =
+                    err instanceof Error ? err : new Error(String(err));
+                  console.error("Failed to refresh preview:", error);
+                }
+              })();
+            }}
+          />
+
+          {hideCopyDownload ? null : (
+            <>
+              <div className="pointer-events-auto">
+                <CopyPopover
+                  open={copyPopoverOpen}
+                  onOpenChange={setCopyPopoverOpen}
+                  previewUrl={previewUrl}
+                  copiedFormat={copiedFormat}
+                  onCopyUrl={onCopyUrl}
+                  onCopyAniList={onCopyAniList}
+                  previewUnavailableId={previewUnavailableId}
+                />
+              </div>
+              <div className="pointer-events-auto">
+                <DownloadPopover
+                  open={downloadPopoverOpen}
+                  onOpenChange={setDownloadPopoverOpen}
+                  previewUrl={previewUrl}
+                  isDownloading={isDownloading}
+                  onDownload={onDownload}
+                  downloadDescrId={downloadDescrId}
+                  downloadTitle={downloadTitle}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="border-t border-gold/10 p-2 md:hidden">
+        <div className="grid grid-cols-2 gap-2">
+          <OpenInNewTabButton
+            openHref={openHref}
+            label={label}
+            isPreviewAvailable={Boolean(previewUrl)}
+            previewUnavailableId={previewUnavailableId}
+            className="h-11 w-full justify-center gap-2 rounded-xl px-3 shadow-none"
+            iconClassName="size-4"
+            visibleLabel="Open"
+          />
+
+          <RefreshPreviewButton
+            disabled={!previewUrl || isLoading}
+            title={previewUrl ? "Refresh preview" : "Preview not available"}
+            ariaLabel={`Refresh preview for ${label}`}
+            className="h-11 w-full justify-center gap-2 rounded-xl px-3 shadow-none"
+            iconClassName="size-4"
+            visibleLabel="Refresh"
+            onRefresh={() => {
+              void (async () => {
+                try {
+                  const token = await refresh();
+                  if (token) setLastRefreshToken(token);
+                } catch (err) {
+                  const error =
+                    err instanceof Error ? err : new Error(String(err));
+                  console.error("Failed to refresh preview:", error);
+                }
+              })();
+            }}
+          />
+
+          {hideCopyDownload ? null : (
+            <>
               <CopyPopover
                 open={copyPopoverOpen}
                 onOpenChange={setCopyPopoverOpen}
@@ -413,9 +486,10 @@ export const CardPreview = memo(function CardPreview({
                 onCopyUrl={onCopyUrl}
                 onCopyAniList={onCopyAniList}
                 previewUnavailableId={previewUnavailableId}
+                triggerClassName="h-11 w-full justify-center gap-2 rounded-xl px-3 shadow-none"
+                triggerLabel="Copy"
               />
-            </div>
-            <div className="pointer-events-auto">
+
               <DownloadPopover
                 open={downloadPopoverOpen}
                 onOpenChange={setDownloadPopoverOpen}
@@ -424,10 +498,12 @@ export const CardPreview = memo(function CardPreview({
                 onDownload={onDownload}
                 downloadDescrId={downloadDescrId}
                 downloadTitle={downloadTitle}
+                triggerClassName="h-11 w-full justify-center gap-2 rounded-xl px-3 shadow-none"
+                triggerLabel="Download"
               />
-            </div>
-          </>
-        )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

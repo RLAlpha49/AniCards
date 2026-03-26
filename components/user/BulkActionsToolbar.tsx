@@ -562,7 +562,7 @@ export function BulkActionsToolbar({
             transition={{ duration: 0.2, ease: "easeOut" }}
             className={cn(
               "pointer-events-auto",
-              "w-fit max-w-full",
+              "w-full max-w-full sm:w-fit",
               "flex flex-wrap items-center justify-center gap-2 sm:gap-3",
               `
                 border-2 border-gold/25 bg-background/95 px-5 py-3.5 shadow-2xl shadow-gold/10
@@ -682,7 +682,12 @@ export function BulkActionsToolbar({
               size="sm"
               onClick={undoBulk}
               disabled={!canUndo}
-              className="size-9 p-0 text-muted-foreground hover:text-foreground disabled:opacity-50"
+              className="
+                size-11 p-0 text-muted-foreground
+                hover:text-foreground
+                disabled:opacity-50
+                sm:size-9
+              "
               title={canUndo ? "Undo last bulk action" : "Nothing to undo"}
             >
               <Undo2 className="size-4" aria-hidden="true" />
@@ -693,7 +698,12 @@ export function BulkActionsToolbar({
               size="sm"
               onClick={redoBulk}
               disabled={!canRedo}
-              className="size-9 p-0 text-muted-foreground hover:text-foreground disabled:opacity-50"
+              className="
+                size-11 p-0 text-muted-foreground
+                hover:text-foreground
+                disabled:opacity-50
+                sm:size-9
+              "
               title={canRedo ? "Redo last bulk action" : "Nothing to redo"}
             >
               <Redo2 className="size-4" aria-hidden="true" />
@@ -704,7 +714,7 @@ export function BulkActionsToolbar({
               variant="ghost"
               size="sm"
               onClick={clearSelection}
-              className="size-9 p-0 text-muted-foreground hover:text-foreground"
+              className="size-11 p-0 text-muted-foreground hover:text-foreground sm:size-9"
               title="Clear selection (Esc)"
               aria-keyshortcuts="Escape"
             >

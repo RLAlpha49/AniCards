@@ -1499,7 +1499,10 @@ export function UserPageEditor({
         />
 
         <div className="mt-6 space-y-8">
-          <main className="mx-auto w-full max-w-[80vw] space-y-6">
+          <main
+            data-testid="user-page-editor-main"
+            className="mx-auto w-full max-w-full space-y-6 lg:max-w-[80vw]"
+          >
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1786,7 +1789,7 @@ export function UserPageEditor({
                             type="button"
                             className={cn(
                               "absolute top-1/2 right-2 -translate-y-1/2",
-                              "flex size-7 items-center justify-center",
+                              "flex size-11 items-center justify-center sm:size-7",
                               "text-muted-foreground hover:bg-gold/5 hover:text-foreground",
                               `
                                 dark:text-muted-foreground
@@ -1957,7 +1960,10 @@ export function UserPageEditor({
                             type="button"
                             data-testid="disabled-cards-info"
                             className={cn(
-                              "ml-0.5 flex size-8 items-center justify-center transition-colors",
+                              `
+                                ml-0.5 flex size-11 items-center justify-center transition-colors
+                                sm:size-8
+                              `,
                               "text-muted-foreground hover:bg-gold/5 hover:text-foreground",
                               `
                                 dark:text-muted-foreground

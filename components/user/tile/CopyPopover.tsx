@@ -18,6 +18,8 @@ interface CopyPopoverProps {
   onCopyUrl: () => Promise<void> | void;
   onCopyAniList: () => Promise<void> | void;
   previewUnavailableId?: string;
+  triggerClassName?: string;
+  triggerLabel?: string;
 }
 
 export function CopyPopover({
@@ -28,6 +30,8 @@ export function CopyPopover({
   onCopyUrl,
   onCopyAniList,
   previewUnavailableId,
+  triggerClassName,
+  triggerLabel,
 }: Readonly<CopyPopoverProps>) {
   const srCopiedMessage = (() => {
     if (copiedFormat === "url") return "Copied URL to clipboard";
@@ -48,12 +52,15 @@ export function CopyPopover({
           aria-describedby={previewUrl ? undefined : previewUnavailableId}
           title={previewUrl ? undefined : "Preview not available"}
           className={cn(
-            "size-10 rounded-full p-0 shadow-lg transition-all",
+            triggerLabel
+              ? "h-11 w-full justify-center gap-2 rounded-xl px-3 text-sm shadow-none"
+              : "size-10 rounded-full p-0 shadow-lg transition-all",
             "border border-gold/20 bg-background/80 text-foreground backdrop-blur-sm",
             "hover:border-gold/40 hover:bg-background/90 hover:shadow-gold/15",
             copiedFormat &&
               "border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400",
             !previewUrl && "cursor-not-allowed opacity-80",
+            triggerClassName,
           )}
         >
           {copiedFormat ? (
@@ -61,6 +68,9 @@ export function CopyPopover({
           ) : (
             <Copy className="size-5" aria-hidden="true" />
           )}
+          {triggerLabel ? (
+            <span>{copiedFormat ? "Copied" : triggerLabel}</span>
+          ) : null}
           <span className="sr-only">
             {copiedFormat ? "Copied" : "Copy URL"}
           </span>
