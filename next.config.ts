@@ -6,7 +6,7 @@ import type { NextConfig } from "next";
  *
  * @see app/middleware.ts for CSP header generation
  * @see lib/csp-config.ts for CSP directive configuration
- * @see docs/SECURITY.md for comprehensive security documentation
+ * @see docs/SECURITY.md for the durable CSP, headers, and route-protection notes
  */
 const nextConfig: NextConfig = {
   env: {

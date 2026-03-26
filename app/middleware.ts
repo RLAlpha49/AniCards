@@ -57,7 +57,7 @@ function generateNonce(): string {
  * @returns Response with CSP headers or redirect response
  *
  * @see lib/csp-config.ts for CSP directive configuration
- * @see docs/SECURITY.md for comprehensive security documentation
+ * @see docs/SECURITY.md for the durable CSP, nonce, and route-protection notes
  * @source
  */
 export function middleware(request: NextRequest) {

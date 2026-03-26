@@ -1,11 +1,18 @@
+# Hand-maintained public API contract. Update this file in the same PR as any
+# public route, request/response, header, alias, or privacy-surface change.
+# Validate it against the current route behavior and relevant tests.
 openapi: "3.2.0"
 jsonSchemaDialect: "https://spec.openapis.org/oas/3.1/dialect/base"
 info:
   title: "AniCards Public API"
   version: "1.0.0"
   description: >-
-    OpenAPI 3.2.0 specification generated from the live AniCards Next.js route
-    handlers and validated against the current codebase behavior and tests.
+    Hand-maintained OpenAPI 3.2.0 specification for the live AniCards Next.js
+    route handlers, validated against the current codebase behavior and tests.
+    Storage-related routes persist AniList-derived user snapshots and card
+    editor configuration in Upstash Redis; the repository's current privacy
+    posture, telemetry consent model, and retention caveats are documented in
+    `docs/PRIVACY.md`.
   license:
     name: "MIT"
     url: "https://opensource.org/licenses/MIT"
@@ -330,7 +337,9 @@ paths:
       summary: "Retrieve a stored user record"
       description: >-
         Resolves a stored user by numeric `userId` or by normalized `username`.
-        When both are provided, `userId` wins.
+        When both are provided, `userId` wins. The public response intentionally
+        omits internal request metadata such as redacted IP buckets and record
+        timestamps.
       parameters:
         - in: query
           name: userId
@@ -468,7 +477,8 @@ paths:
       description: >-
         Stores card editor state in Redis using partial-update semantics. In
         production this route also enforces same-origin validation and shared
-        rate limiting.
+        rate limiting. The current repository does not expose a public self-serve
+        deletion or export endpoint for this stored server-side data.
       requestBody:
         required: true
         content:
@@ -603,7 +613,8 @@ paths:
         commit pointer, maintains the normalized username alias and stale-user
         refresh index, and optionally enforces optimistic concurrency via
         `ifMatchUpdatedAt`. In production this route also enforces same-origin
-        validation and shared rate limiting.
+        validation and shared rate limiting. Public reads later return a bounded
+        DTO that excludes request metadata such as redacted IP buckets.
       requestBody:
         required: true
         content:
@@ -834,7 +845,8 @@ paths:
       description: >-
         Returns recent stored analytics reports from the bounded
         `analytics:reports` Redis list. Reports are returned newest first. The
-        `limit` query is capped by the server-side retention policy.
+        `limit` query is capped by the server-side retention policy. The list
+        currently retains at most 50 generated reports.
       parameters:
         - $ref: "#/components/parameters/CronSecretHeader"
         - in: query
@@ -903,7 +915,9 @@ paths:
       description: >-
         Collects all `analytics:*` Redis keys except `analytics:reports`, groups
         them into a nested summary object, appends the latest report to the
-        bounded `analytics:reports` Redis list, and returns it.
+        bounded `analytics:reports` Redis list, and returns it. Runtime analytics
+        collection in the web app is consent-gated; this endpoint only reads the
+        already-persisted aggregate counters and reports.
       parameters:
         - $ref: "#/components/parameters/CronSecretHeader"
       security:

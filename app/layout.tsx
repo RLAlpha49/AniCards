@@ -126,6 +126,7 @@ export const viewport: Viewport = {
  * @param children - Page content rendered within the shared layout and providers.
  * @see app/middleware.ts for CSP header generation
  * @see lib/csp-config.ts for CSP directive configuration
+ * @see docs/PRIVACY.md for the current analytics consent and telemetry posture
  * @source
  */
 export default async function RootLayout({

@@ -2,6 +2,13 @@
 
 AniCards is a dynamic and customizable tool designed to generate beautiful statistic cards from your AniList profile data. Effortlessly display your anime and manga stats with vibrant, animated SVGs that you can share on any platform!
 
+## 📚 Durable Project Docs
+
+- [`docs/README.md`](docs/README.md) — index of the maintained project docs
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — app/runtime, data, and storage overview
+- [`docs/SECURITY.md`](docs/SECURITY.md) — CSP, security headers, route protections, and logging posture
+- [`docs/PRIVACY.md`](docs/PRIVACY.md) — current data categories, telemetry consent model, retention notes, and deletion/export caveats
+
 ## 🚀 Live Demo
 
 Experience AniCards live at [anicards.alpha49.com](https://anicards.alpha49.com)
@@ -143,56 +150,157 @@ https://api.anicards.alpha49.com/card.svg?cardType=animeStats&userName=Alpha49&v
 
 **For a full list of supported card types, color presets, and variations, visit the [Live Generator](https://anicards.alpha49.com).**
 
-## 🏗️ Getting Started
+## 🏗️ Local Development
 
-To run the project locally:
+AniCards supports two useful local modes:
 
-1. **Clone the repository**
+- **UI-only/local shell work** — good for README/docs updates, marketing pages, styling, and other changes that do not need AniList or Redis-backed API flows.
+- **Full app/API work** — needed when you are touching route handlers, stored user/card data, cron flows, or anything that depends on AniList and Upstash Redis.
 
-   ```bash
-   git clone https://github.com/RLAlpha49/AniCards.git
-   cd AniCards
-   ```
+### 1. Clone and install
 
-2. **Install dependencies**
+```bash
+git clone https://github.com/RLAlpha49/AniCards.git
+cd AniCards
+bun install
+```
 
-   ```bash
-   bun install
-   ```
+`bun install` also runs the repository `prepare` script, which installs the Husky git hooks used during local contribution.
 
-3. **Run the development server**
+### 2. Copy the env template
 
-   ```bash
-   bun run dev
-   ```
+Create a local env file before starting the app:
 
-4. **Open your browser**
-   Navigate to [http://localhost:3000](http://localhost:3000) to see the application.
+```bash
+cp .env.example .env.local
+```
+
+On Windows PowerShell, the equivalent is:
+
+```powershell
+Copy-Item .env.example .env.local
+```
+
+### 3. Fill in the variables you actually need
+
+The template in [`.env.example`](.env.example) is grouped by concern. Use the lightest setup that matches your work.
+
+| Concern | Variables | Required for |
+| --- | --- | --- |
+| Local app URLs | `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL` | All local runs |
+| AniList upstream access | `ANILIST_TOKEN` | Full API work that calls AniList-backed routes |
+| Redis-backed storage/rate limiting | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Stored user/card flows, shared rate limiting, cron/reporting paths |
+| Analytics | `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID` | Optional local analytics wiring |
+| SVG/CORS tuning | `NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN` | Optional local card/embed testing |
+| Cron protection | `CRON_SECRET` | Operator/cron endpoint testing; required outside local dev |
+| Local cron escape hatch | `ALLOW_UNSECURED_CRON_IN_DEV=1` | Optional local-only testing when you intentionally want unsecured cron access |
+| Upstream degradation toggle | `ANILIST_UPSTREAM_DEGRADED_MODE=1` | Optional local resilience testing |
+
+#### UI-only mode
+
+For docs, frontend shell, or styling work, keeping the local URL variables set is usually enough. In this mode, pages that depend on AniList, Redis, or cron secrets may stay unavailable or degraded locally — that is expected.
+
+#### Full app/API mode
+
+For API/storage work, populate the AniList token, Upstash Redis credentials, and any cron-related settings you need to exercise. Keep `VERCEL` empty in local `.env.local`; the platform sets that in hosted environments.
+
+### 4. Start the dev server
+
+```bash
+bun run dev
+```
+
+Then open [http://localhost:3000](http://localhost:3000).
+
+## ✅ Validation and contributor workflow
+
+Use the script surface from [`package.json`](package.json) when validating changes:
+
+| Command | What it does | When to use it |
+| --- | --- | --- |
+| `bun run format` | Prettier check-only pass | Read-only formatting verification |
+| `bun run format:write` | Writes Prettier fixes, then runs ESLint autofix | Best local cleanup pass before pushing |
+| `bun run lint` | ESLint with `--fix` | Local autofix lint run |
+| `bun run lint:check` | ESLint check-only | CI parity / read-only lint validation |
+| `bun run typecheck` | TypeScript no-emit check | Required before push (also enforced by Husky) |
+| `bun run test:unit` | Bun unit test suite only | Fast test pass for most code/docs changes touching logic |
+| `bun run test:unit:coverage` | Unit tests with coverage artifacts | CI/unit coverage parity |
+| `bun run test` | `test:unit` **plus** Playwright E2E | Full local regression when your change can affect browser flows |
+| `bun run test:e2e` | Playwright E2E only | Focused browser validation |
+| `bun run check:unused` | Knip unused-code analysis | Optional hygiene pass |
+| `bun run check:licenses` | License policy check | Optional dependency/compliance pass |
+
+Recommended local contributor path for most changes:
+
+1. Run `bun run format:write`
+2. Run `bun run test:unit` for logic-affecting changes, or `bun run test` when browser behavior may have changed
+3. Run `bun run typecheck`
+4. Run `bun run lint:check`
+
+### Husky hooks
+
+This repository uses Husky to catch common issues before they leave your machine:
+
+- **pre-commit** → `bun run lint-staged`
+- **pre-push** → `bun run typecheck`
+
+That means staged source/docs files get auto-formatted before commit, and pushes are blocked if the TypeScript check fails.
+
+## 🔌 API contract and OpenAPI maintenance
+
+AniCards keeps its public API contract in [`openapi.yaml`](openapi.yaml). The README is a contributor guide; the OpenAPI file is the canonical contract for request/response shape, path aliases, and endpoint-level behavior.
+
+### What lives in the contract
+
+The current spec covers the main public route families:
+
+- `anilist` — allowlisted AniList GraphQL proxying
+- `card` — SVG rendering via the canonical `/api/card` handler plus public aliases
+- `cards` — stored card configuration reads
+- `convert` — SVG-to-PNG/WebP conversion
+- `cron` — operator-facing refresh/reporting jobs
+- `store` — stored user/card mutation routes
+- `user` — stored user lookup routes
+
+### Canonical vs alias entrypoints
+
+- **Canonical SVG route:** `/api/card`
+- **Pretty public alias:** `/card.svg`
+- **Compatibility alias:** `/api/card.svg`
+
+When you update docs or examples, prefer the canonical handler language and call out aliases only where they matter for compatibility or public URLs.
+
+### How contributors should maintain `openapi.yaml`
+
+AniCards does **not** currently generate `openapi.yaml` from route code. The file is hand-maintained and should be updated in the same pull request as any public API change.
+
+Update the contract whenever you change:
+
+- a public route path or alias
+- accepted query/body fields
+- response shapes, status codes, or headers
+- canonical parameter names vs deprecated aliases
+- documented storage/privacy behavior that is surfaced directly in the contract
+
+Recommended maintenance workflow:
+
+1. Change the route handler/tests first or in parallel
+2. Update [`openapi.yaml`](openapi.yaml) in the same PR so the contract matches runtime behavior
+3. Keep the README API section high-level and push detailed behavior into the spec
+4. Run the normal validation commands for the touched surface (`bun run format:write`, relevant tests, `bun run typecheck`, `bun run lint:check`)
+5. Manually review any examples you changed so canonical paths and aliases stay truthful
+
+For broader system context beyond the API contract, start with [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/SECURITY.md`](docs/SECURITY.md), and [`docs/PRIVACY.md`](docs/PRIVACY.md).
 
 ## 🤝 Contributing
 
-Contributions are very welcome! Here's how you can contribute:
+Contributions are very welcome.
 
 1. Fork the repository.
-2. Create your feature branch:
-
-    ```bash
-    git checkout -b feature/your-feature-name
-    ```
-
-3. Commit your changes:
-
-    ```bash
-    git commit -m 'Add some amazing feature'
-    ```
-
-4. Push your branch:
-
-    ```bash
-    git push origin feature/your-feature-name
-    ```
-
-5. Open a Pull Request and describe your changes in detail.
+2. Create a feature branch.
+3. Make your change and run the relevant validation commands above.
+4. Let the Husky hooks do their thing.
+5. Open a Pull Request that explains what changed, how you validated it, and whether any API contract/docs updates were required.
 
 ## 🐛 Issues & Feature Requests
 
