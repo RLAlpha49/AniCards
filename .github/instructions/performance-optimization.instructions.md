@@ -85,7 +85,8 @@ Performance isn't just a buzzword—it's the difference between a product people
 #### Next.js
 
 - Prefer Server Components for rendering static or data-driven UI where possible; move interactive code into Client Components.
-- Use `next/image`, `next/font`, and built-in optimizations to improve LCP and CLS.
+- Use `next/font` plus well-optimized native `<img>` elements to improve LCP and CLS when the repository policy forbids `next/image`.
+- Respect enforced lint policy: if `eslint.config.mjs` disables `@next/next/no-img-element` and bans `next/image`, optimize native images directly instead of recommending framework image components.
 - Use Incremental Static Regeneration (ISR) and static generation for pages that can be cached to reduce server load and TTFB.
 - Use `dynamic()` for client-only components and code splitting, and `React.lazy` where appropriate for big bundles.
 - For server-side or edge functions, optimize payload sizes, use streaming when possible, and profile server latency.

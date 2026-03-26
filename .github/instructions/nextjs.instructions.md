@@ -1,7 +1,7 @@
 ---
 name: "Next.js Best Practices"
 description: "Next.js Best Practices for LLMs (2025). When editing and reviewing Next.js application files, routes, API handlers, components, or configuration that affect server/client behavior and routing."
-applyTo: "src/app/**, src/components/**, src/pages/**, src/lib/**, public/**, next.config.{ts,js}"
+applyTo: "app/**, components/**, lib/**, public/**, next.config.ts"
 ---
 
 # Next.js Best Practices for LLMs (2025)
@@ -24,21 +24,18 @@ Do not create example/demo files (like ModalExample.tsx) in the main codebase un
 ## 1. Project Structure & Organization
 
 - **Use the `app/` directory** (App Router) for all new projects. Prefer it over the legacy `pages/` directory.
-- **Top-level folders:**
-  - `src/app/` — Routing, layouts, pages, and route handlers
+- **Top-level folders in this repository:**
+  - `app/` — Routing, layouts, pages, and route handlers
+  - `components/` — Reusable UI components
+  - `hooks/` — Custom React hooks
+  - `lib/` — Shared utilities, API clients, and logic
   - `public/` — Static assets (images, fonts, etc.)
-  - `src/lib/` — Shared utilities, API clients, and logic
-  - `src/components/` — Reusable UI components
-  - `src/contexts/` — React context providers
-  - `src/styles/` — Global and modular stylesheets
-  - `src/hooks/` — Custom React hooks
-  - `src/types/` — TypeScript type definitions
 - **Colocation:** Place files (components, styles, tests) near where they are used, but avoid deeply nested structures.
 - **Route Groups:** Use parentheses (e.g., `(admin)`) to group routes without affecting the URL path.
 - **Private Folders:** Prefix with `_` (e.g., `_internal`) to opt out of routing and signal implementation details.
 
-- **Feature Folders:** For large apps, group by feature (e.g., `src/app/dashboard/`, `src/app/auth/`).
-- **Use `src/`** (optional): Place all source code in `src/` to separate from config files.
+- **Feature Folders:** For large apps, group by feature (e.g., `app/dashboard/`, `app/auth/`).
+- **Repository Layout:** This codebase keeps source folders at the repository root, so do not assume a `src/` wrapper unless the project structure actually includes one.
 
 ## 2.1. Server and Client Component Integration (App Router)
 
@@ -116,10 +113,10 @@ Always move client-only UI into a Client Component and import it directly in you
 ## 4. API Routes (Route Handlers)
 
 - **Prefer API Routes over Edge Functions** unless you need ultra-low latency or geographic distribution.
-- **Location:** Place API routes in `src/app/api/` (e.g., `src/app/api/users/route.ts`).
+- **Location:** Place API routes in `app/api/` (e.g., `app/api/users/route.ts`).
 - **HTTP Methods:** Export async functions named after HTTP verbs (`GET`, `POST`, etc.).
 - **Request/Response:** Use the Web `Request` and `Response` APIs. Use `NextRequest`/`NextResponse` for advanced features.
-- **Dynamic Segments:** Use `[param]` for dynamic API routes (e.g., `src/app/api/users/[id]/route.ts`).
+- **Dynamic Segments:** Use `[param]` for dynamic API routes (e.g., `app/api/users/[id]/route.ts`).
 - **Validation:** Always validate and sanitize input. Use libraries like `zod` or `yup`.
 - **Error Handling:** Return appropriate HTTP status codes and error messages.
 - **Authentication:** Protect sensitive routes using middleware or server-side session checks.
@@ -132,7 +129,8 @@ Always move client-only UI into a Client Component and import it directly in you
 - **Testing:** Use Jest, React Testing Library, or Playwright. Write tests for all critical logic and components.
 - **Accessibility:** Use semantic HTML and ARIA attributes. Test with screen readers.
 - **Performance:**
-  - Use built-in Image and Font optimization.
+  - Use `next/font` where appropriate and optimize native `<img>` assets with explicit dimensions, lazy loading, and modern formats.
+  - Follow the enforced repository policy: ESLint bans `next/image`, so do not recommend or import it here.
   - Use Suspense and loading states for async data.
   - Avoid large client bundles; keep most logic in Server Components.
 - **Security:**

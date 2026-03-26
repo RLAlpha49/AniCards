@@ -1,7 +1,7 @@
 ---
 name: "ReactJS Development Standards"
 description: "ReactJS development standards and best practices. Apply when authoring or refactoring React components, hooks, pages, or styles; when implementing UI behavior, performance, and accessibility features."
-applyTo: "src/components/**, src/app/**, src/hooks/**, **/*.{jsx,tsx,js,ts,css,scss}"
+applyTo: "components/**, app/**, hooks/**, **/*.{jsx,tsx,js,ts,css,scss}"
 ---
 
 # ReactJS Development Instructions
@@ -16,6 +16,7 @@ Instructions for building high-quality ReactJS applications with modern patterns
 - Follow React's official style guide and best practices
 - Use modern build tools (Vite, Create React App, or custom Webpack setup)
 - Implement proper component composition and reusability patterns
+- In this repository, shared UI lives in `components/`, route code lives in `app/`, and reusable hooks live in `hooks/`
 
 ## Development Standards
 
