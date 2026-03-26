@@ -23,7 +23,9 @@ import type {
   StoredCardConfig,
 } from "@/lib/types/records";
 import {
+  generateSecureId,
   getColorInvalidReason,
+  getSecureRandomFraction,
   validateBorderRadius,
   validateColorValue,
 } from "@/lib/utils";
@@ -440,7 +442,7 @@ function createRequestId(): string {
     return crypto.randomUUID();
   }
 
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return generateSecureId("request");
 }
 
 function getRequestPath(request: Request): string {
@@ -667,7 +669,7 @@ function computeRetryDelayMs(options: {
 
   const exponentialDelay =
     options.backoffBaseMs * Math.pow(2, Math.max(0, options.attempt - 1));
-  const jitterMultiplier = 0.75 + Math.random() * 0.5;
+  const jitterMultiplier = 0.75 + getSecureRandomFraction() * 0.5;
   return clampDelayMs(
     Math.round(exponentialDelay * jitterMultiplier),
     options.maxBackoffMs,

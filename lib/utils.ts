@@ -26,6 +26,46 @@ const DEFAULT_BACKGROUND_COLOR = "#141321";
 const DEFAULT_TEXT_COLOR = "#a9fef7";
 const DEFAULT_CIRCLE_COLOR = "#fe428e";
 
+let secureRandomFallbackCounter = 0;
+
+function getSecureRandomSuffix(): string {
+  const cryptoObj = globalThis.crypto as Crypto | undefined;
+  if (typeof cryptoObj?.getRandomValues === "function") {
+    const randomValues = new Uint32Array(1);
+    cryptoObj.getRandomValues(randomValues);
+    return randomValues[0].toString(36);
+  }
+
+  secureRandomFallbackCounter =
+    (secureRandomFallbackCounter + 1) % Number.MAX_SAFE_INTEGER;
+  return `${Date.now().toString(36)}-${secureRandomFallbackCounter.toString(36)}`;
+}
+
+export function generateSecureId(prefix: string): string {
+  const normalizedPrefix =
+    prefix.trim().replaceAll(/[^A-Za-z0-9._:-]+/g, "-") || "id";
+  const cryptoObj = globalThis.crypto as Crypto | undefined;
+
+  if (typeof cryptoObj?.randomUUID === "function") {
+    return `${normalizedPrefix}-${cryptoObj.randomUUID()}`;
+  }
+
+  return `${normalizedPrefix}-${getSecureRandomSuffix()}`;
+}
+
+export function getSecureRandomFraction(): number {
+  const cryptoObj = globalThis.crypto as Crypto | undefined;
+  if (typeof cryptoObj?.getRandomValues === "function") {
+    const randomValues = new Uint32Array(1);
+    cryptoObj.getRandomValues(randomValues);
+    return randomValues[0] / 2 ** 32;
+  }
+
+  secureRandomFallbackCounter =
+    (secureRandomFallbackCounter + 1) % Number.MAX_SAFE_INTEGER;
+  return ((Date.now() + secureRandomFallbackCounter) % 2 ** 32) / 2 ** 32;
+}
+
 const _envApiBase =
   typeof process === "undefined" ? undefined : process.env?.NEXT_PUBLIC_API_URL;
 
@@ -107,8 +147,7 @@ export function isGradient(value: ColorValue): value is GradientDefinition {
  * @source
  */
 export function generateGradientId(prefix: string): string {
-  const uniquePart = Math.random().toString(36).substring(2, 9);
-  return `gradient-${prefix}-${uniquePart}`;
+  return generateSecureId(`gradient-${prefix}`);
 }
 
 /**

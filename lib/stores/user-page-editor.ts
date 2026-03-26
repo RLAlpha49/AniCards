@@ -12,7 +12,11 @@ import { colorPresets } from "@/components/stat-card-generator/constants";
 import { statCardTypes } from "@/lib/card-types";
 import { normalizeForCompare } from "@/lib/colorUtils";
 import type { ColorValue } from "@/lib/types/card";
-import { clampBorderRadius, DEFAULT_CARD_BORDER_RADIUS } from "@/lib/utils";
+import {
+  clampBorderRadius,
+  DEFAULT_CARD_BORDER_RADIUS,
+  generateSecureId,
+} from "@/lib/utils";
 
 import type { ServerCardData, ServerGlobalSettings } from "../api/cards";
 import type {
@@ -411,7 +415,7 @@ const BULK_HISTORY_LIMIT = 40;
 function generateTemplateId(): string {
   const cryptoObj = globalThis.crypto as Crypto | undefined;
   if (cryptoObj?.randomUUID) return cryptoObj.randomUUID();
-  return `tpl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+  return generateSecureId("tpl");
 }
 
 function resolveAdvancedSettings(

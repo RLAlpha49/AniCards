@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { buildCSPHeader } from "@/lib/csp-config";
+import { generateSecureId } from "@/lib/utils";
 
 const REQUEST_ID_HEADER = "x-request-id";
 
@@ -19,7 +20,7 @@ function getOrCreateRequestId(request: NextRequest): string {
     return crypto.randomUUID();
   }
 
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return generateSecureId("request");
 }
 
 /**

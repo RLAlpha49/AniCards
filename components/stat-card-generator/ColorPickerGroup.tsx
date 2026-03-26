@@ -34,7 +34,12 @@ import type {
   GradientDefinition,
   GradientStop,
 } from "@/lib/types/card";
-import { cn, isGradient, validateColorValue } from "@/lib/utils";
+import {
+  cn,
+  generateSecureId,
+  isGradient,
+  validateColorValue,
+} from "@/lib/utils";
 
 /**
  * A color picker item used by the color picker group.
@@ -169,10 +174,10 @@ function createDefaultGradient(baseColor: string): GradientDefinition {
 
 /**
  * Generates a stable-ish ID for gradient stops for usage as React keys.
- * The ID is not cryptographically unique but is deterministic per generation.
+ * The ID is derived from Web Crypto so it stays unique without pseudorandom fallbacks.
  */
 function generateStopId(prefix = "s") {
-  return `${prefix}-${Math.random().toString(36).slice(2, 9)}-${Date.now().toString(36).slice(-6)}`;
+  return generateSecureId(prefix);
 }
 
 /**
