@@ -29,6 +29,40 @@ type ImageWithSkeletonProps = {
   fixedDimensions?: boolean;
 };
 
+export type ImageLoadState = "loading" | "slow" | "loaded" | "error";
+
+export const SLOW_LOAD_THRESHOLD_MS = 2000;
+
+export function isImageReady(
+  imageElement: HTMLImageElement | null,
+): imageElement is HTMLImageElement {
+  return Boolean(imageElement?.complete && imageElement.naturalWidth > 0);
+}
+
+export function getImageLoadState({
+  isLoaded,
+  isSlowLoading,
+  hasError,
+}: {
+  isLoaded: boolean;
+  isSlowLoading: boolean;
+  hasError: boolean;
+}): ImageLoadState {
+  if (hasError) {
+    return "error";
+  }
+
+  if (isLoaded) {
+    return "loaded";
+  }
+
+  if (isSlowLoading) {
+    return "slow";
+  }
+
+  return "loading";
+}
+
 function useImageDimensions(
   src: string,
   imgRef: React.RefObject<HTMLImageElement | null>,
@@ -50,13 +84,12 @@ function useImageDimensions(
     if (!isMounted) return;
     const el = imgRef.current;
     if (!el) return;
-    if (el.complete) {
-      if (!imageDimensions && el.naturalWidth && el.naturalHeight) {
-        setImageDimensions({
-          width: el.naturalWidth,
-          height: el.naturalHeight,
-        });
-      }
+
+    if (isImageReady(el) && !imageDimensions && el.naturalHeight > 0) {
+      setImageDimensions({
+        width: el.naturalWidth,
+        height: el.naturalHeight,
+      });
     }
   }, [isMounted, src, imageDimensions, imgRef]);
 
@@ -75,56 +108,64 @@ function useImageLoader(
   imgRef: React.RefObject<HTMLImageElement | null>,
   src: string,
   isMounted: boolean,
-  fallbackMs = 2000,
+  slowLoadMs = SLOW_LOAD_THRESHOLD_MS,
 ): {
   isLoaded: boolean;
+  isSlowLoading: boolean;
   hasError: boolean;
   handleLoad: () => void;
   handleError: () => void;
-  setIsLoaded: React.Dispatch<React.SetStateAction<boolean>>;
-  setHasError: React.Dispatch<React.SetStateAction<boolean>>;
 } {
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isSlowLoading, setIsSlowLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
-    if (!isMounted) return;
+    setIsLoaded(false);
+    setIsSlowLoading(false);
+    setHasError(false);
+  }, [src]);
 
-    const fallbackTimer = setTimeout(() => {
-      if (!isLoaded && !hasError) {
-        setIsLoaded(true);
-      }
-    }, fallbackMs);
+  useEffect(() => {
+    if (!isMounted || isLoaded || hasError) {
+      setIsSlowLoading(false);
+      return;
+    }
 
-    return () => clearTimeout(fallbackTimer);
-  }, [fallbackMs, hasError, isLoaded, isMounted]);
+    const slowLoadingTimer = setTimeout(() => {
+      setIsSlowLoading(true);
+    }, slowLoadMs);
+
+    return () => clearTimeout(slowLoadingTimer);
+  }, [hasError, isLoaded, isMounted, slowLoadMs, src]);
 
   useEffect(() => {
     if (!isMounted) return;
 
     const el = imgRef.current;
-    if (!el) return;
-
-    if (el.complete) {
+    if (isImageReady(el)) {
       setIsLoaded(true);
+      setIsSlowLoading(false);
     }
   }, [imgRef, isMounted, src]);
 
-  useEffect(() => {
-    setIsLoaded(false);
-    setHasError(false);
-  }, [src]);
+  const handleLoad = () => {
+    setIsLoaded(true);
+    setIsSlowLoading(false);
+  };
 
-  const handleLoad = () => setIsLoaded(true);
-  const handleError = () => setHasError(true);
+  const handleError = () => {
+    setIsLoaded(false);
+    setIsSlowLoading(false);
+    setHasError(true);
+  };
 
   return {
     isLoaded,
+    isSlowLoading,
     hasError,
     handleLoad,
     handleError,
-    setIsLoaded,
-    setHasError,
   };
 }
 
@@ -170,7 +211,6 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
 }) => {
   const [isMounted, setIsMounted] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const [imageDimensions, setImageDimensions] = useImageDimensions(
     src,
     imgRef,
@@ -178,12 +218,8 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
     width,
     height,
   );
-  const { isLoaded, hasError, handleLoad, handleError } = useImageLoader(
-    imgRef,
-    src,
-    isMounted,
-    2000,
-  );
+  const { isLoaded, isSlowLoading, hasError, handleLoad, handleError } =
+    useImageLoader(imgRef, src, isMounted, SLOW_LOAD_THRESHOLD_MS);
 
   const onImageLoad = () => {
     if (imgRef.current && !imageDimensions) {
@@ -221,11 +257,18 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
   const shouldShowSkeleton = !isMounted || showSkeleton;
   const shouldShowImage = isMounted && showImage;
 
+  const imageState = getImageLoadState({
+    isLoaded,
+    isSlowLoading,
+    hasError,
+  });
+
   return (
     <div
-      ref={containerRef}
       className={`relative w-full ${containerClassName ?? ""}`}
       style={containerStyle}
+      data-image-state={imageState}
+      aria-busy={imageState === "loading" || imageState === "slow"}
     >
       {shouldShowSkeleton && (
         <Skeleton
