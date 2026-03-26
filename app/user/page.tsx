@@ -20,7 +20,7 @@ import { generateStructuredData } from "@/lib/structured-data";
  */
 export const dynamic = "force-dynamic";
 
-function buildLegacyUserRedirectUrl(params: {
+export function buildLegacyUserRedirectUrl(params: {
   username: string;
   q?: string;
   visibility?: string;
