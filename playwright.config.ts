@@ -1,5 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+const shouldLaunchLocalServer = !process.env.PLAYWRIGHT_BASE_URL;
+
 export default defineConfig({
   testDir: "./tests/e2e",
   outputDir: "./tests/e2e/test-results",
@@ -12,7 +15,7 @@ export default defineConfig({
     ["html", { outputFolder: "./tests/e2e/playwright-report", open: "never" }],
   ],
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000",
+    baseURL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "on-first-retry",
@@ -31,10 +34,12 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
-    command: process.env.CI ? "bun run build && bun run start" : "bun run dev",
-    url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
-  },
+  webServer: shouldLaunchLocalServer
+    ? {
+        command: process.env.CI ? "bun run start" : "bun run dev",
+        url: baseURL,
+        reuseExistingServer: !process.env.CI,
+        timeout: 120 * 1000,
+      }
+    : undefined,
 });
