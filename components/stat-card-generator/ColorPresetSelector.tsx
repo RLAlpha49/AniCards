@@ -10,7 +10,7 @@ import {
   Sparkles,
   Sun,
 } from "lucide-react";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { Label } from "@/components/ui/Label";
@@ -54,7 +54,7 @@ type PresetEntry = [string, { colors: ColorValue[]; mode: string }];
 
 /** Check if a preset contains any gradient colors. */
 function hasGradient(colors: ColorValue[]): boolean {
-  return colors.some(isGradient);
+  return colors.some((color) => typeof color !== "string");
 }
 
 /** Convert a ColorValue to a CSS background style string. */
@@ -69,6 +69,45 @@ function colorToCssBackground(color: ColorValue): string {
     return `linear-gradient(${color.angle ?? 0}deg, ${stops})`;
   }
   return color;
+}
+
+/** Convert an internal preset key into a user-friendly display label. */
+function formatPresetName(presetKey: string): string {
+  if (presetKey === "custom") {
+    return "Custom";
+  }
+
+  return presetKey
+    .replaceAll(/([A-Z])/g, " $1")
+    .trim()
+    .split(/\s+/)
+    .map((segment) => {
+      const normalizedSegment = segment.toLowerCase();
+
+      if (normalizedSegment === "anicards") {
+        return "AniCards";
+      }
+
+      if (normalizedSegment === "anilist") {
+        return "AniList";
+      }
+
+      return `${segment.charAt(0).toUpperCase()}${segment.slice(1)}`;
+    })
+    .join(" ");
+}
+
+/** Build an explicit accessible name for a preset swatch button. */
+function getPresetAriaLabel(
+  presetKey: string,
+  mode: string,
+  containsGradient: boolean,
+): string {
+  if (presetKey === "custom") {
+    return "Custom preset, uses your edited colors";
+  }
+
+  return `${formatPresetName(presetKey)} preset, ${mode} theme, ${containsGradient ? "gradient colors" : "solid colors"}`;
 }
 
 /**
@@ -86,6 +125,10 @@ function ColorPresetSelectorComponent({
   presets,
   onPresetChange,
 }: Readonly<ColorPresetSelectorProps>) {
+  const presetHeadingId = useId();
+  const presetGridId = useId();
+  const colorTypeFilterLabelId = useId();
+  const themeFilterLabelId = useId();
   const [isExpanded, setIsExpanded] = useState(false);
   const [colorTypeFilter, setColorTypeFilter] = useState<
     "all" | "solid" | "gradient"
@@ -93,7 +136,7 @@ function ColorPresetSelectorComponent({
   const [themeFilter, setThemeFilter] = useState<"all" | "light" | "dark">(
     "all",
   );
-  const gridRef = useRef<HTMLDivElement | null>(null);
+  const gridRef = useRef<HTMLFieldSetElement | null>(null);
   const [columnCount, setColumnCount] = useState(1);
 
   const handlePresetChange = (preset: string) => {
@@ -232,20 +275,37 @@ function ColorPresetSelectorComponent({
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <Label className="font-display text-base font-bold text-foreground">
+        <Label
+          id={presetHeadingId}
+          className="font-display text-base font-bold text-foreground"
+        >
           Choose a Preset
         </Label>
-        <span className="
-          bg-gold/10 px-2.5 py-1 text-xs font-medium text-gold-dim
-          dark:bg-gold/10 dark:text-gold
-        ">
+        <span
+          aria-atomic="true"
+          aria-label={`${filteredPresets.length} of ${sortedPresets.length} presets shown`}
+          aria-live="polite"
+          className="
+            bg-gold/10 px-2.5 py-1 text-xs font-medium text-gold-dim
+            dark:bg-gold/10 dark:text-gold
+          "
+        >
           {filteredPresets.length} of {sortedPresets.length}
         </span>
       </div>
 
       <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Filter className="size-4 text-gold-dim/60 dark:text-gold/60" />
+        <fieldset
+          aria-labelledby={colorTypeFilterLabelId}
+          className="m-0 flex min-w-0 items-center gap-2 border-0 p-0"
+        >
+          <Filter
+            aria-hidden="true"
+            className="size-4 text-gold-dim/60 dark:text-gold/60"
+          />
+          <legend id={colorTypeFilterLabelId} className="sr-only">
+            Filter presets by color type
+          </legend>
           <div className="flex transform-[translateZ(0)] gap-1.5">
             {[
               { value: "all", label: "All Types" },
@@ -269,6 +329,7 @@ function ColorPresetSelectorComponent({
                   colorTypeFilter === option.value ? "default" : "outline"
                 }
                 size="sm"
+                aria-pressed={colorTypeFilter === option.value}
                 onClick={() =>
                   setColorTypeFilter(option.value as typeof colorTypeFilter)
                 }
@@ -287,7 +348,9 @@ function ColorPresetSelectorComponent({
                     `,
                 )}
               >
-                {option.icon && <option.icon className="size-3" />}
+                {option.icon && (
+                  <option.icon aria-hidden="true" className="size-3" />
+                )}
                 {option.label}
                 {option.count !== undefined && (
                   <span className="text-[10px] opacity-70">
@@ -297,10 +360,16 @@ function ColorPresetSelectorComponent({
               </Button>
             ))}
           </div>
-        </div>
+        </fieldset>
 
-        <div className="flex items-center gap-2">
-          <span className="size-4" />
+        <fieldset
+          aria-labelledby={themeFilterLabelId}
+          className="m-0 flex min-w-0 items-center gap-2 border-0 p-0"
+        >
+          <span aria-hidden="true" className="size-4" />
+          <legend id={themeFilterLabelId} className="sr-only">
+            Filter presets by theme
+          </legend>
           <div className="flex transform-[translateZ(0)] gap-1.5">
             {[
               { value: "all", label: "All Themes" },
@@ -322,6 +391,7 @@ function ColorPresetSelectorComponent({
                 type="button"
                 variant={themeFilter === option.value ? "default" : "outline"}
                 size="sm"
+                aria-pressed={themeFilter === option.value}
                 onClick={() =>
                   setThemeFilter(option.value as typeof themeFilter)
                 }
@@ -340,7 +410,9 @@ function ColorPresetSelectorComponent({
                     `,
                 )}
               >
-                {option.icon && <option.icon className="size-3" />}
+                {option.icon && (
+                  <option.icon aria-hidden="true" className="size-3" />
+                )}
                 {option.label}
                 {option.count !== undefined && (
                   <span className="text-[10px] opacity-70">
@@ -350,19 +422,25 @@ function ColorPresetSelectorComponent({
               </Button>
             ))}
           </div>
-        </div>
+        </fieldset>
       </div>
 
-      <div
+      <fieldset
+        id={presetGridId}
+        aria-labelledby={presetHeadingId}
         ref={gridRef}
-        className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-2.5"
+        className="
+          m-0 grid min-w-0 grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-2.5 border-0 p-0
+        "
       >
+        <legend className="sr-only">Color preset options</legend>
         <TooltipProvider delayDuration={0}>
           <AnimatePresence>
             {visiblePresets.map(([key, { colors, mode }]) => {
               const isSelected = selectedPreset === key;
               const isCustom = key === "custom";
               const containsGradient = hasGradient(colors);
+              const formattedPresetName = formatPresetName(key);
 
               return (
                 <Tooltip key={key}>
@@ -373,6 +451,12 @@ function ColorPresetSelectorComponent({
                       exit={{ opacity: 0, scale: 0.9 }}
                       transition={{ duration: 0.2 }}
                       type="button"
+                      aria-label={getPresetAriaLabel(
+                        key,
+                        mode,
+                        containsGradient,
+                      )}
+                      aria-pressed={isSelected}
                       onClick={() => handlePresetChange(key)}
                       className={cn(
                         `
@@ -395,11 +479,14 @@ function ColorPresetSelectorComponent({
                           from-slate-50 to-slate-100
                           dark:from-slate-800 dark:to-slate-900
                         ">
-                          <Sparkles className="
-                            size-5 text-slate-400 transition-colors
-                            group-hover:text-purple-500
-                            dark:text-slate-500
-                          " />
+                          <Sparkles
+                            aria-hidden="true"
+                            className="
+                              size-5 text-slate-400 transition-colors
+                              group-hover:text-purple-500
+                              dark:text-slate-500
+                            "
+                          />
                           <span className="
                             text-[10px] font-medium text-slate-400
                             dark:text-slate-500
@@ -434,7 +521,10 @@ function ColorPresetSelectorComponent({
                             flex size-7 items-center justify-center rounded-full bg-white shadow-lg
                             dark:bg-slate-900
                           ">
-                            <Check className="size-4 text-gold dark:text-gold" />
+                            <Check
+                              aria-hidden="true"
+                              className="size-4 text-gold dark:text-gold"
+                            />
                           </div>
                         </motion.div>
                       )}
@@ -443,7 +533,10 @@ function ColorPresetSelectorComponent({
                         <div className="absolute top-1.5 left-1.5 flex gap-1">
                           {containsGradient && (
                             <div className="rounded-full bg-purple-500/90 p-1 shadow-sm">
-                              <Layers className="size-2.5 text-white" />
+                              <Layers
+                                aria-hidden="true"
+                                className="size-2.5 text-white"
+                              />
                             </div>
                           )}
                         </div>
@@ -460,9 +553,15 @@ function ColorPresetSelectorComponent({
                             )}
                           >
                             {mode === "light" ? (
-                              <Sun className="size-2.5 text-white" />
+                              <Sun
+                                aria-hidden="true"
+                                className="size-2.5 text-white"
+                              />
                             ) : (
-                              <Moon className="size-2.5 text-white" />
+                              <Moon
+                                aria-hidden="true"
+                                className="size-2.5 text-white"
+                              />
                             )}
                           </div>
                         </div>
@@ -478,7 +577,7 @@ function ColorPresetSelectorComponent({
                     "
                   >
                     <span className="font-semibold text-slate-900 capitalize dark:text-white">
-                      {key.replaceAll(/([A-Z])/g, " $1").trim()}
+                      {formattedPresetName}
                     </span>
                     <span className="text-xs text-slate-500">
                       {mode === "light" ? "Light" : "Dark"}
@@ -497,7 +596,7 @@ function ColorPresetSelectorComponent({
             })}
           </AnimatePresence>
         </TooltipProvider>
-      </div>
+      </fieldset>
 
       {hasMorePresets && (
         <motion.div
@@ -509,6 +608,8 @@ function ColorPresetSelectorComponent({
             variant="outline"
             size="sm"
             type="button"
+            aria-controls={presetGridId}
+            aria-expanded={isExpanded}
             onClick={() => setIsExpanded(!isExpanded)}
             className="
               gap-2 border-gold/20 bg-background px-4 text-sm font-medium text-muted-foreground
