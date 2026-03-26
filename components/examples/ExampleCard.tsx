@@ -71,12 +71,31 @@ function buildExampleTemplateId(
   variantName: string,
   themeLabel: string,
 ): string {
-  const slugify = (value: string) =>
-    value
-      .trim()
-      .toLowerCase()
-      .replaceAll(/[^a-z0-9]+/g, "-")
-      .replaceAll(/^-+|-+$/g, "");
+  const slugify = (value: string): string => {
+    const trimmed = value.trim().toLowerCase();
+    let slug = "";
+    let pendingSeparator = false;
+
+    for (const char of trimmed) {
+      const code = char.codePointAt(0);
+      const isLowerAlphaNumeric =
+        code !== undefined &&
+        ((code >= 97 && code <= 122) || (code >= 48 && code <= 57));
+
+      if (isLowerAlphaNumeric) {
+        if (pendingSeparator && slug.length > 0) {
+          slug += "-";
+        }
+
+        pendingSeparator = false;
+        slug += char;
+      } else if (slug.length > 0) {
+        pendingSeparator = true;
+      }
+    }
+
+    return slug;
+  };
 
   return [
     "example",
