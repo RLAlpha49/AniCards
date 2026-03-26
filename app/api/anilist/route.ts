@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
 import {
+  apiErrorResponse,
   apiJsonHeaders,
   buildAnalyticsMetricKey,
   fetchUpstreamWithRetry,
   incrementAnalytics,
   initializeApiRequest,
+  invalidJsonResponse,
   isValidUsername,
   jsonWithCors,
   logPrivacySafe,
@@ -69,22 +71,18 @@ function handleTestSimulation(request: Request): NextResponse | null {
 
   const testHeader = request.headers.get("X-Test-Status");
   if (testHeader === "429") {
-    const headers = apiJsonHeaders(request);
-    headers["Retry-After"] = "60";
-    return NextResponse.json(
-      { error: "Rate limited (test simulation)" },
-      {
-        status: 429,
-        headers,
-      },
-    );
+    return apiErrorResponse(request, 429, "Rate limited (test simulation)", {
+      headers: { "Retry-After": "60" },
+      category: "rate_limited",
+      retryable: true,
+    });
   }
 
   if (testHeader === "500") {
-    return jsonWithCors(
-      { error: "Internal server error (test simulation)" },
+    return apiErrorResponse(
       request,
       500,
+      "Internal server error (test simulation)",
     );
   }
 
@@ -231,20 +229,19 @@ function getAniListResponseHeaders(
 }
 
 async function executeAniListRequest(
+  requestData: GraphQLRequest,
   request: Request,
   startTime: number,
 ): Promise<{ data: unknown; operationInfo: OperationInfo }> {
-  const requestData = resolveAniListRequest(
-    (await request.json()) as GraphQLRequest,
-  );
-  const operationInfo = parseOperationInfo(requestData);
+  const resolvedRequest = resolveAniListRequest(requestData);
+  const operationInfo = parseOperationInfo(resolvedRequest);
 
   logPrivacySafe("log", "AniList API", "Forwarding AniList operation", {
     operation: operationInfo.name,
     userIdentifier: operationInfo.userIdentifier,
   });
 
-  const data = await makeAniListRequest(requestData, request);
+  const data = await makeAniListRequest(resolvedRequest, request);
   const duration = Date.now() - startTime;
 
   if (duration > 1000) {
@@ -407,7 +404,17 @@ export async function POST(request: Request) {
   };
 
   try {
-    const result = await executeAniListRequest(request, startTime);
+    let requestData: GraphQLRequest;
+    try {
+      requestData = (await request.json()) as GraphQLRequest;
+    } catch {
+      await trackAnalytics(
+        buildAnalyticsMetricKey("anilist_api", "failed_requests"),
+      );
+      return invalidJsonResponse(request);
+    }
+
+    const result = await executeAniListRequest(requestData, request, startTime);
     operationInfo = result.operationInfo;
 
     await trackAnalytics(
@@ -452,11 +459,13 @@ export async function POST(request: Request) {
       buildAnalyticsMetricKey("anilist_api", "failed_requests"),
     );
 
-    return jsonWithCors(
-      { error: errorMessage || "Failed to fetch AniList data" },
+    return apiErrorResponse(
       request,
       statusCode,
-      getAniListResponseHeaders(error),
+      errorMessage || "Failed to fetch AniList data",
+      {
+        headers: getAniListResponseHeaders(error),
+      },
     );
   }
 }

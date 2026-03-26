@@ -241,6 +241,14 @@ describe("User API GET Endpoint", () => {
       await expectError("userId=abc", 400, "Invalid userId parameter");
     });
 
+    it("should return 400 when userId is only partially numeric", async () => {
+      await expectError("userId=123abc", 400, "Invalid userId parameter");
+    });
+
+    it("should return 400 when userId is zero", async () => {
+      await expectError("userId=0", 400, "Invalid userId parameter");
+    });
+
     it("should return 400 when username contains invalid characters", async () => {
       await expectError(
         "username=***invalid***",

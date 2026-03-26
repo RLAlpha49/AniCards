@@ -291,9 +291,12 @@ describe("Store Users API", () => {
       });
 
       const res = await POST(req);
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(400);
       const data = await getJsonResponse(res);
-      expect(data.error).toBe("User storage failed");
+      expect(data.error).toBe("Invalid JSON body");
+      expect(data.category).toBe("invalid_data");
+      expect(data.retryable).toBe(false);
+      expect(data.status).toBe(400);
     });
   });
 

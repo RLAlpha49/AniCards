@@ -445,6 +445,11 @@ describe("Card SVG Route", () => {
       expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:card_svg:failed_requests",
       );
+      expect(res.headers.get("Retry-After")).toBeTruthy();
+      expect(res.headers.get("X-RateLimit-Limit")).toBeTruthy();
+      expect(res.headers.get("Access-Control-Expose-Headers")).toContain(
+        "Retry-After",
+      );
     });
 
     it("should extract IP from x-forwarded-for header", async () => {
@@ -530,6 +535,25 @@ describe("Card SVG Route", () => {
     it("should return 400 when userId is not a valid number", async () => {
       const req = new Request(
         createRequestUrl(baseUrl, { userId: "abc", cardType: "animeStats" }),
+      );
+      const res = await GET(req);
+      await expectErrorResponse(res, "Client Error: Invalid user ID", 400);
+    });
+
+    it("should return 400 when userId is only partially numeric", async () => {
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "123abc",
+          cardType: "animeStats",
+        }),
+      );
+      const res = await GET(req);
+      await expectErrorResponse(res, "Client Error: Invalid user ID", 400);
+    });
+
+    it("should return 400 when userId is zero", async () => {
+      const req = new Request(
+        createRequestUrl(baseUrl, { userId: "0", cardType: "animeStats" }),
       );
       const res = await GET(req);
       await expectErrorResponse(res, "Client Error: Invalid user ID", 400);

@@ -14,6 +14,7 @@ import {
   getAllowedCardSvgOrigin,
   getRequestIp,
   incrementAnalytics,
+  parseStrictPositiveInteger,
 } from "@/lib/api-utils";
 import {
   buildCardConfigFromParams,
@@ -208,17 +209,35 @@ function svgHeaders(
  * @returns A headers object suitable for passing to Response.
  * @source
  */
-function errorHeaders(request?: Request) {
+function errorHeaders(
+  request?: Request,
+  options?: {
+    extraHeaders?: Record<string, string>;
+    exposeHeaders?: string[];
+  },
+) {
   const allowedOrigin = getAllowedCardSvgOrigin(request);
-  return {
+  const extraHeaders = options?.extraHeaders;
+  const exposeHeaders = [
+    "X-Card-Border-Radius",
+    ...(options?.exposeHeaders ?? []),
+  ];
+  const headers = {
     "Content-Type": "image/svg+xml",
     "Cache-Control": "no-store, max-age=0, must-revalidate",
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Methods": "GET, HEAD",
-    "Access-Control-Expose-Headers": "X-Card-Border-Radius",
+    "Access-Control-Expose-Headers": [...new Set(exposeHeaders)].join(", "),
     Vary: "Origin",
     "X-Card-Border-Radius": String(DEFAULT_CARD_BORDER_RADIUS),
   };
+
+  return extraHeaders
+    ? {
+        ...headers,
+        ...extraHeaders,
+      }
+    : headers;
 }
 
 /**
@@ -297,8 +316,8 @@ function extractAndValidateParams(
 
   let numericUserId = 0;
   if (userId) {
-    numericUserId = Number.parseInt(userId);
-    if (Number.isNaN(numericUserId)) {
+    const parsedUserId = parseStrictPositiveInteger(userId);
+    if (!parsedUserId) {
       console.warn(`⚠️ [Card SVG] Invalid user ID format: ${userId}`);
       return new Response(
         toCleanSvgResponse(svgError("Client Error: Invalid user ID")),
@@ -308,6 +327,8 @@ function extractAndValidateParams(
         },
       );
     }
+
+    numericUserId = parsedUserId;
   }
 
   const [baseCardType] = cardType.split("-");
@@ -573,11 +594,29 @@ export async function GET(request: Request) {
     ratelimit,
   );
   if (rateLimitResponse) {
+    const forwardedRateLimitHeaders = Object.fromEntries(
+      [
+        "Retry-After",
+        "X-RateLimit-Limit",
+        "X-RateLimit-Remaining",
+        "X-RateLimit-Reset",
+      ].flatMap((headerName) => {
+        const value = rateLimitResponse.headers.get(headerName);
+        return value ? [[headerName, value] as const] : [];
+      }),
+    );
+
     return new Response(
       toCleanSvgResponse(
         svgError("Client Error: Too many requests - try again later"),
       ),
-      { headers: errorHeaders(request), status: 429 },
+      {
+        headers: errorHeaders(request, {
+          extraHeaders: forwardedRateLimitHeaders,
+          exposeHeaders: Object.keys(forwardedRateLimitHeaders),
+        }),
+        status: 429,
+      },
     );
   }
 
@@ -957,7 +996,8 @@ export function OPTIONS(request: Request) {
       "Access-Control-Allow-Origin": allowedOrigin,
       "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
-      "Access-Control-Expose-Headers": "X-Card-Border-Radius",
+      "Access-Control-Expose-Headers":
+        "X-Card-Border-Radius, Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset",
       Vary: "Origin",
     },
   });

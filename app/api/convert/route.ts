@@ -10,12 +10,14 @@ import type { NextRequest, NextResponse } from "next/server";
 import sharp from "sharp";
 
 import {
+  apiErrorResponse,
   apiJsonHeaders,
   checkRateLimit,
   createRateLimiter,
   fetchUpstreamWithRetry,
   getRequestIp,
   incrementAnalytics,
+  invalidJsonResponse,
   jsonWithCors,
   UpstreamTransportError,
 } from "@/lib/api-utils";
@@ -836,7 +838,7 @@ function createConvertErrorResponse(
   request: NextRequest,
 ): NextResponse {
   incrementAnalytics("analytics:convert_api:failed_requests").catch(() => {});
-  return jsonWithCors({ error: error.message }, request, error.statusCode);
+  return apiErrorResponse(request, error.statusCode, error.message);
 }
 
 function validateSvgRasterizationBounds(svg: string): void {
@@ -964,10 +966,14 @@ async function fetchSvgContent(
         () => {},
       );
       return {
-        errorResponse: jsonWithCors(
-          { error: "SVG redirects are not allowed" },
+        errorResponse: apiErrorResponse(
           request,
           403,
+          "SVG redirects are not allowed",
+          {
+            category: "invalid_data",
+            retryable: false,
+          },
         ),
       };
     }
@@ -977,10 +983,10 @@ async function fetchSvgContent(
         () => {},
       );
       return {
-        errorResponse: jsonWithCors(
-          { error: "Failed to fetch SVG" },
+        errorResponse: apiErrorResponse(
           request,
           response.status,
+          "Failed to fetch SVG",
         ),
       };
     }
@@ -995,10 +1001,14 @@ async function fetchSvgContent(
         () => {},
       );
       return {
-        errorResponse: jsonWithCors(
-          { error: "Fetched content is not a valid SVG" },
+        errorResponse: apiErrorResponse(
           request,
           415,
+          "Fetched content is not a valid SVG",
+          {
+            category: "invalid_data",
+            retryable: false,
+          },
         ),
       };
     }
@@ -1010,42 +1020,34 @@ async function fetchSvgContent(
 
     if (err instanceof ConvertRouteError) {
       return {
-        errorResponse: jsonWithCors(
-          { error: err.message },
-          request,
-          err.statusCode,
-        ),
+        errorResponse: apiErrorResponse(request, err.statusCode, err.message),
       };
     }
 
     if (err instanceof UpstreamTransportError) {
       return {
-        errorResponse: jsonWithCors(
-          {
-            error:
-              err.statusCode === 504
-                ? "SVG fetch timed out"
-                : "Failed to fetch SVG",
-          },
+        errorResponse: apiErrorResponse(
           request,
           err.statusCode,
-          typeof err.retryAfterMs === "number"
-            ? {
-                "Retry-After": String(
-                  Math.max(1, Math.ceil(err.retryAfterMs / 1000)),
-                ),
-              }
-            : undefined,
+          err.statusCode === 504
+            ? "SVG fetch timed out"
+            : "Failed to fetch SVG",
+          {
+            headers:
+              typeof err.retryAfterMs === "number"
+                ? {
+                    "Retry-After": String(
+                      Math.max(1, Math.ceil(err.retryAfterMs / 1000)),
+                    ),
+                  }
+                : undefined,
+          },
         ),
       };
     }
 
     return {
-      errorResponse: jsonWithCors(
-        { error: "Failed to fetch SVG" },
-        request,
-        500,
-      ),
+      errorResponse: apiErrorResponse(request, 500, "Failed to fetch SVG"),
     };
   }
 }
@@ -1141,8 +1143,15 @@ export async function POST(request: NextRequest) {
   console.log(`🚀 [Convert API] Request received from ${ip}`);
 
   try {
+    let requestBody: unknown;
+    try {
+      requestBody = await request.json();
+    } catch {
+      return invalidJsonResponse(request);
+    }
+
     const { requestedFormat, responseMode, svgContent, svgUrl } =
-      parseSvgRequestBody(await request.json());
+      parseSvgRequestBody(requestBody);
     let resolvedSvgContent = svgContent || "";
 
     if (resolvedSvgContent) {
@@ -1210,7 +1219,7 @@ export async function POST(request: NextRequest) {
       console.error(`💥 [Convert API] Stack Trace: ${error.stack}`);
     }
     incrementAnalytics("analytics:convert_api:failed_requests").catch(() => {});
-    return jsonWithCors({ error: "Conversion failed" }, request, 500);
+    return apiErrorResponse(request, 500, "Conversion failed");
   }
 }
 

@@ -77,19 +77,25 @@ describe("Cards API GET Endpoint", () => {
       expect(json.error).toBe("Invalid user ID format");
     });
 
-    it("should successfully handle userId as zero", async () => {
-      const cardData = {
-        cards: [{ cardName: "animeStats", titleColor: "#000" }],
-      };
-      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(cardData));
+    it("should return 400 error for partially numeric user IDs", async () => {
+      const req = new Request(`${baseUrl}?userId=123abc`, {
+        headers: { "x-forwarded-for": "127.0.0.1" },
+      });
+      const res = await GET(req);
+      expect(res.status).toBe(400);
+      const json = await getResponseJson(res);
+      expect(json.error).toBe("Invalid user ID format");
+    });
+
+    it("should reject userId as zero", async () => {
       const req = new Request(`${baseUrl}?userId=0`, {
         headers: { "x-forwarded-for": "127.0.0.1" },
       });
       const res = await GET(req);
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(400);
       const json = await getResponseJson(res);
-      expect(json).toEqual(cardData);
-      expect(sharedRedisMockGet).toHaveBeenCalledWith("cards:0");
+      expect(json.error).toBe("Invalid user ID format");
+      expect(sharedRedisMockGet).not.toHaveBeenCalled();
     });
 
     it("should successfully handle very large userId values", async () => {

@@ -1,12 +1,14 @@
 import type { NextResponse } from "next/server";
 
 import {
+  apiErrorResponse,
   apiJsonHeaders,
   buildAnalyticsMetricKey,
   buildPersistedRequestMetadata,
   handleError,
   incrementAnalytics,
   initializeApiRequest,
+  invalidJsonResponse,
   jsonWithCors,
   logPrivacySafe,
   logSuccess,
@@ -37,10 +39,19 @@ export async function POST(request: Request): Promise<NextResponse> {
   const { startTime, ip, endpoint, endpointKey } = init;
 
   try {
-    const data = await request.json();
+    let data: unknown;
+    try {
+      data = await request.json();
+    } catch {
+      await incrementAnalytics(
+        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+      );
+      return invalidJsonResponse(request);
+    }
+
     logPrivacySafe("log", endpoint, "Processing store-users payload", {
-      userId: data.userId,
-      username: data.username,
+      userId: (data as Record<string, unknown>)?.userId,
+      username: (data as Record<string, unknown>)?.username,
     });
 
     const validationResult = validateUserData(
@@ -92,14 +103,17 @@ export async function POST(request: Request): Promise<NextResponse> {
       await incrementAnalytics(
         buildAnalyticsMetricKey(endpointKey, "failed_requests"),
       );
-      return jsonWithCors(
-        {
-          error:
-            "Conflict: data was updated elsewhere. Please reload and try again.",
-          currentUpdatedAt: existingState.updatedAt,
-        },
+      return apiErrorResponse(
         request,
         409,
+        "Conflict: data was updated elsewhere. Please reload and try again.",
+        {
+          category: "invalid_data",
+          retryable: false,
+          additionalFields: {
+            currentUpdatedAt: existingState.updatedAt,
+          },
+        },
       );
     }
 

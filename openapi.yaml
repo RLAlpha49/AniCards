@@ -11,11 +11,11 @@ info:
     url: "https://opensource.org/licenses/MIT"
   contact:
     name: "Alpha49 (AniCards)"
-    url: "https://anicards.alpha49.com"
-    email: "support@alpha49.com"
+    url: "https://api.anicards.alpha49.com"
+    email: "contact@alpha49.com"
 servers:
-  - url: "https://anicards.alpha49.com"
-    description: "Production site host"
+  - url: "https://api.anicards.alpha49.com"
+    description: "Production public API host"
 security: []
 tags:
   - name: "anilist"
@@ -282,9 +282,17 @@ paths:
                 missing:
                   value:
                     error: "Missing user ID parameter"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
                 invalid:
                   value:
                     error: "Invalid user ID format"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
         "404":
           description: "No cards stored for that user"
           content:
@@ -295,6 +303,10 @@ paths:
                 notFound:
                   value:
                     error: "Cards not found"
+                    category: "user_not_found"
+                    retryable: false
+                    status: 404
+                    recoverySuggestions: []
         "500":
           description: "Unexpected storage failure"
           content:
@@ -305,6 +317,10 @@ paths:
                 failure:
                   value:
                     error: "Failed to fetch cards"
+                    category: "server_error"
+                    retryable: true
+                    status: 500
+                    recoverySuggestions: []
 
   /api/get-user:
     get:
@@ -396,12 +412,24 @@ paths:
                 missing:
                   value:
                     error: "Missing userId or username parameter"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
                 badUserId:
                   value:
                     error: "Invalid userId parameter"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
                 badUsername:
                   value:
                     error: "Invalid username parameter"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
         "404":
           description: "No stored user matched the lookup"
           content:
@@ -412,6 +440,10 @@ paths:
                 notFound:
                   value:
                     error: "User not found"
+                    category: "user_not_found"
+                    retryable: false
+                    status: 404
+                    recoverySuggestions: []
         "500":
           description: "Unexpected storage failure or detected record corruption"
           content:
@@ -422,6 +454,10 @@ paths:
                 failure:
                   value:
                     error: "Stored user record is incomplete or corrupted"
+                    category: "server_error"
+                    retryable: true
+                    status: 500
+                    recoverySuggestions: []
 
   /api/store-cards:
     post:
@@ -508,12 +544,24 @@ paths:
                 invalidJson:
                   value:
                     error: "Invalid JSON body"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
                 invalidUserId:
                   value:
                     error: "Invalid userId"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
                 invalidData:
                   value:
                     error: "Invalid data"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
         "401":
           $ref: "#/components/responses/UnauthorizedJson"
         "409":
@@ -526,6 +574,10 @@ paths:
                 conflict:
                   value:
                     error: "Conflict: data was updated elsewhere. Please reload and try again."
+                    category: "invalid_data"
+                    retryable: false
+                    status: 409
+                    recoverySuggestions: []
                     currentUpdatedAt: "2026-03-21T10:10:00.000Z"
         "429":
           $ref: "#/components/responses/TooManyRequestsJson"
@@ -592,7 +644,11 @@ paths:
               examples:
                 invalid:
                   value:
-                    error: "Invalid user data"
+                    error: "Invalid data"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
         "401":
           $ref: "#/components/responses/UnauthorizedJson"
         "409":
@@ -605,6 +661,10 @@ paths:
                 conflict:
                   value:
                     error: "Conflict: data was updated elsewhere. Please reload and try again."
+                    category: "invalid_data"
+                    retryable: false
+                    status: 409
+                    recoverySuggestions: []
                     currentUpdatedAt: "2026-03-21T10:15:00.000Z"
         "429":
           $ref: "#/components/responses/TooManyRequestsJson"
@@ -620,6 +680,10 @@ paths:
                 failure:
                   value:
                     error: "User storage failed"
+                    category: "server_error"
+                    retryable: true
+                    status: 500
+                    recoverySuggestions: []
 
   /api/convert:
     post:
@@ -684,9 +748,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
               examples:
+                invalidJson:
+                  value:
+                    error: "Invalid JSON body"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions:
+                      - title: "Check your input"
+                        description: "Make sure all required fields are filled in correctly"
                 missingUrl:
                   value:
-                    error: "Missing svgUrl parameter"
+                    error: "Missing svgUrl or svgContent parameter"
                 invalidUrl:
                   value:
                     error: "Invalid URL format"
@@ -1067,6 +1140,22 @@ components:
       description: "Potential cache source indicator exposed by the route"
       schema:
         type: string
+    RetryAfter:
+      description: "Seconds until the client should retry the request"
+      schema:
+        type: string
+    RateLimitLimit:
+      description: "Configured request limit for the current window"
+      schema:
+        type: string
+    RateLimitRemaining:
+      description: "Remaining requests in the current rate-limit window"
+      schema:
+        type: string
+    RateLimitReset:
+      description: "Unix timestamp in milliseconds when the current rate-limit window resets"
+      schema:
+        type: string
 
   responses:
     UnauthorizedJson:
@@ -1079,9 +1168,22 @@ components:
             unauthorized:
               value:
                 error: "Unauthorized"
+                category: "authentication"
+                retryable: false
+                status: 401
+                recoverySuggestions: []
 
     TooManyRequestsJson:
       description: "Rate limit exceeded"
+      headers:
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+        X-RateLimit-Limit:
+          $ref: "#/components/headers/RateLimitLimit"
+        X-RateLimit-Remaining:
+          $ref: "#/components/headers/RateLimitRemaining"
+        X-RateLimit-Reset:
+          $ref: "#/components/headers/RateLimitReset"
       content:
         application/json:
           schema:
@@ -1090,6 +1192,12 @@ components:
             rateLimited:
               value:
                 error: "Too many requests"
+                category: "rate_limited"
+                retryable: true
+                status: 429
+                recoverySuggestions:
+                  - title: "Wait and retry"
+                    description: "Please wait a minute before generating another card. We're limiting requests to keep the service running smoothly."
 
     UnauthorizedPlain:
       description: "Invalid or missing cron secret"
@@ -1166,6 +1274,14 @@ components:
       headers:
         X-Card-Border-Radius:
           $ref: "#/components/headers/CardBorderRadius"
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+        X-RateLimit-Limit:
+          $ref: "#/components/headers/RateLimitLimit"
+        X-RateLimit-Remaining:
+          $ref: "#/components/headers/RateLimitRemaining"
+        X-RateLimit-Reset:
+          $ref: "#/components/headers/RateLimitReset"
       content:
         image/svg+xml:
           schema:
@@ -1198,8 +1314,33 @@ components:
       properties:
         error:
           type: string
+        category:
+          type: string
+          enum:
+            - "user_not_found"
+            - "rate_limited"
+            - "network_error"
+            - "invalid_data"
+            - "server_error"
+            - "timeout"
+            - "authentication"
+            - "unknown"
+        retryable:
+          type: boolean
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        recoverySuggestions:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecoverySuggestion"
       required:
         - error
+        - category
+        - retryable
+        - status
+        - recoverySuggestions
 
     ConflictError:
       allOf:
@@ -1211,6 +1352,22 @@ components:
               format: date-time
           required:
             - currentUpdatedAt
+
+    RecoverySuggestion:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        actionUrl:
+          type: string
+        actionLabel:
+          type: string
+      required:
+        - title
+        - description
 
     GraphQLRequest:
       type: object
@@ -1430,8 +1587,10 @@ components:
       required:
         - cardName
       description: >-
-        Stored per-card configuration. The POST route accepts partial patches, so
-        most fields are optional even for enabled cards.
+        Stored per-card configuration. `/api/store-cards` accepts partial patch
+        entries and merges them with the existing stored record, so most fields
+        are optional even for enabled cards. Disabled entries may omit
+        `variation` and all per-card colors.
 
     GlobalCardSettings:
       type: object
@@ -1493,6 +1652,11 @@ components:
     StoreCardsRequest:
       type: object
       additionalProperties: false
+      description: >-
+        Partial-update payload for `/api/store-cards`. The route merges incoming
+        card entries and global settings into the existing Redis record,
+        preserves omitted card settings, and backfills any newly supported base
+        card types as disabled records before persisting.
       properties:
         userId:
           type: integer
@@ -1747,7 +1911,6 @@ components:
           nullable: true
       required:
         - userId
-        - pages
 
     AnalyticsReport:
       type: object

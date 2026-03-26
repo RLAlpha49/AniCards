@@ -1,10 +1,12 @@
 import {
+  apiErrorResponse,
   apiJsonHeaders,
   checkRateLimit,
   createRateLimiter,
   getRequestIp,
   incrementAnalytics,
   jsonWithCors,
+  parseStrictPositiveInteger,
   redisClient,
 } from "@/lib/api-utils";
 import { CardsRecord } from "@/lib/types/records";
@@ -39,14 +41,17 @@ export async function GET(request: Request) {
 
   if (!userId) {
     console.warn("⚠️ [Cards API] Missing user ID parameter");
-    return jsonWithCors({ error: "Missing user ID parameter" }, request, 400);
+    return apiErrorResponse(request, 400, "Missing user ID parameter");
   }
 
-  const numericUserId = Number.parseInt(userId);
-  if (Number.isNaN(numericUserId)) {
+  const numericUserId = parseStrictPositiveInteger(userId);
+  if (!numericUserId) {
     console.warn(`⚠️ [Cards API] Invalid user ID format: ${userId}`);
     incrementAnalytics("analytics:cards_api:failed_requests").catch(() => {});
-    return jsonWithCors({ error: "Invalid user ID format" }, request, 400);
+    return apiErrorResponse(request, 400, "Invalid user ID format", {
+      category: "invalid_data",
+      retryable: false,
+    });
   }
 
   try {
@@ -61,7 +66,7 @@ export async function GET(request: Request) {
       console.warn(
         `⚠️ [Cards API] Cards for user ${numericUserId} not found [${duration}ms]`,
       );
-      return jsonWithCors({ error: "Cards not found" }, request, 404);
+      return apiErrorResponse(request, 404, "Cards not found");
     }
 
     const cardData: CardsRecord = safeParse<CardsRecord>(cardDataStr);
@@ -89,7 +94,7 @@ export async function GET(request: Request) {
       console.error(`💥 [Cards API] Stack Trace: ${error.stack}`);
     }
     incrementAnalytics("analytics:cards_api:failed_requests").catch(() => {});
-    return jsonWithCors({ error: "Failed to fetch cards" }, request, 500);
+    return apiErrorResponse(request, 500, "Failed to fetch cards");
   }
 }
 

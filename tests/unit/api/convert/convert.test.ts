@@ -101,6 +101,23 @@ describe("Convert API POST Endpoint", () => {
   });
 
   describe("Input Validation", () => {
+    it("should return 400 for invalid JSON request bodies", async () => {
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: "{ invalid json",
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toBe("Invalid JSON body");
+      expect(data.category).toBe("invalid_data");
+    });
+
     it("should return 400 error if svgUrl parameter is missing", async () => {
       const req = new Request("http://localhost/api/convert", {
         method: "POST",

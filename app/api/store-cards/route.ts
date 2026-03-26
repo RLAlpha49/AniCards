@@ -10,11 +10,13 @@
 import type { NextResponse } from "next/server";
 
 import {
+  apiErrorResponse,
   apiJsonHeaders,
   buildAnalyticsMetricKey,
   handleError,
   incrementAnalytics,
   initializeApiRequest,
+  invalidJsonResponse,
   jsonWithCors,
   logSuccess,
   redisClient,
@@ -654,7 +656,10 @@ async function validateIncomingPayload(
     await incrementAnalytics(
       buildAnalyticsMetricKey(endpointKey, "failed_requests"),
     );
-    return jsonWithCors({ error: "Invalid data: " + errMsg }, request, 400);
+    return apiErrorResponse(request, 400, "Invalid data: " + errMsg, {
+      category: "invalid_data",
+      retryable: false,
+    });
   }
   return undefined;
 }
@@ -681,7 +686,7 @@ async function parseStoreCardsRequestBody(
       buildAnalyticsMetricKey(endpointKey, "failed_requests"),
     ).catch(() => {});
     return {
-      errorResponse: jsonWithCors({ error: "Invalid JSON body" }, request, 400),
+      errorResponse: invalidJsonResponse(request),
     };
   }
 
@@ -693,7 +698,10 @@ async function parseStoreCardsRequestBody(
       buildAnalyticsMetricKey(endpointKey, "failed_requests"),
     ).catch(() => {});
     return {
-      errorResponse: jsonWithCors({ error: "Invalid userId" }, request, 400),
+      errorResponse: apiErrorResponse(request, 400, "Invalid userId", {
+        category: "invalid_data",
+        retryable: false,
+      }),
     };
   }
 
@@ -717,7 +725,10 @@ async function parseStoreCardsRequestBody(
       buildAnalyticsMetricKey(endpointKey, "failed_requests"),
     ).catch(() => {});
     return {
-      errorResponse: jsonWithCors({ error: "Invalid cardOrder" }, request, 400),
+      errorResponse: apiErrorResponse(request, 400, "Invalid cardOrder", {
+        category: "invalid_data",
+        retryable: false,
+      }),
     };
   }
   const cardOrder = cardOrderResult.cardOrder;
@@ -757,14 +768,17 @@ async function enforceIfMatchUpdatedAt(
       await incrementAnalytics(
         buildAnalyticsMetricKey(endpointKey, "failed_requests"),
       ).catch(() => {});
-      return jsonWithCors(
-        {
-          error:
-            "Conflict: data was updated elsewhere. Please reload and try again.",
-          currentUpdatedAt: existingRecord.updatedAt,
-        },
+      return apiErrorResponse(
         request,
         409,
+        "Conflict: data was updated elsewhere. Please reload and try again.",
+        {
+          category: "invalid_data",
+          retryable: false,
+          additionalFields: {
+            currentUpdatedAt: existingRecord.updatedAt,
+          },
+        },
       );
     }
   } catch {
@@ -870,7 +884,10 @@ async function assembleStoredCardsAndGlobalSettings(params: {
       buildAnalyticsMetricKey(endpointKey, "failed_requests"),
     ).catch(() => {});
     return {
-      errorResponse: jsonWithCors({ error: "Invalid data" }, request, 400),
+      errorResponse: apiErrorResponse(request, 400, "Invalid data", {
+        category: "invalid_data",
+        retryable: false,
+      }),
     };
   }
   const sanitizedGlobalSettings = sanitizeResult?.sanitized;
@@ -962,7 +979,10 @@ async function validateCardColors(
         await incrementAnalytics(
           buildAnalyticsMetricKey(endpointKey, "failed_requests"),
         ).catch(() => {});
-        return jsonWithCors({ error: "Invalid data" }, request, 400);
+        return apiErrorResponse(request, 400, "Invalid data", {
+          category: "invalid_data",
+          retryable: false,
+        });
       }
       if (!validateColorValue(val)) {
         const reason = getColorInvalidReason(val);
@@ -973,7 +993,10 @@ async function validateCardColors(
         await incrementAnalytics(
           buildAnalyticsMetricKey(endpointKey, "failed_requests"),
         ).catch(() => {});
-        return jsonWithCors({ error: "Invalid data" }, request, 400);
+        return apiErrorResponse(request, 400, "Invalid data", {
+          category: "invalid_data",
+          retryable: false,
+        });
       }
     }
   }

@@ -12,8 +12,11 @@ import { NextResponse } from "next/server";
 import { displayNames, isValidCardType } from "@/lib/card-data/validation";
 import {
   categorizeError,
+  type ErrorCategory,
+  getErrorDetails,
   isRetryableErrorCategory,
   isRetryableStatusCode,
+  type RecoverySuggestion,
 } from "@/lib/error-messages";
 import type {
   PersistedRequestMetadata,
@@ -112,6 +115,21 @@ function readPositiveIntegerEnv(name: string): number | undefined {
   const parsed = Number.parseInt(raw, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
   return parsed;
+}
+
+export function isStrictPositiveIntegerString(
+  value: string | null | undefined,
+): value is string {
+  if (typeof value !== "string") return false;
+  return /^[1-9]\d*$/.test(value.trim());
+}
+
+export function parseStrictPositiveInteger(
+  value: string | null | undefined,
+): number | null {
+  if (!isStrictPositiveIntegerString(value)) return null;
+  const parsed = Number(value.trim());
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 function shouldEnableRateLimitAnalytics(): boolean {
@@ -239,6 +257,77 @@ export function createRateLimiter(options?: {
  */
 export interface ApiError {
   error: string;
+  category: ErrorCategory;
+  retryable: boolean;
+  status: number;
+  recoverySuggestions: RecoverySuggestion[];
+}
+
+function createApiErrorPayload(
+  error: string,
+  status: number,
+  options?: {
+    category?: ErrorCategory;
+    retryable?: boolean;
+    recoverySuggestions?: RecoverySuggestion[];
+    additionalFields?: Record<string, unknown>;
+  },
+): ApiError & Record<string, unknown> {
+  const details = getErrorDetails(error, status);
+  const additionalFields = options?.additionalFields;
+  const payload = {
+    error,
+    category: options?.category ?? details.category,
+    retryable: options?.retryable ?? details.retryable,
+    status,
+    recoverySuggestions:
+      options?.recoverySuggestions ?? details.suggestions ?? [],
+  };
+
+  if (additionalFields) {
+    return {
+      ...payload,
+      ...additionalFields,
+    };
+  }
+
+  return payload;
+}
+
+export function apiErrorResponse(
+  request: Request | undefined,
+  status: number,
+  error: string,
+  options?: {
+    headers?: Record<string, string>;
+    category?: ErrorCategory;
+    retryable?: boolean;
+    recoverySuggestions?: RecoverySuggestion[];
+    additionalFields?: Record<string, unknown>;
+  },
+): NextResponse<ApiError & Record<string, unknown>> {
+  return jsonWithCors(
+    createApiErrorPayload(error, status, {
+      category: options?.category,
+      retryable: options?.retryable,
+      recoverySuggestions: options?.recoverySuggestions,
+      additionalFields: options?.additionalFields,
+    }),
+    request,
+    status,
+    options?.headers,
+  );
+}
+
+export function invalidJsonResponse(
+  request: Request | undefined,
+  options?: { headers?: Record<string, string> },
+): NextResponse<ApiError & Record<string, unknown>> {
+  return apiErrorResponse(request, 400, "Invalid JSON body", {
+    headers: options?.headers,
+    category: "invalid_data",
+    retryable: false,
+  });
 }
 
 export class UpstreamTransportError extends Error {
@@ -401,6 +490,8 @@ export function apiJsonHeaders(request?: Request): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS, POST",
+    "Access-Control-Expose-Headers":
+      "Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset",
     Vary: "Origin",
   };
 
@@ -871,7 +962,23 @@ export function jsonWithCors<T = unknown>(
 ): NextResponse<T> {
   const responseHeaders = apiJsonHeaders(request);
   if (headers) {
-    Object.assign(responseHeaders, headers);
+    for (const [key, value] of Object.entries(headers)) {
+      if (
+        key.toLowerCase() === "access-control-expose-headers" &&
+        typeof responseHeaders[key] === "string"
+      ) {
+        const mergedValues = new Set(
+          `${responseHeaders[key]},${value}`
+            .split(",")
+            .map((entry) => entry.trim())
+            .filter(Boolean),
+        );
+        responseHeaders[key] = [...mergedValues].join(", ");
+        continue;
+      }
+
+      responseHeaders[key] = value;
+    }
   }
 
   const opts: Record<string, unknown> = {
@@ -1105,12 +1212,11 @@ export async function checkRateLimit(
     await incrementAnalytics(
       buildAnalyticsMetricKey(endpointKey, "failed_requests"),
     );
-    return jsonWithCors(
-      { error: "Too many requests" },
-      request,
-      429,
-      rateLimitHeaders,
-    );
+    return apiErrorResponse(request, 429, "Too many requests", {
+      headers: rateLimitHeaders,
+      category: "rate_limited",
+      retryable: true,
+    });
   }
   return null;
 }
@@ -1146,7 +1252,10 @@ export function validateSameOrigin(
     const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
     incrementAnalytics(metric).catch(() => {});
 
-    return jsonWithCors({ error: "Server misconfigured" }, request, 503);
+    return apiErrorResponse(request, 503, "Server misconfigured", {
+      category: "server_error",
+      retryable: true,
+    });
   }
 
   const allowedOrigin = configuredAppOrigin ?? requestOrigin;
@@ -1159,7 +1268,10 @@ export function validateSameOrigin(
     const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
     incrementAnalytics(metric).catch(() => {});
 
-    return jsonWithCors({ error: "Unauthorized" }, request, 401);
+    return apiErrorResponse(request, 401, "Unauthorized", {
+      category: "authentication",
+      retryable: false,
+    });
   }
 
   const isSameOrigin = !origin || origin === allowedOrigin;
@@ -1178,10 +1290,16 @@ export function validateSameOrigin(
     });
 
     if (process.env.NODE_ENV === "production") {
-      return jsonWithCors({ error: "Unauthorized" }, request, 401);
+      return apiErrorResponse(request, 401, "Unauthorized", {
+        category: "authentication",
+        retryable: false,
+      });
     }
     // In dev mode, still return headers for consistent CORS behavior
-    return jsonWithCors({ error: "Unauthorized" }, request, 401);
+    return apiErrorResponse(request, 401, "Unauthorized", {
+      category: "authentication",
+      retryable: false,
+    });
   }
 
   return null;
@@ -1267,7 +1385,16 @@ export function handleError(
 
   incrementAnalytics(analyticsMetric).catch(() => {});
 
-  return jsonWithCors({ error: errorMessage }, request, 500);
+  const candidateStatus = (error as { statusCode?: unknown }).statusCode;
+  const status =
+    typeof candidateStatus === "number" &&
+    Number.isInteger(candidateStatus) &&
+    candidateStatus >= 400 &&
+    candidateStatus <= 599
+      ? candidateStatus
+      : 500;
+
+  return apiErrorResponse(request, status, errorMessage);
 }
 
 /**
@@ -1325,7 +1452,10 @@ function invalidStoreUserData(
   logPrivacySafe("warn", endpoint, reason, context);
   return {
     success: false,
-    error: jsonWithCors({ error: "Invalid data" }, request, 400),
+    error: apiErrorResponse(request, 400, "Invalid data", {
+      category: "invalid_data",
+      retryable: false,
+    }),
   };
 }
 
@@ -1454,17 +1584,20 @@ function validateCardRequiredFields(
         console.warn(
           `⚠️ [${endpoint}] Card ${cardIndex} missing or invalid field: ${field}`,
         );
-        return jsonWithCors({ error: "Invalid data" }, request, 400);
+        return apiErrorResponse(request, 400, "Invalid data", {
+          category: "invalid_data",
+          retryable: false,
+        });
       }
       const value = cardObj[field];
       if (value.length === 0 || value.length > 100) {
         console.warn(
           `⚠️ [${endpoint}] Card ${cardIndex} field ${field} exceeds length limits`,
         );
-        return NextResponse.json(
-          { error: "Invalid data" },
-          { status: 400, headers: apiJsonHeaders(request) },
-        );
+        return apiErrorResponse(request, 400, "Invalid data", {
+          category: "invalid_data",
+          retryable: false,
+        });
       }
     }
     return null;
@@ -1493,10 +1626,10 @@ function validateCardRequiredFields(
         console.warn(
           `⚠️ [${endpoint}] Card ${cardIndex} missing required color field: ${field}`,
         );
-        return NextResponse.json(
-          { error: "Invalid data" },
-          { status: 400, headers: apiJsonHeaders(request) },
-        );
+        return apiErrorResponse(request, 400, "Invalid data", {
+          category: "invalid_data",
+          retryable: false,
+        });
       }
       if (!validateColorValue(value)) {
         const reason = getColorInvalidReason(value);
@@ -1504,10 +1637,10 @@ function validateCardRequiredFields(
         console.warn(
           `⚠️ [${endpoint}] Card ${cardIndex} invalid color or gradient format for ${field}${reasonSuffix}`,
         );
-        return NextResponse.json(
-          { error: "Invalid data" },
-          { status: 400, headers: apiJsonHeaders(request) },
-        );
+        return apiErrorResponse(request, 400, "Invalid data", {
+          category: "invalid_data",
+          retryable: false,
+        });
       }
     }
     return null;
@@ -1525,10 +1658,10 @@ function validateCardRequiredFields(
         cardNameRaw,
       )}`,
     );
-    return NextResponse.json(
-      { error: "Invalid data: Invalid card type" },
-      { status: 400, headers: apiJsonHeaders(request) },
-    );
+    return apiErrorResponse(request, 400, "Invalid data: Invalid card type", {
+      category: "invalid_data",
+      retryable: false,
+    });
   }
 
   if (!isDisabled) {
@@ -1572,10 +1705,10 @@ function validateOptionalBooleanFields(
       console.warn(
         `⚠️ [${endpoint}] Card ${cardIndex} field ${field} must be boolean`,
       );
-      return NextResponse.json(
-        { error: "Invalid data" },
-        { status: 400, headers: apiJsonHeaders(request) },
-      );
+      return apiErrorResponse(request, 400, "Invalid data", {
+        category: "invalid_data",
+        retryable: false,
+      });
     }
   }
   return null;
@@ -1602,10 +1735,10 @@ function validateOptionalBorderColorField(
       console.warn(
         `⚠️ [${endpoint}] Card ${cardIndex} invalid borderColor format${reasonSuffix}`,
       );
-      return NextResponse.json(
-        { error: "Invalid data" },
-        { status: 400, headers: apiJsonHeaders(request) },
-      );
+      return apiErrorResponse(request, 400, "Invalid data", {
+        category: "invalid_data",
+        retryable: false,
+      });
     }
   }
   return null;
@@ -1627,10 +1760,10 @@ function validateGridNumericField(
       console.warn(
         `⚠️ [${endpoint}] Card ${cardIndex} ${fieldName} must be an integer between 1 and 5`,
       );
-      return NextResponse.json(
-        { error: "Invalid data" },
-        { status: 400, headers: apiJsonHeaders(request) },
-      );
+      return apiErrorResponse(request, 400, "Invalid data", {
+        category: "invalid_data",
+        retryable: false,
+      });
     }
   }
   return null;
@@ -1713,10 +1846,10 @@ function validateBorderRadiusField(
       console.warn(
         `⚠️ [${endpoint}] Card ${cardIndex} borderRadius required when border is enabled`,
       );
-      return NextResponse.json(
-        { error: "Invalid data" },
-        { status: 400, headers: apiJsonHeaders(request) },
-      );
+      return apiErrorResponse(request, 400, "Invalid data", {
+        category: "invalid_data",
+        retryable: false,
+      });
     }
     return null;
   }
@@ -1724,19 +1857,19 @@ function validateBorderRadiusField(
     console.warn(
       `⚠️ [${endpoint}] Card ${cardIndex} borderRadius must be a number`,
     );
-    return NextResponse.json(
-      { error: "Invalid data" },
-      { status: 400, headers: apiJsonHeaders(request) },
-    );
+    return apiErrorResponse(request, 400, "Invalid data", {
+      category: "invalid_data",
+      retryable: false,
+    });
   }
   if (!validateBorderRadius(borderRadiusValue)) {
     console.warn(
       `⚠️ [${endpoint}] Card ${cardIndex} borderRadius out of range: ${borderRadiusValue}`,
     );
-    return NextResponse.json(
-      { error: "Invalid data" },
-      { status: 400, headers: apiJsonHeaders(request) },
-    );
+    return apiErrorResponse(request, 400, "Invalid data", {
+      category: "invalid_data",
+      retryable: false,
+    });
   }
   return null;
 }
@@ -1754,10 +1887,10 @@ function validateUserIdField(
 ): NextResponse<ApiError> | null {
   if (userId === undefined || userId === null) {
     console.warn(`⚠️ [${endpoint}] Missing userId`);
-    return NextResponse.json(
-      { error: "Invalid data" },
-      { status: 400, headers: apiJsonHeaders(request) },
-    );
+    return apiErrorResponse(request, 400, "Invalid data", {
+      category: "invalid_data",
+      retryable: false,
+    });
   }
 
   const userIdNum = Number(userId);
@@ -1765,10 +1898,10 @@ function validateUserIdField(
     console.warn(
       `⚠️ [${endpoint}] Invalid userId format: ${safeStringifyValue(userId)}`,
     );
-    return NextResponse.json(
-      { error: "Invalid data" },
-      { status: 400, headers: apiJsonHeaders(request) },
-    );
+    return apiErrorResponse(request, 400, "Invalid data", {
+      category: "invalid_data",
+      retryable: false,
+    });
   }
 
   return null;
@@ -1806,10 +1939,10 @@ function validateCardsArrayField(
 ): NextResponse<ApiError> | null {
   if (!Array.isArray(cards)) {
     console.warn(`⚠️ [${endpoint}] Cards must be an array`);
-    return NextResponse.json(
-      { error: "Invalid data" },
-      { status: 400, headers: apiJsonHeaders(request) },
-    );
+    return apiErrorResponse(request, 400, "Invalid data", {
+      category: "invalid_data",
+      retryable: false,
+    });
   }
   return null;
 }
@@ -1912,11 +2045,14 @@ function validateUniqueCardTypes(
     ]);
 
     return NextResponse.json(
-      {
-        error: "Invalid data: Invalid card type",
-        invalidCardNames: [...unknownNames],
-        suggestions,
-      },
+      createApiErrorPayload("Invalid data: Invalid card type", 400, {
+        category: "invalid_data",
+        retryable: false,
+        additionalFields: {
+          invalidCardNames: [...unknownNames],
+          suggestions,
+        },
+      }),
       { status: 400, headers: apiJsonHeaders(request) },
     );
   }
@@ -1925,11 +2061,14 @@ function validateUniqueCardTypes(
     console.warn(
       `⚠️ [${endpoint}] Too many unique card types provided: ${uniqueSupportedNames.size} (max ${MAX_ALLOWED_CARDS})`,
     );
-    return NextResponse.json(
+    return apiErrorResponse(
+      request,
+      400,
+      `Too many cards provided: ${uniqueSupportedNames.size} (max ${MAX_ALLOWED_CARDS})`,
       {
-        error: `Too many cards provided: ${uniqueSupportedNames.size} (max ${MAX_ALLOWED_CARDS})`,
+        category: "invalid_data",
+        retryable: false,
       },
-      { status: 400, headers: apiJsonHeaders(request) },
     );
   }
 
@@ -1949,10 +2088,10 @@ function validateCardsItems(
 
     if (typeof card !== "object" || card === null) {
       console.warn(`⚠️ [${endpoint}] Card ${i} is not a valid object`);
-      return NextResponse.json(
-        { error: "Invalid data" },
-        { status: 400, headers: apiJsonHeaders(request) },
-      );
+      return apiErrorResponse(request, 400, "Invalid data", {
+        category: "invalid_data",
+        retryable: false,
+      });
     }
 
     const cardRecord = card as Record<string, unknown>;

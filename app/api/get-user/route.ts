@@ -8,6 +8,7 @@
  * together with follow-up requests.
  */
 import {
+  apiErrorResponse,
   apiJsonHeaders,
   checkRateLimit,
   createRateLimiter,
@@ -16,6 +17,7 @@ import {
   isValidUsername,
   jsonWithCors,
   logPrivacySafe,
+  parseStrictPositiveInteger,
   redisClient,
 } from "@/lib/api-utils";
 import {
@@ -46,7 +48,7 @@ function respondWithUserApiError(
 ): Response {
   logPrivacySafe("warn", USER_API_ENDPOINT, logMessage, context);
   trackUserApiMetric(USER_API_FAILED_METRIC);
-  return jsonWithCors({ error }, request, status);
+  return apiErrorResponse(request, status, error);
 }
 
 async function resolveUserIdFromUsername(
@@ -62,8 +64,8 @@ async function resolveUserIdFromUsername(
   const userIdFromIndex = await redisClient.get(usernameIndexKey);
   if (!userIdFromIndex) return null;
 
-  const candidate = Number.parseInt(userIdFromIndex as string, 10);
-  if (Number.isNaN(candidate)) return null;
+  const candidate = parseStrictPositiveInteger(String(userIdFromIndex));
+  if (!candidate) return null;
 
   logPrivacySafe("log", USER_API_ENDPOINT, "Resolved lookup by username", {
     username: normalizedUsername,
@@ -93,8 +95,8 @@ async function resolveLookupTarget(
   }
 
   if (userIdParam) {
-    const numericUserId = Number.parseInt(userIdParam, 10);
-    if (Number.isNaN(numericUserId)) {
+    const numericUserId = parseStrictPositiveInteger(userIdParam);
+    if (!numericUserId) {
       return respondWithUserApiError(
         request,
         400,
@@ -151,7 +153,7 @@ async function handleStaleUsernameAlias(
     },
   );
   trackUserApiMetric(USER_API_FAILED_METRIC);
-  return jsonWithCors({ error: "User not found" }, request, 404);
+  return apiErrorResponse(request, 404, "User not found");
 }
 
 /**
@@ -215,7 +217,7 @@ export async function GET(request: Request) {
         userId: numericUserId,
         durationMs: duration,
       });
-      return jsonWithCors({ error: "User not found" }, request, 404);
+      return apiErrorResponse(request, 404, "User not found");
     }
 
     const userData = shouldReturnBootstrap
@@ -262,7 +264,7 @@ export async function GET(request: Request) {
       console.error(`💥 [${USER_API_ENDPOINT}] Stack Trace: ${error.stack}`);
     }
     trackUserApiMetric(USER_API_FAILED_METRIC);
-    return jsonWithCors({ error: errorMessage }, request, 500);
+    return apiErrorResponse(request, 500, errorMessage);
   }
 }
 
