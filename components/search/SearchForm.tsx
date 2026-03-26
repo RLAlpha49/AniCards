@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, Hash, Info, Loader2, Search, User } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useId, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
@@ -49,10 +49,40 @@ interface SearchFormProps {
  */
 export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
   const router = useRouter();
+  const baseId = useId();
   const [searchMethod, setSearchMethod] = useState<SearchMethod>("username");
   const [searchValue, setSearchValue] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [modeAnnouncement, setModeAnnouncement] = useState("");
+
+  const isUserIdMode = searchMethod === "userid";
+  const inputId = `${baseId}-search-value`;
+  const inputHintId = `${baseId}-search-hint`;
+  const errorId = `${baseId}-search-error`;
+  const searchMethodName = `${baseId}-search-method`;
+  const usernameRadioId = `${baseId}-search-method-username`;
+  const userIdRadioId = `${baseId}-search-method-userid`;
+  const searchMethodHintId = `${baseId}-search-method-hint`;
+  const inputLabel = isUserIdMode ? "AniList User ID" : "AniList Username";
+  const inputPlaceholder = isUserIdMode ? "e.g., 542244" : "e.g., Alpha49";
+  const inputDescribedBy = error ? `${inputHintId} ${errorId}` : inputHintId;
+
+  const updateSearchMethod = useCallback(
+    (nextMethod: SearchMethod) => {
+      if (nextMethod !== searchMethod) {
+        setModeAnnouncement(
+          nextMethod === "username"
+            ? "Search mode changed to AniList username."
+            : "Search mode changed to AniList user ID.",
+        );
+      }
+
+      setSearchMethod(nextMethod);
+      setError("");
+    },
+    [searchMethod],
+  );
 
   /**
    * Validates input, tracks analytics, and routes to the user page.
@@ -133,6 +163,15 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
         <div className="absolute -right-px -bottom-px size-5 border-r-2 border-b-2 border-gold" />
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          <p
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            className="sr-only"
+          >
+            {modeAnnouncement}
+          </p>
+
           <AnimatePresence>
             {error && (
               <motion.div
@@ -152,7 +191,10 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
                   <AlertTitle className="text-red-800 dark:text-red-200">
                     Heads Up
                   </AlertTitle>
-                  <AlertDescription className="text-red-700 dark:text-red-300">
+                  <AlertDescription
+                    id={errorId}
+                    className="text-red-700 dark:text-red-300"
+                  >
                     {error}
                   </AlertDescription>
                 </Alert>
@@ -161,12 +203,16 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
           </AnimatePresence>
 
           {/* Method Toggle with sliding indicator */}
-          <div className="space-y-3">
-            <span className="
+          <fieldset className="space-y-3" aria-describedby={searchMethodHintId}>
+            <legend className="
               block font-display text-[0.6rem] tracking-[0.3em] text-foreground/50 uppercase
             ">
               Look Up By
-            </span>
+            </legend>
+            <p id={searchMethodHintId} className="sr-only">
+              Choose whether to search by AniList username or numeric AniList
+              user ID.
+            </p>
             <div className="relative flex border border-gold/15 bg-gold/3">
               <motion.div
                 className="absolute inset-y-0 left-0 w-1/2 border border-gold/25 bg-gold/10"
@@ -176,81 +222,111 @@ export function SearchForm({ onLoadingChange }: Readonly<SearchFormProps>) {
                 }}
                 transition={{ type: "spring", stiffness: 400, damping: 30 }}
               />
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchMethod("username");
-                  setError("");
-                }}
-                className={cn(
-                  `
-                    relative z-10 flex flex-1 items-center justify-center gap-2 py-3 text-sm
-                    font-semibold transition-colors duration-200
-                  `,
-                  searchMethod === "username"
-                    ? "text-gold"
-                    : "text-foreground/40 hover:text-foreground/60",
-                )}
-              >
-                <User className="size-4" />
-                Username
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchMethod("userid");
-                  setError("");
-                }}
-                className={cn(
-                  `
-                    relative z-10 flex flex-1 items-center justify-center gap-2 py-3 text-sm
-                    font-semibold transition-colors duration-200
-                  `,
-                  searchMethod === "userid"
-                    ? "text-gold"
-                    : "text-foreground/40 hover:text-foreground/60",
-                )}
-              >
-                <Hash className="size-4" />
-                User ID
-              </button>
+              <label className="flex flex-1">
+                <input
+                  id={usernameRadioId}
+                  type="radio"
+                  name={searchMethodName}
+                  value="username"
+                  checked={searchMethod === "username"}
+                  onChange={() => updateSearchMethod("username")}
+                  className="peer sr-only"
+                />
+                <span
+                  className={cn(
+                    `
+                      relative z-10 flex w-full items-center justify-center gap-2 py-3 text-sm
+                      font-semibold transition-colors duration-200
+                      peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2
+                      peer-focus-visible:outline-gold
+                    `,
+                    searchMethod === "username"
+                      ? "text-gold"
+                      : "text-foreground/40 hover:text-foreground/60",
+                  )}
+                >
+                  <User aria-hidden="true" className="size-4" />
+                  Username
+                </span>
+              </label>
+              <label className="flex flex-1">
+                <input
+                  id={userIdRadioId}
+                  type="radio"
+                  name={searchMethodName}
+                  value="userid"
+                  checked={searchMethod === "userid"}
+                  onChange={() => updateSearchMethod("userid")}
+                  className="peer sr-only"
+                />
+                <span
+                  className={cn(
+                    `
+                      relative z-10 flex w-full items-center justify-center gap-2 py-3 text-sm
+                      font-semibold transition-colors duration-200
+                      peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2
+                      peer-focus-visible:outline-gold
+                    `,
+                    searchMethod === "userid"
+                      ? "text-gold"
+                      : "text-foreground/40 hover:text-foreground/60",
+                  )}
+                >
+                  <Hash aria-hidden="true" className="size-4" />
+                  User ID
+                </span>
+              </label>
             </div>
-          </div>
+          </fieldset>
 
           {/* Input field */}
           <div className="space-y-3">
             <label
-              htmlFor="searchValue"
+              htmlFor={inputId}
               className="
                 block font-display text-[0.6rem] tracking-[0.3em] text-foreground/50 uppercase
               "
             >
-              {searchMethod === "username"
-                ? "AniList Username"
-                : "AniList User ID"}
+              {inputLabel}
             </label>
+            <p id={inputHintId} className="sr-only">
+              {isUserIdMode
+                ? "Enter a numeric AniList user ID."
+                : "Enter an AniList username without the at symbol."}
+            </p>
             <div className="group relative">
-              <div className="
-                pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-foreground/30
-                transition-colors duration-300
-                group-focus-within:text-gold/70
-              ">
-                {searchMethod === "username" ? (
-                  <Search className="size-5" />
-                ) : (
+              <div
+                aria-hidden="true"
+                className="
+                  pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-foreground/30
+                  transition-colors duration-300
+                  group-focus-within:text-gold/70
+                "
+              >
+                {isUserIdMode ? (
                   <Hash className="size-5" />
+                ) : (
+                  <Search className="size-5" />
                 )}
               </div>
               <Input
-                id="searchValue"
+                id={inputId}
+                type={isUserIdMode ? "text" : "search"}
                 value={searchValue}
                 onChange={(e) => {
                   setSearchValue(e.target.value);
                   setError("");
                 }}
-                placeholder={
-                  searchMethod === "username" ? "e.g., Alpha49" : "e.g., 542244"
-                }
+                placeholder={inputPlaceholder}
+                inputMode={isUserIdMode ? "numeric" : "search"}
+                autoComplete="off"
+                autoCapitalize="none"
+                autoCorrect="off"
+                enterKeyHint="search"
+                spellCheck={false}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={inputDescribedBy}
+                aria-errormessage={error ? errorId : undefined}
                 className="
                   h-14 border-gold/15 bg-transparent pl-12 text-base transition-all
                   placeholder:text-foreground/25
