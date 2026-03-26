@@ -6,6 +6,7 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import PageShell from "@/components/PageShell";
 import { StructuredDataScript } from "@/components/StructuredDataScript";
 import { UserPageEditor } from "@/components/user/UserPageEditor";
+import { getRequestNonce } from "@/lib/request-nonce";
 import {
   generateMetadata as createMetadata,
   getUserPageSEOConfig,
@@ -53,6 +54,7 @@ export default async function UserProfilePage({
     params,
     searchParams,
   ]);
+  const nonce = await getRequestNonce();
   const userPageSeo = getUserPageSEOConfig({
     username,
     q: resolvedSearchParams.q,
@@ -65,6 +67,7 @@ export default async function UserProfilePage({
     <>
       <StructuredDataScript
         data={generateStructuredData("user", userPageSeo)}
+        nonce={nonce}
       />
       <Suspense
         fallback={

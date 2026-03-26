@@ -44,7 +44,9 @@ function generateNonce(): string {
 export function middleware(request: NextRequest) {
   const nonce = generateNonce();
 
-  const cspHeader = buildCSPHeader(nonce);
+  const cspHeader = buildCSPHeader(nonce, {
+    allowUnsafeEval: process.env.NODE_ENV !== "production",
+  });
 
   const forwardedHeaders = new Headers(request.headers);
   forwardedHeaders.set("x-nonce", nonce);

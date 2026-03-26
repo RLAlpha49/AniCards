@@ -4,6 +4,7 @@ import { SearchCapabilities } from "@/components/search/SearchCapabilities";
 import { SearchCTA } from "@/components/search/SearchCTA";
 import { SearchJourney } from "@/components/search/SearchJourney";
 import { StructuredDataScript } from "@/components/StructuredDataScript";
+import { getRequestNonce } from "@/lib/request-nonce";
 import { generateMetadata as createMetadata, seoConfigs } from "@/lib/seo";
 import { generateStructuredData } from "@/lib/structured-data";
 
@@ -11,10 +12,15 @@ import SearchHeroShell from "./SearchHeroShell";
 
 export const metadata = createMetadata(seoConfigs.search);
 
-export default function UserSearchPage() {
+export default async function UserSearchPage() {
+  const nonce = await getRequestNonce();
+
   return (
     <>
-      <StructuredDataScript data={generateStructuredData("search")} />
+      <StructuredDataScript
+        data={generateStructuredData("search")}
+        nonce={nonce}
+      />
       <div className="relative min-h-screen">
         <MarketingBackdrop />
         <SearchHeroShell />

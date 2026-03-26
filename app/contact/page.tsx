@@ -5,15 +5,21 @@ import { ContactReasons } from "@/components/contact/ContactReasons";
 import { MarketingBackdrop } from "@/components/marketing/MarketingBackdrop";
 import { SectionReveal } from "@/components/marketing/SectionReveal";
 import { StructuredDataScript } from "@/components/StructuredDataScript";
+import { getRequestNonce } from "@/lib/request-nonce";
 import { generateMetadata as createMetadata, seoConfigs } from "@/lib/seo";
 import { generateStructuredData } from "@/lib/structured-data";
 
 export const metadata = createMetadata(seoConfigs.contact);
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  const nonce = await getRequestNonce();
+
   return (
     <>
-      <StructuredDataScript data={generateStructuredData("contact")} />
+      <StructuredDataScript
+        data={generateStructuredData("contact")}
+        nonce={nonce}
+      />
       <div className="relative min-h-screen">
         <MarketingBackdrop />
 

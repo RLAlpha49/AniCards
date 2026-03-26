@@ -7,15 +7,21 @@ import { StatsRibbon } from "@/components/home/StatsRibbon";
 import { MarketingBackdrop } from "@/components/marketing/MarketingBackdrop";
 import { SectionReveal } from "@/components/marketing/SectionReveal";
 import { StructuredDataScript } from "@/components/StructuredDataScript";
+import { getRequestNonce } from "@/lib/request-nonce";
 import { generateMetadata as createMetadata, seoConfigs } from "@/lib/seo";
 import { generateStructuredData } from "@/lib/structured-data";
 
 export const metadata = createMetadata(seoConfigs.home);
 
-export default function HomePage() {
+export default async function HomePage() {
+  const nonce = await getRequestNonce();
+
   return (
     <>
-      <StructuredDataScript data={generateStructuredData("home")} />
+      <StructuredDataScript
+        data={generateStructuredData("home")}
+        nonce={nonce}
+      />
       <div className="relative min-h-screen">
         <MarketingBackdrop />
         <SectionReveal>

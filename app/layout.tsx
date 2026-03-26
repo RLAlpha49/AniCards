@@ -7,7 +7,6 @@ import {
   Libre_Baskerville,
   Playfair_Display_SC,
 } from "next/font/google";
-import { headers } from "next/headers";
 import { Suspense } from "react";
 
 import AnalyticsProvider from "@/components/AnalyticsProvider";
@@ -16,6 +15,7 @@ import GithubCorner from "@/components/GithubCorner";
 import { LayoutShell } from "@/components/LayoutShell";
 import PwaRegistration from "@/components/PwaRegistration";
 import { StructuredDataScript } from "@/components/StructuredDataScript";
+import { getRequestNonce } from "@/lib/request-nonce";
 import { getDefaultSocialPreviewImages } from "@/lib/seo";
 import { getSiteUrlObject, SITE_NAME } from "@/lib/site-config";
 import { generateSiteStructuredData } from "@/lib/structured-data";
@@ -133,8 +133,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const headersList = await headers();
-  const nonce = headersList.get("x-nonce") || undefined;
+  const nonce = await getRequestNonce();
   const isVercelDeployment = process.env.VERCEL === "1";
 
   return (
@@ -149,7 +148,10 @@ export default async function RootLayout({
         <Providers>
           <PwaRegistration />
           <Suspense fallback={<div>Loading...</div>}>
-            <StructuredDataScript data={generateSiteStructuredData()} />
+            <StructuredDataScript
+              data={generateSiteStructuredData()}
+              nonce={nonce}
+            />
             <AnalyticsProvider
               enableRuntimeTelemetry={isVercelDeployment}
               trackingId={process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID}

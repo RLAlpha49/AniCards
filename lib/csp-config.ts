@@ -15,6 +15,8 @@ export const CSP_KEYWORDS = {
   SELF: "'self'",
   /** Allow inline styles (required for Tailwind CSS) */
   UNSAFE_INLINE: "'unsafe-inline'",
+  /** Allow eval()-based development tooling; avoid this in production */
+  UNSAFE_EVAL: "'unsafe-eval'",
   /** Enable strict-dynamic for modern browsers - allows dynamically loaded scripts from trusted sources */
   STRICT_DYNAMIC: "'strict-dynamic'",
   /** Block all sources (used for frame-ancestors to prevent clickjacking) */
@@ -117,13 +119,18 @@ export const CSP_DIRECTIVES = {
  * Build a complete CSP header string and inject the provided nonce into script-src.
  *
  * @param nonce - A base64-encoded cryptographic nonce to authorize inline scripts
+ * @param options - Optional policy toggles for the current environment
  * @returns The complete Content-Security-Policy header string
  * @source
  */
-export function buildCSPHeader(nonce: string): string {
+export function buildCSPHeader(
+  nonce: string,
+  options: { allowUnsafeEval?: boolean } = {},
+): string {
   const scriptSrcValues = [
     CSP_KEYWORDS.SELF,
     `'nonce-${nonce}'`,
+    ...(options.allowUnsafeEval ? [CSP_KEYWORDS.UNSAFE_EVAL] : []),
     ...CSP_DIRECTIVES.scriptSrc.filter(
       (src) => src !== CSP_KEYWORDS.SELF, // Avoid duplicate 'self'
     ),
