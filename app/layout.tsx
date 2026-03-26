@@ -1,6 +1,6 @@
 import "./globals.css";
 
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import {
   Geist,
   Geist_Mono,
@@ -14,12 +14,16 @@ import AnalyticsProvider from "@/components/AnalyticsProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import GithubCorner from "@/components/GithubCorner";
 import { LayoutShell } from "@/components/LayoutShell";
+import PwaRegistration from "@/components/PwaRegistration";
 import { StructuredDataScript } from "@/components/StructuredDataScript";
 import { getDefaultSocialPreviewImages } from "@/lib/seo";
-import { getSiteUrlObject } from "@/lib/site-config";
+import { getSiteUrlObject, SITE_NAME } from "@/lib/site-config";
 import { generateSiteStructuredData } from "@/lib/structured-data";
 
 import { Providers } from "./providers";
+
+const LIGHT_THEME_COLOR = "#faf6f0";
+const DARK_THEME_COLOR = "#0c0a10";
 
 /**
  * Maps the Geist Sans face to the global CSS variable for site typography.
@@ -54,6 +58,38 @@ const libreBaskerville = Libre_Baskerville({
 
 export const metadata: Metadata = {
   metadataBase: getSiteUrlObject(),
+  applicationName: SITE_NAME,
+  manifest: "/manifest.webmanifest",
+  formatDetection: {
+    telephone: false,
+    email: false,
+    address: false,
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: SITE_NAME,
+  },
+  icons: {
+    icon: [
+      {
+        url: "/favicon.ico",
+        sizes: "any",
+      },
+      {
+        url: "/pwa/icon-any.svg",
+        type: "image/svg+xml",
+      },
+    ],
+    shortcut: ["/favicon.ico"],
+    apple: [
+      {
+        url: "/pwa/apple-touch-icon.svg",
+        sizes: "180x180",
+        type: "image/svg+xml",
+      },
+    ],
+  },
   openGraph: {
     images: getDefaultSocialPreviewImages(),
   },
@@ -61,6 +97,23 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     images: getDefaultSocialPreviewImages(),
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  colorScheme: "light dark",
+  themeColor: [
+    {
+      media: "(prefers-color-scheme: light)",
+      color: LIGHT_THEME_COLOR,
+    },
+    {
+      media: "(prefers-color-scheme: dark)",
+      color: DARK_THEME_COLOR,
+    },
+  ],
 };
 
 /**
@@ -94,6 +147,7 @@ export default async function RootLayout({
       >
         <GithubCorner />
         <Providers>
+          <PwaRegistration />
           <Suspense fallback={<div>Loading...</div>}>
             <StructuredDataScript data={generateSiteStructuredData()} />
             <AnalyticsProvider
