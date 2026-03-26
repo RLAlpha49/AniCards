@@ -49,10 +49,16 @@ export async function POST(request: Request): Promise<NextResponse> {
       return invalidJsonResponse(request);
     }
 
-    logPrivacySafe("log", endpoint, "Processing store-users payload", {
-      userId: (data as Record<string, unknown>)?.userId,
-      username: (data as Record<string, unknown>)?.username,
-    });
+    logPrivacySafe(
+      "log",
+      endpoint,
+      "Processing store-users payload",
+      {
+        userId: (data as Record<string, unknown>)?.userId,
+        username: (data as Record<string, unknown>)?.username,
+      },
+      request,
+    );
 
     const validationResult = validateUserData(
       data as Record<string, unknown>,
@@ -85,6 +91,7 @@ export async function POST(request: Request): Promise<NextResponse> {
             userId,
             error: error.message,
           },
+          request,
         );
       } else {
         throw error;
@@ -148,16 +155,22 @@ export async function POST(request: Request): Promise<NextResponse> {
         : {}),
     };
 
-    logPrivacySafe("log", endpoint, "Saving user data to split Redis record", {
-      userId,
-    });
+    logPrivacySafe(
+      "log",
+      endpoint,
+      "Saving user data to split Redis record",
+      {
+        userId,
+      },
+      request,
+    );
 
     const saveResult = await saveUserRecord(persistedUserData, {
       existingState: existingState ?? undefined,
     });
 
     const duration = Date.now() - startTime;
-    logSuccess(endpoint, userId, duration);
+    logSuccess(endpoint, userId, duration, undefined, request);
     await incrementAnalytics(
       buildAnalyticsMetricKey(endpointKey, "successful_requests"),
     );

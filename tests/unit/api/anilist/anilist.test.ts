@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
-import { sharedRatelimitMockLimit } from "@/tests/unit/__setup__";
+import {
+  allowConsoleWarningsAndErrors,
+  sharedRatelimitMockLimit,
+} from "@/tests/unit/__setup__";
 
 process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
 
@@ -62,6 +65,7 @@ describe("AniList API Route", () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
+    allowConsoleWarningsAndErrors();
     process.env = { ...originalEnv, NEXT_PUBLIC_APP_URL: "http://localhost" };
     sharedRatelimitMockLimit.mockReset();
     sharedRatelimitMockLimit.mockResolvedValue({
@@ -329,6 +333,27 @@ describe("AniList API Route", () => {
     );
     expect(response.headers.get("Access-Control-Allow-Methods")).toContain(
       "POST",
+    );
+  });
+
+  it("echoes X-Request-Id on successful responses", async () => {
+    setEnvironment("production");
+    mockJsonFetch({ data: { User: { id: 123 } } });
+
+    const response = await POST(
+      createAniListRequest({
+        headers: { "x-request-id": "req-anilist-12345" },
+        body: {
+          operation: "GetUserStats",
+          variables: { userId: 123 },
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("X-Request-Id")).toBe("req-anilist-12345");
+    expect(response.headers.get("Access-Control-Expose-Headers")).toContain(
+      "X-Request-Id",
     );
   });
 });

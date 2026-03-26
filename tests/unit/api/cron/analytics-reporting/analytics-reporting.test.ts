@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import {
+  allowConsoleWarningsAndErrors,
   sharedRedisMockLrange,
   sharedRedisMockLtrim,
   sharedRedisMockMget,
@@ -70,6 +71,7 @@ async function expectSuccessfulReportList(response: Response) {
 
 describe("Analytics & Reporting Cron API", () => {
   beforeEach(() => {
+    allowConsoleWarningsAndErrors();
     process.env = {
       ...process.env,
       CRON_SECRET,
@@ -160,6 +162,26 @@ describe("Analytics & Reporting Cron API", () => {
       "analytics:reports",
       -50,
       -1,
+    );
+  });
+
+  it("echoes X-Request-Id on analytics reporting responses", async () => {
+    setupAnalyticsData({ "analytics:visits": "100" });
+
+    const response = await POST(
+      new Request(BASE_URL, {
+        method: "POST",
+        headers: {
+          "x-cron-secret": CRON_SECRET,
+          "x-request-id": "req-analytics-12345",
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("X-Request-Id")).toBe("req-analytics-12345");
+    expect(response.headers.get("Access-Control-Expose-Headers")).toContain(
+      "X-Request-Id",
     );
   });
 

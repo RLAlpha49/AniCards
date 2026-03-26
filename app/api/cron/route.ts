@@ -12,9 +12,11 @@ import type { Redis as UpstashRedis } from "@upstash/redis";
 
 import { USER_STATS_QUERY } from "@/lib/anilist/queries";
 import {
-  apiJsonHeaders,
+  apiTextHeaders,
   authorizeCronRequest,
   fetchUpstreamWithRetry,
+  initializeApiRequest,
+  logPrivacySafe,
   redisClient,
   UpstreamTransportError,
 } from "@/lib/api-utils";
@@ -45,9 +47,18 @@ interface UpdateResult {
  * @returns Result detailing the fetch success, 404 status, and payload if available.
  * @source
  */
-async function updateUserStats(userId: string): Promise<UpdateResult> {
+async function updateUserStats(
+  userId: string,
+  request?: Request,
+): Promise<UpdateResult> {
   try {
-    console.log(`🔄 [Cron Job] User ${userId}: Fetching AniList data`);
+    logPrivacySafe(
+      "log",
+      "Cron Job",
+      "Fetching AniList data for scheduled refresh",
+      { userId },
+      request,
+    );
 
     const statsResponse = await fetchUpstreamWithRetry({
       service: "AniList GraphQL",
@@ -68,8 +79,12 @@ async function updateUserStats(userId: string): Promise<UpdateResult> {
 
     if (!statsResponse.ok) {
       const is404Error = statsResponse.status === 404;
-      console.warn(
-        `⚠️ [Cron Job] User ${userId}: AniList returned HTTP ${statsResponse.status}`,
+      logPrivacySafe(
+        "warn",
+        "Cron Job",
+        "AniList returned a non-success status during scheduled refresh",
+        { userId, statusCode: statsResponse.status },
+        request,
       );
       return { success: false, is404Error };
     }
@@ -78,19 +93,29 @@ async function updateUserStats(userId: string): Promise<UpdateResult> {
     return { success: true, is404Error: false, statsData };
   } catch (error) {
     if (error instanceof UpstreamTransportError) {
-      console.error(`🔥 [Cron Job] User ${userId}: ${error.message}`);
+      logPrivacySafe(
+        "error",
+        "Cron Job",
+        "AniList transport error during scheduled refresh",
+        { userId, error: error.message },
+        request,
+      );
       return { success: false, is404Error: false };
     }
 
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(
-      `🔥 [Cron Job] User ${userId}: Final attempt failed - ${message}`,
+    logPrivacySafe(
+      "error",
+      "Cron Job",
+      "AniList refresh failed after retries",
+      {
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+        ...(error instanceof Error && error.stack
+          ? { stack: error.stack }
+          : {}),
+      },
+      request,
     );
-    if (error instanceof Error && error.stack) {
-      console.error(
-        `💥 [Cron Job] User ${userId}: Error detail: ${error.stack}`,
-      );
-    }
     return { success: false, is404Error: false };
   }
 }
@@ -105,24 +130,32 @@ async function updateUserStats(userId: string): Promise<UpdateResult> {
 async function handleFailureTracking(
   redisClient: UpstashRedis,
   userId: string,
+  request?: Request,
 ): Promise<boolean> {
   const failureKey = `failed_updates:${userId}`;
   const currentFailureCount = (await redisClient.get(failureKey)) || 0;
   const newFailureCount = Number(currentFailureCount) + 1;
 
-  console.log(
-    `📋 [Cron Job] User ${userId}: Recording 404 failure (attempt ${newFailureCount}/3)`,
+  logPrivacySafe(
+    "warn",
+    "Cron Job",
+    "Recording repeated 404 failure for stored user",
+    { userId, failureCount: newFailureCount },
+    request,
   );
 
   if (newFailureCount >= 3) {
     const deleteResult = await deleteUserRecord(userId);
 
-    console.log(
-      `🗑️ [Cron Job] User ${userId}: Removed from database after 3 failed attempts${
-        deleteResult.usernameIndexKeys.length > 0
-          ? ` (removed ${deleteResult.usernameIndexKeys.join(", ")})`
-          : ""
-      }`,
+    logPrivacySafe(
+      "warn",
+      "Cron Job",
+      "Removed user after repeated AniList 404 responses",
+      {
+        userId,
+        removedUsernameIndexKeys: deleteResult.usernameIndexKeys.join(","),
+      },
+      request,
     );
     return true;
   } else {
@@ -237,12 +270,26 @@ function computeCronForBatch(
  * @source
  */
 export async function POST(request: Request) {
-  const authorizationError = authorizeCronRequest(request, "Cron Job");
+  const init = await initializeApiRequest(
+    request,
+    "Cron Job",
+    "cron_job",
+    undefined,
+    { skipRateLimit: true, skipSameOrigin: true, requireOrigin: false },
+  );
+  if (init.errorResponse) return init.errorResponse;
+
+  const { startTime, endpoint } = init;
+  const authorizationError = authorizeCronRequest(request, endpoint);
   if (authorizationError) return authorizationError;
 
   try {
-    console.log(
-      "🛠️ [Cron Job] QStash authorized, starting background update...",
+    logPrivacySafe(
+      "log",
+      endpoint,
+      "QStash authorized, starting background update",
+      undefined,
+      request,
     );
 
     // Refresh the stalest records first and keep the batch small. That trades a
@@ -250,8 +297,12 @@ export async function POST(request: Request) {
     const { userIds, totalUsers } = await listStalestUserIds(5);
     const batch = userIds.map((id) => ({ id }));
 
-    console.log(
-      `🚀 [Cron Job] Starting background update for ${batch.length} users (5 oldest out of ${totalUsers}).`,
+    logPrivacySafe(
+      "log",
+      endpoint,
+      "Starting scheduled refresh batch",
+      { batchSize: batch.length, totalUsers },
+      request,
     );
 
     let successfulUpdates = 0;
@@ -266,13 +317,18 @@ export async function POST(request: Request) {
           ]);
           const user = reconstructUserRecord(partsData);
 
-          console.log(
-            `👤 [Cron Job] User ${user.userId} (${
-              user.username || "no username"
-            }): Starting update`,
+          logPrivacySafe(
+            "log",
+            endpoint,
+            "Starting scheduled user refresh",
+            {
+              userId: user.userId,
+              username: user.username || "no username",
+            },
+            request,
           );
 
-          const updateResult = await updateUserStats(user.userId);
+          const updateResult = await updateUserStats(user.userId, request);
 
           if (updateResult.success) {
             user.stats = updateResult.statsData.data;
@@ -287,8 +343,12 @@ export async function POST(request: Request) {
 
             await saveUserRecord(finalUser);
 
-            console.log(
-              `✅ [Cron Job] User ${user.userId}: Successfully updated`,
+            logPrivacySafe(
+              "log",
+              endpoint,
+              "Successfully refreshed stored user",
+              { userId: user.userId },
+              request,
             );
             successfulUpdates++;
             await clearFailureTracking(redisClient, user.userId);
@@ -297,6 +357,7 @@ export async function POST(request: Request) {
             const wasRemoved = await handleFailureTracking(
               redisClient,
               user.userId,
+              request,
             );
             if (wasRemoved) {
               removedUsers++;
@@ -304,19 +365,34 @@ export async function POST(request: Request) {
           }
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
-          console.error(
-            `🔥 [Cron Job] Error processing user ${id}: ${error.message}`,
+          logPrivacySafe(
+            "error",
+            endpoint,
+            "Error processing scheduled user refresh",
+            {
+              userId: id,
+              error: error.message,
+              ...(error.stack ? { stack: error.stack } : {}),
+            },
+            request,
           );
-          if (error.stack) {
-            console.error(`💥 [Cron Job] Stack Trace: ${error.stack}`);
-          }
         }
       }),
     );
 
-    console.log(
-      `🎉 [Cron Job] Cron job completed successfully. Processed ${batch.length} users out of total ${totalUsers} users.`,
-      `📊 Results: ${successfulUpdates} successful, ${failedUpdates} failed (404), ${removedUsers} removed.`,
+    logPrivacySafe(
+      "log",
+      endpoint,
+      "Cron job completed",
+      {
+        durationMs: Date.now() - startTime,
+        batchSize: batch.length,
+        totalUsers,
+        successfulUpdates,
+        failedUpdates,
+        removedUsers,
+      },
+      request,
     );
 
     const recFor5 = computeCronForBatch(totalUsers, 5);
@@ -326,15 +402,18 @@ export async function POST(request: Request) {
     // response body. The route reports the schedule math, but an external cron
     // service still decides when to invoke it.
 
-    console.log(
-      `🔁 [Cron Job] Scheduling recommendation: 5/users -> ${recFor5.cron} (${recFor5.runsPerDay} runs/day, ~every ${recFor5.intervalMinutes} min).`,
-    );
-    console.log(
-      `🔁 [Cron Job] Scheduling recommendation: 10/users -> ${recFor10.cron} (${recFor10.runsPerDay} runs/day, ~every ${recFor10.intervalMinutes} min).`,
+    logPrivacySafe(
+      "log",
+      endpoint,
+      "Generated cron schedule recommendations",
+      {
+        recommendation5: recFor5.cron,
+        recommendation10: recFor10.cron,
+      },
+      request,
     );
 
-    const headers = apiJsonHeaders(request);
-    headers["Content-Type"] = "text/plain";
+    const headers = apiTextHeaders(request);
 
     const recFor5Note = recFor5.note ? ` — ${recFor5.note}` : "";
     const recFor10Note = recFor10.note ? ` — ${recFor10.note}` : "";
@@ -350,12 +429,17 @@ export async function POST(request: Request) {
     return new Response(scheduleMessage, { status: 200, headers });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
-    console.error(`🔥 [Cron Job] Cron job failed: ${error.message}`);
-    if (error.stack) {
-      console.error(`💥 [Cron Job] Stack Trace: ${error.stack}`);
-    }
-    const headers = apiJsonHeaders(request);
-    headers["Content-Type"] = "text/plain";
+    logPrivacySafe(
+      "error",
+      endpoint,
+      "Cron job failed",
+      {
+        error: error.message,
+        ...(error.stack ? { stack: error.stack } : {}),
+      },
+      request,
+    );
+    const headers = apiTextHeaders(request);
     return new Response("Cron job failed", { status: 500, headers });
   }
 }

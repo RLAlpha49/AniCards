@@ -8,6 +8,7 @@ import {
   afterAll,
   afterEach,
   beforeAll,
+  beforeEach,
   describe,
   expect,
   it,
@@ -15,6 +16,7 @@ import {
 } from "bun:test";
 
 import {
+  allowConsoleWarningsAndErrors,
   sharedRatelimitMockLimit,
   sharedRedisMockDel,
   sharedRedisMockGet,
@@ -86,6 +88,10 @@ async function mgetReturnNulls(...keys: string[]): Promise<(string | null)[]> {
 }
 
 describe("Store Users API", () => {
+  beforeEach(() => {
+    allowConsoleWarningsAndErrors();
+  });
+
   afterEach(() => {
     mock.clearAllMocks();
     sharedRedisMockGet.mockReset();
@@ -1109,6 +1115,36 @@ describe("Store Users API", () => {
         "http://localhost",
       );
       expect(res.headers.get("Content-Type")).toBe("application/json");
+    });
+
+    it("should echo X-Request-Id in success responses", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      sharedRedisMockGet.mockResolvedValueOnce(null);
+      sharedRedisMockSet.mockResolvedValueOnce(true);
+
+      const requestId = "req-store-12345";
+      const res = await POST(
+        new Request("http://localhost/api/store-users", {
+          method: "POST",
+          headers: {
+            "x-forwarded-for": "127.0.0.1",
+            origin: "http://localhost",
+            "Content-Type": "application/json",
+            "x-request-id": requestId,
+          },
+          body: JSON.stringify({
+            userId: 101,
+            username: "user101",
+            stats: { score: 10 },
+          }),
+        }),
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("X-Request-Id")).toBe(requestId);
+      expect(res.headers.get("Access-Control-Expose-Headers")).toContain(
+        "X-Request-Id",
+      );
     });
 
     it("should include CORS headers in error response", async () => {

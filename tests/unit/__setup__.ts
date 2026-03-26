@@ -1,16 +1,86 @@
 /**
  * Shared Bun test bootstrap for unit API routes.
- * Centralizing console silencing and Upstash doubles keeps each spec focused on
- * handler behavior instead of repeating the same client scaffolding.
+ * Centralizing shared console defaults and Upstash doubles keeps each spec
+ * focused on handler behavior instead of repeating the same client scaffolding.
  */
 
-import { mock } from "bun:test";
+import { inspect } from "node:util";
+
+import { afterEach, beforeEach, mock } from "bun:test";
 
 console.debug = mock(() => {});
 console.log = mock(() => {});
 console.info = mock(() => {});
-console.warn = mock(() => {});
-console.error = mock(() => {});
+
+const formatConsoleArgs = (args: unknown[]): string =>
+  args
+    .map((arg) => {
+      if (arg instanceof Error) {
+        return [arg.name + ": " + arg.message, arg.stack]
+          .filter(Boolean)
+          .join("\n");
+      }
+
+      return typeof arg === "string"
+        ? arg
+        : inspect(arg, {
+            breakLength: 120,
+            depth: 5,
+          });
+    })
+    .join(" ");
+
+const unexpectedConsoleWarn = mock((...args: unknown[]) => {
+  throw new Error(
+    [
+      "Unexpected console.warn output during a unit test.",
+      "Add a suite-local mock or assertion when the warning is intentional.",
+      formatConsoleArgs(args),
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+  );
+});
+
+const unexpectedConsoleError = mock((...args: unknown[]) => {
+  throw new Error(
+    [
+      "Unexpected console.error output during a unit test.",
+      "Add a suite-local mock or assertion when the error is intentional.",
+      formatConsoleArgs(args),
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+  );
+});
+
+console.warn = unexpectedConsoleWarn as typeof console.warn;
+console.error = unexpectedConsoleError as typeof console.error;
+
+beforeEach(() => {
+  unexpectedConsoleWarn.mockClear();
+  unexpectedConsoleError.mockClear();
+  console.warn = unexpectedConsoleWarn as typeof console.warn;
+  console.error = unexpectedConsoleError as typeof console.error;
+});
+
+afterEach(() => {
+  console.warn = unexpectedConsoleWarn as typeof console.warn;
+  console.error = unexpectedConsoleError as typeof console.error;
+});
+
+export function allowConsoleWarningsAndErrors() {
+  const consoleWarn = mock(() => {});
+  const consoleError = mock(() => {});
+
+  console.warn = consoleWarn as typeof console.warn;
+  console.error = consoleError as typeof console.error;
+
+  return {
+    consoleWarn,
+    consoleError,
+  };
+}
 
 /**
  * Shared Redis mock client that will be used by all test files.

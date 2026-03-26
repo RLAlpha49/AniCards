@@ -199,7 +199,7 @@ export function useNewUserSetup() {
 
         if ("error" in anilistIdResult) {
           const errorDetails = getErrorDetails(anilistIdResult.error);
-          trackUserActionError(
+          void trackUserActionError(
             "new_user_setup_fetch_id",
             new Error(anilistIdResult.error),
             errorDetails.category,
@@ -220,7 +220,7 @@ export function useNewUserSetup() {
 
       if ("error" in statsResult) {
         const errorDetails = getErrorDetails(statsResult.error);
-        trackUserActionError(
+        void trackUserActionError(
           "new_user_setup_fetch_stats",
           new Error(statsResult.error),
           errorDetails.category,
@@ -247,7 +247,7 @@ export function useNewUserSetup() {
 
       if ("error" in saveUserResult) {
         const errorDetails = getErrorDetails(saveUserResult.error);
-        trackUserActionError(
+        void trackUserActionError(
           "new_user_setup_save_user",
           new Error(saveUserResult.error),
           errorDetails.category,
@@ -269,7 +269,7 @@ export function useNewUserSetup() {
         const errorDetails = getErrorDetails(
           saveCardsResult.error ?? "Unknown error",
         );
-        trackUserActionError(
+        void trackUserActionError(
           "new_user_setup_save_cards",
           new Error(saveCardsResult.error ?? "Unknown error"),
           errorDetails.category,
@@ -399,7 +399,7 @@ export function useNewUserSetup() {
             : "Failed to set up your profile. Please try again.";
 
         const details = getErrorDetails(message);
-        trackUserActionError(
+        void trackUserActionError(
           "new_user_setup_unhandled",
           new Error(message),
           details.category,

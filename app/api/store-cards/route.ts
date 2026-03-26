@@ -18,6 +18,7 @@ import {
   initializeApiRequest,
   invalidJsonResponse,
   jsonWithCors,
+  logPrivacySafe,
   logSuccess,
   redisClient,
   validateCardData,
@@ -125,19 +126,21 @@ function parseStoredCardsRecord(
             isValidCardType(c.cardName),
         );
         if (filtered.length !== cards.length) {
-          console.warn(
-            `⚠️ [${endpoint}] Removed unsupported card types from stored record for ${cardsKey}`,
+          logPrivacySafe(
+            "warn",
+            endpoint,
+            "Removed unsupported card types from stored record",
+            { cardsKey },
           );
         }
         return filtered;
       }
     }
   } catch (error) {
-    console.warn(
-      `⚠️ [${endpoint}] Stored card record corrupted for ${cardsKey}: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
+    logPrivacySafe("warn", endpoint, "Stored card record corrupted", {
+      cardsKey,
+      error: error instanceof Error ? error.message : String(error),
+    });
     incrementAnalytics(
       buildAnalyticsMetricKey(endpointKey, "corrupted_records"),
     ).catch(() => {});
@@ -158,10 +161,11 @@ function parseExistingGlobalSettings(
         : (existingData as CardsRecord | null)
     )?.globalSettings;
   } catch (error) {
-    console.warn(
-      `⚠️ [${endpoint}] Failed to parse existing global settings: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+    logPrivacySafe(
+      "warn",
+      endpoint,
+      "Failed to parse existing global settings",
+      { error: error instanceof Error ? error.message : String(error) },
     );
     return undefined;
   }
@@ -652,7 +656,13 @@ async function validateIncomingPayload(
       : undefined;
   if (statsError !== undefined) {
     const errMsg = String(statsError);
-    console.warn(`⚠️ [${endpoint}] Invalid data for user ${userId}: ${errMsg}`);
+    logPrivacySafe(
+      "warn",
+      endpoint,
+      "Invalid store-cards stats payload",
+      { userId, error: errMsg },
+      request,
+    );
     await incrementAnalytics(
       buildAnalyticsMetricKey(endpointKey, "failed_requests"),
     );
@@ -877,8 +887,12 @@ async function assembleStoredCardsAndGlobalSettings(params: {
 
   const sanitizeResult = sanitizeIncomingGlobalSettings(globalSettings);
   if (sanitizeResult?.invalidColorStringKey) {
-    console.warn(
-      `⚠️ [${endpoint}] Invalid globalSettings color value for ${sanitizeResult.invalidColorStringKey}`,
+    logPrivacySafe(
+      "warn",
+      endpoint,
+      "Invalid globalSettings color value",
+      { invalidColorKey: sanitizeResult.invalidColorStringKey },
+      request,
     );
     await incrementAnalytics(
       buildAnalyticsMetricKey(endpointKey, "failed_requests"),
@@ -973,8 +987,12 @@ async function validateCardColors(
     for (const field of requiredColorFields) {
       const val = (card as unknown as Record<string, unknown>)[field];
       if (val === undefined || val === null) {
-        console.warn(
-          `⚠️ [${endpoint}] Card ${idx} missing required color field after merge: ${field}`,
+        logPrivacySafe(
+          "warn",
+          endpoint,
+          "Card missing required color field after merge",
+          { cardIndex: idx, field },
+          request,
         );
         await incrementAnalytics(
           buildAnalyticsMetricKey(endpointKey, "failed_requests"),
@@ -987,8 +1005,12 @@ async function validateCardColors(
       if (!validateColorValue(val)) {
         const reason = getColorInvalidReason(val);
         const reasonSuffix = reason ? ` (${reason})` : "";
-        console.warn(
-          `⚠️ [${endpoint}] Card ${idx} invalid color or gradient format for ${field}${reasonSuffix} after merge`,
+        logPrivacySafe(
+          "warn",
+          endpoint,
+          "Card invalid color or gradient format after merge",
+          { cardIndex: idx, field, reason: reasonSuffix || undefined },
+          request,
         );
         await incrementAnalytics(
           buildAnalyticsMetricKey(endpointKey, "failed_requests"),
@@ -1031,8 +1053,12 @@ export async function POST(request: Request): Promise<NextResponse> {
       ifMatchUpdatedAt,
       cardOrder,
     } = bodyParse.parsed!;
-    console.log(
-      `📝 [${endpoint}] Processing user ${userId} with ${incomingCardsCount} cards`,
+    logPrivacySafe(
+      "log",
+      endpoint,
+      "Processing store-cards payload",
+      { userId, incomingCardsCount },
+      request,
     );
 
     const validated = validateCardData(
@@ -1055,8 +1081,12 @@ export async function POST(request: Request): Promise<NextResponse> {
     const incomingCardsTyped = validated.success ? validated.cards : [];
 
     const cardsKey = `cards:${userId}`;
-    console.log(
-      `📝 [${endpoint}] Storing card configuration using key: ${cardsKey}`,
+    logPrivacySafe(
+      "log",
+      endpoint,
+      "Storing card configuration",
+      { userId, cardsKey },
+      request,
     );
 
     const existingData = await redisClient.get(cardsKey);
@@ -1115,7 +1145,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     await redisClient.set(cardsKey, JSON.stringify(cardData));
 
     const duration = Date.now() - startTime;
-    logSuccess(endpoint, userId, duration, "Stored cards");
+    logSuccess(endpoint, userId, duration, "Stored cards", request);
     await incrementAnalytics(
       buildAnalyticsMetricKey(endpointKey, "successful_requests"),
     );

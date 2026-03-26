@@ -393,3 +393,39 @@ export function getErrorDetails(
     ],
   };
 }
+
+/**
+ * Build a safe summary string for user-facing fallbacks without exposing raw
+ * technical error details.
+ * @param message - Error message or key to look up.
+ * @param statusCode - Optional HTTP status code for categorization.
+ * @returns Concise user-facing summary derived from the structured error model.
+ * @source
+ */
+export function getSafeErrorSummary(
+  message: string,
+  statusCode?: number,
+): string {
+  const details = getErrorDetails(message, statusCode);
+  const primarySuggestion = details.suggestions.find(
+    (suggestion) => suggestion.description.trim().length > 0,
+  )?.description;
+
+  if (!primarySuggestion) {
+    return details.userMessage;
+  }
+
+  const normalizedUserMessage = details.userMessage.trim();
+  const normalizedSuggestion = primarySuggestion.trim();
+
+  if (
+    normalizedSuggestion
+      .toLowerCase()
+      .startsWith(normalizedUserMessage.toLowerCase())
+  ) {
+    return normalizedSuggestion;
+  }
+
+  const hasTerminalPunctuation = /[.!?]$/.test(normalizedUserMessage);
+  return `${normalizedUserMessage}${hasTerminalPunctuation ? "" : "."} ${normalizedSuggestion}`;
+}

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import { GET, OPTIONS } from "@/app/api/get-user/route";
 import {
+  allowConsoleWarningsAndErrors,
   sharedRatelimitMockLimit,
   sharedRedisMockDel,
   sharedRedisMockGet,
@@ -210,6 +211,7 @@ async function expectBootstrapJson(query: string | undefined) {
 
 describe("User API GET Endpoint", () => {
   beforeEach(() => {
+    allowConsoleWarningsAndErrors();
     mock.clearAllMocks();
     sharedRedisMockGet.mockReset();
     sharedRedisMockMget.mockReset();
@@ -473,6 +475,20 @@ describe("User API GET Endpoint", () => {
         "https://configured.example",
       );
     });
+
+    it("should echo X-Request-Id when the caller provides one", async () => {
+      mockStoredParts();
+
+      const res = await callGet("userId=123", {
+        origin: "http://example.dev",
+        "x-request-id": "req-user-12345",
+      });
+
+      expect(res.headers.get("X-Request-Id")).toBe("req-user-12345");
+      expect(res.headers.get("Access-Control-Expose-Headers")).toContain(
+        "X-Request-Id",
+      );
+    });
   });
 
   describe("Analytics Tracking", () => {
@@ -526,6 +542,7 @@ describe("User API GET Endpoint", () => {
 
 describe("User API OPTIONS Endpoint", () => {
   beforeEach(() => {
+    allowConsoleWarningsAndErrors();
     mock.clearAllMocks();
   });
 

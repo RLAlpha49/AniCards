@@ -16,6 +16,7 @@ import {
 
 import { displayNames } from "@/lib/card-data/validation";
 import {
+  allowConsoleWarningsAndErrors,
   sharedRatelimitMockLimit,
   sharedRatelimitMockSlidingWindow,
   sharedRedisMockGet,
@@ -81,6 +82,7 @@ describe("Store Cards API POST Endpoint", () => {
   });
 
   beforeEach(() => {
+    allowConsoleWarningsAndErrors();
     sharedRedisMockGet.mockReset();
     sharedRedisMockSet.mockReset();
     sharedRedisMockIncr.mockReset();
@@ -122,6 +124,30 @@ describe("Store Cards API POST Endpoint", () => {
         "http://localhost",
       );
       expect(res.headers.get("Access-Control-Allow-Methods")).toContain("POST");
+    });
+
+    it("should echo X-Request-Id on successful writes", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+      const response = await POST(
+        new Request("http://localhost/api/store-cards", {
+          method: "POST",
+          headers: {
+            "x-forwarded-for": "127.0.0.1",
+            origin: "http://localhost",
+            "Content-Type": "application/json",
+            "x-request-id": "req-store-cards-12345",
+          },
+          body: JSON.stringify({ userId: 1, statsData: {}, cards: [] }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("X-Request-Id")).toBe(
+        "req-store-cards-12345",
+      );
+      expect(response.headers.get("Access-Control-Expose-Headers")).toContain(
+        "X-Request-Id",
+      );
     });
   });
 

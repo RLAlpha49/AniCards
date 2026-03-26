@@ -10,10 +10,9 @@
 import {
   apiErrorResponse,
   apiJsonHeaders,
-  checkRateLimit,
   createRateLimiter,
-  getRequestIp,
   incrementAnalytics,
+  initializeApiRequest,
   isValidUsername,
   jsonWithCors,
   logPrivacySafe,
@@ -53,24 +52,37 @@ function respondWithUserApiError(
 
 async function resolveUserIdFromUsername(
   username: string,
+  request?: Request,
 ): Promise<number | null> {
   const normalizedUsername = normalizeUsernameIndexValue(username);
   if (!normalizedUsername) return null;
 
   const usernameIndexKey = `username:${normalizedUsername}`;
-  logPrivacySafe("log", USER_API_ENDPOINT, "Searching username index", {
-    username: normalizedUsername,
-  });
+  logPrivacySafe(
+    "log",
+    USER_API_ENDPOINT,
+    "Searching username index",
+    {
+      username: normalizedUsername,
+    },
+    request,
+  );
   const userIdFromIndex = await redisClient.get(usernameIndexKey);
   if (!userIdFromIndex) return null;
 
   const candidate = parseStrictPositiveInteger(String(userIdFromIndex));
   if (!candidate) return null;
 
-  logPrivacySafe("log", USER_API_ENDPOINT, "Resolved lookup by username", {
-    username: normalizedUsername,
-    userId: candidate,
-  });
+  logPrivacySafe(
+    "log",
+    USER_API_ENDPOINT,
+    "Resolved lookup by username",
+    {
+      username: normalizedUsername,
+      userId: candidate,
+    },
+    request,
+  );
   return candidate;
 }
 
@@ -123,7 +135,7 @@ async function resolveLookupTarget(
   }
 
   const normalizedLookupUsername = normalizeUsernameIndexValue(usernameParam);
-  const userId = await resolveUserIdFromUsername(usernameParam!);
+  const userId = await resolveUserIdFromUsername(usernameParam!, request);
   if (!userId) {
     return respondWithUserApiError(
       request,
@@ -163,27 +175,23 @@ async function handleStaleUsernameAlias(
  * @source
  */
 export async function GET(request: Request) {
-  const startTime = Date.now();
-  const ip = getRequestIp(request);
-
-  const rateLimitResponse = await checkRateLimit(
+  const init = await initializeApiRequest(
     request,
-    ip,
     "User API",
     "user_api",
     ratelimit,
+    { skipSameOrigin: true },
   );
-  if (rateLimitResponse) {
-    return rateLimitResponse;
-  }
+  if (init.errorResponse) return init.errorResponse;
+
+  const { startTime } = init;
 
   logPrivacySafe(
     "log",
     USER_API_ENDPOINT,
     "Received public user lookup request",
-    {
-      ip,
-    },
+    undefined,
+    request,
   );
 
   const { searchParams } = new URL(request.url);
@@ -213,10 +221,16 @@ export async function GET(request: Request) {
     const duration = Date.now() - startTime;
 
     if (!userDataParts.meta) {
-      logPrivacySafe("warn", "User API", "User record not found", {
-        userId: numericUserId,
-        durationMs: duration,
-      });
+      logPrivacySafe(
+        "warn",
+        "User API",
+        "User record not found",
+        {
+          userId: numericUserId,
+          durationMs: duration,
+        },
+        request,
+      );
       return apiErrorResponse(request, 404, "User not found");
     }
 
@@ -245,6 +259,7 @@ export async function GET(request: Request) {
         userId: numericUserId,
         durationMs: duration,
       },
+      request,
     );
     trackUserApiMetric(USER_API_SUCCESS_METRIC);
     return jsonWithCors(userData, request);
@@ -255,14 +270,18 @@ export async function GET(request: Request) {
       error instanceof UserDataIntegrityError
         ? "Stored user record is incomplete or corrupted"
         : "Failed to fetch user data";
-    logPrivacySafe("error", USER_API_ENDPOINT, "Error fetching user data", {
-      userId: numericUserId,
-      durationMs: duration,
-      error: error.message,
-    });
-    if (error.stack) {
-      console.error(`💥 [${USER_API_ENDPOINT}] Stack Trace: ${error.stack}`);
-    }
+    logPrivacySafe(
+      "error",
+      USER_API_ENDPOINT,
+      "Error fetching user data",
+      {
+        userId: numericUserId,
+        durationMs: duration,
+        error: error.message,
+        ...(error.stack ? { stack: error.stack } : {}),
+      },
+      request,
+    );
     trackUserApiMetric(USER_API_FAILED_METRIC);
     return apiErrorResponse(request, 500, errorMessage);
   }

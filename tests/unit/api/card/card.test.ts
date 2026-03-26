@@ -5,12 +5,13 @@
  * full-SVG snapshots.
  */
 
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import { clearImageDataUrlCaches } from "@/lib/image-utils";
 import { getPartsForCard, splitUserRecord } from "@/lib/server/user-data";
 import { clearSvgCache, clearUserRequestStats } from "@/lib/stores/svg-cache";
 import {
+  allowConsoleWarningsAndErrors,
   sharedRatelimitMockLimit,
   sharedRatelimitMockSlidingWindow,
   sharedRedisMockGet,
@@ -408,6 +409,10 @@ resetSharedRouteMocks();
 describe("Card SVG Route", () => {
   const baseUrl = "http://localhost/api/card.svg";
 
+  beforeEach(() => {
+    allowConsoleWarningsAndErrors();
+  });
+
   afterEach(() => {
     mock.clearAllMocks();
     clearImageDataUrlCaches();
@@ -479,6 +484,31 @@ describe("Card SVG Route", () => {
       expect(sharedRatelimitMockLimit.mock.calls[0]?.[1]).toMatchObject({
         ip: "127.0.0.1",
       });
+    });
+
+    it("should echo X-Request-Id on SVG responses", async () => {
+      const cardsData = createMockCardData("animeStats", "default");
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
+        {
+          headers: {
+            origin: "http://example.dev",
+            "x-request-id": "req-card-12345",
+          },
+        },
+      );
+
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("X-Request-Id")).toBe("req-card-12345");
+      expect(res.headers.get("Access-Control-Expose-Headers")).toContain(
+        "X-Request-Id",
+      );
     });
   });
 

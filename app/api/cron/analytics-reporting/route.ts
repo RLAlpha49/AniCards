@@ -2,7 +2,10 @@ import type { Redis as UpstashRedis } from "@upstash/redis";
 
 import {
   apiJsonHeaders,
+  apiTextHeaders,
   authorizeCronRequest,
+  initializeApiRequest,
+  logPrivacySafe,
   redisClient,
   scanAllKeys,
 } from "@/lib/api-utils";
@@ -224,6 +227,16 @@ async function createAndSaveReport(
  * @source
  */
 export async function GET(request: Request) {
+  const init = await initializeApiRequest(
+    request,
+    "Analytics & Reporting",
+    "analytics_reporting",
+    undefined,
+    { skipRateLimit: true, skipSameOrigin: true, requireOrigin: false },
+  );
+  if (init.errorResponse) return init.errorResponse;
+
+  const { endpoint } = init;
   const authError = checkCronAuthorization(request);
   if (authError) {
     return authError;
@@ -250,9 +263,17 @@ export async function GET(request: Request) {
       headers: apiJsonHeaders(request),
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(
-      `🔥 [Analytics & Reporting] Failed to read stored reports: ${message}`,
+    logPrivacySafe(
+      "error",
+      endpoint,
+      "Failed to read stored analytics reports",
+      {
+        error: error instanceof Error ? error.message : String(error),
+        ...(error instanceof Error && error.stack
+          ? { stack: error.stack }
+          : {}),
+      },
+      request,
     );
 
     return new Response(
@@ -272,14 +293,27 @@ export async function GET(request: Request) {
  * @source
  */
 export async function POST(request: Request) {
+  const init = await initializeApiRequest(
+    request,
+    "Analytics & Reporting",
+    "analytics_reporting",
+    undefined,
+    { skipRateLimit: true, skipSameOrigin: true, requireOrigin: false },
+  );
+  if (init.errorResponse) return init.errorResponse;
+
+  const { startTime, endpoint } = init;
   const authError = checkCronAuthorization(request);
   if (authError) {
     return authError;
   }
 
-  const startTime = Date.now();
-  console.log(
-    "🛠️ [Analytics & Reporting] Starting analytics and reporting job...",
+  logPrivacySafe(
+    "log",
+    endpoint,
+    "Starting analytics and reporting job",
+    undefined,
+    request,
   );
 
   try {
@@ -294,7 +328,13 @@ export async function POST(request: Request) {
     );
 
     const duration = Date.now() - startTime;
-    console.log(`🛠️ [Analytics & Reporting] Job completed in ${duration}ms`);
+    logPrivacySafe(
+      "log",
+      endpoint,
+      "Analytics and reporting job completed",
+      { durationMs: duration },
+      request,
+    );
 
     return new Response(JSON.stringify(report), {
       status: 200,
@@ -302,13 +342,19 @@ export async function POST(request: Request) {
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
-    console.error(`🔥 [Analytics & Reporting] Job failed: ${error.message}`);
-    if (error.stack) {
-      console.error(`💥 [Analytics & Reporting] Stack Trace: ${error.stack}`);
-    }
+    logPrivacySafe(
+      "error",
+      endpoint,
+      "Analytics and reporting job failed",
+      {
+        error: error.message,
+        ...(error.stack ? { stack: error.stack } : {}),
+      },
+      request,
+    );
     return new Response("Analytics and reporting job failed", {
       status: 500,
-      headers: apiJsonHeaders(request),
+      headers: apiTextHeaders(request),
     });
   }
 }

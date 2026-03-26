@@ -3,6 +3,25 @@ import { NextResponse } from "next/server";
 
 import { buildCSPHeader } from "@/lib/csp-config";
 
+const REQUEST_ID_HEADER = "x-request-id";
+
+function isSafeRequestId(value: string): boolean {
+  return /^[A-Za-z0-9._:-]{8,120}$/.test(value);
+}
+
+function getOrCreateRequestId(request: NextRequest): string {
+  const existing = request.headers.get(REQUEST_ID_HEADER)?.trim();
+  if (existing && isSafeRequestId(existing)) {
+    return existing;
+  }
+
+  if (typeof crypto?.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 /**
  * Generates a cryptographically secure random nonce for CSP
  *
@@ -43,6 +62,7 @@ function generateNonce(): string {
  */
 export function middleware(request: NextRequest) {
   const nonce = generateNonce();
+  const requestId = getOrCreateRequestId(request);
 
   const cspHeader = buildCSPHeader(nonce, {
     allowUnsafeEval: process.env.NODE_ENV !== "production",
@@ -50,6 +70,7 @@ export function middleware(request: NextRequest) {
 
   const forwardedHeaders = new Headers(request.headers);
   forwardedHeaders.set("x-nonce", nonce);
+  forwardedHeaders.set(REQUEST_ID_HEADER, requestId);
   const response = NextResponse.next({
     request: {
       headers: forwardedHeaders,
@@ -59,6 +80,7 @@ export function middleware(request: NextRequest) {
   response.headers.set("Content-Security-Policy", cspHeader);
 
   response.headers.set("x-nonce", nonce);
+  response.headers.set("X-Request-Id", requestId);
 
   return response;
 }

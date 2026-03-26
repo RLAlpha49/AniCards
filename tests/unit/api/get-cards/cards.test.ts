@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import {
+  allowConsoleWarningsAndErrors,
   sharedRatelimitMockLimit,
   sharedRedisMockGet,
   sharedRedisMockIncr,
@@ -22,6 +23,7 @@ describe("Cards API GET Endpoint", () => {
   const baseUrl = "http://localhost/api/get-cards";
 
   beforeEach(() => {
+    allowConsoleWarningsAndErrors();
     sharedRedisMockIncr.mockResolvedValue(1);
     sharedRatelimitMockLimit.mockResolvedValue({
       success: true,
@@ -415,6 +417,27 @@ describe("Cards API GET Endpoint", () => {
       const res = await GET(req);
       expect(res.status).toBe(200);
       expect(res.headers.get("Access-Control-Allow-Origin")).toBeDefined();
+    });
+
+    it("should echo X-Request-Id when provided", async () => {
+      const cardData = {
+        cards: [{ cardName: "animeStats", titleColor: "#000" }],
+      };
+      sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(cardData));
+      const req = new Request(`${baseUrl}?userId=456`, {
+        headers: {
+          "x-forwarded-for": "127.0.0.1",
+          origin: "http://example.dev",
+          "x-request-id": "req-cards-12345",
+        },
+      });
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("X-Request-Id")).toBe("req-cards-12345");
+      expect(res.headers.get("Access-Control-Expose-Headers")).toContain(
+        "X-Request-Id",
+      );
     });
   });
 });

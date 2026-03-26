@@ -14,7 +14,10 @@ import {
   sanitizeCssContent,
   sanitizeInlineStyleAttributes,
 } from "@/app/api/convert/route";
-import { sharedRatelimitMockLimit } from "@/tests/unit/__setup__";
+import {
+  allowConsoleWarningsAndErrors,
+  sharedRatelimitMockLimit,
+} from "@/tests/unit/__setup__";
 
 /**
  * Captures the buffer passed into `sharp` so tests can inspect the SVG payload.
@@ -85,6 +88,7 @@ describe("Convert API POST Endpoint", () => {
   }
 
   beforeEach(() => {
+    allowConsoleWarningsAndErrors();
     lastSharpBuffer = null;
     lastSharpFormat = "png";
     sharedRatelimitMockLimit.mockResolvedValue({

@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchUserCards } from "@/lib/api/cards";
 import { isValidUsername } from "@/lib/api-utils";
 import { statCardTypes } from "@/lib/card-types";
-import { getErrorDetails } from "@/lib/error-messages";
+import { getErrorDetails, getSafeErrorSummary } from "@/lib/error-messages";
 import { trackUserActionError } from "@/lib/error-tracking";
 import { getUserProfilePath } from "@/lib/seo";
 import { useUserPageEditor } from "@/lib/stores/user-page-editor";
@@ -168,7 +168,7 @@ export function useUserDataLoader(options?: { routeUsername?: string }) {
           const errorDetails = getErrorDetails(
             cardsResult.error ?? "Unknown error",
           );
-          trackUserActionError(
+          void trackUserActionError(
             "user_page_load_fetch_cards",
             new Error(cardsResult.error ?? "Unknown error"),
             errorDetails.category,
@@ -257,7 +257,7 @@ export function useUserDataLoader(options?: { routeUsername?: string }) {
 
       if ("error" in setupResult) {
         setLoading(false);
-        setLoadError(setupResult.error ?? "Unknown error");
+        setLoadError(getSafeErrorSummary(setupResult.error ?? "Unknown error"));
         setLoadingPhase("error");
         lastLoadedUserRef.current = null;
         return;
@@ -270,13 +270,13 @@ export function useUserDataLoader(options?: { routeUsername?: string }) {
 
     if ("error" in userResult) {
       const errorDetails = getErrorDetails(userResult.error ?? "Unknown error");
-      trackUserActionError(
+      void trackUserActionError(
         "user_page_load",
         new Error(userResult.error ?? "Unknown error"),
         errorDetails.category,
       );
       setLoading(false);
-      setLoadError(userResult.error ?? "Unknown error");
+      setLoadError(getSafeErrorSummary(userResult.error ?? "Unknown error"));
       setLoadingPhase("error");
       lastLoadedUserRef.current = null;
       return;

@@ -7,6 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import {
+  allowConsoleWarningsAndErrors,
   sharedRedisMockDel,
   sharedRedisMockGet,
   sharedRedisMockMget,
@@ -186,6 +187,7 @@ function createJsonResponse(status: number, payload: unknown) {
 
 describe("Cron API Route", () => {
   beforeEach(() => {
+    allowConsoleWarningsAndErrors();
     process.env = {
       ...process.env,
       CRON_SECRET,
@@ -244,6 +246,25 @@ describe("Cron API Route", () => {
       "Updated 0/0 users successfully. Failed: 0, Removed: 0",
     );
     expect(text).toContain("Recommended schedules to refresh all 0 users");
+  });
+
+  it("echoes X-Request-Id on cron responses", async () => {
+    sharedRedisMockScan.mockResolvedValueOnce([0, []]);
+
+    const response = await POST(
+      new Request("http://localhost/api/cron", {
+        headers: {
+          "x-cron-secret": CRON_SECRET,
+          "x-request-id": "req-cron-12345",
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("X-Request-Id")).toBe("req-cron-12345");
+    expect(response.headers.get("Access-Control-Expose-Headers")).toContain(
+      "X-Request-Id",
+    );
   });
 
   it("updates only the 5 oldest users in a batch and persists refreshed data", async () => {

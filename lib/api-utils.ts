@@ -402,6 +402,15 @@ interface NormalizedUpstreamFetchOptions extends UpstreamFetchOptions {
   maxBackoffMs: number;
 }
 
+interface ApiRequestContext {
+  requestId: string;
+  method: string;
+  path: string;
+  ip?: string;
+  endpoint?: string;
+  endpointKey?: string;
+}
+
 const DEFAULT_UPSTREAM_TIMEOUT_MS = 5_000;
 const DEFAULT_UPSTREAM_MAX_ATTEMPTS = 3;
 const DEFAULT_UPSTREAM_BACKOFF_BASE_MS = 250;
@@ -409,6 +418,8 @@ const DEFAULT_UPSTREAM_MAX_BACKOFF_MS = 5_000;
 const DEFAULT_CIRCUIT_BREAKER_FAILURE_THRESHOLD = 5;
 const DEFAULT_CIRCUIT_BREAKER_COOLDOWN_MS = 30_000;
 const upstreamCircuitStates = new Map<string, UpstreamCircuitState>();
+const apiRequestContextStore = new WeakMap<Request, ApiRequestContext>();
+const REQUEST_ID_HEADER = "X-Request-Id";
 let hasLoggedMissingApiOriginInProduction = false;
 
 function normalizeOrigin(value: string | null | undefined): string | null {
@@ -418,6 +429,123 @@ function normalizeOrigin(value: string | null | undefined): string | null {
   } catch {
     return null;
   }
+}
+
+function isSafeRequestId(value: string): boolean {
+  return /^[A-Za-z0-9._:-]{8,120}$/.test(value);
+}
+
+function createRequestId(): string {
+  if (typeof crypto?.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function getRequestPath(request: Request): string {
+  try {
+    return new URL(request.url).pathname;
+  } catch {
+    return request.url;
+  }
+}
+
+function resolveProvidedRequestId(
+  value: string | null | undefined,
+): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed || !isSafeRequestId(trimmed)) return undefined;
+  return trimmed;
+}
+
+function mergeHeaderList(
+  existingValue: string | undefined,
+  entryToAdd: string,
+): string {
+  const mergedEntries = new Map<string, string>();
+
+  for (const entry of (existingValue ?? "").split(",")) {
+    const trimmed = entry.trim();
+    if (!trimmed) continue;
+    mergedEntries.set(trimmed.toLowerCase(), trimmed);
+  }
+
+  mergedEntries.set(entryToAdd.toLowerCase(), entryToAdd);
+  return [...mergedEntries.values()].join(", ");
+}
+
+export function ensureRequestContext(
+  request: Request,
+  options?: Partial<Omit<ApiRequestContext, "requestId">> & {
+    requestId?: string;
+  },
+): ApiRequestContext {
+  const existing = apiRequestContextStore.get(request);
+
+  const requestId =
+    resolveProvidedRequestId(options?.requestId) ??
+    resolveProvidedRequestId(request.headers.get(REQUEST_ID_HEADER)) ??
+    resolveProvidedRequestId(
+      request.headers.get(REQUEST_ID_HEADER.toLowerCase()),
+    ) ??
+    existing?.requestId ??
+    createRequestId();
+
+  const nextContext: ApiRequestContext = {
+    requestId,
+    method: options?.method ?? existing?.method ?? request.method,
+    path: options?.path ?? existing?.path ?? getRequestPath(request),
+    ...((options?.ip ?? existing?.ip)
+      ? { ip: options?.ip ?? existing?.ip }
+      : {}),
+    ...((options?.endpoint ?? existing?.endpoint)
+      ? { endpoint: options?.endpoint ?? existing?.endpoint }
+      : {}),
+    ...((options?.endpointKey ?? existing?.endpointKey)
+      ? { endpointKey: options?.endpointKey ?? existing?.endpointKey }
+      : {}),
+  };
+
+  apiRequestContextStore.set(request, nextContext);
+  return nextContext;
+}
+
+export function getRequestContext(
+  request?: Request,
+): ApiRequestContext | undefined {
+  if (!request) return undefined;
+  return apiRequestContextStore.get(request);
+}
+
+export function getRequestId(request?: Request): string | undefined {
+  if (!request) return undefined;
+
+  return (
+    apiRequestContextStore.get(request)?.requestId ??
+    resolveProvidedRequestId(request.headers.get(REQUEST_ID_HEADER)) ??
+    resolveProvidedRequestId(
+      request.headers.get(REQUEST_ID_HEADER.toLowerCase()),
+    )
+  );
+}
+
+export function withRequestIdHeaders(
+  headers: Record<string, string>,
+  request?: Request,
+  requestId?: string,
+): Record<string, string> {
+  const effectiveRequestId = requestId ?? getRequestId(request);
+  if (!effectiveRequestId) return headers;
+
+  return {
+    ...headers,
+    [REQUEST_ID_HEADER]: effectiveRequestId,
+    "Access-Control-Expose-Headers": mergeHeaderList(
+      headers["Access-Control-Expose-Headers"],
+      REQUEST_ID_HEADER,
+    ),
+  };
 }
 
 /**
@@ -499,7 +627,14 @@ export function apiJsonHeaders(request?: Request): Record<string, string> {
     headers["Access-Control-Allow-Origin"] = allowedOrigin;
   }
 
-  return headers;
+  return withRequestIdHeaders(headers, request);
+}
+
+export function apiTextHeaders(request?: Request): Record<string, string> {
+  return {
+    ...apiJsonHeaders(request),
+    "Content-Type": "text/plain",
+  };
 }
 
 function getRetryAfterMs(retryAfterHeader: string | null): number | undefined {
@@ -915,32 +1050,40 @@ export function authorizeCronRequest(
 
   if (!cronSecret) {
     if (shouldAllowUnsecuredCronInDevelopment()) {
-      console.warn(
-        `🔓 [${endpointName}] Allowing unsecured cron request in development because ALLOW_UNSECURED_CRON_IN_DEV=true.`,
+      logPrivacySafe(
+        "warn",
+        endpointName,
+        "Allowing unsecured cron request in development because ALLOW_UNSECURED_CRON_IN_DEV=true.",
+        undefined,
+        request,
       );
       return null;
     }
 
-    console.error(
-      `🔒 [${endpointName}] Rejected request because CRON_SECRET is not configured.`,
+    logPrivacySafe(
+      "error",
+      endpointName,
+      "Rejected request because CRON_SECRET is not configured.",
+      undefined,
+      request,
     );
     return new Response("CRON_SECRET is not configured", {
       status: 503,
-      headers: {
-        ...apiJsonHeaders(request),
-        "Content-Type": "text/plain",
-      },
+      headers: apiTextHeaders(request),
     });
   }
 
   if (cronSecretHeader !== cronSecret) {
-    console.error(`🔒 [${endpointName}] Unauthorized: Invalid Cron secret`);
+    logPrivacySafe(
+      "error",
+      endpointName,
+      "Unauthorized: Invalid Cron secret",
+      undefined,
+      request,
+    );
     return new Response("Unauthorized", {
       status: 401,
-      headers: {
-        ...apiJsonHeaders(request),
-        "Content-Type": "text/plain",
-      },
+      headers: apiTextHeaders(request),
     });
   }
 
@@ -1104,6 +1247,10 @@ function sanitizeLogContextValue(
     return redactUserIdentifier(value);
   }
 
+  if (normalizedKey === "requestid") {
+    return truncateLogString(String(value), 120);
+  }
+
   return truncateLogString(safeStringifyValue(value));
 }
 
@@ -1112,20 +1259,39 @@ export function logPrivacySafe(
   endpoint: string,
   message: string,
   context?: Record<string, unknown>,
+  request?: Request,
 ): void {
+  const requestContext = request ? getRequestContext(request) : undefined;
+  const requestIdFromContext =
+    typeof context?.requestId === "string"
+      ? resolveProvidedRequestId(context.requestId)
+      : undefined;
+
   const safeContextEntries = Object.entries(context ?? {}).flatMap(
     ([key, value]) => {
+      if (key === "requestId") return [];
       const sanitizedValue = sanitizeLogContextValue(key, value);
       return sanitizedValue === undefined ? [] : [[key, sanitizedValue]];
     },
   );
 
   const safeContext = Object.fromEntries(safeContextEntries);
-  const serializedContext = Object.keys(safeContext).length
-    ? ` ${JSON.stringify(safeContext)}`
-    : "";
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    level: level === "log" ? "info" : level,
+    endpoint,
+    message,
+    ...((requestIdFromContext ?? requestContext?.requestId)
+      ? {
+          requestId: requestIdFromContext ?? requestContext?.requestId,
+        }
+      : {}),
+    ...(requestContext?.method ? { method: requestContext.method } : {}),
+    ...(requestContext?.path ? { path: requestContext.path } : {}),
+    ...(Object.keys(safeContext).length > 0 ? { context: safeContext } : {}),
+  };
 
-  console[level](`[${endpoint}] ${message}${serializedContext}`);
+  console[level](JSON.stringify(logEntry));
 }
 
 function createRateLimitHeaders(options: {
@@ -1245,8 +1411,12 @@ export function validateSameOrigin(
   const requireOrigin = options?.requireOrigin ?? false;
 
   if (process.env.NODE_ENV === "production" && !configuredAppOrigin) {
-    console.error(
-      `🔐 [${endpointName}] Rejected request because NEXT_PUBLIC_APP_URL is not configured in production.`,
+    logPrivacySafe(
+      "error",
+      endpointName,
+      "Rejected request because NEXT_PUBLIC_APP_URL is not configured in production.",
+      undefined,
+      request,
     );
 
     const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
@@ -1261,8 +1431,12 @@ export function validateSameOrigin(
   const allowedOrigin = configuredAppOrigin ?? requestOrigin;
 
   if (requireOrigin && !origin) {
-    console.warn(
-      `🔐 [${endpointName}] Rejected request with missing Origin header (allowed: ${allowedOrigin})`,
+    logPrivacySafe(
+      "warn",
+      endpointName,
+      "Rejected request with missing Origin header",
+      { allowedOrigin },
+      request,
     );
 
     const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
@@ -1277,15 +1451,22 @@ export function validateSameOrigin(
   const isSameOrigin = !origin || origin === allowedOrigin;
 
   if (!isSameOrigin) {
-    console.warn(
-      `🔐 [${endpointName}] Rejected cross-origin request from: ${origin} (allowed: ${allowedOrigin})`,
+    logPrivacySafe(
+      "warn",
+      endpointName,
+      "Rejected cross-origin request",
+      { origin, allowedOrigin },
+      request,
     );
 
     const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
 
     incrementAnalytics(metric).catch((err) => {
       if (process.env.NODE_ENV !== "production") {
-        console.warn(`Analytics increment failed for ${metric}:`, err);
+        logPrivacySafe("warn", endpointName, "Analytics increment failed", {
+          metric,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     });
 
@@ -1316,7 +1497,10 @@ export async function incrementAnalytics(metric: string): Promise<void> {
     await redisClient.incr(metric);
   } catch (error) {
     // Silently fail analytics to avoid affecting main functionality
-    console.warn(`Failed to increment analytics for ${metric}:`, error);
+    logPrivacySafe("warn", "Analytics", "Failed to increment analytics", {
+      metric,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
@@ -1346,12 +1530,19 @@ export function buildAnalyticsMetricKey(
 export function logRequest(
   endpoint: string,
   ip: string,
+  request?: Request,
   details?: string,
 ): void {
-  logPrivacySafe("log", endpoint, "Incoming request", {
-    ip,
-    ...(details ? { details } : {}),
-  });
+  logPrivacySafe(
+    "log",
+    endpoint,
+    "Incoming request",
+    {
+      ip,
+      ...(details ? { details } : {}),
+    },
+    request,
+  );
 }
 
 /**
@@ -1374,14 +1565,17 @@ export function handleError(
   request?: Request,
 ): NextResponse<ApiError> {
   const duration = Date.now() - startTime;
-  logPrivacySafe("error", endpoint, "Request failed", {
-    durationMs: duration,
-    error: error.message,
-  });
-
-  if (error.stack) {
-    console.error(`💥 [${endpoint}] Stack Trace: ${error.stack}`);
-  }
+  logPrivacySafe(
+    "error",
+    endpoint,
+    "Request failed",
+    {
+      durationMs: duration,
+      error: error.message,
+      ...(error.stack ? { stack: error.stack } : {}),
+    },
+    request,
+  );
 
   incrementAnalytics(analyticsMetric).catch(() => {});
 
@@ -1410,11 +1604,18 @@ export function logSuccess(
   userId: number,
   duration: number,
   details?: string,
+  request?: Request,
 ): void {
-  logPrivacySafe("log", endpoint, details ?? "Successfully processed request", {
-    userId,
-    durationMs: duration,
-  });
+  logPrivacySafe(
+    "log",
+    endpoint,
+    details ?? "Successfully processed request",
+    {
+      userId,
+      durationMs: duration,
+    },
+    request,
+  );
 }
 
 /**
@@ -2211,6 +2412,7 @@ export interface ApiInitResult {
   ip: string;
   endpoint: string;
   endpointKey: string;
+  requestId: string;
   errorResponse?: NextResponse<ApiError>;
 }
 
@@ -2230,48 +2432,69 @@ export async function initializeApiRequest(
   limiter?: Ratelimit,
   options?: {
     requireOrigin?: boolean;
+    skipRateLimit?: boolean;
+    skipSameOrigin?: boolean;
+    requestId?: string;
   },
 ): Promise<ApiInitResult> {
   const startTime = Date.now();
   const ip = getRequestIp(request);
   const endpoint = endpointName;
+  const requestContext = ensureRequestContext(request, {
+    endpoint,
+    endpointKey,
+    ip,
+    requestId: options?.requestId,
+  });
 
-  logRequest(endpoint, ip);
+  logRequest(endpoint, ip, request);
 
-  const rateLimitResponse = await checkRateLimit(
-    request,
+  if (!options?.skipRateLimit) {
+    const rateLimitResponse = await checkRateLimit(
+      request,
+      ip,
+      endpoint,
+      endpointKey,
+      limiter,
+    );
+    if (rateLimitResponse) {
+      return {
+        startTime,
+        ip,
+        endpoint,
+        endpointKey,
+        requestId: requestContext.requestId,
+        errorResponse: rateLimitResponse,
+      };
+    }
+  }
+
+  if (!options?.skipSameOrigin) {
+    const sameOriginResponse = validateSameOrigin(
+      request,
+      endpoint,
+      endpointKey,
+      {
+        requireOrigin: options?.requireOrigin ?? true,
+      },
+    );
+    if (sameOriginResponse) {
+      return {
+        startTime,
+        ip,
+        endpoint,
+        endpointKey,
+        requestId: requestContext.requestId,
+        errorResponse: sameOriginResponse,
+      };
+    }
+  }
+
+  return {
+    startTime,
     ip,
     endpoint,
     endpointKey,
-    limiter,
-  );
-  if (rateLimitResponse) {
-    return {
-      startTime,
-      ip,
-      endpoint,
-      endpointKey,
-      errorResponse: rateLimitResponse,
-    };
-  }
-
-  const sameOriginResponse = validateSameOrigin(
-    request,
-    endpoint,
-    endpointKey,
-    {
-      requireOrigin: options?.requireOrigin ?? true,
-    },
-  );
-  if (sameOriginResponse) {
-    return {
-      startTime,
-      ip,
-      endpoint,
-      endpointKey,
-      errorResponse: sameOriginResponse,
-    };
-  }
-
-  return { startTime, ip, endpoint, endpointKey };
+    requestId: requestContext.requestId,
+  };
 }

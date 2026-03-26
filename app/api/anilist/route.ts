@@ -236,26 +236,44 @@ async function executeAniListRequest(
   const resolvedRequest = resolveAniListRequest(requestData);
   const operationInfo = parseOperationInfo(resolvedRequest);
 
-  logPrivacySafe("log", "AniList API", "Forwarding AniList operation", {
-    operation: operationInfo.name,
-    userIdentifier: operationInfo.userIdentifier,
-  });
+  logPrivacySafe(
+    "log",
+    "AniList API",
+    "Forwarding AniList operation",
+    {
+      operation: operationInfo.name,
+      userIdentifier: operationInfo.userIdentifier,
+    },
+    request,
+  );
 
   const data = await makeAniListRequest(resolvedRequest, request);
   const duration = Date.now() - startTime;
 
   if (duration > 1000) {
-    logPrivacySafe("warn", "AniList API", "Slow AniList request", {
-      operation: operationInfo.name,
-      durationMs: duration,
-    });
+    logPrivacySafe(
+      "warn",
+      "AniList API",
+      "Slow AniList request",
+      {
+        operation: operationInfo.name,
+        durationMs: duration,
+      },
+      request,
+    );
   }
 
-  logPrivacySafe("log", "AniList API", "AniList operation completed", {
-    operation: operationInfo.name,
-    userIdentifier: operationInfo.userIdentifier,
-    durationMs: duration,
-  });
+  logPrivacySafe(
+    "log",
+    "AniList API",
+    "AniList operation completed",
+    {
+      operation: operationInfo.name,
+      userIdentifier: operationInfo.userIdentifier,
+      durationMs: duration,
+    },
+    request,
+  );
 
   return { data, operationInfo };
 }
@@ -353,10 +371,16 @@ async function makeAniListRequest(
   const rateLimitRemaining = response.headers.get("X-RateLimit-Remaining");
   const rateLimitReset = response.headers.get("X-RateLimit-Reset");
   if (rateLimitLimit || rateLimitRemaining || rateLimitReset) {
-    console.log(
-      `🧭 [AniList API] Rate Limit: ${rateLimitLimit || "?"} Remaining: ${
-        rateLimitRemaining || "?"
-      } Reset: ${rateLimitReset || "?"}`,
+    logPrivacySafe(
+      "log",
+      "AniList API",
+      "Observed AniList upstream rate-limit headers",
+      {
+        rateLimitLimit: rateLimitLimit || "?",
+        rateLimitRemaining: rateLimitRemaining || "?",
+        rateLimitReset: rateLimitReset || "?",
+      },
+      request,
     );
   }
 
@@ -386,16 +410,17 @@ async function makeAniListRequest(
  * @source
  */
 export async function POST(request: Request) {
-  const testResponse = handleTestSimulation(request);
-  if (testResponse) {
-    return testResponse;
-  }
   const init = await initializeApiRequest(
     request,
     "AniList API",
     "anilist_api",
   );
   if (init.errorResponse) return init.errorResponse;
+
+  const testResponse = handleTestSimulation(request);
+  if (testResponse) {
+    return testResponse;
+  }
 
   const { startTime } = init;
   let operationInfo: OperationInfo = {
@@ -428,31 +453,43 @@ export async function POST(request: Request) {
 
     const statusCode = getAniListStatusCode(error, errorMessage);
 
-    logPrivacySafe("error", "AniList API", "AniList request failed", {
-      operation: operationInfo.name,
-      userIdentifier: operationInfo.userIdentifier,
-      durationMs: duration,
-      statusCode,
-      error: errorMessage,
-    });
-
-    if (error instanceof Error && error.stack) {
-      console.error(`💥 [AniList API] Stack Trace: ${error.stack}`);
-    }
+    logPrivacySafe(
+      "error",
+      "AniList API",
+      "AniList request failed",
+      {
+        operation: operationInfo.name,
+        userIdentifier: operationInfo.userIdentifier,
+        durationMs: duration,
+        statusCode,
+        error: errorMessage,
+        ...(error instanceof Error && error.stack
+          ? { stack: error.stack }
+          : {}),
+      },
+      request,
+    );
 
     const errorCategory =
       statusCode === 500
         ? categorizeError(errorMessage)
         : categorizeByStatusCode(statusCode);
 
-    trackUserActionError(
-      `anilist_api_${operationInfo.name}`,
-      error instanceof Error ? error : new Error(errorMessage),
-      errorCategory,
-      {
-        userId: redactUserIdentifier(operationInfo.userIdentifier),
-        statusCode,
-      },
+    await Promise.resolve(
+      trackUserActionError(
+        `anilist_api_${operationInfo.name}`,
+        error instanceof Error ? error : new Error(errorMessage),
+        errorCategory,
+        {
+          userId: redactUserIdentifier(operationInfo.userIdentifier),
+          statusCode,
+          source: "api_route",
+          metadata: {
+            endpoint: "anilist_api",
+            operation: operationInfo.name,
+          },
+        },
+      ),
     );
 
     await trackAnalytics(

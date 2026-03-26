@@ -6,6 +6,8 @@ import type { ErrorInfo, ReactNode } from "react";
 import { Component } from "react";
 
 import { Button } from "@/components/ui/Button";
+import { getErrorDetails, type RecoverySuggestion } from "@/lib/error-messages";
+import { reportStructuredError } from "@/lib/error-tracking";
 import { cn } from "@/lib/utils";
 import { safeTrack, trackError } from "@/lib/utils/google-analytics";
 
@@ -35,6 +37,13 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
+export interface ErrorFallbackModel {
+  heading: string;
+  message: string;
+  retryable: boolean;
+  suggestions: RecoverySuggestion[];
+}
+
 /**
  * Returns true when two reset key collections differ.
  * @param prev - Previous reset keys.
@@ -46,6 +55,198 @@ function haveResetKeysChanged(prev?: ResetKey[], next?: ResetKey[]): boolean {
   if (prev === undefined || next === undefined) return true;
   if (prev.length !== next.length) return true;
   return prev.some((value, index) => value !== next[index]);
+}
+
+/**
+ * Convert an Error into safe user-facing fallback content using the shared
+ * structured error model.
+ * @param error - Runtime error caught by a boundary.
+ * @returns Safe fallback copy and recovery suggestions.
+ * @source
+ */
+export function buildErrorFallbackModel(
+  error: Error | null,
+): ErrorFallbackModel {
+  const details = getErrorDetails(
+    error?.message ?? "We couldn't render this part of the experience.",
+  );
+
+  return {
+    heading: "Something went wrong",
+    message: details.userMessage,
+    retryable: details.retryable,
+    suggestions: details.suggestions,
+  };
+}
+
+function isExternalActionUrl(url: string): boolean {
+  return /^https?:\/\//i.test(url);
+}
+
+function RecoverySuggestionAction(
+  props: Readonly<{ suggestion: RecoverySuggestion }>,
+) {
+  const actionUrl = props.suggestion.actionUrl;
+  const actionLabel = props.suggestion.actionLabel;
+
+  if (!actionUrl || !actionLabel) {
+    return null;
+  }
+
+  if (isExternalActionUrl(actionUrl)) {
+    return (
+      <a
+        href={actionUrl}
+        target="_blank"
+        rel="noreferrer noopener"
+        className="text-sm font-medium text-gold underline-offset-4 hover:underline"
+      >
+        {actionLabel}
+      </a>
+    );
+  }
+
+  return (
+    <Link
+      href={actionUrl}
+      className="text-sm font-medium text-gold underline-offset-4 hover:underline"
+    >
+      {actionLabel}
+    </Link>
+  );
+}
+
+export function ErrorFallbackPanel(
+  props: Readonly<{
+    error?: Error | null;
+    onRetry?: () => void;
+    retryLabel?: string;
+    homeHref?: string;
+    digest?: string;
+  }>,
+) {
+  const model = buildErrorFallbackModel(props.error ?? null);
+  const devDetailsVisible =
+    process.env.NODE_ENV !== "production" &&
+    Boolean(props.error?.message || props.digest);
+
+  return (
+    <div className="
+      flex min-h-screen w-full items-center justify-center bg-linear-to-br from-amber-50/50
+      via-white to-amber-100/30 px-4 py-12
+      dark:from-[#0C0A10] dark:via-[#110E18] dark:to-[#0C0A10]
+    ">
+      <div className="
+        w-full max-w-2xl space-y-10 border border-red-200 bg-white/80 p-8 shadow-2xl
+        backdrop-blur-xl
+        dark:border-red-900/60 dark:bg-background/80
+      ">
+        <div className="flex items-center gap-3">
+          <span className="
+            rounded-full bg-red-100 p-2 text-red-600
+            dark:bg-red-900/50 dark:text-red-300
+          ">
+            <AlertCircle className="size-6" />
+          </span>
+          <div>
+            <p className="
+              text-sm font-semibold tracking-[0.3em] text-red-600 uppercase
+              dark:text-red-400
+            ">
+              Error
+            </p>
+            <h1 className="text-3xl font-bold text-foreground">
+              {model.heading}
+            </h1>
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          <p className="text-base/relaxed text-foreground/70">
+            {model.message}
+          </p>
+
+          {model.suggestions.length > 0 ? (
+            <ul className="space-y-3 border border-border/60 bg-background/50 p-4">
+              {model.suggestions.map((suggestion) => (
+                <li key={`${suggestion.title}-${suggestion.description}`}>
+                  <p className="text-sm font-semibold text-foreground">
+                    {suggestion.title}
+                  </p>
+                  <p className="text-sm/relaxed text-muted-foreground">
+                    {suggestion.description}
+                  </p>
+                  <RecoverySuggestionAction suggestion={suggestion} />
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          {devDetailsVisible ? (
+            <details className="
+              rounded-md border border-border/60 bg-background/40 p-4 text-sm text-muted-foreground
+            ">
+              <summary className="cursor-pointer font-medium text-foreground">
+                Debug details
+              </summary>
+              <div className="mt-3 space-y-2">
+                {props.error?.name ? (
+                  <p>
+                    <span className="font-semibold text-foreground">Name:</span>{" "}
+                    {props.error.name}
+                  </p>
+                ) : null}
+                {props.error?.message ? (
+                  <p>
+                    <span className="font-semibold text-foreground">
+                      Message:
+                    </span>{" "}
+                    {props.error.message}
+                  </p>
+                ) : null}
+                {props.digest ? (
+                  <p>
+                    <span className="font-semibold text-foreground">
+                      Digest:
+                    </span>{" "}
+                    {props.digest}
+                  </p>
+                ) : null}
+              </div>
+            </details>
+          ) : null}
+        </div>
+
+        <div className="space-y-3 sm:flex sm:items-center sm:justify-between sm:space-y-0">
+          {props.onRetry ? (
+            <Button
+              variant="default"
+              size="lg"
+              className={cn("w-full", "sm:max-w-xs")}
+              onClick={props.onRetry}
+            >
+              <RefreshCw className="size-4" />
+              {props.retryLabel ?? (model.retryable ? "Try Again" : "Retry")}
+            </Button>
+          ) : null}
+          <Button
+            asChild
+            variant="outline"
+            size="lg"
+            className={cn("w-full", "sm:max-w-xs")}
+          >
+            <Link
+              href={props.homeHref ?? "/"}
+              className="flex items-center justify-center gap-2"
+            >
+              <Home className="size-4" />
+              Go Home
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -82,6 +283,20 @@ export class ErrorBoundary extends Component<
    */
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("[ErrorBoundary] Caught error:", error, errorInfo);
+
+    void reportStructuredError({
+      source: "react_error_boundary",
+      userAction: "render_component_tree",
+      error,
+      componentStack: errorInfo.componentStack ?? undefined,
+      route:
+        globalThis.location === undefined
+          ? undefined
+          : `${globalThis.location.pathname}${globalThis.location.search}`,
+      metadata: {
+        boundary: "client_error_boundary",
+      },
+    });
 
     safeTrack(() =>
       trackError(error.name ?? "ErrorBoundary", error.message ?? undefined),
@@ -124,67 +339,12 @@ export class ErrorBoundary extends Component<
    * @source
    */
   renderDefaultFallback(): ReactNode {
-    const errorMessage =
-      this.state.error?.message ??
-      "We couldn't render this part of the experience.";
-
     return (
-      <div className="
-        flex min-h-screen w-full items-center justify-center bg-linear-to-br from-amber-50/50
-        via-white to-amber-100/30 px-4 py-12
-        dark:from-[#0C0A10] dark:via-[#110E18] dark:to-[#0C0A10]
-      ">
-        <div className="
-          w-full max-w-2xl space-y-10 border border-red-200 bg-white/80 p-8 shadow-2xl
-          backdrop-blur-xl
-          dark:border-red-900/60 dark:bg-background/80
-        ">
-          <div className="flex items-center gap-3">
-            <span className="
-              rounded-full bg-red-100 p-2 text-red-600
-              dark:bg-red-900/50 dark:text-red-300
-            ">
-              <AlertCircle className="size-6" />
-            </span>
-            <div>
-              <p className="
-                text-sm font-semibold tracking-[0.3em] text-red-600 uppercase
-                dark:text-red-400
-              ">
-                Error
-              </p>
-              <h1 className="text-3xl font-bold text-foreground">
-                Something went wrong
-              </h1>
-            </div>
-          </div>
-
-          <p className="text-base/relaxed text-foreground/60">{errorMessage}</p>
-
-          <div className="space-y-3 sm:flex sm:items-center sm:justify-between sm:space-y-0">
-            <Button
-              variant="default"
-              size="lg"
-              className={cn("w-full", "sm:max-w-xs")}
-              onClick={this.resetErrorBoundary}
-            >
-              <RefreshCw className="size-4" />
-              Try Again
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              size="lg"
-              className={cn("w-full", "sm:max-w-xs")}
-            >
-              <Link href="/" className="flex items-center justify-center gap-2">
-                <Home className="size-4" />
-                Go Home
-              </Link>
-            </Button>
-          </div>
-        </div>
-      </div>
+      <ErrorFallbackPanel
+        error={this.state.error}
+        onRetry={this.resetErrorBoundary}
+        retryLabel="Try Again"
+      />
     );
   }
 

@@ -66,7 +66,9 @@ test.describe("User page error states", () => {
     ).toBeVisible();
 
     await expect(
-      page.getByText(/failed to fetch user data|check your connection/i),
+      page.getByText(
+        /failed to fetch user data|network connection error|check your connection/i,
+      ),
     ).toBeVisible();
 
     const recoveryLink = page.getByRole("link", { name: /search for user/i });

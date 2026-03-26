@@ -11,10 +11,13 @@ import {
   buildAnalyticsMetricKey,
   checkRateLimit,
   createRateLimiter,
+  ensureRequestContext,
   getAllowedCardSvgOrigin,
   getRequestIp,
   incrementAnalytics,
+  logPrivacySafe,
   parseStrictPositiveInteger,
+  withRequestIdHeaders,
 } from "@/lib/api-utils";
 import {
   buildCardConfigFromParams,
@@ -184,18 +187,21 @@ function svgHeaders(
   options?: { cacheSource?: string; noStore?: boolean },
 ) {
   const allowedOrigin = getAllowedCardSvgOrigin(request);
-  return {
-    "Content-Type": "image/svg+xml",
-    "Cache-Control": options?.noStore
-      ? "no-store, max-age=0, must-revalidate"
-      : "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=1209600",
-    "Access-Control-Allow-Origin": allowedOrigin,
-    "Access-Control-Allow-Methods": "GET, HEAD",
-    "Access-Control-Expose-Headers": "X-Card-Border-Radius, X-Cache-Source",
-    Vary: "Origin",
-    "X-Card-Border-Radius": String(DEFAULT_CARD_BORDER_RADIUS),
-    "X-Cache-Source": options?.cacheSource ?? "render",
-  };
+  return withRequestIdHeaders(
+    {
+      "Content-Type": "image/svg+xml",
+      "Cache-Control": options?.noStore
+        ? "no-store, max-age=0, must-revalidate"
+        : "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=1209600",
+      "Access-Control-Allow-Origin": allowedOrigin,
+      "Access-Control-Allow-Methods": "GET, HEAD",
+      "Access-Control-Expose-Headers": "X-Card-Border-Radius, X-Cache-Source",
+      Vary: "Origin",
+      "X-Card-Border-Radius": String(DEFAULT_CARD_BORDER_RADIUS),
+      "X-Cache-Source": options?.cacheSource ?? "render",
+    },
+    request,
+  );
 }
 
 /**
@@ -232,12 +238,15 @@ function errorHeaders(
     "X-Card-Border-Radius": String(DEFAULT_CARD_BORDER_RADIUS),
   };
 
-  return extraHeaders
-    ? {
-        ...headers,
-        ...extraHeaders,
-      }
-    : headers;
+  return withRequestIdHeaders(
+    extraHeaders
+      ? {
+          ...headers,
+          ...extraHeaders,
+        }
+      : headers,
+    request,
+  );
 }
 
 /**
@@ -291,7 +300,13 @@ function extractAndValidateParams(
   const cardType = searchParams.get("cardType");
 
   if (!cardType) {
-    console.warn(`⚠️ [Card SVG] Missing parameter: cardType`);
+    logPrivacySafe(
+      "warn",
+      "Card SVG",
+      "Missing parameter: cardType",
+      undefined,
+      request,
+    );
     return new Response(
       toCleanSvgResponse(svgError(`Client Error: Missing parameter: cardType`)),
       {
@@ -302,7 +317,13 @@ function extractAndValidateParams(
   }
 
   if (!userId && !username) {
-    console.warn(`⚠️ [Card SVG] Missing parameter: userId or username`);
+    logPrivacySafe(
+      "warn",
+      "Card SVG",
+      "Missing parameter: userId or username",
+      undefined,
+      request,
+    );
     return new Response(
       toCleanSvgResponse(
         svgError(`Client Error: Missing parameter: userId or username`),
@@ -318,7 +339,13 @@ function extractAndValidateParams(
   if (userId) {
     const parsedUserId = parseStrictPositiveInteger(userId);
     if (!parsedUserId) {
-      console.warn(`⚠️ [Card SVG] Invalid user ID format: ${userId}`);
+      logPrivacySafe(
+        "warn",
+        "Card SVG",
+        "Invalid user ID format",
+        { userId },
+        request,
+      );
       return new Response(
         toCleanSvgResponse(svgError("Client Error: Invalid user ID")),
         {
@@ -333,7 +360,13 @@ function extractAndValidateParams(
 
   const [baseCardType] = cardType.split("-");
   if (!ALLOWED_CARD_TYPES.has(baseCardType)) {
-    console.warn(`⚠️ [Card SVG] Invalid card type: ${cardType}`);
+    logPrivacySafe(
+      "warn",
+      "Card SVG",
+      "Invalid card type",
+      { cardType },
+      request,
+    );
     return new Response(
       toCleanSvgResponse(svgError("Client Error: Invalid card type")),
       {
@@ -445,8 +478,12 @@ async function resolveEffectiveUserId(
       return { userId: resolvedUserId };
     }
 
-    console.warn(
-      `⚠️ [Card SVG] User not found for username: ${params.username}`,
+    logPrivacySafe(
+      "warn",
+      "Card SVG",
+      "User not found for username",
+      { username: params.username },
+      request,
     );
     await trackFailedRequest(params.baseCardType, 404);
     return {
@@ -513,12 +550,17 @@ async function handleCardDataError(
 ): Promise<Response> {
   await trackFailedRequest(baseCardType, err.status);
 
-  trackUserActionError(
+  await trackUserActionError(
     `card_svg_generation_${baseCardType}`,
     err,
     err.category,
     {
       statusCode: err.status,
+      source: "api_route",
+      metadata: {
+        endpoint: "card_svg",
+        cardType: baseCardType,
+      },
     },
   );
 
@@ -585,6 +627,11 @@ function createInternalErrorResponse(request: Request): Response {
 export async function GET(request: Request) {
   const startTime = Date.now();
   const ip = getRequestIp(request);
+  ensureRequestContext(request, {
+    endpoint: "Card SVG",
+    endpointKey: "card_svg",
+    ip,
+  });
 
   const rateLimitResponse = await checkRateLimit(
     request,
@@ -620,7 +667,13 @@ export async function GET(request: Request) {
     );
   }
 
-  console.log(`🚀 [Card SVG] New request from IP: ${ip} - URL: ${request.url}`);
+  logPrivacySafe(
+    "log",
+    "Card SVG",
+    "Processing card SVG request",
+    { ip, url: request.url },
+    request,
+  );
 
   const paramsResult = extractAndValidateParams(request);
   if (paramsResult instanceof Response) {
@@ -636,8 +689,12 @@ export async function GET(request: Request) {
   }
   const effectiveUserId = userIdResult.userId;
 
-  console.log(
-    `🖼️ [Card SVG] Request for ${params.cardType} card - User ID: ${effectiveUserId}`,
+  logPrivacySafe(
+    "log",
+    "Card SVG",
+    "Resolved effective user for card render",
+    { userId: effectiveUserId, cardType: params.cardType },
+    request,
   );
 
   const normalizeGridDim = (raw: string | null | undefined, fallback = 3) => {
@@ -666,8 +723,12 @@ export async function GET(request: Request) {
   });
 
   if (isManualRefresh) {
-    console.log(
-      `🔄 [Card SVG] Manual refresh requested for user ${effectiveUserId}; bypassing memory/shared cache reads`,
+    logPrivacySafe(
+      "log",
+      "Card SVG",
+      "Manual refresh requested; bypassing cache reads",
+      { userId: effectiveUserId, cardType: params.cardType },
+      request,
     );
   } else {
     const cachedEntry = getSvgFromMemoryCache(cacheKey);
@@ -675,8 +736,12 @@ export async function GET(request: Request) {
       void trackCacheMetric(true, "memory");
 
       if (cachedEntry.isStale) {
-        console.log(
-          `♻️ [Card SVG] Serving stale cache for user ${effectiveUserId} (will revalidate in background)`,
+        logPrivacySafe(
+          "warn",
+          "Card SVG",
+          "Serving stale memory cache and triggering background revalidation",
+          { userId: effectiveUserId, cacheKey },
+          request,
         );
 
         void (async () => {
@@ -688,13 +753,27 @@ export async function GET(request: Request) {
               startTime,
               cacheKey,
             );
-            console.log(
-              `♻️ [Card SVG] Background revalidation completed for user ${effectiveUserId}`,
+            logPrivacySafe(
+              "log",
+              "Card SVG",
+              "Background revalidation completed",
+              { userId: effectiveUserId, cacheKey },
+              request,
             );
           } catch (err: unknown) {
-            console.error(
-              `⚠️ [Card SVG] Background revalidation failed for user ${effectiveUserId} (cacheKey: ${cacheKey}):`,
-              err,
+            logPrivacySafe(
+              "error",
+              "Card SVG",
+              "Background revalidation failed",
+              {
+                userId: effectiveUserId,
+                cacheKey,
+                error: err instanceof Error ? err.message : String(err),
+                ...(err instanceof Error && err.stack
+                  ? { stack: err.stack }
+                  : {}),
+              },
+              request,
             );
           }
         })();
@@ -707,8 +786,12 @@ export async function GET(request: Request) {
         );
       }
 
-      console.log(
-        `⚡ [Card SVG] Served from memory cache for user ${effectiveUserId} in ${Date.now() - startTime}ms`,
+      logPrivacySafe(
+        "log",
+        "Card SVG",
+        "Served SVG from memory cache",
+        { userId: effectiveUserId, durationMs: Date.now() - startTime },
+        request,
       );
       return createSuccessResponse(
         markTrustedSvg(cachedEntry.svg),
@@ -731,8 +814,12 @@ export async function GET(request: Request) {
         sharedCachedEntry.borderRadius,
       );
 
-      console.log(
-        `🌐 [Card SVG] Served from shared cache for user ${effectiveUserId} in ${Date.now() - startTime}ms`,
+      logPrivacySafe(
+        "log",
+        "Card SVG",
+        "Served SVG from shared cache",
+        { userId: effectiveUserId, durationMs: Date.now() - startTime },
+        request,
       );
 
       return createSuccessResponse(
@@ -795,8 +882,11 @@ function validateUserRecordForCard(baseCardType: string, userDoc: UserRecord) {
     return fastPathResult;
   }
 
-  console.log(
-    `🧮 [Card SVG] Missing stored aggregates for ${baseCardType}; falling back to write-time normalization for legacy data`,
+  logPrivacySafe(
+    "warn",
+    "Card SVG",
+    "Missing stored aggregates; falling back to write-time normalization for legacy data",
+    { cardType: baseCardType },
   );
   return validateAndNormalizeUserRecord(userDoc);
 }
@@ -908,8 +998,17 @@ async function generateCardResponse(
 
     const { userDoc, cardConfig, effectiveVariation, favorites } = loadResult;
 
-    console.log(
-      `🎨 [Card SVG] Generating ${params.cardType} (${effectiveVariation}) SVG for user ${effectiveUserId}${needsDbCardConfig ? " (with DB card lookup)" : " (from URL params)"}`,
+    logPrivacySafe(
+      "log",
+      "Card SVG",
+      "Generating SVG",
+      {
+        userId: effectiveUserId,
+        cardType: params.cardType,
+        variation: effectiveVariation,
+        source: needsDbCardConfig ? "db" : "url",
+      },
+      request,
     );
 
     const svgContent = await generateCardSvg(
@@ -928,12 +1027,24 @@ async function generateCardResponse(
 
     const duration = Date.now() - startTime;
     if (duration > 1500) {
-      console.warn(
-        `⏳ [Card SVG] Slow rendering detected: ${duration}ms for user ${effectiveUserId}`,
+      logPrivacySafe(
+        "warn",
+        "Card SVG",
+        "Slow SVG rendering detected",
+        { userId: effectiveUserId, durationMs: duration },
+        request,
       );
     }
-    console.log(
-      `✅ [Card SVG] Rendered ${params.cardType} card for ${effectiveUserId} in ${duration}ms`,
+    logPrivacySafe(
+      "log",
+      "Card SVG",
+      "Rendered SVG successfully",
+      {
+        userId: effectiveUserId,
+        cardType: params.cardType,
+        durationMs: duration,
+      },
+      request,
     );
 
     if (cacheKey) {
@@ -952,7 +1063,13 @@ async function generateCardResponse(
         effectiveUserId,
         cardConfig.borderRadius,
       );
-      console.log(`💾 [Card SVG] Cached SVG for ${effectiveUserId}`);
+      logPrivacySafe(
+        "log",
+        "Card SVG",
+        "Cached generated SVG",
+        { userId: effectiveUserId, cacheKey },
+        request,
+      );
     }
 
     await trackSuccessfulRequest(params.baseCardType);
@@ -966,21 +1083,31 @@ async function generateCardResponse(
     }
 
     const duration = Date.now() - startTime;
-    console.error(
-      `🔥 [Card SVG] Error generating card for user ${effectiveUserId} after ${duration}ms:`,
-      err,
+    logPrivacySafe(
+      "error",
+      "Card SVG",
+      "Error generating card SVG",
+      {
+        userId: effectiveUserId,
+        durationMs: duration,
+        error: err instanceof Error ? err.message : String(err),
+        ...(err instanceof Error && err.stack ? { stack: err.stack } : {}),
+      },
+      request,
     );
-    if (err instanceof Error && err.stack) {
-      console.error(`💥 [Card SVG] Stack Trace: ${err.stack}`);
-    }
 
-    trackUserActionError(
+    await trackUserActionError(
       `card_svg_generation_${params.baseCardType}`,
       err instanceof Error ? err : new Error(String(err)),
       "server_error",
       {
         userId: String(effectiveUserId),
         statusCode: 500,
+        source: "api_route",
+        metadata: {
+          endpoint: "card_svg",
+          cardType: params.baseCardType,
+        },
       },
     );
 
@@ -992,13 +1119,16 @@ async function generateCardResponse(
 export function OPTIONS(request: Request) {
   const allowedOrigin = getAllowedCardSvgOrigin(request);
   return new Response(null, {
-    headers: {
-      "Access-Control-Allow-Origin": allowedOrigin,
-      "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-      "Access-Control-Expose-Headers":
-        "X-Card-Border-Radius, Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset",
-      Vary: "Origin",
-    },
+    headers: withRequestIdHeaders(
+      {
+        "Access-Control-Allow-Origin": allowedOrigin,
+        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Expose-Headers":
+          "X-Card-Border-Radius, Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset",
+        Vary: "Origin",
+      },
+      request,
+    ),
   });
 }
