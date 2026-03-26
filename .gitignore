@@ -12,3 +12,4 @@
 /tsconfig.tsbuildinfo
 /TODO.md
 /squirrel.toml
+.artifacts/

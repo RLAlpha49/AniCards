@@ -41,10 +41,19 @@ test.describe("Examples gallery", () => {
 
   test("navigates to search from examples CTA", async ({ page }) => {
     await test.step("Navigate to search from CTA", async () => {
-      await page
-        .getByRole("button", { name: /create yours/i })
-        .first()
-        .click();
+      const createYoursLink = page.getByRole("link", {
+        name: /^create yours$/i,
+      });
+
+      await expect(createYoursLink).toHaveAttribute("href", "/search");
+
+      await Promise.all([
+        page.waitForURL(/\/search(?:\?|$)/),
+        createYoursLink.evaluate((element) => {
+          (element as HTMLAnchorElement).click();
+        }),
+      ]);
+
       await expect(page).toHaveURL(/\/search(?:\?|$)/);
       await expect(page.getByLabel(/anilist username/i)).toBeVisible();
     });

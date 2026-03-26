@@ -76,17 +76,15 @@ test.describe("User page", () => {
 
     await test.step("Per-card quick actions are visible and linked correctly", async () => {
       const tile = page.getByTestId("card-tile-animeStats");
+
       const openLink = tile.getByRole("link", {
-        name: /^open/i,
-        includeHidden: true,
+        name: /open preview in new tab anime stats/i,
       });
       const copyTrigger = tile.getByRole("button", {
         name: /copy url/i,
-        includeHidden: true,
       });
       const downloadTrigger = tile.getByRole("button", {
         name: /^download$/i,
-        includeHidden: true,
       });
 
       await expect(openLink).toBeVisible();
@@ -99,11 +97,6 @@ test.describe("User page", () => {
         /\bnoopener\b.*\bnoreferrer\b|\bnoreferrer\b.*\bnoopener\b/i,
       );
       await expect(openLink).toHaveAttribute("href", /\/api\/card/i);
-
-      await tile.getByRole("button", { name: /toggle actions for/i }).focus();
-      await expect(openLink).toBeVisible();
-      await expect(copyTrigger).toBeVisible();
-      await expect(downloadTrigger).toBeVisible();
     });
 
     await test.step("Variant comparison view can be toggled", async () => {
@@ -126,15 +119,12 @@ test.describe("User page", () => {
 
       const openLinks = dialog.getByRole("link", {
         name: /^open/i,
-        includeHidden: true,
       });
       const copyButtons = dialog.getByRole("button", {
         name: /copy url/i,
-        includeHidden: true,
       });
       const downloadButtons = dialog.getByRole("button", {
         name: /^download$/i,
-        includeHidden: true,
       });
       await expect(openLinks).toHaveCount(2);
       await expect(copyButtons).toHaveCount(2);

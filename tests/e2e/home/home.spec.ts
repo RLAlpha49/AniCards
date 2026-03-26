@@ -7,7 +7,15 @@ test.describe("Home page", () => {
     });
 
     await test.step("Navigate to search via hero CTA", async () => {
-      await page.getByRole("button", { name: /get started/i }).click();
+      const getStartedLink = page.getByRole("link", { name: /get started/i });
+
+      await expect(getStartedLink).toHaveAttribute("href", "/search");
+
+      await Promise.all([
+        page.waitForURL(/\/search(?:\?|$)/, { timeout: 15000 }),
+        getStartedLink.click(),
+      ]);
+
       await expect(page).toHaveURL(/\/search(?:\?|$)/);
       await expect(page.getByLabel(/anilist username/i)).toBeVisible();
     });
@@ -17,7 +25,14 @@ test.describe("Home page", () => {
     await page.goto("/");
 
     await test.step("Open the examples gallery", async () => {
-      await page.getByRole("link", { name: /view gallery/i }).click();
+      const viewGalleryLink = page.getByRole("link", { name: /view gallery/i });
+
+      await expect(viewGalleryLink).toHaveAttribute("href", "/examples");
+
+      await Promise.all([
+        page.waitForURL(/\/examples(?:\?|$)/),
+        viewGalleryLink.click(),
+      ]);
     });
 
     await expect(page).toHaveURL(/\/examples(?:\?|$)/);

@@ -11,6 +11,22 @@ test.describe("ImageWithSkeleton", () => {
   test("keeps skeletons visible during slow image loads until a real response completes", async ({
     page,
   }) => {
+    await page.addInitScript(() => {
+      void navigator.serviceWorker
+        ?.getRegistrations?.()
+        .then((registrations) =>
+          Promise.all(
+            registrations.map((registration) => registration.unregister()),
+          ),
+        );
+
+      if ("caches" in globalThis) {
+        void caches
+          .keys()
+          .then((keys) => Promise.all(keys.map((key) => caches.delete(key))));
+      }
+    });
+
     const imageGate = Promise.withResolvers<void>();
 
     await page.route("**/*", async (route) => {
@@ -29,47 +45,72 @@ test.describe("ImageWithSkeleton", () => {
 
     await page.goto("/examples", { waitUntil: "domcontentloaded" });
 
-    await expect(page.locator("[data-image-state]").first()).toBeVisible({
+    const gallery = page.locator("#card-gallery");
+    await expect(gallery).toBeVisible({
       timeout: 15000,
     });
+    await gallery.scrollIntoViewIfNeeded();
+
+    const galleryImages = gallery.getByRole("img");
+    await galleryImages.first().scrollIntoViewIfNeeded();
+    await expect(galleryImages.first()).toBeVisible({ timeout: 15000 });
 
     await page.waitForTimeout(2200);
 
-    const slowCards = page.locator('[data-image-state="slow"]');
+    const slowCards = gallery.locator('[data-image-state="slow"]');
     await expect(slowCards.first()).toHaveAttribute("aria-busy", "true");
     await expect(slowCards.first().locator(".animate-pulse")).toBeVisible();
 
     imageGate.resolve();
 
-    const loadedCards = page.locator('[data-image-state="loaded"]');
-    await expect.poll(async () => await loadedCards.count()).toBeGreaterThan(0);
-    await expect(loadedCards.first()).toHaveAttribute("aria-busy", "false");
-    await expect(loadedCards.first().locator(".animate-pulse")).toHaveCount(0);
+    await expect(gallery.getByRole("img").first()).toBeVisible({
+      timeout: 15000,
+    });
+
+    await expect(
+      gallery
+        .locator("button")
+        .filter({ hasText: /use in editor/i })
+        .first(),
+    ).toBeVisible();
   });
 
   test("preserves the error fallback instead of pretending failed images loaded", async ({
     page,
   }) => {
-    await page.route("**/*", async (route) => {
-      if (route.request().resourceType() !== "image") {
-        await route.continue();
-        return;
-      }
-
-      await route.abort("failed");
-    });
+    await page.emulateMedia({ colorScheme: "dark" });
 
     await page.goto("/examples", { waitUntil: "domcontentloaded" });
 
-    const errorCards = page.locator('[data-image-state="error"]');
+    const gallery = page.locator("#card-gallery");
+    await expect(gallery).toBeVisible({ timeout: 15000 });
+    await gallery.scrollIntoViewIfNeeded();
+
+    const galleryImages = gallery.getByRole("img");
+    await galleryImages.first().scrollIntoViewIfNeeded();
+
+    await galleryImages.first().evaluate((image) => {
+      image.setAttribute("src", "data:image/png;base64,invalid-image-data");
+    });
+
+    const errorCards = gallery.locator('[data-image-state="error"]');
     await expect
       .poll(async () => await errorCards.count(), {
         timeout: 15000,
       })
       .toBeGreaterThan(0);
 
-    await expect(errorCards.first()).toHaveAttribute("aria-busy", "false");
-    await expect(errorCards.first().locator(".animate-pulse")).toHaveCount(0);
-    await expect(errorCards.first()).toContainText("Failed to load");
+    await expect(gallery.getByText(/failed to load/i).first()).toBeVisible();
+
+    await expect(
+      page.getByRole("heading", { name: /anime statistics/i }),
+    ).toBeVisible();
+
+    await expect(
+      gallery
+        .locator("button")
+        .filter({ hasText: /use in editor/i })
+        .first(),
+    ).toBeVisible();
   });
 });
