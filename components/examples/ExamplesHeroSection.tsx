@@ -1,9 +1,22 @@
 "use client";
 
-import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import {
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useSpring,
+  useTransform,
+} from "framer-motion";
 import { ArrowDown, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { type MouseEvent, useEffect, useRef } from "react";
+
+import {
+  buildFadeUpVariants,
+  buildMotionSafeStaggerContainer,
+  buildScaleInVariants,
+  getMotionSafeScrollBehavior,
+} from "@/lib/animations";
 
 interface HeroSectionProps {
   totalCardTypes: number;
@@ -11,33 +24,6 @@ interface HeroSectionProps {
   categoryCount: number;
   createHref: string;
 }
-
-const orchestrate = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.08, delayChildren: 0.15 },
-  },
-};
-
-const riseIn = {
-  hidden: { opacity: 0, y: 40, filter: "blur(8px)" },
-  visible: {
-    opacity: 1,
-    y: 0,
-    filter: "blur(0px)",
-    transition: { duration: 0.9, ease: [0.22, 1, 0.36, 1] as const },
-  },
-};
-
-const scaleReveal = {
-  hidden: { opacity: 0, scale: 0.85 },
-  visible: {
-    opacity: 1,
-    scale: 1,
-    transition: { duration: 1.1, ease: [0.22, 1, 0.36, 1] as const },
-  },
-};
 
 function AnimatedNumber({ target }: Readonly<{ target: number }>) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -59,16 +45,48 @@ function AnimatedNumber({ target }: Readonly<{ target: number }>) {
   return <span ref={ref}>0</span>;
 }
 
+function HeroStatNumber({
+  reducedMotion,
+  target,
+}: Readonly<{ reducedMotion: boolean; target: number }>) {
+  if (reducedMotion) {
+    return <span>{target}</span>;
+  }
+
+  return <AnimatedNumber target={target} />;
+}
+
 export function ExamplesHeroSection({
   totalCardTypes,
   totalVariants,
   categoryCount,
   createHref,
 }: Readonly<HeroSectionProps>) {
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const orchestrate = buildMotionSafeStaggerContainer({
+    reducedMotion: prefersReducedMotion,
+    staggerChildren: 0.08,
+    delayChildren: 0.15,
+  });
+  const riseIn = buildFadeUpVariants({
+    reducedMotion: prefersReducedMotion,
+    distance: 40,
+    duration: 0.9,
+  });
+  const scaleReveal = buildScaleInVariants({
+    reducedMotion: prefersReducedMotion,
+    initialScale: 0.85,
+    y: 0,
+    duration: 1.1,
+  });
+
   const scrollToGallery = () => {
     const el = document.getElementById("card-gallery");
     if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.scrollIntoView({
+        behavior: getMotionSafeScrollBehavior(prefersReducedMotion),
+        block: "start",
+      });
       if (!el.hasAttribute("tabindex")) el.setAttribute("tabindex", "-1");
       el.focus();
       el.addEventListener("blur", () => el.removeAttribute("tabindex"), {
@@ -117,7 +135,10 @@ export function ExamplesHeroSection({
               sm:text-[12rem]
               md:text-[16rem]
             ">
-              <AnimatedNumber target={totalVariants} />
+              <HeroStatNumber
+                reducedMotion={prefersReducedMotion}
+                target={totalVariants}
+              />
             </span>
           </motion.div>
 
@@ -144,7 +165,11 @@ export function ExamplesHeroSection({
         >
           Browse{" "}
           <span className="font-semibold text-foreground/70">
-            <AnimatedNumber target={totalCardTypes} /> distinct card types
+            <HeroStatNumber
+              reducedMotion={prefersReducedMotion}
+              target={totalCardTypes}
+            />{" "}
+            distinct card types
           </span>{" "}
           spread across{" "}
           <span className="font-semibold text-foreground/70">
@@ -174,7 +199,10 @@ export function ExamplesHeroSection({
           ].map((stat) => (
             <div key={stat.label}>
               <p className="font-display text-3xl leading-none font-black text-gold sm:text-4xl">
-                <AnimatedNumber target={stat.value} />
+                <HeroStatNumber
+                  reducedMotion={prefersReducedMotion}
+                  target={stat.value}
+                />
                 {stat.suffix && (
                   <span className="text-xl text-gold/50">{stat.suffix}</span>
                 )}

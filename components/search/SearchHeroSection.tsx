@@ -1,25 +1,13 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
+
+import {
+  buildFadeUpVariants,
+  buildMotionSafeStaggerContainer,
+} from "@/lib/animations";
 
 import { SearchForm } from "./SearchForm";
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.1 },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 28 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] as const },
-  },
-};
 
 interface SearchHeroSectionProps {
   onLoadingChange: (loading: boolean) => void;
@@ -28,6 +16,18 @@ interface SearchHeroSectionProps {
 export function SearchHeroSection({
   onLoadingChange,
 }: Readonly<SearchHeroSectionProps>) {
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const containerVariants = buildMotionSafeStaggerContainer({
+    reducedMotion: prefersReducedMotion,
+    staggerChildren: 0.1,
+    delayChildren: 0.1,
+  });
+  const itemVariants = buildFadeUpVariants({
+    reducedMotion: prefersReducedMotion,
+    distance: 28,
+    duration: 0.7,
+  });
+
   return (
     <section className="relative overflow-hidden px-6 pt-28 pb-24 sm:px-12 md:pt-36 md:pb-32">
       {/* Concentric ring background — sonar/radar motif */}
@@ -61,8 +61,16 @@ export function SearchHeroSection({
       {/* Floating decorative elements */}
       <motion.div
         className="pointer-events-none absolute top-24 left-[8%] text-5xl text-gold/10 select-none"
-        animate={{ y: [0, -15, 0], rotate: [0, 12, 0] }}
-        transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
+        animate={
+          prefersReducedMotion
+            ? undefined
+            : { y: [0, -15, 0], rotate: [0, 12, 0] }
+        }
+        transition={
+          prefersReducedMotion
+            ? undefined
+            : { duration: 9, repeat: Infinity, ease: "easeInOut" }
+        }
       >
         ◆
       </motion.div>
@@ -70,13 +78,21 @@ export function SearchHeroSection({
         className="
           pointer-events-none absolute right-[10%] bottom-32 text-3xl text-gold/8 select-none
         "
-        animate={{ y: [0, 12, 0], rotate: [0, -8, 0] }}
-        transition={{
-          duration: 7,
-          repeat: Infinity,
-          ease: "easeInOut",
-          delay: 2,
-        }}
+        animate={
+          prefersReducedMotion
+            ? undefined
+            : { y: [0, 12, 0], rotate: [0, -8, 0] }
+        }
+        transition={
+          prefersReducedMotion
+            ? undefined
+            : {
+                duration: 7,
+                repeat: Infinity,
+                ease: "easeInOut",
+                delay: 2,
+              }
+        }
       >
         ✦
       </motion.div>
@@ -85,13 +101,21 @@ export function SearchHeroSection({
           pointer-events-none absolute top-[50%] left-[5%] hidden text-2xl text-gold/6 select-none
           md:block
         "
-        animate={{ y: [0, -10, 0], opacity: [0.4, 0.8, 0.4] }}
-        transition={{
-          duration: 6,
-          repeat: Infinity,
-          ease: "easeInOut",
-          delay: 1,
-        }}
+        animate={
+          prefersReducedMotion
+            ? undefined
+            : { y: [0, -10, 0], opacity: [0.4, 0.8, 0.4] }
+        }
+        transition={
+          prefersReducedMotion
+            ? undefined
+            : {
+                duration: 6,
+                repeat: Infinity,
+                ease: "easeInOut",
+                delay: 1,
+              }
+        }
       >
         ◇
       </motion.div>
@@ -100,13 +124,21 @@ export function SearchHeroSection({
           pointer-events-none absolute top-[20%] right-[6%] hidden text-xl text-gold/5 select-none
           lg:block
         "
-        animate={{ y: [0, 8, 0], rotate: [0, -15, 0] }}
-        transition={{
-          duration: 10,
-          repeat: Infinity,
-          ease: "easeInOut",
-          delay: 3,
-        }}
+        animate={
+          prefersReducedMotion
+            ? undefined
+            : { y: [0, 8, 0], rotate: [0, -15, 0] }
+        }
+        transition={
+          prefersReducedMotion
+            ? undefined
+            : {
+                duration: 10,
+                repeat: Infinity,
+                ease: "easeInOut",
+                delay: 3,
+              }
+        }
       >
         ◇
       </motion.div>

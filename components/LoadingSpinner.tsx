@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { type ReactNode, useEffect, useId } from "react";
 
 import { cn } from "@/lib/utils";
@@ -42,6 +42,7 @@ export function LoadingSpinner({
   showProgressLabel = false,
 }: Readonly<LoadingSpinnerProps>) {
   const id = useId();
+  const prefersReducedMotion = useReducedMotion() ?? false;
   const s = id.replaceAll(".", "-").replaceAll(":", "-");
   const cfg = sizeConfig[size];
   const hasProgress =
@@ -156,8 +157,12 @@ export function LoadingSpinner({
             strokeWidth="2"
             strokeLinecap="round"
             strokeDasharray={`${circumference1 * 0.3} ${circumference1 * 0.7}`}
-            animate={{ rotate: [0, 360] }}
-            transition={{ duration: 3.2, repeat: Infinity, ease: "linear" }}
+            animate={prefersReducedMotion ? undefined : { rotate: [0, 360] }}
+            transition={
+              prefersReducedMotion
+                ? undefined
+                : { duration: 3.2, repeat: Infinity, ease: "linear" }
+            }
             style={{ transformOrigin: "center" }}
           />
 
@@ -171,8 +176,12 @@ export function LoadingSpinner({
             strokeWidth="1.8"
             strokeLinecap="round"
             strokeDasharray={`${circumference2 * 0.25} ${circumference2 * 0.75}`}
-            animate={{ rotate: [360, 0] }}
-            transition={{ duration: 2.4, repeat: Infinity, ease: "linear" }}
+            animate={prefersReducedMotion ? undefined : { rotate: [360, 0] }}
+            transition={
+              prefersReducedMotion
+                ? undefined
+                : { duration: 2.4, repeat: Infinity, ease: "linear" }
+            }
             style={{ transformOrigin: "center" }}
           />
 
@@ -186,8 +195,12 @@ export function LoadingSpinner({
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeDasharray={`${circumference3 * 0.35} ${circumference3 * 0.65}`}
-            animate={{ rotate: [0, 360] }}
-            transition={{ duration: 1.6, repeat: Infinity, ease: "linear" }}
+            animate={prefersReducedMotion ? undefined : { rotate: [0, 360] }}
+            transition={
+              prefersReducedMotion
+                ? undefined
+                : { duration: 1.6, repeat: Infinity, ease: "linear" }
+            }
             style={{ transformOrigin: "center" }}
           />
 
@@ -197,8 +210,16 @@ export function LoadingSpinner({
             cy={cx}
             r="2"
             fill="hsl(42, 63%, 55%)"
-            animate={{ r: [1.8, 2.6, 1.8], opacity: [0.7, 1, 0.7] }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            animate={
+              prefersReducedMotion
+                ? { r: 2, opacity: 1 }
+                : { r: [1.8, 2.6, 1.8], opacity: [0.7, 1, 0.7] }
+            }
+            transition={
+              prefersReducedMotion
+                ? { duration: 0 }
+                : { duration: 2, repeat: Infinity, ease: "easeInOut" }
+            }
           />
 
           {/* Progress ring overlay when progress is provided */}
@@ -215,40 +236,65 @@ export function LoadingSpinner({
                 strokeWidth="2.5"
                 strokeLinecap="round"
                 strokeDasharray={`${(progress / 100) * circumference1} ${circumference1}`}
-                transition={{ duration: 0.5, ease: "easeInOut" }}
+                transition={
+                  prefersReducedMotion
+                    ? { duration: 0 }
+                    : { duration: 0.5, ease: "easeInOut" }
+                }
               />
             </g>
           )}
         </svg>
       </div>
 
-      {hasProgress && showProgressLabel && (
-        <motion.span
-          className={cn(
-            cfg.textClass,
-            "font-display font-semibold text-primary",
-          )}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.3 }}
-        >
-          {Math.round(progress)}%
-        </motion.span>
-      )}
+      {hasProgress &&
+        showProgressLabel &&
+        (prefersReducedMotion ? (
+          <span
+            className={cn(
+              cfg.textClass,
+              "font-display font-semibold text-primary",
+            )}
+          >
+            {Math.round(progress)}%
+          </span>
+        ) : (
+          <motion.span
+            className={cn(
+              cfg.textClass,
+              "font-display font-semibold text-primary",
+            )}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            {Math.round(progress)}%
+          </motion.span>
+        ))}
 
-      {text && (
-        <motion.p
-          className={cn(
-            cfg.textClass,
-            "font-body-serif tracking-wide text-muted-foreground",
-          )}
-          initial={{ opacity: 0.5 }}
-          animate={{ opacity: [0.5, 1, 0.5] }}
-          transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-        >
-          {text}
-        </motion.p>
-      )}
+      {text &&
+        (prefersReducedMotion ? (
+          <p
+            className={cn(
+              cfg.textClass,
+              "font-body-serif tracking-wide text-muted-foreground",
+            )}
+          >
+            {text}
+          </p>
+        ) : (
+          <motion.p
+            className={cn(
+              cfg.textClass,
+              "font-body-serif tracking-wide text-muted-foreground",
+            )}
+            initial={{ opacity: 0.5 }}
+            animate={{ opacity: [0.5, 1, 0.5] }}
+            transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+          >
+            {text}
+          </motion.p>
+        ))}
     </output>
   );
 }

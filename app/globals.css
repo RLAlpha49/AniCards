@@ -300,7 +300,11 @@ button {
   align-items: center;
   justify-content: center;
   white-space: nowrap;
-  transition: all 0.4s;
+  transition-property:
+    color, background-color, border-color, box-shadow, transform, opacity,
+    background-position, background-size;
+  transition-duration: 0.4s;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @utility imperial-btn-fill {
