@@ -25,7 +25,7 @@ export interface AniCardsFixtures {
 }
 
 export const test = base.extend<AniCardsFixtures>({
-  mockSuccessfulApi: async ({ page }, use) => {
+  mockSuccessfulApi: async ({ page }, useFixture) => {
     await page.route("**/api/card**", async (route: Route) => {
       const url = new URL(route.request().url());
       const username = url.searchParams.get("username");
@@ -82,10 +82,10 @@ export const test = base.extend<AniCardsFixtures>({
       });
     });
 
-    await use();
+    await useFixture();
   },
 
-  mockRateLimitedApi: async ({ page }, use) => {
+  mockRateLimitedApi: async ({ page }, useFixture) => {
     await page.route("**/api/card**", async (route: Route) => {
       await route.fulfill({
         status: 429,
@@ -105,10 +105,10 @@ export const test = base.extend<AniCardsFixtures>({
       });
     });
 
-    await use();
+    await useFixture();
   },
 
-  mockUserNotFoundApi: async ({ page }, use) => {
+  mockUserNotFoundApi: async ({ page }, useFixture) => {
     await page.route("**/api/card**", async (route: Route) => {
       await route.fulfill({
         status: 404,
@@ -125,15 +125,15 @@ export const test = base.extend<AniCardsFixtures>({
       });
     });
 
-    await use();
+    await useFixture();
   },
 
-  mockNetworkError: async ({ page }, use) => {
+  mockNetworkError: async ({ page }, useFixture) => {
     await page.route("**/api/**", async (route: Route) => {
       await route.abort("failed");
     });
 
-    await use();
+    await useFixture();
   },
 });
 
