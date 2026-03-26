@@ -1099,6 +1099,11 @@ function encodeRasterDataUrl(
   return `data:${mimeType};base64,${convertedBuffer.toString("base64")}`;
 }
 
+type ConvertJsonResponse = {
+  format: ConversionFormat;
+  imageDataUrl: string;
+};
+
 function binaryWithCors(
   body: Blob,
   mimeType: string,
@@ -1113,9 +1118,9 @@ function binaryWithCors(
 }
 
 /**
- * Handles POST requests that sanitize SVGs and convert them to PNG data URLs.
+ * Handles POST requests that sanitize SVGs and convert them to raster outputs.
  * @param request - Incoming Next.js request with the svgUrl payload.
- * @returns NextResponse containing pngDataUrl on success or an error description.
+ * @returns JSON data URL or binary image output on success, or an error description.
  * @source
  */
 export async function POST(request: NextRequest) {
@@ -1185,10 +1190,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return jsonWithCors(
-      { pngDataUrl: encodeRasterDataUrl(convertedBuffer, mimeType) },
-      request,
-    );
+    const responseBody: ConvertJsonResponse = {
+      format: requestedFormat,
+      imageDataUrl: encodeRasterDataUrl(convertedBuffer, mimeType),
+    };
+
+    return jsonWithCors(responseBody, request);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     if (error instanceof ConvertRouteError) {

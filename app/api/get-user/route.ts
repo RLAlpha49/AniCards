@@ -23,6 +23,8 @@ import {
   fetchUserDataParts,
   normalizeUsernameIndexValue,
   reconstructPublicUserRecord,
+  reconstructUserBootstrapRecord,
+  USER_BOOTSTRAP_DATA_PARTS,
   UserDataIntegrityError,
 } from "@/lib/server/user-data";
 
@@ -185,6 +187,8 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const userIdParam = searchParams.get("userId");
   const usernameParam = searchParams.get("username");
+  const view = searchParams.get("view");
+  const shouldReturnBootstrap = view === "bootstrap";
 
   const resolvedLookup = await resolveLookupTarget(
     request,
@@ -198,11 +202,12 @@ export async function GET(request: Request) {
   const { userId: numericUserId, normalizedLookupUsername } = resolvedLookup;
 
   try {
-    // Fetch every persisted section up front so the editor and public user page
-    // can bootstrap from one payload instead of making section-specific reads.
-    const userDataParts = await fetchUserDataParts(numericUserId, [
-      ...ALL_USER_DATA_PARTS,
-    ]);
+    const userDataParts = await fetchUserDataParts(
+      numericUserId,
+      shouldReturnBootstrap
+        ? [...USER_BOOTSTRAP_DATA_PARTS]
+        : [...ALL_USER_DATA_PARTS],
+    );
     const duration = Date.now() - startTime;
 
     if (!userDataParts.meta) {
@@ -213,7 +218,9 @@ export async function GET(request: Request) {
       return jsonWithCors({ error: "User not found" }, request, 404);
     }
 
-    const userData = reconstructPublicUserRecord(userDataParts);
+    const userData = shouldReturnBootstrap
+      ? reconstructUserBootstrapRecord(userDataParts)
+      : reconstructPublicUserRecord(userDataParts);
     const persistedNormalizedUsername = normalizeUsernameIndexValue(
       userData.username,
     );

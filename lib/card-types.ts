@@ -5,54 +5,64 @@
  * aligned, so the metadata lives in one registry instead of being duplicated
  * across forms, menus, and card dispatch code.
  */
+export interface StatCardVariation {
+  id: string;
+  label: string;
+}
+
+export interface StatCardTypeDefinition {
+  id: string;
+  group: string;
+  label: string;
+  variations: readonly StatCardVariation[];
+}
+
 const pieBarVariations = [
   { id: "default", label: "Default" },
   { id: "pie", label: "Pie Chart" },
   { id: "donut", label: "Donut Chart" },
   { id: "bar", label: "Bar Chart" },
-];
+] as const satisfies readonly StatCardVariation[];
 
 const genreTagDistributionVariations = [
   ...pieBarVariations,
   { id: "radar", label: "Radar Chart" },
-];
+] as const satisfies readonly StatCardVariation[];
 
 const statusDistributionVariations = pieBarVariations;
 
-const defaultOnlyVariations = [{ id: "default", label: "Default" }];
+const defaultOnlyVariations = [
+  { id: "default", label: "Default" },
+] as const satisfies readonly StatCardVariation[];
 
 const scoreDistributionVariations = [
   { id: "default", label: "Default" },
   { id: "horizontal", label: "Horizontal" },
   { id: "cumulative", label: "Cumulative" },
-];
+] as const satisfies readonly StatCardVariation[];
 
 const yearDistributionVariations = [
   { id: "default", label: "Default" },
   { id: "horizontal", label: "Horizontal" },
-];
+] as const satisfies readonly StatCardVariation[];
 
 const mainStatsVariations = [
   { id: "default", label: "Default" },
   { id: "vertical", label: "Vertical" },
   { id: "compact", label: "Compact" },
   { id: "minimal", label: "Minimal" },
-];
+] as const satisfies readonly StatCardVariation[];
 
 const socialStatsVariations = [
   { id: "default", label: "Default" },
   { id: "compact", label: "Compact" },
   { id: "minimal", label: "Minimal" },
   { id: "badges", label: "Badges" },
-];
+] as const satisfies readonly StatCardVariation[];
 
-const socialCommunityVariations = [{ id: "default", label: "Default" }];
-
-const profileMainVariations = [
+const socialCommunityVariations = [
   { id: "default", label: "Default" },
-  { id: "compact", label: "Compact" },
-  { id: "minimal", label: "Minimal" },
-];
+] as const satisfies readonly StatCardVariation[];
 
 const favoritesGridVariations = [
   { id: "anime", label: "Anime Grid" },
@@ -61,18 +71,22 @@ const favoritesGridVariations = [
   { id: "staff", label: "Staff Grid" },
   { id: "studios", label: "Studios Grid" },
   { id: "mixed", label: "Mixed Favourites" },
-];
+] as const satisfies readonly StatCardVariation[];
 
-const activityCompactVariations = [{ id: "default", label: "Default" }];
+const activityCompactVariations = [
+  { id: "default", label: "Default" },
+] as const satisfies readonly StatCardVariation[];
 
-const activityFullVariations = [{ id: "default", label: "Default" }];
+const activityFullVariations = [
+  { id: "default", label: "Default" },
+] as const satisfies readonly StatCardVariation[];
 
 const createCardType = (
   id: string,
   group: string,
   label: string,
-  variations: typeof pieBarVariations,
-) => ({
+  variations: readonly StatCardVariation[],
+): StatCardTypeDefinition => ({
   id,
   group,
   label,
@@ -165,25 +179,31 @@ const activityCards = [
 const statusCompletionVariations = [
   { id: "combined", label: "Combined" },
   { id: "split", label: "Split (Anime/Manga)" },
-];
+] as const satisfies readonly StatCardVariation[];
 
-const milestonesVariations = [{ id: "default", label: "Default" }];
+const milestonesVariations = [
+  { id: "default", label: "Default" },
+] as const satisfies readonly StatCardVariation[];
 
-const personalRecordsVariations = [{ id: "default", label: "Default" }];
+const personalRecordsVariations = [
+  { id: "default", label: "Default" },
+] as const satisfies readonly StatCardVariation[];
 
-const planningBacklogVariations = [{ id: "default", label: "Default" }];
+const planningBacklogVariations = [
+  { id: "default", label: "Default" },
+] as const satisfies readonly StatCardVariation[];
 
 const mostRewatchedVariations = [
   { id: "default", label: "Default (All)" },
   { id: "anime", label: "Anime Only" },
   { id: "manga", label: "Manga Only" },
-];
+] as const satisfies readonly StatCardVariation[];
 
 const currentlyWatchingReadingVariations = [
   { id: "default", label: "Default (Anime + Manga)" },
   { id: "anime", label: "Anime Only" },
   { id: "manga", label: "Manga Only" },
-];
+] as const satisfies readonly StatCardVariation[];
 
 const completionProgressCards = [
   {
@@ -218,11 +238,17 @@ const completionProgressCards = [
   },
 ];
 
-const comparativeDefaultVariations = [{ id: "default", label: "Default" }];
+const comparativeDefaultVariations = [
+  { id: "default", label: "Default" },
+] as const satisfies readonly StatCardVariation[];
 
-const userAnalyticsDefaultVariations = [{ id: "default", label: "Default" }];
+const userAnalyticsDefaultVariations = [
+  { id: "default", label: "Default" },
+] as const satisfies readonly StatCardVariation[];
 
-const studioDefaultVariations = [{ id: "default", label: "Default" }];
+const studioDefaultVariations = [
+  { id: "default", label: "Default" },
+] as const satisfies readonly StatCardVariation[];
 
 export const statCardTypes = [
   createCardType(
@@ -335,7 +361,7 @@ export const statCardTypes = [
     "favoritesSummary",
     "Library & Progress",
     "Favourites Summary",
-    profileMainVariations,
+    defaultOnlyVariations,
   ),
   createCardType(
     "favoritesGrid",
@@ -407,4 +433,33 @@ export const statCardTypes = [
     "Tag Diversity",
     userAnalyticsDefaultVariations,
   ),
-];
+] as const satisfies readonly StatCardTypeDefinition[];
+
+const statCardTypeById = new Map(
+  statCardTypes.map((cardType) => [cardType.id, cardType]),
+);
+
+export function getStatCardType(
+  cardId: string,
+): StatCardTypeDefinition | undefined {
+  return statCardTypeById.get(cardId);
+}
+
+export function getCardVariations(
+  cardId: string,
+): readonly StatCardVariation[] {
+  return getStatCardType(cardId)?.variations ?? defaultOnlyVariations;
+}
+
+export function getDefaultCardVariation(cardId: string): string {
+  return getCardVariations(cardId)[0]?.id ?? "default";
+}
+
+export function isSupportedCardVariation(
+  cardId: string,
+  variationId: string,
+): boolean {
+  return getCardVariations(cardId).some(
+    (variation) => variation.id === variationId,
+  );
+}

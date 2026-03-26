@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
+import type { EditorStarterStyle } from "@/lib/user-page-starters";
 
 import { DraftRestoreNotice } from "./DraftRestoreNotice";
 import { SaveConflictNotice } from "./SaveConflictNotice";
@@ -26,6 +27,8 @@ export function EditorNotices({
   onDismissDraftNotice,
   isNewUser,
   onDismissNewUser,
+  starterStyles,
+  onApplyStarterStyle,
   onOpenHelp,
   onStartTour,
   cardsWarning,
@@ -40,6 +43,8 @@ export function EditorNotices({
   onDismissDraftNotice: () => void;
   isNewUser: boolean;
   onDismissNewUser: () => void;
+  starterStyles: readonly EditorStarterStyle[];
+  onApplyStarterStyle: (starterStyle: EditorStarterStyle) => void;
   onOpenHelp: () => void;
   onStartTour: () => void;
   cardsWarning: string | null;
@@ -82,8 +87,8 @@ export function EditorNotices({
               <div className="flex-1">
                 <p className="text-sm text-green-800 dark:text-green-200">
                   <span className="font-medium">Welcome to AniCards!</span> Your
-                  profile is ready. Enable cards below and customize them in
-                  Global Settings.
+                  profile is ready with a curated starter set. Pick a starter
+                  style below, then tweak anything you like in Global Settings.
                 </p>
               </div>
               <Button
@@ -132,17 +137,53 @@ export function EditorNotices({
                 </h3>
                 <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
                   <li>
-                    Enable the cards you want below (you can always change this
-                    later).
+                    Start with the curated cards below — you can enable the rest
+                    whenever you're ready.
                   </li>
                   <li>
-                    Open <strong>Global Settings</strong> to set your default
-                    style.
+                    Try one of the starter styles here, then open{" "}
+                    <strong>Global Settings</strong> to fine-tune it.
                   </li>
                   <li>
-                    Use each card’s actions to copy links/text or download.
+                    Want more looks? The live examples gallery can pipe a style
+                    straight into this editor as a reusable template.
                   </li>
                 </ul>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {starterStyles.map((starterStyle) => (
+                    <Button
+                      key={starterStyle.id}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onApplyStarterStyle(starterStyle)}
+                      className="border-gold/20 bg-background/70"
+                    >
+                      {starterStyle.name}
+                    </Button>
+                  ))}
+
+                  <a
+                    href="/examples"
+                    className="
+                      inline-flex items-center gap-1.5 border border-gold/20 bg-gold/8 px-3 py-2
+                      text-xs font-semibold tracking-[0.16em] text-gold-dim uppercase
+                      transition-colors
+                      hover:border-gold/35 hover:bg-gold/12
+                      dark:text-gold
+                    "
+                  >
+                    Browse examples
+                    <ExternalLink className="size-3" />
+                  </a>
+                </div>
+
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Example styles land in the same template library used by the
+                  editor, so you can reapply them later instead of rebuilding a
+                  look from scratch.
+                </p>
 
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
                   <Button

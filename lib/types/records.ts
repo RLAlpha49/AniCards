@@ -462,6 +462,13 @@ export interface PublicUserRecord {
   aggregates?: UserAggregates;
 }
 
+/** Lightweight bootstrap DTO returned by `/api/get-user?view=bootstrap`. */
+export interface UserBootstrapRecord {
+  userId: string;
+  username?: string;
+  avatarUrl?: string | null;
+}
+
 /**
  * A more specific shape returned by `reconstructUserRecord` which guarantees
  * that convenience fields like `statistics`, `favourites` and page containers

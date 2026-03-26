@@ -13,7 +13,10 @@ import { trackUserActionError } from "@/lib/error-tracking";
 import { getUserProfilePath } from "@/lib/seo";
 import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 import type { LoadingPhase } from "@/lib/types/loading";
-import type { PublicUserRecord } from "@/lib/types/records";
+import type {
+  PublicUserRecord,
+  UserBootstrapRecord,
+} from "@/lib/types/records";
 import { getResponseErrorMessage, parseResponsePayload } from "@/lib/utils";
 
 import { useNewUserSetup } from "./useNewUserSetup";
@@ -30,6 +33,7 @@ async function fetchUserData(
   const params = new URLSearchParams();
   if (userId) params.set("userId", userId);
   else if (username) params.set("username", username);
+  params.set("view", "bootstrap");
 
   try {
     const res = await fetch(`/api/get-user?${params.toString()}`);
@@ -43,7 +47,7 @@ async function fetchUserData(
       return { error: msg };
     }
 
-    const data = payload as PublicUserRecord;
+    const data = payload as PublicUserRecord | UserBootstrapRecord;
 
     // Accept numeric userId values even when they're returned as strings
     // (reconstructed records store many fields as strings). Normalize to a
@@ -65,9 +69,12 @@ async function fetchUserData(
       userId: String(parsedUserId),
       username: data.username || null,
       avatarUrl:
-        data.stats?.User?.avatar?.medium ||
-        data.stats?.User?.avatar?.large ||
-        null,
+        ("avatarUrl" in data ? (data.avatarUrl ?? null) : null) ||
+        ("stats" in data
+          ? data.stats?.User?.avatar?.medium ||
+            data.stats?.User?.avatar?.large ||
+            null
+          : null),
     };
   } catch (err) {
     console.error("Error fetching user:", err);
@@ -137,8 +144,13 @@ export function useUserDataLoader(options?: { routeUsername?: string }) {
   );
 
   const handleCardsForExistingUser = useCallback(
-    async (userIdStr: string, uname: string | null, aUrl: string | null) => {
-      const cardsResult = await fetchUserCards(userIdStr);
+    async (
+      userIdStr: string,
+      uname: string | null,
+      aUrl: string | null,
+      cardsResultPromise: ReturnType<typeof fetchUserCards>,
+    ) => {
+      const cardsResult = await cardsResultPromise;
 
       if ("error" in cardsResult) {
         if (cardsResult.notFound) {
@@ -270,13 +282,16 @@ export function useUserDataLoader(options?: { routeUsername?: string }) {
       return;
     }
 
-    setLoadingPhase("loading_cards");
     setUserData(userResult.userId, userResult.username, userResult.avatarUrl);
+    setLoadingPhase("loading_cards");
+
+    const cardsResultPromise = fetchUserCards(userResult.userId);
 
     await handleCardsForExistingUser(
       userResult.userId,
       userResult.username,
       userResult.avatarUrl,
+      cardsResultPromise,
     );
 
     navigateToCanonicalUserRoute(userResult.username);

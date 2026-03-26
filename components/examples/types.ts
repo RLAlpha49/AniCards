@@ -1,3 +1,4 @@
+import type { ThemeSettingsSnapshots } from "@/lib/card-preview";
 import type { ThemePreviewUrls } from "@/lib/preview-theme";
 
 export type ExampleCategory =
@@ -30,6 +31,7 @@ export interface CategoryInfo {
 export interface ExampleCardVariant {
   name: string;
   previewUrls: ThemePreviewUrls;
+  settingsSnapshots: ThemeSettingsSnapshots;
   description?: string;
   width?: number;
   height?: number;

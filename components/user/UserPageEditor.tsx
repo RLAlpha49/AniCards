@@ -92,6 +92,14 @@ import {
   clearUserPageDraft,
   readUserPageDraft,
 } from "@/lib/user-page-editor-draft";
+import {
+  consumePendingSettingsTemplateApply,
+  readSettingsTemplatesFromStorage,
+} from "@/lib/user-page-settings-templates";
+import {
+  EDITOR_STARTER_STYLES,
+  type EditorStarterStyle,
+} from "@/lib/user-page-starters";
 import { cn } from "@/lib/utils";
 
 import { BulkConfirmDialog } from "./bulk/BulkConfirmDialog";
@@ -1221,6 +1229,49 @@ export function UserPageEditor({
     setIsDraftNoticeDismissed(false);
   }, [userId, isLoading, isDirty]);
 
+  useEffect(() => {
+    if (isLoading || !userId) return;
+
+    const pendingTemplateApply = consumePendingSettingsTemplateApply();
+    if (!pendingTemplateApply) return;
+
+    const store = useUserPageEditor.getState();
+    let template = store.settingsTemplates.find(
+      (entry) => entry.id === pendingTemplateApply.templateId,
+    );
+
+    if (!template) {
+      const persistedTemplate = readSettingsTemplatesFromStorage().find(
+        (entry) => entry.id === pendingTemplateApply.templateId,
+      );
+
+      if (persistedTemplate) {
+        store.importSettingsTemplates([persistedTemplate]);
+        template = useUserPageEditor
+          .getState()
+          .settingsTemplates.find(
+            (entry) => entry.id === pendingTemplateApply.templateId,
+          );
+      }
+    }
+
+    if (!template) {
+      toast.error("Couldn't apply the queued example style", {
+        description: "Try selecting the example again from the gallery.",
+      });
+      return;
+    }
+
+    store.applySettingsTemplateToGlobal(pendingTemplateApply.templateId);
+    toast.success(
+      `${pendingTemplateApply.templateName ?? template.name} applied`,
+      {
+        description:
+          "This style is now active in Global Settings and saved in your template library.",
+      },
+    );
+  }, [isLoading, userId]);
+
   const showDraftNotice =
     !isDraftNoticeDismissed && draftRecord != null && !isDirty;
   const showConflictNotice = saveConflict != null;
@@ -1228,6 +1279,18 @@ export function UserPageEditor({
   const canSaveNow =
     Boolean(userId) && isDirty && !isSaving && !showConflictNotice;
   const canDiscardNow = isDirty && !isSaving;
+
+  const handleApplyStarterStyle = useCallback(
+    (starterStyle: EditorStarterStyle) => {
+      useUserPageEditor
+        .getState()
+        .applySettingsSnapshotToGlobal(starterStyle.snapshot);
+      toast.success(`${starterStyle.name} starter applied`, {
+        description: starterStyle.description,
+      });
+    },
+    [],
+  );
 
   const { setTheme, resolvedTheme } = useTheme();
   const handleToggleTheme = useCallback(() => {
@@ -1389,7 +1452,7 @@ export function UserPageEditor({
   type RenderableCardType = {
     id: string;
     label: string;
-    variations: Array<{ id: string; label: string }>;
+    variations: ReadonlyArray<{ id: string; label: string }>;
   };
 
   const renderCardTile = useCallback(
@@ -1404,7 +1467,7 @@ export function UserPageEditor({
       <CardTile
         cardId={cardType.id}
         label={cardType.label}
-        variations={cardType.variations}
+        variations={[...cardType.variations]}
         supportsStatusColors={STATUS_COLOR_CARDS.has(cardType.id)}
         supportsPiePercentages={PIE_PERCENTAGE_CARDS.has(cardType.id)}
         supportsFavorites={FAVORITES_CARDS.has(cardType.id)}
@@ -1492,6 +1555,8 @@ export function UserPageEditor({
           onDismissDraftNotice={() => setIsDraftNoticeDismissed(true)}
           isNewUser={isNewUser}
           onDismissNewUser={() => setIsNewUser(false)}
+          starterStyles={EDITOR_STARTER_STYLES}
+          onApplyStarterStyle={handleApplyStarterStyle}
           onOpenHelp={openHelpDialog}
           onStartTour={startTour}
           cardsWarning={cardsWarning}

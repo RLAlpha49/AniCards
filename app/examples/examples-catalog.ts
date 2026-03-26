@@ -6,6 +6,7 @@ import type {
 import { CARD_GROUPS, VARIATION_LABEL_MAP } from "@/lib/card-groups";
 import {
   buildThemePreviewUrls,
+  buildThemeSettingsSnapshots,
   getPreviewCardDimensions,
 } from "@/lib/card-preview";
 
@@ -407,6 +408,9 @@ const EXAMPLES_CARD_TYPES: ExampleCardType[] = CARD_TYPE_METADATA.map(
           previewUrls: buildThemePreviewUrls({
             cardType: group.cardType,
             variation: normalizedVariation.variation,
+            extras: normalizedVariation.extras,
+          }),
+          settingsSnapshots: buildThemeSettingsSnapshots({
             extras: normalizedVariation.extras,
           }),
           width: w,

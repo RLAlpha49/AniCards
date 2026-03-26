@@ -1,15 +1,24 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check, Copy, ExternalLink } from "lucide-react";
+import { Check, Copy, ExternalLink, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { CardPreviewPlaceholder } from "@/components/CardPreviewPlaceholder";
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
 import {
+  DARK_PREVIEW_COLOR_PRESET,
+  LIGHT_PREVIEW_COLOR_PRESET,
   type PreviewColorPreset,
   selectThemePreviewUrl,
 } from "@/lib/preview-theme";
+import type { SettingsTemplateV1 } from "@/lib/user-page-settings-io";
+import {
+  queuePendingSettingsTemplateApply,
+  upsertSettingsTemplateInStorage,
+} from "@/lib/user-page-settings-templates";
 import { cn } from "@/lib/utils";
 
 import type { ExampleCardVariant } from "./types";
@@ -21,23 +30,85 @@ interface ExampleCardProps {
   index?: number;
 }
 
+function getSelectedSettingsSnapshot(
+  variant: ExampleCardVariant,
+  previewColorPreset: PreviewColorPreset | null,
+) {
+  if (previewColorPreset === DARK_PREVIEW_COLOR_PRESET) {
+    return variant.settingsSnapshots.dark;
+  }
+
+  if (previewColorPreset === LIGHT_PREVIEW_COLOR_PRESET) {
+    return variant.settingsSnapshots.light;
+  }
+
+  return null;
+}
+
+function buildButtonLabels(opts: {
+  isPreviewReady: boolean;
+  copied: boolean;
+  queuedForEditor: boolean;
+}) {
+  let copy = "Preview is still loading";
+  let editor = "Pick a preview theme to use this style";
+
+  if (opts.isPreviewReady) {
+    copy = opts.copied ? "Copied!" : "Copy embed URL";
+    editor = opts.queuedForEditor
+      ? "Queued for editor"
+      : "Use this style in the editor";
+  }
+
+  return {
+    copy,
+    editor,
+  };
+}
+
+function buildExampleTemplateId(
+  cardTypeTitle: string,
+  variantName: string,
+  themeLabel: string,
+): string {
+  const slugify = (value: string) =>
+    value
+      .trim()
+      .toLowerCase()
+      .replaceAll(/[^a-z0-9]+/g, "-")
+      .replaceAll(/^-+|-+$/g, "");
+
+  return [
+    "example",
+    slugify(cardTypeTitle),
+    slugify(variantName),
+    slugify(themeLabel),
+  ].join(":");
+}
+
 export function ExampleCard({
   variant,
   cardTypeTitle,
   previewColorPreset,
   index = 0,
 }: Readonly<ExampleCardProps>) {
+  const router = useRouter();
   const [copied, setCopied] = useState(false);
+  const [queuedForEditor, setQueuedForEditor] = useState(false);
   const previewUrl = selectThemePreviewUrl(
     variant.previewUrls,
     previewColorPreset,
   );
+  const selectedSettingsSnapshot = getSelectedSettingsSnapshot(
+    variant,
+    previewColorPreset,
+  );
   const isPreviewReady = previewUrl !== undefined;
-  let copyButtonLabel = "Preview is still loading";
-
-  if (isPreviewReady) {
-    copyButtonLabel = copied ? "Copied!" : "Copy embed URL";
-  }
+  const buttonLabels = buildButtonLabels({
+    isPreviewReady,
+    copied,
+    queuedForEditor,
+  });
 
   useEffect(() => {
     if (copied) {
@@ -45,6 +116,13 @@ export function ExampleCard({
       return () => clearTimeout(timer);
     }
   }, [copied]);
+
+  useEffect(() => {
+    if (queuedForEditor) {
+      const timer = setTimeout(() => setQueuedForEditor(false), 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [queuedForEditor]);
 
   const handleCopy = useCallback(
     async (e: React.MouseEvent) => {
@@ -59,6 +137,49 @@ export function ExampleCard({
       }
     },
     [isPreviewReady, previewUrl],
+  );
+
+  const handleUseInEditor = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+
+      if (!selectedSettingsSnapshot || !previewColorPreset) return;
+
+      const themeLabel =
+        previewColorPreset === DARK_PREVIEW_COLOR_PRESET ? "Dark" : "Light";
+      const now = Date.now();
+      const template: SettingsTemplateV1 = {
+        id: buildExampleTemplateId(cardTypeTitle, variant.name, themeLabel),
+        name: `${cardTypeTitle} — ${variant.name} (${themeLabel})`,
+        snapshot: selectedSettingsSnapshot,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      upsertSettingsTemplateInStorage(template);
+      queuePendingSettingsTemplateApply({
+        templateId: template.id,
+        templateName: template.name,
+        applyTo: "global",
+        source: "examples",
+        queuedAt: now,
+      });
+
+      setQueuedForEditor(true);
+      toast.success("Style queued for your editor", {
+        description:
+          "Pick a user and AniCards will apply this example as a reusable template.",
+      });
+      router.push("/search");
+    },
+    [
+      cardTypeTitle,
+      previewColorPreset,
+      router,
+      selectedSettingsSnapshot,
+      variant.name,
+    ],
   );
 
   return (
@@ -159,25 +280,53 @@ export function ExampleCard({
           <p className="line-clamp-1 text-xs font-medium tracking-wide text-foreground/55">
             {variant.name}
           </p>
-          <button
-            type="button"
-            onClick={handleCopy}
-            className={cn(
-              "pointer-events-auto relative z-20 shrink-0 p-1.5 transition-all duration-200",
-              !isPreviewReady && "cursor-not-allowed opacity-50",
-              copied
-                ? "text-emerald-500 dark:text-emerald-400"
-                : "text-foreground/15 hover:text-gold",
-            )}
-            aria-label={copyButtonLabel}
-            disabled={!isPreviewReady}
-          >
-            {copied ? (
-              <Check className="size-3.5" />
-            ) : (
-              <Copy className="size-3.5" />
-            )}
-          </button>
+          <div className="relative z-20 flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleUseInEditor}
+              className={cn(
+                `
+                  pointer-events-auto inline-flex items-center gap-1.5 border px-2.5 py-1
+                  text-[10px] font-semibold tracking-[0.18em] uppercase transition-all duration-200
+                `,
+                !selectedSettingsSnapshot && "cursor-not-allowed opacity-50",
+                queuedForEditor
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                  : `
+                    border-gold/20 bg-gold/8 text-gold-dim
+                    hover:border-gold/35 hover:bg-gold/12
+                    dark:text-gold
+                  `,
+              )}
+              aria-label={buttonLabels.editor}
+              disabled={!selectedSettingsSnapshot}
+            >
+              <Sparkles className="size-3" />
+              <span className="hidden sm:inline">
+                {queuedForEditor ? "Queued" : "Use in editor"}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleCopy}
+              className={cn(
+                "pointer-events-auto shrink-0 p-1.5 transition-all duration-200",
+                !isPreviewReady && "cursor-not-allowed opacity-50",
+                copied
+                  ? "text-emerald-500 dark:text-emerald-400"
+                  : "text-foreground/15 hover:text-gold",
+              )}
+              aria-label={buttonLabels.copy}
+              disabled={!isPreviewReady}
+            >
+              {copied ? (
+                <Check className="size-3.5" />
+              ) : (
+                <Copy className="size-3.5" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </motion.div>

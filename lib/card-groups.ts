@@ -1,3 +1,4 @@
+import { getCardVariations } from "@/lib/card-types";
 import type { ColorValue } from "@/lib/types/card";
 import { buildApiUrl, clampBorderRadius } from "@/lib/utils";
 
@@ -46,7 +47,7 @@ export const VARIATION_LABEL_MAP: Record<string, string> = {
  * object that supplies extras (query params) for the variation.
  * @source
  */
-type VariationDef =
+export type VariationDef =
   | string
   | { variation: string; extras?: Record<string, string> };
 
@@ -61,278 +62,264 @@ export type CardGroup = {
   variations: VariationDef[];
 };
 
+type CardGroupDefinition = {
+  cardType: string;
+  cardTitle: string;
+  variationOrder?: readonly string[];
+  extrasByVariation?: Partial<Record<string, Record<string, string>>>;
+};
+
+function createCardGroup(definition: CardGroupDefinition): CardGroup {
+  const supportedVariationIds = getCardVariations(definition.cardType).map(
+    (variation) => variation.id,
+  );
+
+  const orderedVariationIds = definition.variationOrder
+    ? definition.variationOrder.filter((variationId, index, all) => {
+        return (
+          supportedVariationIds.includes(variationId) &&
+          all.indexOf(variationId) === index
+        );
+      })
+    : [];
+
+  for (const supportedVariationId of supportedVariationIds) {
+    if (orderedVariationIds.includes(supportedVariationId)) continue;
+    orderedVariationIds.push(supportedVariationId);
+  }
+
+  return {
+    cardType: definition.cardType,
+    cardTitle: definition.cardTitle,
+    variations: orderedVariationIds.map((variationId) => {
+      const extras = definition.extrasByVariation?.[variationId];
+      return extras ? { variation: variationId, extras } : variationId;
+    }),
+  };
+}
+
 /** All grouped card metadata used to render examples and UI lists. @source */
 export const CARD_GROUPS: CardGroup[] = [
-  {
+  createCardGroup({
     cardType: "animeStats",
     cardTitle: "Anime Statistics",
-    variations: ["vertical", "default", "compact", "minimal"],
-  },
-  {
+    variationOrder: ["vertical", "default", "compact", "minimal"],
+  }),
+  createCardGroup({
     cardType: "mangaStats",
     cardTitle: "Manga Statistics",
-    variations: ["vertical", "default", "compact", "minimal"],
-  },
-  {
+    variationOrder: ["vertical", "default", "compact", "minimal"],
+  }),
+  createCardGroup({
     cardType: "socialStats",
     cardTitle: "Social Statistics",
-    variations: ["default", "compact", "minimal", "badges"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "socialMilestones",
     cardTitle: "Social Milestones",
-    variations: ["default"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "animeGenres",
     cardTitle: "Anime Genres",
-    variations: ["default", "pie", "donut", "bar", "radar"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "animeTags",
     cardTitle: "Anime Tags",
-    variations: ["default", "pie", "donut", "bar", "radar"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "animeVoiceActors",
     cardTitle: "Voice Actors",
-    variations: ["default", "pie", "donut", "bar"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "animeStudios",
     cardTitle: "Animation Studios",
-    variations: ["default", "pie", "donut", "bar"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "studioCollaboration",
     cardTitle: "Studio Collaboration",
-    variations: ["default"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "animeStaff",
     cardTitle: "Anime Staff",
-    variations: ["default", "pie", "donut", "bar"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "animeStatusDistribution",
     cardTitle: "Anime Status Distribution",
-    variations: [
-      "default",
-      { variation: "pie", extras: { statusColors: "true" } },
-      { variation: "bar", extras: { statusColors: "true" } },
-      { variation: "donut", extras: { statusColors: "true" } },
-    ],
-  },
-  {
+    extrasByVariation: {
+      pie: { statusColors: "true" },
+      bar: { statusColors: "true" },
+      donut: { statusColors: "true" },
+    },
+  }),
+  createCardGroup({
     cardType: "animeFormatDistribution",
     cardTitle: "Anime Format Distribution",
-    variations: ["default", "pie", "donut", "bar"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "animeCountry",
     cardTitle: "Anime Country Distribution",
-    variations: ["default", "pie", "donut", "bar"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "animeSourceMaterialDistribution",
     cardTitle: "Anime Source Material Distribution",
-    variations: ["default", "pie", "donut", "bar"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "animeSeasonalPreference",
     cardTitle: "Anime Seasonal Preference",
-    variations: ["default", "pie", "donut", "bar", "radar"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "animeScoreDistribution",
     cardTitle: "Anime Score Distribution",
-    variations: ["default", "horizontal", "cumulative"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "animeYearDistribution",
     cardTitle: "Anime Year Distribution",
-    variations: ["default", "horizontal"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "animeEpisodeLengthPreferences",
     cardTitle: "Episode Length Preferences",
-    variations: ["default", "pie", "donut", "bar"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "animeGenreSynergy",
     cardTitle: "Genre Synergy",
-    variations: ["default"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "mangaGenres",
     cardTitle: "Manga Genres",
-    variations: ["default", "pie", "donut", "bar", "radar"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "mangaTags",
     cardTitle: "Manga Tags",
-    variations: ["default", "pie", "donut", "bar", "radar"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "mangaStaff",
     cardTitle: "Manga Staff",
-    variations: ["default", "pie", "donut", "bar"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "mangaStatusDistribution",
     cardTitle: "Manga Status Distribution",
-    variations: [
-      "default",
-      { variation: "pie", extras: { statusColors: "true" } },
-      { variation: "bar", extras: { statusColors: "true" } },
-      { variation: "donut", extras: { statusColors: "true" } },
-    ],
-  },
-  {
+    extrasByVariation: {
+      pie: { statusColors: "true" },
+      bar: { statusColors: "true" },
+      donut: { statusColors: "true" },
+    },
+  }),
+  createCardGroup({
     cardType: "mangaFormatDistribution",
     cardTitle: "Manga Format Distribution",
-    variations: ["default", "pie", "donut", "bar"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "mangaCountry",
     cardTitle: "Manga Country Distribution",
-    variations: ["default", "pie", "donut", "bar"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "mangaScoreDistribution",
     cardTitle: "Manga Score Distribution",
-    variations: ["default", "horizontal", "cumulative"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "mangaYearDistribution",
     cardTitle: "Manga Year Distribution",
-    variations: ["default", "horizontal"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "profileOverview",
     cardTitle: "Profile Overview",
-    variations: ["default"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "favoritesSummary",
     cardTitle: "Favourites Summary",
-    variations: ["default"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "favoritesGrid",
     cardTitle: "Favourites Grid",
-    variations: ["anime", "manga", "characters", "staff", "studios", "mixed"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "recentActivitySummary",
     cardTitle: "Recent Activity Summary",
-    variations: ["default"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "activityStreaks",
     cardTitle: "Activity Streaks",
-    variations: ["default"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "topActivityDays",
     cardTitle: "Top Activity Days",
-    variations: ["default"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "statusCompletionOverview",
     cardTitle: "Status Completion Overview",
-    variations: ["combined", "split"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "milestones",
     cardTitle: "Consumption Milestones",
-    variations: ["default"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "personalRecords",
     cardTitle: "Personal Records",
-    variations: ["default"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "planningBacklog",
     cardTitle: "Planning Backlog",
-    variations: ["default"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "mostRewatched",
     cardTitle: "Most Rewatched/Reread",
-    variations: ["default", "anime", "manga"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "currentlyWatchingReading",
     cardTitle: "Currently Watching / Reading",
-    variations: ["default", "anime", "manga"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "animeMangaOverview",
     cardTitle: "Anime vs Manga Overview",
-    variations: ["default"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "scoreCompareAnimeManga",
     cardTitle: "Anime vs Manga Score Comparison",
-    variations: ["default"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "countryDiversity",
     cardTitle: "Country Diversity",
-    variations: ["default"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "genreDiversity",
     cardTitle: "Genre Diversity",
-    variations: ["default"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "formatPreferenceOverview",
     cardTitle: "Format Preference Overview",
-    variations: ["default"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "releaseEraPreference",
     cardTitle: "Release Era Preference",
-    variations: ["default"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "startYearMomentum",
     cardTitle: "Start-Year Momentum",
-    variations: ["default"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "lengthPreference",
     cardTitle: "Length Preference",
-    variations: ["default"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "tagCategoryDistribution",
     cardTitle: "Tag Category Distribution",
-    variations: ["default"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "tagDiversity",
     cardTitle: "Tag Diversity",
-    variations: ["default"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "seasonalViewingPatterns",
     cardTitle: "Seasonal Viewing Patterns",
-    variations: ["default"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "droppedMedia",
     cardTitle: "Dropped Media",
-    variations: ["default"],
-  },
-  {
+  }),
+  createCardGroup({
     cardType: "reviewStats",
     cardTitle: "Review Statistics",
-    variations: ["default"],
-  },
+  }),
 ];
 
 /**
@@ -546,12 +533,16 @@ export function mapStoredConfigToCardUrlParams(
   const params: CardUrlParams = {
     cardType,
     userId: opts?.userId,
-    username: opts?.username ?? opts?.userName,
+    username: opts?.username,
     variation,
     colorPreset,
     borderColor,
     borderRadius,
   };
+
+  if (!params.username && typeof opts?.["userName"] === "string") {
+    params.username = opts["userName"];
+  }
 
   const shouldIncludeColors = computeShouldIncludeColors({
     includeColors,
@@ -634,13 +625,13 @@ export function buildCardUrlWithParams(
   baseUrl = DEFAULT_BASE_CARD_URL,
 ): string {
   const searchParams = new URLSearchParams();
+  const legacyUsername = Reflect.get(params, "userName");
+  const resolvedUsername =
+    params.username ||
+    (typeof legacyUsername === "string" ? legacyUsername : undefined);
 
   setParamIfDefined(searchParams, "userId", params.userId);
-  setParamIfDefined(
-    searchParams,
-    "username",
-    params.username ?? params.userName,
-  );
+  setParamIfDefined(searchParams, "username", resolvedUsername);
 
   searchParams.set("cardType", params.cardType);
 

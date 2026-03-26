@@ -27,6 +27,7 @@ import {
   ThreadCommentsPage,
   ThreadsPage,
   UserAvatar,
+  UserBootstrapRecord,
   UserRecommendationsPage,
   UserRecord,
   UserReviewsPage,
@@ -62,6 +63,8 @@ export const ALL_USER_DATA_PARTS: readonly UserDataPart[] = [
   "completed",
   "aggregates",
 ];
+
+export const USER_BOOTSTRAP_DATA_PARTS: readonly UserDataPart[] = ["meta"];
 
 const OPTIONAL_USER_DATA_PARTS = new Set<UserDataPart>(["aggregates"]);
 const USER_STORAGE_FORMAT = "split-user-v2";
@@ -1152,6 +1155,21 @@ export function reconstructPublicUserRecord(
     favourites: record.favourites,
     pages: record.pages,
     ...(record.aggregates ? { aggregates: record.aggregates } : {}),
+  };
+}
+
+/**
+ * Reconstructs the lightweight bootstrap DTO returned by `/api/get-user?view=bootstrap`.
+ */
+export function reconstructUserBootstrapRecord(
+  parts: Partial<Record<UserDataPart, unknown>>,
+): UserBootstrapRecord {
+  const meta = parts.meta as UserMeta | undefined;
+
+  return {
+    userId: meta?.userId || "",
+    username: meta?.username,
+    avatarUrl: meta?.avatar?.medium || meta?.avatar?.large || null,
   };
 }
 

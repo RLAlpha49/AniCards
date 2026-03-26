@@ -7,12 +7,15 @@
 import { useCallback, useState } from "react";
 
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
-import { fetchUserCards } from "@/lib/api/cards";
 import { statCardTypes } from "@/lib/card-types";
 import { getErrorDetails } from "@/lib/error-messages";
 import { trackUserActionError } from "@/lib/error-tracking";
 import { useUserPageEditor } from "@/lib/stores/user-page-editor";
 import type { LoadingPhase } from "@/lib/types/loading";
+import {
+  buildNewUserStarterCardsSnapshot,
+  NEW_USER_STARTER_GLOBAL_SETTINGS,
+} from "@/lib/user-page-starters";
 import { getResponseErrorMessage, parseResponsePayload } from "@/lib/utils";
 
 interface AniListStatsResponse {
@@ -27,6 +30,9 @@ type NewUserSetupResult =
       username: string | null;
       avatarUrl: string | null;
       stats: AniListStatsResponse;
+      initialCards: ReturnType<typeof buildNewUserStarterCardsSnapshot>;
+      cardsUpdatedAt: string | null;
+      cardsPersisted: boolean;
     }
   | { error: string };
 
@@ -133,18 +139,9 @@ async function saveUserToDatabase(
     return { error: "Failed to save your profile. Please try again." };
   }
 }
-function buildInitialCardsSnapshot() {
-  return statCardTypes.map((t) => ({
-    cardName: t.id,
-    disabled: false,
-    variation: t.variations[0].id,
-    colorPreset: "default",
-  }));
-}
-
 async function saveInitialCards(userId: number, stats: unknown) {
   try {
-    const initialCards = buildInitialCardsSnapshot();
+    const initialCards = buildNewUserStarterCardsSnapshot();
 
     const res = await fetch("/api/store-cards", {
       method: "POST",
@@ -153,7 +150,7 @@ async function saveInitialCards(userId: number, stats: unknown) {
         userId,
         cards: initialCards,
         statsData: stats,
-        globalSettings: { colorPreset: "default", borderEnabled: false },
+        globalSettings: NEW_USER_STARTER_GLOBAL_SETTINGS,
       }),
     });
 
@@ -164,7 +161,14 @@ async function saveInitialCards(userId: number, stats: unknown) {
       return { error: msg };
     }
 
-    return { success: true };
+    const data = payload as { updatedAt?: string | null };
+
+    return {
+      success: true as const,
+      initialCards,
+      globalSettings: NEW_USER_STARTER_GLOBAL_SETTINGS,
+      updatedAt: data.updatedAt ?? null,
+    };
   } catch (err) {
     console.error("Error saving initial cards:", err);
     return { error: "Failed to initialize cards. Please try again." };
@@ -259,6 +263,7 @@ export function useNewUserSetup() {
         resolvedUserId,
         statsResult.stats,
       );
+      const fallbackInitialCards = buildNewUserStarterCardsSnapshot();
       if ("error" in saveCardsResult) {
         // Non-fatal: user account is created; cards will use defaults and can be re-saved later
         const errorDetails = getErrorDetails(
@@ -273,6 +278,21 @@ export function useNewUserSetup() {
             username: resolvedUsername ?? undefined,
           },
         );
+
+        const userStats = statsResult.stats.User;
+        const avatar = userStats?.avatar as Record<string, string> | undefined;
+        const resolvedAvatarUrl = avatar?.medium || avatar?.large || null;
+
+        return {
+          success: true,
+          userId: resolvedUserId,
+          username: resolvedUsername,
+          avatarUrl: resolvedAvatarUrl,
+          stats: statsResult.stats,
+          initialCards: fallbackInitialCards,
+          cardsUpdatedAt: null,
+          cardsPersisted: false,
+        };
       }
 
       const userStats = statsResult.stats.User;
@@ -285,92 +305,41 @@ export function useNewUserSetup() {
         username: resolvedUsername,
         avatarUrl: resolvedAvatarUrl,
         stats: statsResult.stats,
+        initialCards: saveCardsResult.initialCards,
+        cardsUpdatedAt: saveCardsResult.updatedAt,
+        cardsPersisted: true,
       };
     },
     [],
   );
 
-  const handlePersistedCardsAfterNewUserSetup = useCallback(
-    async (uid: number, uname: string | null, aUrl: string | null) => {
-      // Re-read cards from storage even right after creating them so brand-new
-      // users and returning users converge on the same hydration path.
-      const persistedCardsResult = await fetchUserCards(String(uid));
-
-      if ("error" in persistedCardsResult) {
-        if (persistedCardsResult.notFound) {
-          const initialCards = buildInitialCardsSnapshot();
-          initializeFromServerData(
-            String(uid),
-            uname,
-            aUrl,
-            initialCards,
-            undefined,
-            ALL_CARD_IDS,
-          );
-        } else {
-          const errorDetails = getErrorDetails(
-            persistedCardsResult.error ?? "Unknown error",
-          );
-          trackUserActionError(
-            "new_user_setup_fetch_cards",
-            new Error(persistedCardsResult.error ?? "Unknown error"),
-            errorDetails.category,
-            { userId: String(uid), username: uname ?? undefined },
-          );
-          setCardsWarning(
-            "We couldn't load your saved cards due to a server error. Default cards are displayed for now.",
-          );
-          const initialCards = buildInitialCardsSnapshot();
-          initializeFromServerData(
-            String(uid),
-            uname,
-            aUrl,
-            initialCards,
-            undefined,
-            ALL_CARD_IDS,
-          );
-        }
-        return;
-      }
-
-      if (
-        Array.isArray(persistedCardsResult.cards) &&
-        persistedCardsResult.cards.length === 0
-      ) {
-        const msg = "No persisted cards were returned after initial save";
-        const details = getErrorDetails(msg);
-        trackUserActionError(
-          "new_user_setup_fetch_cards",
-          new Error(msg),
-          details.category,
-          {
-            userId: String(uid),
-            username: uname ?? undefined,
-          },
-        );
-        console.warn(msg, { userId: uid });
-        const initialCards = buildInitialCardsSnapshot();
-        initializeFromServerData(
-          String(uid),
-          uname,
-          aUrl,
-          initialCards,
-          undefined,
-          ALL_CARD_IDS,
-        );
-        return;
-      }
-
+  const hydrateNewUserCards = useCallback(
+    (params: {
+      userId: number;
+      username: string | null;
+      avatarUrl: string | null;
+      initialCards: ReturnType<typeof buildNewUserStarterCardsSnapshot>;
+      updatedAt: string | null;
+      cardsPersisted: boolean;
+    }) => {
       initializeFromServerData(
-        String(uid),
-        uname,
-        aUrl,
-        persistedCardsResult.cards,
-        persistedCardsResult.globalSettings,
+        String(params.userId),
+        params.username,
+        params.avatarUrl,
+        params.initialCards,
+        NEW_USER_STARTER_GLOBAL_SETTINGS,
         ALL_CARD_IDS,
-        persistedCardsResult.updatedAt ?? null,
+        params.updatedAt,
       );
-      setCardsWarning(null);
+
+      if (params.cardsPersisted) {
+        setCardsWarning(null);
+        return;
+      }
+
+      setCardsWarning(
+        "We couldn't persist your starter cards yet, so you're editing a local starter setup for now. Saving once will store it.",
+      );
     },
     [initializeFromServerData],
   );
@@ -404,11 +373,14 @@ export function useNewUserSetup() {
           setupResult.avatarUrl,
         );
 
-        await handlePersistedCardsAfterNewUserSetup(
-          setupResult.userId,
-          setupResult.username,
-          setupResult.avatarUrl,
-        );
+        hydrateNewUserCards({
+          userId: setupResult.userId,
+          username: setupResult.username,
+          avatarUrl: setupResult.avatarUrl,
+          initialCards: setupResult.initialCards,
+          updatedAt: setupResult.cardsUpdatedAt,
+          cardsPersisted: setupResult.cardsPersisted,
+        });
 
         setLoadingPhase?.("complete");
 
@@ -441,7 +413,7 @@ export function useNewUserSetup() {
         return { error: message } as const;
       }
     },
-    [setupNewUserNetwork, setUserData, handlePersistedCardsAfterNewUserSetup],
+    [setupNewUserNetwork, setUserData, hydrateNewUserCards],
   );
 
   return {

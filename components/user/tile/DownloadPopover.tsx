@@ -85,7 +85,7 @@ export function DownloadPopover({
             aria-describedby={downloadDescrId}
             title={downloadTitle}
           >
-            <span className="font-medium text-foreground">SVG</span>
+            <span className="font-medium text-foreground">PNG</span>
             <span className="ml-auto text-xs text-muted-foreground">
               Lossless
             </span>

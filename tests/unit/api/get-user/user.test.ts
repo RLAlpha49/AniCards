@@ -129,14 +129,17 @@ function mockStoredParts(
     sharedRedisMockGet.mockResolvedValueOnce(options.usernameIndex ?? null);
   }
 
-  sharedRedisMockMget.mockResolvedValueOnce(
-    USER_PART_KEYS.map((part) => {
-      const value = parts[part];
-      return value === null || value === undefined
-        ? null
-        : JSON.stringify(value);
-    }),
-  );
+  sharedRedisMockMget.mockImplementationOnce((...keys: string[]) => {
+    return Promise.resolve(
+      keys.map((key) => {
+        const part = key.split(":").at(-1) as (typeof USER_PART_KEYS)[number];
+        const value = parts[part];
+        return value === null || value === undefined
+          ? null
+          : JSON.stringify(value);
+      }),
+    );
+  });
 }
 
 async function expectError(
@@ -186,6 +189,21 @@ async function expectOkJson(query: string | undefined) {
   expect(json).not.toHaveProperty("createdAt");
   expect(json).not.toHaveProperty("updatedAt");
   expect(json).not.toHaveProperty("requestMetadata");
+
+  return json;
+}
+
+async function expectBootstrapJson(query: string | undefined) {
+  const res = await callGet(query);
+  expect(res.status).toBe(200);
+
+  const json = await getResponseJson<Record<string, unknown>>(res);
+
+  expect(json).toEqual({
+    userId: "123",
+    username: "testUser",
+    avatarUrl: "https://example.com/avatar-medium.webp",
+  });
 
   return json;
 }
@@ -251,6 +269,14 @@ describe("User API GET Endpoint", () => {
         ...USER_PART_KEYS.map((part) => `user:123:${part}`),
       );
       expect(sharedRedisMockGet).not.toHaveBeenCalledWith("user:123");
+    });
+
+    it("should return the lightweight bootstrap DTO when view=bootstrap is requested", async () => {
+      mockStoredParts();
+
+      await expectBootstrapJson("userId=123&view=bootstrap");
+
+      expect(sharedRedisMockMget).toHaveBeenCalledWith("user:123:meta");
     });
 
     it("should resolve username to userId via index and fetch split user data", async () => {
@@ -388,6 +414,18 @@ describe("User API GET Endpoint", () => {
           createdAt: 1_700_000_000,
         },
       });
+    });
+
+    it("should keep bootstrap responses limited to identity fields", async () => {
+      mockStoredParts();
+
+      const json = await expectBootstrapJson("userId=123&view=bootstrap");
+
+      expect(json).not.toHaveProperty("stats");
+      expect(json).not.toHaveProperty("statistics");
+      expect(json).not.toHaveProperty("favourites");
+      expect(json).not.toHaveProperty("pages");
+      expect(json).not.toHaveProperty("aggregates");
     });
   });
 

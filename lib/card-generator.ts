@@ -24,6 +24,7 @@ import {
   toTemplateStudioCollaboration,
   VoiceActorItem,
 } from "@/lib/card-data";
+import { getCardVariations, getDefaultCardVariation } from "@/lib/card-types";
 import {
   embedFavoritesGridImages,
   fetchImageAsDataUrl,
@@ -254,6 +255,7 @@ type CardGenVariant =
   | "anime"
   | "manga"
   | "characters"
+  | "staff"
   | "studios"
   | "mixed"
   | "github"
@@ -328,126 +330,42 @@ function normalizeVariant(
     "vertical",
     "pie",
     "donut",
+    "radar",
     "compact",
     "minimal",
+    "badges",
     "bar",
     "horizontal",
+    "cumulative",
+    "anime",
+    "manga",
+    "characters",
+    "staff",
+    "studios",
+    "mixed",
+    "combined",
+    "split",
   ]);
-  if (!variant || typeof variant !== "string") return "default";
+  const fallback = baseCardType
+    ? getDefaultCardVariation(baseCardType)
+    : "default";
+
+  if (!variant || typeof variant !== "string") {
+    return fallback as CardGenVariant;
+  }
 
   // Accept legacy 'communityFootprint' variant as alias for 'badges'
   if (variant === "communityFootprint") variant = "badges";
 
-  if (baseCardType === "favoritesGrid") {
-    if (
-      ["anime", "manga", "characters", "staff", "studios", "mixed"].includes(
-        variant,
-      )
-    ) {
+  if (baseCardType) {
+    const allowedVariants = getCardVariations(baseCardType).map(
+      (entry) => entry.id,
+    );
+    if (allowedVariants.includes(variant)) {
       return variant as CardGenVariant;
     }
-    return "mixed" as CardGenVariant;
-  }
 
-  const statsVariants = new Set<CardGenVariant>([
-    "default",
-    "vertical",
-    "compact",
-    "minimal",
-  ]);
-  const socialVariants = new Set<CardGenVariant>([
-    "default",
-    "compact",
-    "minimal",
-    "badges",
-  ]);
-  const pieBarVariants = new Set<CardGenVariant>([
-    "default",
-    "pie",
-    "donut",
-    "bar",
-  ]);
-  const genreTagVariants = new Set<CardGenVariant>([
-    "default",
-    "pie",
-    "donut",
-    "bar",
-    "radar",
-  ]);
-  const statusPieBarVariants = pieBarVariants;
-  const scoreDistributionVariants = new Set<CardGenVariant>([
-    "default",
-    "horizontal",
-    "cumulative",
-  ]);
-  const distributionVariants = new Set<CardGenVariant>([
-    "default",
-    "horizontal",
-  ]);
-
-  const variantMap: Record<string, Set<CardGenVariant>> = {
-    animeStats: statsVariants,
-    mangaStats: statsVariants,
-    socialStats: socialVariants,
-    socialMilestones: new Set<CardGenVariant>(["default"]),
-    animeGenres: genreTagVariants,
-    animeTags: genreTagVariants,
-    animeVoiceActors: pieBarVariants,
-    animeStudios: pieBarVariants,
-    animeStaff: pieBarVariants,
-    mangaGenres: genreTagVariants,
-    mangaTags: genreTagVariants,
-    mangaStaff: pieBarVariants,
-    animeStatusDistribution: statusPieBarVariants,
-    mangaStatusDistribution: statusPieBarVariants,
-    animeFormatDistribution: pieBarVariants,
-    mangaFormatDistribution: pieBarVariants,
-    animeSourceMaterialDistribution: pieBarVariants,
-    animeSeasonalPreference: genreTagVariants,
-    animeEpisodeLengthPreferences: pieBarVariants,
-    animeGenreSynergy: new Set<CardGenVariant>(["default"]),
-    animeCountry: pieBarVariants,
-    mangaCountry: pieBarVariants,
-    animeScoreDistribution: scoreDistributionVariants,
-    mangaScoreDistribution: scoreDistributionVariants,
-    animeYearDistribution: distributionVariants,
-    mangaYearDistribution: distributionVariants,
-    profileOverview: new Set<CardGenVariant>(["default"]),
-    favoritesSummary: socialVariants,
-    recentActivitySummary: new Set<CardGenVariant>(["default"]),
-    activityStreaks: new Set<CardGenVariant>(["default"]),
-    topActivityDays: new Set<CardGenVariant>(["default"]),
-    statusCompletionOverview: new Set<CardGenVariant>(["combined", "split"]),
-    milestones: new Set<CardGenVariant>(["default"]),
-    personalRecords: new Set<CardGenVariant>(["default"]),
-    planningBacklog: new Set<CardGenVariant>(["default"]),
-    mostRewatched: new Set<CardGenVariant>(["default", "anime", "manga"]),
-    currentlyWatchingReading: new Set<CardGenVariant>([
-      "default",
-      "anime",
-      "manga",
-    ]),
-    animeMangaOverview: new Set<CardGenVariant>(["default"]),
-    scoreCompareAnimeManga: new Set<CardGenVariant>(["default"]),
-    countryDiversity: new Set<CardGenVariant>(["default"]),
-    genreDiversity: new Set<CardGenVariant>(["default"]),
-    formatPreferenceOverview: new Set<CardGenVariant>(["default"]),
-    releaseEraPreference: new Set<CardGenVariant>(["default"]),
-    startYearMomentum: new Set<CardGenVariant>(["default"]),
-    lengthPreference: new Set<CardGenVariant>(["default"]),
-    tagCategoryDistribution: new Set<CardGenVariant>(["default"]),
-    tagDiversity: new Set<CardGenVariant>(["default"]),
-    seasonalViewingPatterns: new Set<CardGenVariant>(["default"]),
-    droppedMedia: new Set<CardGenVariant>(["default"]),
-    reviewStats: new Set<CardGenVariant>(["default"]),
-    studioCollaboration: new Set<CardGenVariant>(["default"]),
-  };
-
-  const allowedVariants = variantMap[baseCardType!];
-  if (allowedVariants) {
-    return allowedVariants.has(variant as CardGenVariant)
-      ? (variant as CardGenVariant)
-      : "default";
+    return fallback as CardGenVariant;
   }
 
   if (!globalVariants.has(variant as CardGenVariant)) {

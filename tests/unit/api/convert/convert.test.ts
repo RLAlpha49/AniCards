@@ -200,7 +200,8 @@ describe("Convert API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
       const data = await res.json();
-      expect(data.pngDataUrl).toContain("data:image/png;base64,");
+      expect(data.format).toBe("png");
+      expect(data.imageDataUrl).toContain("data:image/png;base64,");
     });
 
     it("should accept valid format 'webp'", async () => {
@@ -227,7 +228,8 @@ describe("Convert API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
       const data = await res.json();
-      expect(data.pngDataUrl).toContain("data:image/webp;base64,");
+      expect(data.format).toBe("webp");
+      expect(data.imageDataUrl).toContain("data:image/webp;base64,");
     });
 
     it("should use default format 'png' when format is omitted", async () => {
@@ -251,7 +253,8 @@ describe("Convert API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
       const data = await res.json();
-      expect(data.pngDataUrl).toContain("data:image/png;base64,");
+      expect(data.format).toBe("png");
+      expect(data.imageDataUrl).toContain("data:image/png;base64,");
     });
 
     it("should handle format parameter case-insensitively", async () => {
@@ -485,9 +488,10 @@ describe("Convert API POST Endpoint", () => {
       expect(res.status).toBe(200);
       const rawText = await res.text();
       const data = JSON.parse(rawText);
-      expect(data.pngDataUrl).toContain("data:image/png;base64,");
+      expect(data.format).toBe("png");
+      expect(data.imageDataUrl).toContain("data:image/png;base64,");
       const expectedBase64 = Buffer.from("FAKEPNG").toString("base64");
-      expect(data.pngDataUrl).toBe(`data:image/png;base64,${expectedBase64}`);
+      expect(data.imageDataUrl).toBe(`data:image/png;base64,${expectedBase64}`);
     });
 
     it("should successfully convert SVG to WebP", async () => {
@@ -514,9 +518,12 @@ describe("Convert API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
       const data = await res.json();
-      expect(data.pngDataUrl).toContain("data:image/webp;base64,");
+      expect(data.format).toBe("webp");
+      expect(data.imageDataUrl).toContain("data:image/webp;base64,");
       const expectedBase64 = Buffer.from("FAKEWEBP").toString("base64");
-      expect(data.pngDataUrl).toBe(`data:image/webp;base64,${expectedBase64}`);
+      expect(data.imageDataUrl).toBe(
+        `data:image/webp;base64,${expectedBase64}`,
+      );
     });
 
     it("should convert inline svgContent without refetching upstream", async () => {
@@ -545,7 +552,8 @@ describe("Convert API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
       const data = await res.json();
-      expect(data.pngDataUrl).toContain("data:image/png;base64,");
+      expect(data.format).toBe("png");
+      expect(data.imageDataUrl).toContain("data:image/png;base64,");
       expect(fetchSpy).not.toHaveBeenCalled();
     });
 
@@ -637,7 +645,8 @@ describe("Convert API POST Endpoint", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
       const data = await res.json();
-      expect(data.pngDataUrl).toBeDefined();
+      expect(data.format).toBe("png");
+      expect(data.imageDataUrl).toBeDefined();
     });
 
     it("should handle failed_requests analytics when fetch fails", async () => {

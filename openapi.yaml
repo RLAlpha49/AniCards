@@ -333,13 +333,25 @@ paths:
           description: >-
             Username lookup key. The server trims and lowercases it before checking
             the username index. Either `userId` or `username` must be supplied.
+        - in: query
+          name: view
+          required: false
+          schema:
+            type: string
+            enum:
+              - bootstrap
+          description: >-
+            Optional lightweight response mode used by the editor bootstrap flow.
+            When `view=bootstrap`, the response is reduced to identity fields only.
       responses:
         "200":
-          description: "Bounded public user record"
+          description: "Bounded public user record or lightweight bootstrap identity"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PublicUserRecord"
+                oneOf:
+                  - $ref: "#/components/schemas/PublicUserRecord"
+                  - $ref: "#/components/schemas/UserBootstrapRecord"
               examples:
                 user:
                   value:
@@ -369,6 +381,11 @@ paths:
                           total: 12
                         followers:
                           - id: 999
+                bootstrap:
+                  value:
+                    userId: "12345"
+                    username: "sampleuser"
+                    avatarUrl: "https://example.com/avatar-medium.webp"
         "400":
           description: "Missing or invalid lookup parameters"
           content:
@@ -612,8 +629,10 @@ paths:
       summary: "Fetch an allowed SVG and convert it to PNG or WebP"
       description: >-
         Fetches an allow-listed SVG URL, sanitizes the markup, and converts it
-        to a raster data URL. SSRF protections reject unsafe protocols, IP
-        literals, and hosts outside the configured AniCards allow-list.
+        to a raster image. JSON responses return a format-agnostic data URL
+        payload, while `responseType: "binary"` streams the converted image
+        directly. SSRF protections reject unsafe protocols, IP literals, and
+        hosts outside the configured AniCards allow-list.
       requestBody:
         required: true
         content:
@@ -629,9 +648,14 @@ paths:
                 value:
                   svgUrl: "https://anicards.alpha49.com/card.svg?userId=12345&cardType=favoritesGrid&variation=mixed"
                   format: "webp"
+              inlineBinary:
+                value:
+                  svgContent: '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"></svg>'
+                  format: "webp"
+                  responseType: "binary"
       responses:
         "200":
-          description: "Converted raster image as a data URL"
+          description: "Converted raster image as JSON or streamed binary"
           content:
             application/json:
               schema:
@@ -639,10 +663,20 @@ paths:
               examples:
                 png:
                   value:
-                    pngDataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+                    format: "png"
+                    imageDataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
                 webp:
                   value:
-                    pngDataUrl: "data:image/webp;base64,UklGRlIAAABXRUJQVlA4..."
+                    format: "webp"
+                    imageDataUrl: "data:image/webp;base64,UklGRlIAAABXRUJQVlA4..."
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
         "400":
           description: "Missing `svgUrl`, invalid URL, or invalid format"
           content:
@@ -1557,26 +1591,49 @@ components:
           description: >-
             Absolute or relative URL to an SVG resource on an allow-listed
             AniCards host.
+        svgContent:
+          type: string
+          description: >-
+            Inline SVG markup to convert directly without refetching a remote
+            URL.
         format:
           type: string
           enum:
             - "png"
             - "webp"
           default: "png"
-      required:
-        - svgUrl
+        responseType:
+          type: string
+          enum:
+            - "json"
+            - "binary"
+          default: "json"
+          description: >-
+            When set to `binary`, the route streams the converted image with the
+            appropriate image content type instead of returning JSON.
+      anyOf:
+        - required:
+            - svgUrl
+        - required:
+            - svgContent
 
     ConvertResponse:
       type: object
       additionalProperties: false
       properties:
-        pngDataUrl:
+        format:
+          type: string
+          enum:
+            - "png"
+            - "webp"
+          description: "Actual raster format returned in `imageDataUrl`."
+        imageDataUrl:
           type: string
           description: >-
-            Data URL for the converted image. The property name stays
-            `pngDataUrl` even when `format=webp`.
+            Data URL for the converted image using the requested raster format.
       required:
-        - pngDataUrl
+        - format
+        - imageDataUrl
 
     PageInfo:
       type: object
@@ -1673,6 +1730,23 @@ components:
         - stats
         - statistics
         - favourites
+    UserBootstrapRecord:
+      type: object
+      additionalProperties: false
+      description: >-
+        Lightweight identity DTO returned by `/api/get-user?view=bootstrap`.
+        Used by the editor to resolve canonical usernames and avatars before the
+        heavier card payload is loaded.
+      properties:
+        userId:
+          type: string
+        username:
+          type: string
+        avatarUrl:
+          type: string
+          nullable: true
+      required:
+        - userId
         - pages
 
     AnalyticsReport:

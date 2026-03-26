@@ -20,7 +20,10 @@ import type {
   SettingsSnapshot,
   SettingsTemplateV1,
 } from "../user-page-settings-io";
-import { parseSettingsExportJson } from "../user-page-settings-io";
+import {
+  readSettingsTemplatesFromStorage,
+  writeSettingsTemplatesToStorage,
+} from "../user-page-settings-templates";
 
 /**
  * Per-card color override configuration.
@@ -405,53 +408,10 @@ const DEFAULT_CARD_ORDER = statCardTypes.map((t) => t.id);
 
 const BULK_HISTORY_LIMIT = 40;
 
-const SETTINGS_TEMPLATES_STORAGE_KEY =
-  "anicards:user-page-settings-templates:v1";
-
 function generateTemplateId(): string {
   const cryptoObj = globalThis.crypto as Crypto | undefined;
   if (cryptoObj?.randomUUID) return cryptoObj.randomUUID();
   return `tpl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function readTemplatesFromStorage(): SettingsTemplateV1[] {
-  if (globalThis.window === undefined) return [];
-
-  try {
-    const raw = globalThis.window.localStorage.getItem(
-      SETTINGS_TEMPLATES_STORAGE_KEY,
-    );
-    if (!raw) return [];
-    const parsed = parseSettingsExportJson(raw);
-    if (!parsed.ok) return [];
-
-    if (parsed.value.kind !== "export") return [];
-    const exp = parsed.value.value;
-    if (exp.scope === "templates") return exp.templates;
-    if (exp.scope === "all") return exp.templates;
-    return [];
-  } catch {
-    return [];
-  }
-}
-
-function writeTemplatesToStorage(templates: SettingsTemplateV1[]): void {
-  if (globalThis.window === undefined) return;
-
-  try {
-    const payload = {
-      schemaVersion: 1 as const,
-      scope: "templates" as const,
-      exportedAt: new Date().toISOString(),
-      templates,
-    };
-    globalThis.window.localStorage.setItem(
-      SETTINGS_TEMPLATES_STORAGE_KEY,
-      JSON.stringify(payload),
-    );
-  } catch {
-    // Ignore persistence errors (private mode/quota/etc)
-  }
 }
 
 function resolveAdvancedSettings(
@@ -1084,7 +1044,7 @@ const initialState: UserPageEditorState = {
   baselineCardConfigs: {},
   baselineCardOrder: [...DEFAULT_CARD_ORDER],
   serverUpdatedAt: null,
-  settingsTemplates: readTemplatesFromStorage(),
+  settingsTemplates: readSettingsTemplatesFromStorage(),
   expandedCardId: null,
   selectedCardIds: new Set(),
   bulkPast: [],
@@ -2168,7 +2128,7 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
           };
 
           const next = [...get().settingsTemplates, template];
-          writeTemplatesToStorage(next);
+          writeSettingsTemplatesToStorage(next);
           set({ settingsTemplates: next }, false, "createSettingsTemplate");
         },
 
@@ -2181,7 +2141,7 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
               ? { ...t, name: trimmed.slice(0, 80), updatedAt: Date.now() }
               : t,
           );
-          writeTemplatesToStorage(next);
+          writeSettingsTemplatesToStorage(next);
           set({ settingsTemplates: next }, false, "renameSettingsTemplate");
         },
 
@@ -2189,7 +2149,7 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
           const next = get().settingsTemplates.filter(
             (t) => t.id !== templateId,
           );
-          writeTemplatesToStorage(next);
+          writeSettingsTemplatesToStorage(next);
           set({ settingsTemplates: next }, false, "deleteSettingsTemplate");
         },
 
@@ -2216,7 +2176,7 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
             merged.push({ ...t, id, updatedAt: Date.now() });
           }
 
-          writeTemplatesToStorage(merged);
+          writeSettingsTemplatesToStorage(merged);
           set({ settingsTemplates: merged }, false, "importSettingsTemplates");
         },
 

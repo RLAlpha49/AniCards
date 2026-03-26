@@ -26,7 +26,7 @@ Each card has a `cardType` ID and supports one or more `variation` values.
 - **Anime Statistics** (`animeStats`) — Variations: Default, Vertical, Compact, Minimal
 - **Manga Statistics** (`mangaStats`) — Variations: Default, Vertical, Compact, Minimal
 - **Social Statistics** (`socialStats`) — Variations: Default, Compact, Minimal, Badges
-- **Profile Overview** (`profileOverview`) — Variations: Default, Compact, Minimal
+- **Profile Overview** (`profileOverview`) — Variations: Default
 - **Anime vs Manga Overview** (`animeMangaOverview`) — Variations: Default
 
 ### Anime Deep Dive
@@ -75,8 +75,8 @@ Each card has a `cardType` ID and supports one or more `variation` values.
 
 ### Library & Progress
 
-- **Favourites Summary** (`favoritesSummary`) — Variations: Default, Compact, Minimal
-- **Favourites Grid** (`favoritesGrid`) — Variations: Anime, Manga, Characters, Mixed
+- **Favourites Summary** (`favoritesSummary`) — Variations: Default
+- **Favourites Grid** (`favoritesGrid`) — Variations: Anime, Manga, Characters, Staff, Studios, Mixed
   - Optional layout params: `gridCols` (1–5), `gridRows` (1–5)
 - **Status Completion Overview** (`statusCompletionOverview`) — Variations: Combined, Split
 - **Consumption Milestones** (`milestones`) — Variations: Default

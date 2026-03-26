@@ -19,7 +19,7 @@ const CAPABILITIES = [
   {
     icon: Share2,
     title: "SHARE EVERYWHERE",
-    desc: "SVG and PNG exports that look crisp on GitHub readmes, social profiles, forums \u2014 basically anywhere you want to show them off.",
+    desc: "Shareable SVG links plus PNG and WebP downloads that look crisp on GitHub readmes, social profiles, forums \u2014 basically anywhere you want to show them off.",
   },
 ];
 

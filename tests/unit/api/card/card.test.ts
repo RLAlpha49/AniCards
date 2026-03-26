@@ -116,6 +116,10 @@ const { mediaStatsTemplate } =
   await import("@/lib/svg-templates/media-stats/shared");
 const { favoritesGridTemplate } =
   await import("@/lib/svg-templates/profile-favorite-stats/favorites-grid-template");
+const { favoritesSummaryTemplate } =
+  await import("@/lib/svg-templates/profile-favorite-stats/favorites-summary-template");
+const { profileOverviewTemplate } =
+  await import("@/lib/svg-templates/profile-favorite-stats/profile-overview-template");
 const favoritesGridTemplateMock = favoritesGridTemplate as ReturnType<
   typeof mock<
     (data: { gridCols?: number; gridRows?: number; variant?: string }) => string
@@ -2181,6 +2185,52 @@ describe("Card SVG Route", () => {
         socialStatsTemplate as MockFunction<typeof socialStatsTemplate>
       ).mock.calls.at(-1)![0];
       expect(callArgs.variant).toBe("default");
+    });
+
+    it("should fallback to default for unsupported favoritesSummary variations", async () => {
+      const cardsData = createMockCardData("favoritesSummary", "default");
+      const userData = createMockUserData(542244, "testUser", {
+        User: {
+          favourites: {
+            anime: { nodes: [] },
+            manga: { nodes: [] },
+            characters: { nodes: [] },
+            staff: { nodes: [] },
+            studios: { nodes: [] },
+          },
+        },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "favoritesSummary",
+          variation: "compact",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(favoritesSummaryTemplate).toHaveBeenCalled();
+    });
+
+    it("should fallback to default for unsupported profileOverview variations", async () => {
+      const cardsData = createMockCardData("profileOverview", "default");
+      const userData = createMockUserData(542244, "testUser");
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "profileOverview",
+          variation: "minimal",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(profileOverviewTemplate).toHaveBeenCalled();
     });
   });
 

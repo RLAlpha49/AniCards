@@ -45,15 +45,15 @@ export const USER_HELP_TOPICS: UserHelpTopic[] = [
   {
     id: "quick-start",
     title: "Quick start",
-    summary: "Turn on the cards you need, pick a look, and grab the output.",
+    summary: "Start with the curated cards, pick a style, and grab the output.",
     keywords: ["getting started", "begin", "setup"],
     tourTarget: '[data-tour="card-groups"]',
     blocks: [
       {
         type: "ol",
         items: [
-          "Head to the Your Cards section and flip on whichever cards catch your eye.",
-          "Pop open Global Settings — that's where you'll pick your default color palette and border style.",
+          "Start with the curated card set that AniCards enables for new profiles, then toggle more on whenever you want.",
+          "Use one of the starter styles or send a look over from the examples gallery, then fine-tune it in Global Settings.",
           "From there, each card gives you options to snag a URL, copy AniList-ready text, or download an image directly.",
         ],
       },
@@ -216,7 +216,7 @@ export const USER_HELP_TOPICS: UserHelpTopic[] = [
     blocks: [
       {
         type: "p",
-        text: "Most cards come with a bunch of visualization options — Default, Pie, Donut, Bar, Radar, Compact, you name it. The variant dropdown on each card is where you make the switch.",
+        text: "Most cards come with a few carefully supported visualization options — things like Default, Pie, Donut, Bar, Radar, Compact, or Badges depending on the card. The variant dropdown on each card is where you make the switch.",
       },
       {
         type: "ul",
@@ -352,7 +352,7 @@ export const USER_HELP_TOPICS: UserHelpTopic[] = [
     blocks: [
       {
         type: "p",
-        text: "Once you've landed on a look you love — colors, borders, advanced settings — save it as a named template. Then you can reapply that exact configuration to other cards or your global defaults down the road.",
+        text: "Once you've landed on a look you love — colors, borders, advanced settings — save it as a named template. Then you can reapply that exact configuration to other cards or your global defaults down the road. The examples gallery also saves looks into this same template library, so imported styles show up right alongside your own.",
       },
       {
         type: "ul",
@@ -365,7 +365,7 @@ export const USER_HELP_TOPICS: UserHelpTopic[] = [
       },
       {
         type: "note",
-        text: "Just so you know — templates live in your browser's local storage.",
+        text: "Templates live in your browser's local storage. That same local library is what powers example-to-editor style handoff.",
       },
     ],
   },
@@ -476,7 +476,7 @@ export const USER_HELP_TOPICS: UserHelpTopic[] = [
         items: [
           "Copy URL — puts the raw SVG card URL on your clipboard.",
           "Copy AniList format — gives you the img200(url) text, ready to paste straight into your AniList bio.",
-          "Download as SVG — lossless vector, perfect if you want to edit it later.",
+          "Download as PNG — lossless raster, great for uploads and sharing.",
           "Download as WebP — lighter raster image, solid choice for sharing.",
         ],
       },
