@@ -18,15 +18,17 @@ test.describe("Examples gallery", () => {
 
   test("filters card variants via search", async ({ page }) => {
     const variants = page.getByRole("heading", { level: 4 });
+    const searchInput = page.getByLabel(/search gallery cards/i);
+
     await expect(variants.first()).toBeVisible({ timeout: 15000 });
+    await expect(searchInput).toHaveAttribute("type", "search");
+    await expect(searchInput).toHaveAttribute("autocomplete", "off");
 
     const initialCount = await variants.count();
     expect(initialCount).toBeGreaterThan(0);
 
     await test.step("Filter by Voice Actors", async () => {
-      await page
-        .getByPlaceholder(/find a card by name or keyword/i)
-        .fill("Voice Actors");
+      await searchInput.fill("Voice Actors");
     });
 
     await expect

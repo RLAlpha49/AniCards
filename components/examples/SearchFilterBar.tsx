@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Search, SlidersHorizontal, X } from "lucide-react";
+import { useId } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -23,16 +24,26 @@ export function SearchFilterBar({
   onClearFilters,
 }: Readonly<SearchFilterBarProps>) {
   const isFiltered = resultCount !== totalCount;
+  const searchInputId = useId();
 
   return (
     <div className="flex items-center gap-3">
       {/* Search input */}
       <div className="relative flex-1">
-        <Search className="
-          absolute top-1/2 left-3.5 size-3.5 -translate-y-1/2 text-foreground/20 transition-colors
-        " />
+        <label htmlFor={searchInputId} className="sr-only">
+          Search gallery cards
+        </label>
+        <Search
+          aria-hidden="true"
+          className="
+            absolute top-1/2 left-3.5 size-3.5 -translate-y-1/2 text-foreground/20 transition-colors
+          "
+        />
         <input
-          type="text"
+          id={searchInputId}
+          type="search"
+          autoComplete="off"
+          enterKeyHint="search"
           placeholder="Find a card by name or keyword…"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
@@ -56,9 +67,10 @@ export function SearchFilterBar({
                 absolute top-1/2 right-3 -translate-y-1/2 text-foreground/25 transition-colors
                 hover:text-foreground/50
               "
-              aria-label="Clear search"
+              aria-controls={searchInputId}
+              aria-label="Clear gallery search"
             >
-              <X className="size-3.5" />
+              <X aria-hidden="true" className="size-3.5" />
             </motion.button>
           )}
         </AnimatePresence>
