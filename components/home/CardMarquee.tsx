@@ -157,23 +157,21 @@ function MarqueeGroup({
             className="inline-flex size-auto shrink-0 items-center justify-center"
           >
             {previewUrl ? (
-              <a href={previewUrl} target="_blank" rel="noopener noreferrer">
-                <ImageWithSkeleton
-                  src={previewUrl}
-                  alt=""
-                  className="
-                    block size-full rounded-lg! border border-[hsl(var(--gold)/0.12)] object-contain
-                    transition-all duration-200
-                    hover:scale-[1.03] hover:border-[hsl(var(--gold)/0.35)]
-                    hover:shadow-[0_0_12px_hsl(var(--gold)/0.15)]
-                  "
-                  width={card.width}
-                  height={card.height}
-                  loading="lazy"
-                  decoding="async"
-                  fixedDimensions
-                />
-              </a>
+              <ImageWithSkeleton
+                src={previewUrl}
+                alt=""
+                className="
+                  block size-full rounded-lg! border border-[hsl(var(--gold)/0.12)] object-contain
+                  transition-all duration-200
+                  hover:scale-[1.03] hover:border-[hsl(var(--gold)/0.35)]
+                  hover:shadow-[0_0_12px_hsl(var(--gold)/0.15)]
+                "
+                width={card.width}
+                height={card.height}
+                loading="lazy"
+                decoding="async"
+                fixedDimensions
+              />
             ) : (
               <CardPreviewPlaceholder
                 className="rounded-lg border border-[hsl(var(--gold)/0.12)]"
@@ -236,6 +234,7 @@ export function CardMarquee() {
 
   return (
     <motion.section
+      aria-hidden="true"
       className="relative py-16"
       initial={{ opacity: 0, y: 30 }}
       whileInView={{ opacity: 1, y: 0 }}
