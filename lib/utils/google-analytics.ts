@@ -47,6 +47,23 @@ const appendAnalyticsTokenChar = (value: string, char: string): string => {
   return `${value}${char}`;
 };
 
+const stripTrailingSlashes = (value: string): string => {
+  let end = value.length;
+
+  while (end > 1 && value.codePointAt(end - 1) === 47) {
+    end--;
+  }
+
+  return end === value.length ? value : value.slice(0, end);
+};
+
+const hasSinglePathSegment = (pathname: string, prefix: string): boolean => {
+  if (!pathname.startsWith(prefix)) return false;
+
+  const remainder = pathname.slice(prefix.length);
+  return remainder.length > 0 && !remainder.includes("/");
+};
+
 /**
  * Safely retrieve the global gtag function from globalThis in a way that
  * works both in browser and server environments.
@@ -110,16 +127,14 @@ const looksSensitiveValue = (value: string): boolean => {
 const normalizePathname = (pathname: string): string => {
   const trimmed = pathname.trim();
   const withLeadingSlash = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
-  const withoutTrailingSlash =
-    withLeadingSlash.length > 1
-      ? withLeadingSlash.replaceAll(/\/+$/g, "")
-      : withLeadingSlash;
+  const withoutTrailingSlash = stripTrailingSlashes(withLeadingSlash);
+  const normalizedPath = withoutTrailingSlash.toLowerCase();
 
-  if (/^\/statcards\/[^/]+$/i.test(withoutTrailingSlash)) {
+  if (hasSinglePathSegment(normalizedPath, "/statcards/")) {
     return "/StatCards/[username]";
   }
 
-  if (/^\/user\/[^/]+$/i.test(withoutTrailingSlash)) {
+  if (hasSinglePathSegment(normalizedPath, "/user/")) {
     return "/user/[username]";
   }
 

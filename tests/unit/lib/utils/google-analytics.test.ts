@@ -133,7 +133,7 @@ describe("google analytics privacy utilities", () => {
   it("normalizes user routes and stat card paths without leaking identifiers", () => {
     expect(
       normalizeAnalyticsPage({
-        pathname: "/user/Alex",
+        pathname: "/user/Alex///",
         search: "q=naruto&visibility=all",
       }),
     ).toEqual({
@@ -144,7 +144,7 @@ describe("google analytics privacy utilities", () => {
 
     expect(
       normalizeAnalyticsPage({
-        pathname: "/StatCards/Alex",
+        pathname: "/StatCards/Alex///",
       }).pagePath,
     ).toBe("/StatCards/[username]");
   });
