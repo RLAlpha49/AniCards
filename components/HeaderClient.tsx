@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import DarkModeToggle from "@/components/DarkModeToggle";
+import { cn } from "@/lib/utils";
 import { safeTrack, trackNavigation } from "@/lib/utils/google-analytics";
 
 const NAV_ITEMS = [
@@ -37,9 +38,17 @@ export default function HeaderClient() {
 
   return (
     <>
-      <div className="mx-auto max-w-6xl px-6 py-4">
-        <div className="flex items-center justify-between gap-4">
-          <Link href="/" className="group flex items-center gap-3">
+      <div className="w-full px-6 py-4">
+        <div
+          className={cn(
+            "grid grid-cols-[1fr_auto] items-center gap-4",
+            "md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]",
+          )}
+        >
+          <Link
+            href="/"
+            className="group flex items-center gap-3 md:justify-self-start"
+          >
             <div className="hidden gap-1 sm:flex">
               {[0, 1, 2].map((i) => (
                 <div
@@ -71,53 +80,51 @@ export default function HeaderClient() {
             </div>
           </Link>
 
-          <div className="flex items-center gap-3">
-            <nav
-              className="hidden items-center gap-4 md:flex"
-              aria-label="Main navigation"
-            >
-              {NAV_ITEMS.map((item, index) => {
-                const isActive = pathname === item.href;
+          <nav
+            className="hidden items-center justify-center gap-4 md:flex md:justify-self-center"
+            aria-label="Main navigation"
+          >
+            {NAV_ITEMS.map((item, index) => {
+              const isActive = pathname === item.href;
 
-                return (
-                  <span key={item.label} className="flex items-center gap-4">
-                    {index > 0 && <GoldDiamond />}
-                    <Link
-                      href={item.href}
-                      onClick={() =>
-                        safeTrack(() =>
-                          trackNavigation(item.label.toLowerCase(), "header"),
-                        )
-                      }
-                      className={`
-                        relative font-body-serif text-xs tracking-[0.15em] uppercase
+              return (
+                <span key={item.label} className="flex items-center gap-4">
+                  {index > 0 && <GoldDiamond />}
+                  <Link
+                    href={item.href}
+                    onClick={() =>
+                      safeTrack(() =>
+                        trackNavigation(item.label.toLowerCase(), "header"),
+                      )
+                    }
+                    className={cn(
+                      `
+                        relative font-body-serif text-xs tracking-[0.15em] text-gold uppercase
                         transition-colors
-                        ${
-                        isActive
-                          ? "text-gold"
-                          : "nav-link-underline text-foreground/60 hover:text-gold"
-                      }`}
-                    >
-                      {item.label}
-                      {isActive && (
-                        <motion.div
-                          layoutId="nav-underline"
-                          className="absolute inset-x-0 -bottom-1 h-0.5 rounded-full bg-gold"
-                          transition={{
-                            type: "spring",
-                            stiffness: 400,
-                            damping: 30,
-                          }}
-                        />
-                      )}
-                    </Link>
-                  </span>
-                );
-              })}
-            </nav>
+                      `,
+                      !isActive &&
+                        "nav-link-underline text-foreground/60 hover:text-gold",
+                    )}
+                  >
+                    {item.label}
+                    {isActive && (
+                      <motion.div
+                        layoutId="nav-underline"
+                        className="absolute inset-x-0 -bottom-1 h-0.5 rounded-full bg-gold"
+                        transition={{
+                          type: "spring",
+                          stiffness: 400,
+                          damping: 30,
+                        }}
+                      />
+                    )}
+                  </Link>
+                </span>
+              );
+            })}
+          </nav>
 
-            <DarkModeToggle />
-
+          <div className="flex items-center justify-end gap-3 md:justify-self-end">
             <button
               type="button"
               className="
@@ -154,6 +161,8 @@ export default function HeaderClient() {
                 )}
               </AnimatePresence>
             </button>
+
+            <DarkModeToggle />
           </div>
         </div>
       </div>
@@ -183,14 +192,14 @@ export default function HeaderClient() {
                         trackNavigation(item.label.toLowerCase(), "header"),
                       );
                     }}
-                    className={`
-                      block rounded-sm px-2 py-3 font-body-serif text-sm tracking-[0.15em] uppercase
-                      transition-colors
-                      ${
-                      isActive
-                        ? "text-gold"
-                        : "text-foreground/60 hover:text-gold"
-                    }`}
+                    className={cn(
+                      `
+                        block rounded-sm px-2 py-3 font-body-serif text-sm tracking-[0.15em]
+                        text-gold uppercase transition-colors
+                      `,
+                      !isActive &&
+                        "text-foreground/60 uppercase transition-colors hover:text-gold",
+                    )}
                   >
                     {item.label}
                   </Link>
