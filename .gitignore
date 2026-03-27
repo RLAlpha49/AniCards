@@ -4,15 +4,9 @@
 /.shared
 /.vscode
 /audit
-/docs/*
-!/docs/README.md
-!/docs/ARCHITECTURE.md
-!/docs/SECURITY.md
-!/docs/PRIVACY.md
 /next-env.d.ts
 /node_modules/
 /tsconfig.tsbuildinfo
 /TODO.md
 /squirrel.toml
 /.artifacts/
-/.github/instructions/project-areas-to-avoid.instructions.md
