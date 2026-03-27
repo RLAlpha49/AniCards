@@ -41,26 +41,6 @@ interface ReportErrorOptions {
   timestamp?: number;
 }
 
-/**
- * Context information about a structured error report.
- * @source
- */
-export interface ErrorContext {
-  userAction: string;
-  timestamp?: number;
-  errorType: ErrorCategory;
-  message: string;
-  statusCode?: number;
-  userId?: string;
-  username?: string;
-  route?: string;
-  source?: ErrorReportSource;
-  componentStack?: string;
-  stack?: string;
-  digest?: string;
-  metadata?: Record<string, unknown>;
-}
-
 export interface StructuredErrorReport {
   id: string;
   timestamp: number;
@@ -308,32 +288,6 @@ async function postStructuredErrorReport(
       `[ErrorTracking] Client error report rejected with status ${response.status}`,
     );
   }
-}
-
-/**
- * Track an error with full structured context information.
- * @param context - ErrorContext with user action and error details.
- * @returns StructuredErrorReport when reporting succeeds, otherwise null.
- * @source
- */
-export async function trackErrorWithContext(
-  context: ErrorContext,
-): Promise<StructuredErrorReport | null> {
-  return reportStructuredError({
-    userAction: context.userAction,
-    error: context.message,
-    category: context.errorType,
-    statusCode: context.statusCode,
-    userId: context.userId,
-    username: context.username,
-    route: context.route,
-    source: context.source,
-    componentStack: context.componentStack,
-    stack: context.stack,
-    digest: context.digest,
-    metadata: context.metadata,
-    timestamp: context.timestamp,
-  });
 }
 
 /**

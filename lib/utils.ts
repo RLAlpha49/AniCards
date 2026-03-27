@@ -598,31 +598,6 @@ function normalizeSvgConversionSource(
   return source;
 }
 
-async function blobToDataUrl(blob: Blob): Promise<string> {
-  const mimeType = blob.type || "application/octet-stream";
-
-  if (typeof FileReader === "undefined") {
-    const arrayBuffer = await blob.arrayBuffer();
-    return `data:${mimeType};base64,${Buffer.from(arrayBuffer).toString("base64")}`;
-  }
-
-  return await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => {
-      reject(reader.error ?? new Error("Failed to read conversion response"));
-    };
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        resolve(reader.result);
-        return;
-      }
-
-      reject(new Error("Failed to read conversion response"));
-    };
-    reader.readAsDataURL(blob);
-  });
-}
-
 /**
  * Reads SVG markup from a browser object URL so callers can reuse a previously fetched preview.
  */
@@ -685,30 +660,6 @@ export async function convertSvgToBlob(
   }
 
   return new Blob([await blob.arrayBuffer()], { type: expectedMimeType });
-}
-
-/**
- * Converts an SVG file referenced by a URL to a raster image data URL via an API call.
- *
- * Makes a POST request to the conversion API endpoint with the SVG URL and requested format.
- *
- * @param svgUrl - The URL of the SVG file to be converted.
- * @param format - Desired output format ('png' | 'webp'). Defaults to 'png'.
- * @returns A Promise that resolves to the image data URL as a string.
- * @throws Error when the conversion process or network request fails.
- * @source
- */
-export async function svgToPng(
-  source: string | SvgConversionSource,
-  format: ConversionFormat = "png",
-): Promise<string> {
-  try {
-    const blob = await convertSvgToBlob(source, format);
-    return await blobToDataUrl(blob);
-  } catch (error) {
-    console.error("Conversion failed:", error);
-    throw error;
-  }
 }
 
 /**

@@ -454,12 +454,3 @@ export function getCardVariations(
 export function getDefaultCardVariation(cardId: string): string {
   return getCardVariations(cardId)[0]?.id ?? "default";
 }
-
-export function isSupportedCardVariation(
-  cardId: string,
-  variationId: string,
-): boolean {
-  return getCardVariations(cardId).some(
-    (variation) => variation.id === variationId,
-  );
-}

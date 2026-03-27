@@ -334,16 +334,6 @@ export function categorizeError(message: string): ErrorCategory {
 }
 
 /**
- * Determine whether a free-form error message looks retryable.
- * @param message - Error message to classify.
- * @returns True when retry/backoff is appropriate.
- * @source
- */
-export function isRetryableErrorMessage(message: string): boolean {
-  return isRetryableErrorCategory(categorizeError(message));
-}
-
-/**
  * Get error details for a given message or category.
  * Falls back to generating dynamic messages if exact match not found.
  * @param message - Error message or key to look up.

@@ -15,8 +15,12 @@
     "*.ts",
     "*.mjs"
   ],
+  "ignoreIssues": {
+    "lib/svg-templates/**": ["exports"]
+  },
+  "tags": ["-@internal"],
   "ignoreDependencies": ["postcss-load-config"],
-  "ignoreBinaries": ["ncu"],
+  "ignoreBinaries": ["AGPL", "LGPL", "NGPL"],
   "exclude": ["devDependencies"],
   "ignoreExportsUsedInFile": true
 }
