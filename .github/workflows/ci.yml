@@ -73,7 +73,6 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    needs: [workflow-lint, dependency-policy]
 
     steps:
       - name: Checkout code
@@ -102,7 +101,6 @@ jobs:
   typecheck:
     name: Type Check
     runs-on: ubuntu-latest
-    needs: [workflow-lint, dependency-policy]
 
     steps:
       - name: Checkout code
@@ -131,7 +129,6 @@ jobs:
   unused:
     name: Unused Code Check
     runs-on: ubuntu-latest
-    needs: [workflow-lint, dependency-policy]
 
     steps:
       - name: Checkout code
@@ -160,7 +157,6 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, unused]
 
     steps:
       - name: Checkout code
@@ -196,7 +192,6 @@ jobs:
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
-    needs: [workflow-lint, dependency-policy]
 
     steps:
       - name: Checkout code
