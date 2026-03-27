@@ -88,7 +88,7 @@ jobs:
           fi
 
           for attempt in {1..5}; do
-            if curl --fail --silent --show-error --location "${curl_headers[@]}" "$PLAYWRIGHT_BASE_URL" > /dev/null; then
+            if curl --fail --silent --show-error "${curl_headers[@]}" "$PLAYWRIGHT_BASE_URL" > /dev/null; then
               echo "[INFO] Deployed target is reachable: $PLAYWRIGHT_BASE_URL"
               exit 0
             fi
