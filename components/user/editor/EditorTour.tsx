@@ -583,7 +583,7 @@ export function useEditorTour({
     return () => globalThis.clearTimeout(timer);
   }, [isNewUser, isTourCompleted, userId]);
 
-  // Auto-run the tour for new users once per userId (versioned).
+  // Auto-run the tour for new users once per userId.
   useEffect(() => {
     if (!userId) return;
 
