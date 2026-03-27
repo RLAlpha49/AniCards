@@ -74,22 +74,40 @@ jobs:
           echo "[INFO] Using deployed smoke URL: $candidate"
 
       - name: Wait for deployed Vercel URL
+        env:
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
-          for attempt in {1..20}; do
-            if curl --fail --silent --show-error --location "$PLAYWRIGHT_BASE_URL" > /dev/null; then
+          set -euo pipefail
+
+          curl_headers=()
+          if [[ -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]]; then
+            curl_headers=(
+              -H "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}"
+              -H "x-vercel-set-bypass-cookie: true"
+            )
+          fi
+
+          for attempt in {1..5}; do
+            if curl --fail --silent --show-error --location "${curl_headers[@]}" "$PLAYWRIGHT_BASE_URL" > /dev/null; then
               echo "[INFO] Deployed target is reachable: $PLAYWRIGHT_BASE_URL"
               exit 0
             fi
 
-            echo "[INFO] Waiting for deployed target ($attempt/20): $PLAYWRIGHT_BASE_URL"
+            echo "[INFO] Waiting for deployed target ($attempt/5): $PLAYWRIGHT_BASE_URL"
             sleep 15
           done
+
+          if [[ -z "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]]; then
+            echo "[ERROR] Timed out waiting for deployed target. If this preview is protected, configure VERCEL_AUTOMATION_BYPASS_SECRET in GitHub secrets to bypass Vercel deployment protection."
+          fi
 
           echo "[ERROR] Timed out waiting for deployed target: $PLAYWRIGHT_BASE_URL"
           exit 1
 
       - name: Run deployed smoke tests (Chromium)
         id: playwright_deployed
+        env:
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: bun run test:e2e:deployed-smoke -- --project=chromium
 
       - name: Upload Playwright artifacts (Deployed Smoke)

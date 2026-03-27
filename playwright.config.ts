@@ -1,8 +1,15 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+const automationBypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
 const playwrightArtifactsDir = "./.artifacts";
 const shouldLaunchLocalServer = !process.env.PLAYWRIGHT_BASE_URL;
+const extraHTTPHeaders = automationBypassSecret
+  ? {
+      "x-vercel-protection-bypass": automationBypassSecret,
+      "x-vercel-set-bypass-cookie": "true",
+    }
+  : undefined;
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -23,6 +30,7 @@ export default defineConfig({
   ],
   use: {
     baseURL,
+    extraHTTPHeaders,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "on-first-retry",
