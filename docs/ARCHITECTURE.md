@@ -40,7 +40,7 @@ Public read routes like `/api/get-user` and `/api/get-cards` deliberately skip s
 
 ### User snapshots
 
-User data goes to Upstash Redis through `lib/server/user-data.ts` as a versioned split record called `split-user-v2`.
+User data goes to Upstash Redis through `lib/server/user-data.ts` as a split record keyed by stable per-part keys, with a `split-user-v2` commit pointer carrying commit metadata.
 
 Rather than writing a single large JSON blob, AniCards stores broader sections separately:
 
@@ -55,7 +55,7 @@ Rather than writing a single large JSON blob, AniCards stores broader sections s
 - `completed`
 - `aggregates`
 
-That split lets card rendering and API handlers load only what they actually need, while still allowing the app to reconstruct a bounded public user DTO when needed.
+That split lets card rendering and API handlers load only what they actually need, while still allowing the app to reconstruct a bounded public user DTO when needed. The live `user:{id}:{part}` keys are stable; historical state lives in the commit metadata instead.
 
 ### Card configuration
 

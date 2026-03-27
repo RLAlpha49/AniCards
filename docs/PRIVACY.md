@@ -105,7 +105,7 @@ That cron flow deletes a stored user after **three consecutive** scheduled 404 r
 - saved cards
 - username aliases
 - failure tracking keys
-- versioned user snapshots
+- user snapshots
 
 ### Analytics reports
 
