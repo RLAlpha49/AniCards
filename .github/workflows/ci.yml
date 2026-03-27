@@ -70,8 +70,8 @@ jobs:
       - name: Enforce dependency license policy
         run: bun run check:licenses
 
-  build:
-    name: Build
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     needs: [workflow-lint, dependency-policy]
 
@@ -96,18 +96,92 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      # Lint handles formatting issues
-      # - name: Run format check
-      #   run: bun run format
-
       - name: Run lint
         run: bun run lint:check
+
+  typecheck:
+    name: Type Check
+    runs-on: ubuntu-latest
+    needs: [workflow-lint, dependency-policy]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Cache Bun deps & node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            ~/.bun
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
 
       - name: Run type check
         run: bun run typecheck
 
+  unused:
+    name: Unused Code Check
+    runs-on: ubuntu-latest
+    needs: [workflow-lint, dependency-policy]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Cache Bun deps & node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            ~/.bun
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
       - name: Run unused code check
         run: bun run check:unused
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, unused]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Cache Bun deps & node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            ~/.bun
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
 
       - name: Build project
         run: bun run build
@@ -160,7 +234,7 @@ jobs:
   e2e-chromium:
     name: E2E Chromium
     runs-on: ubuntu-latest
-    needs: [build, unit-tests]
+    needs: [build]
 
     steps:
       - name: Checkout code
@@ -217,7 +291,7 @@ jobs:
   e2e-mobile:
     name: E2E Mobile Chrome
     runs-on: ubuntu-latest
-    needs: [build, unit-tests]
+    needs: [build]
 
     steps:
       - name: Checkout code
@@ -275,7 +349,6 @@ jobs:
     name: Deployed Vercel Smoke
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
-    needs: [e2e-chromium, e2e-mobile]
     env:
       PLAYWRIGHT_BASE_URL: https://anicards.alpha49.com
 
