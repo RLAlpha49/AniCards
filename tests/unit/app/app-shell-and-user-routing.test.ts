@@ -21,12 +21,18 @@ describe("App shell server coverage", () => {
     const response = proxy(request);
     const nonce = response.headers.get("x-nonce");
     const cspHeader = response.headers.get("content-security-policy");
+    const imgSrcDirective = cspHeader
+      ?.split("; ")
+      .find((directive) => directive.startsWith("img-src "));
 
     expect(nonce).toBeTruthy();
     expect(nonce).toMatch(/^[A-Za-z0-9+/]+=*$/);
     expect(cspHeader).toBeTruthy();
     expect(cspHeader).toContain(`'nonce-${nonce}'`);
     expect(cspHeader).toContain("script-src 'self'");
+    expect(imgSrcDirective).toBeTruthy();
+    expect(cspHeader).toContain("object-src 'none'");
+    expect(imgSrcDirective).not.toMatch(/\shttps:(?=[\s;]|$)/);
   });
 
   it("keeps API routes outside the middleware matcher", () => {

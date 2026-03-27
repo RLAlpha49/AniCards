@@ -25,9 +25,64 @@ export const CSP_KEYWORDS = {
   DATA: "data:",
   /** Allow blob: URIs */
   BLOB: "blob:",
-  /** Allow any HTTPS source */
-  HTTPS: "https:",
 } as const;
+
+const STATIC_REMOTE_IMAGE_SOURCES = [
+  "https://api.anicards.alpha49.com",
+  "https://anicards.alpha49.com",
+  "https://anilist.co",
+  "https://cdn.anilist.co",
+  "https://s1.anilist.co",
+  "https://s2.anilist.co",
+  "https://s3.anilist.co",
+  "https://s4.anilist.co",
+  "https://img.anili.st",
+] as const;
+
+const DEVELOPMENT_REMOTE_IMAGE_SOURCES = [
+  "http://localhost:3000",
+  "http://lvh.me:3000",
+  "http://api.localhost:3000",
+] as const;
+
+function normalizeImageSourceOrigin(
+  urlString: string | undefined,
+): string | null {
+  if (!urlString) return null;
+
+  try {
+    const url = new URL(urlString);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return null;
+    }
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+function getConfiguredImageSources(): string[] {
+  const configuredOrigins = [
+    normalizeImageSourceOrigin(process.env.NEXT_PUBLIC_API_URL),
+    normalizeImageSourceOrigin(process.env.NEXT_PUBLIC_SITE_URL),
+  ];
+
+  return [
+    ...new Set(
+      configuredOrigins.filter((origin): origin is string => Boolean(origin)),
+    ),
+  ];
+}
+
+const IMAGE_SRC_ALLOWLIST = [
+  ...new Set([
+    ...STATIC_REMOTE_IMAGE_SOURCES,
+    ...getConfiguredImageSources(),
+    ...(process.env.NODE_ENV === "production"
+      ? []
+      : DEVELOPMENT_REMOTE_IMAGE_SOURCES),
+  ]),
+];
 
 /**
  * CSP Directives Configuration
@@ -64,13 +119,14 @@ export const CSP_DIRECTIVES = {
 
   /**
    * Image sources - controls which images can be loaded
-   * Allows data URIs for inline images, blob for generated content, and any HTTPS source
+   * Allows same-origin images, generated data/blob URLs, AniCards preview origins,
+   * and explicit AniList image hosts used by the application.
    */
   imgSrc: [
     CSP_KEYWORDS.SELF,
     CSP_KEYWORDS.DATA,
     CSP_KEYWORDS.BLOB,
-    CSP_KEYWORDS.HTTPS,
+    ...IMAGE_SRC_ALLOWLIST,
   ],
 
   /**
@@ -104,6 +160,9 @@ export const CSP_DIRECTIVES = {
    * Set to 'none' to prevent clickjacking attacks
    */
   frameAncestors: [CSP_KEYWORDS.NONE],
+
+  /** Block legacy plugin/object/embed content entirely. */
+  objectSrc: [CSP_KEYWORDS.NONE],
 
   /** Base URI - restricts URLs that can be used in <base> element */
   baseUri: [CSP_KEYWORDS.SELF],
@@ -146,6 +205,7 @@ export function buildCSPHeader(
     `worker-src ${CSP_DIRECTIVES.workerSrc.join(" ")}`,
     `manifest-src ${CSP_DIRECTIVES.manifestSrc.join(" ")}`,
     `frame-ancestors ${CSP_DIRECTIVES.frameAncestors.join(" ")}`,
+    `object-src ${CSP_DIRECTIVES.objectSrc.join(" ")}`,
     `base-uri ${CSP_DIRECTIVES.baseUri.join(" ")}`,
     `form-action ${CSP_DIRECTIVES.formAction.join(" ")}`,
     ...(CSP_DIRECTIVES.upgradeInsecureRequests
