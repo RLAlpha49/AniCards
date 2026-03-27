@@ -63,7 +63,6 @@ export default function GoogleAnalytics({
           window.gtag('js', new Date());
           window.gtag('consent', 'default', ${defaultConsentMode});
           window.gtag('config', ${serializedTrackingId}, {
-            anonymize_ip: true,
             allow_google_signals: false,
             allow_ad_personalization_signals: false,
             send_page_view: false,
