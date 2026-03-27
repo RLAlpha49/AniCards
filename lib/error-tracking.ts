@@ -87,6 +87,33 @@ function sanitizeOptionalText(
   return truncateText(trimmed, maxLength);
 }
 
+function sanitizeStackFrame(line: string): string | undefined {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith("at ")) return undefined;
+
+  const match = /^at\s+(.+?)(?:\s+\(|$)/.exec(trimmed);
+  const frameLabel = match?.[1]?.trim();
+  if (!frameLabel) return "at <frame>";
+
+  return `at ${truncateText(frameLabel.replaceAll(/\s+/g, " "), 160)}`;
+}
+
+function sanitizeStackTrace(
+  value: string | undefined,
+  maxLength: number,
+): string | undefined {
+  if (typeof value !== "string") return undefined;
+
+  const frames = value
+    .split(/\r?\n/)
+    .map((line) => sanitizeStackFrame(line))
+    .filter((line): line is string => typeof line === "string")
+    .slice(0, 12);
+
+  if (frames.length === 0) return undefined;
+  return truncateText(frames.join("\n"), maxLength);
+}
+
 function sanitizeUserAction(userAction: string): string {
   const trimmed = userAction.trim();
   return truncateText(trimmed || "unknown_action", 120);
@@ -183,12 +210,16 @@ function resolveErrorStack(
   error: unknown,
   explicitStack?: string,
 ): string | undefined {
-  if (sanitizeOptionalText(explicitStack, MAX_STACK_LENGTH)) {
-    return sanitizeOptionalText(explicitStack, MAX_STACK_LENGTH);
+  const sanitizedExplicitStack = sanitizeStackTrace(
+    explicitStack,
+    MAX_STACK_LENGTH,
+  );
+  if (sanitizedExplicitStack) {
+    return sanitizedExplicitStack;
   }
 
   return error instanceof Error
-    ? sanitizeOptionalText(error.stack, MAX_STACK_LENGTH)
+    ? sanitizeStackTrace(error.stack, MAX_STACK_LENGTH)
     : undefined;
 }
 
@@ -221,7 +252,7 @@ function buildStructuredErrorReport(
     errorName: resolveErrorName(options.error, options.errorName),
     digest: sanitizeOptionalText(options.digest, 120),
     stack: resolveErrorStack(options.error, options.stack),
-    componentStack: sanitizeOptionalText(
+    componentStack: sanitizeStackTrace(
       options.componentStack,
       MAX_STACK_LENGTH,
     ),

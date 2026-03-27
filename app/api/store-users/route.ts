@@ -8,10 +8,10 @@ import {
   handleError,
   incrementAnalytics,
   initializeApiRequest,
-  invalidJsonResponse,
   jsonWithCors,
   logPrivacySafe,
   logSuccess,
+  readJsonRequestBody,
   validateUserData,
 } from "@/lib/api-utils";
 import { validateAndNormalizeUserRecord } from "@/lib/card-data";
@@ -39,32 +39,29 @@ export async function POST(request: Request): Promise<NextResponse> {
   const { startTime, ip, endpoint, endpointKey } = init;
 
   try {
-    let data: unknown;
-    try {
-      data = await request.json();
-    } catch {
-      await incrementAnalytics(
-        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-      );
-      return invalidJsonResponse(request);
-    }
+    const bodyResult = await readJsonRequestBody<Record<string, unknown>>(
+      request,
+      {
+        endpointName: endpoint,
+        endpointKey,
+      },
+    );
+    if (!bodyResult.success) return bodyResult.errorResponse;
+
+    const data = bodyResult.data;
 
     logPrivacySafe(
       "log",
       endpoint,
       "Processing store-users payload",
       {
-        userId: (data as Record<string, unknown>)?.userId,
-        username: (data as Record<string, unknown>)?.username,
+        userId: data.userId,
+        username: data.username,
       },
       request,
     );
 
-    const validationResult = validateUserData(
-      data as Record<string, unknown>,
-      endpoint,
-      request,
-    );
+    const validationResult = validateUserData(data, endpoint, request);
     if (!validationResult.success) {
       await incrementAnalytics(
         buildAnalyticsMetricKey(endpointKey, "failed_requests"),

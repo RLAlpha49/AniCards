@@ -16,10 +16,10 @@ import {
   handleError,
   incrementAnalytics,
   initializeApiRequest,
-  invalidJsonResponse,
   jsonWithCors,
   logPrivacySafe,
   logSuccess,
+  readJsonRequestBody,
   redisClient,
   validateCardData,
 } from "@/lib/api-utils";
@@ -686,19 +686,23 @@ type ParsedStoreCardsBody = {
 
 async function parseStoreCardsRequestBody(
   request: Request,
+  endpoint: string,
   endpointKey: string,
 ): Promise<{ parsed?: ParsedStoreCardsBody; errorResponse?: NextResponse }> {
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    await incrementAnalytics(
-      buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-    ).catch(() => {});
+  const bodyResult = await readJsonRequestBody<Record<string, unknown>>(
+    request,
+    {
+      endpointName: endpoint,
+      endpointKey,
+    },
+  );
+  if (!bodyResult.success) {
     return {
-      errorResponse: invalidJsonResponse(request),
+      errorResponse: bodyResult.errorResponse,
     };
   }
+
+  const body = bodyResult.data;
 
   const statsData = body.statsData;
   const rawUserId = body.userId;
@@ -1042,7 +1046,11 @@ export async function POST(request: Request): Promise<NextResponse> {
   const { startTime, endpoint, endpointKey } = init;
 
   try {
-    const bodyParse = await parseStoreCardsRequestBody(request, endpointKey);
+    const bodyParse = await parseStoreCardsRequestBody(
+      request,
+      endpoint,
+      endpointKey,
+    );
     if (bodyParse.errorResponse) return bodyParse.errorResponse;
     const {
       statsData,

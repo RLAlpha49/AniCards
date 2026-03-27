@@ -5,6 +5,8 @@
  * CORS policy, request validation, analytics counters, and common response
  * helpers in one place.
  */
+import { createHash, timingSafeEqual } from "node:crypto";
+
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { NextResponse } from "next/server";
@@ -419,6 +421,7 @@ const DEFAULT_UPSTREAM_BACKOFF_BASE_MS = 250;
 const DEFAULT_UPSTREAM_MAX_BACKOFF_MS = 5_000;
 const DEFAULT_CIRCUIT_BREAKER_FAILURE_THRESHOLD = 5;
 const DEFAULT_CIRCUIT_BREAKER_COOLDOWN_MS = 30_000;
+const DEFAULT_JSON_BODY_LIMIT_BYTES = 512 * 1024;
 const upstreamCircuitStates = new Map<string, UpstreamCircuitState>();
 const apiRequestContextStore = new WeakMap<Request, ApiRequestContext>();
 const REQUEST_ID_HEADER = "X-Request-Id";
@@ -639,6 +642,149 @@ export function apiTextHeaders(request?: Request): Record<string, string> {
   };
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) {
+    return `${Math.round((bytes / 1024) * 10) / 10} KB`;
+  }
+
+  return `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`;
+}
+
+function readContentLengthHeader(request: Request): number | undefined {
+  const rawValue = request.headers.get("content-length")?.trim();
+  if (!rawValue) return undefined;
+
+  const parsed = Number.parseInt(rawValue, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return undefined;
+  return parsed;
+}
+
+function getUtf8ByteLength(value: string): number {
+  return new TextEncoder().encode(value).length;
+}
+
+export function payloadTooLargeResponse(
+  request: Request | undefined,
+  options?: {
+    headers?: Record<string, string>;
+    message?: string;
+    maxBytes?: number;
+  },
+): NextResponse<ApiError & Record<string, unknown>> {
+  return apiErrorResponse(
+    request,
+    413,
+    options?.message ?? "Request body too large",
+    {
+      headers: options?.headers,
+      category: "invalid_data",
+      retryable: false,
+      additionalFields:
+        typeof options?.maxBytes === "number"
+          ? { maxBytes: options.maxBytes }
+          : undefined,
+    },
+  );
+}
+
+export type ReadJsonRequestBodyResult<T> =
+  | { success: true; data: T }
+  | {
+      success: false;
+      errorResponse: NextResponse<ApiError & Record<string, unknown>>;
+    };
+
+export async function readJsonRequestBody<T>(
+  request: Request,
+  options: {
+    endpointName: string;
+    endpointKey: string;
+    maxBytes?: number;
+  },
+): Promise<ReadJsonRequestBodyResult<T>> {
+  const maxBytes =
+    typeof options.maxBytes === "number" && options.maxBytes > 0
+      ? options.maxBytes
+      : DEFAULT_JSON_BODY_LIMIT_BYTES;
+
+  const contentLength = readContentLengthHeader(request);
+  if (typeof contentLength === "number" && contentLength > maxBytes) {
+    logPrivacySafe(
+      "warn",
+      options.endpointName,
+      "Rejected request body larger than configured limit from Content-Length header.",
+      {
+        contentLength,
+        maxBytes,
+      },
+      request,
+    );
+    await incrementAnalytics(
+      buildAnalyticsMetricKey(options.endpointKey, "failed_requests"),
+    ).catch(() => {});
+
+    return {
+      success: false,
+      errorResponse: payloadTooLargeResponse(request, { maxBytes }),
+    };
+  }
+
+  let rawBody: string;
+  try {
+    rawBody = await request.text();
+  } catch {
+    await incrementAnalytics(
+      buildAnalyticsMetricKey(options.endpointKey, "failed_requests"),
+    ).catch(() => {});
+
+    return {
+      success: false,
+      errorResponse: invalidJsonResponse(request),
+    };
+  }
+
+  const actualBytes = getUtf8ByteLength(rawBody);
+  if (actualBytes > maxBytes) {
+    logPrivacySafe(
+      "warn",
+      options.endpointName,
+      "Rejected request body larger than configured limit after reading body.",
+      {
+        contentLength,
+        actualBytes,
+        maxBytes,
+        maxSize: formatBytes(maxBytes),
+      },
+      request,
+    );
+    await incrementAnalytics(
+      buildAnalyticsMetricKey(options.endpointKey, "failed_requests"),
+    ).catch(() => {});
+
+    return {
+      success: false,
+      errorResponse: payloadTooLargeResponse(request, { maxBytes }),
+    };
+  }
+
+  try {
+    return {
+      success: true,
+      data: JSON.parse(rawBody) as T,
+    };
+  } catch {
+    await incrementAnalytics(
+      buildAnalyticsMetricKey(options.endpointKey, "failed_requests"),
+    ).catch(() => {});
+
+    return {
+      success: false,
+      errorResponse: invalidJsonResponse(request),
+    };
+  }
+}
+
 function getRetryAfterMs(retryAfterHeader: string | null): number | undefined {
   if (!retryAfterHeader) return undefined;
 
@@ -711,6 +857,21 @@ function sleep(delayMs: number, signal?: AbortSignal): Promise<void> {
       signal.addEventListener("abort", onAbort, { once: true });
     }
   });
+}
+
+function hashSecretForConstantTimeComparison(value: string): Buffer {
+  return createHash("sha256").update(value, "utf8").digest();
+}
+
+function secretsMatchConstantTime(
+  expectedSecret: string,
+  providedSecret: string | null | undefined,
+): boolean {
+  const expectedHash = hashSecretForConstantTimeComparison(expectedSecret);
+  const providedHash = hashSecretForConstantTimeComparison(
+    providedSecret ?? "",
+  );
+  return timingSafeEqual(expectedHash, providedHash);
 }
 
 function createAbortContext(
@@ -1075,7 +1236,7 @@ export function authorizeCronRequest(
     });
   }
 
-  if (cronSecretHeader !== cronSecret) {
+  if (!secretsMatchConstantTime(cronSecret, cronSecretHeader)) {
     logPrivacySafe(
       "error",
       endpointName,
@@ -1137,7 +1298,7 @@ export function jsonWithCors<T = unknown>(
 }
 
 /**
- * Extracts the best available client IP address from common proxy headers.
+ * Extracts the client IP address from trusted deployment headers only.
  * Falls back to localhost in non-production environments for local testing.
  * @param request - Incoming request whose headers may contain proxy IPs.
  * @returns The normalized client IP or a development fallback.
@@ -1145,17 +1306,8 @@ export function jsonWithCors<T = unknown>(
 export function getRequestIp(request?: Request): string {
   if (!request) return "127.0.0.1";
 
-  const forwardedFor = request.headers.get("x-forwarded-for");
-  if (forwardedFor) {
-    const firstForwardedIp = forwardedFor
-      .split(",")
-      .map((value) => value.trim())
-      .find(Boolean);
-    if (firstForwardedIp) return firstForwardedIp;
-  }
-
-  const directIpHeaders = ["cf-connecting-ip", "x-real-ip"];
-  for (const headerName of directIpHeaders) {
+  const trustedHeaderNames = ["x-vercel-forwarded-for", "cf-connecting-ip"];
+  for (const headerName of trustedHeaderNames) {
     const headerValue = request.headers.get(headerName)?.trim();
     if (headerValue) return headerValue;
   }
@@ -1167,6 +1319,29 @@ function truncateLogString(value: string, maxLength = 120): string {
   return value.length <= maxLength
     ? value
     : `${value.slice(0, Math.max(0, maxLength - 1))}…`;
+}
+
+function sanitizeStackFrame(line: string): string | undefined {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith("at ")) return undefined;
+
+  const match = /^at\s+(.+?)(?:\s+\(|$)/.exec(trimmed);
+  const frameLabel = match?.[1]?.trim();
+  if (!frameLabel) return "at <frame>";
+  return `at ${truncateLogString(frameLabel.replaceAll(/\s+/g, " "), 80)}`;
+}
+
+function summarizeStackForLogs(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+
+  const frames = value
+    .split(/\r?\n/)
+    .map((line) => sanitizeStackFrame(line))
+    .filter((line): line is string => typeof line === "string")
+    .slice(0, 5);
+
+  if (frames.length === 0) return undefined;
+  return truncateLogString(frames.join(" | "), 200);
 }
 
 export function redactIp(ip: string): string {
@@ -1251,6 +1426,10 @@ function sanitizeLogContextValue(
 
   if (normalizedKey === "requestid") {
     return truncateLogString(String(value), 120);
+  }
+
+  if (normalizedKey.includes("stack")) {
+    return summarizeStackForLogs(value);
   }
 
   return truncateLogString(safeStringifyValue(value));
@@ -1338,11 +1517,30 @@ export async function checkRateLimit(
     request?.headers.get("cf-ipcountry") ??
     undefined;
 
-  const result = await effectiveLimiter.limit(ip, {
-    ip,
-    userAgent,
-    country,
-  });
+  let result;
+  try {
+    result = await effectiveLimiter.limit(ip, {
+      ip,
+      userAgent,
+      country,
+    });
+  } catch (error) {
+    logPrivacySafe(
+      "error",
+      endpointName,
+      "Upstash Ratelimit check failed.",
+      {
+        ip,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      request,
+    );
+    await incrementAnalytics(
+      buildAnalyticsMetricKey(endpointKey, "rate_limit_errors"),
+    ).catch(() => {});
+    throw error;
+  }
+
   await flushRateLimitPendingWork(result.pending, endpointName);
 
   const limit = typeof result.limit === "number" ? result.limit : 0;
@@ -1365,10 +1563,15 @@ export async function checkRateLimit(
 
   if (result.reason === "timeout") {
     logPrivacySafe(
-      "warn",
+      "error",
       endpointName,
-      "Upstash Ratelimit timed out; allowing request to pass fail-open.",
+      "Upstash Ratelimit timed out; allowing request to pass fail-open with observability escalation.",
+      { ip },
+      request,
     );
+    await incrementAnalytics(
+      buildAnalyticsMetricKey(endpointKey, "rate_limit_timeouts"),
+    ).catch(() => {});
   }
 
   const { success } = result;
@@ -1391,8 +1594,9 @@ export async function checkRateLimit(
 
 /**
  * Validates that a given request originates from the same origin as the
- * application (or an internal request with no origin header). In
- * production, cross-origin requests are rejected with a 401 response.
+ * application. Missing Origin headers are rejected by default and are only
+ * allowed when a caller explicitly opts out via requireOrigin=false (for
+ * trusted server-to-server flows such as cron handlers).
  * @param request - The incoming Request object to evaluate.
  * @param endpointName - Friendly endpoint name used for logs.
  * @param endpointKey - Stable canonical endpoint key used for analytics metric keys.
@@ -1410,7 +1614,7 @@ export function validateSameOrigin(
   const origin = normalizeOrigin(request.headers.get("origin"));
   const requestOrigin = new URL(request.url).origin;
   const configuredAppOrigin = normalizeOrigin(process.env.NEXT_PUBLIC_APP_URL);
-  const requireOrigin = options?.requireOrigin ?? false;
+  const requireOrigin = options?.requireOrigin ?? true;
 
   if (process.env.NODE_ENV === "production" && !configuredAppOrigin) {
     logPrivacySafe(
@@ -1432,7 +1636,11 @@ export function validateSameOrigin(
 
   const allowedOrigin = configuredAppOrigin ?? requestOrigin;
 
-  if (requireOrigin && !origin) {
+  if (!origin) {
+    if (!requireOrigin) {
+      return null;
+    }
+
     logPrivacySafe(
       "warn",
       endpointName,
@@ -1450,9 +1658,7 @@ export function validateSameOrigin(
     });
   }
 
-  const isSameOrigin = !origin || origin === allowedOrigin;
-
-  if (!isSameOrigin) {
+  if (origin !== allowedOrigin) {
     logPrivacySafe(
       "warn",
       endpointName,
@@ -1472,13 +1678,6 @@ export function validateSameOrigin(
       }
     });
 
-    if (process.env.NODE_ENV === "production") {
-      return apiErrorResponse(request, 401, "Unauthorized", {
-        category: "authentication",
-        retryable: false,
-      });
-    }
-    // In dev mode, still return headers for consistent CORS behavior
     return apiErrorResponse(request, 401, "Unauthorized", {
       category: "authentication",
       retryable: false,

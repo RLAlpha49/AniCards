@@ -226,6 +226,25 @@ describe("Store Cards API POST Endpoint", () => {
       );
     });
 
+    it("should reject request bodies larger than 512 KB", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const req = createRequest({
+        userId: 1,
+        statsData: { blob: "x".repeat(513 * 1024) },
+        cards: [],
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(413);
+      const data = await res.json();
+      expect(data.error).toBe("Request body too large");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:store_cards:failed_requests",
+      );
+    });
+
     it("should reject non-boolean disabled field", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       const req = createRequest({

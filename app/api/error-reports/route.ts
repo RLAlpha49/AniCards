@@ -1,6 +1,7 @@
 import {
   apiErrorResponse,
   apiJsonHeaders,
+  createRateLimiter,
   initializeApiRequest,
   invalidJsonResponse,
   jsonWithCors,
@@ -17,6 +18,12 @@ const ALLOWED_SOURCES = new Set<ErrorReportSource>([
   "app_router_error_boundary",
   "api_route",
 ]);
+
+const errorReportsRateLimiter = createRateLimiter({
+  limit: 3,
+  window: "10 s",
+  prefix: "error-reports",
+});
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -77,7 +84,7 @@ export async function POST(request: Request) {
     request,
     "Error Reports API",
     "error_reports",
-    undefined,
+    errorReportsRateLimiter,
     { requireOrigin: true },
   );
   if (init.errorResponse) return init.errorResponse;

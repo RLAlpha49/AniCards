@@ -274,6 +274,25 @@ function getSharedSvgCacheSetCall(): [string, string] | undefined {
   return match;
 }
 
+function getConsoleLogEntries(): Array<Record<string, unknown>> {
+  const calls = (
+    console.log as unknown as { mock: { calls: Array<unknown[]> } }
+  ).mock.calls;
+
+  return calls.flatMap((call) => {
+    const [entry] = call;
+    if (typeof entry !== "string") {
+      return [];
+    }
+
+    try {
+      return [JSON.parse(entry) as Record<string, unknown>];
+    } catch {
+      return [];
+    }
+  });
+}
+
 /**
  * Configures Redis GET to miss the shared SVG cache first, then return the
  * provided cards and user payloads for the normal data lookup path.
@@ -457,12 +476,12 @@ describe("Card SVG Route", () => {
       );
     });
 
-    it("should extract IP from x-forwarded-for header", async () => {
+    it("should extract IP from trusted x-vercel-forwarded-for header", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: false });
 
       const req = new Request(
         createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
-        { headers: { "x-forwarded-for": "192.168.1.1" } },
+        { headers: { "x-vercel-forwarded-for": "192.168.1.1" } },
       );
 
       await GET(req);
@@ -472,11 +491,12 @@ describe("Card SVG Route", () => {
       });
     });
 
-    it("should default to 127.0.0.1 when x-forwarded-for is missing", async () => {
+    it("should default to 127.0.0.1 when only spoofable forwarded headers are present", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: false });
 
       const req = new Request(
         createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
+        { headers: { "x-forwarded-for": "203.0.113.99" } },
       );
 
       await GET(req);
@@ -509,6 +529,53 @@ describe("Card SVG Route", () => {
       expect(res.headers.get("Access-Control-Expose-Headers")).toContain(
         "X-Request-Id",
       );
+    });
+
+    it("should not log raw request query strings for processing logs", async () => {
+      const cardsData = createMockCardData("animeStats", "default");
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+          titleColor: "#ff00ff",
+          backgroundColor: "#001122",
+          textColor: "#ddeeff",
+        }),
+      );
+
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      const processingLog = getConsoleLogEntries().find(
+        (entry) => entry["message"] === "Processing card SVG request",
+      ) as
+        | {
+            path?: string;
+            context?: {
+              ip?: string;
+              queryParamCount?: number;
+              url?: string;
+            };
+          }
+        | undefined;
+
+      expect(processingLog).toBeTruthy();
+      expect(processingLog?.path).toBe("/api/card.svg");
+      expect(processingLog?.context?.ip).toBe("loopback");
+      expect(processingLog?.context?.queryParamCount).toBe(5);
+      expect(processingLog?.context?.url).toBeUndefined();
+
+      const serializedProcessingLog = JSON.stringify(processingLog);
+      expect(serializedProcessingLog).not.toContain("titleColor");
+      expect(serializedProcessingLog).not.toContain("backgroundColor");
+      expect(serializedProcessingLog).not.toContain("textColor");
+      expect(serializedProcessingLog).not.toContain("?userId=");
+      expect(serializedProcessingLog).not.toContain("ff00ff");
     });
   });
 

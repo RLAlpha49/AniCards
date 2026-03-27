@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import {
   allowConsoleWarningsAndErrors,
   sharedRatelimitMockLimit,
+  sharedRatelimitMockSlidingWindow,
   sharedRedisMockLtrim,
   sharedRedisMockRpush,
 } from "@/tests/unit/__setup__";
@@ -60,6 +61,10 @@ describe("error reports API route", () => {
     mock.clearAllMocks();
   });
 
+  it("uses a dedicated 3 requests / 10 seconds limiter", () => {
+    expect(sharedRatelimitMockSlidingWindow).toHaveBeenCalledWith(3, "10 s");
+  });
+
   it("accepts same-origin client error reports and persists them", async () => {
     const response = await POST(createRequest());
     const payload = await response.json();
@@ -81,6 +86,22 @@ describe("error reports API route", () => {
     expect(report.route).toBe("/user/[username]");
     expect(report.source).toBe("react_error_boundary");
     expect(report.category).toBe("network_error");
+  });
+
+  it("returns 429 when the dedicated error-report limiter is exceeded", async () => {
+    sharedRatelimitMockLimit.mockResolvedValueOnce({
+      success: false,
+      limit: 3,
+      remaining: 0,
+      reset: Date.now() + 5_000,
+      pending: Promise.resolve(),
+    });
+
+    const response = await POST(createRequest());
+
+    expect(response.status).toBe(429);
+    expect((await response.json()).error).toBe("Too many requests");
+    expect(sharedRedisMockRpush).not.toHaveBeenCalled();
   });
 
   it("rejects missing required fields", async () => {

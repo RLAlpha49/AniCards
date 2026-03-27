@@ -304,6 +304,27 @@ describe("Store Users API", () => {
       expect(data.retryable).toBe(false);
       expect(data.status).toBe(400);
     });
+
+    it("should reject request bodies larger than 512 KB", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const req = createTestRequest(
+        {
+          userId: 1,
+          username: "user1",
+          stats: { blob: "x".repeat(513 * 1024) },
+        },
+        "http://localhost",
+      );
+
+      const res = await POST(req);
+      expect(res.status).toBe(413);
+      const data = await getJsonResponse(res);
+      expect(data.error).toBe("Request body too large");
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:store_users:failed_requests",
+      );
+    });
   });
 
   describe("POST - Successful User Creation & Updates", () => {

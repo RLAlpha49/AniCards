@@ -671,7 +671,7 @@ export async function GET(request: Request) {
     "log",
     "Card SVG",
     "Processing card SVG request",
-    { ip, url: request.url },
+    { ip, queryParamCount: new URL(request.url).searchParams.size },
     request,
   );
 
