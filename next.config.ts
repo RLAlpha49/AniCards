@@ -94,10 +94,12 @@ const nextConfig: NextConfig = {
             value: "nosniff",
           },
           {
-            // HSTS is intentionally scoped to the apex host policy for now.
-            // Add includeSubDomains/preload only when every served subdomain is HTTPS-only.
+            // Repo evidence confirms the currently served anicards.alpha49.com
+            // subdomain surface is HTTPS-only (`api.anicards.alpha49.com`), so
+            // includeSubDomains is safe. Keep preload out until there is explicit
+            // evidence that every present/future served subdomain is preload-ready.
             key: "Strict-Transport-Security",
-            value: "max-age=31536000",
+            value: "max-age=31536000; includeSubDomains",
           },
           {
             // strict-origin-when-cross-origin: Full URL for same-origin, only origin for cross-origin

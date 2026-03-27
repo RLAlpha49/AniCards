@@ -44,7 +44,7 @@ Browsers strip nonce attributes during hydration. Inline script components carry
 - `X-DNS-Prefetch-Control: on`
 - `X-Frame-Options: DENY`
 - `X-Content-Type-Options: nosniff`
-- `Strict-Transport-Security: max-age=31536000`
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains`
 - `Referrer-Policy: strict-origin-when-cross-origin`
 - `Permissions-Policy: camera=(), microphone=(), geolocation=()`
 
