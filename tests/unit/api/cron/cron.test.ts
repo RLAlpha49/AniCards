@@ -294,7 +294,7 @@ describe("Cron API Route", () => {
     expect(text).toContain("Update 10 users/run: 0 */12 * * *");
     expect(globalThis.fetch).toHaveBeenCalledTimes(5);
     expect(sharedRedisMockSet).toHaveBeenCalledWith(
-      "user:15:r:1:activity",
+      "user:15:activity",
       expect.any(String),
     );
     expect(sharedRedisMockDel).toHaveBeenCalledWith("failed_updates:15");
@@ -307,7 +307,6 @@ describe("Cron API Route", () => {
 
   it("tracks 404 failures and removes users on the third consecutive miss", async () => {
     mockUserRecords(["123"]);
-    sharedRedisMockScan.mockResolvedValueOnce([0, []]);
     sharedRedisMockScan.mockResolvedValueOnce([
       0,
       ["username:user123", "username:old-user123"],

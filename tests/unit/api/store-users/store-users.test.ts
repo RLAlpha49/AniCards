@@ -326,7 +326,7 @@ describe("Store Users API", () => {
       expect(sharedRedisMockGet).toHaveBeenCalledWith("user:1");
       expect(sharedRedisMockSet).toHaveBeenCalledTimes(11);
 
-      const metaValue = parseJsonSetCall("user:1:r:1:meta");
+      const metaValue = parseJsonSetCall("user:1:meta");
       expect(String(metaValue.userId)).toBe(String(1));
       expect(metaValue.username).toBe("UserOne");
       expect(metaValue.usernameNormalized).toBe("userone");
@@ -338,7 +338,7 @@ describe("Store Users API", () => {
       expect(metaValue).toHaveProperty("createdAt");
       expect(metaValue).toHaveProperty("updatedAt");
 
-      const statsValue = parseJsonSetCall("user:1:r:1:activity");
+      const statsValue = parseJsonSetCall("user:1:activity");
       expect(statsValue).toEqual({ score: 10 });
 
       expect(findSetCall("username:userone")[1]).toBe("1");
@@ -372,7 +372,7 @@ describe("Store Users API", () => {
 
       expect(sharedRedisMockSet).toHaveBeenCalledTimes(10);
 
-      const metaValue = parseJsonSetCall("user:2:r:1:meta");
+      const metaValue = parseJsonSetCall("user:2:meta");
       expect(metaValue.username).toBeUndefined();
       expect(
         sharedRedisMockSet.mock.calls.some(
@@ -490,7 +490,7 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      const aggregatesValue = parseJsonSetCall("user:42:r:1:aggregates");
+      const aggregatesValue = parseJsonSetCall("user:42:aggregates");
 
       expect(aggregatesValue).toHaveProperty(
         "animeSourceMaterialDistributionTotals",
@@ -590,7 +590,7 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      const aggregatesValue = parseJsonSetCall("user:43:r:1:aggregates");
+      const aggregatesValue = parseJsonSetCall("user:43:aggregates");
 
       expect(aggregatesValue).toHaveProperty("animeSeasonalPreferenceTotals");
       const totals = aggregatesValue.animeSeasonalPreferenceTotals as Array<{
@@ -670,7 +670,7 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      const aggregatesValue = parseJsonSetCall("user:44:r:1:aggregates");
+      const aggregatesValue = parseJsonSetCall("user:44:aggregates");
 
       expect(aggregatesValue).toHaveProperty("animeGenreSynergyTotals");
       const totals = aggregatesValue.animeGenreSynergyTotals as Array<{
@@ -805,11 +805,11 @@ describe("Store Users API", () => {
       const res = await POST(req);
       expect(res.status).toBe(200);
 
-      const pagesValue = parseJsonSetCall("user:99:r:1:pages");
+      const pagesValue = parseJsonSetCall("user:99:pages");
       expect(pagesValue.userReviews?.reviews).toHaveLength(1);
       expect(pagesValue.userRecommendations?.recommendations).toHaveLength(1);
 
-      const completedValue = parseJsonSetCall("user:99:r:1:completed");
+      const completedValue = parseJsonSetCall("user:99:completed");
 
       expect(completedValue.animeDropped?.lists?.[0]?.entries).toHaveLength(1);
       expect(completedValue.mangaDropped?.lists?.[0]?.entries).toHaveLength(1);
@@ -846,12 +846,12 @@ describe("Store Users API", () => {
 
       expect(sharedRedisMockSet).toHaveBeenCalledTimes(11);
 
-      const metaValue = parseJsonSetCall("user:5:r:1:meta");
+      const metaValue = parseJsonSetCall("user:5:meta");
       expect(metaValue.createdAt).toBe("2022-01-01T00:00:00.000Z");
       expect(metaValue.updatedAt).not.toBe("2022-01-01T00:00:00.000Z");
       expect(metaValue.username).toBe("NewName");
 
-      const statsValue = parseJsonSetCall("user:5:r:1:activity");
+      const statsValue = parseJsonSetCall("user:5:activity");
       expect(statsValue).toEqual({ score: 100 });
       expect(sharedRedisMockDel).toHaveBeenCalledWith("username:oldname");
     });
@@ -874,7 +874,7 @@ describe("Store Users API", () => {
       expect(res.status).toBe(200);
 
       expect(sharedRedisMockSet).toHaveBeenCalledTimes(11);
-      const statsValue = parseJsonSetCall("user:6:r:1:activity");
+      const statsValue = parseJsonSetCall("user:6:activity");
       expect(statsValue).toEqual(complexStats);
     });
 
@@ -904,7 +904,7 @@ describe("Store Users API", () => {
       expect(res.status).toBe(200);
 
       expect(sharedRedisMockSet).toHaveBeenCalledTimes(10);
-      const metaValue = parseJsonSetCall("user:7:r:1:meta");
+      const metaValue = parseJsonSetCall("user:7:meta");
       expect(metaValue.username).toBeUndefined();
       expect(sharedRedisMockDel).toHaveBeenCalledWith("username:existingname");
     });
@@ -991,7 +991,7 @@ describe("Store Users API", () => {
       const afterTime = new Date();
 
       expect(res.status).toBe(200);
-      const metaValue = parseJsonSetCall("user:9:r:1:meta");
+      const metaValue = parseJsonSetCall("user:9:meta");
       const timestamp = new Date(metaValue.updatedAt);
 
       expect(timestamp.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());
@@ -1010,7 +1010,7 @@ describe("Store Users API", () => {
       const afterTime = new Date();
 
       expect(res.status).toBe(200);
-      const metaValue = parseJsonSetCall("user:10:r:1:meta");
+      const metaValue = parseJsonSetCall("user:10:meta");
       const createdAt = new Date(metaValue.createdAt);
 
       expect(createdAt.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());
@@ -1070,7 +1070,7 @@ describe("Store Users API", () => {
       const data = await getJsonResponse(res);
       expect(data.success).toBe(true);
 
-      const storedValue = parseJsonSetCall("user:13:r:1:meta");
+      const storedValue = parseJsonSetCall("user:13:meta");
       expect(storedValue.createdAt).toBeDefined();
     });
 
@@ -1093,7 +1093,7 @@ describe("Store Users API", () => {
       const afterTime = new Date();
 
       expect(res.status).toBe(200);
-      const metaValue = parseJsonSetCall("user:14:r:1:meta");
+      const metaValue = parseJsonSetCall("user:14:meta");
       const createdAt = new Date(metaValue.createdAt);
 
       expect(createdAt.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());
