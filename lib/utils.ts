@@ -12,6 +12,7 @@ import { twMerge } from "tailwind-merge";
 import type {
   ColorValue,
   GradientDefinition,
+  GradientStop,
   TemplateCardConfig,
 } from "@/lib/types/card";
 import type { StoredCardConfig } from "@/lib/types/records";
@@ -161,16 +162,20 @@ export function generateGradientSVG(
   gradient: GradientDefinition,
   id: string,
 ): string {
-  const stops = gradient.stops
+  const sanitizedGradient = sanitizeGradientForSvg(gradient);
+  if (!sanitizedGradient) return "";
+
+  const safeId = escapeForXml(id);
+  const stops = sanitizedGradient.stops
     .map((stop) => {
       const opacity =
         stop.opacity === undefined ? "" : ` stop-opacity="${stop.opacity}"`;
-      return `<stop offset="${stop.offset}%" stop-color="${stop.color}"${opacity}/>`;
+      return `<stop offset="${stop.offset}%" stop-color="${escapeForXml(stop.color)}"${opacity}/>`;
     })
     .join("");
 
-  if (gradient.type === "linear") {
-    const angle = gradient.angle ?? 0;
+  if (sanitizedGradient.type === "linear") {
+    const angle = sanitizedGradient.angle ?? 0;
     // Convert angle to x1, y1, x2, y2 coordinates
     // 0° = left to right, 90° = top to bottom, etc.
     const angleRad = ((angle - 90) * Math.PI) / 180;
@@ -179,12 +184,12 @@ export function generateGradientSVG(
     const x2 = Math.round(50 + Math.sin(angleRad) * 50);
     const y2 = Math.round(50 + Math.cos(angleRad) * 50);
 
-    return `<linearGradient id="${id}" x1="${x1}%" y1="${y1}%" x2="${x2}%" y2="${y2}%">${stops}</linearGradient>`;
+    return `<linearGradient id="${safeId}" x1="${x1}%" y1="${y1}%" x2="${x2}%" y2="${y2}%">${stops}</linearGradient>`;
   } else {
-    const cx = gradient.cx ?? 50;
-    const cy = gradient.cy ?? 50;
-    const r = gradient.r ?? 50;
-    return `<radialGradient id="${id}" cx="${cx}%" cy="${cy}%" r="${r}%">${stops}</radialGradient>`;
+    const cx = sanitizedGradient.cx ?? 50;
+    const cy = sanitizedGradient.cy ?? 50;
+    const r = sanitizedGradient.r ?? 50;
+    return `<radialGradient id="${safeId}" cx="${cx}%" cy="${cy}%" r="${r}%">${stops}</radialGradient>`;
   }
 }
 
@@ -376,6 +381,116 @@ export function hexToHsl(hex: string): [number, number, number] {
   return [h, s, l];
 }
 
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function sanitizeGradientStopForSvg(stop: unknown): GradientStop | null {
+  if (typeof stop !== "object" || stop === null) return null;
+
+  const record = stop as Record<string, unknown>;
+  if (typeof record.color !== "string") return null;
+
+  const color = record.color.trim();
+  if (!isValidHexColor(color)) return null;
+
+  const offset = toFiniteNumber(record.offset, { log: false });
+  if (offset === null) return null;
+
+  const opacity =
+    record.opacity === undefined
+      ? undefined
+      : toFiniteNumber(record.opacity, { log: false });
+  const sanitizedOpacity =
+    opacity === undefined || opacity === null
+      ? undefined
+      : clampNumber(opacity, 0, 1);
+
+  return {
+    color,
+    offset: clampNumber(offset, 0, 100),
+    ...(sanitizedOpacity === undefined ? {} : { opacity: sanitizedOpacity }),
+  };
+}
+
+export function sanitizeGradientForSvg(
+  value: unknown,
+): GradientDefinition | null {
+  if (typeof value !== "object" || value === null) return null;
+
+  const gradient = value as Record<string, unknown>;
+  if (gradient.type !== "linear" && gradient.type !== "radial") return null;
+
+  const rawStops = Array.isArray(gradient.stops) ? gradient.stops : [];
+  const stops = rawStops
+    .map((stop) => sanitizeGradientStopForSvg(stop))
+    .filter((stop): stop is GradientStop => stop !== null);
+
+  if (stops.length < 2) return null;
+
+  if (gradient.type === "linear") {
+    const angle = toFiniteNumber(gradient.angle, { log: false });
+    return {
+      type: "linear",
+      stops,
+      ...(angle === null ? {} : { angle: clampNumber(angle, 0, 360) }),
+    };
+  }
+
+  const cx = toFiniteNumber(gradient.cx, { log: false });
+  const cy = toFiniteNumber(gradient.cy, { log: false });
+  const r = toFiniteNumber(gradient.r, { log: false });
+
+  return {
+    type: "radial",
+    stops,
+    ...(cx === null ? {} : { cx: clampNumber(cx, 0, 100) }),
+    ...(cy === null ? {} : { cy: clampNumber(cy, 0, 100) }),
+    ...(r === null ? {} : { r: clampNumber(r, 0, 100) }),
+  };
+}
+
+export function getGradientRenderFallbackColor(
+  value: unknown,
+  fallbackColor = "#000000",
+): string {
+  let candidate = value;
+
+  if (typeof candidate === "string") {
+    const trimmed = candidate.trim();
+    if (!trimmed.startsWith("{")) return fallbackColor;
+
+    try {
+      candidate = JSON.parse(trimmed);
+    } catch {
+      return fallbackColor;
+    }
+  }
+
+  if (typeof candidate !== "object" || candidate === null) {
+    return fallbackColor;
+  }
+
+  const stops = Array.isArray((candidate as { stops?: unknown }).stops)
+    ? ((candidate as { stops: unknown[] }).stops ?? [])
+    : [];
+
+  for (const stop of stops) {
+    if (typeof stop !== "object" || stop === null) continue;
+
+    const color =
+      typeof (stop as { color?: unknown }).color === "string"
+        ? (stop as { color: string }).color.trim()
+        : "";
+
+    if (isValidHexColor(color)) {
+      return color;
+    }
+  }
+
+  return fallbackColor;
+}
+
 /**
  * Validates a single gradient stop object.
  * @param stop - The stop to validate.
@@ -507,22 +622,79 @@ export function getColorInvalidReason(value: unknown): string {
  */
 function parseColorValue(value: ColorValue | string): ColorValue | undefined {
   if (typeof value !== "string") {
-    return value;
+    return isGradient(value)
+      ? (sanitizeGradientForSvg(value) ?? undefined)
+      : value;
   }
 
   // Try to parse JSON-encoded gradients
-  if (value.startsWith("{")) {
+  if (value.trim().startsWith("{")) {
     try {
       const parsed = JSON.parse(value);
-      if (isGradient(parsed)) {
-        return parsed;
-      }
+      return sanitizeGradientForSvg(parsed) ?? undefined;
     } catch {
-      // Not JSON or not a valid gradient, treat as regular string
+      return undefined;
     }
   }
 
   return value;
+}
+
+function getSvgColorFallbackForKey(key: string): string {
+  switch (key) {
+    case "titleColor":
+      return DEFAULT_TITLE_COLOR;
+    case "backgroundColor":
+      return DEFAULT_BACKGROUND_COLOR;
+    case "textColor":
+      return DEFAULT_TEXT_COLOR;
+    case "circleColor":
+      return DEFAULT_CIRCLE_COLOR;
+    case "borderColor":
+      return "";
+    default:
+      return "#000000";
+  }
+}
+
+function resolveGradientRenderResult(
+  key: string,
+  rawValue: ColorValue | undefined,
+): { color: string; gradientId?: string; gradientSvg?: string } {
+  const fallbackColor = getSvgColorFallbackForKey(key);
+  const parsedValue =
+    rawValue === undefined ? undefined : parseColorValue(rawValue);
+
+  if (parsedValue === undefined) {
+    return {
+      color: getGradientRenderFallbackColor(rawValue, fallbackColor),
+    };
+  }
+
+  if (!isGradient(parsedValue)) {
+    return { color: parsedValue };
+  }
+
+  const sanitizedGradient = sanitizeGradientForSvg(parsedValue);
+  if (!sanitizedGradient) {
+    return {
+      color: getGradientRenderFallbackColor(rawValue, fallbackColor),
+    };
+  }
+
+  const gradientId = generateGradientId(key);
+  const gradientSvg = generateGradientSVG(sanitizedGradient, gradientId);
+  if (!gradientSvg) {
+    return {
+      color: getGradientRenderFallbackColor(rawValue, fallbackColor),
+    };
+  }
+
+  return {
+    color: `url(#${gradientId})`,
+    gradientId,
+    gradientSvg,
+  };
 }
 
 /**
@@ -545,21 +717,18 @@ export function processColorsForSVG(
   const resolvedColors: Record<string, string> = {};
 
   for (const key of colorKeys) {
-    let value = styles[key];
+    const value = styles[key];
     if (value === undefined) {
       resolvedColors[key] = "";
       continue;
     }
 
-    value = parseColorValue(value);
+    const result = resolveGradientRenderResult(key, value);
+    resolvedColors[key] = result.color;
 
-    if (value !== undefined && isGradient(value)) {
-      const id = generateGradientId(key);
-      gradientIds[key] = id;
-      gradientDefs.push(generateGradientSVG(value, id));
-      resolvedColors[key] = `url(#${id})`;
-    } else if (value !== undefined) {
-      resolvedColors[key] = value;
+    if (result.gradientId && result.gradientSvg) {
+      gradientIds[key] = result.gradientId;
+      gradientDefs.push(result.gradientSvg);
     }
   }
 

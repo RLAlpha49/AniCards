@@ -1,5 +1,10 @@
 import type { ColorValue } from "@/lib/types/card";
-import { hexToHsl, isGradient, isValidHexColor } from "@/lib/utils";
+import {
+  getGradientRenderFallbackColor,
+  hexToHsl,
+  isGradient,
+  isValidHexColor,
+} from "@/lib/utils";
 
 /** Default stat base color used when a circle color cannot be resolved. @source lib/svg-templates/extra-anime-manga-stats/shared.ts */
 export const DEFAULT_STAT_BASE_COLOR = "#2563eb";
@@ -14,33 +19,8 @@ export const DEFAULT_STAT_BASE_COLOR = "#2563eb";
 export const tryParseJsonGradient = (
   jsonStr: string,
 ): { color: string } | null => {
-  try {
-    const parsed = JSON.parse(jsonStr);
-
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      (parsed as { type?: unknown }).type &&
-      Array.isArray((parsed as { stops?: unknown }).stops) &&
-      ((parsed as { stops?: unknown[] }).stops?.length ?? 0) > 0
-    ) {
-      for (const stop of (parsed as { stops: unknown[] }).stops) {
-        if (
-          typeof stop === "object" &&
-          stop !== null &&
-          "color" in stop &&
-          typeof (stop as { color?: unknown }).color === "string" &&
-          isValidHexColor((stop as { color: string }).color)
-        ) {
-          return { color: (stop as { color: string }).color };
-        }
-      }
-    }
-  } catch {
-    // JSON parsing failed, not a JSON string
-  }
-
-  return null;
+  const color = getGradientRenderFallbackColor(jsonStr, "");
+  return color ? { color } : null;
 };
 
 /**
@@ -59,12 +39,7 @@ export const resolveCircleBaseColor = (
   value: ColorValue | undefined,
 ): string => {
   if (value && typeof value === "object" && isGradient(value)) {
-    for (const stop of value.stops) {
-      if (stop.color && isValidHexColor(stop.color)) {
-        return stop.color;
-      }
-    }
-    return DEFAULT_STAT_BASE_COLOR;
+    return getGradientRenderFallbackColor(value, DEFAULT_STAT_BASE_COLOR);
   }
 
   if (typeof value === "string") {
