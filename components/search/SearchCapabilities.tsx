@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Layers, Palette, Share2 } from "lucide-react";
 
 import { EASE_OUT_EXPO, fadeIn, fadeUp } from "@/lib/animations";
+import { cn } from "@/lib/utils";
 
 const CAPABILITIES = [
   {
@@ -65,11 +66,14 @@ export function SearchCapabilities() {
               },
             }}
             whileHover={{ y: -6, transition: { duration: 0.25 } }}
-            className={`
-              group relative border-2 border-gold/10 bg-gold/2 p-8 text-center transition-colors
-              duration-500
-              hover:border-gold/30${i === 1 ? `md:-translate-y-4` : ""}
-            `}
+            className={cn(
+              `
+                group relative border-2 border-gold/10 bg-gold/2 p-8 text-center transition-colors
+                duration-500
+                hover:border-gold/30
+              `,
+              i === 1 && "md:-translate-y-4",
+            )}
           >
             {/* Top accent line that slides in */}
             <div className="absolute inset-x-0 top-0 h-0.5 overflow-hidden">
