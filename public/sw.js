@@ -1,6 +1,9 @@
 const CACHE_VERSION = "v1";
 const SHELL_CACHE = `anicards-shell-${CACHE_VERSION}`;
 const STATIC_CACHE = `anicards-static-${CACHE_VERSION}`;
+const STATIC_CACHE_MAX_ENTRIES = 80;
+const STATIC_CACHE_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 7;
+const STATIC_CACHE_METADATA_URL = `${self.location.origin}/__sw-static-cache-metadata__`;
 const OFFLINE_URL = "/offline";
 const OFFLINE_RESPONSE_HTML = `<!doctype html>
 <html lang="en">
@@ -176,10 +179,20 @@ self.addEventListener("install", (event) => {
       await Promise.allSettled(
         PRECACHE_URLS.map((url) => precacheUrl(cache, url)),
       );
-
-      await globalThis.skipWaiting();
     })(),
   );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type !== "SKIP_WAITING") {
+    return;
+  }
+
+  if (event.origin && event.origin !== self.location.origin) {
+    return;
+  }
+
+  globalThis.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
@@ -289,6 +302,7 @@ async function staleWhileRevalidate(request) {
     .then(async (response) => {
       if (response.ok) {
         await cache.put(request, response.clone());
+        await trimStaticCache(cache, request.url);
       }
 
       return response;
@@ -324,5 +338,87 @@ function shouldCacheStaticAsset(request, requestUrl) {
     request.destination === "image" ||
     request.destination === "manifest" ||
     requestUrl.pathname === "/favicon.ico"
+  );
+}
+
+async function trimStaticCache(cache, latestRequestUrl) {
+  const cacheMetadata = await readStaticCacheMetadata(cache);
+  const now = Date.now();
+
+  cacheMetadata.set(latestRequestUrl, now);
+
+  const expiredEntries = [...cacheMetadata.entries()].filter(
+    ([, cachedAt]) => now - cachedAt >= STATIC_CACHE_MAX_AGE_MS,
+  );
+
+  await Promise.all(
+    expiredEntries.map(async ([url]) => {
+      cacheMetadata.delete(url);
+      await cache.delete(url);
+    }),
+  );
+
+  const overflowCount = Math.max(
+    cacheMetadata.size - STATIC_CACHE_MAX_ENTRIES,
+    0,
+  );
+
+  if (overflowCount > 0) {
+    const oldestEntries = [...cacheMetadata.entries()]
+      .sort((leftEntry, rightEntry) => leftEntry[1] - rightEntry[1])
+      .slice(0, overflowCount);
+
+    await Promise.all(
+      oldestEntries.map(async ([url]) => {
+        cacheMetadata.delete(url);
+        await cache.delete(url);
+      }),
+    );
+  }
+
+  await writeStaticCacheMetadata(cache, cacheMetadata);
+}
+
+async function readStaticCacheMetadata(cache) {
+  const metadataResponse = await cache.match(STATIC_CACHE_METADATA_URL);
+
+  if (!metadataResponse) {
+    return new Map();
+  }
+
+  try {
+    const metadata = await metadataResponse.json();
+
+    if (!Array.isArray(metadata.entries)) {
+      return new Map();
+    }
+
+    return new Map(
+      metadata.entries.filter(
+        (entry) =>
+          Array.isArray(entry) &&
+          typeof entry[0] === "string" &&
+          Number.isFinite(entry[1]),
+      ),
+    );
+  } catch {
+    return new Map();
+  }
+}
+
+async function writeStaticCacheMetadata(cache, metadata) {
+  await cache.put(
+    STATIC_CACHE_METADATA_URL,
+    new Response(
+      JSON.stringify({
+        entries: [...metadata.entries()],
+      }),
+      {
+        headers: {
+          "Cache-Control": "no-store",
+          "Content-Type": "application/json; charset=utf-8",
+        },
+      },
+    ),
   );
 }
