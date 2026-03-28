@@ -11,6 +11,8 @@ const PROJECTS = [
   },
 ];
 
+test.use({ serviceWorkers: "block" });
+
 test.describe("Projects page", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/projects");

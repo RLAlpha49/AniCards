@@ -7,34 +7,17 @@ const SVG_IMAGE_RESPONSE = `
   </svg>
 `;
 
+const CARD_PREVIEW_ROUTE = /\/(?:api\/card|card\.svg)(?:\?.*)?$/;
+
+test.use({ serviceWorkers: "block" });
+
 test.describe("ImageWithSkeleton", () => {
   test("keeps skeletons visible during slow image loads until a real response completes", async ({
     page,
   }) => {
-    await page.addInitScript(() => {
-      void navigator.serviceWorker
-        ?.getRegistrations?.()
-        .then((registrations) =>
-          Promise.all(
-            registrations.map((registration) => registration.unregister()),
-          ),
-        );
-
-      if ("caches" in globalThis) {
-        void caches
-          .keys()
-          .then((keys) => Promise.all(keys.map((key) => caches.delete(key))));
-      }
-    });
-
     const imageGate = Promise.withResolvers<void>();
 
-    await page.route("**/*", async (route) => {
-      if (route.request().resourceType() !== "image") {
-        await route.continue();
-        return;
-      }
-
+    await page.context().route(CARD_PREVIEW_ROUTE, async (route) => {
       await imageGate.promise;
       await route.fulfill({
         status: 200,
@@ -51,21 +34,27 @@ test.describe("ImageWithSkeleton", () => {
     });
     await gallery.scrollIntoViewIfNeeded();
 
+    const firstImageCard = gallery.locator("[data-image-state]").first();
     const galleryImages = gallery.getByRole("img");
     await galleryImages.first().scrollIntoViewIfNeeded();
-    await expect(galleryImages.first()).toBeVisible({ timeout: 15000 });
+    const firstSlowImage = firstImageCard.getByRole("img");
 
     await page.waitForTimeout(2200);
 
-    const slowCards = gallery.locator('[data-image-state="slow"]');
-    await expect(slowCards.first()).toHaveAttribute("aria-busy", "true");
-    await expect(slowCards.first().locator(".animate-pulse")).toBeVisible();
+    await expect(firstImageCard).toHaveAttribute("data-image-state", "slow");
+    await expect(firstImageCard).toHaveAttribute("aria-busy", "true");
+    await expect(firstImageCard.locator(".animate-pulse")).toBeVisible();
+    await expect(firstSlowImage).toHaveClass(/opacity-0/);
 
     imageGate.resolve();
 
-    await expect(gallery.getByRole("img").first()).toBeVisible({
+    await expect(firstImageCard).toHaveAttribute("data-image-state", "loaded", {
       timeout: 15000,
     });
+    await expect(firstSlowImage).toHaveClass(/opacity-100/, {
+      timeout: 15000,
+    });
+    await expect(firstSlowImage).toBeVisible({ timeout: 15000 });
 
     await expect(
       gallery

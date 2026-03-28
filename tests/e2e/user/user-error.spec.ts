@@ -83,10 +83,6 @@ test.describe("User page error states", () => {
     await page.waitForLoadState("networkidle");
 
     await page.waitForFunction(() => "serviceWorker" in navigator);
-    await page.waitForFunction(async () => {
-      const registration = await navigator.serviceWorker.ready;
-      return registration.active?.state === "activated";
-    });
 
     await page.reload();
     await page.waitForFunction(() =>

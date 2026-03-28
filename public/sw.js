@@ -2,6 +2,151 @@ const CACHE_VERSION = "v1";
 const SHELL_CACHE = `anicards-shell-${CACHE_VERSION}`;
 const STATIC_CACHE = `anicards-static-${CACHE_VERSION}`;
 const OFFLINE_URL = "/offline";
+const OFFLINE_RESPONSE_HTML = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Offline | AniCards</title>
+    <meta name="robots" content="noindex,nofollow" />
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #0c0a10;
+        color: #f5efe4;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at top, rgba(201, 168, 76, 0.14), transparent 40%),
+          linear-gradient(180deg, #15111b 0%, #0c0a10 100%);
+      }
+
+      main {
+        display: grid;
+        min-height: 100vh;
+        place-items: center;
+        padding: 24px;
+      }
+
+      section {
+        width: min(100%, 880px);
+        border: 1px solid rgba(201, 168, 76, 0.2);
+        background: rgba(20, 17, 26, 0.92);
+        box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+        padding: 32px;
+      }
+
+      p {
+        margin: 0;
+        line-height: 1.7;
+        color: rgba(245, 239, 228, 0.8);
+      }
+
+      .eyebrow {
+        color: #c9a84c;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.28em;
+        margin-bottom: 12px;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        font-size: clamp(2.25rem, 4vw, 3.5rem);
+        letter-spacing: 0.06em;
+        margin: 0 0 16px;
+        text-transform: uppercase;
+      }
+
+      .grid {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        margin-top: 28px;
+      }
+
+      .cell {
+        border: 1px solid rgba(201, 168, 76, 0.14);
+        background: rgba(255, 255, 255, 0.03);
+        padding: 18px;
+      }
+
+      .cell h2 {
+        font-size: 1rem;
+        letter-spacing: 0.16em;
+        margin: 0 0 10px;
+        text-transform: uppercase;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 28px;
+      }
+
+      a {
+        border: 1px solid rgba(201, 168, 76, 0.26);
+        color: #f5efe4;
+        display: inline-flex;
+        gap: 8px;
+        padding: 12px 18px;
+        text-decoration: none;
+      }
+
+      a:first-of-type {
+        background: linear-gradient(135deg, #c9a84c, #a67d1f);
+        border-color: transparent;
+        color: #130f17;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section>
+        <p class="eyebrow">Offline shell</p>
+        <h1>You&rsquo;re offline</h1>
+        <p>
+          Cached public pages and the install shell are still here, but fresh
+          AniList lookups, new card renders, and live profile data need a
+          connection.
+        </p>
+
+        <div class="grid">
+          <article class="cell">
+            <h2>What still works</h2>
+            <p>
+              Previously cached public pages, the shared navigation shell, and
+              install metadata remain available for quick return visits.
+            </p>
+          </article>
+          <article class="cell">
+            <h2>What needs the network</h2>
+            <p>
+              User searches, AniList sync, and new stat card generation will
+              resume automatically once you reconnect.
+            </p>
+          </article>
+        </div>
+
+        <div class="actions">
+          <a href="/">Back home</a>
+          <a href="/search">Search when reconnected</a>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>`;
+const PRECACHE_RETRY_LIMIT = 1;
 const IS_LOCAL_DEVELOPMENT_HOST =
   self.location.hostname === "localhost" ||
   self.location.hostname.endsWith(".localhost") ||
@@ -29,17 +174,7 @@ self.addEventListener("install", (event) => {
       const cache = await caches.open(SHELL_CACHE);
 
       await Promise.allSettled(
-        PRECACHE_URLS.map(async (url) => {
-          const response = await fetch(url, {
-            cache: "reload",
-          });
-
-          if (!response.ok) {
-            return;
-          }
-
-          await cache.put(url, response.clone());
-        }),
+        PRECACHE_URLS.map((url) => precacheUrl(cache, url)),
       );
 
       await globalThis.skipWaiting();
@@ -113,14 +248,38 @@ async function handleNavigationRequest(request, requestUrl) {
       return offlinePage;
     }
 
-    return new Response("Offline", {
-      status: 503,
-      statusText: "Offline",
+    return new Response(OFFLINE_RESPONSE_HTML, {
+      status: 200,
+      statusText: "OK",
       headers: {
-        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store",
+        "Content-Type": "text/html; charset=utf-8",
       },
     });
   }
+}
+
+async function precacheUrl(cache, url) {
+  const attempts = url === OFFLINE_URL ? PRECACHE_RETRY_LIMIT + 1 : 1;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        cache: "reload",
+      });
+
+      if (!response.ok) {
+        continue;
+      }
+
+      await cache.put(url, response.clone());
+      return true;
+    } catch {
+      // Retry shell precache misses rather than failing the entire install.
+    }
+  }
+
+  return false;
 }
 
 async function staleWhileRevalidate(request) {

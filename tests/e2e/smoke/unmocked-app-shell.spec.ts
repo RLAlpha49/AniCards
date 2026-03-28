@@ -62,6 +62,9 @@ test.describe("Unmocked app shell smoke", () => {
     await page.goto("/user?username=Alpha49&q=seasonal", {
       waitUntil: "domcontentloaded",
     });
+    await page.waitForURL(/\/user\/Alpha49\?q=seasonal$/, {
+      waitUntil: "load",
+    });
 
     await expect(page).toHaveURL(/\/user\/Alpha49\?q=seasonal$/);
     await expect(page).toHaveTitle(/Alpha49's AniList Stats - AniCards/i);
