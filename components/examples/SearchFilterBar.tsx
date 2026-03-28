@@ -64,8 +64,12 @@ export function SearchFilterBar({
               transition={{ duration: 0.2, ease: "easeOut" }}
               onClick={() => onSearchChange("")}
               className="
-                absolute top-1/2 right-3 -translate-y-1/2 text-foreground/25 transition-colors
+                absolute top-1/2 right-3 -translate-y-1/2 rounded-full text-foreground/25
+                transition-colors
                 hover:text-foreground/50
+                focus-visible:text-gold focus-visible:ring-2 focus-visible:ring-gold/50
+                focus-visible:ring-offset-2 focus-visible:ring-offset-background
+                focus-visible:outline-none
               "
               aria-controls={searchInputId}
               aria-label="Clear gallery search"
@@ -106,9 +110,18 @@ export function SearchFilterBar({
             transition={{ duration: 0.2 }}
             onClick={onClearFilters}
             className={cn(
-              "shrink-0 px-3 py-1.5 text-[0.65rem] font-semibold tracking-widest uppercase",
+              `
+                shrink-0 rounded-sm px-3 py-1.5 text-[0.65rem] font-semibold tracking-widest
+                uppercase
+              `,
               "border border-transparent transition-all duration-300",
-              "text-foreground/40 hover:border-gold/20 hover:bg-gold/5 hover:text-gold",
+              `
+                text-foreground/40
+                hover:border-gold/20 hover:bg-gold/5 hover:text-gold
+                focus-visible:border-gold/20 focus-visible:bg-gold/5 focus-visible:text-gold
+                focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2
+                focus-visible:ring-offset-background focus-visible:outline-none
+              `,
             )}
           >
             Clear

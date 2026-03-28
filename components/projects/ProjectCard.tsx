@@ -41,15 +41,19 @@ export function ProjectCard({
   const num = String(index + 2).padStart(2, "0");
 
   return (
-    <motion.article variants={cardVariants} className="group relative h-full">
+    <motion.article variants={cardVariants} className="relative h-full">
       <a
         href={project.url}
         target="_blank"
         rel="noopener noreferrer"
         className="
-          relative flex h-full flex-col overflow-hidden border-2 border-gold/10 bg-card/40
-          backdrop-blur-sm transition-all duration-500
+          group relative flex h-full flex-col overflow-hidden rounded-sm border-2 border-gold/10
+          bg-card/40 backdrop-blur-sm transition-all duration-500
           hover:-translate-y-1 hover:border-gold/30 hover:shadow-[0_8px_40px_hsl(var(--gold)/0.08)]
+          focus-visible:-translate-y-1 focus-visible:border-gold/30
+          focus-visible:shadow-[0_8px_40px_hsl(var(--gold)/0.08)] focus-visible:ring-2
+          focus-visible:ring-gold/50 focus-visible:ring-offset-2
+          focus-visible:ring-offset-background focus-visible:outline-none
         "
       >
         {/* Gold top accent */}
@@ -71,6 +75,7 @@ export function ProjectCard({
               pointer-events-none absolute -top-4 -right-2 font-display text-[8rem] leading-none
               text-gold/5 transition-all duration-500 select-none
               group-hover:text-gold/8
+              group-focus-visible:text-gold/8
             "
             aria-hidden="true"
           >
@@ -86,6 +91,7 @@ export function ProjectCard({
               <span className="
                 font-mono text-xs tracking-[0.3em] text-gold/40
                 group-hover:text-gold/70
+                group-focus-visible:text-gold/70
               ">
                 {num}
               </span>
@@ -104,11 +110,14 @@ export function ProjectCard({
                 flex size-9 items-center justify-center border border-gold/15 transition-all
                 duration-300
                 group-hover:border-gold/40 group-hover:bg-gold/5
+                group-focus-visible:border-gold/40 group-focus-visible:bg-gold/5
               "
             >
               <ArrowUpRight className="
                 size-4 text-foreground/25 transition-all duration-300
                 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-gold
+                group-focus-visible:translate-x-0.5 group-focus-visible:-translate-y-0.5
+                group-focus-visible:text-gold
               " />
             </motion.div>
           </motion.div>
@@ -120,6 +129,7 @@ export function ProjectCard({
               relative z-10 mb-3 font-display text-lg tracking-[0.12em] text-foreground uppercase
               transition-colors duration-300
               group-hover:text-gold
+              group-focus-visible:text-gold
               sm:text-xl
             "
           >
@@ -149,6 +159,7 @@ export function ProjectCard({
                     font-mono text-[0.55rem] tracking-[0.2em] text-foreground/30 uppercase
                     transition-colors
                     group-hover:text-foreground/50
+                    group-focus-visible:text-foreground/50
                   "
                 >
                   {tag}
@@ -160,7 +171,11 @@ export function ProjectCard({
             </div>
             <SimpleGithubIcon
               size={16}
-              className="shrink-0 text-foreground/15 transition-colors group-hover:text-gold/50"
+              className="
+                shrink-0 text-foreground/15 transition-colors
+                group-hover:text-gold/50
+                group-focus-visible:text-gold/50
+              "
             />
           </motion.div>
         </div>

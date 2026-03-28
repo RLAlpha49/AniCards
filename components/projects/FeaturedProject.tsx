@@ -1,59 +1,67 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Star } from "lucide-react";
 import Link from "next/link";
 
 import { SimpleGithubIcon } from "@/components/SimpleIcons";
 import { Button } from "@/components/ui/Button";
+import {
+  buildFadeUpVariants,
+  buildMotionSafeStaggerContainer,
+  buildScaleInVariants,
+  EASE_OUT_EXPO,
+  NO_MOTION_TRANSITION,
+} from "@/lib/animations";
 
 import { FEATURED_PROJECT } from "./constants";
 
-const stagger = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.05 },
-  },
-};
-
-const slideUp = {
-  hidden: { opacity: 0, y: 30 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] as const },
-  },
-};
-
-const expandWidth = {
-  hidden: { scaleX: 0, opacity: 0 },
-  visible: {
-    scaleX: 1,
-    opacity: 1,
-    transition: { duration: 0.9, ease: [0.22, 1, 0.36, 1] as const },
-  },
-};
-
-const scaleIn = {
-  hidden: { scale: 0.92, opacity: 0 },
-  visible: {
-    scale: 1,
-    opacity: 1,
-    transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1] as const },
-  },
-};
-
 export function FeaturedProject() {
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const labelFade = buildFadeUpVariants({
+    reducedMotion: prefersReducedMotion,
+    distance: 0,
+    duration: 0.5,
+  });
+  const stagger = buildMotionSafeStaggerContainer({
+    reducedMotion: prefersReducedMotion,
+    staggerChildren: 0.1,
+    delayChildren: 0.05,
+  });
+  const slideUp = buildFadeUpVariants({
+    reducedMotion: prefersReducedMotion,
+    distance: 30,
+    duration: 0.7,
+  });
+  const expandWidth = {
+    hidden: {
+      scaleX: prefersReducedMotion ? 1 : 0,
+      opacity: prefersReducedMotion ? 1 : 0,
+    },
+    visible: {
+      scaleX: 1,
+      opacity: 1,
+      transition: prefersReducedMotion
+        ? NO_MOTION_TRANSITION
+        : { duration: 0.9, ease: EASE_OUT_EXPO },
+    },
+  };
+  const scaleIn = buildScaleInVariants({
+    reducedMotion: prefersReducedMotion,
+    initialScale: 0.92,
+    y: 0,
+    duration: 0.8,
+  });
+
   return (
     <section className="relative px-6 py-20 sm:px-12 md:py-28">
       <div className="mx-auto max-w-7xl">
         {/* Section label */}
         <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
+          variants={labelFade}
+          initial="hidden"
+          whileInView="visible"
           viewport={{ once: true, margin: "-40px" }}
-          transition={{ duration: 0.5 }}
           className="
             mb-14 flex items-center gap-4 font-mono text-[0.6rem] tracking-[0.4em] uppercase
             sm:text-xs

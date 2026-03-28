@@ -1,69 +1,79 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 
-import { EASE_OUT_EXPO } from "@/lib/animations";
+import {
+  buildFadeUpVariants,
+  buildMotionSafeStaggerContainer,
+  EASE_OUT_EXPO,
+  NO_MOTION_TRANSITION,
+} from "@/lib/animations";
 
 import { ETHOS_ITEMS } from "./constants";
 
-const stagger = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.15, delayChildren: 0.1 },
-  },
-};
-
-const cardReveal = {
-  hidden: { opacity: 0, y: 24 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.65,
-      ease: [0.22, 1, 0.36, 1] as const,
-      staggerChildren: 0.08,
-      delayChildren: 0.12,
-    },
-  },
-};
-
-const childFade = {
-  hidden: { opacity: 0, y: 10 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.45, ease: EASE_OUT_EXPO },
-  },
-};
-
-const dotScale = {
-  hidden: { opacity: 0, scale: 0 },
-  visible: {
-    opacity: 1,
-    scale: 1,
-    transition: { duration: 0.5, ease: EASE_OUT_EXPO },
-  },
-};
-
-const lineGrow = {
-  hidden: { scaleX: 0 },
-  visible: {
-    scaleX: 1,
-    transition: { duration: 1.2, ease: [0.22, 1, 0.36, 1] as const },
-  },
-};
-
 export function ProjectEthos() {
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const labelFade = buildFadeUpVariants({
+    reducedMotion: prefersReducedMotion,
+    distance: 0,
+    duration: 0.5,
+  });
+  const stagger = buildMotionSafeStaggerContainer({
+    reducedMotion: prefersReducedMotion,
+    staggerChildren: 0.15,
+    delayChildren: 0.1,
+  });
+  const cardReveal = {
+    hidden: prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: prefersReducedMotion
+        ? NO_MOTION_TRANSITION
+        : {
+            duration: 0.65,
+            ease: EASE_OUT_EXPO,
+            staggerChildren: 0.08,
+            delayChildren: 0.12,
+          },
+    },
+  };
+  const childFade = buildFadeUpVariants({
+    reducedMotion: prefersReducedMotion,
+    distance: 10,
+    duration: 0.45,
+  });
+  const dotScale = {
+    hidden: prefersReducedMotion
+      ? { opacity: 1, scale: 1 }
+      : { opacity: 0, scale: 0 },
+    visible: {
+      opacity: 1,
+      scale: 1,
+      transition: prefersReducedMotion
+        ? NO_MOTION_TRANSITION
+        : { duration: 0.5, ease: EASE_OUT_EXPO },
+    },
+  };
+  const lineGrow = {
+    hidden: { scaleX: prefersReducedMotion ? 1 : 0 },
+    visible: {
+      scaleX: 1,
+      transition: prefersReducedMotion
+        ? NO_MOTION_TRANSITION
+        : { duration: 1.2, ease: EASE_OUT_EXPO },
+    },
+  };
+
   return (
     <section className="relative px-6 py-20 sm:px-12 md:py-28">
       <div className="relative mx-auto max-w-7xl">
         {/* Section label */}
         <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
+          variants={labelFade}
+          initial="hidden"
+          whileInView="visible"
           viewport={{ once: true, margin: "-40px" }}
-          transition={{ duration: 0.5 }}
           className="
             mb-14 flex items-center gap-4 font-mono text-[0.6rem] tracking-[0.4em] uppercase
             sm:text-xs

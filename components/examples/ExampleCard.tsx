@@ -221,10 +221,16 @@ export function ExampleCard({
     >
       <div
         className={cn(
-          "group/card relative overflow-hidden",
+          "group/card relative overflow-hidden rounded-sm",
           "border border-transparent transition-all duration-500",
           "hover:border-gold/20",
           "hover:shadow-[0_16px_48px_-12px_hsl(var(--gold)/0.1)]",
+          "group-focus-visible/card:border-gold/20",
+          "group-focus-visible/card:shadow-[0_16px_48px_-12px_hsl(var(--gold)/0.1)]",
+          "group-focus-visible/card:ring-2",
+          "group-focus-visible/card:ring-gold/50",
+          "group-focus-visible/card:ring-offset-2",
+          "group-focus-visible/card:ring-offset-background",
         )}
       >
         {/* Full-card link overlay */}
@@ -234,7 +240,7 @@ export function ExampleCard({
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`Open ${cardTypeTitle} — ${variant.name} in new tab`}
-            className="absolute inset-0 z-10"
+            className="absolute inset-0 z-10 rounded-[inherit] focus-visible:outline-none"
           />
         )}
 
@@ -247,6 +253,7 @@ export function ExampleCard({
           <div className="
             pointer-events-none absolute inset-0 z-2 opacity-0 transition-opacity duration-500
             group-hover/card:opacity-100
+            group-focus-visible/card:opacity-100
           ">
             <div className="
               size-full
@@ -257,6 +264,7 @@ export function ExampleCard({
           <div className="
             flex justify-center p-4 transition-transform duration-700 ease-out
             group-hover/card:scale-[1.03]
+            group-focus-visible/card:scale-[1.03]
           ">
             {isPreviewReady && previewHref ? (
               <ImageWithSkeleton
@@ -287,6 +295,7 @@ export function ExampleCard({
                   font-semibold tracking-wider text-[#0c0a10] uppercase opacity-0 shadow-lg
                   transition-all duration-400
                   group-hover/card:opacity-100
+                  group-focus-visible/card:opacity-100
                 "
                 style={{ transitionDelay: "50ms" }}
               >
@@ -311,8 +320,11 @@ export function ExampleCard({
               onClick={handleUseInEditor}
               className={cn(
                 `
-                  pointer-events-auto inline-flex items-center gap-1.5 border px-2.5 py-1
+                  pointer-events-auto inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1
                   text-[10px] font-semibold tracking-[0.18em] uppercase transition-all duration-200
+                  focus-visible:border-gold/35 focus-visible:ring-2 focus-visible:ring-gold/50
+                  focus-visible:ring-offset-2 focus-visible:ring-offset-background
+                  focus-visible:outline-none
                 `,
                 !selectedSettingsSnapshot && "cursor-not-allowed opacity-50",
                 queuedForEditor
@@ -336,7 +348,12 @@ export function ExampleCard({
               type="button"
               onClick={handleCopy}
               className={cn(
-                "pointer-events-auto shrink-0 p-1.5 transition-all duration-200",
+                `
+                  pointer-events-auto shrink-0 rounded-full p-1.5 transition-all duration-200
+                  focus-visible:text-gold focus-visible:ring-2 focus-visible:ring-gold/50
+                  focus-visible:ring-offset-2 focus-visible:ring-offset-background
+                  focus-visible:outline-none
+                `,
                 !isPreviewReady && "cursor-not-allowed opacity-50",
                 copied
                   ? "text-emerald-500 dark:text-emerald-400"

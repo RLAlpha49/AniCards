@@ -5,10 +5,18 @@ import {
   motion,
   useInView,
   useMotionValue,
+  useReducedMotion,
   useTransform,
 } from "framer-motion";
 import { Clock, Layers, Sparkles, Zap } from "lucide-react";
 import { useEffect, useRef } from "react";
+
+import {
+  buildFadeUpVariants,
+  buildMotionSafeStaggerContainer,
+  getMotionSafeAnimation,
+  NO_MOTION_TRANSITION,
+} from "@/lib/animations";
 
 const STATS = [
   { icon: Layers, value: "20+", label: "Card Types", countTo: 20, suffix: "+" },
@@ -42,12 +50,14 @@ function AnimatedCount({
   prefix,
   fallback,
   isInView,
+  reducedMotion,
 }: Readonly<{
   to: number | null;
   suffix: string;
   prefix?: string;
   fallback: string;
   isInView: boolean;
+  reducedMotion: boolean;
 }>) {
   const count = useMotionValue(0);
   const rounded = useTransform(count, (v) => Math.round(v));
@@ -56,20 +66,33 @@ function AnimatedCount({
   );
 
   useEffect(() => {
-    if (!isInView || to === null) return;
+    if (reducedMotion || !isInView || to === null) return;
     const controls = animate(count, to, {
       duration: 1.8,
       ease: [0.22, 1, 0.36, 1],
     });
     return controls.stop;
-  }, [isInView, to, count]);
+  }, [count, isInView, reducedMotion, to]);
+
+  if (reducedMotion) {
+    return (
+      <span>{to === null ? fallback : `${prefix ?? ""}${to}${suffix}`}</span>
+    );
+  }
 
   if (to === null) {
     return (
       <motion.span
-        initial={{ scale: 0.5, opacity: 0 }}
-        animate={isInView ? { scale: 1, opacity: 1 } : {}}
-        transition={{ duration: 0.6, ease: "easeOut" }}
+        initial={reducedMotion ? false : { scale: 0.5, opacity: 0 }}
+        animate={getMotionSafeAnimation(
+          reducedMotion,
+          isInView ? { scale: 1, opacity: 1 } : {},
+        )}
+        transition={
+          reducedMotion
+            ? NO_MOTION_TRANSITION
+            : { duration: 0.6, ease: "easeOut" }
+        }
       >
         {fallback}
       </motion.span>
@@ -82,9 +105,22 @@ function AnimatedCount({
 export function StatsRibbon() {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-20px" });
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const containerVariants = buildMotionSafeStaggerContainer({
+    reducedMotion: prefersReducedMotion,
+    staggerChildren: 0.1,
+  });
+  const itemVariants = buildFadeUpVariants({
+    reducedMotion: prefersReducedMotion,
+    distance: 16,
+    duration: 0.5,
+  });
 
   return (
-    <div
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate={isInView ? "visible" : "hidden"}
       ref={ref}
       className="mx-auto max-w-5xl border-y border-gold/25 bg-gold/2 px-6 py-12 sm:px-12"
     >
@@ -92,15 +128,23 @@ export function StatsRibbon() {
         {STATS.map((stat, i) => (
           <motion.div
             key={stat.label}
-            initial={{ opacity: 0, y: 16 }}
-            animate={isInView ? { opacity: 1, y: 0 } : {}}
-            transition={{ duration: 0.5, delay: i * 0.1 }}
-            whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
+            variants={itemVariants}
+            whileHover={getMotionSafeAnimation(prefersReducedMotion, {
+              scale: 1.05,
+              transition: { duration: 0.2 },
+            })}
             className="text-center"
           >
             <motion.div
-              animate={isInView ? { rotate: [0, -10, 10, 0] } : {}}
-              transition={{ duration: 0.6, delay: 0.3 + i * 0.1 }}
+              animate={getMotionSafeAnimation(
+                prefersReducedMotion,
+                isInView ? { rotate: [0, -10, 10, 0] } : {},
+              )}
+              transition={
+                prefersReducedMotion
+                  ? NO_MOTION_TRANSITION
+                  : { duration: 0.6, delay: 0.3 + i * 0.1 }
+              }
             >
               <stat.icon className="mx-auto mb-3 size-5 text-gold/40" />
             </motion.div>
@@ -111,6 +155,7 @@ export function StatsRibbon() {
                 prefix={"prefix" in stat ? stat.prefix : undefined}
                 fallback={stat.value}
                 isInView={isInView}
+                reducedMotion={prefersReducedMotion}
               />
             </span>
             <span className="font-body-serif text-xs tracking-[0.2em] text-foreground/40 uppercase">
@@ -119,6 +164,6 @@ export function StatsRibbon() {
           </motion.div>
         ))}
       </div>
-    </div>
+    </motion.div>
   );
 }

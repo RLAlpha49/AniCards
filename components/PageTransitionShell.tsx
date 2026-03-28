@@ -24,24 +24,33 @@ export function PageTransitionShell({
 
   if (prefersReducedMotion) {
     return (
-      <main key={pathname} className="flex-1">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex-1 scroll-mt-24 focus:outline-none"
+      >
         {children}
       </main>
     );
   }
 
   return (
-    <AnimatePresence mode="wait" initial={false}>
-      <motion.main
-        key={pathname}
-        initial={enableTransitions ? { opacity: 0, y: 8 } : false}
-        animate={{ opacity: 1, y: 0 }}
-        exit={enableTransitions ? { opacity: 0, y: -8 } : undefined}
-        transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
-        className="flex-1"
-      >
-        {children}
-      </motion.main>
-    </AnimatePresence>
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="flex-1 scroll-mt-24 focus:outline-none"
+    >
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={pathname}
+          initial={enableTransitions ? { opacity: 0, y: 8 } : false}
+          animate={{ opacity: 1, y: 0 }}
+          exit={enableTransitions ? { opacity: 0, y: -8 } : undefined}
+          transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
+        >
+          {children}
+        </motion.div>
+      </AnimatePresence>
+    </main>
   );
 }

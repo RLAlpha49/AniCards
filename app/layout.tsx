@@ -14,6 +14,8 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import GithubCorner from "@/components/GithubCorner";
 import { LayoutShell } from "@/components/LayoutShell";
 import PwaRegistration from "@/components/PwaRegistration";
+import ResourceHints from "@/components/ResourceHints";
+import SkipLink from "@/components/SkipLink";
 import { StructuredDataScript } from "@/components/StructuredDataScript";
 import { getRequestNonce } from "@/lib/request-nonce";
 import { getDefaultSocialPreviewImages } from "@/lib/seo";
@@ -24,6 +26,173 @@ import { Providers } from "./providers";
 
 const LIGHT_THEME_COLOR = "#faf6f0";
 const DARK_THEME_COLOR = "#0c0a10";
+const EARLY_ACCESSIBILITY_SHELL_SCRIPT = `(function () {
+  const root = document.documentElement;
+  const focusableSelector = [
+    'a[href]',
+    'button:not([disabled])',
+    "[tabindex]:not([tabindex='-1'])",
+  ].join(', ');
+
+  function shellHydrated() {
+    return root.dataset.mobileMenuHydrated === 'true';
+  }
+
+  function getMainContent() {
+    return document.getElementById('main-content');
+  }
+
+  function getMenuToggle() {
+    return document.querySelector('[data-mobile-menu-toggle="true"]');
+  }
+
+  function getMobileNavigation() {
+    return document.querySelector('[data-mobile-navigation="true"]');
+  }
+
+  function getFocusableMenuElements() {
+    const mobileNavigation = getMobileNavigation();
+
+    if (!(mobileNavigation instanceof HTMLElement)) {
+      return [];
+    }
+
+    return Array.from(mobileNavigation.querySelectorAll(focusableSelector)).filter(
+      (element) => element instanceof HTMLElement && !element.hasAttribute('aria-hidden'),
+    );
+  }
+
+  function focusMainContent() {
+    const mainContent = getMainContent();
+
+    if (!(mainContent instanceof HTMLElement)) {
+      return;
+    }
+
+    mainContent.scrollIntoView({ block: 'start' });
+    mainContent.focus();
+    history.replaceState(null, '', '#main-content');
+  }
+
+  function syncMobileMenu(open, restoreFocus) {
+    const menuToggle = getMenuToggle();
+    const mobileNavigation = getMobileNavigation();
+
+    root.dataset.mobileMenuOpen = open ? 'true' : 'false';
+
+    if (menuToggle instanceof HTMLElement) {
+      menuToggle.setAttribute('aria-expanded', String(open));
+      menuToggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+    }
+
+    if (mobileNavigation instanceof HTMLElement) {
+      if (open) {
+        mobileNavigation.removeAttribute('hidden');
+        mobileNavigation.setAttribute('aria-hidden', 'false');
+      } else {
+        mobileNavigation.setAttribute('hidden', '');
+        mobileNavigation.setAttribute('aria-hidden', 'true');
+      }
+    }
+
+    if (open) {
+      const [firstFocusable] = getFocusableMenuElements();
+      (firstFocusable || mobileNavigation)?.focus();
+      return;
+    }
+
+    if (restoreFocus && menuToggle instanceof HTMLElement) {
+      menuToggle.focus();
+    }
+  }
+
+  document.addEventListener('click', function (event) {
+    const target = event.target;
+
+    if (!(target instanceof Element)) {
+      return;
+    }
+
+    const skipLink = target.closest('[data-skip-link="true"]');
+
+    if (skipLink instanceof HTMLAnchorElement) {
+      event.preventDefault();
+      focusMainContent();
+      return;
+    }
+
+    if (shellHydrated()) {
+      return;
+    }
+
+    const menuToggle = target.closest('[data-mobile-menu-toggle="true"]');
+
+    if (!(menuToggle instanceof HTMLElement)) {
+      return;
+    }
+
+    event.preventDefault();
+    syncMobileMenu(menuToggle.getAttribute('aria-expanded') !== 'true', false);
+  }, true);
+
+  document.addEventListener('keydown', function (event) {
+    if (!shellHydrated()) {
+      const open = root.dataset.mobileMenuOpen === 'true';
+
+      if (!open) {
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        syncMobileMenu(false, true);
+        return;
+      }
+
+      if (event.key !== 'Tab') {
+        return;
+      }
+
+      const focusableElements = getFocusableMenuElements();
+      const mobileNavigation = getMobileNavigation();
+
+      if (!(mobileNavigation instanceof HTMLElement)) {
+        return;
+      }
+
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        mobileNavigation.focus();
+        return;
+      }
+
+      const firstFocusable = focusableElements[0];
+      const lastFocusable = focusableElements[focusableElements.length - 1];
+      const activeElement = document.activeElement;
+      const isFocusInsideMenu = activeElement instanceof HTMLElement
+        && mobileNavigation.contains(activeElement);
+
+      if (event.shiftKey) {
+        if (!isFocusInsideMenu || activeElement === firstFocusable) {
+          event.preventDefault();
+          (lastFocusable || firstFocusable).focus();
+        }
+        return;
+      }
+
+      if (!isFocusInsideMenu || activeElement === lastFocusable) {
+        event.preventDefault();
+        firstFocusable.focus();
+      }
+      return;
+    }
+
+    if (event.key === 'Enter' && document.activeElement?.matches('[data-skip-link="true"]')) {
+      event.preventDefault();
+      focusMainContent();
+    }
+  }, true);
+})();`;
 
 /**
  * Maps the Geist Sans face to the global CSS variable for site typography.
@@ -77,6 +246,16 @@ export const metadata: Metadata = {
         sizes: "any",
       },
       {
+        url: "/pwa/icon-192x192.png",
+        sizes: "192x192",
+        type: "image/png",
+      },
+      {
+        url: "/pwa/icon-512x512.png",
+        sizes: "512x512",
+        type: "image/png",
+      },
+      {
         url: "/pwa/icon-any.svg",
         type: "image/svg+xml",
       },
@@ -84,9 +263,9 @@ export const metadata: Metadata = {
     shortcut: ["/favicon.ico"],
     apple: [
       {
-        url: "/pwa/apple-touch-icon.svg",
+        url: "/pwa/apple-touch-icon.png",
         sizes: "180x180",
-        type: "image/svg+xml",
+        type: "image/png",
       },
     ],
   },
@@ -145,6 +324,15 @@ export default async function RootLayout({
           antialiased
         `}
       >
+        <SkipLink />
+        <script
+          nonce={nonce}
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{
+            __html: EARLY_ACCESSIBILITY_SHELL_SCRIPT,
+          }}
+        />
+        <ResourceHints />
         <GithubCorner />
         <Providers>
           <PwaRegistration />

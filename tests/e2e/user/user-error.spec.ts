@@ -23,10 +23,37 @@ test.describe("User page error states", () => {
     });
     expect(manifest.icons).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({
+          src: "/pwa/icon-192x192.png",
+          sizes: "192x192",
+          type: "image/png",
+        }),
+        expect.objectContaining({
+          src: "/pwa/icon-512x512.png",
+          sizes: "512x512",
+          type: "image/png",
+        }),
         expect.objectContaining({ src: "/pwa/icon-any.svg" }),
+        expect.objectContaining({
+          src: "/pwa/icon-maskable-192x192.png",
+          sizes: "192x192",
+          type: "image/png",
+          purpose: expect.stringContaining("maskable"),
+        }),
+        expect.objectContaining({
+          src: "/pwa/icon-maskable-512x512.png",
+          sizes: "512x512",
+          type: "image/png",
+          purpose: expect.stringContaining("maskable"),
+        }),
         expect.objectContaining({
           src: "/pwa/icon-maskable.svg",
           purpose: expect.stringContaining("maskable"),
+        }),
+        expect.objectContaining({
+          src: "/pwa/apple-touch-icon.png",
+          sizes: "180x180",
+          type: "image/png",
         }),
       ]),
     );

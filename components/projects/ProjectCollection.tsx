@@ -1,38 +1,41 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 
-import { EASE_OUT_EXPO } from "@/lib/animations";
+import {
+  buildMotionSafeStaggerContainer,
+  EASE_OUT_EXPO,
+  NO_MOTION_TRANSITION,
+} from "@/lib/animations";
 
 import { PROJECTS } from "./constants";
 import { ProjectCard } from "./ProjectCard";
 
-const stagger = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.18, delayChildren: 0.05 },
-  },
-};
-
-const headerStagger = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.05 },
-  },
-};
-
-const headerChild = {
-  hidden: { opacity: 0, x: -12 },
-  visible: {
-    opacity: 1,
-    x: 0,
-    transition: { duration: 0.5, ease: EASE_OUT_EXPO },
-  },
-};
-
 export function ProjectCollection() {
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const stagger = buildMotionSafeStaggerContainer({
+    reducedMotion: prefersReducedMotion,
+    staggerChildren: 0.18,
+    delayChildren: 0.05,
+  });
+  const headerStagger = buildMotionSafeStaggerContainer({
+    reducedMotion: prefersReducedMotion,
+    staggerChildren: 0.1,
+    delayChildren: 0.05,
+  });
+  const headerChild = {
+    hidden: prefersReducedMotion
+      ? { opacity: 1, x: 0 }
+      : { opacity: 0, x: -12 },
+    visible: {
+      opacity: 1,
+      x: 0,
+      transition: prefersReducedMotion
+        ? NO_MOTION_TRANSITION
+        : { duration: 0.5, ease: EASE_OUT_EXPO },
+    },
+  };
+
   return (
     <section className="relative px-6 py-20 sm:px-12 md:py-28">
       <div className="mx-auto max-w-7xl">

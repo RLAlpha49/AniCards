@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import DarkModeToggle from "@/components/DarkModeToggle";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,37 @@ const NAV_ITEMS = [
   { label: "Contact", href: "/contact" },
 ] as const;
 
+const MOBILE_MENU_FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "button:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(", ");
+
+const MOBILE_MENU_OPEN_DATASET_KEY = "mobileMenuOpen";
+const MOBILE_MENU_HYDRATED_DATASET_KEY = "mobileMenuHydrated";
+
+function isMobileMenuPreopened(): boolean {
+  if (typeof document === "undefined") {
+    return false;
+  }
+
+  return (
+    document.documentElement.dataset[MOBILE_MENU_OPEN_DATASET_KEY] === "true"
+  );
+}
+
+function getFocusableMenuElements(
+  container: HTMLElement | null,
+): HTMLElement[] {
+  if (!container) {
+    return [];
+  }
+
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(MOBILE_MENU_FOCUSABLE_SELECTOR),
+  ).filter((element) => !element.hasAttribute("aria-hidden"));
+}
+
 function GoldDiamond({ size = 5 }: Readonly<{ size?: number }>) {
   return (
     <span
@@ -30,11 +61,125 @@ function GoldDiamond({ size = 5 }: Readonly<{ size?: number }>) {
 
 export default function HeaderClient() {
   const pathname = usePathname();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(isMobileMenuPreopened);
+  const mobileMenuRef = useRef<HTMLElement>(null);
+  const mobileMenuToggleRef = useRef<HTMLButtonElement>(null);
+  const previousPathnameRef = useRef(pathname);
+  const shouldRestoreFocusRef = useRef(false);
 
   useEffect(() => {
+    document.documentElement.dataset[MOBILE_MENU_HYDRATED_DATASET_KEY] = "true";
+
+    return () => {
+      delete document.documentElement.dataset[MOBILE_MENU_HYDRATED_DATASET_KEY];
+    };
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset[MOBILE_MENU_OPEN_DATASET_KEY] =
+      mobileMenuOpen ? "true" : "false";
+  }, [mobileMenuOpen]);
+
+  const closeMobileMenu = useCallback((restoreFocus: boolean) => {
+    shouldRestoreFocusRef.current = restoreFocus;
     setMobileMenuOpen(false);
-  }, [pathname]);
+  }, []);
+
+  const openMobileMenu = useCallback(() => {
+    shouldRestoreFocusRef.current = false;
+    setMobileMenuOpen(true);
+  }, []);
+
+  const toggleMobileMenu = useCallback(() => {
+    if (mobileMenuOpen) {
+      closeMobileMenu(true);
+      return;
+    }
+
+    openMobileMenu();
+  }, [closeMobileMenu, mobileMenuOpen, openMobileMenu]);
+
+  useEffect(() => {
+    if (previousPathnameRef.current === pathname) {
+      return;
+    }
+
+    previousPathnameRef.current = pathname;
+
+    if (!mobileMenuOpen) {
+      return;
+    }
+
+    shouldRestoreFocusRef.current = false;
+    setMobileMenuOpen(false);
+  }, [mobileMenuOpen, pathname]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) {
+      if (shouldRestoreFocusRef.current) {
+        shouldRestoreFocusRef.current = false;
+        requestAnimationFrame(() => {
+          mobileMenuToggleRef.current?.focus();
+        });
+      }
+
+      return;
+    }
+
+    const focusMenu = () => {
+      const [firstFocusable] = getFocusableMenuElements(mobileMenuRef.current);
+      (firstFocusable ?? mobileMenuRef.current)?.focus();
+    };
+
+    const focusFrame = requestAnimationFrame(focusMenu);
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeMobileMenu(true);
+        return;
+      }
+
+      if (event.key !== "Tab") {
+        return;
+      }
+
+      const focusableElements = getFocusableMenuElements(mobileMenuRef.current);
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        mobileMenuRef.current?.focus();
+        return;
+      }
+
+      const firstFocusable = focusableElements[0];
+      const lastFocusable = focusableElements.at(-1);
+      const activeElement = globalThis.document
+        .activeElement as HTMLElement | null;
+      const isFocusInsideMenu = Boolean(
+        activeElement && mobileMenuRef.current?.contains(activeElement),
+      );
+
+      if (event.shiftKey) {
+        if (!isFocusInsideMenu || activeElement === firstFocusable) {
+          event.preventDefault();
+          (lastFocusable ?? firstFocusable).focus();
+        }
+        return;
+      }
+
+      if (!isFocusInsideMenu || activeElement === lastFocusable) {
+        event.preventDefault();
+        firstFocusable.focus();
+      }
+    };
+
+    globalThis.document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      cancelAnimationFrame(focusFrame);
+      globalThis.document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closeMobileMenu, mobileMenuOpen]);
 
   return (
     <>
@@ -47,7 +192,12 @@ export default function HeaderClient() {
         >
           <Link
             href="/"
-            className="group flex items-center gap-3 md:justify-self-start"
+            className="
+              group flex items-center gap-3 rounded-sm
+              focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2
+              focus-visible:ring-offset-background focus-visible:outline-none
+              md:justify-self-start
+            "
           >
             <div className="hidden gap-1 sm:flex">
               {[0, 1, 2].map((i) => (
@@ -99,8 +249,11 @@ export default function HeaderClient() {
                     }
                     className={cn(
                       `
-                        relative font-body-serif text-xs tracking-[0.15em] text-gold uppercase
-                        transition-colors
+                        relative rounded-sm font-body-serif text-xs tracking-[0.15em] text-gold
+                        uppercase transition-colors
+                        focus-visible:text-gold focus-visible:ring-2 focus-visible:ring-gold/50
+                        focus-visible:ring-offset-2 focus-visible:ring-offset-background
+                        focus-visible:outline-none
                       `,
                       !isActive &&
                         "nav-link-underline text-foreground/60 hover:text-gold",
@@ -126,7 +279,9 @@ export default function HeaderClient() {
 
           <div className="flex items-center justify-end gap-3 md:justify-self-end">
             <button
+              ref={mobileMenuToggleRef}
               type="button"
+              data-mobile-menu-toggle="true"
               className="
                 flex size-11 shrink-0 items-center justify-center rounded-full border border-gold/20
                 bg-background/70 text-foreground/60 transition-colors
@@ -134,7 +289,7 @@ export default function HeaderClient() {
                 focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:outline-none
                 md:hidden
               "
-              onClick={() => setMobileMenuOpen((current) => !current)}
+              onClick={toggleMobileMenu}
               aria-expanded={mobileMenuOpen}
               aria-controls="mobile-navigation"
               aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
@@ -167,48 +322,55 @@ export default function HeaderClient() {
         </div>
       </div>
 
-      <AnimatePresence>
-        {mobileMenuOpen && (
-          <motion.nav
-            id="mobile-navigation"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden border-t border-gold/20 md:hidden"
-            aria-label="Mobile navigation"
-          >
-            <div className="space-y-1 px-6 py-4">
-              {NAV_ITEMS.map((item) => {
-                const isActive = pathname === item.href;
+      <motion.nav
+        ref={mobileMenuRef}
+        id="mobile-navigation"
+        data-mobile-navigation="true"
+        initial={false}
+        animate={
+          mobileMenuOpen
+            ? { height: "auto", opacity: 1 }
+            : { height: 0, opacity: 0 }
+        }
+        transition={{ duration: 0.2 }}
+        className="overflow-hidden border-t border-gold/20 md:hidden"
+        aria-label="Mobile navigation"
+        hidden={!mobileMenuOpen}
+        aria-hidden={!mobileMenuOpen}
+        tabIndex={-1}
+      >
+        <div className="space-y-1 px-6 py-4">
+          {NAV_ITEMS.map((item) => {
+            const isActive = pathname === item.href;
 
-                return (
-                  <Link
-                    key={item.label}
-                    href={item.href}
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      safeTrack(() =>
-                        trackNavigation(item.label.toLowerCase(), "header"),
-                      );
-                    }}
-                    className={cn(
-                      `
-                        block rounded-sm px-2 py-3 font-body-serif text-sm tracking-[0.15em]
-                        text-gold uppercase transition-colors
-                      `,
-                      !isActive &&
-                        "text-foreground/60 uppercase transition-colors hover:text-gold",
-                    )}
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </div>
-          </motion.nav>
-        )}
-      </AnimatePresence>
+            return (
+              <Link
+                key={item.label}
+                href={item.href}
+                onClick={() => {
+                  closeMobileMenu(false);
+                  safeTrack(() =>
+                    trackNavigation(item.label.toLowerCase(), "header"),
+                  );
+                }}
+                className={cn(
+                  `
+                    block rounded-sm px-2 py-3 font-body-serif text-sm tracking-[0.15em] text-gold
+                    uppercase transition-colors
+                    focus-visible:text-gold focus-visible:ring-2 focus-visible:ring-gold/50
+                    focus-visible:ring-offset-2 focus-visible:ring-offset-background
+                    focus-visible:outline-none
+                  `,
+                  !isActive &&
+                    "text-foreground/60 uppercase transition-colors hover:text-gold",
+                )}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+      </motion.nav>
     </>
   );
 }

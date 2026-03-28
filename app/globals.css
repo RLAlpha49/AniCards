@@ -106,6 +106,18 @@
   --gold-dim: 45 38% 39%;
 }
 
+/*
+  When adding custom CSS here, prefer defining reusable styles as Tailwind
+  utilities with `@utility`.
+
+  Keep plain selectors for true global needs only:
+  - base resets and element defaults
+  - one-off exceptions that cannot be expressed as a utility
+
+  This file intentionally serves as the example: most custom styling below
+  is grouped into utility classes.
+*/
+
 body {
   color: rgb(var(--foreground-rgb));
   background: rgb(var(--background-start-rgb));
@@ -151,6 +163,49 @@ button {
     color, background-color, border-color, box-shadow, transform, opacity;
   transition-duration: 0.25s;
   transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Custom reusable CSS for this app should be added as `@utility` blocks. */
+
+@utility skip-link {
+  position: fixed;
+  top: max(0.75rem, calc(env(safe-area-inset-top) + 0.75rem));
+  left: max(0.75rem, calc(env(safe-area-inset-left) + 0.75rem));
+  z-index: 80;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid hsl(var(--gold) / 0.45);
+  border-radius: 0.75rem;
+  background: hsl(var(--background));
+  color: hsl(var(--gold));
+  padding: 0.75rem 1rem;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-decoration: none;
+  box-shadow:
+    0 0 0 1px hsl(var(--background)),
+    0 16px 36px hsl(0 0% 0% / 0.18);
+  transform: translateY(calc(-100% - 1rem));
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &:focus-visible {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+    outline: none;
+    box-shadow:
+      0 0 0 2px hsl(var(--background)),
+      0 0 0 4px hsl(var(--gold) / 0.5),
+      0 18px 42px hsl(0 0% 0% / 0.2);
+  }
 }
 
 @utility gold-line {

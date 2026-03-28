@@ -1,4 +1,14 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
+
+async function dismissAnalyticsPromptIfVisible(page: Page) {
+  const dismissButton = page.getByRole("button", {
+    name: /keep it off/i,
+  });
+
+  if (await dismissButton.isVisible()) {
+    await dismissButton.click();
+  }
+}
 
 function escapeRegExp(value: string): string {
   return value.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
@@ -34,6 +44,61 @@ test.describe("Unmocked app shell smoke", () => {
     await expect(page.getByRole("banner")).toBeVisible();
     await expect(page.getByRole("contentinfo")).toBeVisible();
     await expect(page).toHaveTitle(/AniCards/i);
+  });
+
+  test("exposes a root-shell skip link, stable main target, and AniList preconnect hint", async ({
+    page,
+  }) => {
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await dismissAnalyticsPromptIfVisible(page);
+
+    const skipLink = page.locator("a.skip-link");
+    const mainContent = page.locator("#main-content");
+    const anilistPreconnect = page.locator(
+      'link[rel="preconnect"][href="https://anilist.co"]',
+    );
+
+    await expect(anilistPreconnect).toHaveCount(1);
+
+    await page.keyboard.press("Tab");
+    await expect(skipLink).toBeFocused();
+
+    await page.keyboard.press("Enter");
+    await expect(mainContent).toBeFocused();
+  });
+
+  test("traps focus in the mobile navigation menu and restores focus on close", async ({
+    page,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== "mobile-chrome",
+      "This spec validates mobile-menu focus behavior.",
+    );
+
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await dismissAnalyticsPromptIfVisible(page);
+
+    const menuToggle = page.getByRole("button", { name: /open menu/i });
+    await menuToggle.click();
+
+    const mobileNavigation = page.locator("#mobile-navigation");
+    const firstLink = mobileNavigation.getByRole("link", { name: /^home$/i });
+    const lastLink = mobileNavigation.getByRole("link", {
+      name: /^contact$/i,
+    });
+
+    await expect(mobileNavigation).toBeVisible();
+    await expect(firstLink).toBeFocused();
+
+    await page.keyboard.press("Shift+Tab");
+    await expect(lastLink).toBeFocused();
+
+    await page.keyboard.press("Tab");
+    await expect(firstLink).toBeFocused();
+
+    await page.keyboard.press("Escape");
+    await expect(mobileNavigation).toBeHidden();
+    await expect(menuToggle).toBeFocused();
   });
 
   test("serves robots.txt from the real metadata route", async ({

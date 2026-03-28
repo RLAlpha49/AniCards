@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useInView } from "framer-motion";
+import { motion, useInView, useReducedMotion } from "framer-motion";
 import {
   BarChart2,
   BookOpen,
@@ -12,6 +12,13 @@ import {
   Shield,
 } from "lucide-react";
 import { useRef } from "react";
+
+import {
+  buildFadeUpVariants,
+  buildMotionSafeStaggerContainer,
+  buildScaleInVariants,
+  getMotionSafeAnimation,
+} from "@/lib/animations";
 
 const FEATURES = [
   {
@@ -75,52 +82,75 @@ const FEATURES = [
 export function BentoFeatures() {
   const ref = useRef<HTMLElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-20px" });
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const headingVariants = buildMotionSafeStaggerContainer({
+    reducedMotion: prefersReducedMotion,
+    staggerChildren: 0.1,
+  });
+  const headingItemVariants = buildFadeUpVariants({
+    reducedMotion: prefersReducedMotion,
+    distance: 20,
+    duration: 0.5,
+  });
+  const featureContainerVariants = buildMotionSafeStaggerContainer({
+    reducedMotion: prefersReducedMotion,
+    staggerChildren: 0.06,
+    delayChildren: 0.15,
+  });
+  const featureVariants = buildScaleInVariants({
+    reducedMotion: prefersReducedMotion,
+    initialScale: 0.96,
+    y: 24,
+    duration: 0.5,
+  });
 
   return (
     <section ref={ref} className="relative px-6 py-20 sm:px-12 md:py-28">
       <div className="mx-auto max-w-6xl">
-        <div className="mb-14 text-center">
+        <motion.div
+          variants={headingVariants}
+          initial="hidden"
+          animate={isInView ? "visible" : "hidden"}
+          className="mb-14 text-center"
+        >
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={isInView ? { opacity: 1, y: 0 } : {}}
-            transition={{ duration: 0.5 }}
+            variants={headingItemVariants}
             className="mb-6 gold-ornament"
           >
             <span className="text-lg text-gold">❖</span>
           </motion.div>
 
           <motion.h2
-            initial={{ opacity: 0, y: 20 }}
-            animate={isInView ? { opacity: 1, y: 0 } : {}}
-            transition={{ duration: 0.5, delay: 0.1 }}
+            variants={headingItemVariants}
             className="mb-4 font-display text-3xl text-foreground sm:text-4xl lg:text-5xl"
           >
             THE <span className="text-gold">REPERTOIRE</span>
           </motion.h2>
 
           <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={isInView ? { opacity: 1, y: 0 } : {}}
-            transition={{ duration: 0.5, delay: 0.2 }}
+            variants={headingItemVariants}
             className="mx-auto max-w-xl font-body-serif text-base text-foreground/50 sm:text-lg"
           >
             Every corner of your anime and manga world, shaped into cards worth
             showing off.
           </motion.p>
-        </div>
+        </motion.div>
 
-        <div className="grid gap-4 md:auto-rows-[180px] md:grid-cols-3">
+        <motion.div
+          variants={featureContainerVariants}
+          initial="hidden"
+          animate={isInView ? "visible" : "hidden"}
+          className="grid gap-4 md:auto-rows-[180px] md:grid-cols-3"
+        >
           {FEATURES.map((f, i) => (
             <motion.div
               key={f.title}
-              initial={{ opacity: 0, y: 24, scale: 0.96 }}
-              animate={isInView ? { opacity: 1, y: 0, scale: 1 } : {}}
-              transition={{
-                duration: 0.5,
-                delay: 0.15 + i * 0.06,
-                ease: [0.22, 1, 0.36, 1],
-              }}
-              whileHover={{ y: -4, transition: { duration: 0.25 } }}
+              custom={i}
+              variants={featureVariants}
+              whileHover={getMotionSafeAnimation(prefersReducedMotion, {
+                y: -4,
+                transition: { duration: 0.25 },
+              })}
               className={`group bento-cell ${f.span}`}
             >
               <div className="flex h-full flex-col justify-between p-6 sm:p-8">
@@ -147,7 +177,7 @@ export function BentoFeatures() {
               </div>
             </motion.div>
           ))}
-        </div>
+        </motion.div>
       </div>
     </section>
   );

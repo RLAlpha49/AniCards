@@ -1,33 +1,33 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Send } from "lucide-react";
 import Link from "next/link";
 
-import { EASE_OUT_EXPO } from "@/lib/animations";
+import {
+  buildFadeUpVariants,
+  buildMotionSafeStaggerContainer,
+  EASE_OUT_EXPO,
+  getMotionSafeAnimation,
+} from "@/lib/animations";
 import {
   safeTrack,
   trackExternalLinkClick,
 } from "@/lib/utils/google-analytics";
 
-const ctaContainer = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.08 },
-  },
-};
-
-const ctaChild = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] as const },
-  },
-};
-
 export function ContactCTA() {
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const ctaContainer = buildMotionSafeStaggerContainer({
+    reducedMotion: prefersReducedMotion,
+    staggerChildren: 0.1,
+    delayChildren: 0.08,
+  });
+  const ctaChild = buildFadeUpVariants({
+    reducedMotion: prefersReducedMotion,
+    distance: 20,
+    duration: 0.6,
+  });
+
   return (
     <section className="relative px-6 py-20 sm:px-12 md:py-32">
       {/* Background glow */}
@@ -70,11 +70,13 @@ export function ContactCTA() {
 
         <motion.div
           variants={ctaChild}
-          whileHover={{
+          whileHover={getMotionSafeAnimation(prefersReducedMotion, {
             scale: 1.04,
             transition: { duration: 0.3, ease: EASE_OUT_EXPO },
-          }}
-          whileTap={{ scale: 0.97 }}
+          })}
+          whileTap={getMotionSafeAnimation(prefersReducedMotion, {
+            scale: 0.97,
+          })}
           className="inline-block"
         >
           <Link

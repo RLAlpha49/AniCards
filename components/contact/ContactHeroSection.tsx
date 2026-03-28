@@ -1,25 +1,25 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 
-const container = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.25 },
-  },
-};
-
-const fadeUp = {
-  hidden: { opacity: 0, y: 32 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.75, ease: [0.22, 1, 0.36, 1] as const },
-  },
-};
+import {
+  buildFadeUpVariants,
+  buildMotionSafeStaggerContainer,
+} from "@/lib/animations";
 
 export function ContactHeroSection() {
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const container = buildMotionSafeStaggerContainer({
+    reducedMotion: prefersReducedMotion,
+    staggerChildren: 0.1,
+    delayChildren: 0.25,
+  });
+  const fadeUp = buildFadeUpVariants({
+    reducedMotion: prefersReducedMotion,
+    distance: 32,
+    duration: 0.75,
+  });
+
   return (
     <section className="relative overflow-hidden px-6 pt-28 pb-24 sm:px-12 md:pt-40 md:pb-32">
       {/* Centered radial glow */}

@@ -86,8 +86,11 @@ export function CategoryNavigation({
                 onClick={() => onCategoryClick(item.key)}
                 className={cn(
                   `
-                    relative flex items-center gap-2 px-3.5 py-3 text-xs font-medium
+                    relative z-10 flex items-center gap-2 rounded-sm px-3.5 py-3 text-xs font-medium
                     whitespace-nowrap transition-all duration-300
+                    focus-visible:bg-gold/5 focus-visible:text-gold focus-visible:ring-2
+                    focus-visible:ring-gold/50 focus-visible:ring-offset-2
+                    focus-visible:ring-offset-background focus-visible:outline-none
                   `,
                   isActive
                     ? "text-gold"

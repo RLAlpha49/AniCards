@@ -18,6 +18,13 @@ export const NO_MOTION_TRANSITION: Transition = {
   duration: 0,
 };
 
+export function getMotionSafeAnimation<T>(
+  reducedMotion: boolean,
+  animation: T,
+): T | undefined {
+  return reducedMotion ? undefined : animation;
+}
+
 interface MotionSafeStaggerOptions {
   reducedMotion?: boolean;
   staggerChildren?: number;

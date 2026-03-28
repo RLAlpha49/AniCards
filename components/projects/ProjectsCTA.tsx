@@ -1,31 +1,40 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, GitFork } from "lucide-react";
 import Link from "next/link";
 
 import { SimpleGithubIcon } from "@/components/SimpleIcons";
 import { Button } from "@/components/ui/Button";
-import { EASE_OUT_EXPO } from "@/lib/animations";
-
-const fadeIn = {
-  hidden: { opacity: 0, y: 28 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.75, ease: [0.22, 1, 0.36, 1] as const },
-  },
-};
-
-const lineExpand = {
-  hidden: { scaleX: 0 },
-  visible: {
-    scaleX: 1,
-    transition: { duration: 1, ease: [0.22, 1, 0.36, 1] as const },
-  },
-};
+import {
+  buildFadeUpVariants,
+  buildMotionSafeStaggerContainer,
+  EASE_OUT_EXPO,
+  getMotionSafeAnimation,
+  NO_MOTION_TRANSITION,
+} from "@/lib/animations";
 
 export function ProjectsCTA() {
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const containerVariants = buildMotionSafeStaggerContainer({
+    reducedMotion: prefersReducedMotion,
+    staggerChildren: 0.12,
+  });
+  const fadeIn = buildFadeUpVariants({
+    reducedMotion: prefersReducedMotion,
+    distance: 28,
+    duration: 0.75,
+  });
+  const lineExpand = {
+    hidden: { scaleX: prefersReducedMotion ? 1 : 0 },
+    visible: {
+      scaleX: 1,
+      transition: prefersReducedMotion
+        ? NO_MOTION_TRANSITION
+        : { duration: 1, ease: EASE_OUT_EXPO },
+    },
+  };
+
   return (
     <section className="relative overflow-hidden px-6 py-28 sm:px-12 md:py-36">
       {/* Radial spotlight glow */}
@@ -39,10 +48,10 @@ export function ProjectsCTA() {
       />
 
       <motion.div
+        variants={containerVariants}
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, margin: "-60px" }}
-        transition={{ staggerChildren: 0.12 }}
         className="relative z-10 mx-auto max-w-3xl text-center"
       >
         {/* Top ornamental line */}
@@ -101,11 +110,13 @@ export function ProjectsCTA() {
         >
           <motion.div
             variants={fadeIn}
-            whileHover={{
+            whileHover={getMotionSafeAnimation(prefersReducedMotion, {
               scale: 1.04,
               transition: { duration: 0.25, ease: EASE_OUT_EXPO },
-            }}
-            whileTap={{ scale: 0.97 }}
+            })}
+            whileTap={getMotionSafeAnimation(prefersReducedMotion, {
+              scale: 0.97,
+            })}
           >
             <Button asChild className="imperial-btn imperial-btn-fill">
               <a
@@ -123,11 +134,13 @@ export function ProjectsCTA() {
 
           <motion.div
             variants={fadeIn}
-            whileHover={{
+            whileHover={getMotionSafeAnimation(prefersReducedMotion, {
               scale: 1.04,
               transition: { duration: 0.25, ease: EASE_OUT_EXPO },
-            }}
-            whileTap={{ scale: 0.97 }}
+            })}
+            whileTap={getMotionSafeAnimation(prefersReducedMotion, {
+              scale: 0.97,
+            })}
           >
             <Button asChild className="imperial-btn imperial-btn-ghost">
               <Link href="/" className="flex items-center gap-2">

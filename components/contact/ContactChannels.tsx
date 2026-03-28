@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { ArrowUpRight, Mail } from "lucide-react";
 import Link from "next/link";
 
@@ -9,7 +9,12 @@ import {
   SimpleDiscordIcon,
   SimpleGithubIcon,
 } from "@/components/SimpleIcons";
-import { EASE_OUT_EXPO } from "@/lib/animations";
+import {
+  buildFadeUpVariants,
+  buildMotionSafeStaggerContainer,
+  EASE_OUT_EXPO,
+  getMotionSafeAnimation,
+} from "@/lib/animations";
 import {
   safeTrack,
   trackExternalLinkClick,
@@ -54,24 +59,19 @@ const CHANNELS = [
   },
 ];
 
-const stagger = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.15 },
-  },
-};
-
-const panelVariant = {
-  hidden: { opacity: 0, y: 40 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] as const },
-  },
-};
-
 export function ContactChannels() {
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const stagger = buildMotionSafeStaggerContainer({
+    reducedMotion: prefersReducedMotion,
+    staggerChildren: 0.1,
+    delayChildren: 0.15,
+  });
+  const panelVariant = buildFadeUpVariants({
+    reducedMotion: prefersReducedMotion,
+    distance: 40,
+    duration: 0.6,
+  });
+
   const handleClick = (platform: string) => {
     safeTrack(() => trackExternalLinkClick(platform, "contact_page"));
   };
@@ -114,10 +114,10 @@ export function ContactChannels() {
             <motion.div
               key={ch.name}
               variants={panelVariant}
-              whileHover={{
+              whileHover={getMotionSafeAnimation(prefersReducedMotion, {
                 y: -4,
                 transition: { duration: 0.3, ease: EASE_OUT_EXPO },
-              }}
+              })}
             >
               <Link
                 href={ch.href}
@@ -125,8 +125,12 @@ export function ContactChannels() {
                 rel={ch.name === "email" ? undefined : "noopener noreferrer"}
                 onClick={() => handleClick(ch.name)}
                 className="
-                  group relative flex h-full flex-col bg-background p-8 transition-all duration-500
+                  group relative flex h-full flex-col rounded-sm bg-background p-8 transition-all
+                  duration-500
                   hover:bg-[hsl(var(--gold)/0.03)]
+                  focus-visible:bg-[hsl(var(--gold)/0.03)] focus-visible:ring-2
+                  focus-visible:ring-gold/50 focus-visible:ring-offset-2
+                  focus-visible:ring-offset-background focus-visible:outline-none
                   sm:p-10
                 "
               >
@@ -136,6 +140,7 @@ export function ContactChannels() {
                     pointer-events-none absolute top-4 right-4 font-display text-[5rem] leading-none
                     text-[hsl(var(--foreground)/0.03)] transition-colors duration-500
                     group-hover:text-[hsl(var(--gold)/0.08)]
+                    group-focus-visible:text-[hsl(var(--gold)/0.08)]
                   "
                   aria-hidden="true"
                 >
@@ -149,10 +154,16 @@ export function ContactChannels() {
                     duration-500
                     group-hover:border-[hsl(var(--gold)/0.4)]
                     group-hover:shadow-[0_0_20px_hsl(var(--gold)/0.08)]
+                    group-focus-visible:border-[hsl(var(--gold)/0.4)]
+                    group-focus-visible:shadow-[0_0_20px_hsl(var(--gold)/0.08)]
                   ">
                     <ch.icon
                       size={20}
-                      className="text-gold transition-transform duration-500 group-hover:scale-110"
+                      className="
+                        text-gold transition-transform duration-500
+                        group-hover:scale-110
+                        group-focus-visible:scale-110
+                      "
                     />
                   </div>
                 </div>
@@ -174,12 +185,15 @@ export function ContactChannels() {
                   <span className="
                     font-body-serif text-sm text-gold/60 transition-colors duration-300
                     group-hover:text-gold
+                    group-focus-visible:text-gold
                   ">
                     {ch.address}
                   </span>
                   <ArrowUpRight className="
                     size-4 text-gold opacity-0 transition-all duration-300
                     group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100
+                    group-focus-visible:translate-x-0.5 group-focus-visible:-translate-y-0.5
+                    group-focus-visible:opacity-100
                   " />
                 </div>
 
@@ -188,6 +202,7 @@ export function ContactChannels() {
                   absolute bottom-0 left-1/2 h-0.5 w-0 -translate-x-1/2 bg-linear-to-r
                   from-transparent via-gold to-transparent transition-all duration-500
                   group-hover:w-4/5
+                  group-focus-visible:w-4/5
                 " />
               </Link>
             </motion.div>

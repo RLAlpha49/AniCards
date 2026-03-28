@@ -1,41 +1,41 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 
-const orchestrate = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.12, delayChildren: 0.15 },
-  },
-};
-
-const rise = {
-  hidden: { opacity: 0, y: 40 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1] as const },
-  },
-};
-
-const revealLine = {
-  hidden: { scaleX: 0 },
-  visible: {
-    scaleX: 1,
-    transition: { duration: 1.1, ease: [0.22, 1, 0.36, 1] as const },
-  },
-};
-
-const fadeIn = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { duration: 1.2, ease: "easeOut" as const },
-  },
-};
+import {
+  buildFadeUpVariants,
+  buildMotionSafeStaggerContainer,
+  EASE_OUT_EXPO,
+  NO_MOTION_TRANSITION,
+} from "@/lib/animations";
 
 export function ProjectsHeroSection() {
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const orchestrate = buildMotionSafeStaggerContainer({
+    reducedMotion: prefersReducedMotion,
+    staggerChildren: 0.12,
+    delayChildren: 0.15,
+  });
+  const rise = buildFadeUpVariants({
+    reducedMotion: prefersReducedMotion,
+    distance: 40,
+    duration: 0.8,
+  });
+  const revealLine = {
+    hidden: { scaleX: prefersReducedMotion ? 1 : 0 },
+    visible: {
+      scaleX: 1,
+      transition: prefersReducedMotion
+        ? NO_MOTION_TRANSITION
+        : { duration: 1.1, ease: EASE_OUT_EXPO },
+    },
+  };
+  const fadeIn = buildFadeUpVariants({
+    reducedMotion: prefersReducedMotion,
+    distance: 0,
+    duration: 1.2,
+  });
+
   return (
     <section className="relative overflow-hidden px-6 pt-32 pb-24 sm:px-12 md:pt-44 md:pb-36">
       {/* Radial spotlight */}

@@ -72,9 +72,12 @@ export default function Footer() {
             <Link
               href="https://github.com/RLAlpha49/Anicards/blob/main/LICENSE"
               className="
-                group inline-flex items-center gap-1 font-body-serif text-foreground/40
+                group inline-flex items-center gap-1 rounded-sm font-body-serif text-foreground/40
                 transition-colors
                 hover:text-gold
+                focus-visible:text-gold focus-visible:ring-2 focus-visible:ring-gold/50
+                focus-visible:ring-offset-2 focus-visible:ring-offset-background
+                focus-visible:outline-none
               "
               target="_blank"
               rel="noopener noreferrer"
@@ -90,8 +93,12 @@ export default function Footer() {
             <Link
               href="/privacy"
               className="
-                inline-flex items-center gap-1 font-body-serif text-foreground/40 transition-colors
+                inline-flex items-center gap-1 rounded-sm font-body-serif text-foreground/40
+                transition-colors
                 hover:text-gold
+                focus-visible:text-gold focus-visible:ring-2 focus-visible:ring-gold/50
+                focus-visible:ring-offset-2 focus-visible:ring-offset-background
+                focus-visible:outline-none
               "
               onClick={() =>
                 safeTrack(() => trackNavigation("privacy", "footer"))
@@ -135,9 +142,13 @@ export default function Footer() {
                     link.name === "email" ? undefined : "noopener noreferrer"
                   }
                   className="
-                    flex size-9 items-center justify-center border border-gold/15 text-foreground/40
-                    transition-all
+                    flex size-11 items-center justify-center rounded-full border border-gold/15
+                    text-foreground/40 transition-all
                     hover:border-gold/40 hover:text-gold
+                    focus-visible:border-gold/40 focus-visible:text-gold focus-visible:ring-2
+                    focus-visible:ring-gold/50 focus-visible:ring-offset-2
+                    focus-visible:ring-offset-background focus-visible:outline-none
+                    md:size-9 md:rounded-none
                   "
                   onClick={() =>
                     safeTrack(() => trackExternalLinkClick(link.name, "footer"))

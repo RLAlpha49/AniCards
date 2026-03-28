@@ -1,11 +1,17 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
 
 import { CardPreviewPlaceholder } from "@/components/CardPreviewPlaceholder";
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
 import { usePreviewColorPreset } from "@/hooks/usePreviewColorPreset";
+import {
+  buildFadeUpVariants,
+  buildMotionSafeStaggerContainer,
+  EASE_OUT_EXPO,
+  NO_MOTION_TRANSITION,
+} from "@/lib/animations";
 import {
   buildThemePreviewUrls,
   getPreviewCardDimensions,
@@ -49,39 +55,36 @@ const HERO_CARDS = [
   },
 ];
 
-const staggerContainer = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.12, delayChildren: 0.1 },
-  },
-};
-
-const fadeUp = {
-  hidden: { opacity: 0, y: 30 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1] as const },
-  },
-};
-
-const cardFloat = {
-  hidden: { opacity: 0, scale: 0.85, y: 40 },
-  visible: (i: number) => ({
-    opacity: 1,
-    scale: 1,
-    y: 0,
-    transition: {
-      duration: 0.9,
-      delay: 0.4 + i * 0.15,
-      ease: [0.22, 1, 0.36, 1] as const,
-    },
-  }),
-};
-
 export function HeroSection() {
   const previewColorPreset = usePreviewColorPreset();
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const staggerContainer = buildMotionSafeStaggerContainer({
+    reducedMotion: prefersReducedMotion,
+    staggerChildren: 0.12,
+    delayChildren: 0.1,
+  });
+  const fadeUp = buildFadeUpVariants({
+    reducedMotion: prefersReducedMotion,
+    distance: 30,
+    duration: 0.8,
+  });
+  const cardFloat = {
+    hidden: prefersReducedMotion
+      ? { opacity: 1, scale: 1, y: 0 }
+      : { opacity: 0, scale: 0.85, y: 40 },
+    visible: (i: number) => ({
+      opacity: 1,
+      scale: 1,
+      y: 0,
+      transition: prefersReducedMotion
+        ? NO_MOTION_TRANSITION
+        : {
+            duration: 0.9,
+            delay: 0.4 + i * 0.15,
+            ease: EASE_OUT_EXPO,
+          },
+    }),
+  };
 
   const handleGetStartedClick = () => {
     safeTrack(() => trackButtonClick("get_started", "homepage_hero"));

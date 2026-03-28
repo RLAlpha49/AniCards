@@ -1,8 +1,15 @@
 "use client";
 
-import { motion, useInView } from "framer-motion";
+import { motion, useInView, useReducedMotion } from "framer-motion";
 import { Palette, Search, Sparkles } from "lucide-react";
 import { useRef } from "react";
+
+import {
+  buildFadeUpVariants,
+  EASE_OUT_EXPO,
+  getMotionSafeAnimation,
+  NO_MOTION_TRANSITION,
+} from "@/lib/animations";
 
 const STEPS = [
   {
@@ -28,23 +35,66 @@ const STEPS = [
 export function ProcessSteps() {
   const ref = useRef<HTMLElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-20px" });
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const headingVariants = buildFadeUpVariants({
+    reducedMotion: prefersReducedMotion,
+    distance: 20,
+    duration: 0.5,
+  });
+  const lineVariants = buildFadeUpVariants({
+    reducedMotion: prefersReducedMotion,
+    distance: 0,
+    duration: 0.5,
+  });
+  const stepVariants = {
+    hidden: prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 },
+    visible: (i: number) => ({
+      opacity: 1,
+      y: 0,
+      transition: prefersReducedMotion
+        ? NO_MOTION_TRANSITION
+        : {
+            duration: 0.6,
+            delay: 0.2 + i * 0.15,
+            ease: EASE_OUT_EXPO,
+          },
+    }),
+  };
+  const stepIconVariants = {
+    hidden: prefersReducedMotion
+      ? { scale: 1, opacity: 1 }
+      : { scale: 0, opacity: 0 },
+    visible: (i: number) => ({
+      scale: 1,
+      opacity: 1,
+      transition: prefersReducedMotion
+        ? NO_MOTION_TRANSITION
+        : {
+            duration: 0.5,
+            delay: 0.4 + i * 0.18,
+            type: "spring" as const,
+            stiffness: 200,
+            damping: 15,
+          },
+    }),
+  };
 
   return (
     <section ref={ref} className="relative px-6 py-20 sm:px-12 md:py-28">
       <div className="mx-auto max-w-5xl">
         <div className="mb-16 text-center">
           <motion.h2
-            initial={{ opacity: 0, y: 20 }}
-            animate={isInView ? { opacity: 1, y: 0 } : {}}
-            transition={{ duration: 0.5 }}
+            variants={headingVariants}
+            initial="hidden"
+            animate={isInView ? "visible" : "hidden"}
             className="mb-4 font-display text-3xl text-foreground sm:text-4xl"
           >
             THE <span className="text-gold">PROCESS</span>
           </motion.h2>
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={isInView ? { opacity: 1 } : {}}
-            transition={{ duration: 0.5, delay: 0.15 }}
+            variants={lineVariants}
+            initial="hidden"
+            animate={isInView ? "visible" : "hidden"}
             className="gold-line-thick mx-auto max-w-16"
           />
         </div>
@@ -62,26 +112,21 @@ export function ProcessSteps() {
             {STEPS.map((step, i) => (
               <motion.div
                 key={step.title}
-                initial={{ opacity: 0, y: 30 }}
-                animate={isInView ? { opacity: 1, y: 0 } : {}}
-                transition={{
-                  duration: 0.6,
-                  delay: 0.2 + i * 0.15,
-                  ease: [0.22, 1, 0.36, 1],
-                }}
-                whileHover={{ y: -6, transition: { duration: 0.3 } }}
+                custom={i}
+                variants={stepVariants}
+                initial="hidden"
+                animate={isInView ? "visible" : "hidden"}
+                whileHover={getMotionSafeAnimation(prefersReducedMotion, {
+                  y: -6,
+                  transition: { duration: 0.3, ease: EASE_OUT_EXPO },
+                })}
                 className="relative text-center"
               >
                 <motion.div
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={isInView ? { scale: 1, opacity: 1 } : {}}
-                  transition={{
-                    duration: 0.5,
-                    delay: 0.4 + i * 0.18,
-                    type: "spring",
-                    stiffness: 200,
-                    damping: 15,
-                  }}
+                  custom={i}
+                  variants={stepIconVariants}
+                  initial="hidden"
+                  animate={isInView ? "visible" : "hidden"}
                   className="
                     relative z-10 mx-auto mb-6 flex size-28 flex-col items-center justify-center
                     rounded-full border-2 border-[hsl(var(--gold)/0.35)] bg-card

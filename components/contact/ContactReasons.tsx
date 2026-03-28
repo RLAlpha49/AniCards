@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   Bug,
   ExternalLink,
@@ -10,7 +10,13 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-import { EASE_OUT_EXPO } from "@/lib/animations";
+import {
+  buildFadeUpVariants,
+  buildMotionSafeStaggerContainer,
+  EASE_OUT_EXPO,
+  getMotionSafeAnimation,
+  NO_MOTION_TRANSITION,
+} from "@/lib/animations";
 import {
   safeTrack,
   trackExternalLinkClick,
@@ -43,38 +49,34 @@ const REASONS = [
   },
 ];
 
-const container = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.08, delayChildren: 0.15 },
-  },
-};
-
-const card = {
-  hidden: { opacity: 0, y: 24 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.55,
-      ease: [0.22, 1, 0.36, 1] as const,
-      staggerChildren: 0.06,
-      delayChildren: 0.15,
-    },
-  },
-};
-
-const cardChild = {
-  hidden: { opacity: 0, y: 8 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] as const },
-  },
-};
-
 export function ContactReasons() {
+  const prefersReducedMotion = useReducedMotion() ?? false;
+  const container = buildMotionSafeStaggerContainer({
+    reducedMotion: prefersReducedMotion,
+    staggerChildren: 0.08,
+    delayChildren: 0.15,
+  });
+  const card = {
+    hidden: prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: prefersReducedMotion
+        ? NO_MOTION_TRANSITION
+        : {
+            duration: 0.55,
+            ease: EASE_OUT_EXPO,
+            staggerChildren: 0.06,
+            delayChildren: 0.15,
+          },
+    },
+  };
+  const cardChild = buildFadeUpVariants({
+    reducedMotion: prefersReducedMotion,
+    distance: 8,
+    duration: 0.35,
+  });
+
   return (
     <section className="px-6 py-16 sm:px-12 md:py-24">
       <div className="mx-auto max-w-5xl">
@@ -116,6 +118,8 @@ export function ContactReasons() {
                 className="
                   group relative flex h-full flex-col border border-[hsl(var(--gold)/0.08)]
                   bg-[hsl(var(--gold)/0.015)] p-6 transition-all duration-300
+                  group-focus-visible/reason-link:border-[hsl(var(--gold)/0.25)]
+                  group-focus-visible/reason-link:bg-[hsl(var(--gold)/0.03)]
                   hover:border-[hsl(var(--gold)/0.25)] hover:bg-[hsl(var(--gold)/0.03)]
                   sm:p-8
                 "
@@ -134,7 +138,11 @@ export function ContactReasons() {
                 <motion.div variants={cardChild}>
                   <reason.icon
                     size={20}
-                    className="mb-5 text-gold/50 transition-colors group-hover:text-gold"
+                    className="
+                      mb-5 text-gold/50 transition-colors
+                      group-hover:text-gold
+                      group-focus-visible/reason-link:text-gold
+                    "
                     strokeWidth={1.5}
                   />
                 </motion.div>
@@ -162,6 +170,7 @@ export function ContactReasons() {
                       mt-5 flex items-center gap-1.5 text-xs tracking-wider text-gold/40 uppercase
                       transition-colors
                       group-hover:text-gold
+                      group-focus-visible/reason-link:text-gold
                     "
                   >
                     Open Issue
@@ -175,10 +184,10 @@ export function ContactReasons() {
               <motion.div
                 key={reason.title}
                 variants={card}
-                whileHover={{
+                whileHover={getMotionSafeAnimation(prefersReducedMotion, {
                   y: -3,
                   transition: { duration: 0.3, ease: EASE_OUT_EXPO },
-                }}
+                })}
               >
                 {reason.href ? (
                   <Link
@@ -190,7 +199,11 @@ export function ContactReasons() {
                         trackExternalLinkClick("github_issues", "contact_page"),
                       )
                     }
-                    className="block h-full"
+                    className="
+                      group/reason-link block h-full rounded-sm
+                      focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2
+                      focus-visible:ring-offset-background focus-visible:outline-none
+                    "
                   >
                     {content}
                   </Link>
