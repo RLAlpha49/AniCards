@@ -363,7 +363,11 @@ export function CommandPalette({
                 placeholder="Type a command or search…"
                 aria-label="Command palette"
                 className={cn(
-                  "flex h-10 w-full bg-transparent text-[15px] font-medium outline-none",
+                  `
+                    flex h-10 w-full rounded-md bg-transparent px-2 text-[15px] font-medium
+                    transition-shadow outline-none
+                    focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none
+                  `,
                   "text-foreground placeholder:text-muted-foreground/50",
                   "dark:text-foreground dark:placeholder:text-muted-foreground/40",
                 )}
