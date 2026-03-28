@@ -35,10 +35,25 @@ describe("App shell server coverage", () => {
     expect(imgSrcDirective).not.toMatch(/\shttps:(?=[\s;]|$)/);
   });
 
-  it("keeps API routes outside the middleware matcher", () => {
+  it("covers API routes in the proxy matcher so request IDs are injected consistently", () => {
     expect(middlewareConfig.matcher).toContain(
-      "/((?!api|_next/static|_next/image|favicon.ico).*)",
+      "/((?!_next/static|_next/image|favicon.ico).*)",
     );
+  });
+
+  it("injects request IDs for API routes without adding HTML-only CSP headers", () => {
+    const request = new Request("http://localhost/api/error-reports", {
+      method: "POST",
+      headers: {
+        origin: "http://localhost",
+      },
+    }) as unknown as NextRequest;
+
+    const response = proxy(request);
+
+    expect(response.headers.get("X-Request-Id")).toBeTruthy();
+    expect(response.headers.get("Content-Security-Policy")).toBeNull();
+    expect(response.headers.get("x-nonce")).toBeNull();
   });
 
   it("returns robots metadata that blocks API indexing and advertises the sitemap", () => {

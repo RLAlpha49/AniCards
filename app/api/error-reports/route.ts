@@ -24,6 +24,7 @@ const errorReportsRateLimiter = createRateLimiter({
   window: "10 s",
   prefix: "error-reports",
 });
+const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,120}$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -45,6 +46,17 @@ function getOptionalInteger(value: unknown): number | undefined {
   }
 
   return value >= 400 && value <= 599 ? value : undefined;
+}
+
+function getOptionalRequestId(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+
+  const trimmed = value.trim();
+  if (!REQUEST_ID_PATTERN.test(trimmed)) {
+    return undefined;
+  }
+
+  return trimmed;
 }
 
 function getOptionalSource(value: unknown): ErrorReportSource | undefined {
@@ -89,6 +101,8 @@ export async function POST(request: Request) {
   );
   if (init.errorResponse) return init.errorResponse;
 
+  const { requestId: ingestionRequestId } = init;
+
   let payload: unknown;
   try {
     payload = await request.json();
@@ -117,6 +131,7 @@ export async function POST(request: Request) {
     source: getOptionalSource(payload.source) ?? "client_hook",
     userAction,
     error: message,
+    requestId: getOptionalRequestId(payload.requestId) ?? ingestionRequestId,
     errorName: getOptionalString(payload.errorName, 120),
     route: getOptionalString(payload.route, 512),
     statusCode: getOptionalInteger(payload.statusCode),
@@ -134,7 +149,7 @@ export function OPTIONS(request: Request) {
   return new Response(null, {
     headers: {
       ...headers,
-      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Headers": "Content-Type, X-Request-Id",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
     },
   });

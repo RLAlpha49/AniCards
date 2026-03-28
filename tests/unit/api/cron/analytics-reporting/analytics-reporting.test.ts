@@ -34,10 +34,12 @@ function createCronRequest(
 
 function setupAnalyticsData(values: Record<string, string | null>) {
   const keys = Object.keys(values);
+  sharedRedisMockLrange.mockResolvedValueOnce([]);
   sharedRedisMockScan.mockResolvedValueOnce([0, keys]);
   sharedRedisMockMget.mockResolvedValueOnce(
     keys.map((key) => values[key] ?? null),
   );
+  sharedRedisMockMget.mockResolvedValueOnce([null, null]);
   sharedRedisMockRpush.mockResolvedValueOnce(1);
   sharedRedisMockLtrim.mockResolvedValueOnce("OK");
 }
@@ -70,6 +72,8 @@ async function expectSuccessfulReportList(response: Response) {
 }
 
 describe("Analytics & Reporting Cron API", () => {
+  const originalFetch = globalThis.fetch;
+
   beforeEach(() => {
     allowConsoleWarningsAndErrors();
     process.env = {
@@ -87,8 +91,14 @@ describe("Analytics & Reporting Cron API", () => {
 
   afterEach(() => {
     mock.clearAllMocks();
+    Object.defineProperty(globalThis, "fetch", {
+      value: originalFetch,
+      configurable: true,
+      writable: true,
+    });
     delete process.env.CRON_SECRET;
     delete process.env.ALLOW_UNSECURED_CRON_IN_DEV;
+    delete process.env.ERROR_ALERT_WEBHOOK_URL;
   });
 
   it("rejects invalid or missing cron secrets", async () => {
@@ -137,11 +147,17 @@ describe("Analytics & Reporting Cron API", () => {
       await POST(createCronRequest()),
     );
 
-    expect(report.summary).toEqual({
+    expect(report.summary).toMatchObject({
       visits: 100,
       api: {
         requests: 5000,
         errors: 25,
+      },
+      observability: {
+        errorReports: {
+          totalCaptured: 0,
+          totalDropped: 0,
+        },
       },
     });
     expect(report.raw_data).toEqual({
@@ -197,6 +213,152 @@ describe("Analytics & Reporting Cron API", () => {
     expect(report.raw_data["analytics:missing_metric"]).toBe(0);
     expect(report.summary.missing_metric).toBe(0);
     expect(report.raw_data["analytics:custom"]).toEqual({ count: 50 });
+  });
+
+  it("surfaces error-report ring-buffer saturation metrics in the cron summary", async () => {
+    sharedRedisMockLrange.mockResolvedValueOnce([]);
+    sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:visits"]]);
+    sharedRedisMockMget.mockResolvedValueOnce(["100"]);
+    sharedRedisMockMget.mockResolvedValueOnce(["8", "2"]);
+    sharedRedisMockRpush.mockResolvedValueOnce(1);
+    sharedRedisMockLtrim.mockResolvedValueOnce("OK");
+
+    const report = await expectSuccessfulReport(
+      await POST(createCronRequest()),
+    );
+
+    expect(report.summary.observability).toEqual({
+      errorReports: {
+        capacity: 250,
+        retained: 6,
+        totalCaptured: 8,
+        totalDropped: 2,
+        cumulativeSaturationRate: 0.25,
+      },
+      alerts: {
+        webhookConfigured: false,
+        baselineAvailable: false,
+        triggered: false,
+        reasons: [],
+        minNewReportsThreshold: 25,
+        newCapturedSinceLastReport: null,
+        newDroppedSinceLastReport: null,
+        intervalSaturationRate: null,
+        delivery: {
+          attempted: false,
+          delivered: false,
+          skippedReason: "baseline_unavailable",
+        },
+      },
+    });
+  });
+
+  it("sends a webhook alert for error spikes and saturation without blocking report creation", async () => {
+    process.env.ERROR_ALERT_WEBHOOK_URL =
+      "https://hooks.example.test/services/error-spikes";
+    const fetchMock = mock(() =>
+      Promise.resolve(new Response(null, { status: 204 })),
+    );
+    Object.defineProperty(globalThis, "fetch", {
+      value: fetchMock,
+      configurable: true,
+      writable: true,
+    });
+
+    sharedRedisMockLrange.mockResolvedValueOnce([
+      JSON.stringify({
+        summary: {
+          observability: {
+            errorReports: {
+              capacity: 250,
+              retained: 5,
+              totalCaptured: 5,
+              totalDropped: 0,
+              cumulativeSaturationRate: 0,
+            },
+          },
+        },
+        raw_data: {},
+        generatedAt: "2026-03-27T10:30:00.000Z",
+      }),
+    ]);
+    sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:visits"]]);
+    sharedRedisMockMget.mockResolvedValueOnce(["100"]);
+    sharedRedisMockMget.mockResolvedValueOnce(["40", "3"]);
+    sharedRedisMockRpush.mockResolvedValueOnce(1);
+    sharedRedisMockLtrim.mockResolvedValueOnce("OK");
+
+    const report = await expectSuccessfulReport(
+      await POST(createCronRequest()),
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://hooks.example.test/services/error-spikes",
+      expect.objectContaining({
+        method: "POST",
+      }),
+    );
+    expect(report.summary.observability.alerts).toEqual({
+      webhookConfigured: true,
+      baselineAvailable: true,
+      triggered: true,
+      reasons: ["error_spike", "ring_buffer_saturation"],
+      minNewReportsThreshold: 25,
+      newCapturedSinceLastReport: 35,
+      newDroppedSinceLastReport: 3,
+      intervalSaturationRate: 0.0857,
+      delivery: {
+        attempted: true,
+        delivered: true,
+        destinationHost: "hooks.example.test",
+        statusCode: 204,
+      },
+    });
+  });
+
+  it("keeps cron reporting successful when webhook delivery fails", async () => {
+    process.env.ERROR_ALERT_WEBHOOK_URL =
+      "https://hooks.example.test/services/error-spikes";
+    const fetchMock = mock(() => Promise.reject(new Error("webhook down")));
+    Object.defineProperty(globalThis, "fetch", {
+      value: fetchMock,
+      configurable: true,
+      writable: true,
+    });
+
+    sharedRedisMockLrange.mockResolvedValueOnce([
+      JSON.stringify({
+        summary: {
+          observability: {
+            errorReports: {
+              capacity: 250,
+              retained: 0,
+              totalCaptured: 0,
+              totalDropped: 0,
+              cumulativeSaturationRate: 0,
+            },
+          },
+        },
+        raw_data: {},
+        generatedAt: "2026-03-27T10:30:00.000Z",
+      }),
+    ]);
+    sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:visits"]]);
+    sharedRedisMockMget.mockResolvedValueOnce(["100"]);
+    sharedRedisMockMget.mockResolvedValueOnce(["30", "1"]);
+    sharedRedisMockRpush.mockResolvedValueOnce(1);
+    sharedRedisMockLtrim.mockResolvedValueOnce("OK");
+
+    const response = await POST(createCronRequest());
+    const report = await expectSuccessfulReport(response);
+
+    expect(response.status).toBe(200);
+    expect(report.summary.observability.alerts.delivery).toEqual({
+      attempted: true,
+      delivered: false,
+      destinationHost: "hooks.example.test",
+      failure: "webhook_request_failed",
+    });
   });
 
   it("returns 500 when Redis scan, mget, or report persistence fails", async () => {

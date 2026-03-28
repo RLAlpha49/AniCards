@@ -4,11 +4,16 @@ import {
   apiJsonHeaders,
   apiTextHeaders,
   authorizeCronRequest,
+  fetchUpstreamWithRetry,
   initializeApiRequest,
   logPrivacySafe,
   redisClient,
   scanAllKeys,
 } from "@/lib/api-utils";
+import {
+  type ErrorReportBufferSnapshot,
+  getErrorReportBufferSnapshot,
+} from "@/lib/error-tracking";
 import { safeParse } from "@/lib/utils";
 
 type AnalyticsScalar = boolean | null | number | string;
@@ -37,10 +42,36 @@ interface AnalyticsReportListResponse {
   retentionLimit: number;
 }
 
+type ErrorSpikeAlertReason = "error_spike" | "ring_buffer_saturation";
+
+interface ErrorSpikeAlertDelivery {
+  attempted: boolean;
+  delivered: boolean;
+  destinationHost?: string;
+  failure?: string;
+  skippedReason?: string;
+  statusCode?: number;
+}
+
+interface ErrorSpikeAlertSummary {
+  webhookConfigured: boolean;
+  baselineAvailable: boolean;
+  triggered: boolean;
+  reasons: ErrorSpikeAlertReason[];
+  minNewReportsThreshold: number;
+  newCapturedSinceLastReport: number | null;
+  newDroppedSinceLastReport: number | null;
+  intervalSaturationRate: number | null;
+  delivery: ErrorSpikeAlertDelivery;
+}
+
 const ANALYTICS_KEYS_PATTERN = "analytics:*";
 const ANALYTICS_REPORTS_KEY = "analytics:reports";
 const DEFAULT_REPORT_READ_LIMIT = 10;
 const MAX_STORED_ANALYTICS_REPORTS = 50;
+const DEFAULT_ERROR_SPIKE_MIN_NEW_REPORTS = 25;
+const ERROR_ALERT_TIMEOUT_MS = 4_000;
+const ERROR_ALERT_WEBHOOK_ENV_NAME = "ERROR_ALERT_WEBHOOK_URL";
 
 /**
  * Validates the cron secret header and returns an error response on failure.
@@ -135,6 +166,449 @@ function groupAnalyticsData(analyticsData: AnalyticsData): AnalyticsSummary {
   }
 
   return summary;
+}
+
+function roundRatio(value: number): number {
+  return Number(value.toFixed(4));
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseFiniteNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function parseErrorSpikeThreshold(): number {
+  const raw = process.env.ERROR_ALERT_MIN_NEW_REPORTS?.trim();
+  if (!raw) return DEFAULT_ERROR_SPIKE_MIN_NEW_REPORTS;
+
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_ERROR_SPIKE_MIN_NEW_REPORTS;
+  }
+
+  return parsed;
+}
+
+function createEmptyErrorReportBufferSnapshot(): ErrorReportBufferSnapshot {
+  return {
+    capacity: 250,
+    retained: 0,
+    totalCaptured: 0,
+    totalDropped: 0,
+    cumulativeSaturationRate: 0,
+  };
+}
+
+function parseErrorReportBufferSnapshot(
+  value: unknown,
+): ErrorReportBufferSnapshot | null {
+  if (!isPlainObject(value)) {
+    return null;
+  }
+
+  const capacity = parseFiniteNumber(value.capacity);
+  const retained = parseFiniteNumber(value.retained);
+  const totalCaptured = parseFiniteNumber(value.totalCaptured);
+  const totalDropped = parseFiniteNumber(value.totalDropped);
+
+  if (
+    capacity === null ||
+    retained === null ||
+    totalCaptured === null ||
+    totalDropped === null
+  ) {
+    return null;
+  }
+
+  return {
+    capacity: Math.max(0, Math.trunc(capacity)),
+    retained: Math.max(0, Math.trunc(retained)),
+    totalCaptured: Math.max(0, Math.trunc(totalCaptured)),
+    totalDropped: Math.max(0, Math.trunc(totalDropped)),
+    cumulativeSaturationRate:
+      totalCaptured <= 0 ? 0 : roundRatio(totalDropped / totalCaptured),
+  };
+}
+
+function getPreviousErrorReportBufferSnapshot(
+  summary: AnalyticsSummary | undefined,
+): ErrorReportBufferSnapshot | null {
+  if (!summary) {
+    return null;
+  }
+
+  const observability = summary.observability;
+  if (!isPlainObject(observability)) {
+    return null;
+  }
+
+  return parseErrorReportBufferSnapshot(observability.errorReports);
+}
+
+function isDisallowedWebhookHost(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase();
+  if (!normalized) return true;
+
+  if (
+    normalized === "localhost" ||
+    normalized.endsWith(".local") ||
+    normalized.endsWith(".internal")
+  ) {
+    return true;
+  }
+
+  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(normalized)) {
+    return true;
+  }
+
+  return normalized.includes(":");
+}
+
+function getConfiguredAlertWebhook(
+  endpoint: string,
+  request: Request,
+): { url: string; destinationHost: string } | null {
+  const rawWebhookUrl = process.env[ERROR_ALERT_WEBHOOK_ENV_NAME]?.trim();
+  if (!rawWebhookUrl) {
+    return null;
+  }
+
+  let parsedWebhookUrl: URL;
+  try {
+    parsedWebhookUrl = new URL(rawWebhookUrl);
+  } catch {
+    logPrivacySafe(
+      "warn",
+      endpoint,
+      "Skipping error spike alert because webhook configuration is invalid",
+      {
+        config: ERROR_ALERT_WEBHOOK_ENV_NAME,
+      },
+      request,
+    );
+    return null;
+  }
+
+  if (
+    parsedWebhookUrl.protocol !== "https:" ||
+    parsedWebhookUrl.username ||
+    parsedWebhookUrl.password ||
+    (parsedWebhookUrl.port && parsedWebhookUrl.port !== "443") ||
+    isDisallowedWebhookHost(parsedWebhookUrl.hostname)
+  ) {
+    logPrivacySafe(
+      "warn",
+      endpoint,
+      "Skipping error spike alert because webhook configuration failed validation",
+      {
+        config: ERROR_ALERT_WEBHOOK_ENV_NAME,
+        destinationHost: parsedWebhookUrl.hostname,
+      },
+      request,
+    );
+    return null;
+  }
+
+  return {
+    url: parsedWebhookUrl.toString(),
+    destinationHost: parsedWebhookUrl.hostname,
+  };
+}
+
+function buildAlertSkippedReason(options: {
+  hasReasons: boolean;
+  webhookConfigured: boolean;
+}): string {
+  if (!options.hasReasons) {
+    return "not_triggered";
+  }
+
+  if (!options.webhookConfigured) {
+    return "webhook_not_configured";
+  }
+
+  return "delivery_pending";
+}
+
+function buildErrorSpikeAlertSummary(options: {
+  current: ErrorReportBufferSnapshot;
+  previous: ErrorReportBufferSnapshot | null;
+  webhookConfigured: boolean;
+}): ErrorSpikeAlertSummary {
+  const minNewReportsThreshold = parseErrorSpikeThreshold();
+
+  if (
+    !options.previous ||
+    options.current.totalCaptured < options.previous.totalCaptured ||
+    options.current.totalDropped < options.previous.totalDropped
+  ) {
+    return {
+      webhookConfigured: options.webhookConfigured,
+      baselineAvailable: false,
+      triggered: false,
+      reasons: [],
+      minNewReportsThreshold,
+      newCapturedSinceLastReport: null,
+      newDroppedSinceLastReport: null,
+      intervalSaturationRate: null,
+      delivery: {
+        attempted: false,
+        delivered: false,
+        skippedReason: "baseline_unavailable",
+      },
+    };
+  }
+
+  const newCapturedSinceLastReport =
+    options.current.totalCaptured - options.previous.totalCaptured;
+  const newDroppedSinceLastReport =
+    options.current.totalDropped - options.previous.totalDropped;
+  const intervalSaturationRate =
+    newCapturedSinceLastReport === 0
+      ? 0
+      : roundRatio(newDroppedSinceLastReport / newCapturedSinceLastReport);
+
+  const reasons: ErrorSpikeAlertReason[] = [];
+  if (newCapturedSinceLastReport >= minNewReportsThreshold) {
+    reasons.push("error_spike");
+  }
+  if (newDroppedSinceLastReport > 0) {
+    reasons.push("ring_buffer_saturation");
+  }
+
+  return {
+    webhookConfigured: options.webhookConfigured,
+    baselineAvailable: true,
+    triggered: reasons.length > 0,
+    reasons,
+    minNewReportsThreshold,
+    newCapturedSinceLastReport,
+    newDroppedSinceLastReport,
+    intervalSaturationRate,
+    delivery: {
+      attempted: false,
+      delivered: false,
+      skippedReason: buildAlertSkippedReason({
+        hasReasons: reasons.length > 0,
+        webhookConfigured: options.webhookConfigured,
+      }),
+    },
+  };
+}
+
+function toErrorReportBufferMetricGroup(
+  snapshot: ErrorReportBufferSnapshot,
+): AnalyticsMetricGroup {
+  return {
+    capacity: snapshot.capacity,
+    retained: snapshot.retained,
+    totalCaptured: snapshot.totalCaptured,
+    totalDropped: snapshot.totalDropped,
+    cumulativeSaturationRate: snapshot.cumulativeSaturationRate,
+  };
+}
+
+function toErrorSpikeAlertDeliveryMetricGroup(
+  delivery: ErrorSpikeAlertDelivery,
+): AnalyticsMetricGroup {
+  return {
+    attempted: delivery.attempted,
+    delivered: delivery.delivered,
+    ...(delivery.destinationHost
+      ? { destinationHost: delivery.destinationHost }
+      : {}),
+    ...(delivery.failure ? { failure: delivery.failure } : {}),
+    ...(delivery.skippedReason
+      ? { skippedReason: delivery.skippedReason }
+      : {}),
+    ...(typeof delivery.statusCode === "number"
+      ? { statusCode: delivery.statusCode }
+      : {}),
+  };
+}
+
+function toErrorSpikeAlertMetricGroup(
+  summary: ErrorSpikeAlertSummary,
+): AnalyticsMetricGroup {
+  return {
+    webhookConfigured: summary.webhookConfigured,
+    baselineAvailable: summary.baselineAvailable,
+    triggered: summary.triggered,
+    reasons: summary.reasons,
+    minNewReportsThreshold: summary.minNewReportsThreshold,
+    newCapturedSinceLastReport: summary.newCapturedSinceLastReport,
+    newDroppedSinceLastReport: summary.newDroppedSinceLastReport,
+    intervalSaturationRate: summary.intervalSaturationRate,
+    delivery: toErrorSpikeAlertDeliveryMetricGroup(summary.delivery),
+  };
+}
+
+function buildErrorSpikeAlertMessage(options: {
+  summary: ErrorSpikeAlertSummary;
+  snapshot: ErrorReportBufferSnapshot;
+}): string {
+  const reasonLabels = options.summary.reasons.map((reason) =>
+    reason === "error_spike" ? "error spike" : "ring-buffer saturation",
+  );
+
+  const intervalSaturationRatePercent =
+    options.summary.intervalSaturationRate === null
+      ? "n/a"
+      : `${(options.summary.intervalSaturationRate * 100).toFixed(1)}%`;
+  const cumulativeSaturationRatePercent = `${(
+    options.snapshot.cumulativeSaturationRate * 100
+  ).toFixed(1)}%`;
+
+  return [
+    `[AniCards] ${reasonLabels.join(" + ")}`,
+    `${options.summary.newCapturedSinceLastReport ?? 0} new structured error reports since the previous analytics report (threshold ${options.summary.minNewReportsThreshold}).`,
+    `${options.summary.newDroppedSinceLastReport ?? 0} reports rolled out of the ring buffer in that interval (${intervalSaturationRatePercent} interval saturation).`,
+    `Current retained buffer: ${options.snapshot.retained}/${options.snapshot.capacity}; cumulative dropped: ${options.snapshot.totalDropped}/${options.snapshot.totalCaptured} (${cumulativeSaturationRatePercent}).`,
+  ].join("\n");
+}
+
+async function sendErrorSpikeAlert(options: {
+  endpoint: string;
+  request: Request;
+  summary: ErrorSpikeAlertSummary;
+  snapshot: ErrorReportBufferSnapshot;
+  webhook: { url: string; destinationHost: string };
+}): Promise<ErrorSpikeAlertDelivery> {
+  const message = buildErrorSpikeAlertMessage({
+    summary: options.summary,
+    snapshot: options.snapshot,
+  });
+
+  try {
+    const response = await fetchUpstreamWithRetry({
+      service: "Error alert webhook",
+      url: options.webhook.url,
+      init: {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text: message,
+          content: message,
+          source: "anicards-error-alert",
+          details: {
+            reasons: options.summary.reasons,
+            errorReports: options.snapshot,
+            interval: {
+              newCapturedSinceLastReport:
+                options.summary.newCapturedSinceLastReport,
+              newDroppedSinceLastReport:
+                options.summary.newDroppedSinceLastReport,
+              intervalSaturationRate: options.summary.intervalSaturationRate,
+            },
+          },
+        }),
+      },
+      timeoutMs: ERROR_ALERT_TIMEOUT_MS,
+      maxAttempts: 1,
+      circuitBreaker: false,
+    });
+
+    if (!response.ok) {
+      logPrivacySafe(
+        "warn",
+        options.endpoint,
+        "Error spike alert webhook returned a non-success status",
+        {
+          destinationHost: options.webhook.destinationHost,
+          statusCode: response.status,
+        },
+        options.request,
+      );
+
+      return {
+        attempted: true,
+        delivered: false,
+        destinationHost: options.webhook.destinationHost,
+        failure: "webhook_non_success_status",
+        statusCode: response.status,
+      };
+    }
+
+    return {
+      attempted: true,
+      delivered: true,
+      destinationHost: options.webhook.destinationHost,
+      statusCode: response.status,
+    };
+  } catch (error) {
+    logPrivacySafe(
+      "warn",
+      options.endpoint,
+      "Error spike alert webhook delivery failed without blocking cron completion",
+      {
+        destinationHost: options.webhook.destinationHost,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      options.request,
+    );
+
+    return {
+      attempted: true,
+      delivered: false,
+      destinationHost: options.webhook.destinationHost,
+      failure: "webhook_request_failed",
+    };
+  }
+}
+
+async function readLatestStoredReportBaseline(
+  request: Request,
+  endpoint: string,
+): Promise<AnalyticsReport | null> {
+  try {
+    const [latestReport] = await fetchStoredReports(redisClient, 1);
+    return latestReport ?? null;
+  } catch (error) {
+    logPrivacySafe(
+      "warn",
+      endpoint,
+      "Failed to load the previous analytics report baseline; continuing without spike comparison",
+      {
+        error: error instanceof Error ? error.message : String(error),
+      },
+      request,
+    );
+    return null;
+  }
+}
+
+async function readErrorReportBufferSnapshotWithFallback(
+  request: Request,
+  endpoint: string,
+): Promise<ErrorReportBufferSnapshot> {
+  try {
+    return await getErrorReportBufferSnapshot();
+  } catch (error) {
+    logPrivacySafe(
+      "warn",
+      endpoint,
+      "Failed to read error-report buffer saturation counters; continuing with an empty snapshot",
+      {
+        error: error instanceof Error ? error.message : String(error),
+      },
+      request,
+    );
+    return createEmptyErrorReportBufferSnapshot();
+  }
 }
 
 /**
@@ -317,9 +791,48 @@ export async function POST(request: Request) {
   );
 
   try {
+    const latestStoredReport = await readLatestStoredReportBaseline(
+      request,
+      endpoint,
+    );
     const analyticsData = await fetchAnalyticsData(redisClient);
 
     const summary = groupAnalyticsData(analyticsData);
+
+    const errorReportSnapshot = await readErrorReportBufferSnapshotWithFallback(
+      request,
+      endpoint,
+    );
+    const previousErrorReportSnapshot = getPreviousErrorReportBufferSnapshot(
+      latestStoredReport?.summary,
+    );
+    const configuredWebhook = getConfiguredAlertWebhook(endpoint, request);
+
+    let alertSummary = buildErrorSpikeAlertSummary({
+      current: errorReportSnapshot,
+      previous: previousErrorReportSnapshot,
+      webhookConfigured: configuredWebhook !== null,
+    });
+
+    if (alertSummary.triggered && configuredWebhook) {
+      alertSummary = {
+        ...alertSummary,
+        delivery: await sendErrorSpikeAlert({
+          endpoint,
+          request,
+          summary: alertSummary,
+          snapshot: errorReportSnapshot,
+          webhook: configuredWebhook,
+        }),
+      };
+    }
+
+    const observabilitySummary: AnalyticsMetricGroup = {
+      errorReports: toErrorReportBufferMetricGroup(errorReportSnapshot),
+      alerts: toErrorSpikeAlertMetricGroup(alertSummary),
+    };
+
+    summary.observability = observabilitySummary;
 
     const report = await createAndSaveReport(
       redisClient,

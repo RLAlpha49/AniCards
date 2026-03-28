@@ -5,6 +5,8 @@ import { buildCSPHeader } from "@/lib/csp-config";
 import { generateSecureId } from "@/lib/utils";
 
 const REQUEST_ID_HEADER = "x-request-id";
+const REQUEST_ID_MIDDLEWARE_MATCHER =
+  "/((?!_next/static|_next/image|favicon.ico).*)";
 
 function isSafeRequestId(value: string): boolean {
   return /^[A-Za-z0-9._:-]{8,120}$/.test(value);
@@ -21,6 +23,14 @@ function getOrCreateRequestId(request: NextRequest): string {
   }
 
   return generateSecureId("request");
+}
+
+function getRequestPathname(request: Pick<Request, "url">): string {
+  try {
+    return new URL(request.url).pathname;
+  } catch {
+    return "/";
+  }
 }
 
 /**
@@ -62,26 +72,32 @@ function generateNonce(): string {
  * @source
  */
 export function middleware(request: NextRequest) {
-  const nonce = generateNonce();
   const requestId = getOrCreateRequestId(request);
-
-  const cspHeader = buildCSPHeader(nonce, {
-    allowUnsafeEval: process.env.NODE_ENV !== "production",
-  });
+  const isApiRequest = getRequestPathname(request).startsWith("/api/");
+  const nonce = isApiRequest ? undefined : generateNonce();
 
   const forwardedHeaders = new Headers(request.headers);
-  forwardedHeaders.set("x-nonce", nonce);
   forwardedHeaders.set(REQUEST_ID_HEADER, requestId);
+
+  if (nonce) {
+    forwardedHeaders.set("x-nonce", nonce);
+  }
+
   const response = NextResponse.next({
     request: {
       headers: forwardedHeaders,
     },
   });
-
-  response.headers.set("Content-Security-Policy", cspHeader);
-
-  response.headers.set("x-nonce", nonce);
   response.headers.set("X-Request-Id", requestId);
+
+  if (nonce) {
+    const cspHeader = buildCSPHeader(nonce, {
+      allowUnsafeEval: process.env.NODE_ENV !== "production",
+    });
+
+    response.headers.set("Content-Security-Policy", cspHeader);
+    response.headers.set("x-nonce", nonce);
+  }
 
   return response;
 }
@@ -90,13 +106,15 @@ export function middleware(request: NextRequest) {
  * Middleware configuration
  *
  * Runs on all routes except:
- * - API routes (they don't render HTML with scripts)
  * - Static files (_next/static)
  * - Image optimization files (_next/image)
  * - Favicon
  *
+ * API routes participate so request IDs are injected consistently, while the
+ * HTML-only CSP nonce path stays limited to non-API requests.
+ *
  * @source
  */
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: [REQUEST_ID_MIDDLEWARE_MATCHER],
 };

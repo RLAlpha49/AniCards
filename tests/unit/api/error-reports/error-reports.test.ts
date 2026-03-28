@@ -99,6 +99,53 @@ describe("error reports API route", () => {
     expect(report).not.toHaveProperty("username");
   });
 
+  it("persists the resolved request ID in the structured report", async () => {
+    const response = await POST(
+      createRequest(undefined, {
+        "x-request-id": "req-error-route-12345",
+      }),
+    );
+
+    expect(response.status).toBe(202);
+
+    const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1] as
+      | string
+      | undefined;
+    const report = JSON.parse(String(serializedReport)) as {
+      requestId?: string;
+    };
+
+    expect(report.requestId).toBe("req-error-route-12345");
+  });
+
+  it("prefers payload request IDs when the client cannot rely on headers alone", async () => {
+    const response = await POST(
+      createRequest(
+        {
+          source: "react_error_boundary",
+          userAction: "render_component_tree",
+          message: "Failed to fetch user Alex profile",
+          requestId: "req-payload-12345",
+          route: "/user/Alex?tab=cards",
+        },
+        {
+          "x-request-id": "req-ingestion-99999",
+        },
+      ),
+    );
+
+    expect(response.status).toBe(202);
+
+    const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1] as
+      | string
+      | undefined;
+    const report = JSON.parse(String(serializedReport)) as {
+      requestId?: string;
+    };
+
+    expect(report.requestId).toBe("req-payload-12345");
+  });
+
   it("returns 429 when the dedicated error-report limiter is exceeded", async () => {
     sharedRatelimitMockLimit.mockResolvedValueOnce({
       success: false,
@@ -137,6 +184,9 @@ describe("error reports API route", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Access-Control-Allow-Origin")).toBe(
       "http://localhost",
+    );
+    expect(response.headers.get("Access-Control-Allow-Headers")).toContain(
+      "X-Request-Id",
     );
     expect(response.headers.get("Access-Control-Allow-Methods")).toContain(
       "POST",
