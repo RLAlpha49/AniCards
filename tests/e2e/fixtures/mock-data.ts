@@ -232,7 +232,7 @@ export const mockUserRecord: UserRecord = {
   userId: "123456",
   username: "TestUser",
   stats: mockUserStatsData,
-  ip: "127.0.0.1",
+  requestMetadata: { lastSeenIpBucket: "loopback" },
   createdAt: "2024-01-15T10:00:00.000Z",
   updatedAt: "2024-12-01T15:30:00.000Z",
 };
@@ -320,7 +320,7 @@ export const mockEmptyUserRecord: UserRecord = {
     threadCommentsPage: { pageInfo: { total: 0 }, threadComments: [] },
     reviewsPage: { pageInfo: { total: 0 }, reviews: [] },
   },
-  ip: "127.0.0.1",
+  requestMetadata: { lastSeenIpBucket: "loopback" },
   createdAt: "2024-01-01T00:00:00.000Z",
   updatedAt: "2024-01-01T00:00:00.000Z",
 };

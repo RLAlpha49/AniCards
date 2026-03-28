@@ -438,11 +438,6 @@ export interface UserRecord extends PersistedUserRecord {
     threadCommentsPage?: ThreadCommentsPage;
     reviewsPage?: ReviewsPage;
   };
-  /**
-   * @deprecated Legacy raw IP field retained only so old records can be
-   * normalized and migrated into the minimized persisted schema.
-   */
-  ip?: string;
 }
 
 /** Public DTO returned by `/api/get-user`. */

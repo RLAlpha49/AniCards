@@ -41,6 +41,8 @@ interface UpdateResult {
   statsData?: any;
 }
 
+const FAILED_UPDATE_TTL_SECONDS = 14 * 24 * 60 * 60;
+
 /**
  * Attempts to fetch AniList stats for the given user with up to three retries.
  * @param userId - AniList identifier whose stats should be refreshed.
@@ -145,7 +147,9 @@ async function handleFailureTracking(
   );
 
   if (newFailureCount >= 3) {
-    const deleteResult = await deleteUserRecord(userId);
+    const deleteResult = await deleteUserRecord(userId, {
+      triggerSource: "cron_cleanup_404",
+    });
 
     logPrivacySafe(
       "warn",
@@ -159,7 +163,9 @@ async function handleFailureTracking(
     );
     return true;
   } else {
-    await redisClient.set(failureKey, newFailureCount);
+    await redisClient.set(failureKey, newFailureCount, {
+      ex: FAILED_UPDATE_TTL_SECONDS,
+    });
     return false;
   }
 }
@@ -312,9 +318,13 @@ export async function POST(request: Request) {
     await Promise.all(
       batch.map(async ({ id }) => {
         try {
-          const partsData = await fetchUserDataParts(id, [
-            ...ALL_USER_DATA_PARTS,
-          ]);
+          const partsData = await fetchUserDataParts(
+            id,
+            [...ALL_USER_DATA_PARTS],
+            {
+              triggerSource: "cron_refresh",
+            },
+          );
           const user = reconstructUserRecord(partsData);
 
           logPrivacySafe(
@@ -341,7 +351,9 @@ export async function POST(request: Request) {
 
             finalUser.updatedAt = new Date().toISOString();
 
-            await saveUserRecord(finalUser);
+            await saveUserRecord(finalUser, {
+              triggerSource: "cron_refresh",
+            });
 
             logPrivacySafe(
               "log",

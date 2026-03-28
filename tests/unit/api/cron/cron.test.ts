@@ -10,8 +10,10 @@ import {
   allowConsoleWarningsAndErrors,
   sharedRedisMockDel,
   sharedRedisMockGet,
+  sharedRedisMockLtrim,
   sharedRedisMockMget,
   sharedRedisMockPipelineExec,
+  sharedRedisMockRpush,
   sharedRedisMockScan,
   sharedRedisMockSet,
   sharedRedisMockZadd,
@@ -199,6 +201,8 @@ describe("Cron API Route", () => {
     sharedRedisMockPipelineExec.mockReset();
     sharedRedisMockSet.mockReset();
     sharedRedisMockDel.mockReset();
+    sharedRedisMockRpush.mockReset();
+    sharedRedisMockLtrim.mockReset();
     sharedRedisMockScan.mockReset();
     sharedRedisMockZadd.mockReset();
     sharedRedisMockZcard.mockReset();
@@ -381,6 +385,65 @@ describe("Cron API Route", () => {
       "username:user123",
       "username:old-user123",
     );
+
+    const auditEntry = JSON.parse(
+      String(sharedRedisMockRpush.mock.calls.at(-1)?.[1]),
+    );
+    expect(sharedRedisMockRpush).toHaveBeenCalledWith(
+      "telemetry:user-lifecycle-audit:v1",
+      expect.any(String),
+    );
+    expect(sharedRedisMockLtrim).toHaveBeenCalledWith(
+      "telemetry:user-lifecycle-audit:v1",
+      -250,
+      -1,
+    );
+    expect(auditEntry).toMatchObject({
+      action: "delete",
+      triggerSource: "cron_cleanup_404",
+      userId: "123",
+    });
+  });
+
+  it("stores repeated 404 counters with a sliding TTL window before deletion threshold", async () => {
+    mockUserRecords(["123"]);
+    sharedRedisMockGet.mockImplementation((key: string) => {
+      if (key === "failed_updates:123") {
+        return Promise.resolve("1");
+      }
+
+      const commitMatch = /^user:(\d+):commit$/.exec(key);
+      if (commitMatch) {
+        return Promise.resolve(null);
+      }
+
+      const metaMatch = /^user:(\d+):meta$/.exec(key);
+      if (metaMatch) {
+        return Promise.resolve(
+          JSON.stringify(createStoredSplitUser(metaMatch[1]).meta),
+        );
+      }
+
+      const legacyMatch = /^user:(\d+)$/.exec(key);
+      if (legacyMatch) {
+        return Promise.resolve(
+          JSON.stringify(createMockUserRecord(legacyMatch[1])),
+        );
+      }
+
+      return Promise.resolve(null);
+    });
+    globalThis.fetch = mock(() =>
+      Promise.resolve(createJsonResponse(404, { error: "User not found" })),
+    ) as unknown as typeof fetch;
+
+    const response = await POST(createCronRequest());
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("Failed: 1, Removed: 0");
+    expect(sharedRedisMockSet).toHaveBeenCalledWith("failed_updates:123", 2, {
+      ex: 14 * 24 * 60 * 60,
+    });
   });
 
   it("retries transient transport failures and succeeds on a later attempt", async () => {

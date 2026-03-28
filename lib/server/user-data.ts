@@ -70,6 +70,8 @@ const OPTIONAL_USER_DATA_PARTS = new Set<UserDataPart>(["aggregates"]);
 const USER_STORAGE_FORMAT = "split-user-v2";
 export const USER_RECORD_SCHEMA_VERSION = 2;
 const USER_REFRESH_INDEX_KEY = "users:stale-by-updated-at";
+const USER_LIFECYCLE_AUDIT_KEY = "telemetry:user-lifecycle-audit:v1";
+const MAX_USER_LIFECYCLE_AUDIT_EVENTS = 250;
 
 const getUserCommitKey = (userId: string | number) => `user:${userId}:commit`;
 
@@ -94,6 +96,24 @@ export interface PersistedUserState {
   updatedAt?: string;
   username?: string;
   normalizedUsername?: string;
+}
+
+export type UserLifecycleAuditAction = "access" | "delete" | "save";
+
+export type UserLifecycleAuditTriggerSource =
+  | "cron_cleanup_404"
+  | "cron_refresh"
+  | "legacy_migration"
+  | "legacy_split_rewrite"
+  | "user_data_delete"
+  | "user_data_fetch"
+  | "user_data_save";
+
+interface UserLifecycleAuditEntry {
+  action: UserLifecycleAuditAction;
+  timestamp: string;
+  triggerSource: UserLifecycleAuditTriggerSource;
+  userId: string;
 }
 
 export class UserDataIntegrityError extends Error {
@@ -141,8 +161,6 @@ interface UserMeta {
   name?: string;
   avatar?: UserAvatar;
   userCreatedAt?: number;
-  /** @deprecated Legacy raw IP field retained only for migration reads. */
-  ip?: string;
 }
 
 interface UserAggregates {
@@ -418,6 +436,42 @@ function getUpdatedAtScore(updatedAt: string | undefined): number {
 
   const parsed = Date.parse(updatedAt);
   return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+async function appendUserLifecycleAuditEntry(entry: UserLifecycleAuditEntry) {
+  try {
+    await redisClient.rpush(USER_LIFECYCLE_AUDIT_KEY, JSON.stringify(entry));
+    await redisClient.ltrim(
+      USER_LIFECYCLE_AUDIT_KEY,
+      -MAX_USER_LIFECYCLE_AUDIT_EVENTS,
+      -1,
+    );
+  } catch (error) {
+    logPrivacySafe(
+      "warn",
+      "User Data",
+      "Failed to persist user lifecycle audit event",
+      {
+        action: entry.action,
+        error: error instanceof Error ? error.message : String(error),
+        triggerSource: entry.triggerSource,
+        userId: entry.userId,
+      },
+    );
+  }
+}
+
+async function auditUserLifecycleEvent(options: {
+  action: UserLifecycleAuditAction;
+  triggerSource: UserLifecycleAuditTriggerSource;
+  userId: string | number;
+}) {
+  await appendUserLifecycleAuditEntry({
+    action: options.action,
+    timestamp: new Date().toISOString(),
+    triggerSource: options.triggerSource,
+    userId: String(options.userId),
+  });
 }
 
 function logIntegrityFailure(
@@ -791,6 +845,7 @@ async function loadLegacyCompatibleUserDataParts(
       existingState: meta
         ? buildPersistedStateFromMeta(userId, meta, "split")
         : undefined,
+      triggerSource: "legacy_split_rewrite",
     });
   }
 
@@ -992,6 +1047,13 @@ export function reconstructUserRecord(
   parts: Partial<Record<UserDataPart, unknown>>,
 ): ReconstructedUserRecord {
   const meta = parts.meta as UserMeta | undefined;
+  const requestMetadata = normalizePersistedRequestMetadata(
+    meta?.requestMetadata,
+  );
+  const legacyIp = getStringProp(meta, "ip");
+  const effectiveRequestMetadata =
+    requestMetadata ??
+    (legacyIp ? buildPersistedRequestMetadata(legacyIp) : undefined);
   const activity = parts.activity as UserSection["stats"] | undefined;
   const favourites = parts.favourites as UserSection["favourites"] | undefined;
   const statisticsPart = parts.statistics as
@@ -1125,6 +1187,7 @@ export function reconstructUserRecord(
   delete rest.revision;
   delete rest.storageFormat;
   delete rest.usernameNormalized;
+  delete rest.ip;
   const aggregates = parts.aggregates as UserAggregates | undefined;
 
   return {
@@ -1132,7 +1195,9 @@ export function reconstructUserRecord(
     username: meta?.username,
     createdAt: meta?.createdAt || "",
     updatedAt: meta?.updatedAt || "",
-    ...(meta?.requestMetadata ? { requestMetadata: meta.requestMetadata } : {}),
+    ...(effectiveRequestMetadata
+      ? { requestMetadata: effectiveRequestMetadata }
+      : {}),
     stats: userStatsData,
     statistics: userSection.statistics,
     favourites: userSection.favourites,
@@ -1189,6 +1254,7 @@ export async function saveUserRecord(
   record: PersistedUserRecord,
   options?: {
     existingState?: PersistedUserState;
+    triggerSource?: UserLifecycleAuditTriggerSource;
   },
 ): Promise<{ updatedAt: string; revision: number }> {
   const currentState =
@@ -1264,6 +1330,11 @@ export async function saveUserRecord(
   pipeline.del(`user:${userId}`, ...staleSplitKeys);
 
   await pipeline.exec();
+  await auditUserLifecycleEvent({
+    action: "save",
+    triggerSource: options?.triggerSource ?? "user_data_save",
+    userId,
+  });
 
   return {
     updatedAt: record.updatedAt,
@@ -1304,6 +1375,9 @@ async function findUsernameIndexKeysForUser(
  */
 export async function deleteUserRecord(
   userId: string | number,
+  options?: {
+    triggerSource?: UserLifecycleAuditTriggerSource;
+  },
 ): Promise<DeleteUserRecordResult> {
   const usernameIndexKeys = await findUsernameIndexKeysForUser(userId);
   const keys = ALL_USER_DATA_PARTS.map((part) => getUserDataKey(userId, part));
@@ -1316,6 +1390,11 @@ export async function deleteUserRecord(
   );
   await redisClient.del(...keys);
   await redisSortedSetClient.zrem(USER_REFRESH_INDEX_KEY, String(userId));
+  await auditUserLifecycleEvent({
+    action: "delete",
+    triggerSource: options?.triggerSource ?? "user_data_delete",
+    userId,
+  });
 
   return {
     deletedKeys: keys,
@@ -1342,6 +1421,7 @@ export async function migrateUserRecord(
 
   await saveUserRecord(record, {
     existingState: buildPersistedStateFromLegacyRecord(userId, record),
+    triggerSource: "legacy_migration",
   });
 
   return record;
@@ -1353,13 +1433,32 @@ export async function migrateUserRecord(
 export async function fetchUserDataParts(
   userId: string | number,
   parts: UserDataPart[],
+  options?: {
+    triggerSource?: UserLifecycleAuditTriggerSource;
+  },
 ): Promise<Partial<Record<UserDataPart, unknown>>> {
   const commitPointer = await readUserCommitPointer(userId);
   if (commitPointer) {
-    return loadCommittedUserDataParts(userId, parts, commitPointer);
+    const data = await loadCommittedUserDataParts(userId, parts, commitPointer);
+    if (Object.keys(data).length > 0) {
+      await auditUserLifecycleEvent({
+        action: "access",
+        triggerSource: options?.triggerSource ?? "user_data_fetch",
+        userId,
+      });
+    }
+    return data;
   }
 
-  return loadLegacyCompatibleUserDataParts(userId, parts);
+  const data = await loadLegacyCompatibleUserDataParts(userId, parts);
+  if (Object.keys(data).length > 0) {
+    await auditUserLifecycleEvent({
+      action: "access",
+      triggerSource: options?.triggerSource ?? "user_data_fetch",
+      userId,
+    });
+  }
+  return data;
 }
 
 /**
