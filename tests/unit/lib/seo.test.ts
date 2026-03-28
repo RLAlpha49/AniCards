@@ -78,4 +78,14 @@ describe("SEO metadata helpers", () => {
     expect(openGraph?.url).toBeUndefined();
     expect(twitter?.images).toEqual([previewImage]);
   });
+
+  it("keeps the privacy disclosure publicly canonical and indexable", () => {
+    const metadata = generateMetadata(seoConfigs.privacy);
+    const openGraph = getOpenGraphMetadata(metadata);
+    const robots = getRobotsMetadata(metadata);
+
+    expect(metadata.alternates?.canonical).toBe("/privacy");
+    expect(openGraph?.url).toBe(resolveSiteUrl("/privacy"));
+    expect(robots?.index).toBe(true);
+  });
 });

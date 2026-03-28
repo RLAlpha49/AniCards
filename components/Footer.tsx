@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ExternalLink, Mail, Scale } from "lucide-react";
+import { ExternalLink, Mail, Scale, Shield } from "lucide-react";
 import Link from "next/link";
 
 import {
@@ -13,6 +13,7 @@ import { EASE_OUT_EXPO } from "@/lib/animations";
 import {
   safeTrack,
   trackExternalLinkClick,
+  trackNavigation,
 } from "@/lib/utils/google-analytics";
 
 const SOCIAL_LINKS = [
@@ -84,6 +85,20 @@ export default function Footer() {
                 size-2.5 opacity-0 transition-opacity
                 group-hover:opacity-100
               " />
+            </Link>
+            <span className="text-gold/30">•</span>
+            <Link
+              href="/privacy"
+              className="
+                inline-flex items-center gap-1 font-body-serif text-foreground/40 transition-colors
+                hover:text-gold
+              "
+              onClick={() =>
+                safeTrack(() => trackNavigation("privacy", "footer"))
+              }
+            >
+              <Shield className="size-3" />
+              Privacy Disclosure
             </Link>
           </motion.div>
 

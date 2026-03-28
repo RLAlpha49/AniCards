@@ -2,7 +2,8 @@
 
 import { Analytics as VercelAnalytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { BarChart3, Shield } from "lucide-react";
+import { ArrowRight, BarChart3, Shield } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useId, useState } from "react";
 
 import GoogleAnalytics from "@/components/GoogleAnalytics";
@@ -20,7 +21,9 @@ import {
   ANALYTICS_CONSENT_STORAGE_KEY,
   type AnalyticsConsentState,
   getAnalyticsConsentState,
+  safeTrack,
   setAnalyticsConsentState,
+  trackNavigation,
 } from "@/lib/utils/google-analytics";
 
 interface AnalyticsProviderProps {
@@ -147,8 +150,24 @@ export default function AnalyticsProvider({
                 </p>
                 <p className="text-xs text-muted-foreground">
                   AniCards only records consented page and error metrics using
-                  redacted route patterns and bounded event labels.
+                  redacted route patterns, bounded labels, and monthly counter
+                  buckets with a roughly 400-day TTL.
                 </p>
+                <Link
+                  href="/privacy"
+                  className="
+                    inline-flex items-center gap-1 text-xs font-medium text-gold
+                    hover:text-gold/80
+                  "
+                  onClick={() =>
+                    safeTrack(() =>
+                      trackNavigation("privacy", "analytics_manager"),
+                    )
+                  }
+                >
+                  Read the privacy disclosure
+                  <ArrowRight className="size-3" aria-hidden="true" />
+                </Link>
               </div>
 
               <div className="space-y-3 rounded-md border border-border/60 bg-muted/20 p-3">
@@ -178,54 +197,77 @@ export default function AnalyticsProvider({
       ) : null}
 
       {shouldShowBanner ? (
-        <div className="
-          fixed inset-x-0 bottom-0 z-50 border-t border-gold/20 bg-background/95 p-4 shadow-2xl
-          backdrop-blur-sm
-        ">
+        <>
+          <div
+            aria-hidden="true"
+            className="pointer-events-none h-48 sm:h-36"
+          />
           <div className="
-            container mx-auto flex max-w-5xl flex-col gap-4
-            sm:flex-row sm:items-end sm:justify-between
+            fixed inset-x-0 bottom-0 z-50 border-t border-gold/20 bg-background/95 p-4 shadow-2xl
+            backdrop-blur-sm
           ">
-            <div className="flex items-start gap-3">
-              <span className="
-                flex size-10 shrink-0 items-center justify-center rounded-full bg-gold/10 text-gold
-              ">
-                <Shield className="size-5" aria-hidden="true" />
-              </span>
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-foreground">
-                  Allow privacy-safe analytics?
-                </p>
-                <p
-                  id={consentDescriptionId}
-                  className="max-w-3xl text-sm text-muted-foreground"
+            <div className="
+              container mx-auto flex max-w-5xl flex-col gap-4
+              sm:flex-row sm:items-end sm:justify-between
+            ">
+              <div className="flex items-start gap-3">
+                <span className="
+                  flex size-10 shrink-0 items-center justify-center rounded-full bg-gold/10
+                  text-gold
+                ">
+                  <Shield className="size-5" aria-hidden="true" />
+                </span>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-foreground">
+                    Allow privacy-safe analytics?
+                  </p>
+                  <p
+                    id={consentDescriptionId}
+                    className="max-w-3xl text-sm text-muted-foreground"
+                  >
+                    Analytics is off by default. If you opt in, AniCards only
+                    sends redacted route patterns and bounded error categories
+                    for product insights, and stores aggregate counters in
+                    monthly buckets for about 400 days. You can change this
+                    later from the analytics control.
+                  </p>
+                  <Link
+                    href="/privacy"
+                    className="
+                      inline-flex items-center gap-1 text-xs font-medium text-gold
+                      hover:text-gold/80
+                    "
+                    onClick={() =>
+                      safeTrack(() =>
+                        trackNavigation("privacy", "analytics_banner"),
+                      )
+                    }
+                  >
+                    Learn more about privacy
+                    <ArrowRight className="size-3" aria-hidden="true" />
+                  </Link>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => updateConsent(false)}
                 >
-                  Analytics is off by default. If you opt in, AniCards only
-                  sends redacted route patterns and bounded error categories for
-                  product insights. You can change this later from the analytics
-                  control.
-                </p>
+                  Keep it off
+                </Button>
+                <Button
+                  type="button"
+                  className="bg-gold text-white hover:bg-gold/90"
+                  onClick={() => updateConsent(true)}
+                >
+                  Allow analytics
+                </Button>
               </div>
             </div>
-
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => updateConsent(false)}
-              >
-                Keep it off
-              </Button>
-              <Button
-                type="button"
-                className="bg-gold text-white hover:bg-gold/90"
-                onClick={() => updateConsent(true)}
-              >
-                Allow analytics
-              </Button>
-            </div>
           </div>
-        </div>
+        </>
       ) : null}
     </>
   );

@@ -279,6 +279,20 @@ export const seoConfigs = {
     canonical: "/projects",
   },
 
+  privacy: {
+    title: "Privacy Disclosure - AniCards",
+    description:
+      "Read AniCards' plain-language summary of analytics consent, saved data, telemetry minimization, and current retention limits.",
+    keywords: [
+      "privacy disclosure",
+      "analytics consent",
+      "data retention",
+      "telemetry",
+      "saved data",
+    ],
+    canonical: "/privacy",
+  },
+
   user: {
     title: "User Stats - AniCards",
     description:
@@ -322,6 +336,11 @@ const staticSitemapEntryDefs = [
     seoKey: "projects",
     priority: 0.6,
     changefreq: "monthly",
+  },
+  {
+    seoKey: "privacy",
+    priority: 0.55,
+    changefreq: "yearly",
   },
   {
     seoKey: "contact",

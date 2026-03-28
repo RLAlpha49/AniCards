@@ -2,6 +2,8 @@
 
 A maintainer-facing technical summary of the privacy posture baked into the repository. Not a legal document — not a substitute for a real privacy policy review. Just a plain account of what data the code handles and how.
 
+The app also exposes a public-facing summary at `/privacy`. That page is likewise a product disclosure, not a legal privacy policy.
+
 ## Data currently handled by the repo
 
 ### Persisted AniList-derived user snapshots
@@ -18,7 +20,7 @@ The stored shape currently looks like this:
 - `updatedAt`
 - optional `requestMetadata.lastSeenIpBucket`
 
-The write path does not intentionally persist raw IP addresses.
+The write path does not intentionally persist raw IP addresses. The only active request-level field is an optional coarse IP bucket such as `203.0.x.x`, `ipv6`, or `loopback`.
 
 ### Persisted card editor configuration
 
@@ -58,7 +60,8 @@ Those reports can include sanitized versions of:
 - route
 - stack / component stack
 - bounded metadata
-- optionally redacted user identifiers
+
+Client-supplied `userId` and `username` fields are ignored by this route and are not persisted as part of the structured error report payload.
 
 ## Third-party and infrastructure services
 
@@ -123,9 +126,32 @@ Cap:
 
 - maximum stored error reports: **250**
 
+### User lifecycle audit trail
+
+Server-side lifecycle audit entries are stored in a bounded Redis list.
+
+Cap:
+
+- maximum stored lifecycle audit entries: **250**
+
 ### Aggregate counters
 
-Analytics counters accumulate under `analytics:*` Redis keys. These are bounded by operational cleanup and reporting patterns, but the current code does not assign per-key TTLs to the underlying raw counters.
+Analytics counters are stored as monthly bucket keys under `analytics:*:month:YYYY-MM`.
+
+Retention posture:
+
+- each monthly counter bucket receives a **400-day TTL** when updated
+- raw analytics counters are therefore retained for roughly **13 months**, not indefinitely
+- `/api/cron/analytics-reporting` still reads the bounded monthly buckets when generating reports
+
+### Failed update counters
+
+The scheduled stale-user refresh flow keeps repeated AniList 404 counters under `failed_updates:{userId}`.
+
+Retention posture:
+
+- each failure counter receives a **14-day TTL** when updated
+- a stored user is removed after **three consecutive** scheduled 404 refresh failures inside that window
 
 ## Public access and data minimization
 

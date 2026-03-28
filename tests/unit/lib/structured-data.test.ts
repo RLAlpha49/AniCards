@@ -39,4 +39,10 @@ describe("structured data helpers", () => {
 
     expect(entries[0]?.["@type"]).toBe("ContactPage");
   });
+
+  it("models the privacy route as a standard public webpage disclosure", () => {
+    const entries = generateStructuredData("privacy");
+
+    expect(entries[0]?.["@type"]).toBe("WebPage");
+  });
 });
