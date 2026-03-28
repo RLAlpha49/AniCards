@@ -29,8 +29,6 @@ interface ReportErrorOptions {
   error: unknown;
   category?: ErrorCategory;
   statusCode?: number;
-  userId?: string;
-  username?: string;
   route?: string;
   source?: ErrorReportSource;
   componentStack?: string;
@@ -58,8 +56,6 @@ export interface StructuredErrorReport {
   digest?: string;
   stack?: string;
   componentStack?: string;
-  userId?: string;
-  username?: string;
   metadata?: Record<string, SerializableMetadataValue>;
 }
 
@@ -117,20 +113,6 @@ function sanitizeStackTrace(
 function sanitizeUserAction(userAction: string): string {
   const trimmed = userAction.trim();
   return truncateText(trimmed || "unknown_action", 120);
-}
-
-function redactIdentifier(value: string | undefined): string | undefined {
-  if (typeof value !== "string") return undefined;
-
-  const normalized = value.trim();
-  if (!normalized) return undefined;
-
-  if (/^\d+$/.test(normalized)) {
-    return `id:***${normalized.slice(-2)}`;
-  }
-
-  const prefix = normalized.slice(0, Math.min(2, normalized.length));
-  return `${prefix}${normalized.length > 2 ? "***" : "*"}(${normalized.length})`;
 }
 
 function getCurrentClientRoute(): string | undefined {
@@ -256,8 +238,6 @@ function buildStructuredErrorReport(
       options.componentStack,
       MAX_STACK_LENGTH,
     ),
-    userId: redactIdentifier(options.userId),
-    username: redactIdentifier(options.username),
     metadata: sanitizeMetadata(options.metadata),
   };
 }
@@ -277,8 +257,6 @@ async function persistStructuredErrorReport(
     retryable: report.retryable,
     route: report.route,
     statusCode: report.statusCode,
-    userId: report.userId,
-    username: report.username,
   });
 
   if (process.env.NODE_ENV === "development") {
@@ -306,8 +284,6 @@ async function postStructuredErrorReport(
       digest: report.digest,
       stack: report.stack,
       componentStack: report.componentStack,
-      userId: report.userId,
-      username: report.username,
       metadata: report.metadata,
     }),
     credentials: "same-origin",
@@ -360,8 +336,6 @@ export async function trackUserActionError(
   error: Error | string,
   errorType: ErrorCategory,
   additionalContext?: {
-    userId?: string;
-    username?: string;
     statusCode?: number;
     route?: string;
     source?: ErrorReportSource;
@@ -376,8 +350,6 @@ export async function trackUserActionError(
     error,
     category: errorType,
     statusCode: additionalContext?.statusCode,
-    userId: additionalContext?.userId,
-    username: additionalContext?.username,
     route: additionalContext?.route,
     source: additionalContext?.source ?? "user_action",
     componentStack: additionalContext?.componentStack,

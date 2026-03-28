@@ -203,7 +203,6 @@ export function useNewUserSetup() {
             "new_user_setup_fetch_id",
             new Error(anilistIdResult.error),
             errorDetails.category,
-            { username: usernameParam },
           );
           return { error: anilistIdResult.error };
         }
@@ -224,10 +223,6 @@ export function useNewUserSetup() {
           "new_user_setup_fetch_stats",
           new Error(statsResult.error),
           errorDetails.category,
-          {
-            userId: String(resolvedUserId),
-            username: resolvedUsername ?? undefined,
-          },
         );
         return { error: statsResult.error };
       }
@@ -251,10 +246,6 @@ export function useNewUserSetup() {
           "new_user_setup_save_user",
           new Error(saveUserResult.error),
           errorDetails.category,
-          {
-            userId: String(resolvedUserId),
-            username: resolvedUsername ?? undefined,
-          },
         );
         return { error: saveUserResult.error };
       }
@@ -273,10 +264,6 @@ export function useNewUserSetup() {
           "new_user_setup_save_cards",
           new Error(saveCardsResult.error ?? "Unknown error"),
           errorDetails.category,
-          {
-            userId: String(resolvedUserId),
-            username: resolvedUsername ?? undefined,
-          },
         );
 
         const userStats = statsResult.stats.User;
@@ -403,10 +390,6 @@ export function useNewUserSetup() {
           "new_user_setup_unhandled",
           new Error(message),
           details.category,
-          {
-            userId: userIdParam ?? undefined,
-            username: usernameParam ?? undefined,
-          },
         );
 
         console.error("Unhandled error during new user setup:", err);

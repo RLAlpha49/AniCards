@@ -12,7 +12,6 @@ import {
   isValidUsername,
   jsonWithCors,
   logPrivacySafe,
-  redactUserIdentifier,
   UpstreamTransportError,
 } from "@/lib/api-utils";
 import { categorizeByStatusCode, categorizeError } from "@/lib/error-messages";
@@ -481,7 +480,6 @@ export async function POST(request: Request) {
         error instanceof Error ? error : new Error(errorMessage),
         errorCategory,
         {
-          userId: redactUserIdentifier(operationInfo.userIdentifier),
           statusCode,
           source: "api_route",
           metadata: {

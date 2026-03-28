@@ -56,8 +56,6 @@ describe("error tracking", () => {
       new Error("Failed to fetch user Alex profile"),
       "network_error",
       {
-        userId: "12345",
-        username: "Alex",
         source: "client_hook",
       },
     );
@@ -78,15 +76,15 @@ describe("error tracking", () => {
       category: string;
       retryable: boolean;
       userMessage: string;
-      userId?: string;
-      username?: string;
     };
 
     expect(payload.category).toBe("network_error");
     expect(payload.retryable).toBe(true);
     expect(payload.userMessage).toBe("Network connection error");
-    expect(payload.userId).toBe("id:***45");
-    expect(payload.username).toBe("Al***(4)");
+    expect(report).not.toHaveProperty("userId");
+    expect(report).not.toHaveProperty("username");
+    expect(payload).not.toHaveProperty("userId");
+    expect(payload).not.toHaveProperty("username");
   });
 
   it("sanitizes stack traces before persisting server reports", async () => {
@@ -155,6 +153,18 @@ describe("error tracking", () => {
         keepalive: true,
       }),
     );
+
+    const firstFetchCall = fetchMock.mock.calls[0] as unknown[] | undefined;
+    expect(firstFetchCall).toBeTruthy();
+
+    const requestInit = firstFetchCall?.[1] as RequestInit | undefined;
+    const payload = JSON.parse(String(requestInit?.body)) as Record<
+      string,
+      unknown
+    >;
+
+    expect(payload).not.toHaveProperty("userId");
+    expect(payload).not.toHaveProperty("username");
     expect(sharedRedisMockRpush).not.toHaveBeenCalled();
   });
 
@@ -209,6 +219,8 @@ describe("error tracking", () => {
 
     expect(payload.stack).toBe("at renderUser\nat fetchProfile");
     expect(payload.componentStack).toBe("at UserPage\nat Layout");
+    expect(payload).not.toHaveProperty("userId");
+    expect(payload).not.toHaveProperty("username");
     expect(JSON.stringify(payload)).not.toContain("/Users/Alex/private");
     expect(JSON.stringify(payload)).not.toContain("http://localhost:3000");
     expect(JSON.stringify(payload)).not.toContain("token=secret");

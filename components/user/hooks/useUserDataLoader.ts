@@ -172,7 +172,6 @@ export function useUserDataLoader(options?: { routeUsername?: string }) {
             "user_page_load_fetch_cards",
             new Error(cardsResult.error ?? "Unknown error"),
             errorDetails.category,
-            { userId: userIdStr, username: uname ?? undefined },
           );
           setLoadingPhase("complete");
           setLoading(false);

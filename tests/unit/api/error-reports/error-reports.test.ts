@@ -65,8 +65,17 @@ describe("error reports API route", () => {
     expect(sharedRatelimitMockSlidingWindow).toHaveBeenCalledWith(3, "10 s");
   });
 
-  it("accepts same-origin client error reports and persists them", async () => {
-    const response = await POST(createRequest());
+  it("ignores spoofed client identifiers and persists the sanitized report", async () => {
+    const response = await POST(
+      createRequest({
+        source: "react_error_boundary",
+        userAction: "render_component_tree",
+        message: "Failed to fetch user Alex profile",
+        route: "/user/Alex?tab=cards",
+        userId: "999999",
+        username: "SpoofedUser",
+      }),
+    );
     const payload = await response.json();
 
     expect(response.status).toBe(202);
@@ -86,6 +95,8 @@ describe("error reports API route", () => {
     expect(report.route).toBe("/user/[username]");
     expect(report.source).toBe("react_error_boundary");
     expect(report.category).toBe("network_error");
+    expect(report).not.toHaveProperty("userId");
+    expect(report).not.toHaveProperty("username");
   });
 
   it("returns 429 when the dedicated error-report limiter is exceeded", async () => {

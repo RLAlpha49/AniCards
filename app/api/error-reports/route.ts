@@ -123,8 +123,6 @@ export async function POST(request: Request) {
     digest: getOptionalString(payload.digest, 120),
     stack: getOptionalString(payload.stack, 8_000),
     componentStack: getOptionalString(payload.componentStack, 8_000),
-    userId: getOptionalString(payload.userId, 120),
-    username: getOptionalString(payload.username, 120),
     metadata: getMetadata(payload.metadata),
   });
 

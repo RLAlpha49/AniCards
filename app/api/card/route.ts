@@ -1101,7 +1101,6 @@ async function generateCardResponse(
       err instanceof Error ? err : new Error(String(err)),
       "server_error",
       {
-        userId: String(effectiveUserId),
         statusCode: 500,
         source: "api_route",
         metadata: {
