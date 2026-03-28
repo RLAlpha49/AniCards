@@ -278,14 +278,12 @@ async function executeAniListRequest(
 }
 
 /**
- * Increments the given analytics metric, allowing failures to silently pass.
+ * Increments the given analytics metric via the shared fail-open helper.
  * @param metric - Metric name used for analytics tracking.
  * @source
  */
 async function trackAnalytics(metric: string): Promise<void> {
-  try {
-    await incrementAnalytics(metric);
-  } catch {}
+  await incrementAnalytics(metric);
 }
 
 /**
