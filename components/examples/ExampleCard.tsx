@@ -19,7 +19,7 @@ import {
   queuePendingSettingsTemplateApply,
   upsertSettingsTemplateInStorage,
 } from "@/lib/user-page-settings-templates";
-import { cn } from "@/lib/utils";
+import { cn, toCardApiHref } from "@/lib/utils";
 
 import type { ExampleCardVariant } from "./types";
 
@@ -118,6 +118,9 @@ export function ExampleCard({
     variant.previewUrls,
     previewColorPreset,
   );
+  const previewHref = previewUrl
+    ? (toCardApiHref(previewUrl) ?? previewUrl)
+    : undefined;
   const selectedSettingsSnapshot = getSelectedSettingsSnapshot(
     variant,
     previewColorPreset,
@@ -147,15 +150,18 @@ export function ExampleCard({
     async (e: React.MouseEvent) => {
       e.stopPropagation();
       e.preventDefault();
-      if (!isPreviewReady || !navigator.clipboard || !previewUrl) return;
+      if (!isPreviewReady || !navigator.clipboard || !previewHref) return;
+
       try {
-        await navigator.clipboard.writeText(previewUrl);
+        await navigator.clipboard.writeText(
+          new URL(previewHref, globalThis.window.location.origin).toString(),
+        );
         setCopied(true);
       } catch (error) {
         console.error("Failed to copy:", error);
       }
     },
-    [isPreviewReady, previewUrl],
+    [isPreviewReady, previewHref],
   );
 
   const handleUseInEditor = useCallback(
@@ -222,9 +228,9 @@ export function ExampleCard({
         )}
       >
         {/* Full-card link overlay */}
-        {isPreviewReady && previewUrl && (
+        {isPreviewReady && previewHref && (
           <a
-            href={previewUrl}
+            href={previewHref}
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`Open ${cardTypeTitle} — ${variant.name} in new tab`}
@@ -252,9 +258,9 @@ export function ExampleCard({
             flex justify-center p-4 transition-transform duration-700 ease-out
             group-hover/card:scale-[1.03]
           ">
-            {isPreviewReady && previewUrl ? (
+            {isPreviewReady && previewHref ? (
               <ImageWithSkeleton
-                src={previewUrl}
+                src={previewHref}
                 alt={`${cardTypeTitle} - ${variant.name}`}
                 className="h-auto w-full"
               />
@@ -271,7 +277,7 @@ export function ExampleCard({
           </div>
 
           {/* Hover action badge */}
-          {isPreviewReady && previewUrl && (
+          {isPreviewReady && previewHref && (
             <div className="
               pointer-events-none absolute inset-0 z-3 flex items-center justify-center
             ">
