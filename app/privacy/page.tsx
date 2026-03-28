@@ -12,11 +12,11 @@ export const metadata = createMetadata(seoConfigs.privacy);
 const disclosureItems = [
   {
     title: "What the app stores",
-    body: "AniCards can persist minimized AniList-derived user snapshots, saved card settings, and an on-device analytics consent choice. Analytics stays off unless you opt in.",
+    body: "AniCards can persist minimized AniList-derived user snapshots, saved card settings, and an on-device Google Analytics consent choice. Google Analytics stays off unless you opt in.",
   },
   {
     title: "What telemetry looks like",
-    body: "When consent is granted, telemetry is limited to normalized route patterns, bounded labels, and structured error categories rather than raw browsing history.",
+    body: "Google Analytics events only run after consent and stay limited to normalized route patterns and bounded labels rather than raw browsing history. Separate Vercel runtime telemetry can still collect privacy-safe performance signals when enabled for the deployment.",
   },
   {
     title: "Retention limits that matter",

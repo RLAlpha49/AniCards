@@ -85,6 +85,7 @@ export default function AnalyticsProvider({
 
   const consentGranted = consentState === "granted";
   const analyticsEnabled = Boolean(trackingId) && consentGranted;
+  const runtimeTelemetryEnabled = enableRuntimeTelemetry;
   const shouldRenderConsentControls =
     Boolean(trackingId) && hasLoadedPreference;
   const shouldShowBanner =
@@ -115,7 +116,7 @@ export default function AnalyticsProvider({
 
       {children}
 
-      {enableRuntimeTelemetry && consentGranted ? (
+      {runtimeTelemetryEnabled ? (
         <>
           <VercelAnalytics />
           <SpeedInsights />
@@ -146,12 +147,12 @@ export default function AnalyticsProvider({
             >
               <div className="space-y-1">
                 <p className="text-sm font-semibold text-foreground">
-                  Privacy-safe analytics
+                  Google Analytics consent
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  AniCards only records consented page and error metrics using
-                  redacted route patterns, bounded labels, and monthly counter
-                  buckets with a roughly 400-day TTL.
+                  Your choice here only controls Google Analytics. Separate
+                  Vercel runtime telemetry may still collect privacy-safe
+                  performance signals.
                 </p>
                 <Link
                   href="/privacy"
@@ -173,13 +174,15 @@ export default function AnalyticsProvider({
               <div className="space-y-3 rounded-md border border-border/60 bg-muted/20 p-3">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-1">
-                    <Label htmlFor={manageSwitchId}>Allow analytics</Label>
+                    <Label htmlFor={manageSwitchId}>
+                      Allow Google Analytics
+                    </Label>
                     <p
                       id={consentDescriptionId}
                       className="text-xs text-muted-foreground"
                     >
                       You can turn this off any time. Turning it off stops
-                      future pageview and error events.
+                      future Google Analytics pageview and event tracking.
                     </p>
                   </div>
                   <Switch
@@ -219,17 +222,17 @@ export default function AnalyticsProvider({
                 </span>
                 <div className="space-y-1">
                   <p className="text-sm font-semibold text-foreground">
-                    Allow privacy-safe analytics?
+                    Allow Google Analytics?
                   </p>
                   <p
                     id={consentDescriptionId}
                     className="max-w-3xl text-sm text-muted-foreground"
                   >
-                    Analytics is off by default. If you opt in, AniCards only
-                    sends redacted route patterns and bounded error categories
-                    for product insights, and stores aggregate counters in
-                    monthly buckets for about 400 days. You can change this
-                    later from the analytics control.
+                    Google Analytics is off by default. If you opt in, AniCards
+                    sends consented pageview and event data using redacted route
+                    patterns and bounded labels. Separate Vercel runtime
+                    telemetry may still run, and you can change your Google
+                    Analytics choice later from the analytics control.
                   </p>
                   <Link
                     href="/privacy"
@@ -262,7 +265,7 @@ export default function AnalyticsProvider({
                   className="bg-gold text-white hover:bg-gold/90"
                   onClick={() => updateConsent(true)}
                 >
-                  Allow analytics
+                  Allow Google Analytics
                 </Button>
               </div>
             </div>

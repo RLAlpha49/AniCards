@@ -37,17 +37,26 @@ Analytics consent lives client-side in local storage under:
 
 - `anicards:analytics-consent:v1`
 
-Values are `granted` or `denied`. The `unset` state is the default before a user makes a choice — analytics stays off until they actively grant it.
+Values are `granted` or `denied`. The `unset` state is the default before a user makes a choice — Google Analytics stays off until they actively grant it.
 
-### Consented telemetry
+### Google Analytics telemetry
 
-When analytics is enabled and the user has granted consent, the app may send:
+When Google Analytics is configured and the user has granted consent, the app may send:
 
 - pageview events with normalized route patterns
 - bounded custom event labels
 - bounded error categories
 
 Route and label values that look sensitive are intentionally redacted or normalized before transmission.
+
+### Runtime telemetry
+
+When AniCards is deployed on Vercel with runtime telemetry enabled, the app also renders:
+
+- **Vercel Analytics**
+- **Vercel Speed Insights**
+
+These runtime signals are not gated behind the Google Analytics consent toggle.
 
 ### Structured error reports
 
@@ -70,19 +79,19 @@ The codebase touches these external services:
 - **AniList GraphQL** — upstream source for profile and statistics data
 - **Upstash Redis / Ratelimit** — persistence, analytics counters, and retention-limited reports
 - **Google Analytics / Google Tag Manager** — consent-gated analytics when `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID` is configured
-- **Vercel Analytics / Speed Insights** — consent-gated runtime telemetry on Vercel deployments
+- **Vercel Analytics / Speed Insights** — runtime telemetry enabled on Vercel deployments when the app turns on runtime telemetry
 
 ## Analytics consent model
 
-The consent model is opt-in. No gray area here.
+The Google Analytics consent model is opt-in. No gray area here.
 
 How it works:
 
-- analytics is disabled by default
+- Google Analytics is disabled by default
 - the consent banner only appears when a tracking ID is actually configured
 - granting consent enables Google Analytics pageviews and events
-- Vercel Analytics and Speed Insights only render when consent is granted and the app is running on Vercel
-- revoking consent stops future events immediately
+- Vercel Analytics and Speed Insights render whenever runtime telemetry is enabled and the app is running on Vercel
+- revoking consent stops future Google Analytics events immediately
 
 Google Analytics is initialized with:
 
