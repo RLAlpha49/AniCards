@@ -11,7 +11,7 @@ import {
   Sliders,
   Square,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import {
   ColorPickerGroup,
@@ -362,12 +362,18 @@ function SettingsSection({
   children: React.ReactNode;
 }>) {
   const [open, setOpen] = useState(defaultOpen);
+  const sectionId = useId();
+  const triggerId = `${sectionId}-trigger`;
+  const panelId = `${sectionId}-panel`;
 
   return (
     <div className="border border-border/50 bg-card/40 transition-colors">
       <button
+        id={triggerId}
         type="button"
         onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-controls={panelId}
         className="
           flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors
           hover:bg-muted/40
@@ -385,26 +391,29 @@ function SettingsSection({
           </span>
         </div>
         <ChevronRight
+          aria-hidden="true"
           className={cn(
             "size-4 text-muted-foreground transition-transform duration-200",
             open && "rotate-90",
           )}
         />
       </button>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            key="content"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="overflow-hidden"
-          >
-            <div className="border-t border-border/40 p-4">{children}</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <section id={panelId} aria-labelledby={triggerId}>
+        <AnimatePresence initial={false}>
+          {open && (
+            <motion.div
+              key="content"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
+              className="overflow-hidden"
+            >
+              <div className="border-t border-border/40 p-4">{children}</div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </section>
     </div>
   );
 }
