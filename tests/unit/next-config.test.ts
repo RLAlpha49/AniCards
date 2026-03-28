@@ -15,6 +15,8 @@ describe("next.config static headers", () => {
       (header) => header.key === "Strict-Transport-Security",
     );
 
-    expect(hstsHeader?.value).toBe("max-age=31536000; includeSubDomains");
+    expect(hstsHeader?.value).toBe(
+      "max-age=31536000; includeSubDomains; preload",
+    );
   });
 });
