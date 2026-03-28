@@ -154,15 +154,15 @@ async function handleStaleUsernameAlias(
   userId: number,
   normalizedLookupUsername: string,
 ): Promise<Response> {
-  await redisClient.del(`username:${normalizedLookupUsername}`);
   logPrivacySafe(
     "warn",
     USER_API_ENDPOINT,
-    "Removed stale username alias that no longer matches stored record",
+    "Detected stale username alias that no longer matches stored record",
     {
       userId,
       username: normalizedLookupUsername,
     },
+    request,
   );
   trackUserApiMetric(USER_API_FAILED_METRIC);
   return apiErrorResponse(request, 404, "User not found");

@@ -365,7 +365,7 @@ describe("User API GET Endpoint", () => {
       );
     });
 
-    it("should delete a stale username alias when it resolves to a different stored username", async () => {
+    it("should return 404 for a stale username alias without deleting the alias", async () => {
       mockStoredParts(
         createStoredUserParts({
           meta: {
@@ -376,7 +376,7 @@ describe("User API GET Endpoint", () => {
       );
 
       await expectError("username=alice", 404, "User not found");
-      expect(sharedRedisMockDel).toHaveBeenCalledWith("username:alice");
+      expect(sharedRedisMockDel).not.toHaveBeenCalledWith("username:alice");
     });
   });
 
