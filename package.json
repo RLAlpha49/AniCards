@@ -9,7 +9,6 @@
     "lint": "eslint . --fix",
     "lint:check": "eslint .",
     "typecheck": "tsc --noEmit",
-    "format": "prettier --check .",
     "format:write": "prettier --write . && eslint . --fix",
     "update": "bunx npm-check-updates -u --target minor",
     "check:licenses": "bunx license-checker-rseidelsohn --production --summary --failOn \"GPL;AGPL;LGPL;NGPL\"",
