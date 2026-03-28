@@ -21,6 +21,8 @@ import {
   UpstreamTransportError,
 } from "@/lib/api-utils";
 import { validateAndNormalizeUserRecord } from "@/lib/card-data/validation";
+import { categorizeError } from "@/lib/error-messages";
+import { trackUserActionError } from "@/lib/error-tracking";
 import {
   ALL_USER_DATA_PARTS,
   deleteUserRecord,
@@ -42,6 +44,60 @@ interface UpdateResult {
 }
 
 const FAILED_UPDATE_TTL_SECONDS = 14 * 24 * 60 * 60;
+
+type CronUserRefreshStage =
+  | "fetch_user_data_parts"
+  | "reconstruct_user_record"
+  | "refresh_user_stats"
+  | "normalize_user_record"
+  | "save_user_record"
+  | "clear_failure_tracking"
+  | "handle_failure_tracking";
+
+function normalizeCronUserRefreshError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
+async function reportCronUserRefreshError(options: {
+  endpoint: string;
+  error: unknown;
+  request?: Request;
+  requestId?: string;
+  stage: CronUserRefreshStage;
+  userId: string;
+}): Promise<void> {
+  const normalizedError = normalizeCronUserRefreshError(options.error);
+
+  logPrivacySafe(
+    "error",
+    options.endpoint,
+    "Error processing scheduled user refresh",
+    {
+      userId: options.userId,
+      stage: options.stage,
+      error: normalizedError.message,
+      ...(normalizedError.stack ? { stack: normalizedError.stack } : {}),
+    },
+    options.request,
+  );
+
+  await trackUserActionError(
+    "cron_refresh_user",
+    normalizedError,
+    categorizeError(normalizedError.message),
+    {
+      route: "/api/cron",
+      source: "api_route",
+      stack: normalizedError.stack,
+      metadata: {
+        endpoint: "cron_job",
+        userId: options.userId,
+        stage: options.stage,
+        ...(options.requestId ? { requestId: options.requestId } : {}),
+      },
+    },
+  );
+}
 
 /**
  * Attempts to fetch AniList stats for the given user with up to three retries.
@@ -285,7 +341,7 @@ export async function POST(request: Request) {
   );
   if (init.errorResponse) return init.errorResponse;
 
-  const { startTime, endpoint } = init;
+  const { startTime, endpoint, requestId } = init;
   const authorizationError = authorizeCronRequest(request, endpoint);
   if (authorizationError) return authorizationError;
 
@@ -317,6 +373,9 @@ export async function POST(request: Request) {
 
     await Promise.all(
       batch.map(async ({ id }) => {
+        let stage: CronUserRefreshStage = "fetch_user_data_parts";
+        let trackedUserId = id;
+
         try {
           const partsData = await fetchUserDataParts(
             id,
@@ -325,7 +384,10 @@ export async function POST(request: Request) {
               triggerSource: "cron_refresh",
             },
           );
+
+          stage = "reconstruct_user_record";
           const user = reconstructUserRecord(partsData);
+          trackedUserId = user.userId;
 
           logPrivacySafe(
             "log",
@@ -338,11 +400,13 @@ export async function POST(request: Request) {
             request,
           );
 
+          stage = "refresh_user_stats";
           const updateResult = await updateUserStats(user.userId, request);
 
           if (updateResult.success) {
             user.stats = updateResult.statsData.data;
 
+            stage = "normalize_user_record";
             const normalizationResult = validateAndNormalizeUserRecord(user);
             const finalUser =
               "normalized" in normalizationResult
@@ -351,6 +415,7 @@ export async function POST(request: Request) {
 
             finalUser.updatedAt = new Date().toISOString();
 
+            stage = "save_user_record";
             await saveUserRecord(finalUser, {
               triggerSource: "cron_refresh",
             });
@@ -363,9 +428,13 @@ export async function POST(request: Request) {
               request,
             );
             successfulUpdates++;
+
+            stage = "clear_failure_tracking";
             await clearFailureTracking(redisClient, user.userId);
           } else if (updateResult.is404Error) {
             failedUpdates++;
+
+            stage = "handle_failure_tracking";
             const wasRemoved = await handleFailureTracking(
               redisClient,
               user.userId,
@@ -375,19 +444,15 @@ export async function POST(request: Request) {
               removedUsers++;
             }
           }
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } catch (error: any) {
-          logPrivacySafe(
-            "error",
+        } catch (error) {
+          await reportCronUserRefreshError({
             endpoint,
-            "Error processing scheduled user refresh",
-            {
-              userId: id,
-              error: error.message,
-              ...(error.stack ? { stack: error.stack } : {}),
-            },
+            error,
             request,
-          );
+            requestId,
+            stage,
+            userId: trackedUserId,
+          });
         }
       }),
     );

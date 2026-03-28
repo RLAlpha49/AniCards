@@ -490,6 +490,55 @@ describe("Cron API Route", () => {
     );
   });
 
+  it("records structured per-user cron errors without aborting the whole job", async () => {
+    mockUserRecords(["123"]);
+    sharedRedisMockMget.mockRejectedValueOnce(new Error("Part fetch exploded"));
+
+    const response = await POST(
+      new Request("http://localhost/api/cron", {
+        headers: {
+          "x-cron-secret": CRON_SECRET,
+          "x-request-id": "req-cron-user-error",
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain(
+      "Updated 0/1 users successfully. Failed: 0, Removed: 0",
+    );
+
+    expect(sharedRedisMockRpush).toHaveBeenCalledWith(
+      "telemetry:error-reports:v1",
+      expect.any(String),
+    );
+    expect(sharedRedisMockLtrim).toHaveBeenCalledWith(
+      "telemetry:error-reports:v1",
+      -250,
+      -1,
+    );
+
+    const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1];
+    const payload = JSON.parse(String(serializedReport)) as {
+      metadata?: Record<string, unknown>;
+      route?: string;
+      source?: string;
+      technicalMessage?: string;
+      userAction?: string;
+    };
+
+    expect(payload.userAction).toBe("cron_refresh_user");
+    expect(payload.source).toBe("api_route");
+    expect(payload.route).toBe("/api/cron");
+    expect(payload.technicalMessage).toBe("Part fetch exploded");
+    expect(payload.metadata).toMatchObject({
+      endpoint: "cron_job",
+      requestId: "req-cron-user-error",
+      stage: "fetch_user_data_parts",
+      userId: "123",
+    });
+  });
+
   it("returns 500 when Redis scanning or metadata loading fails critically", async () => {
     sharedRedisMockSmembers.mockRejectedValueOnce(
       new Error("Redis connection error"),
