@@ -1,14 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import {
+  ANALYTICS_COUNTER_TTL_SECONDS,
+  buildAnalyticsStorageKey,
   checkRateLimit,
   getRequestIp,
+  incrementAnalytics,
   readJsonRequestBody,
   validateSameOrigin,
 } from "@/lib/api-utils";
 import {
   allowConsoleWarningsAndErrors,
+  sharedRedisMockExpire,
   sharedRedisMockIncr,
+  sharedRedisMockIncrRaw,
 } from "@/tests/unit/__setup__";
 
 describe("api-utils hardening", () => {
@@ -23,6 +28,10 @@ describe("api-utils hardening", () => {
     };
     sharedRedisMockIncr.mockReset();
     sharedRedisMockIncr.mockResolvedValue(1);
+    sharedRedisMockIncrRaw.mockReset();
+    sharedRedisMockIncrRaw.mockResolvedValue(1);
+    sharedRedisMockExpire.mockReset();
+    sharedRedisMockExpire.mockResolvedValue(1);
   });
 
   afterEach(() => {
@@ -36,6 +45,8 @@ describe("api-utils hardening", () => {
       "Test API",
       "test_api",
     );
+
+    await Promise.resolve();
 
     expect(response?.status).toBe(401);
     expect(sharedRedisMockIncr).toHaveBeenCalledWith(
@@ -131,5 +142,23 @@ describe("api-utils hardening", () => {
     expect(sharedRedisMockIncr).toHaveBeenCalledWith(
       "analytics:test_api:failed_requests",
     );
+  });
+
+  it("stores analytics counters in monthly buckets with a bounded TTL", async () => {
+    const now = new Date("2026-03-27T12:00:00.000Z");
+    const metric = "analytics:test_api:successful_requests";
+    const storageKey = buildAnalyticsStorageKey(metric, now);
+
+    await incrementAnalytics(metric, { now });
+
+    expect(storageKey).toBe(
+      "analytics:test_api:successful_requests:month:2026-03",
+    );
+    expect(sharedRedisMockIncrRaw).toHaveBeenCalledWith(storageKey);
+    expect(sharedRedisMockExpire).toHaveBeenCalledWith(
+      storageKey,
+      ANALYTICS_COUNTER_TTL_SECONDS,
+    );
+    expect(sharedRedisMockIncr).toHaveBeenCalledWith(metric);
   });
 });

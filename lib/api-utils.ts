@@ -422,6 +422,7 @@ const DEFAULT_UPSTREAM_MAX_BACKOFF_MS = 5_000;
 const DEFAULT_CIRCUIT_BREAKER_FAILURE_THRESHOLD = 5;
 const DEFAULT_CIRCUIT_BREAKER_COOLDOWN_MS = 30_000;
 const DEFAULT_JSON_BODY_LIMIT_BYTES = 512 * 1024;
+export const ANALYTICS_COUNTER_TTL_SECONDS = 400 * 24 * 60 * 60;
 const upstreamCircuitStates = new Map<string, UpstreamCircuitState>();
 const apiRequestContextStore = new WeakMap<Request, ApiRequestContext>();
 const REQUEST_ID_HEADER = "X-Request-Id";
@@ -1689,17 +1690,36 @@ export function validateSameOrigin(
 
 /**
  * Safely increments a Redis-based analytics counter. This function
- * intentionally swallows errors to avoid affecting primary request paths.
+ * stores time-bucketed counters with a bounded TTL and intentionally swallows
+ * errors to avoid affecting primary request paths.
  * @param metric - Redis key for the analytics counter to increment.
  * @source
  */
-export async function incrementAnalytics(metric: string): Promise<void> {
+export function buildAnalyticsStorageKey(
+  metric: string,
+  now: Date = new Date(),
+): string {
+  if (/^analytics:.+:month:\d{4}-\d{2}$/.test(metric)) {
+    return metric;
+  }
+
+  return `${metric}:month:${now.toISOString().slice(0, 7)}`;
+}
+
+export async function incrementAnalytics(
+  metric: string,
+  options?: { now?: Date },
+): Promise<void> {
+  const storageKey = buildAnalyticsStorageKey(metric, options?.now);
+
   try {
-    await redisClient.incr(metric);
+    await redisClient.incr(storageKey);
+    await redisClient.expire(storageKey, ANALYTICS_COUNTER_TTL_SECONDS);
   } catch (error) {
     // Silently fail analytics to avoid affecting main functionality
     logPrivacySafe("warn", "Analytics", "Failed to increment analytics", {
       metric,
+      storageKey,
       error: error instanceof Error ? error.message : String(error),
     });
   }

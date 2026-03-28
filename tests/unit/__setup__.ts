@@ -90,7 +90,18 @@ export const sharedRedisMockScan = mock();
 export const sharedRedisMockGet = mock();
 export const sharedRedisMockSet = mock();
 export const sharedRedisMockDel = mock();
-export const sharedRedisMockIncr = mock(async () => 1);
+export const sharedRedisMockIncr = mock(async (...args: unknown[]) => {
+  void args;
+  return 1;
+});
+export const sharedRedisMockIncrRaw = mock(async (...args: unknown[]) => {
+  void args;
+  return 1;
+});
+export const sharedRedisMockExpire = mock(async (...args: unknown[]) => {
+  void args;
+  return 1;
+});
 export const sharedRedisMockRpush = mock();
 export const sharedRedisMockLrange = mock();
 export const sharedRedisMockLtrim = mock();
@@ -106,6 +117,11 @@ export const sharedRedisMockZrange = mock(async () => [] as string[]);
 export const sharedRedisMockZcard = mock(async () => 0);
 export const sharedRedisMockZrem = mock(async () => 1);
 export const sharedRedisMockPipelineExec = mock(async () => []);
+
+function normalizeAnalyticsCounterKeyForAssertions(key: unknown): unknown {
+  if (typeof key !== "string") return key;
+  return key.replace(/:month:\d{4}-\d{2}$/, "");
+}
 
 const sharedRedisPipelineMock = {
   set: mock((...args: unknown[]) => {
@@ -134,7 +150,20 @@ const sharedRedisFakeClient = {
   get: sharedRedisMockGet,
   set: sharedRedisMockSet,
   del: sharedRedisMockDel,
-  incr: sharedRedisMockIncr,
+  incr: mock(async (key: unknown) => {
+    const invokeSharedRedisMockIncrRaw = sharedRedisMockIncrRaw as unknown as (
+      ...callArgs: unknown[]
+    ) => Promise<unknown>;
+    const invokeSharedRedisMockIncr = sharedRedisMockIncr as unknown as (
+      ...callArgs: unknown[]
+    ) => Promise<unknown>;
+
+    await invokeSharedRedisMockIncrRaw(key);
+    return invokeSharedRedisMockIncr(
+      normalizeAnalyticsCounterKeyForAssertions(key),
+    );
+  }),
+  expire: sharedRedisMockExpire,
   rpush: sharedRedisMockRpush,
   lrange: sharedRedisMockLrange,
   ltrim: sharedRedisMockLtrim,
