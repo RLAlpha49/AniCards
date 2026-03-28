@@ -2,6 +2,8 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
+const COMPACT_INPUT_TYPES = new Set(["color", "hidden", "range"]);
+
 /**
  * A styled text input that forwards standard input attributes and ref.
  * Use it as a drop-in replacement for `<input>` to keep consistent styling.
@@ -9,6 +11,8 @@ import { cn } from "@/lib/utils";
  */
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
   ({ className, type, ...props }, ref) => {
+    const shouldUseMobileTouchTarget = !COMPACT_INPUT_TYPES.has(type ?? "text");
+
     return (
       <input
         type={type}
@@ -22,6 +26,7 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
             disabled:cursor-not-allowed disabled:opacity-50
             md:text-sm
           `,
+          shouldUseMobileTouchTarget && "max-md:min-h-11",
           className,
         )}
         ref={ref}

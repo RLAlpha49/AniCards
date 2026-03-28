@@ -35,6 +35,7 @@ const SelectTrigger = React.forwardRef<
         placeholder:text-muted-foreground
         focus:ring-1 focus:ring-ring focus:outline-none
         disabled:cursor-not-allowed disabled:opacity-50
+        max-md:min-h-11
         [&>span]:line-clamp-1
       `,
       className,
