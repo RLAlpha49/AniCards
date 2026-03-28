@@ -51,7 +51,7 @@ const DEFAULT_ROBOTS: Metadata["robots"] = {
   },
 };
 
-const NOINDEX_ROBOTS: Metadata["robots"] = {
+export const NOINDEX_ROBOTS: Metadata["robots"] = {
   index: false,
   follow: true,
   googleBot: {
