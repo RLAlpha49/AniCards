@@ -19,6 +19,25 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function createStoredCardsRecord({
+  userId = 123,
+  cards = [],
+  globalSettings,
+  updatedAt = "2026-03-28T00:00:00.000Z",
+}: {
+  userId?: number;
+  cards?: Array<Record<string, unknown>>;
+  globalSettings?: Record<string, unknown>;
+  updatedAt?: string;
+} = {}) {
+  return {
+    userId,
+    cards,
+    ...(globalSettings === undefined ? {} : { globalSettings }),
+    updatedAt,
+  };
+}
+
 describe("Cards API GET Endpoint", () => {
   const baseUrl = "http://localhost/api/get-cards";
 
@@ -101,10 +120,11 @@ describe("Cards API GET Endpoint", () => {
     });
 
     it("should successfully handle very large userId values", async () => {
-      const cardData = {
-        cards: [{ cardName: "animeStats", titleColor: "#000" }],
-      };
       const largeId = "999999999";
+      const cardData = createStoredCardsRecord({
+        userId: Number(largeId),
+        cards: [{ cardName: "animeStats", titleColor: "#000" }],
+      });
       sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(cardData));
       const req = new Request(`${baseUrl}?userId=${largeId}`, {
         headers: { "x-forwarded-for": "127.0.0.1" },
@@ -128,9 +148,10 @@ describe("Cards API GET Endpoint", () => {
     });
 
     it("should successfully return card data when present", async () => {
-      const cardData = {
+      const cardData = createStoredCardsRecord({
+        userId: 456,
         cards: [{ cardName: "animeStats", titleColor: "#000" }],
-      };
+      });
       sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(cardData));
       const req = new Request(`${baseUrl}?userId=456`, {
         headers: { "x-forwarded-for": "127.0.0.1" },
@@ -142,13 +163,14 @@ describe("Cards API GET Endpoint", () => {
     });
 
     it("should return stored card data unchanged (including unsupported types)", async () => {
-      const cardData = {
+      const cardData = createStoredCardsRecord({
+        userId: 789,
         cards: [
           { cardName: "animeStats", titleColor: "#000" },
           { cardName: "mangaStats", titleColor: "#fff" },
           { cardName: "unsupportedCardType", titleColor: "#f0f" },
         ],
-      };
+      });
       sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(cardData));
       const req = new Request(`${baseUrl}?userId=789`, {
         headers: { "x-forwarded-for": "127.0.0.1" },
@@ -165,12 +187,13 @@ describe("Cards API GET Endpoint", () => {
     });
 
     it("should return stored data including unsupported card types and not persist changes in GET", async () => {
-      const cardData = {
+      const cardData = createStoredCardsRecord({
+        userId: 101,
         cards: [
           { cardName: "animeStats", titleColor: "#000" },
           { cardName: "invalidCardType", titleColor: "#fff" },
         ],
-      };
+      });
       sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(cardData));
 
       const req = new Request(`${baseUrl}?userId=101`, {
@@ -188,7 +211,10 @@ describe("Cards API GET Endpoint", () => {
     });
 
     it("should handle empty cards array", async () => {
-      const cardData = { cards: [] };
+      const cardData = createStoredCardsRecord({
+        userId: 100,
+        cards: [],
+      });
       sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(cardData));
       const req = new Request(`${baseUrl}?userId=100`, {
         headers: { "x-forwarded-for": "127.0.0.1" },
@@ -233,6 +259,60 @@ describe("Cards API GET Endpoint", () => {
       expect(json.error).toBe("Failed to fetch cards");
     });
 
+    it("should fail closed when stored cards record is missing required fields", async () => {
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          cards: [{ cardName: "animeStats", titleColor: "#000" }],
+        }),
+      );
+      const req = new Request(`${baseUrl}?userId=123`, {
+        headers: { "x-forwarded-for": "127.0.0.1" },
+      });
+      const res = await GET(req);
+
+      expect(res.status).toBe(500);
+      const json = await getResponseJson(res);
+      expect(json.error).toBe("Failed to fetch cards");
+    });
+
+    it("should fail closed when stored cards record contains invalid card entries", async () => {
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify(
+          createStoredCardsRecord({
+            userId: 123,
+            cards: [{ titleColor: "#000" }],
+          }),
+        ),
+      );
+      const req = new Request(`${baseUrl}?userId=123`, {
+        headers: { "x-forwarded-for": "127.0.0.1" },
+      });
+      const res = await GET(req);
+
+      expect(res.status).toBe(500);
+      const json = await getResponseJson(res);
+      expect(json.error).toBe("Failed to fetch cards");
+    });
+
+    it("should fail closed when stored cards record userId mismatches the requested user", async () => {
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify(
+          createStoredCardsRecord({
+            userId: 999,
+            cards: [{ cardName: "animeStats", titleColor: "#000" }],
+          }),
+        ),
+      );
+      const req = new Request(`${baseUrl}?userId=123`, {
+        headers: { "x-forwarded-for": "127.0.0.1" },
+      });
+      const res = await GET(req);
+
+      expect(res.status).toBe(500);
+      const json = await getResponseJson(res);
+      expect(json.error).toBe("Failed to fetch cards");
+    });
+
     it("should track failed requests analytics on invalid userId", async () => {
       const req = new Request(`${baseUrl}?userId=invalid`, {
         headers: { "x-forwarded-for": "127.0.0.1" },
@@ -257,9 +337,10 @@ describe("Cards API GET Endpoint", () => {
 
   describe("Analytics Tracking", () => {
     it("should increment successful requests counter on successful retrieval", async () => {
-      const cardData = {
+      const cardData = createStoredCardsRecord({
+        userId: 456,
         cards: [{ cardName: "animeStats", titleColor: "#000" }],
-      };
+      });
       sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(cardData));
       const req = new Request(`${baseUrl}?userId=456`, {
         headers: { "x-forwarded-for": "127.0.0.1" },
@@ -310,9 +391,10 @@ describe("Cards API GET Endpoint", () => {
 
   describe("Performance Monitoring", () => {
     it("should handle fast responses normally", async () => {
-      const cardData = {
+      const cardData = createStoredCardsRecord({
+        userId: 456,
         cards: [{ cardName: "animeStats", titleColor: "#000" }],
-      };
+      });
       sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(cardData));
       const req = new Request(`${baseUrl}?userId=456`, {
         headers: { "x-forwarded-for": "127.0.0.1" },
@@ -322,9 +404,10 @@ describe("Cards API GET Endpoint", () => {
     });
 
     it("should handle slow responses (>500ms) normally but log warning", async () => {
-      const cardData = {
+      const cardData = createStoredCardsRecord({
+        userId: 456,
         cards: [{ cardName: "animeStats", titleColor: "#000" }],
-      };
+      });
       sharedRedisMockGet.mockImplementationOnce(async () => {
         await delay(600);
         return JSON.stringify(cardData);
@@ -339,9 +422,10 @@ describe("Cards API GET Endpoint", () => {
 
   describe("CORS Headers", () => {
     it("should return proper CORS headers with Content-Type", async () => {
-      const cardData = {
+      const cardData = createStoredCardsRecord({
+        userId: 456,
         cards: [{ cardName: "animeStats", titleColor: "#000" }],
-      };
+      });
       sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(cardData));
       const req = new Request(`${baseUrl}?userId=456`, {
         headers: { "x-forwarded-for": "127.0.0.1" },
@@ -355,9 +439,10 @@ describe("Cards API GET Endpoint", () => {
       const prev = process.env.NEXT_PUBLIC_APP_URL;
       delete process.env.NEXT_PUBLIC_APP_URL;
       try {
-        const cardData = {
+        const cardData = createStoredCardsRecord({
+          userId: 456,
           cards: [{ cardName: "animeStats", titleColor: "#000" }],
-        };
+        });
         sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(cardData));
         const headers = new Headers();
         headers.set("x-forwarded-for", "127.0.0.1");
@@ -384,9 +469,10 @@ describe("Cards API GET Endpoint", () => {
       (process.env as Record<string, string | undefined>)[
         "NEXT_PUBLIC_APP_URL"
       ] = "https://configured.example";
-      const cardData = {
+      const cardData = createStoredCardsRecord({
+        userId: 456,
         cards: [{ cardName: "animeStats", titleColor: "#000" }],
-      };
+      });
       sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(cardData));
       const req = new Request(`${baseUrl}?userId=456`, {
         headers: {
@@ -407,9 +493,10 @@ describe("Cards API GET Endpoint", () => {
     });
 
     it("should handle missing origin header gracefully", async () => {
-      const cardData = {
+      const cardData = createStoredCardsRecord({
+        userId: 456,
         cards: [{ cardName: "animeStats", titleColor: "#000" }],
-      };
+      });
       sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(cardData));
       const req = new Request(`${baseUrl}?userId=456`, {
         headers: { "x-forwarded-for": "127.0.0.1" },
@@ -420,9 +507,10 @@ describe("Cards API GET Endpoint", () => {
     });
 
     it("should echo X-Request-Id when provided", async () => {
-      const cardData = {
+      const cardData = createStoredCardsRecord({
+        userId: 456,
         cards: [{ cardName: "animeStats", titleColor: "#000" }],
-      };
+      });
       sharedRedisMockGet.mockResolvedValueOnce(JSON.stringify(cardData));
       const req = new Request(`${baseUrl}?userId=456`, {
         headers: {
