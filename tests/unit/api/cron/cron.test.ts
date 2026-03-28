@@ -14,8 +14,10 @@ import {
   sharedRedisMockMget,
   sharedRedisMockPipelineExec,
   sharedRedisMockRpush,
-  sharedRedisMockScan,
+  sharedRedisMockSadd,
   sharedRedisMockSet,
+  sharedRedisMockSmembers,
+  sharedRedisMockSrem,
   sharedRedisMockZadd,
   sharedRedisMockZcard,
   sharedRedisMockZrange,
@@ -203,7 +205,9 @@ describe("Cron API Route", () => {
     sharedRedisMockDel.mockReset();
     sharedRedisMockRpush.mockReset();
     sharedRedisMockLtrim.mockReset();
-    sharedRedisMockScan.mockReset();
+    sharedRedisMockSadd.mockReset();
+    sharedRedisMockSmembers.mockReset();
+    sharedRedisMockSrem.mockReset();
     sharedRedisMockZadd.mockReset();
     sharedRedisMockZcard.mockReset();
     sharedRedisMockZrange.mockReset();
@@ -211,6 +215,7 @@ describe("Cron API Route", () => {
       keys.map(() => null),
     );
     sharedRedisMockPipelineExec.mockResolvedValue([]);
+    sharedRedisMockSmembers.mockResolvedValue([]);
     sharedRedisMockZadd.mockResolvedValue(1);
     sharedRedisMockZcard.mockResolvedValue(0);
     sharedRedisMockZrange.mockResolvedValue([]);
@@ -235,13 +240,13 @@ describe("Cron API Route", () => {
 
     process.env = { ...process.env, NODE_ENV: "development" };
     process.env.ALLOW_UNSECURED_CRON_IN_DEV = "true";
-    sharedRedisMockScan.mockResolvedValueOnce([0, []]);
+    sharedRedisMockSmembers.mockResolvedValueOnce([]);
     const bypassResponse = await POST(createCronRequest(null));
     expect(bypassResponse.status).toBe(200);
   });
 
   it("returns an operator summary when there are no users", async () => {
-    sharedRedisMockScan.mockResolvedValueOnce([0, []]);
+    sharedRedisMockSmembers.mockResolvedValueOnce([]);
 
     const response = await POST(createCronRequest());
     expect(response.status).toBe(200);
@@ -253,7 +258,7 @@ describe("Cron API Route", () => {
   });
 
   it("echoes X-Request-Id on cron responses", async () => {
-    sharedRedisMockScan.mockResolvedValueOnce([0, []]);
+    sharedRedisMockSmembers.mockResolvedValueOnce([]);
 
     const response = await POST(
       new Request("http://localhost/api/cron", {
@@ -311,10 +316,14 @@ describe("Cron API Route", () => {
 
   it("tracks 404 failures and removes users on the third consecutive miss", async () => {
     mockUserRecords(["123"]);
-    sharedRedisMockScan.mockResolvedValueOnce([
-      0,
-      ["username:user123", "username:old-user123"],
-    ]);
+    sharedRedisMockSmembers.mockImplementation(async (...args: unknown[]) => {
+      const key = String(args[0] ?? "");
+      if (key === "user:123:username-aliases") {
+        return ["user123", "old-user123"];
+      }
+
+      return [];
+    });
     sharedRedisMockGet.mockImplementation((key: string) => {
       if (key === "failed_updates:123") {
         return Promise.resolve("2");
@@ -342,10 +351,6 @@ describe("Cron API Route", () => {
       return Promise.resolve(null);
     });
     sharedRedisMockMget.mockImplementation(async (...keys: string[]) => {
-      if (keys.every((key) => key.startsWith("username:"))) {
-        return keys.map(() => "123");
-      }
-
       return keys.map((key) => {
         const match = /^user:(\d+):([^:]+)$/.exec(key);
         if (!match) {
@@ -379,6 +384,7 @@ describe("Cron API Route", () => {
       "user:123:completed",
       "user:123:aggregates",
       "user:123:commit",
+      "user:123:username-aliases",
       "user:123",
       "cards:123",
       "failed_updates:123",
@@ -485,14 +491,14 @@ describe("Cron API Route", () => {
   });
 
   it("returns 500 when Redis scanning or metadata loading fails critically", async () => {
-    sharedRedisMockScan.mockRejectedValueOnce(
+    sharedRedisMockSmembers.mockRejectedValueOnce(
       new Error("Redis connection error"),
     );
     const scanFailure = await POST(createCronRequest());
     expect(scanFailure.status).toBe(500);
     expect(await scanFailure.text()).toBe("Cron job failed");
 
-    sharedRedisMockScan.mockResolvedValueOnce([0, ["user:123"]]);
+    sharedRedisMockSmembers.mockResolvedValueOnce(["123"]);
     sharedRedisMockGet.mockRejectedValueOnce(new Error("Redis error"));
     const getFailure = await POST(createCronRequest());
     expect(getFailure.status).toBe(500);

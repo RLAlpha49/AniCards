@@ -9,7 +9,6 @@ import {
   buildPersistedRequestMetadata,
   logPrivacySafe,
   redisClient,
-  scanAllKeys,
 } from "@/lib/api-utils";
 import {
   AnimeGenreSynergyTotalsEntry,
@@ -70,10 +69,18 @@ const OPTIONAL_USER_DATA_PARTS = new Set<UserDataPart>(["aggregates"]);
 const USER_STORAGE_FORMAT = "split-user-v2";
 export const USER_RECORD_SCHEMA_VERSION = 2;
 const USER_REFRESH_INDEX_KEY = "users:stale-by-updated-at";
+const USER_REFRESH_REGISTRY_KEY = "users:known-ids";
 const USER_LIFECYCLE_AUDIT_KEY = "telemetry:user-lifecycle-audit:v1";
 const MAX_USER_LIFECYCLE_AUDIT_EVENTS = 250;
+const LEGACY_USER_MIGRATION_LOCK_TTL_SECONDS = 30;
 
 const getUserCommitKey = (userId: string | number) => `user:${userId}:commit`;
+const getLegacyUserMigrationLockKey = (userId: string | number) =>
+  `user:${userId}:migrating`;
+const getUserUsernameAliasSetKey = (userId: string | number) =>
+  `user:${userId}:username-aliases`;
+const getUsernameIndexKey = (normalizedUsername: string) =>
+  `username:${normalizedUsername}`;
 
 interface UserCommitPointer {
   userId: string;
@@ -139,14 +146,22 @@ type RedisSortedSetClient = {
   zrem: (key: string, ...members: string[]) => Promise<unknown>;
 };
 
+type RedisSetClient = {
+  sadd: (key: string, ...members: string[]) => Promise<unknown>;
+  smembers: (key: string) => Promise<string[]>;
+  srem: (key: string, ...members: string[]) => Promise<unknown>;
+};
+
 type RedisPipeline = {
   set: (key: string, value: string) => RedisPipeline;
   del: (...keys: string[]) => RedisPipeline;
+  sadd: (key: string, ...members: string[]) => RedisPipeline;
   zadd: (key: string, ...entries: RedisSortedSetEntry[]) => RedisPipeline;
   exec: () => Promise<unknown>;
 };
 
 const redisSortedSetClient = redisClient as unknown as RedisSortedSetClient;
+const redisSetClient = redisClient as unknown as RedisSetClient;
 
 interface UserMeta {
   userId: string;
@@ -423,6 +438,51 @@ export function normalizeUsernameIndexValue(
 
   const normalized = value.trim().toLowerCase();
   return normalized.length > 0 ? normalized : undefined;
+}
+
+function normalizeTrackedUsernameAliases(values: Iterable<unknown>): string[] {
+  const aliases = new Set<string>();
+
+  for (const value of values) {
+    const normalized = normalizeUsernameIndexValue(value);
+    if (normalized) {
+      aliases.add(normalized);
+    }
+  }
+
+  return [...aliases];
+}
+
+function buildUsernameIndexKeys(aliases: Iterable<string>): string[] {
+  return [...aliases].map((alias) => getUsernameIndexKey(alias));
+}
+
+async function readTrackedUsernameAliases(
+  userId: string | number,
+  currentState?: PersistedUserState | null,
+): Promise<string[]> {
+  const storedAliases = await redisSetClient.smembers(
+    getUserUsernameAliasSetKey(userId),
+  );
+
+  return normalizeTrackedUsernameAliases([
+    ...(Array.isArray(storedAliases) ? storedAliases : []),
+    currentState?.normalizedUsername,
+  ]);
+}
+
+async function readTrackedUserIds(): Promise<string[]> {
+  const storedUserIds = await redisSetClient.smembers(
+    USER_REFRESH_REGISTRY_KEY,
+  );
+
+  return Array.from(
+    new Set(
+      (Array.isArray(storedUserIds) ? storedUserIds : [])
+        .map(String)
+        .filter((candidate) => /^\d+$/.test(candidate)),
+    ),
+  );
 }
 
 function isOptionalUserDataPart(part: UserDataPart): boolean {
@@ -799,6 +859,169 @@ function canReconstructFullUserRecord(
   );
 }
 
+function selectRequestedUserDataParts(
+  parts: UserDataPart[],
+  split: Partial<Record<UserDataPart, unknown>>,
+): Partial<Record<UserDataPart, unknown>> {
+  const data: Partial<Record<UserDataPart, unknown>> = {};
+
+  parts.forEach((part) => {
+    if (split[part] !== undefined) {
+      data[part] = split[part];
+    }
+  });
+
+  return data;
+}
+
+async function loadRequestedPartsFromLegacyRecord(
+  userId: string | number,
+  parts: UserDataPart[],
+): Promise<Partial<Record<UserDataPart, unknown>>> {
+  const legacyRaw = await redisClient.get(`user:${userId}`);
+  if (!legacyRaw) {
+    return {};
+  }
+
+  const legacyRecord = safeParseStoredJson<UserRecord>(
+    legacyRaw,
+    userId,
+    `legacy-user:${userId}`,
+  );
+
+  return selectRequestedUserDataParts(
+    parts,
+    splitUserRecord(legacyRecord) as Partial<Record<UserDataPart, unknown>>,
+  );
+}
+
+async function tryAcquireLegacyUserMigrationLock(
+  userId: string | number,
+): Promise<string | null> {
+  const lockKey = getLegacyUserMigrationLockKey(userId);
+  const token = `${Date.now()}:${Math.random().toString(36).slice(2)}`;
+  const result = await redisClient.set(lockKey, token, {
+    nx: true,
+    ex: LEGACY_USER_MIGRATION_LOCK_TTL_SECONDS,
+  });
+
+  return result ? token : null;
+}
+
+async function releaseLegacyUserMigrationLock(
+  userId: string | number,
+  token: string,
+): Promise<void> {
+  const lockKey = getLegacyUserMigrationLockKey(userId);
+
+  try {
+    const currentToken = await redisClient.get(lockKey);
+    if (currentToken === token) {
+      await redisClient.del(lockKey);
+    }
+  } catch (error) {
+    logPrivacySafe(
+      "warn",
+      "User Data",
+      "Failed to release legacy migration lock",
+      {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+      },
+    );
+  }
+}
+
+async function loadLegacyCompatibleUserDataPartsWithoutSaving(
+  userId: string | number,
+  parts: UserDataPart[],
+): Promise<Partial<Record<UserDataPart, unknown>>> {
+  const commitPointer = await readUserCommitPointer(userId);
+  if (commitPointer) {
+    return loadCommittedUserDataParts(userId, parts, commitPointer);
+  }
+
+  const loaded = await loadStoredUserDataParts(
+    userId,
+    parts,
+    (part) => getUserDataKey(userId, part),
+    "legacy-split-user",
+  );
+
+  if (loaded.foundAnyRequestedPart) {
+    if (loaded.missingRequiredParts.length > 0) {
+      throwMissingUserDataParts(
+        userId,
+        "Stored split user record is incomplete",
+        loaded.missingRequiredParts,
+      );
+    }
+
+    return loaded.data;
+  }
+
+  return loadRequestedPartsFromLegacyRecord(userId, parts);
+}
+
+async function migrateLegacyUserDataPartsWithLock(
+  userId: string | number,
+  parts: UserDataPart[],
+): Promise<Partial<Record<UserDataPart, unknown>>> {
+  const migrationLockToken = await tryAcquireLegacyUserMigrationLock(userId);
+  if (!migrationLockToken) {
+    return loadLegacyCompatibleUserDataPartsWithoutSaving(userId, parts);
+  }
+
+  try {
+    const commitPointer = await readUserCommitPointer(userId);
+    if (commitPointer) {
+      return loadCommittedUserDataParts(userId, parts, commitPointer);
+    }
+
+    const migratedRecord = await migrateUserRecord(userId);
+    if (!migratedRecord) {
+      return loadLegacyCompatibleUserDataPartsWithoutSaving(userId, parts);
+    }
+
+    return selectRequestedUserDataParts(
+      parts,
+      splitUserRecord(migratedRecord) as Partial<Record<UserDataPart, unknown>>,
+    );
+  } finally {
+    await releaseLegacyUserMigrationLock(userId, migrationLockToken);
+  }
+}
+
+async function rewriteLegacySplitUserDataWithLock(
+  userId: string | number,
+  data: Partial<Record<UserDataPart, unknown>>,
+): Promise<void> {
+  const migrationLockToken = await tryAcquireLegacyUserMigrationLock(userId);
+
+  if (!migrationLockToken) {
+    return;
+  }
+
+  try {
+    const commitPointer = await readUserCommitPointer(userId);
+    if (commitPointer) {
+      return;
+    }
+
+    const reconstructed = reconstructUserRecord(data);
+    const meta = data.meta as (UserMeta & Record<string, unknown>) | undefined;
+
+    await saveUserRecord(reconstructed, {
+      existingState: meta
+        ? buildPersistedStateFromMeta(userId, meta, "split")
+        : undefined,
+      triggerSource: "legacy_split_rewrite",
+    });
+  } finally {
+    await releaseLegacyUserMigrationLock(userId, migrationLockToken);
+  }
+}
+
 async function loadLegacyCompatibleUserDataParts(
   userId: string | number,
   parts: UserDataPart[],
@@ -811,21 +1034,7 @@ async function loadLegacyCompatibleUserDataParts(
   );
 
   if (!loaded.foundAnyRequestedPart) {
-    const migratedRecord = await migrateUserRecord(userId);
-    if (!migratedRecord) {
-      return {};
-    }
-
-    const split = splitUserRecord(migratedRecord) as Partial<
-      Record<UserDataPart, unknown>
-    >;
-    const data: Partial<Record<UserDataPart, unknown>> = {};
-    parts.forEach((part) => {
-      if (split[part] !== undefined) {
-        data[part] = split[part];
-      }
-    });
-    return data;
+    return migrateLegacyUserDataPartsWithLock(userId, parts);
   }
 
   if (loaded.missingRequiredParts.length > 0) {
@@ -837,32 +1046,14 @@ async function loadLegacyCompatibleUserDataParts(
   }
 
   if (canReconstructFullUserRecord(loaded.data)) {
-    const reconstructed = reconstructUserRecord(loaded.data);
-    const meta = loaded.data.meta as
-      | (UserMeta & Record<string, unknown>)
-      | undefined;
-    await saveUserRecord(reconstructed, {
-      existingState: meta
-        ? buildPersistedStateFromMeta(userId, meta, "split")
-        : undefined,
-      triggerSource: "legacy_split_rewrite",
-    });
+    await rewriteLegacySplitUserDataWithLock(userId, loaded.data);
   }
 
   return loaded.data;
 }
 
 async function rebuildUserRefreshIndex(): Promise<number> {
-  const allKeys = await scanAllKeys("user:*");
-  const userIds = Array.from(
-    new Set(
-      allKeys
-        .map((key) => key.split(":")[1])
-        .filter((candidate): candidate is string =>
-          Boolean(candidate && /^\d+$/.test(candidate)),
-        ),
-    ),
-  );
+  const userIds = await readTrackedUserIds();
 
   if (userIds.length === 0) {
     return 0;
@@ -1269,6 +1460,15 @@ export async function saveUserRecord(
   const nextRevision = Math.max(0, currentState?.revision ?? 0) + 1;
   const normalizedUsername = normalizeUsernameIndexValue(record.username);
   const previousNormalizedUsername = currentState?.normalizedUsername;
+  const trackedUsernameAliases = await readTrackedUsernameAliases(
+    userId,
+    currentState,
+  );
+  const knownUsernameAliases = normalizeTrackedUsernameAliases([
+    ...trackedUsernameAliases,
+    previousNormalizedUsername,
+    normalizedUsername,
+  ]);
   const pipeline = redisClient.pipeline() as unknown as RedisPipeline;
   const presentParts = Object.keys(split) as UserDataPart[];
   const missingParts = ALL_USER_DATA_PARTS.filter(
@@ -1301,8 +1501,14 @@ export async function saveUserRecord(
     pipeline.set(getUserDataKey(userId, part), JSON.stringify(split[part]));
   });
 
+  pipeline.sadd(USER_REFRESH_REGISTRY_KEY, userId);
+
+  if (knownUsernameAliases.length > 0) {
+    pipeline.sadd(getUserUsernameAliasSetKey(userId), ...knownUsernameAliases);
+  }
+
   if (normalizedUsername) {
-    pipeline.set(`username:${normalizedUsername}`, userId);
+    pipeline.set(getUsernameIndexKey(normalizedUsername), userId);
   }
 
   pipeline.zadd(USER_REFRESH_INDEX_KEY, {
@@ -1312,13 +1518,9 @@ export async function saveUserRecord(
 
   pipeline.set(getUserCommitKey(userId), JSON.stringify(commitPointer));
 
-  const staleAliasKeys: string[] = [];
-  if (
-    previousNormalizedUsername &&
-    previousNormalizedUsername !== normalizedUsername
-  ) {
-    staleAliasKeys.push(`username:${previousNormalizedUsername}`);
-  }
+  const staleAliasKeys = buildUsernameIndexKeys(
+    knownUsernameAliases.filter((alias) => alias !== normalizedUsername),
+  );
   if (staleAliasKeys.length > 0) {
     pipeline.del(...staleAliasKeys);
   }
@@ -1343,28 +1545,40 @@ export async function saveUserRecord(
 }
 
 /**
- * Finds every username index that currently points at the specified user.
+ * Resolves the targeted username index keys that belong to a user.
  *
- * Scanning the full username index is only used during rare destructive
- * cleanup so we can remove both the current username mapping and any stale
- * aliases left behind by historical username changes.
+ * The primary source is a per-user alias set that save paths maintain without
+ * scanning the global username namespace. For older records that predate this
+ * tracking key, we fall back to the currently persisted normalized username.
  */
 async function findUsernameIndexKeysForUser(
   userId: string | number,
 ): Promise<string[]> {
-  const usernameIndexKeys = await scanAllKeys("username:*");
+  let currentState: PersistedUserState | null = null;
 
-  if (usernameIndexKeys.length === 0) {
-    return [];
+  try {
+    currentState = await getPersistedUserState(userId);
+  } catch (error) {
+    if (error instanceof UserDataIntegrityError) {
+      logPrivacySafe(
+        "warn",
+        "User Data",
+        "Continuing delete with username-alias fallback after persisted state read failed",
+        {
+          userId,
+          error: error.message,
+        },
+      );
+    } else {
+      throw error;
+    }
   }
 
-  const normalizedUserId = String(userId);
-  const usernameIndexValues = await redisClient.mget(...usernameIndexKeys);
-
-  return usernameIndexKeys.filter((key, index) => {
-    const value = usernameIndexValues[index];
-    return value !== null && String(value) === normalizedUserId;
-  });
+  const usernameAliases = await readTrackedUsernameAliases(
+    userId,
+    currentState,
+  );
+  return buildUsernameIndexKeys(usernameAliases);
 }
 
 /**
@@ -1380,16 +1594,21 @@ export async function deleteUserRecord(
   },
 ): Promise<DeleteUserRecordResult> {
   const usernameIndexKeys = await findUsernameIndexKeysForUser(userId);
+  const normalizedUserId = String(userId);
   const keys = ALL_USER_DATA_PARTS.map((part) => getUserDataKey(userId, part));
   keys.push(
     getUserCommitKey(userId),
+    getUserUsernameAliasSetKey(userId),
     `user:${userId}`,
     `cards:${userId}`,
     `failed_updates:${userId}`,
     ...usernameIndexKeys,
   );
-  await redisClient.del(...keys);
-  await redisSortedSetClient.zrem(USER_REFRESH_INDEX_KEY, String(userId));
+  await Promise.all([
+    redisClient.del(...keys),
+    redisSortedSetClient.zrem(USER_REFRESH_INDEX_KEY, normalizedUserId),
+    redisSetClient.srem(USER_REFRESH_REGISTRY_KEY, normalizedUserId),
+  ]);
   await auditUserLifecycleEvent({
     action: "delete",
     triggerSource: options?.triggerSource ?? "user_data_delete",

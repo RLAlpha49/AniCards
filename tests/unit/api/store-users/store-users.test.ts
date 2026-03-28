@@ -23,7 +23,9 @@ import {
   sharedRedisMockIncr,
   sharedRedisMockMget,
   sharedRedisMockPipelineExec,
+  sharedRedisMockSadd,
   sharedRedisMockSet,
+  sharedRedisMockSmembers,
   sharedRedisMockZadd,
 } from "@/tests/unit/__setup__";
 
@@ -101,6 +103,8 @@ describe("Store Users API", () => {
     sharedRatelimitMockLimit.mockReset();
     sharedRedisMockMget.mockReset();
     sharedRedisMockPipelineExec.mockReset();
+    sharedRedisMockSadd.mockReset();
+    sharedRedisMockSmembers.mockReset();
     sharedRedisMockZadd.mockReset();
 
     sharedRedisMockIncr.mockResolvedValue(1);
@@ -108,6 +112,7 @@ describe("Store Users API", () => {
     sharedRedisMockGet.mockResolvedValue(null);
     sharedRedisMockMget.mockImplementation(mgetReturnNulls);
     sharedRedisMockPipelineExec.mockResolvedValue([]);
+    sharedRedisMockSmembers.mockResolvedValue([]);
     sharedRedisMockZadd.mockResolvedValue(1);
   });
 
@@ -363,6 +368,11 @@ describe("Store Users API", () => {
       expect(statsValue).toEqual({ score: 10 });
 
       expect(findSetCall("username:userone")[1]).toBe("1");
+      expect(sharedRedisMockSadd).toHaveBeenCalledWith("users:known-ids", "1");
+      expect(sharedRedisMockSadd).toHaveBeenCalledWith(
+        "user:1:username-aliases",
+        "userone",
+      );
       expect(parseJsonSetCall("user:1:commit")).toMatchObject({
         revision: 1,
         storageFormat: "split-user-v2",
