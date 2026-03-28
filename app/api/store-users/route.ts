@@ -184,6 +184,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       buildAnalyticsMetricKey(endpointKey, "failed_requests"),
       "User storage failed",
       request,
+      {
+        redisUnavailableMessage: "User storage is temporarily unavailable",
+      },
     );
   }
 }

@@ -865,6 +865,26 @@ describe("Card SVG Route", () => {
       const res = await GET(req);
       expect(res.status).toBe(200);
     });
+
+    it("should return 503 when Redis fails during username lookup", async () => {
+      sharedRedisMockGet.mockRejectedValueOnce(
+        new Error("Redis connection failed"),
+      );
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          username: "testUser",
+          cardType: "animeStats",
+        }),
+      );
+      const res = await GET(req);
+
+      await expectErrorResponse(
+        res,
+        "Server Error: User data is temporarily unavailable",
+        503,
+      );
+    });
   });
 
   describe("Card Configuration Resolution", () => {
@@ -2839,8 +2859,33 @@ describe("Card SVG Route", () => {
       const res = await GET(req);
       await expectErrorResponse(
         res,
-        "Server Error: An internal error occurred",
-        500,
+        "Server Error: Card data is temporarily unavailable",
+        503,
+      );
+    });
+
+    it("should return 503 when Redis fails while loading user parts", async () => {
+      const cardsData = createMockCardData("animeStats", "default");
+
+      sharedRedisMockGet
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(cardsData);
+      sharedRedisMockMget.mockRejectedValueOnce(
+        new Error("Redis mget failure"),
+      );
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+        }),
+      );
+      const res = await GET(req);
+
+      await expectErrorResponse(
+        res,
+        "Server Error: User data is temporarily unavailable",
+        503,
       );
     });
 

@@ -267,6 +267,123 @@ export interface ApiError {
   recoverySuggestions: RecoverySuggestion[];
 }
 
+interface SafeStructuredApiError extends Error {
+  statusCode?: number;
+  status?: number;
+  publicMessage?: string;
+  category?: ErrorCategory;
+  retryable?: boolean;
+  recoverySuggestions?: RecoverySuggestion[];
+}
+
+interface HandledApiErrorDetails {
+  status: number;
+  message: string;
+  category?: ErrorCategory;
+  retryable?: boolean;
+  recoverySuggestions?: RecoverySuggestion[];
+}
+
+function getCandidateErrorStatus(error: Error): number {
+  const candidate = (error as SafeStructuredApiError).statusCode;
+  if (
+    typeof candidate === "number" &&
+    Number.isInteger(candidate) &&
+    candidate >= 400 &&
+    candidate <= 599
+  ) {
+    return candidate;
+  }
+
+  const alternateCandidate = (error as SafeStructuredApiError).status;
+  if (
+    typeof alternateCandidate === "number" &&
+    Number.isInteger(alternateCandidate) &&
+    alternateCandidate >= 400 &&
+    alternateCandidate <= 599
+  ) {
+    return alternateCandidate;
+  }
+
+  return 500;
+}
+
+function looksLikeRedisTransportFailure(message: string): boolean {
+  const normalized = message.toLowerCase();
+
+  if (!(normalized.includes("redis") || normalized.includes("upstash"))) {
+    return false;
+  }
+
+  return [
+    "error",
+    "fail",
+    "failure",
+    "connect",
+    "connection",
+    "unavailable",
+    "timeout",
+    "timed out",
+    "network",
+    "socket",
+    "refused",
+    "reset",
+    "closed",
+    "econn",
+  ].some((token) => normalized.includes(token));
+}
+
+export function isRedisBackplaneUnavailable(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  if (looksLikeRedisTransportFailure(`${error.name} ${error.message}`)) {
+    return true;
+  }
+
+  const cause = (error as { cause?: unknown }).cause;
+  return cause instanceof Error
+    ? looksLikeRedisTransportFailure(`${cause.name} ${cause.message}`)
+    : false;
+}
+
+function resolveHandledApiErrorDetails(
+  error: Error,
+  fallbackMessage: string,
+  options?: {
+    redisUnavailableMessage?: string;
+  },
+): HandledApiErrorDetails {
+  if (options?.redisUnavailableMessage && isRedisBackplaneUnavailable(error)) {
+    return {
+      status: 503,
+      message: options.redisUnavailableMessage,
+      category: "server_error",
+      retryable: true,
+    };
+  }
+
+  const structuredError = error as SafeStructuredApiError;
+  let publicMessage: string | undefined;
+  if (
+    typeof structuredError.publicMessage === "string" &&
+    structuredError.publicMessage.trim().length > 0
+  ) {
+    publicMessage = structuredError.publicMessage;
+  } else if (error instanceof UpstreamTransportError) {
+    publicMessage = error.message;
+  }
+
+  return {
+    status: getCandidateErrorStatus(error),
+    message: publicMessage ?? fallbackMessage,
+    category: structuredError.category,
+    retryable: structuredError.retryable,
+    recoverySuggestions: structuredError.recoverySuggestions,
+  };
+}
+
 function createApiErrorPayload(
   error: string,
   status: number,
@@ -1784,32 +1901,38 @@ export function handleError(
   analyticsMetric: string,
   errorMessage: string,
   request?: Request,
+  options?: {
+    redisUnavailableMessage?: string;
+    logContext?: Record<string, unknown>;
+  },
 ): NextResponse<ApiError> {
   const duration = Date.now() - startTime;
-  logPrivacySafe(
-    "error",
-    endpoint,
-    "Request failed",
-    {
-      durationMs: duration,
-      error: error.message,
-      ...(error.stack ? { stack: error.stack } : {}),
-    },
-    request,
-  );
+  const logContext = options?.logContext;
+  const logPayload: Record<string, unknown> = {
+    durationMs: duration,
+    error: error.message,
+    ...(error.stack ? { stack: error.stack } : {}),
+  };
+
+  if (logContext) {
+    Object.assign(logPayload, logContext);
+  }
+
+  logPrivacySafe("error", endpoint, "Request failed", logPayload, request);
 
   incrementAnalytics(analyticsMetric).catch(() => {});
 
-  const candidateStatus = (error as { statusCode?: unknown }).statusCode;
-  const status =
-    typeof candidateStatus === "number" &&
-    Number.isInteger(candidateStatus) &&
-    candidateStatus >= 400 &&
-    candidateStatus <= 599
-      ? candidateStatus
-      : 500;
+  const handledError = resolveHandledApiErrorDetails(
+    error,
+    errorMessage,
+    options,
+  );
 
-  return apiErrorResponse(request, status, errorMessage);
+  return apiErrorResponse(request, handledError.status, handledError.message, {
+    category: handledError.category,
+    retryable: handledError.retryable,
+    recoverySuggestions: handledError.recoverySuggestions,
+  });
 }
 
 /**

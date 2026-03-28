@@ -11,6 +11,7 @@ import {
   apiErrorResponse,
   apiJsonHeaders,
   createRateLimiter,
+  handleError,
   incrementAnalytics,
   initializeApiRequest,
   isValidUsername,
@@ -26,7 +27,6 @@ import {
   reconstructPublicUserRecord,
   reconstructUserBootstrapRecord,
   USER_BOOTSTRAP_DATA_PARTS,
-  UserDataIntegrityError,
 } from "@/lib/server/user-data";
 
 const ratelimit = createRateLimiter({ limit: 60, window: "10 s" });
@@ -200,18 +200,21 @@ export async function GET(request: Request) {
   const view = searchParams.get("view");
   const shouldReturnBootstrap = view === "bootstrap";
 
-  const resolvedLookup = await resolveLookupTarget(
-    request,
-    userIdParam,
-    usernameParam,
-  );
-  if (resolvedLookup instanceof Response) {
-    return resolvedLookup;
-  }
-
-  const { userId: numericUserId, normalizedLookupUsername } = resolvedLookup;
+  let resolvedUserId: number | undefined;
 
   try {
+    const resolvedLookup = await resolveLookupTarget(
+      request,
+      userIdParam,
+      usernameParam,
+    );
+    if (resolvedLookup instanceof Response) {
+      return resolvedLookup;
+    }
+
+    const { userId: numericUserId, normalizedLookupUsername } = resolvedLookup;
+    resolvedUserId = numericUserId;
+
     const userDataParts = await fetchUserDataParts(
       numericUserId,
       shouldReturnBootstrap
@@ -263,27 +266,22 @@ export async function GET(request: Request) {
     );
     trackUserApiMetric(USER_API_SUCCESS_METRIC);
     return jsonWithCors(userData, request);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
-    const duration = Date.now() - startTime;
-    const errorMessage =
-      error instanceof UserDataIntegrityError
-        ? "Stored user record is incomplete or corrupted"
-        : "Failed to fetch user data";
-    logPrivacySafe(
-      "error",
+  } catch (error) {
+    return handleError(
+      error as Error,
       USER_API_ENDPOINT,
-      "Error fetching user data",
-      {
-        userId: numericUserId,
-        durationMs: duration,
-        error: error.message,
-        ...(error.stack ? { stack: error.stack } : {}),
-      },
+      startTime,
+      USER_API_FAILED_METRIC,
+      "Failed to fetch user data",
       request,
+      {
+        redisUnavailableMessage: "User data is temporarily unavailable",
+        logContext:
+          typeof resolvedUserId === "number"
+            ? { userId: resolvedUserId }
+            : undefined,
+      },
     );
-    trackUserApiMetric(USER_API_FAILED_METRIC);
-    return apiErrorResponse(request, 500, errorMessage);
   }
 }
 

@@ -831,9 +831,10 @@ describe("Store Cards API POST Endpoint", () => {
       });
 
       const res = await POST(req);
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(503);
       const data = await res.json();
-      expect(data.error).toBe("Card storage failed");
+      expect(data.error).toBe("Card storage is temporarily unavailable");
+      expect(data.retryable).toBe(true);
     });
   });
 

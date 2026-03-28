@@ -1309,6 +1309,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       buildAnalyticsMetricKey(endpointKey, "failed_requests"),
       "Card storage failed",
       request,
+      {
+        redisUnavailableMessage: "Card storage is temporarily unavailable",
+      },
     );
   }
 }

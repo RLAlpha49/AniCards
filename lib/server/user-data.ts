@@ -126,6 +126,10 @@ interface UserLifecycleAuditEntry {
 export class UserDataIntegrityError extends Error {
   readonly kind = "corrupt" as const;
   readonly userId: string;
+  readonly statusCode = 500 as const;
+  readonly category = "server_error" as const;
+  readonly retryable = false;
+  readonly publicMessage = "Stored user record is incomplete or corrupted";
 
   constructor(userId: string | number, message: string) {
     super(message);

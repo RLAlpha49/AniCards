@@ -1,6 +1,7 @@
 import {
   buildAnalyticsMetricKey,
   incrementAnalytics,
+  isRedisBackplaneUnavailable,
   redisClient,
 } from "@/lib/api-utils";
 import {
@@ -64,6 +65,13 @@ export async function fetchUserDataForCard(
   } catch (error) {
     if (error instanceof CardDataError) throw error;
 
+    if (isRedisBackplaneUnavailable(error)) {
+      throw new CardDataError(
+        "Server Error: User data is temporarily unavailable",
+        503,
+      );
+    }
+
     incrementAnalytics(
       buildAnalyticsMetricKey("card_svg", "corrupted_user_records"),
     ).catch(() => {});
@@ -98,15 +106,32 @@ export async function fetchUserData(
         "completed",
       ] as UserDataPart[]);
 
-  // Let Redis errors from the cards lookup bubble up so tests still see the
-  // expected generic "Internal Error" response.
-  const cardsDataStr = await redisClient.get(`cards:${numericUserId}`);
+  let cardsDataStr: unknown;
+  try {
+    cardsDataStr = await redisClient.get(`cards:${numericUserId}`);
+  } catch (error) {
+    if (isRedisBackplaneUnavailable(error)) {
+      throw new CardDataError(
+        "Server Error: Card data is temporarily unavailable",
+        503,
+      );
+    }
+
+    throw error;
+  }
 
   let userDataParts: Partial<Record<UserDataPart, unknown>>;
   try {
     userDataParts = await fetchUserDataParts(numericUserId, parts);
   } catch (error) {
     if (error instanceof CardDataError) throw error;
+
+    if (isRedisBackplaneUnavailable(error)) {
+      throw new CardDataError(
+        "Server Error: User data is temporarily unavailable",
+        503,
+      );
+    }
 
     incrementAnalytics(
       buildAnalyticsMetricKey("card_svg", "corrupted_user_records"),

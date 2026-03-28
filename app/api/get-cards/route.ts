@@ -97,6 +97,9 @@ function isValidGlobalCardSettings(
 
 class CardsRecordIntegrityError extends Error {
   statusCode = 500 as const;
+  category = "server_error" as const;
+  retryable = false;
+  publicMessage = "Stored cards record is incomplete or corrupted";
 
   constructor(message: string) {
     super(message);
@@ -156,6 +159,28 @@ function assertValidCardsRecord(
       "Stored cards record has an invalid updatedAt value",
     );
   }
+}
+
+function parseStoredCardsRecord(
+  rawValue: unknown,
+  endpoint: string,
+  expectedUserId: number,
+): CardsRecord {
+  let parsedValue: unknown;
+
+  try {
+    parsedValue = safeParse<unknown>(
+      rawValue,
+      `${endpoint}:cards:${expectedUserId}`,
+    );
+  } catch {
+    throw new CardsRecordIntegrityError(
+      "Stored cards record is not valid JSON",
+    );
+  }
+
+  assertValidCardsRecord(parsedValue, expectedUserId);
+  return parsedValue;
 }
 
 /**
@@ -236,11 +261,11 @@ export async function GET(request: Request) {
       return apiErrorResponse(request, 404, "Cards not found");
     }
 
-    const cardData = safeParse<unknown>(
+    const cardData = parseStoredCardsRecord(
       cardDataStr,
-      `${endpoint}:cards:${numericUserId}`,
+      endpoint,
+      numericUserId,
     );
-    assertValidCardsRecord(cardData, numericUserId);
 
     logPrivacySafe(
       "log",
@@ -270,6 +295,10 @@ export async function GET(request: Request) {
       CARDS_API_FAILED_METRIC,
       "Failed to fetch cards",
       request,
+      {
+        redisUnavailableMessage: "Card data is temporarily unavailable",
+        logContext: { userId: numericUserId },
+      },
     );
   }
 }

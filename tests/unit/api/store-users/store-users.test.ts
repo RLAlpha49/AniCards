@@ -1061,9 +1061,10 @@ describe("Store Users API", () => {
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(503);
       const data = await getJsonResponse(res);
-      expect(data.error).toBe("User storage failed");
+      expect(data.error).toBe("User storage is temporarily unavailable");
+      expect(data.retryable).toBe(true);
       expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_users:failed_requests",
       );
@@ -1077,9 +1078,9 @@ describe("Store Users API", () => {
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(503);
       const data = await getJsonResponse(res);
-      expect(data.error).toBe("User storage failed");
+      expect(data.error).toBe("User storage is temporarily unavailable");
     });
 
     it("should recover gracefully from corrupted Redis record (invalid JSON)", async () => {

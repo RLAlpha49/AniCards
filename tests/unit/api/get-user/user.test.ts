@@ -340,7 +340,28 @@ describe("User API GET Endpoint", () => {
         new Error("Redis connection failed"),
       );
 
-      await expectError("userId=123", 500, "Failed to fetch user data");
+      const res = await callGet("userId=123");
+      expect(res.status).toBe(503);
+      const json = await getResponseJson<{
+        error?: string;
+        retryable?: boolean;
+        status?: number;
+      }>(res);
+      expect(json.error).toBe("User data is temporarily unavailable");
+      expect(json.retryable).toBe(true);
+      expect(json.status).toBe(503);
+    });
+
+    it("should return 503 when Redis throws during username index lookup", async () => {
+      sharedRedisMockGet.mockRejectedValueOnce(
+        new Error("Redis connection failed"),
+      );
+
+      await expectError(
+        "username=testuser",
+        503,
+        "User data is temporarily unavailable",
+      );
     });
 
     it("should return 500 when a stored split user record is incomplete", async () => {

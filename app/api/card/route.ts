@@ -15,6 +15,7 @@ import {
   getAllowedCardSvgOrigin,
   getRequestIp,
   incrementAnalytics,
+  isRedisBackplaneUnavailable,
   logPrivacySafe,
   parseStrictPositiveInteger,
   withRequestIdHeaders,
@@ -473,7 +474,26 @@ async function resolveEffectiveUserId(
   }
 
   if (params.username) {
-    const resolvedUserId = await resolveUserIdFromUsername(params.username);
+    let resolvedUserId: number | null;
+    try {
+      resolvedUserId = await resolveUserIdFromUsername(params.username);
+    } catch (error) {
+      if (isRedisBackplaneUnavailable(error)) {
+        return {
+          error: await handleCardDataError(
+            new CardDataError(
+              "Server Error: User data is temporarily unavailable",
+              503,
+            ),
+            request,
+            params.baseCardType,
+          ),
+        };
+      }
+
+      throw error;
+    }
+
     if (resolvedUserId) {
       return { userId: resolvedUserId };
     }

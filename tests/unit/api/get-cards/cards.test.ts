@@ -243,9 +243,10 @@ describe("Cards API GET Endpoint", () => {
         headers: { "x-forwarded-for": "127.0.0.1" },
       });
       const res = await GET(req);
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(503);
       const json = await getResponseJson(res);
-      expect(json.error).toBe("Failed to fetch cards");
+      expect(json.error).toBe("Card data is temporarily unavailable");
+      expect(json.retryable).toBe(true);
     });
 
     it("should handle safeParse errors gracefully", async () => {
@@ -256,7 +257,8 @@ describe("Cards API GET Endpoint", () => {
       const res = await GET(req);
       expect(res.status).toBe(500);
       const json = await getResponseJson(res);
-      expect(json.error).toBe("Failed to fetch cards");
+      expect(json.error).toBe("Stored cards record is incomplete or corrupted");
+      expect(json.retryable).toBe(false);
     });
 
     it("should fail closed when stored cards record is missing required fields", async () => {
@@ -272,7 +274,7 @@ describe("Cards API GET Endpoint", () => {
 
       expect(res.status).toBe(500);
       const json = await getResponseJson(res);
-      expect(json.error).toBe("Failed to fetch cards");
+      expect(json.error).toBe("Stored cards record is incomplete or corrupted");
     });
 
     it("should fail closed when stored cards record contains invalid card entries", async () => {
@@ -291,7 +293,7 @@ describe("Cards API GET Endpoint", () => {
 
       expect(res.status).toBe(500);
       const json = await getResponseJson(res);
-      expect(json.error).toBe("Failed to fetch cards");
+      expect(json.error).toBe("Stored cards record is incomplete or corrupted");
     });
 
     it("should fail closed when stored cards record userId mismatches the requested user", async () => {
@@ -310,7 +312,7 @@ describe("Cards API GET Endpoint", () => {
 
       expect(res.status).toBe(500);
       const json = await getResponseJson(res);
-      expect(json.error).toBe("Failed to fetch cards");
+      expect(json.error).toBe("Stored cards record is incomplete or corrupted");
     });
 
     it("should track failed requests analytics on invalid userId", async () => {

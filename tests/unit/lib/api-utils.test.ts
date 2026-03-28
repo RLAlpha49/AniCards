@@ -5,6 +5,7 @@ import {
   buildAnalyticsStorageKey,
   checkRateLimit,
   getRequestIp,
+  handleError,
   incrementAnalytics,
   readJsonRequestBody,
   validateSameOrigin,
@@ -160,5 +161,49 @@ describe("api-utils hardening", () => {
       ANALYTICS_COUNTER_TTL_SECONDS,
     );
     expect(sharedRedisMockIncr).toHaveBeenCalledWith(metric);
+  });
+
+  it("preserves safe public error detail exposed by structured errors", async () => {
+    const error = Object.assign(new Error("private integrity detail"), {
+      statusCode: 500,
+      publicMessage: "Stored user record is incomplete or corrupted",
+      retryable: false,
+    });
+
+    const response = handleError(
+      error,
+      "Test API",
+      Date.now() - 25,
+      "analytics:test_api:failed_requests",
+      "Fallback error",
+      new Request("http://localhost/api/test"),
+    );
+
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body.error).toBe("Stored user record is incomplete or corrupted");
+    expect(body.retryable).toBe(false);
+    expect(body.status).toBe(500);
+  });
+
+  it("maps Redis availability failures to a 503 degraded response when configured", async () => {
+    const response = handleError(
+      new Error("Redis connection failed"),
+      "Test API",
+      Date.now() - 25,
+      "analytics:test_api:failed_requests",
+      "Fallback error",
+      new Request("http://localhost/api/test"),
+      {
+        redisUnavailableMessage: "Stored data is temporarily unavailable",
+      },
+    );
+
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body.error).toBe("Stored data is temporarily unavailable");
+    expect(body.category).toBe("server_error");
+    expect(body.retryable).toBe(true);
+    expect(body.status).toBe(503);
   });
 });
