@@ -684,6 +684,60 @@ type ParsedStoreCardsBody = {
   cardOrder?: string[];
 };
 
+const STORE_CARDS_IF_MATCH_COMPARE_AND_SET_LUA = `
+local current = redis.call("GET", KEYS[1])
+if not current then
+  redis.call("SET", KEYS[1], ARGV[2])
+  return {1}
+end
+
+local ok, decoded = pcall(cjson.decode, current)
+if not ok or type(decoded) ~= "table" then
+  redis.call("SET", KEYS[1], ARGV[2])
+  return {1}
+end
+
+local currentUpdatedAt = decoded["updatedAt"]
+if type(currentUpdatedAt) == "string" and string.len(currentUpdatedAt) > 0 and currentUpdatedAt ~= ARGV[1] then
+  return {0, currentUpdatedAt}
+end
+
+redis.call("SET", KEYS[1], ARGV[2])
+return {1}
+`;
+
+type IfMatchUpdatedAtCheckResult = {
+  conflictResponse?: NextResponse;
+  shouldEnforceAtomicCheck: boolean;
+};
+
+type StoreCardsAtomicWriteResult =
+  | { didWrite: true }
+  | { didWrite: false; currentUpdatedAt: string };
+
+async function createIfMatchConflictResponse(
+  currentUpdatedAt: string,
+  endpointKey: string,
+  request: Request,
+): Promise<NextResponse> {
+  await incrementAnalytics(
+    buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+  ).catch(() => {});
+
+  return apiErrorResponse(
+    request,
+    409,
+    "Conflict: data was updated elsewhere. Please reload and try again.",
+    {
+      category: "invalid_data",
+      retryable: false,
+      additionalFields: {
+        currentUpdatedAt,
+      },
+    },
+  );
+}
+
 async function parseStoreCardsRequestBody(
   request: Request,
   endpoint: string,
@@ -766,40 +820,113 @@ async function enforceIfMatchUpdatedAt(
   endpointKey: string,
   cardsKey: string,
   request: Request,
-): Promise<NextResponse | undefined> {
-  if (!ifMatchUpdatedAt) return undefined;
+): Promise<IfMatchUpdatedAtCheckResult> {
+  if (!ifMatchUpdatedAt) {
+    return { shouldEnforceAtomicCheck: false };
+  }
+
   try {
-    if (typeof existingData !== "string") return undefined;
+    if (typeof existingData !== "string") {
+      return { shouldEnforceAtomicCheck: false };
+    }
+
     const existingRecord = safeParse<CardsRecord>(
       existingData,
       `${endpoint}:existing-record:${cardsKey}`,
     );
-    if (
+    const existingUpdatedAt =
       typeof existingRecord?.updatedAt === "string" &&
-      existingRecord.updatedAt.length > 0 &&
-      existingRecord.updatedAt !== ifMatchUpdatedAt
-    ) {
-      await incrementAnalytics(
-        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-      ).catch(() => {});
-      return apiErrorResponse(
-        request,
-        409,
-        "Conflict: data was updated elsewhere. Please reload and try again.",
-        {
-          category: "invalid_data",
-          retryable: false,
-          additionalFields: {
-            currentUpdatedAt: existingRecord.updatedAt,
-          },
-        },
-      );
+      existingRecord.updatedAt.length > 0
+        ? existingRecord.updatedAt
+        : undefined;
+
+    if (existingUpdatedAt && existingUpdatedAt !== ifMatchUpdatedAt) {
+      return {
+        shouldEnforceAtomicCheck: false,
+        conflictResponse: await createIfMatchConflictResponse(
+          existingUpdatedAt,
+          endpointKey,
+          request,
+        ),
+      };
     }
+
+    return {
+      shouldEnforceAtomicCheck: existingUpdatedAt === ifMatchUpdatedAt,
+    };
   } catch {
-    // If the existing record is corrupt, ignore version checks and let
-    // downstream parsing handle it.
+    return { shouldEnforceAtomicCheck: false };
   }
+}
+
+function normalizeStoreCardsAtomicStatus(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
   return undefined;
+}
+
+function parseStoreCardsAtomicWriteResult(
+  result: unknown,
+): StoreCardsAtomicWriteResult {
+  if (!Array.isArray(result)) {
+    if (normalizeStoreCardsAtomicStatus(result) === 1) {
+      return { didWrite: true };
+    }
+
+    throw new Error(
+      "Unexpected result from store-cards optimistic concurrency script",
+    );
+  }
+
+  const status = normalizeStoreCardsAtomicStatus(result[0]);
+  if (status === 1) {
+    return { didWrite: true };
+  }
+
+  const currentUpdatedAt = result[1];
+  if (status === 0 && typeof currentUpdatedAt === "string") {
+    return { didWrite: false, currentUpdatedAt };
+  }
+
+  throw new Error(
+    "Unexpected result from store-cards optimistic concurrency script",
+  );
+}
+
+async function storeCardsRecord(params: {
+  cardsKey: string;
+  serializedCardData: string;
+  ifMatchUpdatedAt?: string;
+  shouldEnforceAtomicCheck: boolean;
+}): Promise<StoreCardsAtomicWriteResult> {
+  const {
+    cardsKey,
+    serializedCardData,
+    ifMatchUpdatedAt,
+    shouldEnforceAtomicCheck,
+  } = params;
+
+  if (!ifMatchUpdatedAt || !shouldEnforceAtomicCheck) {
+    await redisClient.set(cardsKey, serializedCardData);
+    return { didWrite: true };
+  }
+
+  const result = await redisClient.eval(
+    STORE_CARDS_IF_MATCH_COMPARE_AND_SET_LUA,
+    [cardsKey],
+    [ifMatchUpdatedAt, serializedCardData],
+  );
+
+  return parseStoreCardsAtomicWriteResult(result);
 }
 
 /**
@@ -1101,7 +1228,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     // Optimistic concurrency: reject when the record has been updated since the
     // caller's expected version.
-    const conflictResponse = await enforceIfMatchUpdatedAt(
+    const ifMatchCheck = await enforceIfMatchUpdatedAt(
       existingData,
       ifMatchUpdatedAt,
       endpoint,
@@ -1109,7 +1236,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       cardsKey,
       request,
     );
-    if (conflictResponse) return conflictResponse;
+    if (ifMatchCheck.conflictResponse) return ifMatchCheck.conflictResponse;
     const existingCards = parseStoredCardsRecord(
       existingData,
       endpoint,
@@ -1150,7 +1277,19 @@ export async function POST(request: Request): Promise<NextResponse> {
       updatedAt: new Date().toISOString(),
     };
 
-    await redisClient.set(cardsKey, JSON.stringify(cardData));
+    const storeResult = await storeCardsRecord({
+      cardsKey,
+      serializedCardData: JSON.stringify(cardData),
+      ifMatchUpdatedAt,
+      shouldEnforceAtomicCheck: ifMatchCheck.shouldEnforceAtomicCheck,
+    });
+    if (!storeResult.didWrite) {
+      return createIfMatchConflictResponse(
+        storeResult.currentUpdatedAt,
+        endpointKey,
+        request,
+      );
+    }
 
     const duration = Date.now() - startTime;
     logSuccess(endpoint, userId, duration, "Stored cards", request);

@@ -19,6 +19,7 @@ import {
   allowConsoleWarningsAndErrors,
   sharedRatelimitMockLimit,
   sharedRatelimitMockSlidingWindow,
+  sharedRedisMockEval,
   sharedRedisMockGet,
   sharedRedisMockIncr,
   sharedRedisMockSet,
@@ -85,12 +86,28 @@ describe("Store Cards API POST Endpoint", () => {
     allowConsoleWarningsAndErrors();
     sharedRedisMockGet.mockReset();
     sharedRedisMockSet.mockReset();
+    sharedRedisMockEval.mockReset();
     sharedRedisMockIncr.mockReset();
     sharedRatelimitMockLimit.mockReset();
     sharedRatelimitMockSlidingWindow.mockClear();
 
     sharedRedisMockGet.mockResolvedValue(null);
     sharedRedisMockSet.mockResolvedValue(true);
+    sharedRedisMockEval.mockImplementation(
+      async (_script: unknown, keys: unknown, args: unknown) => {
+        const [cardsKey] = Array.isArray(keys) ? keys : [];
+        const [, serializedCardData] = Array.isArray(args) ? args : [];
+
+        if (
+          typeof cardsKey === "string" &&
+          typeof serializedCardData === "string"
+        ) {
+          await sharedRedisMockSet(cardsKey, serializedCardData);
+        }
+
+        return [1];
+      },
+    );
     sharedRedisMockIncr.mockResolvedValue(1);
     sharedRatelimitMockLimit.mockResolvedValue({ success: true });
   });
@@ -354,6 +371,111 @@ describe("Store Cards API POST Endpoint", () => {
         userId,
         statsData: {},
         ifMatchUpdatedAt: "2025-01-01T00:00:00.000Z",
+        cards: [
+          {
+            cardName: "animeStats",
+            disabled: true,
+          },
+        ],
+      });
+
+      const res = await POST(req);
+
+      expect(res.status).toBe(409);
+
+      const data = await res.json();
+      expect(data.error).toBe(
+        "Conflict: data was updated elsewhere. Please reload and try again.",
+      );
+      expect(data.currentUpdatedAt).toBe(currentUpdatedAt);
+
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
+      expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+        "analytics:store_cards:failed_requests",
+      );
+    });
+
+    it("should atomically write when ifMatchUpdatedAt matches the current version", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const userId = 4343;
+      const currentUpdatedAt = "2025-02-03T03:03:03.000Z";
+
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [
+            {
+              cardName: "animeStats",
+              variation: "default",
+              titleColor: "#111111",
+              backgroundColor: "#222222",
+              textColor: "#333333",
+              circleColor: "#444444",
+            },
+          ],
+          updatedAt: currentUpdatedAt,
+        }),
+      );
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        ifMatchUpdatedAt: currentUpdatedAt,
+        cards: [
+          {
+            cardName: "animeStats",
+            disabled: true,
+          },
+        ],
+      });
+
+      const res = await POST(req);
+
+      expect(res.status).toBe(200);
+      expect(sharedRedisMockEval).toHaveBeenCalledWith(
+        expect.any(String),
+        [`cards:${userId}`],
+        [currentUpdatedAt, expect.any(String)],
+      );
+      expect(sharedRedisMockSet).toHaveBeenCalledWith(
+        `cards:${userId}`,
+        expect.any(String),
+      );
+    });
+
+    it("should return 409 when the atomic write detects a late conflict", async () => {
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const userId = 4444;
+      const originalUpdatedAt = "2025-02-04T04:04:04.000Z";
+      const currentUpdatedAt = "2025-02-05T05:05:05.000Z";
+
+      sharedRedisMockGet.mockResolvedValueOnce(
+        JSON.stringify({
+          userId,
+          cards: [
+            {
+              cardName: "animeStats",
+              variation: "default",
+              titleColor: "#111111",
+              backgroundColor: "#222222",
+              textColor: "#333333",
+              circleColor: "#444444",
+            },
+          ],
+          updatedAt: originalUpdatedAt,
+        }),
+      );
+      sharedRedisMockEval.mockImplementationOnce(async () => [
+        0,
+        currentUpdatedAt,
+      ]);
+
+      const req = createRequest({
+        userId,
+        statsData: {},
+        ifMatchUpdatedAt: originalUpdatedAt,
         cards: [
           {
             cardName: "animeStats",

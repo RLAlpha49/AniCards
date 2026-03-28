@@ -89,6 +89,7 @@ export function allowConsoleWarningsAndErrors() {
 export const sharedRedisMockScan = mock();
 export const sharedRedisMockGet = mock();
 export const sharedRedisMockSet = mock();
+export const sharedRedisMockEval = mock();
 export const sharedRedisMockDel = mock();
 export const sharedRedisMockIncr = mock(async (...args: unknown[]) => {
   void args;
@@ -149,6 +150,7 @@ const sharedRedisFakeClient = {
   scan: sharedRedisMockScan,
   get: sharedRedisMockGet,
   set: sharedRedisMockSet,
+  eval: sharedRedisMockEval,
   del: sharedRedisMockDel,
   incr: mock(async (key: unknown) => {
     const invokeSharedRedisMockIncrRaw = sharedRedisMockIncrRaw as unknown as (
