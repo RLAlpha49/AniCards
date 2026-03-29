@@ -1,8 +1,6 @@
 "use client";
 
-import DOMPurify from "dompurify";
-import katex from "katex";
-import { useMemo } from "react";
+import { lazy, Suspense } from "react";
 
 /* Regex patterns to detect and render LaTeX math delimiters.
  * - MATH_BLOCK_REGEX: matches display math ($$...$$) with capture group for the formula (global for replace use).
@@ -24,6 +22,29 @@ interface MathTooltipContentProps {
   className?: string;
 }
 
+let mathTooltipRendererPromise: Promise<{
+  default: typeof import("./MathTooltipContentRenderer").default;
+}> | null = null;
+
+function loadMathTooltipRenderer() {
+  mathTooltipRendererPromise ??= import("./MathTooltipContentRenderer");
+
+  return mathTooltipRendererPromise;
+}
+
+const LazyMathTooltipRenderer = lazy(loadMathTooltipRenderer);
+
+function MathTooltipFallback({
+  content,
+  className,
+}: Readonly<MathTooltipContentProps>) {
+  return <p className={className}>{content}</p>;
+}
+
+export function prefetchMathTooltipContent(): void {
+  void loadMathTooltipRenderer();
+}
+
 /**
  * Renders content with LaTeX math formulas using KaTeX.
  * Supports both inline math ($...$) and display/block math ($$...$$).
@@ -36,55 +57,17 @@ export function MathTooltipContent({
   content,
   className,
 }: Readonly<MathTooltipContentProps>) {
-  const renderedContent = useMemo(() => {
-    const html = renderMathContent(content);
-    // Sanitize to prevent XSS from any malicious content
-    return DOMPurify.sanitize(html);
-  }, [content]);
-
   return (
-    <div
-      className={className}
-      dangerouslySetInnerHTML={{ __html: renderedContent }}
-    />
+    <Suspense
+      fallback={<MathTooltipFallback content={content} className={className} />}
+    >
+      <LazyMathTooltipRenderer content={content} className={className} />
+    </Suspense>
   );
 }
 
-/**
- * Renders a content string, converting LaTeX math delimiters to KaTeX HTML.
- * Handles both display math ($$...$$) and inline math ($...$).
- *
- * @param content - The content string with potential LaTeX formulas
- * @returns HTML string with rendered math
- */
-function renderMathContent(content: string): string {
-  const withDisplayMath = content.replaceAll(
-    MATH_BLOCK_REGEX,
-    (_, formula: string) => {
-      try {
-        return katex.renderToString(formula.trim(), {
-          displayMode: true,
-          throwOnError: false,
-          output: "html",
-        });
-      } catch {
-        return `$$${formula}$$`;
-      }
-    },
-  );
-
-  return withDisplayMath.replaceAll(MATH_INLINE_REGEX, (_, formula: string) => {
-    try {
-      return katex.renderToString(formula.trim(), {
-        displayMode: false,
-        throwOnError: false,
-        output: "html",
-      });
-    } catch {
-      return `$${formula}$`;
-    }
-  });
-}
+export type { MathTooltipContentProps };
+export { MATH_BLOCK_REGEX, MATH_INLINE_REGEX };
 
 /**
  * Checks if content contains any LaTeX math delimiters.

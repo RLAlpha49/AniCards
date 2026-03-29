@@ -1,11 +1,12 @@
 "use client";
 
 import { GripVertical, Info, Settings } from "lucide-react";
-import { memo } from "react";
+import { memo, useCallback } from "react";
 
 import {
   containsMath,
   MathTooltipContent,
+  prefetchMathTooltipContent,
 } from "@/components/MathTooltipContent";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
@@ -45,6 +46,15 @@ export const CardTileHeader = memo(function CardTileHeader({
   onOpenSettings,
   dragHandleProps,
 }: Readonly<CardTileHeaderProps>) {
+  const hasMathTooltip = Boolean(
+    tooltipContent && containsMath(tooltipContent),
+  );
+
+  const prefetchMathTooltip = useCallback(() => {
+    if (!hasMathTooltip) return;
+    prefetchMathTooltipContent();
+  }, [hasMathTooltip]);
+
   let statusDotClass = "bg-gold/30 dark:bg-gold/20";
   if (enabled) statusDotClass = "bg-gold";
   if (isModified) statusDotClass = "bg-amber-500";
@@ -101,11 +111,17 @@ export const CardTileHeader = memo(function CardTileHeader({
           ) : null}
 
           {tooltipContent && (
-            <Tooltip>
+            <Tooltip
+              onOpenChange={(open) => {
+                if (open) prefetchMathTooltip();
+              }}
+            >
               <TooltipTrigger asChild>
                 <button
                   type="button"
                   data-tour="card-info"
+                  onPointerEnter={prefetchMathTooltip}
+                  onFocus={prefetchMathTooltip}
                   className={cn(
                     "shrink-0 p-0.5 transition-colors",
                     "text-muted-foreground hover:text-foreground",
@@ -124,7 +140,7 @@ export const CardTileHeader = memo(function CardTileHeader({
                 className="max-w-xs text-xs/relaxed"
                 sideOffset={8}
               >
-                {containsMath(tooltipContent) ? (
+                {hasMathTooltip ? (
                   <MathTooltipContent content={tooltipContent} />
                 ) : (
                   <p>{tooltipContent}</p>
