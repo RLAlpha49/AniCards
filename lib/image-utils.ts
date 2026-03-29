@@ -42,6 +42,21 @@ type ImageCacheEntry = { dataUrl: string; expiresAt: number };
 export const imageDataUrlCache = new Map<string, ImageCacheEntry>();
 const imageDataUrlInflightCache = new Map<string, Promise<string | null>>();
 
+function touchMemoryCachedDataUrl(
+  urlString: string,
+  entry: ImageCacheEntry,
+): void {
+  imageDataUrlCache.delete(urlString);
+  imageDataUrlCache.set(urlString, entry);
+
+  if (imageDataUrlCache.size > IMAGE_DATA_URL_MEMORY_CACHE_MAX_ENTRIES) {
+    const oldestKey = imageDataUrlCache.keys().next().value;
+    if (typeof oldestKey === "string") {
+      imageDataUrlCache.delete(oldestKey);
+    }
+  }
+}
+
 function getImageDataUrlCacheKey(urlString: string): string {
   const digest = createHash("sha256").update(urlString).digest("hex");
   return `${IMAGE_DATA_URL_SHARED_CACHE_KEY_PREFIX}:${digest}`;
@@ -67,6 +82,8 @@ function getFreshMemoryCachedDataUrl(
     imageDataUrlCache.delete(urlString);
     return null;
   }
+
+  touchMemoryCachedDataUrl(urlString, cached);
   return cached.dataUrl;
 }
 
@@ -75,14 +92,7 @@ function setMemoryCachedDataUrl(
   dataUrl: string,
   expiresAt: number,
 ): void {
-  imageDataUrlCache.set(urlString, { dataUrl, expiresAt });
-
-  if (imageDataUrlCache.size > IMAGE_DATA_URL_MEMORY_CACHE_MAX_ENTRIES) {
-    const oldestKey = imageDataUrlCache.keys().next().value;
-    if (oldestKey) {
-      imageDataUrlCache.delete(oldestKey);
-    }
-  }
+  touchMemoryCachedDataUrl(urlString, { dataUrl, expiresAt });
 }
 
 async function readSharedCachedDataUrl(

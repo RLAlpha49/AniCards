@@ -2,8 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import { sharedRedisMockGet, sharedRedisMockSet } from "@/tests/unit/__setup__";
 
-const { clearImageDataUrlCaches, fetchImageAsDataUrl } =
-  await import("@/lib/image-utils");
+const {
+  clearImageDataUrlCaches,
+  fetchImageAsDataUrl,
+  IMAGE_DATA_URL_MEMORY_CACHE_MAX_ENTRIES,
+  imageDataUrlCache,
+} = await import("@/lib/image-utils");
 
 describe("image-utils shared asset cache", () => {
   const originalFetch = globalThis.fetch;
@@ -42,6 +46,50 @@ describe("image-utils shared asset cache", () => {
     expect(result).toBe(cachedDataUrl);
     expect(sharedRedisMockGet).toHaveBeenCalledTimes(1);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("refreshes in-memory cache recency on hits before evicting the least recently used entry", async () => {
+    const expiresAt = Date.now() + 60_000;
+    const makeImageUrl = (index: number) =>
+      `https://s4.anilist.co/file/anilistcdn/staff/lru-${index}.jpg`;
+
+    for (
+      let index = 0;
+      index < IMAGE_DATA_URL_MEMORY_CACHE_MAX_ENTRIES;
+      index += 1
+    ) {
+      imageDataUrlCache.set(makeImageUrl(index), {
+        dataUrl: `data:image/png;base64,${index}`,
+        expiresAt,
+      });
+    }
+
+    const refreshedUrl = makeImageUrl(0);
+    const evictedUrl = makeImageUrl(1);
+    const insertedUrl = makeImageUrl(IMAGE_DATA_URL_MEMORY_CACHE_MAX_ENTRIES);
+
+    const fetchMock = mock().mockResolvedValue({
+      ok: true,
+      headers: {
+        get: (name: string) =>
+          name.toLowerCase() === "content-type" ? "image/png" : null,
+      },
+      arrayBuffer: async () => new Uint8Array([137, 80, 78, 71]).buffer,
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const cachedResult = await fetchImageAsDataUrl(refreshedUrl);
+    const insertedResult = await fetchImageAsDataUrl(insertedUrl);
+
+    expect(cachedResult).toBe("data:image/png;base64,0");
+    expect(insertedResult).toBeTruthy();
+    expect(imageDataUrlCache.size).toBe(
+      IMAGE_DATA_URL_MEMORY_CACHE_MAX_ENTRIES,
+    );
+    expect(imageDataUrlCache.has(refreshedUrl)).toBe(true);
+    expect(imageDataUrlCache.has(evictedUrl)).toBe(false);
+    expect(imageDataUrlCache.has(insertedUrl)).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("dedupes concurrent fetches and persists the transformed asset to shared cache", async () => {
