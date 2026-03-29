@@ -19,6 +19,7 @@ concurrency:
 
 jobs:
   check-updates:
+    timeout-minutes: 60
     runs-on: ubuntu-latest
     permissions:
       contents: write
