@@ -17,7 +17,7 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? "50%" : 6,
+  workers: process.env.CI ? "50%" : 5,
   reporter: [
     ["list"],
     [
@@ -35,7 +35,7 @@ export default defineConfig({
     screenshot: "only-on-failure",
     video: "on-first-retry",
     actionTimeout: 10000,
-    navigationTimeout: 30000,
+    navigationTimeout: 20000,
   },
 
   projects: [
