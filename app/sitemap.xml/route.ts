@@ -3,26 +3,20 @@ import { NextResponse } from "next/server";
 import { getStaticSitemapEntries } from "@/lib/seo";
 import { resolveSiteUrl } from "@/lib/site-config";
 
+const SITEMAP_CACHE_CONTROL =
+  "public, s-maxage=3600, stale-while-revalidate=600";
+
 /**
- * Builds the sitemap XML string covering curated routes and returns it as an XML response.
+ * Builds the sitemap XML string covering curated routes and returns it as a cacheable XML response.
  * @returns {Promise<NextResponse>} Sitemap response consumed by crawlers.
  * @source
  */
 export async function GET() {
-  const lastmod = new Date().toISOString();
-  const pages = await Promise.all(
-    getStaticSitemapEntries().map(async (page) => ({
-      ...page,
-      lastmod,
-    })),
-  );
-
-  const urls = pages
+  const urls = getStaticSitemapEntries()
     .map((page) => {
       return `
     <url>
       <loc>${resolveSiteUrl(page.path)}</loc>
-      <lastmod>${page.lastmod}</lastmod>
       <changefreq>${page.changefreq}</changefreq>
       <priority>${page.priority}</priority>
     </url>`;
@@ -36,6 +30,7 @@ export async function GET() {
 
   return new NextResponse(sitemap, {
     headers: {
+      "Cache-Control": SITEMAP_CACHE_CONTROL,
       "Content-Type": "application/xml",
     },
   });
