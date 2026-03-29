@@ -17,7 +17,7 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? "50%" : 5,
+  workers: process.env.CI ? "50%" : 6,
   reporter: [
     ["list"],
     [
@@ -46,6 +46,14 @@ export default defineConfig({
     {
       name: "mobile-chrome",
       use: { ...devices["Pixel 5"] },
+    },
+    {
+      name: "firefox",
+      use: { ...devices["Desktop Firefox"] },
+    },
+    {
+      name: "webkit",
+      use: { ...devices["Desktop Safari"] },
     },
   ],
 

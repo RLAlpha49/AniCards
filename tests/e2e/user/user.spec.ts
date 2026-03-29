@@ -1,13 +1,5 @@
-import { expect, test } from "@playwright/test";
-
-import {
-  mockBootstrapUserRecord,
-  mockCardsRecord,
-  mockServerError,
-} from "../fixtures/mock-data";
-
-const mockSvgCard =
-  '<svg width="400" height="200" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="200" fill="#111" /></svg>';
+import { mockCardsRecord, mockServerError } from "../fixtures/mock-data";
+import { expect, mockSuccessfulApiRoutes, test } from "../fixtures/test-utils";
 
 test.describe("User page", () => {
   test("shows fallback when no query params are provided", async ({ page }) => {
@@ -31,32 +23,9 @@ test.describe("User page", () => {
 
   test("renders stat cards for a canonical username route and exposes export controls", async ({
     page,
+    mockSuccessfulApi,
   }) => {
-    await test.step("Mock user and cards API responses", async () => {
-      await page.route("**/api/get-user**", async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify(mockBootstrapUserRecord),
-        });
-      });
-
-      await page.route("**/api/get-cards**", async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify(mockCardsRecord),
-        });
-      });
-
-      await page.route("**/api/card**", async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: "image/svg+xml",
-          body: mockSvgCard,
-        });
-      });
-    });
+    void mockSuccessfulApi;
 
     await test.step("Load the user page", async () => {
       await page.goto("/user/TestUser");
@@ -202,12 +171,47 @@ test.describe("User page", () => {
     page,
   }) => {
     await test.step("Mock 404 get-user and subsequent endpoints", async () => {
-      await page.route("**/api/get-user**", async (route) => {
-        await route.fulfill({
-          status: 404,
-          contentType: "application/json",
-          body: JSON.stringify({ error: "User not found" }),
-        });
+      await mockSuccessfulApiRoutes(page, {
+        getUser: async (route) => {
+          await route.fulfill({
+            status: 404,
+            contentType: "application/json",
+            body: JSON.stringify({ error: "User not found" }),
+          });
+        },
+        getCards: async (route) => {
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              userId: 999,
+              cards: [],
+              updatedAt: "2025-01-01T00:00:00.000Z",
+            }),
+          });
+        },
+        storeCards: async (route) => {
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              success: true,
+              userId: 999,
+              updatedAt: "2025-01-01T00:00:00.000Z",
+            }),
+          });
+        },
+        storeUsers: async (route) => {
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              success: true,
+              userId: 999,
+              updatedAt: "2025-01-01T00:00:00.000Z",
+            }),
+          });
+        },
       });
 
       await page.route("**/api/anilist**", async (route) => {
@@ -221,50 +225,6 @@ test.describe("User page", () => {
               avatar: { medium: "https://s1.anilist.co/avatar.png" },
             },
           }),
-        });
-      });
-
-      await page.route("**/api/store-users**", async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            success: true,
-            userId: 999,
-            updatedAt: "2025-01-01T00:00:00.000Z",
-          }),
-        });
-      });
-
-      await page.route("**/api/store-cards**", async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            success: true,
-            userId: 999,
-            updatedAt: "2025-01-01T00:00:00.000Z",
-          }),
-        });
-      });
-
-      await page.route("**/api/get-cards**", async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            userId: 999,
-            cards: [],
-            updatedAt: "2025-01-01T00:00:00.000Z",
-          }),
-        });
-      });
-
-      await page.route("**/api/card**", async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: "image/svg+xml",
-          body: mockSvgCard,
         });
       });
 

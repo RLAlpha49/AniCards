@@ -1,12 +1,5 @@
-import { expect, test } from "@playwright/test";
-
-import {
-  mockBootstrapUserRecord,
-  mockCardsRecord,
-} from "../fixtures/mock-data";
-
-const mockSvgCard =
-  '<svg width="400" height="200" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="200" fill="#111" /></svg>';
+import { mockCardsRecord } from "../fixtures/mock-data";
+import { expect, mockSuccessfulApiRoutes, test } from "../fixtures/test-utils";
 
 test.describe("User page editor - save UX", () => {
   test("Ctrl+S triggers a minimal /api/store-cards payload", async ({
@@ -15,43 +8,21 @@ test.describe("User page editor - save UX", () => {
     const savePayloads: unknown[] = [];
 
     await test.step("Mock user, cards, preview, and save endpoints", async () => {
-      await page.route("**/api/get-user**", async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify(mockBootstrapUserRecord),
-        });
-      });
+      await mockSuccessfulApiRoutes(page, {
+        storeCards: async (route) => {
+          const postData = route.request().postData();
+          savePayloads.push(postData ? JSON.parse(postData) : null);
 
-      await page.route("**/api/get-cards**", async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify(mockCardsRecord),
-        });
-      });
-
-      await page.route("**/api/card**", async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: "image/svg+xml",
-          body: mockSvgCard,
-        });
-      });
-
-      await page.route("**/api/store-cards", async (route) => {
-        const postData = route.request().postData();
-        savePayloads.push(postData ? JSON.parse(postData) : null);
-
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            success: true,
-            userId: mockCardsRecord.userId,
-            updatedAt: "2025-01-01T00:00:00.000Z",
-          }),
-        });
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              success: true,
+              userId: mockCardsRecord.userId,
+              updatedAt: "2025-01-01T00:00:00.000Z",
+            }),
+          });
+        },
       });
     });
 
@@ -106,41 +77,19 @@ test.describe("User page editor - save UX", () => {
     let saveCount = 0;
 
     await test.step("Mock endpoints", async () => {
-      await page.route("**/api/get-user**", async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify(mockBootstrapUserRecord),
-        });
-      });
-
-      await page.route("**/api/get-cards**", async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify(mockCardsRecord),
-        });
-      });
-
-      await page.route("**/api/card**", async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: "image/svg+xml",
-          body: mockSvgCard,
-        });
-      });
-
-      await page.route("**/api/store-cards", async (route) => {
-        saveCount += 1;
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            success: true,
-            userId: mockCardsRecord.userId,
-            updatedAt: "2025-01-01T00:00:00.000Z",
-          }),
-        });
+      await mockSuccessfulApiRoutes(page, {
+        storeCards: async (route) => {
+          saveCount += 1;
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              success: true,
+              userId: mockCardsRecord.userId,
+              updatedAt: "2025-01-01T00:00:00.000Z",
+            }),
+          });
+        },
       });
     });
 
@@ -190,75 +139,60 @@ test.describe("User page editor - save UX", () => {
     let currentCardsRecord = structuredClone(mockCardsRecord);
 
     await test.step("Mock user, cards, preview, and conflict-on-first-save behavior", async () => {
-      await page.route("**/api/get-user**", async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify(mockBootstrapUserRecord),
-        });
-      });
+      await mockSuccessfulApiRoutes(page, {
+        getCards: async (route) => {
+          getCardsCount += 1;
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify(currentCardsRecord),
+          });
+        },
+        storeCards: async (route) => {
+          storeCardsCallCount += 1;
+          const postData = route.request().postData();
+          const payload = postData
+            ? (JSON.parse(postData) as Record<string, unknown>)
+            : {};
 
-      await page.route("**/api/get-cards**", async (route) => {
-        getCardsCount += 1;
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify(currentCardsRecord),
-        });
-      });
+          savePayloads.push(payload);
 
-      await page.route("**/api/card**", async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: "image/svg+xml",
-          body: mockSvgCard,
-        });
-      });
+          if (storeCardsCallCount === 1) {
+            currentCardsRecord = {
+              ...currentCardsRecord,
+              updatedAt: conflictUpdatedAt,
+            };
 
-      await page.route("**/api/store-cards", async (route) => {
-        storeCardsCallCount += 1;
-        const postData = route.request().postData();
-        const payload = postData
-          ? (JSON.parse(postData) as Record<string, unknown>)
-          : {};
+            await route.fulfill({
+              status: 409,
+              contentType: "application/json",
+              body: JSON.stringify({
+                error:
+                  "Conflict: data was updated elsewhere. Please reload and try again.",
+                currentUpdatedAt: conflictUpdatedAt,
+              }),
+            });
+            return;
+          }
 
-        savePayloads.push(payload);
-
-        if (storeCardsCallCount === 1) {
           currentCardsRecord = {
             ...currentCardsRecord,
-            updatedAt: conflictUpdatedAt,
+            cards:
+              (payload.cards as typeof mockCardsRecord.cards) ??
+              currentCardsRecord.cards,
+            updatedAt: recoveredUpdatedAt,
           };
 
           await route.fulfill({
-            status: 409,
+            status: 200,
             contentType: "application/json",
             body: JSON.stringify({
-              error:
-                "Conflict: data was updated elsewhere. Please reload and try again.",
-              currentUpdatedAt: conflictUpdatedAt,
+              success: true,
+              userId: mockCardsRecord.userId,
+              updatedAt: recoveredUpdatedAt,
             }),
           });
-          return;
-        }
-
-        currentCardsRecord = {
-          ...currentCardsRecord,
-          cards:
-            (payload.cards as typeof mockCardsRecord.cards) ??
-            currentCardsRecord.cards,
-          updatedAt: recoveredUpdatedAt,
-        };
-
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            success: true,
-            userId: mockCardsRecord.userId,
-            updatedAt: recoveredUpdatedAt,
-          }),
-        });
+        },
       });
     });
 

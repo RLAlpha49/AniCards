@@ -4,7 +4,7 @@
  * setup stays readable and consistent across happy-path and failure flows.
  */
 
-import { Route, test as base } from "@playwright/test";
+import { Page, Route, test as base } from "@playwright/test";
 
 import {
   mockBootstrapUserRecord,
@@ -24,71 +24,45 @@ export interface AniCardsFixtures {
   mockNetworkError: void;
 }
 
+type ApiRouteHandler = (route: Route) => Promise<void> | void;
+
+export interface SuccessfulApiRouteOverrides {
+  card?: ApiRouteHandler;
+  getUser?: ApiRouteHandler;
+  getCards?: ApiRouteHandler;
+  storeCards?: ApiRouteHandler;
+  storeUsers?: ApiRouteHandler;
+}
+
+export async function mockSuccessfulApiRoutes(
+  page: Page,
+  overrides: SuccessfulApiRouteOverrides = {},
+): Promise<void> {
+  await page.route(
+    "**/api/card**",
+    overrides.card ?? fulfillSuccessfulCardRoute,
+  );
+  await page.route(
+    "**/api/get-user**",
+    overrides.getUser ?? fulfillSuccessfulGetUserRoute,
+  );
+  await page.route(
+    "**/api/get-cards**",
+    overrides.getCards ?? fulfillSuccessfulGetCardsRoute,
+  );
+  await page.route(
+    "**/api/store-cards**",
+    overrides.storeCards ?? fulfillSuccessfulStoreCardsRoute,
+  );
+  await page.route(
+    "**/api/store-users**",
+    overrides.storeUsers ?? fulfillSuccessfulStoreUsersRoute,
+  );
+}
+
 export const test = base.extend<AniCardsFixtures>({
   mockSuccessfulApi: async ({ page }, useFixture) => {
-    await page.route("**/api/card**", async (route: Route) => {
-      const url = new URL(route.request().url());
-      const username = url.searchParams.get("username");
-
-      if (!username) {
-        await route.fulfill({
-          status: 400,
-          contentType: "image/svg+xml",
-          body: createErrorSvg("Missing username parameter"),
-        });
-        return;
-      }
-
-      await route.fulfill({
-        status: 200,
-        contentType: "image/svg+xml",
-        body: createMockCardSvg(username),
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "X-Card-Border-Radius": "8",
-        },
-      });
-    });
-
-    await page.route("**/api/get-user**", async (route: Route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(mockBootstrapUserRecord),
-      });
-    });
-
-    await page.route("**/api/get-cards**", async (route: Route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(mockCardsRecord),
-      });
-    });
-
-    await page.route("**/api/store-cards**", async (route: Route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          success: true,
-          userId: mockCardsRecord.userId,
-          updatedAt: mockCardsRecord.updatedAt,
-        }),
-      });
-    });
-
-    await page.route("**/api/store-users**", async (route: Route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          success: true,
-          userId: mockBootstrapUserRecord.userId,
-          updatedAt: "2024-12-01T15:30:00.000Z",
-        }),
-      });
-    });
+    await mockSuccessfulApiRoutes(page);
 
     await useFixture();
   },
@@ -144,6 +118,70 @@ export const test = base.extend<AniCardsFixtures>({
     await useFixture();
   },
 });
+
+async function fulfillSuccessfulCardRoute(route: Route): Promise<void> {
+  const url = new URL(route.request().url());
+  const username = url.searchParams.get("username");
+
+  if (!username) {
+    await route.fulfill({
+      status: 400,
+      contentType: "image/svg+xml",
+      body: createErrorSvg("Missing username parameter"),
+    });
+    return;
+  }
+
+  await route.fulfill({
+    status: 200,
+    contentType: "image/svg+xml",
+    body: createMockCardSvg(username),
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "X-Card-Border-Radius": "8",
+    },
+  });
+}
+
+async function fulfillSuccessfulGetUserRoute(route: Route): Promise<void> {
+  await route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify(mockBootstrapUserRecord),
+  });
+}
+
+async function fulfillSuccessfulGetCardsRoute(route: Route): Promise<void> {
+  await route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify(mockCardsRecord),
+  });
+}
+
+async function fulfillSuccessfulStoreCardsRoute(route: Route): Promise<void> {
+  await route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      success: true,
+      userId: mockCardsRecord.userId,
+      updatedAt: mockCardsRecord.updatedAt,
+    }),
+  });
+}
+
+async function fulfillSuccessfulStoreUsersRoute(route: Route): Promise<void> {
+  await route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      success: true,
+      userId: mockBootstrapUserRecord.userId,
+      updatedAt: "2024-12-01T15:30:00.000Z",
+    }),
+  });
+}
 
 function createMockCardSvg(username: string): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
