@@ -439,6 +439,53 @@ describe("user-data persistence", () => {
     );
   });
 
+  it("deletes the persisted normalized username index when alias tracking is missing", async () => {
+    sharedRedisMockGet.mockImplementation((key: string) => {
+      if (key === "user:5:commit") {
+        return Promise.resolve(
+          JSON.stringify({
+            userId: "5",
+            storageFormat: "split-user-v2",
+            schemaVersion: 2,
+            revision: 3,
+            createdAt: "2026-03-27T00:00:00.000Z",
+            updatedAt: "2026-03-27T00:00:01.000Z",
+            username: "UserFive",
+            usernameNormalized: "userfive",
+            committedAt: "2026-03-27T00:00:02.000Z",
+          }),
+        );
+      }
+
+      return Promise.resolve(null);
+    });
+
+    await deleteUserRecord("5");
+
+    expect(sharedRedisMockSmembers).toHaveBeenCalledWith(
+      "user:5:username-aliases",
+    );
+    expect(sharedRedisMockDel).toHaveBeenCalledWith(
+      "user:5:meta",
+      "user:5:activity",
+      "user:5:favourites",
+      "user:5:statistics",
+      "user:5:pages",
+      "user:5:planning",
+      "user:5:current",
+      "user:5:rewatched",
+      "user:5:completed",
+      "user:5:aggregates",
+      "user:5:commit",
+      "user:5:username-aliases",
+      "user:5",
+      "cards:5",
+      "failed_updates:5",
+      "username:userfive",
+    );
+    expect(sharedRedisMockScan).not.toHaveBeenCalled();
+  });
+
   it("rebuilds the stale-user index from tracked user ids without a global scan", async () => {
     sharedRedisMockSmembers.mockResolvedValueOnce(["9", "5"]);
     sharedRedisMockGet.mockImplementation((key: string) => {
