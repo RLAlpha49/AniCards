@@ -81,6 +81,7 @@ export async function batchConvertSvgsToPngs(
   progressCallback?: (progress: BatchConversionProgress) => void,
 ): Promise<BatchConversionResult[]> {
   const queue = cards.map((card, index) => ({ card, index }));
+  let nextQueueIndex = 0;
   const total = cards.length;
   let completed = 0;
   let successCount = 0;
@@ -144,9 +145,19 @@ export async function batchConvertSvgsToPngs(
 
   const results: BatchConversionResult[] = [];
 
+  const getNextQueueEntry = () => {
+    if (nextQueueIndex >= queue.length) {
+      return null;
+    }
+
+    const next = queue[nextQueueIndex];
+    nextQueueIndex += 1;
+    return next;
+  };
+
   const worker = async () => {
-    while (queue.length > 0) {
-      const next = queue.shift();
+    while (true) {
+      const next = getNextQueueEntry();
       if (!next) break;
       const result = await convertCard(next.card, next.index);
       results.push(result);
