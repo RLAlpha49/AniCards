@@ -30,6 +30,7 @@ import {
   listStalestUserIds,
   reconstructUserRecord,
   saveUserRecord,
+  USER_BOOTSTRAP_DATA_PARTS,
 } from "@/lib/server/user-data";
 
 /**
@@ -44,6 +45,9 @@ interface UpdateResult {
 }
 
 const FAILED_UPDATE_TTL_SECONDS = 14 * 24 * 60 * 60;
+const USER_REFRESH_DEFERRED_DATA_PARTS = ALL_USER_DATA_PARTS.filter(
+  (part) => part !== "meta",
+);
 
 type CronUserRefreshStage =
   | "fetch_user_data_parts"
@@ -108,6 +112,7 @@ async function reportCronUserRefreshError(options: {
 async function updateUserStats(
   userId: string,
   request?: Request,
+  signal?: AbortSignal,
 ): Promise<UpdateResult> {
   try {
     logPrivacySafe(
@@ -128,6 +133,7 @@ async function updateUserStats(
           query: USER_STATS_QUERY,
           variables: { userId },
         }),
+        signal,
       },
       circuitBreaker: {
         key: "anilist-graphql",
@@ -150,6 +156,10 @@ async function updateUserStats(
     const statsData = await statsResponse.json();
     return { success: true, is404Error: false, statsData };
   } catch (error) {
+    if (signal?.aborted) {
+      return { success: false, is404Error: false };
+    }
+
     if (error instanceof UpstreamTransportError) {
       logPrivacySafe(
         "error",
@@ -375,35 +385,71 @@ export async function POST(request: Request) {
       batch.map(async ({ id }) => {
         let stage: CronUserRefreshStage = "fetch_user_data_parts";
         let trackedUserId = id;
+        const updateAbortController = new AbortController();
+        const updateResultPromise = updateUserStats(
+          id,
+          request,
+          updateAbortController.signal,
+        );
 
         try {
-          const partsData = await fetchUserDataParts(
+          // Meta is enough to identify the stored user and log context. The
+          // full split record is only needed when we actually have fresh stats
+          // to persist, so defer the heavier Redis read until success.
+          const metaParts = await fetchUserDataParts(
             id,
-            [...ALL_USER_DATA_PARTS],
+            [...USER_BOOTSTRAP_DATA_PARTS],
             {
               triggerSource: "cron_refresh",
             },
           );
+          const meta = metaParts.meta as
+            | { userId?: string; username?: string }
+            | undefined;
 
-          stage = "reconstruct_user_record";
-          const user = reconstructUserRecord(partsData);
-          trackedUserId = user.userId;
+          if (!meta) {
+            throw new Error("Stored user metadata is missing");
+          }
+
+          trackedUserId =
+            typeof meta.userId === "string" && meta.userId.length > 0
+              ? meta.userId
+              : id;
 
           logPrivacySafe(
             "log",
             endpoint,
             "Starting scheduled user refresh",
             {
-              userId: user.userId,
-              username: user.username || "no username",
+              userId: trackedUserId,
+              username:
+                typeof meta.username === "string" && meta.username.length > 0
+                  ? meta.username
+                  : "no username",
             },
             request,
           );
 
           stage = "refresh_user_stats";
-          const updateResult = await updateUserStats(user.userId, request);
+          const updateResult = await updateResultPromise;
 
           if (updateResult.success) {
+            stage = "fetch_user_data_parts";
+            const remainingParts = await fetchUserDataParts(
+              trackedUserId,
+              [...USER_REFRESH_DEFERRED_DATA_PARTS],
+              {
+                audit: false,
+                triggerSource: "cron_refresh",
+              },
+            );
+
+            stage = "reconstruct_user_record";
+            const user = reconstructUserRecord({
+              ...remainingParts,
+              meta: metaParts.meta,
+            });
+            trackedUserId = user.userId || trackedUserId;
             user.stats = updateResult.statsData.data;
 
             stage = "normalize_user_record";
@@ -424,20 +470,20 @@ export async function POST(request: Request) {
               "log",
               endpoint,
               "Successfully refreshed stored user",
-              { userId: user.userId },
+              { userId: trackedUserId },
               request,
             );
             successfulUpdates++;
 
             stage = "clear_failure_tracking";
-            await clearFailureTracking(redisClient, user.userId);
+            await clearFailureTracking(redisClient, trackedUserId);
           } else if (updateResult.is404Error) {
             failedUpdates++;
 
             stage = "handle_failure_tracking";
             const wasRemoved = await handleFailureTracking(
               redisClient,
-              user.userId,
+              trackedUserId,
               request,
             );
             if (wasRemoved) {
@@ -445,6 +491,15 @@ export async function POST(request: Request) {
             }
           }
         } catch (error) {
+          if (stage === "fetch_user_data_parts") {
+            updateAbortController.abort(
+              new Error(
+                "Aborted scheduled refresh after bootstrap metadata load failed",
+              ),
+            );
+            await updateResultPromise.catch(() => undefined);
+          }
+
           await reportCronUserRefreshError({
             endpoint,
             error,

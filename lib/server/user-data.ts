@@ -1657,13 +1657,15 @@ export async function fetchUserDataParts(
   userId: string | number,
   parts: UserDataPart[],
   options?: {
+    audit?: boolean;
     triggerSource?: UserLifecycleAuditTriggerSource;
   },
 ): Promise<Partial<Record<UserDataPart, unknown>>> {
+  const shouldAudit = options?.audit !== false;
   const commitPointer = await readUserCommitPointer(userId);
   if (commitPointer) {
     const data = await loadCommittedUserDataParts(userId, parts, commitPointer);
-    if (Object.keys(data).length > 0) {
+    if (shouldAudit && Object.keys(data).length > 0) {
       await auditUserLifecycleEvent({
         action: "access",
         triggerSource: options?.triggerSource ?? "user_data_fetch",
@@ -1674,7 +1676,7 @@ export async function fetchUserDataParts(
   }
 
   const data = await loadLegacyCompatibleUserDataParts(userId, parts);
-  if (Object.keys(data).length > 0) {
+  if (shouldAudit && Object.keys(data).length > 0) {
     await auditUserLifecycleEvent({
       action: "access",
       triggerSource: options?.triggerSource ?? "user_data_fetch",

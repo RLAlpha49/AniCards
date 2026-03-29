@@ -189,6 +189,23 @@ function createJsonResponse(status: number, payload: unknown) {
   });
 }
 
+function createDeferredPromise<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+
+  return { promise, resolve, reject };
+}
+
+async function flushMicrotasks(iterations = 6) {
+  for (let index = 0; index < iterations; index += 1) {
+    await Promise.resolve();
+  }
+}
+
 describe("Cron API Route", () => {
   beforeEach(() => {
     allowConsoleWarningsAndErrors();
@@ -311,6 +328,79 @@ describe("Cron API Route", () => {
       "users:stale-by-updated-at",
       0,
       4,
+    );
+  });
+
+  it("loads only meta before AniList resolves and defers the remaining split parts until success", async () => {
+    mockUserRecords(["123"]);
+    const deferredResponse = createDeferredPromise<Response>();
+
+    globalThis.fetch = mock(
+      () => deferredResponse.promise,
+    ) as unknown as typeof fetch;
+
+    const responsePromise = POST(createCronRequest());
+
+    await flushMicrotasks();
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(sharedRedisMockMget).toHaveBeenCalledTimes(1);
+    expect(sharedRedisMockMget.mock.calls[0]).toEqual(["user:123:meta"]);
+
+    deferredResponse.resolve(
+      createJsonResponse(200, { data: createValidStatsPayload("123") }),
+    );
+
+    const response = await responsePromise;
+
+    expect(response.status).toBe(200);
+    expect(sharedRedisMockMget).toHaveBeenCalledTimes(2);
+    expect(sharedRedisMockMget.mock.calls[1]).toEqual([
+      "user:123:activity",
+      "user:123:favourites",
+      "user:123:statistics",
+      "user:123:pages",
+      "user:123:planning",
+      "user:123:current",
+      "user:123:rewatched",
+      "user:123:completed",
+      "user:123:aggregates",
+    ]);
+  });
+
+  it("aborts the overlapping AniList refresh when bootstrap metadata loading fails", async () => {
+    mockUserRecords(["123"]);
+    let fetchSignal: AbortSignal | undefined;
+
+    globalThis.fetch = mock(
+      (_url: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          fetchSignal = init?.signal ?? undefined;
+          fetchSignal?.addEventListener(
+            "abort",
+            () => {
+              reject(
+                fetchSignal?.reason ??
+                  new DOMException("Aborted", "AbortError"),
+              );
+            },
+            { once: true },
+          );
+        }),
+    ) as unknown as typeof fetch;
+
+    sharedRedisMockMget.mockRejectedValueOnce(new Error("Part fetch exploded"));
+
+    const response = await POST(createCronRequest());
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain(
+      "Updated 0/1 users successfully. Failed: 0, Removed: 0",
+    );
+    expect(fetchSignal?.aborted).toBe(true);
+    expect(sharedRedisMockRpush).toHaveBeenCalledWith(
+      "telemetry:error-reports:v1",
+      expect.any(String),
     );
   });
 
