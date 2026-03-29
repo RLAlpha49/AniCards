@@ -12,50 +12,26 @@ import {
   EASE_OUT_EXPO,
   NO_MOTION_TRANSITION,
 } from "@/lib/animations";
-import {
-  buildThemePreviewUrls,
-  getPreviewCardDimensions,
-} from "@/lib/card-preview";
 import { selectThemePreviewUrl } from "@/lib/preview-theme";
 import { safeTrack, trackButtonClick } from "@/lib/utils/google-analytics";
 
-const HERO_CARDS = [
-  {
-    cardType: "animeStats",
-    variation: "default",
-    rotate: -6,
-    z: 3,
-    previewUrls: buildThemePreviewUrls({
-      cardType: "animeStats",
-      variation: "default",
-    }),
-    dimensions: getPreviewCardDimensions("animeStats", "default"),
-  },
-  {
-    cardType: "animeGenres",
-    variation: "pie",
-    rotate: 4,
-    z: 2,
-    previewUrls: buildThemePreviewUrls({
-      cardType: "animeGenres",
-      variation: "pie",
-    }),
-    dimensions: getPreviewCardDimensions("animeGenres", "pie"),
-  },
-  {
-    cardType: "socialStats",
-    variation: "default",
-    rotate: -2,
-    z: 1,
-    previewUrls: buildThemePreviewUrls({
-      cardType: "socialStats",
-      variation: "default",
-    }),
-    dimensions: getPreviewCardDimensions("socialStats", "default"),
-  },
-];
+interface HeroCard {
+  cardType: string;
+  height: number;
+  previewUrls: {
+    dark: string;
+    light: string;
+  };
+  rotate: number;
+  width: number;
+  z: number;
+}
 
-export function HeroSection() {
+export function HeroSection({
+  cards,
+}: Readonly<{
+  cards: readonly HeroCard[];
+}>) {
   const previewColorPreset = usePreviewColorPreset();
   const prefersReducedMotion = useReducedMotion() ?? false;
   const staggerContainer = buildMotionSafeStaggerContainer({
@@ -184,7 +160,7 @@ export function HeroSection() {
           sm:h-105
           md:h-120
         ">
-          {HERO_CARDS.map((card, i) => {
+          {cards.map((card, i) => {
             const previewUrl = selectThemePreviewUrl(
               card.previewUrls,
               previewColorPreset,
@@ -216,7 +192,7 @@ export function HeroSection() {
                   ) : (
                     <CardPreviewPlaceholder
                       className="w-full"
-                      aspectRatio={card.dimensions.w / card.dimensions.h}
+                      aspectRatio={card.width / card.height}
                     />
                   )}
                 </div>

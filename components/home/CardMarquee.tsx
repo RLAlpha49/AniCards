@@ -7,130 +7,21 @@ import { CardPreviewPlaceholder } from "@/components/CardPreviewPlaceholder";
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
 import { usePreviewColorPreset } from "@/hooks/usePreviewColorPreset";
 import { EASE_OUT_EXPO, VIEWPORT_ONCE } from "@/lib/animations";
-import { CARD_GROUPS } from "@/lib/card-groups";
-import {
-  buildThemePreviewUrls,
-  getPreviewCardDimensions,
-} from "@/lib/card-preview";
 import { selectThemePreviewUrl } from "@/lib/preview-theme";
+
 const MARQUEE_DURATION_MS = 45_000;
-const MARQUEE_ROW_COUNT = 2;
 const useIsomorphicLayoutEffect =
   globalThis.window === undefined ? useEffect : useLayoutEffect;
-const MARQUEE_VARIATION_PRIORITY = [
-  "default",
-  "vertical",
-  "horizontal",
-  "compact",
-  "minimal",
-  "pie",
-  "donut",
-  "bar",
-  "radar",
-  "badges",
-  "split",
-  "combined",
-  "anime",
-  "manga",
-  "cumulative",
-] as const;
 
 type MarqueeCard = {
+  height: number;
   key: string;
-  cardType: string;
-  variation: string;
   previewUrls: {
-    light: string;
     dark: string;
+    light: string;
   };
   width: number;
-  height: number;
 };
-
-type NormalizedVariation = {
-  variation: string;
-  extras?: Record<string, string>;
-};
-
-function buildMarqueeRows(cards: readonly MarqueeCard[], rowCount: number) {
-  const rows = Array.from({ length: rowCount }, () => [] as MarqueeCard[]);
-
-  cards.forEach((card, index) => {
-    rows[index % rowCount].push(card);
-  });
-
-  return rows.filter((row) => row.length > 0);
-}
-
-function getVariationSignature(extras?: Record<string, string>) {
-  if (!extras) return "";
-
-  return Object.entries(extras)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, value]) => `${key}-${value}`)
-    .join("-");
-}
-
-function normalizeVariation(
-  variationDef: (typeof CARD_GROUPS)[number]["variations"][number],
-): NormalizedVariation {
-  return typeof variationDef === "string"
-    ? { variation: variationDef, extras: undefined }
-    : variationDef;
-}
-
-function pickMarqueeVariation(
-  variations: readonly (typeof CARD_GROUPS)[number]["variations"][number][],
-): NormalizedVariation | undefined {
-  const normalizedVariations = variations.map(normalizeVariation);
-
-  for (const candidate of MARQUEE_VARIATION_PRIORITY) {
-    const match = normalizedVariations.find(
-      (variation) => variation.variation === candidate,
-    );
-
-    if (match) {
-      return match;
-    }
-  }
-
-  return normalizedVariations[0];
-}
-
-const MARQUEE_CARDS_LAYOUT = CARD_GROUPS.flatMap((group) => {
-  if (group.cardType === "favoritesGrid") {
-    return [];
-  }
-
-  const normalizedVariation = pickMarqueeVariation(group.variations);
-  if (!normalizedVariation) {
-    return [];
-  }
-
-  const dimensions = getPreviewCardDimensions(
-    group.cardType,
-    normalizedVariation.variation,
-  );
-  const variationSignature = getVariationSignature(normalizedVariation.extras);
-
-  return [
-    {
-      key: [group.cardType, normalizedVariation.variation, variationSignature]
-        .filter(Boolean)
-        .join("-"),
-      cardType: group.cardType,
-      variation: normalizedVariation.variation,
-      previewUrls: buildThemePreviewUrls({
-        cardType: group.cardType,
-        variation: normalizedVariation.variation,
-        extras: normalizedVariation.extras,
-      }),
-      width: dimensions.w,
-      height: dimensions.h,
-    },
-  ];
-});
-const MARQUEE_ROWS = buildMarqueeRows(MARQUEE_CARDS_LAYOUT, MARQUEE_ROW_COUNT);
 
 function getRowDurationMs(cardCount: number, rowIndex: number) {
   return Math.max(MARQUEE_DURATION_MS, cardCount * 3_000 + rowIndex * 4_000);
@@ -229,7 +120,11 @@ function MarqueeRow({
   );
 }
 
-export function CardMarquee() {
+export function CardMarquee({
+  rows,
+}: Readonly<{
+  rows: readonly (readonly MarqueeCard[])[];
+}>) {
   const previewColorPreset = usePreviewColorPreset();
 
   return (
@@ -244,7 +139,7 @@ export function CardMarquee() {
       <div className="gold-line-thick mx-auto mb-10 max-w-[70%]" />
 
       <div className="space-y-6">
-        {MARQUEE_ROWS.map((row, index) => (
+        {rows.map((row, index) => (
           <MarqueeRow
             key={"marquee-row-" + (row[0]?.key ?? `row-${row.length}`)}
             cards={row}

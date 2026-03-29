@@ -10,6 +10,10 @@ import { HomeCTA } from "@/components/home/HomeCTA";
 import { ProcessSteps } from "@/components/home/ProcessSteps";
 import { StatsRibbon } from "@/components/home/StatsRibbon";
 import { fadeUp, VIEWPORT_ONCE } from "@/lib/animations";
+import {
+  HOME_CARD_MARQUEE_ROWS,
+  HOME_HERO_PREVIEW_CARDS,
+} from "@/lib/home-page-preview-data";
 
 export default function HomePageClient() {
   return (
@@ -40,7 +44,7 @@ export default function HomePageClient() {
           whileInView="visible"
           viewport={VIEWPORT_ONCE}
         >
-          <HeroSection />
+          <HeroSection cards={HOME_HERO_PREVIEW_CARDS} />
         </motion.div>
         <motion.div
           variants={fadeUp}
@@ -48,7 +52,7 @@ export default function HomePageClient() {
           whileInView="visible"
           viewport={VIEWPORT_ONCE}
         >
-          <CardMarquee />
+          <CardMarquee rows={HOME_CARD_MARQUEE_ROWS} />
         </motion.div>
         <motion.div
           variants={fadeUp}

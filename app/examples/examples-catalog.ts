@@ -7,8 +7,8 @@ import { CARD_GROUPS, VARIATION_LABEL_MAP } from "@/lib/card-groups";
 import {
   buildThemePreviewUrls,
   buildThemeSettingsSnapshots,
-  getPreviewCardDimensions,
 } from "@/lib/card-preview";
+import { getPreviewCardDimensions } from "@/lib/card-preview-dimensions";
 
 const EXAMPLES_CATEGORIES = [
   "Core Stats",

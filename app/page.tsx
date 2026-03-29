@@ -7,6 +7,10 @@ import { StatsRibbon } from "@/components/home/StatsRibbon";
 import { MarketingBackdrop } from "@/components/marketing/MarketingBackdrop";
 import { SectionReveal } from "@/components/marketing/SectionReveal";
 import { StructuredDataScript } from "@/components/StructuredDataScript";
+import {
+  HOME_CARD_MARQUEE_ROWS,
+  HOME_HERO_PREVIEW_CARDS,
+} from "@/lib/home-page-preview-data";
 import { getRequestNonce } from "@/lib/request-nonce";
 import { generateMetadata as createMetadata, seoConfigs } from "@/lib/seo";
 import { generateStructuredData } from "@/lib/structured-data";
@@ -25,10 +29,10 @@ export default async function HomePage() {
       <div className="relative min-h-screen">
         <MarketingBackdrop />
         <SectionReveal>
-          <HeroSection />
+          <HeroSection cards={HOME_HERO_PREVIEW_CARDS} />
         </SectionReveal>
         <SectionReveal>
-          <CardMarquee />
+          <CardMarquee rows={HOME_CARD_MARQUEE_ROWS} />
         </SectionReveal>
         <SectionReveal>
           <BentoFeatures />
