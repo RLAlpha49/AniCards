@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import React from "react";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -14,25 +13,8 @@ export const baseVariants = {
   visible: { opacity: 1 },
 };
 
-/**
- * Default page-level variants that apply the PageShell timings and values.
- */
-export const containerVariants = {
-  ...baseVariants,
-  visible: {
-    ...baseVariants.visible,
-    transition: { staggerChildren: 0.1, delayChildren: 0.1 },
-  },
-};
-
-export const itemVariants = {
-  hidden: { ...baseVariants.hidden, y: 20 },
-  visible: {
-    ...baseVariants.visible,
-    y: 0,
-    transition: { duration: 0.5 },
-  },
-};
+const HERO_REVEAL_CLASS =
+  "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500";
 
 type PageShellProps = Readonly<{
   badge?: React.ReactNode;
@@ -67,46 +49,47 @@ export default function PageShell({
           {hasHero && (
             <section className="relative size-full overflow-x-visible overflow-y-hidden">
               <div className="relative z-10 container mx-auto px-0">
-                <motion.div
-                  variants={containerVariants}
-                  initial="hidden"
-                  animate="visible"
-                  className="mx-auto flex w-full flex-col items-center text-center"
-                >
-                  {badge && (
-                    <motion.div variants={itemVariants}>{badge}</motion.div>
-                  )}
+                <div className="mx-auto flex w-full flex-col items-center text-center">
+                  {badge && <div className={HERO_REVEAL_CLASS}>{badge}</div>}
 
-                  <motion.h1
-                    variants={itemVariants}
-                    className="
-                      mt-8 text-4xl leading-[1.1] font-extrabold tracking-tight text-foreground
-                      sm:text-5xl
-                      md:text-6xl
-                      lg:text-7xl
-                    "
+                  <h1
+                    className={cn(
+                      HERO_REVEAL_CLASS,
+                      `
+                        mt-8 text-4xl leading-[1.1] font-extrabold tracking-tight text-foreground
+                        motion-safe:delay-75
+                        sm:text-5xl
+                        md:text-6xl
+                        lg:text-7xl
+                      `,
+                    )}
                   >
                     {title}
-                  </motion.h1>
+                  </h1>
 
                   {subtitle && (
-                    <motion.p
-                      variants={itemVariants}
-                      className="mt-6 max-w-2xl text-lg text-foreground/60 sm:text-xl"
+                    <p
+                      className={cn(
+                        HERO_REVEAL_CLASS,
+                        "mt-6 max-w-2xl text-lg text-foreground/60 motion-safe:delay-150 sm:text-xl",
+                      )}
                     >
                       {subtitle}
-                    </motion.p>
+                    </p>
                   )}
 
                   {heroContent && (
-                    <motion.div
-                      variants={itemVariants}
-                      className={heroContentClassName}
+                    <div
+                      className={cn(
+                        HERO_REVEAL_CLASS,
+                        "motion-safe:delay-200",
+                        heroContentClassName,
+                      )}
                     >
                       {heroContent}
-                    </motion.div>
+                    </div>
                   )}
-                </motion.div>
+                </div>
               </div>
             </section>
           )}

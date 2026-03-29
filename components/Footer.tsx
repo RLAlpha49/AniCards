@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { ExternalLink, Mail, Scale, Shield } from "lucide-react";
 import Link from "next/link";
 
@@ -9,7 +8,6 @@ import {
   SimpleDiscordIcon,
   SimpleGithubIcon,
 } from "@/components/SimpleIcons";
-import { EASE_OUT_EXPO } from "@/lib/animations";
 import {
   safeTrack,
   trackExternalLinkClick,
@@ -45,26 +43,14 @@ const SOCIAL_LINKS = [
 
 export default function Footer() {
   return (
-    <motion.footer
-      initial={{ opacity: 0, y: 16 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-40px" }}
-      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="relative border-t border-gold/30 bg-white dark:bg-[#0C0A10]"
-    >
+    <footer className="relative border-t border-gold/30 bg-white dark:bg-[#0C0A10]">
       <div className="
         absolute inset-x-0 top-0 h-0.5 bg-linear-to-r from-transparent via-gold/50 to-transparent
       " />
 
       <div className="px-8 py-6 sm:px-12">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <motion.div
-            className="flex flex-wrap items-center gap-2 text-xs tracking-widest"
-            initial={{ opacity: 0, y: 6 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-40px" }}
-            transition={{ duration: 0.5, ease: EASE_OUT_EXPO, delay: 0.3 }}
-          >
+          <div className="flex flex-wrap items-center gap-2 text-xs tracking-widest">
             <span className="font-display text-foreground/30">
               © {new Date().getFullYear()} ANICARDS
             </span>
@@ -107,33 +93,17 @@ export default function Footer() {
               <Shield className="size-3" />
               Privacy Disclosure
             </Link>
-          </motion.div>
+          </div>
 
-          <motion.div
-            className="flex items-center gap-3"
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-40px" }}
-            variants={{
-              hidden: {},
-              visible: {
-                transition: { staggerChildren: 0.08, delayChildren: 0.15 },
-              },
-            }}
-          >
+          <div className="flex items-center gap-3">
             {SOCIAL_LINKS.map((link) => (
-              <motion.div
+              <div
                 key={link.name}
-                variants={{
-                  hidden: { opacity: 0, scale: 0.85 },
-                  visible: {
-                    opacity: 1,
-                    scale: 1,
-                    transition: { duration: 0.35, ease: EASE_OUT_EXPO },
-                  },
-                }}
-                whileHover={{ scale: 1.15 }}
-                transition={{ duration: 0.2 }}
+                className="
+                  transition-transform duration-200
+                  motion-safe:hover:scale-[1.15]
+                  motion-reduce:transition-none
+                "
               >
                 <Link
                   href={link.href}
@@ -157,11 +127,11 @@ export default function Footer() {
                 >
                   <link.icon size={16} />
                 </Link>
-              </motion.div>
+              </div>
             ))}
-          </motion.div>
+          </div>
         </div>
       </div>
-    </motion.footer>
+    </footer>
   );
 }

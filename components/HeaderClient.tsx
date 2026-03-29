@@ -1,6 +1,5 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -61,13 +60,14 @@ function GoldDiamond({ size = 5 }: Readonly<{ size?: number }>) {
 
 export default function HeaderClient() {
   const pathname = usePathname();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(isMobileMenuPreopened);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mobileMenuRef = useRef<HTMLElement>(null);
   const mobileMenuToggleRef = useRef<HTMLButtonElement>(null);
   const previousPathnameRef = useRef(pathname);
   const shouldRestoreFocusRef = useRef(false);
 
   useEffect(() => {
+    setMobileMenuOpen(isMobileMenuPreopened());
     document.documentElement.dataset[MOBILE_MENU_HYDRATED_DATASET_KEY] = "true";
 
     return () => {
@@ -261,14 +261,9 @@ export default function HeaderClient() {
                   >
                     {item.label}
                     {isActive && (
-                      <motion.div
-                        layoutId="nav-underline"
+                      <span
+                        aria-hidden
                         className="absolute inset-x-0 -bottom-1 h-0.5 rounded-full bg-gold"
-                        transition={{
-                          type: "spring",
-                          stiffness: 400,
-                          damping: 30,
-                        }}
                       />
                     )}
                   </Link>
@@ -294,27 +289,34 @@ export default function HeaderClient() {
               aria-controls="mobile-navigation"
               aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
             >
-              <AnimatePresence mode="wait" initial={false}>
-                {mobileMenuOpen ? (
-                  <motion.span
-                    key="close"
-                    animate={{ rotate: 0, opacity: 1 }}
-                    exit={{ rotate: 90, opacity: 0 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <X className="size-5" />
-                  </motion.span>
-                ) : (
-                  <motion.span
-                    key="menu"
-                    animate={{ rotate: 0, opacity: 1 }}
-                    exit={{ rotate: -90, opacity: 0 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <Menu className="size-5" />
-                  </motion.span>
-                )}
-              </AnimatePresence>
+              <span className="relative size-5" aria-hidden>
+                <span
+                  className={cn(
+                    `
+                      absolute inset-0 flex items-center justify-center transition-all duration-150
+                      motion-reduce:transition-none
+                    `,
+                    mobileMenuOpen
+                      ? "rotate-90 opacity-0"
+                      : "rotate-0 opacity-100",
+                  )}
+                >
+                  <Menu className="size-5" />
+                </span>
+                <span
+                  className={cn(
+                    `
+                      absolute inset-0 flex items-center justify-center transition-all duration-150
+                      motion-reduce:transition-none
+                    `,
+                    mobileMenuOpen
+                      ? "rotate-0 opacity-100"
+                      : "-rotate-90 opacity-0",
+                  )}
+                >
+                  <X className="size-5" />
+                </span>
+              </span>
             </button>
 
             <DarkModeToggle />
@@ -322,24 +324,17 @@ export default function HeaderClient() {
         </div>
       </div>
 
-      <motion.nav
+      <nav
         ref={mobileMenuRef}
         id="mobile-navigation"
         data-mobile-navigation="true"
-        initial={false}
-        animate={
-          mobileMenuOpen
-            ? { height: "auto", opacity: 1 }
-            : { height: 0, opacity: 0 }
-        }
-        transition={{ duration: 0.2 }}
         className="overflow-hidden border-t border-gold/20 md:hidden"
         aria-label="Mobile navigation"
         hidden={!mobileMenuOpen}
         aria-hidden={!mobileMenuOpen}
         tabIndex={-1}
       >
-        <div className="space-y-1 px-6 py-4">
+        <div className="min-h-0 space-y-1 px-6 py-4">
           {NAV_ITEMS.map((item) => {
             const isActive = pathname === item.href;
 
@@ -370,7 +365,7 @@ export default function HeaderClient() {
             );
           })}
         </div>
-      </motion.nav>
+      </nav>
     </>
   );
 }
