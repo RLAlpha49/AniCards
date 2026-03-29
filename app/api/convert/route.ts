@@ -1101,9 +1101,10 @@ async function convertSvgToRaster(
   validateSvgRasterizationBounds(svg);
 
   const inputBuffer = Buffer.from(svg);
-  const metadata = await sharp(inputBuffer, {
+  const sourceImage = sharp(inputBuffer, {
     limitInputPixels: SVG_MAX_RASTER_PIXELS,
-  }).metadata();
+  });
+  const metadata = await sourceImage.metadata();
 
   if (
     (metadata.width && metadata.width > SVG_MAX_DIMENSION_PX) ||
@@ -1123,9 +1124,7 @@ async function convertSvgToRaster(
     throw new ConvertRouteError("SVG rasterization exceeds pixel limits", 413);
   }
 
-  const transformer = sharp(inputBuffer, {
-    limitInputPixels: SVG_MAX_RASTER_PIXELS,
-  });
+  const transformer = sourceImage.clone();
   if (requestedFormat === "webp") transformer.webp({ quality: 90 });
   else transformer.png();
   const convertedBuffer = await transformer.toBuffer();

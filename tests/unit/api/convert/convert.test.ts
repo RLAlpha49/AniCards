@@ -23,6 +23,8 @@ import {
  * Captures the buffer passed into `sharp` so tests can inspect the SVG payload.
  */
 let lastSharpBuffer: Buffer | null = null;
+let sharpConstructorCallCount = 0;
+let lastSharpCloneCount = 0;
 
 /**
  * Tracks which format (png or webp) was requested in the last sharp call
@@ -39,17 +41,45 @@ function createToBufferSuccess() {
   };
 }
 
+function createSharpOutputInstance() {
+  const outputInstance: {
+    toBuffer: () => Promise<Buffer>;
+    png: () => unknown;
+    webp: (opts: { quality: number }) => unknown;
+  } = {
+    toBuffer: createToBufferSuccess(),
+    png: mock(() => {
+      lastSharpFormat = "png";
+      return outputInstance;
+    }),
+    webp: mock((opts: { quality: number }) => {
+      void opts;
+      lastSharpFormat = "webp";
+      return outputInstance;
+    }),
+  };
+
+  return outputInstance;
+}
+
 /**
  * Returns a sharp-like object with png() -> { toBuffer() }
  */
 function createSharpInstance(buf?: Buffer) {
+  sharpConstructorCallCount += 1;
   if (buf) lastSharpBuffer = Buffer.from(buf);
+  const outputInstance = createSharpOutputInstance();
   const instance: {
+    clone: () => unknown;
     metadata: () => Promise<{ height: number; width: number }>;
     toBuffer: () => Promise<Buffer>;
     png: () => unknown;
     webp: (opts: { quality: number }) => unknown;
   } = {
+    clone: mock(() => {
+      lastSharpCloneCount += 1;
+      return outputInstance;
+    }),
     metadata: mock(async () => ({ width: 100, height: 100 })),
     toBuffer: createToBufferSuccess(),
     png: mock(() => {
@@ -68,8 +98,10 @@ function createSharpInstance(buf?: Buffer) {
 process.env.NEXT_PUBLIC_API_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost";
 
+const sharpConstructorMock = mock(createSharpInstance);
+
 mock.module("sharp", () => ({
-  default: mock(createSharpInstance),
+  default: sharpConstructorMock,
 }));
 
 describe("Convert API POST Endpoint", () => {
@@ -91,6 +123,9 @@ describe("Convert API POST Endpoint", () => {
     allowConsoleWarningsAndErrors();
     lastSharpBuffer = null;
     lastSharpFormat = "png";
+    sharpConstructorCallCount = 0;
+    lastSharpCloneCount = 0;
+    sharpConstructorMock.mockClear();
     sharedRatelimitMockLimit.mockResolvedValue({
       success: true,
       limit: 20,
@@ -576,6 +611,28 @@ describe("Convert API POST Endpoint", () => {
       expect(data.format).toBe("png");
       expect(data.imageDataUrl).toContain("data:image/png;base64,");
       expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("reuses a single sharp constructor call and clones it for raster output", async () => {
+      const dummySVG = `<svg><circle cx="50" cy="50" r="40"/></svg>`;
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({
+          svgContent: dummySVG,
+          format: "webp",
+        }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+
+      expect(res.status).toBe(200);
+      expect(sharpConstructorCallCount).toBe(1);
+      expect(lastSharpCloneCount).toBe(1);
+      expect(sharpConstructorMock).toHaveBeenCalledTimes(1);
     });
 
     it("should stream binary image data when responseType is binary", async () => {
