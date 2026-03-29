@@ -14,7 +14,7 @@ import {
   ensureRequestContext,
   getAllowedCardSvgOrigin,
   getRequestIp,
-  incrementAnalytics,
+  incrementAnalyticsBatch,
   isRedisBackplaneUnavailable,
   logPrivacySafe,
   parseStrictPositiveInteger,
@@ -415,27 +415,21 @@ async function trackFailedRequest(
   baseCardType?: string,
   status?: number,
 ): Promise<void> {
-  incrementAnalytics(
-    buildAnalyticsMetricKey("card_svg", "failed_requests"),
-  ).catch(() => {});
+  const metric = buildAnalyticsMetricKey("card_svg", "failed_requests");
+  const metrics = [metric];
+
   if (baseCardType) {
-    incrementAnalytics(
-      buildAnalyticsMetricKey("card_svg", "failed_requests") +
-        `:${baseCardType}`,
-    ).catch(() => {});
+    metrics.push(`${metric}:${baseCardType}`);
   }
+
   if (typeof status === "number") {
-    incrementAnalytics(
-      buildAnalyticsMetricKey("card_svg", "failed_requests") +
-        `:status:${status}`,
-    ).catch(() => {});
+    metrics.push(`${metric}:status:${status}`);
     if (baseCardType) {
-      incrementAnalytics(
-        buildAnalyticsMetricKey("card_svg", "failed_requests") +
-          `:${baseCardType}:status:${status}`,
-      ).catch(() => {});
+      metrics.push(`${metric}:${baseCardType}:status:${status}`);
     }
   }
+
+  await incrementAnalyticsBatch(metrics);
 }
 
 /**
@@ -448,13 +442,8 @@ async function trackFailedRequest(
  * @source
  */
 async function trackSuccessfulRequest(baseCardType: string): Promise<void> {
-  incrementAnalytics(
-    buildAnalyticsMetricKey("card_svg", "successful_requests"),
-  ).catch(() => {});
-  incrementAnalytics(
-    buildAnalyticsMetricKey("card_svg", "successful_requests") +
-      `:${baseCardType}`,
-  ).catch(() => {});
+  const metric = buildAnalyticsMetricKey("card_svg", "successful_requests");
+  await incrementAnalyticsBatch([metric, `${metric}:${baseCardType}`]);
 }
 
 /**

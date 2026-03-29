@@ -7,6 +7,7 @@ import {
   getRequestIp,
   handleError,
   incrementAnalytics,
+  incrementAnalyticsBatch,
   readJsonRequestBody,
   validateSameOrigin,
 } from "@/lib/api-utils";
@@ -15,6 +16,8 @@ import {
   sharedRedisMockExpire,
   sharedRedisMockIncr,
   sharedRedisMockIncrRaw,
+  sharedRedisMockPipeline,
+  sharedRedisMockPipelineExec,
 } from "@/tests/unit/__setup__";
 
 describe("api-utils hardening", () => {
@@ -33,6 +36,9 @@ describe("api-utils hardening", () => {
     sharedRedisMockIncrRaw.mockResolvedValue(1);
     sharedRedisMockExpire.mockReset();
     sharedRedisMockExpire.mockResolvedValue(1);
+    sharedRedisMockPipeline.mockReset();
+    sharedRedisMockPipelineExec.mockReset();
+    sharedRedisMockPipelineExec.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -161,6 +167,39 @@ describe("api-utils hardening", () => {
       ANALYTICS_COUNTER_TTL_SECONDS,
     );
     expect(sharedRedisMockIncr).toHaveBeenCalledWith(metric);
+  });
+
+  it("batches analytics increments through a single Redis pipeline while preserving monthly buckets", async () => {
+    const now = new Date("2026-03-27T12:00:00.000Z");
+    const metrics = [
+      "analytics:test_api:cache_misses",
+      "analytics:test_api:cache_misses:redis",
+    ];
+
+    await incrementAnalyticsBatch(metrics, { now });
+
+    expect(sharedRedisMockPipeline).toHaveBeenCalledTimes(1);
+    expect(sharedRedisMockPipelineExec).toHaveBeenCalledTimes(1);
+    expect(sharedRedisMockIncrRaw).toHaveBeenCalledWith(
+      "analytics:test_api:cache_misses:month:2026-03",
+    );
+    expect(sharedRedisMockIncrRaw).toHaveBeenCalledWith(
+      "analytics:test_api:cache_misses:redis:month:2026-03",
+    );
+    expect(sharedRedisMockExpire).toHaveBeenCalledWith(
+      "analytics:test_api:cache_misses:month:2026-03",
+      ANALYTICS_COUNTER_TTL_SECONDS,
+    );
+    expect(sharedRedisMockExpire).toHaveBeenCalledWith(
+      "analytics:test_api:cache_misses:redis:month:2026-03",
+      ANALYTICS_COUNTER_TTL_SECONDS,
+    );
+    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+      "analytics:test_api:cache_misses",
+    );
+    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+      "analytics:test_api:cache_misses:redis",
+    );
   });
 
   it("preserves safe public error detail exposed by structured errors", async () => {

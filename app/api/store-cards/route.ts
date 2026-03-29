@@ -21,6 +21,7 @@ import {
   logSuccess,
   readJsonRequestBody,
   redisClient,
+  scheduleTelemetryTask,
   validateCardData,
 } from "@/lib/api-utils";
 import { displayNames, isValidCardType } from "@/lib/card-data/validation";
@@ -73,6 +74,20 @@ const CARD_TYPES_WITH_FAVORITES = new Set([
   "animeStaff",
   "mangaStaff",
 ]);
+
+function scheduleStoreCardsMetric(
+  endpoint: string,
+  endpointKey: string,
+  metric: "failed_requests" | "successful_requests",
+  request: Request,
+): void {
+  const analyticsMetric = buildAnalyticsMetricKey(endpointKey, metric);
+  scheduleTelemetryTask(() => incrementAnalytics(analyticsMetric), {
+    endpoint,
+    taskName: analyticsMetric,
+    request,
+  });
+}
 
 /**
  * Cached list of supported base card types.
@@ -645,9 +660,7 @@ async function validateIncomingPayload(
   userId: number,
 ): Promise<NextResponse | undefined> {
   if (!validated.success) {
-    await incrementAnalytics(
-      buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-    );
+    scheduleStoreCardsMetric(endpoint, endpointKey, "failed_requests", request);
     return validated.error;
   }
   const statsError =
@@ -663,9 +676,7 @@ async function validateIncomingPayload(
       { userId, error: errMsg },
       request,
     );
-    await incrementAnalytics(
-      buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-    );
+    scheduleStoreCardsMetric(endpoint, endpointKey, "failed_requests", request);
     return apiErrorResponse(request, 400, "Invalid data: " + errMsg, {
       category: "invalid_data",
       retryable: false,
@@ -720,9 +731,17 @@ async function createIfMatchConflictResponse(
   endpointKey: string,
   request: Request,
 ): Promise<NextResponse> {
-  await incrementAnalytics(
-    buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-  ).catch(() => {});
+  scheduleTelemetryTask(
+    () =>
+      incrementAnalytics(
+        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+      ),
+    {
+      endpoint: "Store Cards",
+      taskName: "analytics:store_cards:failed_requests",
+      request,
+    },
+  );
 
   return apiErrorResponse(
     request,
@@ -762,9 +781,7 @@ async function parseStoreCardsRequestBody(
   const rawUserId = body.userId;
   const userId = typeof rawUserId === "number" ? rawUserId : Number(rawUserId);
   if (!Number.isFinite(userId)) {
-    await incrementAnalytics(
-      buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-    ).catch(() => {});
+    scheduleStoreCardsMetric(endpoint, endpointKey, "failed_requests", request);
     return {
       errorResponse: apiErrorResponse(request, 400, "Invalid userId", {
         category: "invalid_data",
@@ -789,9 +806,7 @@ async function parseStoreCardsRequestBody(
 
   const cardOrderResult = normalizeIncomingCardOrder(body.cardOrder);
   if (cardOrderResult.invalid) {
-    await incrementAnalytics(
-      buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-    ).catch(() => {});
+    scheduleStoreCardsMetric(endpoint, endpointKey, "failed_requests", request);
     return {
       errorResponse: apiErrorResponse(request, 400, "Invalid cardOrder", {
         category: "invalid_data",
@@ -1025,9 +1040,7 @@ async function assembleStoredCardsAndGlobalSettings(params: {
       { invalidColorKey: sanitizeResult.invalidColorStringKey },
       request,
     );
-    await incrementAnalytics(
-      buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-    ).catch(() => {});
+    scheduleStoreCardsMetric(endpoint, endpointKey, "failed_requests", request);
     return {
       errorResponse: apiErrorResponse(request, 400, "Invalid data", {
         category: "invalid_data",
@@ -1125,9 +1138,12 @@ async function validateCardColors(
           { cardIndex: idx, field },
           request,
         );
-        await incrementAnalytics(
-          buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-        ).catch(() => {});
+        scheduleStoreCardsMetric(
+          endpoint,
+          endpointKey,
+          "failed_requests",
+          request,
+        );
         return apiErrorResponse(request, 400, "Invalid data", {
           category: "invalid_data",
           retryable: false,
@@ -1143,9 +1159,12 @@ async function validateCardColors(
           { cardIndex: idx, field, reason: reasonSuffix || undefined },
           request,
         );
-        await incrementAnalytics(
-          buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-        ).catch(() => {});
+        scheduleStoreCardsMetric(
+          endpoint,
+          endpointKey,
+          "failed_requests",
+          request,
+        );
         return apiErrorResponse(request, 400, "Invalid data", {
           category: "invalid_data",
           retryable: false,
@@ -1293,8 +1312,11 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const duration = Date.now() - startTime;
     logSuccess(endpoint, userId, duration, "Stored cards", request);
-    await incrementAnalytics(
-      buildAnalyticsMetricKey(endpointKey, "successful_requests"),
+    scheduleStoreCardsMetric(
+      endpoint,
+      endpointKey,
+      "successful_requests",
+      request,
     );
 
     return jsonWithCors(

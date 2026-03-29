@@ -9,7 +9,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 import { displayNames, isValidCardType } from "@/lib/card-data/validation";
 import {
@@ -78,6 +78,12 @@ export const redisClient: Redis = new Proxy({} as Record<string, unknown>, {
     return true;
   },
 }) as unknown as Redis;
+
+type AnalyticsRedisPipeline = {
+  incr: (key: string) => AnalyticsRedisPipeline;
+  expire: (key: string, seconds: number) => AnalyticsRedisPipeline;
+  exec: () => Promise<unknown>;
+};
 
 /**
  * Scans all keys matching a pattern using the Redis SCAN command.
@@ -543,7 +549,83 @@ export const ANALYTICS_COUNTER_TTL_SECONDS = 400 * 24 * 60 * 60;
 const upstreamCircuitStates = new Map<string, UpstreamCircuitState>();
 const apiRequestContextStore = new WeakMap<Request, ApiRequestContext>();
 const REQUEST_ID_HEADER = "X-Request-Id";
+const TELEMETRY_TEST_ENV_FLAG = "ANICARDS_UNIT_TEST";
+const pendingTelemetryTasks = new Set<Promise<void>>();
 let hasLoggedMissingApiOriginInProduction = false;
+
+function shouldTrackTelemetryTasksForTests(): boolean {
+  return process.env[TELEMETRY_TEST_ENV_FLAG] === "true";
+}
+
+function trackPendingTelemetryTaskForTests(task: Promise<void>): void {
+  if (!shouldTrackTelemetryTasksForTests()) return;
+
+  pendingTelemetryTasks.add(task);
+  task.finally(() => {
+    pendingTelemetryTasks.delete(task);
+  });
+}
+
+export async function flushScheduledTelemetryTasksForTests(): Promise<void> {
+  if (!shouldTrackTelemetryTasksForTests()) return;
+
+  while (pendingTelemetryTasks.size > 0) {
+    await Promise.allSettled(pendingTelemetryTasks);
+  }
+}
+
+export function scheduleTelemetryTask(
+  task: () => Promise<unknown> | void,
+  options?: {
+    endpoint?: string;
+    taskName?: string;
+    request?: Request;
+  },
+): void {
+  const taskName = options?.taskName ?? "scheduled telemetry task";
+  const endpoint = options?.endpoint ?? "Telemetry";
+
+  const runTask = async () => {
+    try {
+      await task();
+    } catch (error) {
+      logPrivacySafe(
+        "warn",
+        endpoint,
+        "Scheduled telemetry task failed",
+        {
+          taskName,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        options?.request,
+      );
+    }
+  };
+
+  if (shouldTrackTelemetryTasksForTests()) {
+    const pendingTask = runTask();
+    trackPendingTelemetryTaskForTests(pendingTask);
+    return;
+  }
+
+  try {
+    after(runTask);
+  } catch (error) {
+    const pendingTask = runTask();
+    trackPendingTelemetryTaskForTests(pendingTask);
+
+    logPrivacySafe(
+      "warn",
+      endpoint,
+      "Falling back to immediate telemetry scheduling",
+      {
+        taskName,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      options?.request,
+    );
+  }
+}
 
 function normalizeOrigin(value: string | null | undefined): string | null {
   if (!value) return null;
@@ -838,9 +920,15 @@ export async function readJsonRequestBody<T>(
       },
       request,
     );
-    await incrementAnalytics(
-      buildAnalyticsMetricKey(options.endpointKey, "failed_requests"),
-    ).catch(() => {});
+    const metric = buildAnalyticsMetricKey(
+      options.endpointKey,
+      "failed_requests",
+    );
+    scheduleTelemetryTask(() => incrementAnalytics(metric), {
+      endpoint: options.endpointName,
+      taskName: metric,
+      request,
+    });
 
     return {
       success: false,
@@ -852,9 +940,15 @@ export async function readJsonRequestBody<T>(
   try {
     rawBody = await request.text();
   } catch {
-    await incrementAnalytics(
-      buildAnalyticsMetricKey(options.endpointKey, "failed_requests"),
-    ).catch(() => {});
+    const metric = buildAnalyticsMetricKey(
+      options.endpointKey,
+      "failed_requests",
+    );
+    scheduleTelemetryTask(() => incrementAnalytics(metric), {
+      endpoint: options.endpointName,
+      taskName: metric,
+      request,
+    });
 
     return {
       success: false,
@@ -876,9 +970,15 @@ export async function readJsonRequestBody<T>(
       },
       request,
     );
-    await incrementAnalytics(
-      buildAnalyticsMetricKey(options.endpointKey, "failed_requests"),
-    ).catch(() => {});
+    const metric = buildAnalyticsMetricKey(
+      options.endpointKey,
+      "failed_requests",
+    );
+    scheduleTelemetryTask(() => incrementAnalytics(metric), {
+      endpoint: options.endpointName,
+      taskName: metric,
+      request,
+    });
 
     return {
       success: false,
@@ -892,9 +992,15 @@ export async function readJsonRequestBody<T>(
       data: JSON.parse(rawBody) as T,
     };
   } catch {
-    await incrementAnalytics(
-      buildAnalyticsMetricKey(options.endpointKey, "failed_requests"),
-    ).catch(() => {});
+    const metric = buildAnalyticsMetricKey(
+      options.endpointKey,
+      "failed_requests",
+    );
+    scheduleTelemetryTask(() => incrementAnalytics(metric), {
+      endpoint: options.endpointName,
+      taskName: metric,
+      request,
+    });
 
     return {
       success: false,
@@ -1653,9 +1759,12 @@ export async function checkRateLimit(
       },
       request,
     );
-    await incrementAnalytics(
-      buildAnalyticsMetricKey(endpointKey, "rate_limit_errors"),
-    ).catch(() => {});
+    const metric = buildAnalyticsMetricKey(endpointKey, "rate_limit_errors");
+    scheduleTelemetryTask(() => incrementAnalytics(metric), {
+      endpoint: endpointName,
+      taskName: metric,
+      request,
+    });
     throw error;
   }
 
@@ -1687,9 +1796,12 @@ export async function checkRateLimit(
       { ip },
       request,
     );
-    await incrementAnalytics(
-      buildAnalyticsMetricKey(endpointKey, "rate_limit_timeouts"),
-    ).catch(() => {});
+    const metric = buildAnalyticsMetricKey(endpointKey, "rate_limit_timeouts");
+    scheduleTelemetryTask(() => incrementAnalytics(metric), {
+      endpoint: endpointName,
+      taskName: metric,
+      request,
+    });
   }
 
   const { success } = result;
@@ -1698,9 +1810,12 @@ export async function checkRateLimit(
       ip,
       denialDetails,
     });
-    await incrementAnalytics(
-      buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-    );
+    const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
+    scheduleTelemetryTask(() => incrementAnalytics(metric), {
+      endpoint: endpointName,
+      taskName: metric,
+      request,
+    });
     return apiErrorResponse(request, 429, "Too many requests", {
       headers: rateLimitHeaders,
       category: "rate_limited",
@@ -1837,6 +1952,36 @@ export async function incrementAnalytics(
     logPrivacySafe("warn", "Analytics", "Failed to increment analytics", {
       metric,
       storageKey,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+export async function incrementAnalyticsBatch(
+  metrics: Iterable<string>,
+  options?: { now?: Date },
+): Promise<void> {
+  const storageKeys = Array.from(metrics, (metric) =>
+    buildAnalyticsStorageKey(metric, options?.now),
+  );
+
+  if (storageKeys.length === 0) {
+    return;
+  }
+
+  try {
+    const pipeline =
+      redisClient.pipeline() as unknown as AnalyticsRedisPipeline;
+
+    for (const storageKey of storageKeys) {
+      pipeline.incr(storageKey);
+      pipeline.expire(storageKey, ANALYTICS_COUNTER_TTL_SECONDS);
+    }
+
+    await pipeline.exec();
+  } catch (error) {
+    logPrivacySafe("warn", "Analytics", "Failed to increment analytics batch", {
+      metricCount: storageKeys.length,
       error: error instanceof Error ? error.message : String(error),
     });
   }

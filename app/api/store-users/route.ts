@@ -12,6 +12,7 @@ import {
   logPrivacySafe,
   logSuccess,
   readJsonRequestBody,
+  scheduleTelemetryTask,
   validateUserData,
 } from "@/lib/api-utils";
 import { validateAndNormalizeUserRecord } from "@/lib/card-data";
@@ -63,9 +64,12 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const validationResult = validateUserData(data, endpoint, request);
     if (!validationResult.success) {
-      await incrementAnalytics(
-        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-      );
+      const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
+      scheduleTelemetryTask(() => incrementAnalytics(metric), {
+        endpoint,
+        taskName: metric,
+        request,
+      });
       return validationResult.error;
     }
 
@@ -104,9 +108,12 @@ export async function POST(request: Request): Promise<NextResponse> {
       existingState?.updatedAt &&
       existingState.updatedAt !== ifMatchUpdatedAt
     ) {
-      await incrementAnalytics(
-        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-      );
+      const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
+      scheduleTelemetryTask(() => incrementAnalytics(metric), {
+        endpoint,
+        taskName: metric,
+        request,
+      });
       return apiErrorResponse(
         request,
         409,
@@ -168,9 +175,12 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const duration = Date.now() - startTime;
     logSuccess(endpoint, userId, duration, undefined, request);
-    await incrementAnalytics(
-      buildAnalyticsMetricKey(endpointKey, "successful_requests"),
-    );
+    const metric = buildAnalyticsMetricKey(endpointKey, "successful_requests");
+    scheduleTelemetryTask(() => incrementAnalytics(metric), {
+      endpoint,
+      taskName: metric,
+      request,
+    });
 
     return jsonWithCors(
       { success: true, userId, updatedAt: saveResult.updatedAt },

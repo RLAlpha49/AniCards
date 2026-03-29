@@ -1,14 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
+import { OPTIONS, POST } from "@/app/api/anilist/route";
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
+import { flushScheduledTelemetryTasksForTests } from "@/lib/api-utils";
 import {
   allowConsoleWarningsAndErrors,
   sharedRatelimitMockLimit,
+  sharedRedisMockIncr,
+  sharedRedisMockLtrim,
+  sharedRedisMockRpush,
 } from "@/tests/unit/__setup__";
 
 process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
-
-import { OPTIONS, POST } from "@/app/api/anilist/route";
 
 const BASE_URL = "http://localhost/api/anilist";
 
@@ -68,6 +71,9 @@ describe("AniList API Route", () => {
     allowConsoleWarningsAndErrors();
     process.env = { ...originalEnv, NEXT_PUBLIC_APP_URL: "http://localhost" };
     sharedRatelimitMockLimit.mockReset();
+    sharedRedisMockIncr.mockReset();
+    sharedRedisMockRpush.mockReset();
+    sharedRedisMockLtrim.mockReset();
     sharedRatelimitMockLimit.mockResolvedValue({
       success: true,
       limit: 10,
@@ -75,6 +81,9 @@ describe("AniList API Route", () => {
       reset: Date.now() + 5_000,
       pending: Promise.resolve(),
     });
+    sharedRedisMockIncr.mockResolvedValue(1);
+    sharedRedisMockRpush.mockResolvedValue(1);
+    sharedRedisMockLtrim.mockResolvedValue("OK");
   });
 
   afterEach(() => {
@@ -122,6 +131,11 @@ describe("AniList API Route", () => {
     expect(init.headers).toMatchObject({
       Authorization: "Bearer dummy-token",
     });
+
+    await flushScheduledTelemetryTasksForTests();
+    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+      "analytics:anilist_api:successful_requests",
+    );
   });
 
   it("accepts the exact approved GetUserId query for backward compatibility", async () => {
@@ -261,6 +275,15 @@ describe("AniList API Route", () => {
 
     expect(response.status).toBe(400);
     expect((await response.json()).error).toContain("Invalid query");
+
+    await flushScheduledTelemetryTasksForTests();
+    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+      "analytics:anilist_api:failed_requests",
+    );
+    expect(sharedRedisMockRpush).toHaveBeenCalledWith(
+      "telemetry:error-reports:v1",
+      expect.any(String),
+    );
   });
 
   it("returns GraphQL payload errors as 500s", async () => {

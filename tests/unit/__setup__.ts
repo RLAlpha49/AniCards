@@ -11,6 +11,7 @@ import { afterEach, beforeEach, mock } from "bun:test";
 console.debug = mock(() => {});
 console.log = mock(() => {});
 console.info = mock(() => {});
+process.env.ANICARDS_UNIT_TEST = "true";
 
 const formatConsoleArgs = (args: unknown[]): string =>
   args
@@ -117,6 +118,8 @@ export const sharedRedisMockPipelineSet = mock();
 export const sharedRedisMockPipelineDel = mock();
 export const sharedRedisMockPipelineSadd = mock();
 export const sharedRedisMockPipelineZadd = mock();
+export const sharedRedisMockPipelineIncr = mock();
+export const sharedRedisMockPipelineExpire = mock();
 export const sharedRedisMockZadd = mock(async () => 1);
 export const sharedRedisMockZrange = mock(async () => [] as string[]);
 export const sharedRedisMockZcard = mock(async () => 0);
@@ -155,6 +158,28 @@ const sharedRedisPipelineMock = {
     invokeSharedRedisMockZadd(...args);
     return sharedRedisPipelineMock;
   }),
+  incr: mock((key: unknown) => {
+    sharedRedisMockPipelineIncr(key);
+    const invokeSharedRedisMockIncrRaw = sharedRedisMockIncrRaw as unknown as (
+      ...callArgs: unknown[]
+    ) => Promise<unknown>;
+    const invokeSharedRedisMockIncr = sharedRedisMockIncr as unknown as (
+      ...callArgs: unknown[]
+    ) => Promise<unknown>;
+
+    void invokeSharedRedisMockIncrRaw(key);
+    void invokeSharedRedisMockIncr(
+      normalizeAnalyticsCounterKeyForAssertions(key),
+    );
+    return sharedRedisPipelineMock;
+  }),
+  expire: mock((...args: unknown[]) => {
+    sharedRedisMockPipelineExpire(...args);
+    void (
+      sharedRedisMockExpire as unknown as (...callArgs: unknown[]) => unknown
+    )(...args);
+    return sharedRedisPipelineMock;
+  }),
   exec: sharedRedisMockPipelineExec,
 };
 
@@ -189,7 +214,10 @@ const sharedRedisFakeClient = {
   zrange: sharedRedisMockZrange,
   zcard: sharedRedisMockZcard,
   zrem: sharedRedisMockZrem,
-  pipeline: mock(() => sharedRedisPipelineMock),
+  pipeline: mock(() => {
+    sharedRedisMockPipeline();
+    return sharedRedisPipelineMock;
+  }),
 };
 
 mock.module("@upstash/redis", () => ({

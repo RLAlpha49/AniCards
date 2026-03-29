@@ -12,6 +12,7 @@ import {
   isValidUsername,
   jsonWithCors,
   logPrivacySafe,
+  scheduleTelemetryTask,
   UpstreamTransportError,
 } from "@/lib/api-utils";
 import { categorizeByStatusCode, categorizeError } from "@/lib/error-messages";
@@ -282,8 +283,12 @@ async function executeAniListRequest(
  * @param metric - Metric name used for analytics tracking.
  * @source
  */
-async function trackAnalytics(metric: string): Promise<void> {
-  await incrementAnalytics(metric);
+function trackAnalytics(metric: string, request: Request): void {
+  scheduleTelemetryTask(() => incrementAnalytics(metric), {
+    endpoint: "AniList API",
+    taskName: metric,
+    request,
+  });
 }
 
 /**
@@ -430,8 +435,9 @@ export async function POST(request: Request) {
     try {
       requestData = (await request.json()) as GraphQLRequest;
     } catch {
-      await trackAnalytics(
+      trackAnalytics(
         buildAnalyticsMetricKey("anilist_api", "failed_requests"),
+        request,
       );
       return invalidJsonResponse(request);
     }
@@ -439,8 +445,9 @@ export async function POST(request: Request) {
     const result = await executeAniListRequest(requestData, request, startTime);
     operationInfo = result.operationInfo;
 
-    await trackAnalytics(
+    trackAnalytics(
       buildAnalyticsMetricKey("anilist_api", "successful_requests"),
+      request,
     );
     return jsonWithCors(result.data, request);
   } catch (error: unknown) {
@@ -472,24 +479,31 @@ export async function POST(request: Request) {
         ? categorizeError(errorMessage)
         : categorizeByStatusCode(statusCode);
 
-    await Promise.resolve(
-      trackUserActionError(
-        `anilist_api_${operationInfo.name}`,
-        error instanceof Error ? error : new Error(errorMessage),
-        errorCategory,
-        {
-          statusCode,
-          source: "api_route",
-          metadata: {
-            endpoint: "anilist_api",
-            operation: operationInfo.name,
+    scheduleTelemetryTask(
+      () =>
+        trackUserActionError(
+          `anilist_api_${operationInfo.name}`,
+          error instanceof Error ? error : new Error(errorMessage),
+          errorCategory,
+          {
+            statusCode,
+            source: "api_route",
+            metadata: {
+              endpoint: "anilist_api",
+              operation: operationInfo.name,
+            },
           },
-        },
-      ),
+        ),
+      {
+        endpoint: "AniList API",
+        taskName: `trackUserActionError:${operationInfo.name}`,
+        request,
+      },
     );
 
-    await trackAnalytics(
+    trackAnalytics(
       buildAnalyticsMetricKey("anilist_api", "failed_requests"),
+      request,
     );
 
     return apiErrorResponse(

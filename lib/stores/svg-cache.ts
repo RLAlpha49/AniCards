@@ -1,14 +1,17 @@
+import { gunzipSync, gzipSync } from "node:zlib";
+
 import { LRUCache } from "lru-cache";
 
 import {
   buildAnalyticsMetricKey,
-  incrementAnalytics,
+  incrementAnalyticsBatch,
   redisClient,
 } from "@/lib/api-utils";
 
 const DEFAULT_MEMORY_TTL_MS = 12 * 60 * 60 * 1000;
 const DEFAULT_SHARED_TTL_MS = 24 * 60 * 60 * 1000;
 const SHARED_CACHE_KEY_PREFIX = "svg-cache";
+const SHARED_CACHE_COMPRESSION = "gzip-base64-v1" as const;
 
 type CacheMetricSource = "memory" | "redis";
 
@@ -29,11 +32,19 @@ export interface CachedSvgEntry {
   borderRadius?: number;
 }
 
-interface PersistedCachedSvgEntry {
-  svg: string;
+interface PersistedCachedSvgEntryBase {
   cachedAt: number;
   ttl: number;
   borderRadius?: number;
+}
+
+interface LegacyPersistedCachedSvgEntry extends PersistedCachedSvgEntryBase {
+  svg: string;
+}
+
+interface CompressedPersistedCachedSvgEntry extends PersistedCachedSvgEntryBase {
+  compression: typeof SHARED_CACHE_COMPRESSION;
+  svgCompressed: string;
 }
 
 /**
@@ -166,16 +177,15 @@ function getSharedCacheKey(cacheKey: string): string {
   return `${SHARED_CACHE_KEY_PREFIX}:${cacheKey}`;
 }
 
-function isPersistedCachedSvgEntry(
+function hasPersistedCachedSvgEntryMetadata(
   value: unknown,
-): value is PersistedCachedSvgEntry {
+): value is PersistedCachedSvgEntryBase {
   if (!value || typeof value !== "object") {
     return false;
   }
 
   const candidate = value as Record<string, unknown>;
   return (
-    typeof candidate.svg === "string" &&
     typeof candidate.cachedAt === "number" &&
     Number.isFinite(candidate.cachedAt) &&
     typeof candidate.ttl === "number" &&
@@ -184,6 +194,34 @@ function isPersistedCachedSvgEntry(
       (typeof candidate.borderRadius === "number" &&
         Number.isFinite(candidate.borderRadius)))
   );
+}
+
+function isLegacyPersistedCachedSvgEntry(
+  value: unknown,
+): value is LegacyPersistedCachedSvgEntry {
+  return (
+    hasPersistedCachedSvgEntryMetadata(value) &&
+    typeof (value as { svg?: unknown }).svg === "string"
+  );
+}
+
+function isCompressedPersistedCachedSvgEntry(
+  value: unknown,
+): value is CompressedPersistedCachedSvgEntry {
+  return (
+    hasPersistedCachedSvgEntryMetadata(value) &&
+    (value as { compression?: unknown }).compression ===
+      SHARED_CACHE_COMPRESSION &&
+    typeof (value as { svgCompressed?: unknown }).svgCompressed === "string"
+  );
+}
+
+function compressSvg(svg: string): string {
+  return gzipSync(Buffer.from(svg, "utf-8")).toString("base64");
+}
+
+function decompressSvg(svgCompressed: string): string {
+  return gunzipSync(Buffer.from(svgCompressed, "base64")).toString("utf-8");
 }
 
 /**
@@ -204,13 +242,25 @@ export async function getSvgFromSharedCache(
     if (!raw) return null;
 
     const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-    if (!isPersistedCachedSvgEntry(parsed)) {
+    if (isLegacyPersistedCachedSvgEntry(parsed)) {
+      return {
+        ...parsed,
+        isStale: false,
+      };
+    }
+
+    if (!isCompressedPersistedCachedSvgEntry(parsed)) {
       return null;
     }
 
     return {
-      ...parsed,
+      cachedAt: parsed.cachedAt,
+      ttl: parsed.ttl,
+      svg: decompressSvg(parsed.svgCompressed),
       isStale: false,
+      ...(typeof parsed.borderRadius === "number"
+        ? { borderRadius: parsed.borderRadius }
+        : {}),
     };
   } catch (error) {
     console.warn("[Card SVG] Failed to read shared SVG cache entry:", error);
@@ -235,8 +285,9 @@ export async function setSvgInSharedCache(
   userId?: number,
   borderRadius?: number,
 ): Promise<void> {
-  const entry: PersistedCachedSvgEntry = {
-    svg,
+  const entry: CompressedPersistedCachedSvgEntry = {
+    compression: SHARED_CACHE_COMPRESSION,
+    svgCompressed: compressSvg(svg),
     cachedAt: Date.now(),
     ttl,
     ...(typeof borderRadius === "number" ? { borderRadius } : {}),
@@ -328,12 +379,6 @@ export async function trackCacheMetric(
   const suffixedMetric = `${metric}:${source}`;
   const includeOverall = options?.includeOverall ?? true;
 
-  const operations = [incrementAnalytics(suffixedMetric)];
-  if (includeOverall) {
-    operations.unshift(incrementAnalytics(metric));
-  }
-
-  await Promise.all(operations).catch(() => {
-    // Silently fail analytics to not affect primary functionality
-  });
+  const metrics = includeOverall ? [metric, suffixedMetric] : [suffixedMetric];
+  await incrementAnalyticsBatch(metrics);
 }

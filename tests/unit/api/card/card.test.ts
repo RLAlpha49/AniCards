@@ -2809,6 +2809,16 @@ describe("Card SVG Route", () => {
       const sharedCacheWrite = getSharedSvgCacheSetCall();
       expect(sharedCacheWrite).toBeTruthy();
       const [sharedCacheKey, sharedCachePayload] = sharedCacheWrite!;
+      const parsedSharedCachePayload = JSON.parse(sharedCachePayload) as {
+        compression?: string;
+        svg?: string;
+        svgCompressed?: string;
+      };
+
+      expect(parsedSharedCachePayload.compression).toBe("gzip-base64-v1");
+      expect(parsedSharedCachePayload.svg).toBeUndefined();
+      expect(parsedSharedCachePayload.svgCompressed).toBeTruthy();
+      expect(parsedSharedCachePayload.svgCompressed).not.toContain("<svg");
 
       clearSvgCache();
       resetSharedRouteMocks();

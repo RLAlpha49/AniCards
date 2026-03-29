@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
+import { OPTIONS, POST } from "@/app/api/error-reports/route";
+import { flushScheduledTelemetryTasksForTests } from "@/lib/api-utils";
 import {
   allowConsoleWarningsAndErrors,
   sharedRatelimitMockLimit,
@@ -9,8 +11,6 @@ import {
 } from "@/tests/unit/__setup__";
 
 process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
-
-import { OPTIONS, POST } from "@/app/api/error-reports/route";
 
 const BASE_URL = "http://localhost/api/error-reports";
 
@@ -80,6 +80,8 @@ describe("error reports API route", () => {
 
     expect(response.status).toBe(202);
     expect(payload).toEqual({ accepted: true });
+
+    await flushScheduledTelemetryTasksForTests();
     expect(sharedRedisMockRpush).toHaveBeenCalledWith(
       "telemetry:error-reports:v1",
       expect.any(String),
@@ -107,6 +109,8 @@ describe("error reports API route", () => {
     );
 
     expect(response.status).toBe(202);
+
+    await flushScheduledTelemetryTasksForTests();
 
     const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1] as
       | string
@@ -136,6 +140,8 @@ describe("error reports API route", () => {
 
     expect(response.status).toBe(202);
 
+    await flushScheduledTelemetryTasksForTests();
+
     const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1] as
       | string
       | undefined;
@@ -160,6 +166,35 @@ describe("error reports API route", () => {
     expect(response.status).toBe(429);
     expect((await response.json()).error).toBe("Too many requests");
     expect(sharedRedisMockRpush).not.toHaveBeenCalled();
+  });
+
+  it("returns 202 before durable error persistence settles", async () => {
+    let resolveRpush: ((value: number) => void) | undefined;
+
+    sharedRedisMockRpush.mockImplementationOnce(
+      () =>
+        new Promise<number>((resolve) => {
+          resolveRpush = resolve;
+        }),
+    );
+
+    const response = await POST(createRequest());
+
+    expect(response.status).toBe(202);
+    expect(sharedRedisMockRpush).toHaveBeenCalledWith(
+      "telemetry:error-reports:v1",
+      expect.any(String),
+    );
+    expect(sharedRedisMockLtrim).not.toHaveBeenCalled();
+
+    resolveRpush?.(1);
+    await flushScheduledTelemetryTasksForTests();
+
+    expect(sharedRedisMockLtrim).toHaveBeenCalledWith(
+      "telemetry:error-reports:v1",
+      -250,
+      -1,
+    );
   });
 
   it("rejects missing required fields", async () => {

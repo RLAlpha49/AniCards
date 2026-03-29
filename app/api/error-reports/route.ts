@@ -5,6 +5,7 @@ import {
   initializeApiRequest,
   invalidJsonResponse,
   jsonWithCors,
+  scheduleTelemetryTask,
 } from "@/lib/api-utils";
 import {
   type ErrorReportSource,
@@ -127,19 +128,28 @@ export async function POST(request: Request) {
     });
   }
 
-  await reportStructuredError({
-    source: getOptionalSource(payload.source) ?? "client_hook",
-    userAction,
-    error: message,
-    requestId: getOptionalRequestId(payload.requestId) ?? ingestionRequestId,
-    errorName: getOptionalString(payload.errorName, 120),
-    route: getOptionalString(payload.route, 512),
-    statusCode: getOptionalInteger(payload.statusCode),
-    digest: getOptionalString(payload.digest, 120),
-    stack: getOptionalString(payload.stack, 8_000),
-    componentStack: getOptionalString(payload.componentStack, 8_000),
-    metadata: getMetadata(payload.metadata),
-  });
+  scheduleTelemetryTask(
+    () =>
+      reportStructuredError({
+        source: getOptionalSource(payload.source) ?? "client_hook",
+        userAction,
+        error: message,
+        requestId:
+          getOptionalRequestId(payload.requestId) ?? ingestionRequestId,
+        errorName: getOptionalString(payload.errorName, 120),
+        route: getOptionalString(payload.route, 512),
+        statusCode: getOptionalInteger(payload.statusCode),
+        digest: getOptionalString(payload.digest, 120),
+        stack: getOptionalString(payload.stack, 8_000),
+        componentStack: getOptionalString(payload.componentStack, 8_000),
+        metadata: getMetadata(payload.metadata),
+      }),
+    {
+      endpoint: "Error Reports API",
+      taskName: "reportStructuredError",
+      request,
+    },
+  );
 
   return jsonWithCors({ accepted: true }, request, 202);
 }
