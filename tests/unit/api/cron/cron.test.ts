@@ -200,6 +200,31 @@ function createDeferredPromise<T>() {
   return { promise, resolve, reject };
 }
 
+async function expectApiErrorResponse(
+  response: Response,
+  expectedStatus: number,
+  expectedError: string,
+) {
+  expect(response.status).toBe(expectedStatus);
+  expect(response.headers.get("Content-Type")).toContain("application/json");
+
+  const body = (await response.json()) as {
+    error: string;
+    status: number;
+    category: string;
+    retryable: boolean;
+    recoverySuggestions: unknown[];
+  };
+
+  expect(body).toMatchObject({
+    error: expectedError,
+    status: expectedStatus,
+    category: expect.any(String),
+    retryable: expect.any(Boolean),
+    recoverySuggestions: expect.any(Array),
+  });
+}
+
 async function flushMicrotasks(iterations = 6) {
   for (let index = 0; index < iterations; index += 1) {
     await Promise.resolve();
@@ -245,15 +270,26 @@ describe("Cron API Route", () => {
   });
 
   it("rejects invalid or missing cron secrets", async () => {
-    expect((await POST(createCronRequest("wrongsecret"))).status).toBe(401);
-    expect((await POST(createCronRequest(null))).status).toBe(401);
+    await expectApiErrorResponse(
+      await POST(createCronRequest("wrongsecret")),
+      401,
+      "Unauthorized",
+    );
+    await expectApiErrorResponse(
+      await POST(createCronRequest(null)),
+      401,
+      "Unauthorized",
+    );
   });
 
   it("fails closed when CRON_SECRET is missing unless explicitly allowed in development", async () => {
     delete process.env.CRON_SECRET;
     const closedResponse = await POST(createCronRequest(null));
-    expect(closedResponse.status).toBe(503);
-    expect(await closedResponse.text()).toBe("CRON_SECRET is not configured");
+    await expectApiErrorResponse(
+      closedResponse,
+      503,
+      "CRON_SECRET is not configured",
+    );
 
     process.env = { ...process.env, NODE_ENV: "development" };
     process.env.ALLOW_UNSECURED_CRON_IN_DEV = "true";
@@ -634,13 +670,11 @@ describe("Cron API Route", () => {
       new Error("Redis connection error"),
     );
     const scanFailure = await POST(createCronRequest());
-    expect(scanFailure.status).toBe(500);
-    expect(await scanFailure.text()).toBe("Cron job failed");
+    await expectApiErrorResponse(scanFailure, 500, "Cron job failed");
 
     sharedRedisMockSmembers.mockResolvedValueOnce(["123"]);
     sharedRedisMockGet.mockRejectedValueOnce(new Error("Redis error"));
     const getFailure = await POST(createCronRequest());
-    expect(getFailure.status).toBe(500);
-    expect(await getFailure.text()).toBe("Cron job failed");
+    await expectApiErrorResponse(getFailure, 500, "Cron job failed");
   });
 });

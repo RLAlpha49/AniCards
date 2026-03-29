@@ -1,8 +1,8 @@
 import type { Redis as UpstashRedis } from "@upstash/redis";
 
 import {
+  apiErrorResponse,
   apiJsonHeaders,
-  apiTextHeaders,
   authorizeCronRequest,
   fetchUpstreamWithRetry,
   initializeApiRequest,
@@ -718,10 +718,7 @@ export async function GET(request: Request) {
 
   const limit = parseRequestedReportLimit(request);
   if (limit === null) {
-    return new Response(JSON.stringify({ error: "Invalid limit parameter" }), {
-      status: 400,
-      headers: apiJsonHeaders(request),
-    });
+    return apiErrorResponse(request, 400, "Invalid limit parameter");
   }
 
   try {
@@ -750,13 +747,7 @@ export async function GET(request: Request) {
       request,
     );
 
-    return new Response(
-      JSON.stringify({ error: "Failed to fetch analytics reports" }),
-      {
-        status: 500,
-        headers: apiJsonHeaders(request),
-      },
-    );
+    return apiErrorResponse(request, 500, "Failed to fetch analytics reports");
   }
 }
 
@@ -853,21 +844,20 @@ export async function POST(request: Request) {
       status: 200,
       headers: apiJsonHeaders(request),
     });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const normalizedError =
+      error instanceof Error ? error : new Error(String(error));
+
     logPrivacySafe(
       "error",
       endpoint,
       "Analytics and reporting job failed",
       {
-        error: error.message,
-        ...(error.stack ? { stack: error.stack } : {}),
+        error: normalizedError.message,
+        ...(normalizedError.stack ? { stack: normalizedError.stack } : {}),
       },
       request,
     );
-    return new Response("Analytics and reporting job failed", {
-      status: 500,
-      headers: apiTextHeaders(request),
-    });
+    return apiErrorResponse(request, 500, "Analytics and reporting job failed");
   }
 }

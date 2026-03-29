@@ -12,6 +12,7 @@ import type { Redis as UpstashRedis } from "@upstash/redis";
 
 import { USER_STATS_QUERY } from "@/lib/anilist/queries";
 import {
+  apiErrorResponse,
   apiTextHeaders,
   authorizeCronRequest,
   fetchUpstreamWithRetry,
@@ -559,19 +560,20 @@ export async function POST(request: Request) {
     ].join("\n");
 
     return new Response(scheduleMessage, { status: 200, headers });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const normalizedError =
+      error instanceof Error ? error : new Error(String(error));
+
     logPrivacySafe(
       "error",
       endpoint,
       "Cron job failed",
       {
-        error: error.message,
-        ...(error.stack ? { stack: error.stack } : {}),
+        error: normalizedError.message,
+        ...(normalizedError.stack ? { stack: normalizedError.stack } : {}),
       },
       request,
     );
-    const headers = apiTextHeaders(request);
-    return new Response("Cron job failed", { status: 500, headers });
+    return apiErrorResponse(request, 500, "Cron job failed");
   }
 }

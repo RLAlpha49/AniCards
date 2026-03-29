@@ -44,13 +44,29 @@ function setupAnalyticsData(values: Record<string, string | null>) {
   sharedRedisMockLtrim.mockResolvedValueOnce("OK");
 }
 
-async function expectErrorResponse(
+async function expectApiErrorResponse(
   response: Response,
   expectedStatus: number,
-  expectedText: string,
+  expectedError: string,
 ) {
   expect(response.status).toBe(expectedStatus);
-  expect(await response.text()).toBe(expectedText);
+  expect(response.headers.get("Content-Type")).toContain("application/json");
+
+  const body = (await response.json()) as {
+    error: string;
+    status: number;
+    category: string;
+    retryable: boolean;
+    recoverySuggestions: unknown[];
+  };
+
+  expect(body).toMatchObject({
+    error: expectedError,
+    status: expectedStatus,
+    category: expect.any(String),
+    retryable: expect.any(Boolean),
+    recoverySuggestions: expect.any(Array),
+  });
 }
 
 async function expectSuccessfulReport(response: Response) {
@@ -102,12 +118,12 @@ describe("Analytics & Reporting Cron API", () => {
   });
 
   it("rejects invalid or missing cron secrets", async () => {
-    await expectErrorResponse(
+    await expectApiErrorResponse(
       await POST(createCronRequest("wrongsecret")),
       401,
       "Unauthorized",
     );
-    await expectErrorResponse(
+    await expectApiErrorResponse(
       await POST(createCronRequest(null)),
       401,
       "Unauthorized",
@@ -116,7 +132,7 @@ describe("Analytics & Reporting Cron API", () => {
 
   it("fails closed when CRON_SECRET is missing", async () => {
     delete process.env.CRON_SECRET;
-    await expectErrorResponse(
+    await expectApiErrorResponse(
       await POST(createCronRequest(null)),
       503,
       "CRON_SECRET is not configured",
@@ -363,7 +379,7 @@ describe("Analytics & Reporting Cron API", () => {
 
   it("returns 500 when Redis scan, mget, or report persistence fails", async () => {
     sharedRedisMockScan.mockRejectedValueOnce(new Error("scan failed"));
-    await expectErrorResponse(
+    await expectApiErrorResponse(
       await POST(createCronRequest()),
       500,
       "Analytics and reporting job failed",
@@ -371,7 +387,7 @@ describe("Analytics & Reporting Cron API", () => {
 
     sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:visits"]]);
     sharedRedisMockMget.mockRejectedValueOnce(new Error("mget failed"));
-    await expectErrorResponse(
+    await expectApiErrorResponse(
       await POST(createCronRequest()),
       500,
       "Analytics and reporting job failed",
@@ -380,7 +396,7 @@ describe("Analytics & Reporting Cron API", () => {
     sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:visits"]]);
     sharedRedisMockMget.mockResolvedValueOnce(["100"]);
     sharedRedisMockRpush.mockRejectedValueOnce(new Error("rpush failed"));
-    await expectErrorResponse(
+    await expectApiErrorResponse(
       await POST(createCronRequest()),
       500,
       "Analytics and reporting job failed",
@@ -390,7 +406,7 @@ describe("Analytics & Reporting Cron API", () => {
     sharedRedisMockMget.mockResolvedValueOnce(["100"]);
     sharedRedisMockRpush.mockResolvedValueOnce(1);
     sharedRedisMockLtrim.mockRejectedValueOnce(new Error("ltrim failed"));
-    await expectErrorResponse(
+    await expectApiErrorResponse(
       await POST(createCronRequest()),
       500,
       "Analytics and reporting job failed",
@@ -451,10 +467,11 @@ describe("Analytics & Reporting Cron API", () => {
       }),
     );
 
-    expect(invalidLimitResponse.status).toBe(400);
-    expect(await invalidLimitResponse.json()).toEqual({
-      error: "Invalid limit parameter",
-    });
+    await expectApiErrorResponse(
+      invalidLimitResponse,
+      400,
+      "Invalid limit parameter",
+    );
 
     sharedRedisMockLrange.mockRejectedValueOnce(new Error("lrange failed"));
     const failureResponse = await GET(
@@ -464,9 +481,10 @@ describe("Analytics & Reporting Cron API", () => {
       }),
     );
 
-    expect(failureResponse.status).toBe(500);
-    expect(await failureResponse.json()).toEqual({
-      error: "Failed to fetch analytics reports",
-    });
+    await expectApiErrorResponse(
+      failureResponse,
+      500,
+      "Failed to fetch analytics reports",
+    );
   });
 });

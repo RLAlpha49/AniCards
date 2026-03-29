@@ -9,7 +9,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
-import { after, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 import { displayNames, isValidCardType } from "@/lib/card-data/validation";
 import {
@@ -553,6 +553,16 @@ const TELEMETRY_TEST_ENV_FLAG = "ANICARDS_UNIT_TEST";
 const pendingTelemetryTasks = new Set<Promise<void>>();
 let hasLoggedMissingApiOriginInProduction = false;
 
+type RequestContextWaitUntil = (promise: Promise<unknown>) => void;
+
+type NextRequestContextValue = {
+  waitUntil?: RequestContextWaitUntil;
+};
+
+type NextRequestContext = {
+  get?: () => NextRequestContextValue | undefined;
+};
+
 function shouldTrackTelemetryTasksForTests(): boolean {
   return process.env[TELEMETRY_TEST_ENV_FLAG] === "true";
 }
@@ -564,6 +574,23 @@ function trackPendingTelemetryTaskForTests(task: Promise<void>): void {
   task.finally(() => {
     pendingTelemetryTasks.delete(task);
   });
+}
+
+function getRequestContextWaitUntil(): RequestContextWaitUntil | undefined {
+  const requestContext = (
+    globalThis as typeof globalThis & {
+      [key: symbol]: NextRequestContext | undefined;
+    }
+  )[Symbol.for("@next/request-context")];
+
+  const waitUntil = requestContext?.get?.()?.waitUntil;
+  return typeof waitUntil === "function" ? waitUntil : undefined;
+}
+
+function createDeferredTelemetryTask(task: () => Promise<void>): Promise<void> {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, 0);
+  }).then(task);
 }
 
 export async function flushScheduledTelemetryTasksForTests(): Promise<void> {
@@ -608,23 +635,29 @@ export function scheduleTelemetryTask(
     return;
   }
 
-  try {
-    after(runTask);
-  } catch (error) {
-    const pendingTask = runTask();
-    trackPendingTelemetryTaskForTests(pendingTask);
+  const waitUntil = getRequestContextWaitUntil();
+  if (waitUntil) {
+    const pendingTask = createDeferredTelemetryTask(runTask);
 
-    logPrivacySafe(
-      "warn",
-      endpoint,
-      "Falling back to immediate telemetry scheduling",
-      {
-        taskName,
-        error: error instanceof Error ? error.message : String(error),
-      },
-      options?.request,
-    );
+    try {
+      waitUntil(pendingTask);
+      return;
+    } catch (error) {
+      logPrivacySafe(
+        "warn",
+        endpoint,
+        "Falling back to immediate telemetry scheduling",
+        {
+          taskName,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        options?.request,
+      );
+      return;
+    }
   }
+
+  void runTask();
 }
 
 function normalizeOrigin(value: string | null | undefined): string | null {
@@ -1454,10 +1487,7 @@ export function authorizeCronRequest(
       undefined,
       request,
     );
-    return new Response("CRON_SECRET is not configured", {
-      status: 503,
-      headers: apiTextHeaders(request),
-    });
+    return apiErrorResponse(request, 503, "CRON_SECRET is not configured");
   }
 
   if (!secretsMatchConstantTime(cronSecret, cronSecretHeader)) {
@@ -1468,10 +1498,7 @@ export function authorizeCronRequest(
       undefined,
       request,
     );
-    return new Response("Unauthorized", {
-      status: 401,
-      headers: apiTextHeaders(request),
-    });
+    return apiErrorResponse(request, 401, "Unauthorized");
   }
 
   return null;
