@@ -106,10 +106,19 @@ export async function fetchUserData(
         "completed",
       ] as UserDataPart[]);
 
-  let cardsDataStr: unknown;
-  try {
-    cardsDataStr = await redisClient.get(`cards:${numericUserId}`);
-  } catch (error) {
+  const [cardsDataResult, userDataPartsResult] = await Promise.all([
+    redisClient.get(`cards:${numericUserId}`).then(
+      (value) => ({ ok: true as const, value }),
+      (error) => ({ ok: false as const, error }),
+    ),
+    fetchUserDataParts(numericUserId, parts).then(
+      (value) => ({ ok: true as const, value }),
+      (error) => ({ ok: false as const, error }),
+    ),
+  ]);
+
+  if (!cardsDataResult.ok) {
+    const { error } = cardsDataResult;
     if (isRedisBackplaneUnavailable(error)) {
       throw new CardDataError(
         "Server Error: Card data is temporarily unavailable",
@@ -120,10 +129,10 @@ export async function fetchUserData(
     throw error;
   }
 
-  let userDataParts: Partial<Record<UserDataPart, unknown>>;
-  try {
-    userDataParts = await fetchUserDataParts(numericUserId, parts);
-  } catch (error) {
+  const cardsDataStr = cardsDataResult.value;
+
+  if (!userDataPartsResult.ok) {
+    const { error } = userDataPartsResult;
     if (error instanceof CardDataError) throw error;
 
     if (isRedisBackplaneUnavailable(error)) {
@@ -138,6 +147,8 @@ export async function fetchUserData(
     ).catch(() => {});
     throw new CardDataError("Server Error: Corrupted user record", 500);
   }
+
+  const userDataParts = userDataPartsResult.value;
 
   if (!cardsDataStr || cardsDataStr === "null" || !userDataParts.meta) {
     throw new CardDataError("Not Found: User data not found", 404);
