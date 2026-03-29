@@ -1,5 +1,6 @@
 import { seoConfigs } from "@/lib/seo";
 import {
+  buildCanonicalUrl,
   getSiteUrl,
   resolveSiteUrl,
   SITE_AUTHOR_NAME,
@@ -37,6 +38,17 @@ type ThingReference = {
   "@id": string;
 };
 
+interface EntryPoint {
+  "@type": "EntryPoint";
+  urlTemplate: string;
+}
+
+interface SearchAction {
+  "@type": "SearchAction";
+  target: EntryPoint;
+  "query-input": "required name=search_term_string";
+}
+
 type WebPageType = "CollectionPage" | "ContactPage" | "WebPage";
 
 interface Person {
@@ -65,6 +77,7 @@ interface WebSite {
   url: string;
   inLanguage: string;
   publisher: ThingReference;
+  potentialAction: SearchAction;
 }
 
 /**
@@ -82,6 +95,7 @@ interface WebPage {
   inLanguage: string;
   isPartOf: ThingReference;
   about?: ThingReference | ThingReference[];
+  breadcrumb?: ThingReference;
   mainEntity?: ThingReference;
 }
 
@@ -129,6 +143,18 @@ interface ItemList {
   }>;
 }
 
+interface BreadcrumbList {
+  "@type": "BreadcrumbList";
+  "@context": string;
+  "@id": string;
+  itemListElement: Array<{
+    "@type": "ListItem";
+    position: number;
+    name: string;
+    item: string;
+  }>;
+}
+
 interface StructuredDataOverrides {
   title?: string;
   description?: string;
@@ -137,12 +163,24 @@ interface StructuredDataOverrides {
 }
 
 export type StructuredDataEntry =
+  | BreadcrumbList
   | ItemList
   | Organization
   | Person
   | SoftwareApplication
   | WebPage
   | WebSite;
+
+const SEARCH_ACTION_QUERY_INPUT = "required name=search_term_string";
+const SEARCH_ACTION_TARGET_PARAMETER = "search_term_string";
+const BREADCRUMB_SEGMENT_LABELS = {
+  contact: "Contact",
+  examples: "Examples",
+  privacy: "Privacy",
+  projects: "Projects",
+  search: "Search",
+  user: "User",
+} as const satisfies Record<string, string>;
 
 function buildReference(id: string): ThingReference {
   return { "@id": id };
@@ -195,6 +233,17 @@ function buildOrganizationEntry(siteUrl: string): Organization {
   };
 }
 
+function buildWebSiteSearchAction(siteUrl: string): SearchAction {
+  return {
+    "@type": "SearchAction",
+    target: {
+      "@type": "EntryPoint",
+      urlTemplate: `${siteUrl}/user?username={${SEARCH_ACTION_TARGET_PARAMETER}}`,
+    },
+    "query-input": SEARCH_ACTION_QUERY_INPUT,
+  };
+}
+
 function buildWebSiteEntry(siteUrl: string): WebSite {
   const entityIds = getEntityIds(siteUrl);
 
@@ -206,6 +255,7 @@ function buildWebSiteEntry(siteUrl: string): WebSite {
     url: siteUrl,
     inLanguage: DEFAULT_LANGUAGE,
     publisher: buildReference(entityIds.organization),
+    potentialAction: buildWebSiteSearchAction(siteUrl),
   };
 }
 
@@ -257,6 +307,49 @@ function buildProjectsItemListEntry(canonicalUrl: string): ItemList {
         url: project.url,
       },
     })),
+  };
+}
+
+function getBreadcrumbLabel(segment: string): string {
+  return (
+    BREADCRUMB_SEGMENT_LABELS[
+      segment as keyof typeof BREADCRUMB_SEGMENT_LABELS
+    ] ?? decodeURIComponent(segment)
+  );
+}
+
+function buildBreadcrumbListEntry(
+  canonicalUrl: string,
+): BreadcrumbList | undefined {
+  const { origin, pathname } = new URL(canonicalUrl);
+  const pathSegments = pathname.split("/").filter(Boolean);
+
+  if (pathSegments.length === 0) {
+    return undefined;
+  }
+
+  return {
+    "@type": "BreadcrumbList",
+    "@context": JSON_LD_CONTEXT,
+    "@id": `${canonicalUrl}#breadcrumb`,
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: SITE_NAME,
+        item: origin,
+      },
+      ...pathSegments.map((segment, index) => {
+        const breadcrumbPath = `/${pathSegments.slice(0, index + 1).join("/")}`;
+
+        return {
+          "@type": "ListItem" as const,
+          position: index + 2,
+          name: getBreadcrumbLabel(segment),
+          item: buildCanonicalUrl(breadcrumbPath),
+        };
+      }),
+    ],
   };
 }
 
@@ -342,9 +435,8 @@ export const generateStructuredData = (
   const canonicalUrl = resolveSiteUrl(
     overrides.canonical ?? config.canonical ?? "/",
   );
-  const entries: StructuredDataEntry[] = [
-    buildPageEntry(pageType, config, canonicalUrl, siteUrl),
-  ];
+  const pageEntry = buildPageEntry(pageType, config, canonicalUrl, siteUrl);
+  const entries: StructuredDataEntry[] = [pageEntry];
 
   if (pageType === "home") {
     entries.push(
@@ -358,6 +450,13 @@ export const generateStructuredData = (
 
   if (pageType === "projects") {
     entries.push(buildProjectsItemListEntry(canonicalUrl));
+  }
+
+  const breadcrumbEntry = buildBreadcrumbListEntry(canonicalUrl);
+
+  if (breadcrumbEntry) {
+    pageEntry.breadcrumb = buildReference(breadcrumbEntry["@id"]);
+    entries.push(breadcrumbEntry);
   }
 
   return entries;
