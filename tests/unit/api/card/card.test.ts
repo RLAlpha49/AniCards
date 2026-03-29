@@ -7,6 +7,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
+import { createRateLimiter } from "@/lib/api-utils";
 import { clearImageDataUrlCaches } from "@/lib/image-utils";
 import { getPartsForCard, splitUserRecord } from "@/lib/server/user-data";
 import { clearSvgCache, clearUserRequestStats } from "@/lib/stores/svg-cache";
@@ -442,6 +443,9 @@ describe("Card SVG Route", () => {
 
   describe("Rate Limiting", () => {
     it("should construct card-specific rate limiter with 150/10s", () => {
+      sharedRatelimitMockSlidingWindow.mockClear();
+      createRateLimiter({ limit: 150, window: "10 s" });
+
       expect(sharedRatelimitMockSlidingWindow).toHaveBeenCalledWith(
         150,
         "10 s",

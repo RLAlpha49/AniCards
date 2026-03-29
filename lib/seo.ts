@@ -20,6 +20,7 @@ interface SEOConfig {
     description?: string;
     images?: string[];
     type?: string;
+    url?: string;
   };
   twitter?: {
     title?: string;
@@ -70,6 +71,7 @@ const DEFAULT_SOCIAL_PREVIEW_CARD_QUERY = {
   colorPreset: "anicardsDarkGradient",
 } as const;
 
+const SOCIAL_PREVIEW_IMAGE_PATH = "/card.png";
 const DEFAULT_TWITTER_CARD = "summary_large_image" as const;
 
 function resolveSocialPreviewImages(images?: readonly string[]): string[] {
@@ -83,7 +85,10 @@ function resolveSocialPreviewImages(images?: readonly string[]): string[] {
 }
 
 export function getDefaultSocialPreviewImage(): string {
-  return buildCanonicalUrl("/card.svg", DEFAULT_SOCIAL_PREVIEW_CARD_QUERY);
+  return buildCanonicalUrl(
+    SOCIAL_PREVIEW_IMAGE_PATH,
+    DEFAULT_SOCIAL_PREVIEW_CARD_QUERY,
+  );
 }
 
 export function getDefaultSocialPreviewImages(): string[] {
@@ -101,7 +106,7 @@ export function buildUserSocialPreviewImage(params: {
     return undefined;
   }
 
-  return buildCanonicalUrl("/card.svg", {
+  return buildCanonicalUrl(SOCIAL_PREVIEW_IMAGE_PATH, {
     cardType: "profileOverview",
     colorPreset: "anilistDark",
     ...(normalizedUsername
@@ -136,9 +141,8 @@ export function generateMetadata(config: SEOConfig): Metadata {
     robots,
   } = config;
   const canonicalReference = canonical?.trim();
-  const canonicalUrl = canonicalReference
-    ? resolveSiteUrl(canonicalReference)
-    : undefined;
+  const openGraphReference = openGraph.url?.trim() || canonicalReference || "/";
+  const openGraphUrl = resolveSiteUrl(openGraphReference);
   const openGraphImages = resolveSocialPreviewImages(openGraph.images);
   const twitterImages = resolveSocialPreviewImages(
     twitter.images ?? openGraph.images,
@@ -162,7 +166,7 @@ export function generateMetadata(config: SEOConfig): Metadata {
       type: (openGraph.type as "article" | "profile" | "website") || "website",
       locale: "en_US",
       images: openGraphImages,
-      ...(canonicalUrl ? { url: canonicalUrl } : {}),
+      url: openGraphUrl,
     },
 
     twitter: {
@@ -360,10 +364,55 @@ export function getUserProfilePath(username: string): string {
   return `/user/${encodeURIComponent(username.trim())}`;
 }
 
+function buildUserLookupPath({
+  username,
+  userId,
+  q,
+  visibility,
+  group,
+}: {
+  username?: SearchParamValue;
+  userId?: SearchParamValue;
+  q?: SearchParamValue;
+  visibility?: SearchParamValue;
+  group?: SearchParamValue;
+}): string {
+  const normalizedUsername = getSearchParamValue(username);
+  const normalizedUserId = getSearchParamValue(userId);
+  const normalizedQuery = getSearchParamValue(q);
+  const normalizedVisibility = getSearchParamValue(visibility);
+  const normalizedGroup = getSearchParamValue(group);
+  const searchParams = new URLSearchParams();
+
+  if (normalizedUserId) {
+    searchParams.set("userId", normalizedUserId);
+  }
+
+  if (normalizedUsername) {
+    searchParams.set("username", normalizedUsername);
+  }
+
+  if (normalizedQuery) {
+    searchParams.set("q", normalizedQuery);
+  }
+
+  if (normalizedVisibility && normalizedVisibility !== "all") {
+    searchParams.set("visibility", normalizedVisibility);
+  }
+
+  if (normalizedGroup && normalizedGroup !== "All") {
+    searchParams.set("group", normalizedGroup);
+  }
+
+  const search = searchParams.toString();
+  return search ? `/user?${search}` : "/user";
+}
+
 function createUserSeoConfig(params: {
   canonical?: string;
   description: string;
   keywords: string[];
+  openGraphUrl?: string;
   previewImage?: string;
   robots?: Metadata["robots"];
   title: string;
@@ -375,6 +424,7 @@ function createUserSeoConfig(params: {
     ...(params.canonical ? { canonical: params.canonical } : {}),
     openGraph: {
       ...(params.previewImage ? { images: [params.previewImage] } : {}),
+      ...(params.openGraphUrl ? { url: params.openGraphUrl } : {}),
       type: "profile",
     },
     ...(params.previewImage
@@ -448,6 +498,13 @@ export function getUserPageSEOConfig({
         "manga statistics",
         "stat cards",
       ],
+      openGraphUrl: buildUserLookupPath({
+        userId: normalizedUserId,
+        username: normalizedUsername,
+        q,
+        visibility,
+        group,
+      }),
       robots,
       previewImage: profilePreviewImage,
     });
@@ -483,6 +540,13 @@ export function getUserPageSEOConfig({
         "manga statistics",
         "stat cards",
       ],
+      openGraphUrl: buildUserLookupPath({
+        userId: normalizedUserId,
+        username: normalizedUsername,
+        q,
+        visibility,
+        group,
+      }),
       robots,
       previewImage: profilePreviewImage,
     });

@@ -25,14 +25,18 @@ function getRobotsMetadata(metadata: Metadata) {
 }
 
 describe("SEO metadata helpers", () => {
-  it("emits absolute Open Graph and Twitter preview images for static pages", () => {
+  it("emits raster-compatible Open Graph and Twitter preview images for static pages", () => {
     const metadata = generateMetadata(seoConfigs.home);
     const openGraph = getOpenGraphMetadata(metadata);
     const twitter = getTwitterMetadata(metadata);
+    const previewImage = getDefaultSocialPreviewImage();
 
-    expect(openGraph?.images).toEqual([getDefaultSocialPreviewImage()]);
+    expect(previewImage).toContain("/card.png?");
+    expect(previewImage).not.toContain("/card.svg");
+    expect(openGraph?.images).toEqual([previewImage]);
     expect(twitter?.card).toBe("summary_large_image");
-    expect(twitter?.images).toEqual([getDefaultSocialPreviewImage()]);
+    expect(twitter?.images).toEqual([previewImage]);
+    expect(openGraph?.url).toBe(resolveSiteUrl("/"));
     expect(metadata.alternates?.canonical).toBe("/");
   });
 
@@ -51,13 +55,14 @@ describe("SEO metadata helpers", () => {
       throw new Error("Expected a username preview image");
     }
 
+    expect(previewImage).toContain("/card.png?");
     expect(metadata.alternates?.canonical).toBe("/user/Alpha49");
     expect(openGraph?.url).toBe(resolveSiteUrl("/user/Alpha49"));
     expect(openGraph?.type).toBe("profile");
     expect(twitter?.images).toEqual([previewImage]);
   });
 
-  it("does not invent a canonical URL for noindex lookup pages without a canonical profile path", () => {
+  it("emits a lookup Open Graph URL without inventing a canonical URL for noindex userId pages", () => {
     const metadata = generateMetadata(
       getUserPageSEOConfig({
         routeType: "lookup",
@@ -75,8 +80,20 @@ describe("SEO metadata helpers", () => {
 
     expect(metadata.alternates).toBeUndefined();
     expect(robots?.index).toBe(false);
-    expect(openGraph?.url).toBeUndefined();
+    expect(previewImage).toContain("/card.png?");
+    expect(openGraph?.url).toBe(resolveSiteUrl("/user?userId=123456"));
     expect(twitter?.images).toEqual([previewImage]);
+  });
+
+  it("falls back openGraph.url to the site root when no canonical or explicit OG URL is provided", () => {
+    const metadata = generateMetadata({
+      title: "Custom SEO Test",
+      description: "Ensures openGraph.url is always emitted.",
+    });
+    const openGraph = getOpenGraphMetadata(metadata);
+
+    expect(metadata.alternates).toBeUndefined();
+    expect(openGraph?.url).toBe(resolveSiteUrl("/"));
   });
 
   it("keeps the privacy disclosure publicly canonical and indexable", () => {
