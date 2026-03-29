@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-import { mockCardsRecord, mockUserRecord } from "../fixtures/mock-data";
+import {
+  mockBootstrapUserRecord,
+  mockCardsRecord,
+} from "../fixtures/mock-data";
 
 const mockSvgCard =
   '<svg width="400" height="200" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="200" fill="#111" /></svg>';
@@ -16,7 +19,7 @@ test.describe("User page editor - save UX", () => {
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify(mockUserRecord),
+          body: JSON.stringify(mockBootstrapUserRecord),
         });
       });
 
@@ -45,6 +48,7 @@ test.describe("User page editor - save UX", () => {
           contentType: "application/json",
           body: JSON.stringify({
             success: true,
+            userId: mockCardsRecord.userId,
             updatedAt: "2025-01-01T00:00:00.000Z",
           }),
         });
@@ -106,7 +110,7 @@ test.describe("User page editor - save UX", () => {
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify(mockUserRecord),
+          body: JSON.stringify(mockBootstrapUserRecord),
         });
       });
 
@@ -133,6 +137,7 @@ test.describe("User page editor - save UX", () => {
           contentType: "application/json",
           body: JSON.stringify({
             success: true,
+            userId: mockCardsRecord.userId,
             updatedAt: "2025-01-01T00:00:00.000Z",
           }),
         });
@@ -189,7 +194,7 @@ test.describe("User page editor - save UX", () => {
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify(mockUserRecord),
+          body: JSON.stringify(mockBootstrapUserRecord),
         });
       });
 
@@ -250,6 +255,7 @@ test.describe("User page editor - save UX", () => {
           contentType: "application/json",
           body: JSON.stringify({
             success: true,
+            userId: mockCardsRecord.userId,
             updatedAt: recoveredUpdatedAt,
           }),
         });

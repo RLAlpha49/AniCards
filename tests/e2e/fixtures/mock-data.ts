@@ -2,6 +2,7 @@ import type {
   AnimeStats,
   CardsRecord,
   MangaStats,
+  UserBootstrapRecord,
   UserRecord,
   UserStatsData,
 } from "../../../lib/types/records";
@@ -235,6 +236,13 @@ export const mockUserRecord: UserRecord = {
   requestMetadata: { lastSeenIpBucket: "loopback" },
   createdAt: "2024-01-15T10:00:00.000Z",
   updatedAt: "2024-12-01T15:30:00.000Z",
+};
+
+/** Mock bootstrap DTO returned by `/api/get-user?view=bootstrap`. */
+export const mockBootstrapUserRecord: UserBootstrapRecord = {
+  userId: 123456,
+  username: "TestUser",
+  avatarUrl: "https://example.com/avatar-medium.webp",
 };
 
 /**

@@ -8,6 +8,7 @@
 import {
   buildPersistedRequestMetadata,
   logPrivacySafe,
+  parseStrictPositiveInteger,
   redisClient,
 } from "@/lib/api-utils";
 import {
@@ -238,6 +239,29 @@ const DEFAULT_REVIEWS_PAGE: ReviewsPage = {
   pageInfo: { total: 0 },
   reviews: [],
 };
+
+function normalizeStoredUserIdForPublicDto(
+  userId: string | number | undefined,
+): number {
+  if (typeof userId === "number") {
+    if (Number.isSafeInteger(userId) && userId > 0) {
+      return userId;
+    }
+  }
+
+  const parsedUserId =
+    typeof userId === "string" ? parseStrictPositiveInteger(userId) : null;
+  if (parsedUserId) {
+    return parsedUserId;
+  }
+
+  throw new UserDataIntegrityError(
+    typeof userId === "string" || typeof userId === "number"
+      ? userId
+      : "unknown",
+    "Stored user record has invalid userId",
+  );
+}
 
 /** Extract statistics block from raw shapes */
 function extractStatistics(
@@ -1409,15 +1433,17 @@ export function reconstructUserRecord(
 }
 
 /**
- * Reconstructs the bounded public DTO returned by `/api/get-user`.
+ * Reconstructs the bounded public DTO returned by `/api/get-user`, normalizing
+ * persisted string user IDs to numeric AniList IDs.
  */
 export function reconstructPublicUserRecord(
   parts: Partial<Record<UserDataPart, unknown>>,
 ): PublicUserRecord {
   const record = reconstructUserRecord(parts);
+  const publicUserId = normalizeStoredUserIdForPublicDto(record.userId);
 
   return {
-    userId: record.userId,
+    userId: publicUserId,
     username: record.username,
     stats: record.stats,
     statistics: record.statistics,
@@ -1428,15 +1454,17 @@ export function reconstructPublicUserRecord(
 }
 
 /**
- * Reconstructs the lightweight bootstrap DTO returned by `/api/get-user?view=bootstrap`.
+ * Reconstructs the lightweight bootstrap DTO returned by `/api/get-user?view=bootstrap`,
+ * normalizing the persisted string user ID to a numeric AniList ID.
  */
 export function reconstructUserBootstrapRecord(
   parts: Partial<Record<UserDataPart, unknown>>,
 ): UserBootstrapRecord {
   const meta = parts.meta as UserMeta | undefined;
+  const publicUserId = normalizeStoredUserIdForPublicDto(meta?.userId);
 
   return {
-    userId: meta?.userId || "",
+    userId: publicUserId,
     username: meta?.username,
     avatarUrl: meta?.avatar?.medium || meta?.avatar?.large || null,
   };

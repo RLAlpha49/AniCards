@@ -49,9 +49,9 @@ async function fetchUserData(
 
     const data = payload as PublicUserRecord | UserBootstrapRecord;
 
-    // Accept numeric userId values even when they're returned as strings
-    // (reconstructed records store many fields as strings). Normalize to a
-    // numeric value and reject only when parsing fails.
+    // Public DTOs return numeric AniList IDs, but keep this tolerant of
+    // legacy string responses during tests/backfills. Normalize to a numeric
+    // value and reject only when parsing fails.
     if (data?.userId === undefined || data?.userId === null) {
       return { error: "Invalid user data received" };
     }

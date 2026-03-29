@@ -160,7 +160,7 @@ async function expectOkJson(query: string | undefined) {
   const json = await getResponseJson<Record<string, unknown>>(res);
 
   expect(json).toMatchObject({
-    userId: "123",
+    userId: 123,
     username: "testUser",
     stats: {
       User: {
@@ -201,7 +201,7 @@ async function expectBootstrapJson(query: string | undefined) {
   const json = await getResponseJson<Record<string, unknown>>(res);
 
   expect(json).toEqual({
-    userId: "123",
+    userId: 123,
     username: "testUser",
     avatarUrl: "https://example.com/avatar-medium.webp",
   });
@@ -378,6 +378,22 @@ describe("User API GET Endpoint", () => {
         null,
         null,
       ]);
+
+      await expectError(
+        "userId=123",
+        500,
+        "Stored user record is incomplete or corrupted",
+      );
+    });
+
+    it("should return 500 when the stored userId cannot satisfy the public numeric contract", async () => {
+      mockStoredParts(
+        createStoredUserParts({
+          meta: {
+            userId: "not-a-number",
+          },
+        }),
+      );
 
       await expectError(
         "userId=123",

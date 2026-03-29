@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  mockBootstrapUserRecord,
   mockCardsRecord,
   mockServerError,
-  mockUserRecord,
 } from "../fixtures/mock-data";
 
 const mockSvgCard =
@@ -37,7 +37,7 @@ test.describe("User page", () => {
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify(mockUserRecord),
+          body: JSON.stringify(mockBootstrapUserRecord),
         });
       });
 
@@ -228,7 +228,11 @@ test.describe("User page", () => {
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify({ success: true }),
+          body: JSON.stringify({
+            success: true,
+            userId: 999,
+            updatedAt: "2025-01-01T00:00:00.000Z",
+          }),
         });
       });
 
@@ -236,7 +240,11 @@ test.describe("User page", () => {
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify({ success: true }),
+          body: JSON.stringify({
+            success: true,
+            userId: 999,
+            updatedAt: "2025-01-01T00:00:00.000Z",
+          }),
         });
       });
 
@@ -244,7 +252,11 @@ test.describe("User page", () => {
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify({ cards: [] }),
+          body: JSON.stringify({
+            userId: 999,
+            cards: [],
+            updatedAt: "2025-01-01T00:00:00.000Z",
+          }),
         });
       });
 

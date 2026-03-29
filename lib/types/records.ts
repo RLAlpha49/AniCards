@@ -411,7 +411,10 @@ export interface PersistedRequestMetadata {
 }
 
 /**
- * Explicit minimized schema written by the store-users persistence path.
+ * Explicit minimized schema written by the internal store-users persistence path.
+ *
+ * The persisted Redis/meta representation keeps `userId` string-backed for key
+ * compatibility, while public API DTOs normalize it to a numeric AniList ID.
  */
 export interface PersistedUserRecord {
   userId: string;
@@ -442,7 +445,7 @@ export interface UserRecord extends PersistedUserRecord {
 
 /** Public DTO returned by `/api/get-user`. */
 export interface PublicUserRecord {
-  userId: string;
+  userId: number;
   username?: string;
   stats: UserStatsData;
   statistics: UserSection["statistics"];
@@ -459,7 +462,7 @@ export interface PublicUserRecord {
 
 /** Lightweight bootstrap DTO returned by `/api/get-user?view=bootstrap`. */
 export interface UserBootstrapRecord {
-  userId: string;
+  userId: number;
   username?: string;
   avatarUrl?: string | null;
 }

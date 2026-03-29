@@ -7,10 +7,10 @@
 import { Route, test as base } from "@playwright/test";
 
 import {
+  mockBootstrapUserRecord,
   mockCardsRecord,
   mockRateLimitError,
   mockUserNotFoundError,
-  mockUserRecord,
 } from "./mock-data";
 
 export interface AniCardsFixtures {
@@ -54,7 +54,7 @@ export const test = base.extend<AniCardsFixtures>({
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(mockUserRecord),
+        body: JSON.stringify(mockBootstrapUserRecord),
       });
     });
 
@@ -70,7 +70,11 @@ export const test = base.extend<AniCardsFixtures>({
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ success: true }),
+        body: JSON.stringify({
+          success: true,
+          userId: mockCardsRecord.userId,
+          updatedAt: mockCardsRecord.updatedAt,
+        }),
       });
     });
 
@@ -78,7 +82,11 @@ export const test = base.extend<AniCardsFixtures>({
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ success: true }),
+        body: JSON.stringify({
+          success: true,
+          userId: mockBootstrapUserRecord.userId,
+          updatedAt: "2024-12-01T15:30:00.000Z",
+        }),
       });
     });
 
