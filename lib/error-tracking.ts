@@ -159,12 +159,44 @@ function sanitizeOptionalText(
   return truncateText(trimmed, maxLength);
 }
 
+function isWhitespaceCodePoint(codePoint: number | undefined): boolean {
+  return (
+    codePoint === 0x20 ||
+    codePoint === 0x09 ||
+    codePoint === 0x0a ||
+    codePoint === 0x0d ||
+    codePoint === 0x0c ||
+    codePoint === 0x0b
+  );
+}
+
 function sanitizeStackFrame(line: string): string | undefined {
   const trimmed = line.trim();
   if (!trimmed.startsWith("at ")) return undefined;
 
-  const match = /^at\s+(.+?)(?:\s+\(|$)/.exec(trimmed);
-  const frameLabel = match?.[1]?.trim();
+  const frameText = trimmed.slice(3).trimStart();
+  let frameLabelEnd = frameText.length;
+
+  for (let index = 1; index < frameText.length; index++) {
+    if (
+      frameText.codePointAt(index) === 0x28 &&
+      isWhitespaceCodePoint(frameText.codePointAt(index - 1))
+    ) {
+      let whitespaceStart = index - 1;
+
+      while (
+        whitespaceStart > 0 &&
+        isWhitespaceCodePoint(frameText.codePointAt(whitespaceStart - 1))
+      ) {
+        whitespaceStart--;
+      }
+
+      frameLabelEnd = whitespaceStart;
+      break;
+    }
+  }
+
+  const frameLabel = frameText.slice(0, frameLabelEnd).trim();
   if (!frameLabel) return "at <frame>";
 
   return `at ${truncateText(frameLabel.replaceAll(/\s+/g, " "), 160)}`;

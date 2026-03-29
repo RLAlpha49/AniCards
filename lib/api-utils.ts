@@ -1572,14 +1572,64 @@ function truncateLogString(value: string, maxLength = 120): string {
     : `${value.slice(0, Math.max(0, maxLength - 1))}…`;
 }
 
+function isStackWhitespace(char: string): boolean {
+  return (
+    char === " " ||
+    char === "\t" ||
+    char === "\n" ||
+    char === "\r" ||
+    char === "\f" ||
+    char === "\v"
+  );
+}
+
+function collapseStackWhitespace(value: string): string {
+  let normalized = "";
+  let lastWasWhitespace = false;
+
+  for (const char of value) {
+    if (isStackWhitespace(char)) {
+      if (!lastWasWhitespace) normalized += " ";
+      lastWasWhitespace = true;
+      continue;
+    }
+
+    normalized += char;
+    lastWasWhitespace = false;
+  }
+
+  return normalized;
+}
+
 function sanitizeStackFrame(line: string): string | undefined {
   const trimmed = line.trim();
   if (!trimmed.startsWith("at ")) return undefined;
 
-  const match = /^at\s+(.+?)(?:\s+\(|$)/.exec(trimmed);
-  const frameLabel = match?.[1]?.trim();
+  const frameText = trimmed.slice(3).trimStart();
+  if (!frameText) return "at <frame>";
+
+  let frameLabelEnd = frameText.length;
+  for (let i = 0; i < frameText.length; i++) {
+    if (frameText[i] !== "(") continue;
+
+    let whitespaceStart = i - 1;
+    while (
+      whitespaceStart >= 0 &&
+      isStackWhitespace(frameText[whitespaceStart])
+    ) {
+      whitespaceStart--;
+    }
+
+    if (whitespaceStart < i - 1) {
+      frameLabelEnd = whitespaceStart + 1;
+      break;
+    }
+  }
+
+  const frameLabel = frameText.slice(0, frameLabelEnd).trim();
   if (!frameLabel) return "at <frame>";
-  return `at ${truncateLogString(frameLabel.replaceAll(/\s+/g, " "), 80)}`;
+
+  return `at ${truncateLogString(collapseStackWhitespace(frameLabel), 80)}`;
 }
 
 function summarizeStackForLogs(value: unknown): string | undefined {
