@@ -37,6 +37,8 @@ tags:
     description: "Background refresh and analytics jobs"
   - name: "store"
     description: "Storage endpoints for users and card configurations"
+  - name: "telemetry"
+    description: "Structured client error-report ingestion"
   - name: "user"
     description: "Stored user lookup by ID or username"
 paths:
@@ -69,6 +71,11 @@ paths:
             schema:
               $ref: "#/components/schemas/GraphQLRequest"
             examples:
+              getUserStatsByOperation:
+                value:
+                  operation: "GetUserStats"
+                  variables:
+                    userId: 12345
               getUserStats:
                 value:
                   query: |-
@@ -380,7 +387,7 @@ paths:
               examples:
                 user:
                   value:
-                    userId: "12345"
+                    userId: 12345
                     username: "sampleuser"
                     stats:
                       User:
@@ -408,7 +415,7 @@ paths:
                           - id: 999
                 bootstrap:
                   value:
-                    userId: "12345"
+                    userId: 12345
                     username: "sampleuser"
                     avatarUrl: "https://example.com/avatar-medium.webp"
         "400":
@@ -680,9 +687,7 @@ paths:
         "429":
           $ref: "#/components/responses/TooManyRequestsJson"
         "500":
-          description: >-
-            Unexpected storage failure. This also covers malformed JSON bodies,
-            which currently bubble into the route-level error handler.
+          description: "Unexpected storage failure"
           content:
             application/json:
               schema:
@@ -695,6 +700,124 @@ paths:
                     retryable: true
                     status: 500
                     recoverySuggestions: []
+
+  /api/error-reports:
+    post:
+      operationId: "reportClientError"
+      tags:
+        - "telemetry"
+      summary: "Accept a structured client error report"
+      description: >-
+        Accepts privacy-safe structured client error reports for durable
+        telemetry. In production this route enforces same-origin validation and
+        a dedicated `3 requests / 10 s` limiter. The server sanitizes the
+        payload, ignores client-supplied `userId` and `username`, and drops
+        unsupported nested metadata values before persistence.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ErrorReportRequest"
+            examples:
+              reactBoundary:
+                value:
+                  source: "react_error_boundary"
+                  userAction: "render_component_tree"
+                  message: "Failed to fetch user Alex profile"
+                  route: "/user/Alex?tab=cards"
+                  requestId: "req-error-route-12345"
+                  errorName: "TypeError"
+                  metadata:
+                    boundary: "client_error_boundary"
+                    tab: "cards"
+                    retried: false
+      responses:
+        "202":
+          description: "Error report accepted for asynchronous durable persistence"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReportAccepted"
+              examples:
+                accepted:
+                  value:
+                    accepted: true
+        "400":
+          description: "Malformed JSON body or invalid required fields"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                invalidJson:
+                  value:
+                    error: "Invalid JSON body"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+                invalidPayload:
+                  value:
+                    error: "Invalid error report payload"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+        "401":
+          $ref: "#/components/responses/UnauthorizedJson"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsJson"
+        "500":
+          description: "Unexpected structured error ingestion failure before acceptance"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                failure:
+                  value:
+                    error: "Internal server error"
+                    category: "server_error"
+                    retryable: true
+                    status: 500
+                    recoverySuggestions: []
+        "503":
+          description: "Same-origin validation cannot run because the server is misconfigured"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                misconfigured:
+                  value:
+                    error: "Server misconfigured"
+                    category: "server_error"
+                    retryable: true
+                    status: 503
+                    recoverySuggestions: []
+    options:
+      operationId: "preflightErrorReports"
+      tags:
+        - "telemetry"
+      summary: "CORS preflight for structured error reporting"
+      description: >-
+        Returns the CORS headers required for browser clients to POST
+        structured error reports, including support for `X-Request-Id`.
+      responses:
+        "200":
+          description: "CORS preflight response"
+          headers:
+            Access-Control-Allow-Headers:
+              description: "Allowed request headers for this endpoint"
+              schema:
+                type: string
+              example: "Content-Type, X-Request-Id"
+            Access-Control-Allow-Methods:
+              description: "Allowed HTTP methods for this endpoint"
+              schema:
+                type: string
+              example: "POST, OPTIONS"
 
   /api/convert:
     post:
@@ -1383,18 +1506,145 @@ components:
         - title
         - description
 
+    ErrorReportAccepted:
+      type: object
+      additionalProperties: false
+      properties:
+        accepted:
+          type: boolean
+          const: true
+      required:
+        - accepted
+
+    ErrorReportSource:
+      type: string
+      enum:
+        - "user_action"
+        - "client_hook"
+        - "react_error_boundary"
+        - "app_router_error_boundary"
+        - "api_route"
+
+    ErrorReportMetadataValue:
+      description: >-
+        Primitive metadata value retained after sanitization. Longer strings
+        are truncated before durable persistence.
+      anyOf:
+        - type: string
+          maxLength: 160
+        - type: number
+        - type: boolean
+        - type: "null"
+
+    ErrorReportMetadata:
+      type: object
+      description: >-
+        Optional primitive-only metadata map. Nested objects and arrays are
+        ignored. Keys longer than 64 characters are truncated before durable
+        persistence.
+      propertyNames:
+        type: string
+        maxLength: 64
+      additionalProperties:
+        $ref: "#/components/schemas/ErrorReportMetadataValue"
+
+    ErrorReportRequest:
+      type: object
+      additionalProperties: true
+      description: >-
+        Structured client error report accepted by `/api/error-reports`.
+        `userAction` and `message` are required. Unknown top-level fields are
+        ignored, and client-supplied identifiers are not trusted or persisted.
+      properties:
+        source:
+          $ref: "#/components/schemas/ErrorReportSource"
+        userAction:
+          type: string
+          minLength: 1
+          maxLength: 120
+        message:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        requestId:
+          type: string
+          pattern: "^[A-Za-z0-9._:-]{8,120}$"
+          description: >-
+            Optional request correlation ID. When omitted or invalid, the
+            server falls back to the ingestion request ID.
+        errorName:
+          type: string
+          minLength: 1
+          maxLength: 120
+        route:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: >-
+            Current client route. The durable telemetry pipeline normalizes it
+            to a privacy-safe page path before persistence.
+        statusCode:
+          type: integer
+          minimum: 400
+          maximum: 599
+        digest:
+          type: string
+          minLength: 1
+          maxLength: 120
+        stack:
+          type: string
+          minLength: 1
+          maxLength: 8000
+          description: >-
+            Optional stack trace. The telemetry pipeline strips file paths,
+            URLs, and other sensitive details before persistence.
+        componentStack:
+          type: string
+          minLength: 1
+          maxLength: 8000
+          description: >-
+            Optional React component stack. The telemetry pipeline strips file
+            paths, URLs, and other sensitive details before persistence.
+        metadata:
+          $ref: "#/components/schemas/ErrorReportMetadata"
+        userId:
+          deprecated: true
+          description: >-
+            Ignored if supplied. Client-provided identifiers are discarded and
+            never persisted by this endpoint.
+        username:
+          deprecated: true
+          description: >-
+            Ignored if supplied. Client-provided usernames are discarded and
+            never persisted by this endpoint.
+      required:
+        - userAction
+        - message
+
     GraphQLRequest:
       type: object
       additionalProperties: false
       properties:
+        operation:
+          type: string
+          enum:
+            - "GetUserId"
+            - "GetUserStats"
+          description: >-
+            Optional operation selector. When present, the route prioritizes it
+            over query-text matching and forwards the canonical server-side
+            document for that operation.
         query:
           type: string
           minLength: 1
         variables:
           type: object
           additionalProperties: true
-      required:
-        - query
+      anyOf:
+        - required:
+            - operation
+        - required:
+            - query
 
     GraphQLData:
       type: object
@@ -1863,7 +2113,8 @@ components:
         intentionally excluded.
       properties:
         userId:
-          type: string
+          type: integer
+          minimum: 1
         username:
           type: string
         stats:
@@ -1917,7 +2168,8 @@ components:
         heavier card payload is loaded.
       properties:
         userId:
-          type: string
+          type: integer
+          minimum: 1
         username:
           type: string
         avatarUrl:
