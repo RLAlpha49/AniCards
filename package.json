@@ -2,6 +2,18 @@
   "name": "anilist-stat-cards",
   "version": "1.0.0",
   "private": true,
+  "license": "MIT",
+  "x-anicards-override-review": {
+    "entries": {
+      "@emnapi/runtime": "Temporary semver-compatible dedupe override to collapse wasm-runtime consumers onto 1.9.0 while sharp-related and resolver transitive ranges catch up.",
+      "@radix-ui/react-slot": "Temporary dedupe override to keep Radix primitives on 1.2.4 until upstream sub-packages stop pinning 1.2.3.",
+      "flatted": "Keeps flat-cache on a patched transitive release while upstream ranges still allow older versions.",
+      "minimatch": "Applies a minimum safe floor for legacy transitive consumers that still request older vulnerable 3.x releases.",
+      "picomatch": "Applies a minimum safe floor for tooling transitive consumers while upstream ranges still allow older 4.x releases.",
+      "smol-toml": "Keeps Knip's TOML parser dependency on a patched minimum release.",
+      "yaml": "Applies a minimum safe floor for CLI and tooling consumers such as Knip and lint-staged."
+    }
+  },
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
@@ -11,7 +23,7 @@
     "typecheck": "tsc --noEmit",
     "format:write": "prettier --write . && eslint . --fix",
     "update": "bunx npm-check-updates -u --target minor",
-    "check:licenses": "bunx license-checker-rseidelsohn --production --summary --failOn \"GPL;AGPL;LGPL;NGPL\"",
+    "check:licenses": "bunx license-checker-rseidelsohn --production --excludePrivatePackages --summary --failOn \"GPL;AGPL;LGPL;NGPL\"",
     "test:unit": "bun test",
     "test:unit:coverage": "bun test --coverage --coverage-reporter=text --coverage-reporter=lcov --coverage-dir=.artifacts/coverage",
     "test": "bun run test:unit && bun run test:e2e",
@@ -56,7 +68,7 @@
     "framer-motion": "^12.38.0",
     "fuse.js": "^7.1.0",
     "jszip": "^3.10.1",
-    "katex": "^0.16.43",
+    "katex": "^0.16.44",
     "lru-cache": "^11.2.7",
     "lucide-react": "^1.7.0",
     "next": "16.2.1",
@@ -71,7 +83,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
-    "@next/eslint-plugin-next": "^16.2.1",
+    "@next/eslint-plugin-next": "16.2.1",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/bun": "^1.3.11",
@@ -96,6 +108,8 @@
     "typescript-eslint": "^8.57.2"
   },
   "overrides": {
+    "@emnapi/runtime": "1.9.0",
+    "@radix-ui/react-slot": "1.2.4",
     "flatted": "3.4.2",
     "minimatch": ">=3.1.6",
     "picomatch": ">=4.0.4",
