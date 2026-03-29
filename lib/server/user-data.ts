@@ -5,6 +5,8 @@
  * rendering can fetch only the sections each card needs, while still supporting
  * reconstruction and legacy-record migration when older keys are encountered.
  */
+import { randomUUID } from "node:crypto";
+
 import {
   buildPersistedRequestMetadata,
   logPrivacySafe,
@@ -927,7 +929,7 @@ async function tryAcquireLegacyUserMigrationLock(
   userId: string | number,
 ): Promise<string | null> {
   const lockKey = getLegacyUserMigrationLockKey(userId);
-  const token = `${Date.now()}:${Math.random().toString(36).slice(2)}`;
+  const token = randomUUID();
   const result = await redisClient.set(lockKey, token, {
     nx: true,
     ex: LEGACY_USER_MIGRATION_LOCK_TTL_SECONDS,
