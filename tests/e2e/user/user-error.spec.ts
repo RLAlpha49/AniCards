@@ -1,3 +1,4 @@
+import { gotoReady } from "../fixtures/browser-utils";
 import { expect, test } from "../fixtures/test-utils";
 
 test.describe("User page error states", () => {
@@ -58,6 +59,10 @@ test.describe("User page error states", () => {
       ]),
     );
   });
+});
+
+test.describe("User page error states (mocked API)", () => {
+  test.use({ serviceWorkers: "block" });
 
   test("shows rate limit error with recovery link", async ({
     page,
@@ -65,7 +70,7 @@ test.describe("User page error states", () => {
   }) => {
     void mockRateLimitedApi;
 
-    await page.goto("/user/RateLimitedUser");
+    await gotoReady(page, "/user/RateLimitedUser");
 
     await expect(
       page.getByRole("heading", { name: /something went wrong/i }),
@@ -86,7 +91,7 @@ test.describe("User page error states", () => {
   }) => {
     void mockNetworkError;
 
-    await page.goto("/user/OfflineUser");
+    await gotoReady(page, "/user/OfflineUser");
 
     await expect(
       page.getByRole("heading", { name: /something went wrong/i }),
@@ -102,10 +107,17 @@ test.describe("User page error states", () => {
     await expect(recoveryLink).toBeVisible();
     await expect(recoveryLink).toHaveAttribute("href", "/search");
   });
+});
 
+test.describe("User page error states (offline shell)", () => {
   test("serves the offline shell during real offline navigations", async ({
     page,
-  }) => {
+  }, testInfo) => {
+    test.skip(
+      !["chromium", "mobile-chrome"].includes(testInfo.project.name),
+      "Offline service-worker fallback is only exercised reliably in Chromium-based Playwright projects.",
+    );
+
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 

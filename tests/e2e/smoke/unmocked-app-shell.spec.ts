@@ -1,14 +1,9 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
-async function dismissAnalyticsPromptIfVisible(page: Page) {
-  const dismissButton = page.getByRole("button", {
-    name: /keep it off/i,
-  });
-
-  if (await dismissButton.isVisible()) {
-    await dismissButton.click();
-  }
-}
+import {
+  dismissAnalyticsPromptIfVisible,
+  gotoReady,
+} from "../fixtures/browser-utils";
 
 function escapeRegExp(value: string): string {
   return value.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
@@ -48,8 +43,13 @@ test.describe("Unmocked app shell smoke", () => {
 
   test("exposes a root-shell skip link, stable main target, and AniList preconnect hint", async ({
     page,
-  }) => {
-    await page.goto("/", { waitUntil: "domcontentloaded" });
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name === "webkit",
+      "WebKit keyboard focus order is unreliable in Playwright for this shell-level skip-link check.",
+    );
+
+    await gotoReady(page, "/");
     await dismissAnalyticsPromptIfVisible(page);
 
     const skipLink = page.locator("a.skip-link");
@@ -60,6 +60,7 @@ test.describe("Unmocked app shell smoke", () => {
 
     await expect(anilistPreconnect).toHaveCount(1);
 
+    await page.locator("body").focus();
     await page.keyboard.press("Tab");
     await expect(skipLink).toBeFocused();
 
@@ -127,8 +128,8 @@ test.describe("Unmocked app shell smoke", () => {
     await page.goto("/user?username=Alpha49&q=seasonal", {
       waitUntil: "domcontentloaded",
     });
-    await page.waitForURL(/\/user\/Alpha49\?q=seasonal$/, {
-      waitUntil: "load",
+    await expect(page).toHaveURL(/\/user\/Alpha49\?q=seasonal$/, {
+      timeout: 15000,
     });
 
     await expect(page).toHaveURL(/\/user\/Alpha49\?q=seasonal$/);

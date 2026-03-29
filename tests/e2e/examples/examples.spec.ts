@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { clickAnchorAndExpectUrl, gotoReady } from "../fixtures/browser-utils";
+
 test.describe("Examples gallery", () => {
   test.beforeEach(async ({ page }) => {
     await page.route("**/*", (route) => {
@@ -13,12 +15,20 @@ test.describe("Examples gallery", () => {
       return route.continue();
     });
 
-    await page.goto("/examples");
+    await gotoReady(page, "/examples");
   });
 
   test("filters card variants via search", async ({ page }) => {
     const variants = page.getByRole("heading", { level: 4 });
     const searchInput = page.getByLabel(/search gallery cards/i);
+    const animeStatistics = page.getByRole("heading", {
+      level: 4,
+      name: /anime statistics/i,
+    });
+    const voiceActors = page.getByRole("heading", {
+      level: 4,
+      name: /voice actors/i,
+    });
 
     await expect(variants.first()).toBeVisible({ timeout: 15000 });
     await expect(searchInput).toHaveAttribute("type", "search");
@@ -31,9 +41,8 @@ test.describe("Examples gallery", () => {
       await searchInput.fill("Voice Actors");
     });
 
-    await expect
-      .poll(async () => await variants.count())
-      .toBeLessThan(initialCount);
+    await expect(voiceActors.first()).toBeVisible({ timeout: 15000 });
+    await expect(animeStatistics.first()).not.toBeVisible();
 
     const filteredCount = await variants.count();
     expect(filteredCount).toBeGreaterThan(0);
@@ -47,12 +56,7 @@ test.describe("Examples gallery", () => {
 
       await expect(createYoursLink).toHaveAttribute("href", "/search");
 
-      await Promise.all([
-        page.waitForURL(/\/search(?:\?|$)/),
-        createYoursLink.evaluate((element) => {
-          (element as HTMLAnchorElement).click();
-        }),
-      ]);
+      await clickAnchorAndExpectUrl(page, createYoursLink, /\/search(?:\?|$)/);
 
       await expect(page).toHaveURL(/\/search(?:\?|$)/);
       await expect(page.getByLabel(/anilist username/i)).toBeVisible();

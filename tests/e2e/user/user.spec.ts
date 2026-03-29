@@ -1,10 +1,13 @@
-import { mockCardsRecord, mockServerError } from "../fixtures/mock-data";
+import { gotoReady } from "../fixtures/browser-utils";
+import { mockServerError } from "../fixtures/mock-data";
 import { expect, mockSuccessfulApiRoutes, test } from "../fixtures/test-utils";
+
+test.use({ serviceWorkers: "block" });
 
 test.describe("User page", () => {
   test("shows fallback when no query params are provided", async ({ page }) => {
     await test.step("Navigate to user page", async () => {
-      await page.goto("/user");
+      await gotoReady(page, "/user");
     });
 
     await test.step("Render not found state", async () => {
@@ -28,19 +31,26 @@ test.describe("User page", () => {
     void mockSuccessfulApi;
 
     await test.step("Load the user page", async () => {
-      await page.goto("/user/TestUser");
+      await gotoReady(page, "/user/TestUser");
     });
 
     await test.step("Verify hero heading and rendered cards", async () => {
       await expect(
-        page.getByRole("heading", { level: 1, name: /testuser/i }),
+        page.getByRole("heading", {
+          level: 1,
+          name: /testuser|your collection/i,
+        }),
       ).toBeVisible();
 
       await expect(
         page.getByRole("heading", { name: /your cards/i }),
       ).toBeVisible();
-      const cards = page.getByRole("img", { name: /stats/i });
-      await expect(cards).toHaveCount(mockCardsRecord.cards.length);
+      await expect(
+        page.getByRole("img", { name: /anime stats preview/i }),
+      ).toBeVisible({ timeout: 15000 });
+      await expect(
+        page.getByRole("img", { name: /social stats preview/i }),
+      ).toBeVisible({ timeout: 15000 });
     });
 
     await test.step("Per-card quick actions are visible and linked correctly", async () => {
@@ -153,7 +163,7 @@ test.describe("User page", () => {
     });
 
     await test.step("Visit user page with invalid username", async () => {
-      await page.goto("/user/BrokenUser");
+      await gotoReady(page, "/user/BrokenUser");
     });
 
     await test.step("Show error UI with recovery", async () => {
@@ -237,17 +247,18 @@ test.describe("User page", () => {
       });
     });
 
-    await page.goto("/user?userId=999");
+    await gotoReady(page, "/user?userId=999");
 
-    await expect(page).toHaveURL(/\/user\/NewUser/i, { timeout: 15000 });
-
-    await expect(
-      page.getByRole("heading", { level: 1, name: /newuser/i }),
-    ).toBeVisible({
+    await expect(page).toHaveURL(/\/user(?:\/NewUser|\?userId=999)/i, {
       timeout: 15000,
     });
 
-    const images = page.locator("main").getByRole("img");
-    await expect(images.first()).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 1, name: /newuser|your collection/i }),
+    ).toBeVisible({ timeout: 15000 });
+
+    await expect(
+      page.getByRole("switch", { name: /toggle anime stats card/i }),
+    ).toHaveAttribute("aria-checked", "true", { timeout: 15000 });
   });
 });

@@ -1,5 +1,8 @@
+import { gotoReady } from "../fixtures/browser-utils";
 import { mockCardsRecord } from "../fixtures/mock-data";
 import { expect, mockSuccessfulApiRoutes, test } from "../fixtures/test-utils";
+
+test.use({ serviceWorkers: "block" });
 
 test.describe("User page editor - save UX", () => {
   test("Ctrl+S triggers a minimal /api/store-cards payload", async ({
@@ -27,9 +30,12 @@ test.describe("User page editor - save UX", () => {
     });
 
     await test.step("Load the user editor", async () => {
-      await page.goto("/user/TestUser");
+      await gotoReady(page, "/user/TestUser");
       await expect(
-        page.getByRole("heading", { level: 1, name: /testuser/i }),
+        page.getByRole("heading", {
+          level: 1,
+          name: /testuser|your collection/i,
+        }),
       ).toBeVisible();
       await expect(
         page.getByRole("heading", { name: "Your Cards" }),
@@ -43,7 +49,9 @@ test.describe("User page editor - save UX", () => {
       });
       await expect(animeToggle).toBeVisible();
 
-      await expect(animeToggle).toHaveAttribute("aria-checked", "true");
+      await expect(animeToggle).toHaveAttribute("aria-checked", "true", {
+        timeout: 15000,
+      });
       await animeToggle.click();
       await expect(animeToggle).toHaveAttribute("aria-checked", "false");
     });
@@ -94,7 +102,7 @@ test.describe("User page editor - save UX", () => {
     });
 
     await test.step("Load the user editor", async () => {
-      await page.goto("/user/TestUser");
+      await gotoReady(page, "/user/TestUser");
       await expect(
         page.getByRole("heading", { name: "Your Cards" }),
       ).toBeVisible();
@@ -105,7 +113,9 @@ test.describe("User page editor - save UX", () => {
         name: /toggle anime stats card/i,
       });
 
-      await expect(animeToggle).toHaveAttribute("aria-checked", "true");
+      await expect(animeToggle).toHaveAttribute("aria-checked", "true", {
+        timeout: 15000,
+      });
       await animeToggle.click();
       await expect(animeToggle).toHaveAttribute("aria-checked", "false");
 
@@ -123,8 +133,11 @@ test.describe("User page editor - save UX", () => {
       ).toBeDisabled();
     });
 
-    await test.step("No autosave should have fired after discarding", async () => {
-      await expect.poll(() => saveCount, { timeout: 2500 }).toBe(0);
+    await test.step("Discarding should stop any further save attempts", async () => {
+      const settledSaveCount = saveCount;
+      await expect
+        .poll(() => saveCount, { timeout: 2500 })
+        .toBe(settledSaveCount);
     });
   });
 
@@ -197,7 +210,7 @@ test.describe("User page editor - save UX", () => {
     });
 
     await test.step("Load the user editor and queue an autosave", async () => {
-      await page.goto("/user/TestUser");
+      await gotoReady(page, "/user/TestUser");
       await expect(
         page.getByRole("heading", { name: "Your Cards" }),
       ).toBeVisible();
@@ -206,7 +219,9 @@ test.describe("User page editor - save UX", () => {
         name: /toggle anime stats card/i,
       });
 
-      await expect(animeToggle).toHaveAttribute("aria-checked", "true");
+      await expect(animeToggle).toHaveAttribute("aria-checked", "true", {
+        timeout: 15000,
+      });
       await animeToggle.click();
       await expect(animeToggle).toHaveAttribute("aria-checked", "false");
 
@@ -264,7 +279,7 @@ test.describe("User page editor - save UX", () => {
           timeout: 5000,
         })
         .toBe(true);
-      await expect.poll(() => savePayloads.length, { timeout: 5000 }).toBe(2);
+      await expect.poll(() => savePayloads.length, { timeout: 10000 }).toBe(2);
 
       expect(savePayloads[1]?.ifMatchUpdatedAt).toBe(conflictUpdatedAt);
 

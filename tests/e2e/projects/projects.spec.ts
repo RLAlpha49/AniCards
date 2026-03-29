@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { clickAnchorAndExpectUrl, gotoReady } from "../fixtures/browser-utils";
+
 const PROJECTS = [
   {
     name: "Anilist Custom List Manager",
@@ -15,7 +17,7 @@ test.use({ serviceWorkers: "block" });
 
 test.describe("Projects page", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/projects");
+    await gotoReady(page, "/projects");
     await expect(
       page.getByRole("heading", { level: 1, name: /projects/i }),
     ).toBeVisible();
@@ -51,7 +53,7 @@ test.describe("Projects page", () => {
       await expect(profileLink).toHaveAttribute("rel", /noopener/i);
 
       const homeLink = page.getByRole("link", { name: /back to home/i });
-      await homeLink.click();
+      await clickAnchorAndExpectUrl(page, homeLink, /\/$/);
       await expect(page).toHaveURL(/\/$/);
     });
   });

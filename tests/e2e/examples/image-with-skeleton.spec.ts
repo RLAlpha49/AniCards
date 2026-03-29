@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { gotoReady } from "../fixtures/browser-utils";
+
 const SVG_IMAGE_RESPONSE = `
   <svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
     <rect width="640" height="360" fill="#171325" />
@@ -26,7 +28,7 @@ test.describe("ImageWithSkeleton", () => {
       });
     });
 
-    await page.goto("/examples", { waitUntil: "domcontentloaded" });
+    await gotoReady(page, "/examples");
 
     const gallery = page.locator("#card-gallery");
     await expect(gallery).toBeVisible({
@@ -35,8 +37,7 @@ test.describe("ImageWithSkeleton", () => {
     await gallery.scrollIntoViewIfNeeded();
 
     const firstImageCard = gallery.locator("[data-image-state]").first();
-    const galleryImages = gallery.getByRole("img");
-    await galleryImages.first().scrollIntoViewIfNeeded();
+    await expect(firstImageCard).toBeVisible({ timeout: 15000 });
     const firstSlowImage = firstImageCard.getByRole("img");
 
     await expect(firstImageCard.locator(".animate-pulse")).toBeVisible({
@@ -72,16 +73,16 @@ test.describe("ImageWithSkeleton", () => {
   }) => {
     await page.emulateMedia({ colorScheme: "dark" });
 
-    await page.goto("/examples", { waitUntil: "domcontentloaded" });
+    await gotoReady(page, "/examples");
 
     const gallery = page.locator("#card-gallery");
     await expect(gallery).toBeVisible({ timeout: 15000 });
     await gallery.scrollIntoViewIfNeeded();
 
-    const galleryImages = gallery.getByRole("img");
-    await galleryImages.first().scrollIntoViewIfNeeded();
+    const targetImage = gallery.locator("[data-image-state] img[alt]").first();
+    await expect(targetImage).toBeVisible({ timeout: 15000 });
 
-    await galleryImages.first().evaluate((image) => {
+    await targetImage.evaluate((image) => {
       image.setAttribute("src", "data:image/png;base64,invalid-image-data");
     });
 

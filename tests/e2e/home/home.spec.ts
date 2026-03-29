@@ -1,9 +1,11 @@
 import { expect, test } from "@playwright/test";
 
+import { clickAnchorAndExpectUrl, gotoReady } from "../fixtures/browser-utils";
+
 test.describe("Home page", () => {
   test("navigates to search from hero CTA", async ({ page }) => {
     await test.step("Open homepage", async () => {
-      await page.goto("/");
+      await gotoReady(page, "/");
     });
 
     await test.step("Navigate to search via hero CTA", async () => {
@@ -11,10 +13,7 @@ test.describe("Home page", () => {
 
       await expect(getStartedLink).toHaveAttribute("href", "/search");
 
-      await Promise.all([
-        page.waitForURL(/\/search(?:\?|$)/, { timeout: 15000 }),
-        getStartedLink.click(),
-      ]);
+      await clickAnchorAndExpectUrl(page, getStartedLink, /\/search(?:\?|$)/);
 
       await expect(page).toHaveURL(/\/search(?:\?|$)/);
       await expect(page.getByLabel(/anilist username/i)).toBeVisible();
@@ -22,17 +21,18 @@ test.describe("Home page", () => {
   });
 
   test("navigates to examples from View Gallery CTA", async ({ page }) => {
-    await page.goto("/");
+    await gotoReady(page, "/");
 
     await test.step("Open the examples gallery", async () => {
       const viewGalleryLink = page.getByRole("link", { name: /view gallery/i });
 
       await expect(viewGalleryLink).toHaveAttribute("href", "/examples");
 
-      await Promise.all([
-        page.waitForURL(/\/examples(?:\?|$)/),
-        viewGalleryLink.click(),
-      ]);
+      await clickAnchorAndExpectUrl(
+        page,
+        viewGalleryLink,
+        /\/examples(?:\?|$)/,
+      );
     });
 
     await expect(page).toHaveURL(/\/examples(?:\?|$)/);

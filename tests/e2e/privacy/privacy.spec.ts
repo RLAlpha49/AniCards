@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { clickAnchorAndExpectUrl, gotoReady } from "../fixtures/browser-utils";
+
 test.describe("Privacy disclosure", () => {
   test("renders the public privacy summary with current retention details", async ({
     page,
@@ -34,7 +36,7 @@ test.describe("Privacy disclosure", () => {
   });
 
   test("is discoverable from the footer on the home page", async ({ page }) => {
-    await page.goto("/");
+    await gotoReady(page, "/");
 
     const privacyLink = page
       .getByRole("contentinfo")
@@ -43,10 +45,7 @@ test.describe("Privacy disclosure", () => {
     await privacyLink.scrollIntoViewIfNeeded();
     await expect(privacyLink).toHaveAttribute("href", "/privacy");
 
-    await Promise.all([
-      page.waitForURL(/\/privacy(?:\?|$)/),
-      privacyLink.click(),
-    ]);
+    await clickAnchorAndExpectUrl(page, privacyLink, /\/privacy(?:\?|$)/);
 
     await expect(page).toHaveURL(/\/privacy(?:\?|$)/);
   });
