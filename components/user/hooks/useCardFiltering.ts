@@ -2,7 +2,7 @@
 // so the editor can treat filtering as one derived view model instead of
 // recomputing pieces across multiple components.
 
-import Fuse from "fuse.js";
+import type Fuse from "fuse.js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { statCardTypes } from "@/lib/card-types";
@@ -146,6 +146,53 @@ const CARD_SEARCH_TEXT_BY_ID = new Map<string, string>(
   }),
 );
 
+type IndexedCardSearchItem = {
+  id: string;
+  label: string;
+  group: string;
+  variationLabels: string;
+};
+
+const CARD_SEARCH_INDEX_ITEMS: IndexedCardSearchItem[] = statCardTypes.map(
+  (t) => ({
+    id: t.id,
+    label: t.label,
+    group: t.group,
+    variationLabels: t.variations.map((v) => v.label).join(" "),
+  }),
+);
+
+let cachedCardSearchFuse: Fuse<IndexedCardSearchItem> | null = null;
+let cardSearchFusePromise: Promise<Fuse<IndexedCardSearchItem>> | null = null;
+
+function loadCardSearchFuse(): Promise<Fuse<IndexedCardSearchItem>> {
+  if (cachedCardSearchFuse) {
+    return Promise.resolve(cachedCardSearchFuse);
+  }
+
+  cardSearchFusePromise ??= import("fuse.js")
+    .then(({ default: Fuse }) => {
+      const fuse = new Fuse<IndexedCardSearchItem>(CARD_SEARCH_INDEX_ITEMS, {
+        keys: ["label", "id", "group", "variationLabels"],
+        threshold: 0.35,
+        ignoreLocation: true,
+      });
+
+      cachedCardSearchFuse = fuse;
+      return fuse;
+    })
+    .catch((error: unknown) => {
+      cardSearchFusePromise = null;
+      throw error;
+    });
+
+  return cardSearchFusePromise;
+}
+
+export function prefetchCardFilteringFuzzySearch(): void {
+  void loadCardSearchFuse();
+}
+
 export type CustomFilter = "all" | "customized" | "uncustomized";
 
 function filterCardsInGroup(
@@ -193,6 +240,10 @@ export function useCardFiltering({
   customFilter?: CustomFilter;
   fuzzy?: boolean;
 }) {
+  const [fuse, setFuse] = useState<Fuse<IndexedCardSearchItem> | null>(
+    cachedCardSearchFuse,
+  );
+
   const orderIndexById = useMemo(() => {
     const map = new Map<string, number>();
     const order =
@@ -246,26 +297,20 @@ export function useCardFiltering({
     return map;
   }, [cardEnabledById, cardGroups]);
 
-  // Memoize Fuse instance to avoid rebuilding the index on each query.
-  const fuse = useMemo(() => {
-    if (!fuzzy) return null;
-    const items = statCardTypes.map((t) => ({
-      id: t.id,
-      label: t.label,
-      group: t.group,
-      variationLabels: t.variations.map((v) => v.label).join(" "),
-    }));
-    return new Fuse<{
-      id: string;
-      label: string;
-      group: string;
-      variationLabels: string;
-    }>(items, {
-      keys: ["label", "id", "group", "variationLabels"],
-      threshold: 0.35,
-      ignoreLocation: true,
+  useEffect(() => {
+    if (!fuzzy || !parsedQuery.text || fuse) return;
+
+    let cancelled = false;
+
+    void loadCardSearchFuse().then((loadedFuse) => {
+      if (cancelled) return;
+      setFuse(loadedFuse);
     });
-  }, [fuzzy]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fuse, fuzzy, parsedQuery.text]);
 
   const fuzzyMatchIds = useMemo(() => {
     if (!parsedQuery.text || !fuse) return null;

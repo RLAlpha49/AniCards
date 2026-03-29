@@ -23,7 +23,7 @@ interface Variant {
 }
 
 interface VariantSelectorProps {
-  variations?: Variant[];
+  variations?: readonly Variant[];
   currentVariant?: string;
   onVariantChange: (variant: string) => void;
   getVariantTooltip?: (variantId: string) => string | null;

@@ -55,7 +55,7 @@ interface CardTileProps {
   /** Display label for the card */
   label: string;
   /** Available variations for this card */
-  variations: CardVariation[];
+  variations: readonly CardVariation[];
   /** Whether this card supports status colors */
   supportsStatusColors?: boolean;
   /** Whether this card supports pie percentages */
@@ -104,7 +104,7 @@ type CompareControlsProps = {
   compareVariant: string;
   onCompareVariantChange: (variant: string) => void;
   primaryVariantId: string;
-  variations: CardVariation[];
+  variations: readonly CardVariation[];
   getVariantTooltipForCard: (variantId: string) => string | null;
   selectTriggerClassName?: string;
   wrapperClassName?: string;
@@ -260,7 +260,7 @@ type ExpandedPreviewDialogProps = {
   previewUnavailableId: string;
   convertingId: string;
   borderRadiusValue?: string | number;
-  variations: CardVariation[];
+  variations: readonly CardVariation[];
   currentVariant: string;
   onVariantChange: (variant: string) => void;
   getVariantTooltipForCard: (variantId: string) => string | null;

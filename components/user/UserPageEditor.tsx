@@ -114,7 +114,11 @@ import { EditorNotices } from "./editor/EditorNotices";
 import { useEditorTour } from "./editor/EditorTour";
 import { ReorderModeHint } from "./editor/ReorderModeHint";
 import { GlobalSettingsPanel } from "./GlobalSettingsPanel";
-import { CustomFilter, useCardFiltering } from "./hooks/useCardFiltering";
+import {
+  CustomFilter,
+  prefetchCardFilteringFuzzySearch,
+  useCardFiltering,
+} from "./hooks/useCardFiltering";
 import { useNewUserSetup } from "./hooks/useNewUserSetup";
 import { useUserDataLoader } from "./hooks/useUserDataLoader";
 import { UserPageHeader } from "./UserPageHeader";
@@ -1467,7 +1471,7 @@ export function UserPageEditor({
       <CardTile
         cardId={cardType.id}
         label={cardType.label}
-        variations={[...cardType.variations]}
+        variations={cardType.variations}
         supportsStatusColors={STATUS_COLOR_CARDS.has(cardType.id)}
         supportsPiePercentages={PIE_PERCENTAGE_CARDS.has(cardType.id)}
         supportsFavorites={FAVORITES_CARDS.has(cardType.id)}
@@ -1840,6 +1844,7 @@ export function UserPageEditor({
                       id="card-search"
                       data-tour="card-search"
                       value={query}
+                      onFocus={prefetchCardFilteringFuzzySearch}
                       onChange={(e) => setQuery(e.target.value)}
                       placeholder="Search cards… (Ctrl/Cmd+F)"
                       aria-keyshortcuts="Control+F Meta+F"
