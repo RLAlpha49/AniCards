@@ -39,9 +39,12 @@ test.describe("ImageWithSkeleton", () => {
     await galleryImages.first().scrollIntoViewIfNeeded();
     const firstSlowImage = firstImageCard.getByRole("img");
 
-    await page.waitForTimeout(2200);
-
-    await expect(firstImageCard).toHaveAttribute("data-image-state", "slow");
+    await expect(firstImageCard.locator(".animate-pulse")).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(firstImageCard).toHaveAttribute("data-image-state", "slow", {
+      timeout: 15000,
+    });
     await expect(firstImageCard).toHaveAttribute("aria-busy", "true");
     await expect(firstImageCard.locator(".animate-pulse")).toBeVisible();
     await expect(firstSlowImage).toHaveClass(/opacity-0/);

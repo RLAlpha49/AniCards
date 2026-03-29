@@ -270,10 +270,29 @@ test.describe("User page editor - save UX", () => {
       await animeToggle.click();
       await expect(animeToggle).toHaveAttribute("aria-checked", "false");
 
-      await expect(page.getByText(/Auto-save in/i)).toBeVisible();
+      const saveStatus = page.locator('output[aria-live="polite"]');
+      await expect(saveStatus).toContainText(/Auto-save in/i);
 
-      await page.waitForTimeout(750);
-      expect(savePayloads).toHaveLength(0);
+      const queuedStateObservedAt = Date.now();
+      await expect
+        .poll(
+          async () => {
+            const saveStatusText =
+              (await saveStatus.textContent())
+                ?.replaceAll(/\s+/g, " ")
+                .trim() ?? "";
+
+            return (
+              Date.now() - queuedStateObservedAt >= 750 &&
+              /Auto-save in/i.test(saveStatusText) &&
+              savePayloads.length === 0
+            );
+          },
+          {
+            timeout: 1500,
+          },
+        )
+        .toBe(true);
     });
 
     await test.step("Autosave should hit a save conflict and surface recovery UI", async () => {
