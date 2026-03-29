@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
+import type { PersistedUserRecord } from "@/lib/types/records";
 import {
   allowConsoleWarningsAndErrors,
   sharedRedisMockDel,
@@ -17,12 +18,218 @@ import {
 } from "@/tests/unit/__setup__";
 
 const {
+  USER_RECORD_SCHEMA_VERSION,
   deleteUserRecord,
   fetchUserDataParts,
+  getPersistedUserState,
   listStalestUserIds,
+  reconstructPublicUserRecord,
+  reconstructUserBootstrapRecord,
   reconstructUserRecord,
   saveUserRecord,
+  splitUserRecord,
+  UserDataIntegrityError,
 } = await import("@/lib/server/user-data");
+
+function createPersistedUserRecord(
+  overrides: Partial<
+    Pick<
+      PersistedUserRecord,
+      "userId" | "username" | "createdAt" | "updatedAt" | "requestMetadata"
+    >
+  > = {},
+): PersistedUserRecord {
+  const userId = overrides.userId ?? "21";
+  const username = overrides.username ?? "RoundTripUser";
+
+  return {
+    userId,
+    username,
+    createdAt: overrides.createdAt ?? "2026-03-27T00:00:00.000Z",
+    updatedAt: overrides.updatedAt ?? "2026-03-27T00:00:01.000Z",
+    requestMetadata: overrides.requestMetadata ?? {
+      lastSeenIpBucket: "loopback",
+    },
+    aggregates: {
+      animeSourceMaterialDistributionTotals: [{ source: "MANGA", count: 1 }],
+    },
+    stats: {
+      User: {
+        stats: {
+          activityHistory: [{ date: 1_700_000_000, amount: 2 }],
+        },
+        favourites: {
+          anime: {
+            nodes: [
+              {
+                id: 1,
+                title: { romaji: "Example Anime" },
+                coverImage: { medium: "https://example.com/anime.webp" },
+              },
+            ],
+          },
+          manga: { nodes: [] },
+          characters: { nodes: [] },
+          staff: { nodes: [] },
+          studios: { nodes: [] },
+        },
+        statistics: {
+          anime: {
+            count: 1,
+            episodesWatched: 12,
+            minutesWatched: 288,
+            meanScore: 85,
+            standardDeviation: 0,
+            genres: [{ genre: "Action", count: 1 }],
+            tags: [],
+            voiceActors: [],
+            studios: [],
+            staff: [],
+          },
+          manga: {
+            count: 1,
+            chaptersRead: 10,
+            volumesRead: 2,
+            meanScore: 80,
+            standardDeviation: 0,
+            genres: [{ genre: "Drama", count: 1 }],
+            tags: [],
+            staff: [],
+          },
+        },
+        name: "Round Trip User",
+        avatar: {
+          medium: "https://example.com/avatar-medium.webp",
+          large: "https://example.com/avatar-large.webp",
+        },
+        createdAt: 1_700_000_000,
+      },
+      followersPage: { pageInfo: { total: 1 }, followers: [{ id: 2 }] },
+      followingPage: { pageInfo: { total: 1 }, following: [{ id: 3 }] },
+      threadsPage: { pageInfo: { total: 1 }, threads: [{ id: 4 }] },
+      threadCommentsPage: {
+        pageInfo: { total: 1 },
+        threadComments: [{ id: 5 }],
+      },
+      reviewsPage: { pageInfo: { total: 1 }, reviews: [{ id: 6 }] },
+      animePlanning: {
+        lists: [
+          {
+            name: "Planning",
+            entries: [
+              {
+                id: 7,
+                progress: 0,
+                media: {
+                  id: 70,
+                  title: { romaji: "Planned Anime" },
+                },
+              },
+            ],
+          },
+        ],
+      },
+      animeCurrent: {
+        lists: [
+          {
+            name: "Current",
+            entries: [
+              {
+                id: 8,
+                progress: 3,
+                media: {
+                  id: 80,
+                  title: { romaji: "Current Anime" },
+                  episodes: 12,
+                },
+              },
+            ],
+          },
+        ],
+      },
+      animeRewatched: {
+        lists: [
+          {
+            name: "Rewatched",
+            entries: [
+              {
+                id: 9,
+                repeat: 1,
+                media: {
+                  id: 90,
+                  title: { romaji: "Rewatched Anime" },
+                },
+              },
+            ],
+          },
+        ],
+      },
+      animeCompleted: {
+        lists: [
+          {
+            name: "Completed",
+            entries: [
+              {
+                id: 10,
+                score: 90,
+                media: {
+                  id: 100,
+                  title: { romaji: "Completed Anime" },
+                  genres: ["Action"],
+                },
+              },
+            ],
+          },
+        ],
+      },
+      animeDropped: {
+        lists: [
+          {
+            name: "Dropped",
+            entries: [
+              {
+                id: 11,
+                progress: 2,
+                media: {
+                  id: 110,
+                  title: { romaji: "Dropped Anime" },
+                },
+              },
+            ],
+          },
+        ],
+      },
+      mangaPlanning: { lists: [] },
+      mangaCurrent: { lists: [] },
+      mangaReread: { lists: [] },
+      mangaCompleted: { lists: [] },
+      mangaDropped: { lists: [] },
+    },
+  };
+}
+
+function createCommitPointer(options: {
+  userId: string;
+  revision?: number;
+  username?: string;
+  usernameNormalized?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}) {
+  return JSON.stringify({
+    userId: options.userId,
+    storageFormat: "split-user-v2",
+    schemaVersion: USER_RECORD_SCHEMA_VERSION,
+    revision: options.revision ?? 1,
+    createdAt: options.createdAt ?? "2026-03-27T00:00:00.000Z",
+    updatedAt: options.updatedAt ?? "2026-03-27T00:00:01.000Z",
+    ...(options.username ? { username: options.username } : {}),
+    ...(options.usernameNormalized
+      ? { usernameNormalized: options.usernameNormalized }
+      : {}),
+    committedAt: "2026-03-27T00:00:02.000Z",
+  });
+}
 
 describe("user-data persistence", () => {
   beforeEach(() => {
@@ -34,6 +241,7 @@ describe("user-data persistence", () => {
     sharedRedisMockRpush.mockReset();
     sharedRedisMockLtrim.mockReset();
     sharedRedisMockSadd.mockReset();
+    sharedRedisMockSmembers.mockReset();
     sharedRedisMockScan.mockReset();
     sharedRedisMockZadd.mockReset();
     sharedRedisMockZcard.mockReset();
@@ -111,6 +319,321 @@ describe("user-data persistence", () => {
       triggerSource: "user_data_save",
       userId: "5",
     });
+  });
+
+  it("roundtrips split records back into the persisted user shape", () => {
+    const record = createPersistedUserRecord();
+
+    const split = splitUserRecord(record);
+
+    expect(split.meta).toMatchObject({
+      userId: "21",
+      username: "RoundTripUser",
+      requestMetadata: { lastSeenIpBucket: "loopback" },
+      name: "Round Trip User",
+    });
+    expect(split.current).toMatchObject({
+      animeCurrent: {
+        lists: [
+          {
+            entries: [
+              {
+                id: 8,
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(split.completed).toMatchObject({
+      animeCompleted: {
+        lists: [
+          {
+            entries: [
+              {
+                id: 10,
+              },
+            ],
+          },
+        ],
+      },
+      animeDropped: {
+        lists: [
+          {
+            entries: [
+              {
+                id: 11,
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const reconstructed = reconstructUserRecord(split);
+
+    expect(reconstructed).toMatchObject({
+      userId: "21",
+      username: "RoundTripUser",
+      requestMetadata: { lastSeenIpBucket: "loopback" },
+      statistics: {
+        anime: { count: 1 },
+        manga: { count: 1 },
+      },
+      favourites: {
+        anime: {
+          nodes: [{ id: 1 }],
+        },
+      },
+      pages: {
+        followersPage: {
+          pageInfo: { total: 1 },
+        },
+      },
+      aggregates: {
+        animeSourceMaterialDistributionTotals: [{ source: "MANGA", count: 1 }],
+      },
+    });
+    expect(reconstructed.stats).toMatchObject({
+      User: {
+        name: "Round Trip User",
+        avatar: { medium: "https://example.com/avatar-medium.webp" },
+        createdAt: 1_700_000_000,
+      },
+      animeCurrent: {
+        lists: [
+          {
+            entries: [{ id: 8 }],
+          },
+        ],
+      },
+      animeCompleted: {
+        lists: [
+          {
+            entries: [{ id: 10 }],
+          },
+        ],
+      },
+    });
+    expect(reconstructed).not.toHaveProperty("ip");
+  });
+
+  it("builds bounded public and bootstrap DTOs from split records", () => {
+    const split = splitUserRecord(createPersistedUserRecord());
+
+    const publicRecord = reconstructPublicUserRecord(split);
+    const bootstrapRecord = reconstructUserBootstrapRecord({
+      meta: split.meta,
+    });
+
+    expect(publicRecord).toMatchObject({
+      userId: 21,
+      username: "RoundTripUser",
+      stats: {
+        User: {
+          name: "Round Trip User",
+        },
+      },
+      aggregates: {
+        animeSourceMaterialDistributionTotals: [{ source: "MANGA", count: 1 }],
+      },
+    });
+    expect(bootstrapRecord).toEqual({
+      userId: 21,
+      username: "RoundTripUser",
+      avatarUrl: "https://example.com/avatar-medium.webp",
+    });
+  });
+
+  it("prefers the commit pointer when loading persisted split state", async () => {
+    sharedRedisMockGet.mockImplementation((key: string) => {
+      if (key === "user:22:commit") {
+        return Promise.resolve(
+          createCommitPointer({
+            userId: "22",
+            revision: 4,
+            username: "StateUser",
+            usernameNormalized: "stateuser",
+          }),
+        );
+      }
+
+      return Promise.resolve(null);
+    });
+
+    const state = await getPersistedUserState("22");
+
+    expect(state).toEqual({
+      userId: "22",
+      storageFormat: "split",
+      schemaVersion: USER_RECORD_SCHEMA_VERSION,
+      revision: 4,
+      createdAt: "2026-03-27T00:00:00.000Z",
+      updatedAt: "2026-03-27T00:00:01.000Z",
+      username: "StateUser",
+      normalizedUsername: "stateuser",
+    });
+    expect(sharedRedisMockGet.mock.calls).toEqual([["user:22:commit"]]);
+  });
+
+  it("falls back to the legacy raw record when no split state exists", async () => {
+    const legacyRecord = createPersistedUserRecord({
+      userId: "23",
+      username: "LegacyUser",
+    });
+
+    sharedRedisMockGet.mockImplementation((key: string) => {
+      if (key === "user:23") {
+        return Promise.resolve(JSON.stringify(legacyRecord));
+      }
+
+      return Promise.resolve(null);
+    });
+
+    const state = await getPersistedUserState("23");
+
+    expect(state).toEqual({
+      userId: "23",
+      storageFormat: "legacy",
+      schemaVersion: 1,
+      revision: 0,
+      createdAt: "2026-03-27T00:00:00.000Z",
+      updatedAt: "2026-03-27T00:00:01.000Z",
+      username: "LegacyUser",
+      normalizedUsername: "legacyuser",
+    });
+    expect(sharedRedisMockGet).toHaveBeenCalledWith("user:23:commit");
+    expect(sharedRedisMockGet).toHaveBeenCalledWith("user:23:meta");
+    expect(sharedRedisMockGet).toHaveBeenCalledWith("user:23");
+  });
+
+  it("cleans up stale username aliases when saving a renamed user", async () => {
+    sharedRedisMockSmembers.mockResolvedValueOnce(["oldname", "legacy-name"]);
+
+    await saveUserRecord(
+      createPersistedUserRecord({ userId: "24", username: "NewName" }),
+      {
+        existingState: {
+          userId: "24",
+          storageFormat: "split",
+          schemaVersion: USER_RECORD_SCHEMA_VERSION,
+          revision: 3,
+          createdAt: "2026-03-27T00:00:00.000Z",
+          updatedAt: "2026-03-27T00:00:01.000Z",
+          username: "OldName",
+          normalizedUsername: "oldname",
+        },
+      },
+    );
+
+    expect(sharedRedisMockSadd).toHaveBeenCalledWith(
+      "user:24:username-aliases",
+      "oldname",
+      "legacy-name",
+      "newname",
+    );
+    expect(sharedRedisMockSet).toHaveBeenCalledWith("username:newname", "24");
+    expect(sharedRedisMockDel).toHaveBeenCalledWith(
+      "username:oldname",
+      "username:legacy-name",
+    );
+    expect(sharedRedisMockScan).not.toHaveBeenCalled();
+  });
+
+  it("surfaces invalid committed split JSON as a UserDataIntegrityError", async () => {
+    sharedRedisMockGet.mockImplementation((key: string) => {
+      if (key === "user:25:commit") {
+        return Promise.resolve(
+          createCommitPointer({ userId: "25", revision: 2 }),
+        );
+      }
+
+      return Promise.resolve(null);
+    });
+    sharedRedisMockMget.mockResolvedValueOnce([
+      JSON.stringify({
+        userId: "25",
+        username: "CorruptUser",
+        createdAt: "2026-03-27T00:00:00.000Z",
+        updatedAt: "2026-03-27T00:00:01.000Z",
+      }),
+      "[object Object]",
+    ]);
+
+    let error: unknown;
+    try {
+      await fetchUserDataParts("25", ["meta", "activity"]);
+    } catch (error_) {
+      error = error_;
+    }
+
+    expect(error).toBeInstanceOf(UserDataIntegrityError);
+    const integrityError = error as InstanceType<typeof UserDataIntegrityError>;
+    expect(integrityError.message).toBe(
+      "Stored user payload is not valid JSON",
+    );
+    expect(integrityError.publicMessage).toBe(
+      "Stored user record is incomplete or corrupted",
+    );
+  });
+
+  it("migrates legacy records to split storage when it wins the migration lock", async () => {
+    const legacyRecord = createPersistedUserRecord({
+      userId: "26",
+      username: "MigratingUser",
+    });
+    let migrationToken: string | null = null;
+
+    sharedRedisMockGet.mockImplementation((key: string) => {
+      if (key === "user:26") {
+        return Promise.resolve(JSON.stringify(legacyRecord));
+      }
+
+      if (key === "user:26:migrating") {
+        return Promise.resolve(migrationToken);
+      }
+
+      return Promise.resolve(null);
+    });
+    sharedRedisMockSet.mockImplementation((key: string, value: unknown) => {
+      if (key === "user:26:migrating") {
+        migrationToken = String(value);
+        return Promise.resolve("OK");
+      }
+
+      return Promise.resolve(true);
+    });
+
+    const parts = await fetchUserDataParts("26", ["meta", "activity"]);
+
+    expect(parts.meta).toMatchObject({
+      userId: "26",
+      username: "MigratingUser",
+    });
+    expect(parts.activity).toMatchObject({
+      activityHistory: [{ date: 1_700_000_000, amount: 2 }],
+    });
+    expect(migrationToken).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+    expect(sharedRedisMockSet).toHaveBeenCalledWith(
+      "user:26:migrating",
+      expect.any(String),
+      {
+        ex: 30,
+        nx: true,
+      },
+    );
+    expect(sharedRedisMockSet).toHaveBeenCalledWith(
+      "user:26:meta",
+      expect.any(String),
+    );
+    expect(sharedRedisMockSet).toHaveBeenCalledWith(
+      "user:26:commit",
+      expect.any(String),
+    );
+    expect(sharedRedisMockDel).toHaveBeenCalledWith("user:26");
+    expect(sharedRedisMockDel).toHaveBeenCalledWith("user:26:migrating");
   });
 
   it("treats missing stable part keys as corrupt even when the commit pointer exists", async () => {

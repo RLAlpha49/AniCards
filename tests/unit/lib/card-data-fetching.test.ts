@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
-import { fetchUserData } from "@/lib/card-data/fetching";
+import {
+  fetchUserData,
+  fetchUserDataForCard,
+  resolveUserIdFromUsername,
+} from "@/lib/card-data/fetching";
 import { CardDataError } from "@/lib/card-data/validation";
 import {
   allowConsoleWarningsAndErrors,
@@ -25,6 +29,34 @@ async function flushMicrotasks(iterations = 6) {
   for (let index = 0; index < iterations; index += 1) {
     await Promise.resolve();
   }
+}
+
+function createSplitCommit(userId: string) {
+  return JSON.stringify({
+    userId,
+    storageFormat: "split-user-v2",
+    schemaVersion: 2,
+    revision: 3,
+    createdAt: "2026-03-27T00:00:00.000Z",
+    updatedAt: "2026-03-27T00:00:01.000Z",
+    committedAt: "2026-03-27T00:00:02.000Z",
+  });
+}
+
+function createMetaPart(userId: string) {
+  return JSON.stringify({
+    userId,
+    username: "test-user",
+    createdAt: "2026-03-27T00:00:00.000Z",
+    updatedAt: "2026-03-27T00:00:01.000Z",
+  });
+}
+
+function createStatisticsPart() {
+  return JSON.stringify({
+    anime: { count: 1 },
+    manga: { count: 0 },
+  });
 }
 
 describe("card-data fetchUserData", () => {
@@ -54,17 +86,7 @@ describe("card-data fetchUserData", () => {
       }
 
       if (key === "user:42:commit") {
-        return Promise.resolve(
-          JSON.stringify({
-            userId: "42",
-            storageFormat: "split-user-v2",
-            schemaVersion: 2,
-            revision: 3,
-            createdAt: "2026-03-27T00:00:00.000Z",
-            updatedAt: "2026-03-27T00:00:01.000Z",
-            committedAt: "2026-03-27T00:00:02.000Z",
-          }),
-        );
+        return Promise.resolve(createSplitCommit("42"));
       }
 
       return Promise.resolve(null);
@@ -89,15 +111,7 @@ describe("card-data fetchUserData", () => {
     );
     expect(resolved).toBe(false);
 
-    userDeferred.resolve([
-      JSON.stringify({
-        userId: "42",
-        username: "test-user",
-        createdAt: "2026-03-27T00:00:00.000Z",
-        updatedAt: "2026-03-27T00:00:01.000Z",
-      }),
-      JSON.stringify({ anime: {}, manga: {} }),
-    ]);
+    userDeferred.resolve([createMetaPart("42"), createStatisticsPart()]);
     await Promise.resolve();
 
     expect(resolved).toBe(false);
@@ -139,5 +153,134 @@ describe("card-data fetchUserData", () => {
     );
     expect((error as CardDataError).status).toBe(503);
     expect(sharedRedisMockIncr).not.toHaveBeenCalled();
+  });
+
+  it("increments corrupted-card analytics when the stored card document is invalid JSON", async () => {
+    sharedRedisMockGet.mockImplementation((key: string) => {
+      if (key === "cards:42") {
+        return Promise.resolve("{not-json");
+      }
+
+      if (key === "user:42:commit") {
+        return Promise.resolve(createSplitCommit("42"));
+      }
+
+      return Promise.resolve(null);
+    });
+    sharedRedisMockMget.mockResolvedValueOnce([
+      createMetaPart("42"),
+      createStatisticsPart(),
+    ]);
+
+    let error: unknown;
+    try {
+      await fetchUserData(42, "animeStats");
+    } catch (error_) {
+      error = error_;
+    }
+
+    expect(error).toBeInstanceOf(CardDataError);
+    expect((error as CardDataError).message).toBe(
+      "Server Error: Corrupted card configuration",
+    );
+    expect((error as CardDataError).status).toBe(500);
+    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+      "analytics:card_svg:corrupted_card_records",
+    );
+  });
+});
+
+describe("card-data fetchUserDataForCard", () => {
+  beforeEach(() => {
+    allowConsoleWarningsAndErrors();
+    sharedRedisMockGet.mockReset();
+    sharedRedisMockIncr.mockReset();
+    sharedRedisMockMget.mockReset();
+    sharedRedisMockIncr.mockResolvedValue(1);
+    sharedRedisMockGet.mockImplementation(() => Promise.resolve(null));
+    sharedRedisMockMget.mockImplementation(async (...keys: string[]) =>
+      keys.map(() => null),
+    );
+  });
+
+  afterEach(() => {
+    mock.clearAllMocks();
+  });
+
+  it("loads only the parts required for a card and reconstructs the user record", async () => {
+    sharedRedisMockGet.mockImplementation((key: string) => {
+      if (key === "user:42:commit") {
+        return Promise.resolve(createSplitCommit("42"));
+      }
+
+      return Promise.resolve(null);
+    });
+    sharedRedisMockMget.mockImplementation(async (...keys: string[]) => {
+      expect(keys).toEqual(["user:42:meta", "user:42:statistics"]);
+      return [createMetaPart("42"), createStatisticsPart()];
+    });
+
+    const userDoc = await fetchUserDataForCard(42, "animeStats");
+
+    expect(userDoc).toMatchObject({
+      userId: "42",
+      username: "test-user",
+      stats: {
+        User: {
+          statistics: {
+            anime: { count: 1 },
+            manga: { count: 0 },
+          },
+        },
+      },
+    });
+  });
+
+  it("returns a 503 when the user-data backplane is unavailable", async () => {
+    sharedRedisMockGet.mockRejectedValueOnce(
+      new Error("Redis connection failed"),
+    );
+
+    let error: unknown;
+    try {
+      await fetchUserDataForCard(42, "animeStats");
+    } catch (error_) {
+      error = error_;
+    }
+
+    expect(error).toBeInstanceOf(CardDataError);
+    expect((error as CardDataError).message).toBe(
+      "Server Error: User data is temporarily unavailable",
+    );
+    expect((error as CardDataError).status).toBe(503);
+  });
+});
+
+describe("card-data resolveUserIdFromUsername", () => {
+  beforeEach(() => {
+    allowConsoleWarningsAndErrors();
+    sharedRedisMockGet.mockReset();
+    sharedRedisMockGet.mockImplementation(() => Promise.resolve(null));
+  });
+
+  afterEach(() => {
+    mock.clearAllMocks();
+  });
+
+  it("normalizes usernames before looking up the username index", async () => {
+    sharedRedisMockGet.mockResolvedValueOnce("42");
+
+    const userId = await resolveUserIdFromUsername("  Test-User  ");
+
+    expect(sharedRedisMockGet).toHaveBeenCalledWith("username:test-user");
+    expect(userId).toBe(42);
+  });
+
+  it("returns null for missing or non-numeric username index entries", async () => {
+    sharedRedisMockGet.mockResolvedValueOnce(null);
+    expect(await resolveUserIdFromUsername("unknown-user")).toBeNull();
+
+    sharedRedisMockGet.mockResolvedValueOnce("not-a-number");
+    expect(await resolveUserIdFromUsername("broken-user")).toBeNull();
   });
 });

@@ -1,24 +1,53 @@
+import { Ratelimit } from "@upstash/ratelimit";
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import {
   ANALYTICS_COUNTER_TTL_SECONDS,
+  apiErrorResponse,
   buildAnalyticsStorageKey,
   checkRateLimit,
+  createRateLimiter,
+  flushScheduledTelemetryTasksForTests,
   getRequestIp,
   handleError,
   incrementAnalytics,
   incrementAnalyticsBatch,
+  initializeApiRequest,
+  invalidJsonResponse,
   readJsonRequestBody,
   validateSameOrigin,
 } from "@/lib/api-utils";
 import {
   allowConsoleWarningsAndErrors,
+  sharedRatelimitMockSlidingWindow,
   sharedRedisMockExpire,
   sharedRedisMockIncr,
   sharedRedisMockIncrRaw,
   sharedRedisMockPipeline,
   sharedRedisMockPipelineExec,
 } from "@/tests/unit/__setup__";
+
+function createApiRequest(headers?: Record<string, string>): Request {
+  return new Request("http://localhost/api/test", {
+    method: "POST",
+    headers: {
+      origin: "http://localhost",
+      ...headers,
+    },
+  });
+}
+
+function getLastRatelimitConstructorOptions(): Record<string, unknown> {
+  const constructorCalls = (
+    Ratelimit as unknown as {
+      mock: { calls: Array<[Record<string, unknown>]> };
+    }
+  ).mock.calls;
+
+  const options = constructorCalls.at(-1)?.[0];
+  expect(options).toBeDefined();
+  return options ?? {};
+}
 
 describe("api-utils hardening", () => {
   const originalEnv = process.env;
@@ -39,9 +68,12 @@ describe("api-utils hardening", () => {
     sharedRedisMockPipeline.mockReset();
     sharedRedisMockPipelineExec.mockReset();
     sharedRedisMockPipelineExec.mockResolvedValue([]);
+    sharedRatelimitMockSlidingWindow.mockReset();
+    sharedRatelimitMockSlidingWindow.mockImplementation(() => "fake-limiter");
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await flushScheduledTelemetryTasksForTests();
     process.env = originalEnv;
     mock.clearAllMocks();
   });
@@ -113,6 +145,8 @@ describe("api-utils hardening", () => {
       limiter,
     );
 
+    await flushScheduledTelemetryTasksForTests();
+
     expect(response).toBeNull();
     expect(sharedRedisMockIncr).toHaveBeenCalledWith(
       "analytics:test_api:rate_limit_timeouts",
@@ -136,6 +170,8 @@ describe("api-utils hardening", () => {
         endpointKey: "test_api",
       },
     );
+
+    await flushScheduledTelemetryTasksForTests();
 
     expect(bodyResult.success).toBe(false);
     if (bodyResult.success) {
@@ -225,6 +261,42 @@ describe("api-utils hardening", () => {
     expect(body.status).toBe(500);
   });
 
+  it("sanitizes long stack frames without relying on backtracking regexes", () => {
+    const request = createApiRequest();
+    const error = new Error("private integrity detail");
+    error.stack = [
+      "Error: private integrity detail",
+      `    at ${"veryLongFunctionName".repeat(18)}    (file:///tmp/${"segment/".repeat(24)}example.ts:12:34)`,
+      "    at nextFrame (file:///app/example.ts:56:78)",
+    ].join("\n");
+
+    handleError(
+      error,
+      "Test API",
+      Date.now() - 25,
+      "analytics:test_api:failed_requests",
+      "Fallback error",
+      request,
+    );
+
+    const consoleErrorCalls = (
+      console.error as unknown as { mock: { calls: Array<[string]> } }
+    ).mock.calls;
+    expect(consoleErrorCalls.length).toBeGreaterThan(0);
+
+    const logEntry = JSON.parse(String(consoleErrorCalls.at(-1)?.[0])) as {
+      context?: { stack?: string };
+      message?: string;
+    };
+
+    expect(logEntry.message).toBe("Request failed");
+    expect(logEntry.context?.stack).toContain("at veryLongFunctionName");
+    expect(logEntry.context?.stack).toContain("nextFrame");
+    expect(logEntry.context?.stack).not.toContain("file:///tmp/");
+    expect(logEntry.context?.stack).not.toContain("file:///app/example.ts");
+    expect(logEntry.context?.stack?.length).toBeLessThanOrEqual(200);
+  });
+
   it("maps Redis availability failures to a 503 degraded response when configured", async () => {
     const response = handleError(
       new Error("Redis connection failed"),
@@ -244,5 +316,294 @@ describe("api-utils hardening", () => {
     expect(body.category).toBe("server_error");
     expect(body.retryable).toBe(true);
     expect(body.status).toBe(503);
+  });
+
+  it("merges explicit createRateLimiter overrides ahead of env-backed defaults", () => {
+    const customRedis = { label: "custom-redis" } as never;
+
+    process.env.UPSTASH_RATELIMIT_ANALYTICS = "false";
+    process.env.UPSTASH_RATELIMIT_PROTECTION = "true";
+    process.env.UPSTASH_RATELIMIT_PREFIX = "env-prefix";
+    process.env.UPSTASH_RATELIMIT_TIMEOUT_MS = "2500";
+
+    createRateLimiter({
+      limit: 25,
+      window: "1 m",
+      redis: customRedis,
+      analytics: true,
+      enableProtection: false,
+      prefix: "custom-prefix",
+      timeout: 9000,
+    });
+
+    expect(sharedRatelimitMockSlidingWindow).toHaveBeenCalledWith(25, "1 m");
+    expect(getLastRatelimitConstructorOptions()).toMatchObject({
+      redis: customRedis,
+      limiter: "fake-limiter",
+      analytics: true,
+      enableProtection: false,
+      prefix: "custom-prefix",
+      timeout: 9000,
+    });
+  });
+
+  it("uses env-backed createRateLimiter defaults when explicit overrides are omitted", () => {
+    process.env.UPSTASH_RATELIMIT_ANALYTICS = "false";
+    process.env.UPSTASH_RATELIMIT_PROTECTION = "true";
+    process.env.UPSTASH_RATELIMIT_PREFIX = "env-fallback";
+    process.env.UPSTASH_RATELIMIT_TIMEOUT_MS = "3456";
+
+    createRateLimiter({ limit: 12, window: "30 s" });
+
+    expect(sharedRatelimitMockSlidingWindow).toHaveBeenCalledWith(12, "30 s");
+    expect(getLastRatelimitConstructorOptions()).toMatchObject({
+      limiter: "fake-limiter",
+      analytics: false,
+      enableProtection: true,
+      prefix: "env-fallback",
+      timeout: 3456,
+    });
+  });
+
+  it("passes request metadata into successful rate-limit checks", async () => {
+    const limit = mock().mockResolvedValue({
+      success: true,
+      limit: 20,
+      remaining: 19,
+      reset: Date.now() + 10_000,
+      pending: Promise.resolve(),
+    });
+    const limiter = { limit };
+
+    const request = createApiRequest({
+      "user-agent": "AniCardsTest/1.0",
+      "x-vercel-ip-country": "GB",
+    });
+
+    const response = await checkRateLimit(
+      request,
+      "198.51.100.24",
+      "Test API",
+      "test_api",
+      limiter as never,
+    );
+
+    expect(response).toBeNull();
+    expect(limit).toHaveBeenCalledWith("198.51.100.24", {
+      ip: "198.51.100.24",
+      userAgent: "AniCardsTest/1.0",
+      country: "GB",
+    });
+  });
+
+  it("returns a 429 response with rate-limit headers and request-id propagation", async () => {
+    const reset = Date.now() + 5_000;
+    const limit = mock().mockResolvedValue({
+      success: false,
+      reason: "denyList",
+      deniedValue: "198.51.100.24",
+      limit: 15,
+      remaining: -2,
+      reset,
+      pending: Promise.resolve(),
+    });
+    const limiter = { limit };
+
+    const request = createApiRequest({
+      "cf-ipcountry": "CA",
+      "user-agent": "AniCardsTest/2.0",
+      "x-request-id": "req-rate-limit-12345",
+    });
+
+    const response = await checkRateLimit(
+      request,
+      "198.51.100.24",
+      "Test API",
+      "test_api",
+      limiter as never,
+    );
+
+    await flushScheduledTelemetryTasksForTests();
+
+    expect(response).not.toBeNull();
+    expect(response?.status).toBe(429);
+    expect(limit).toHaveBeenCalledWith("198.51.100.24", {
+      ip: "198.51.100.24",
+      userAgent: "AniCardsTest/2.0",
+      country: "CA",
+    });
+
+    const body = await response?.json();
+    expect(body).toMatchObject({
+      error: "Too many requests",
+      category: "rate_limited",
+      retryable: true,
+      status: 429,
+    });
+    expect(response?.headers.get("Retry-After")).toBeTruthy();
+    expect(response?.headers.get("X-RateLimit-Limit")).toBe("15");
+    expect(response?.headers.get("X-RateLimit-Remaining")).toBe("0");
+    expect(response?.headers.get("X-RateLimit-Reset")).toBe(String(reset));
+    expect(response?.headers.get("X-Request-Id")).toBe("req-rate-limit-12345");
+    expect(response?.headers.get("Access-Control-Expose-Headers")).toContain(
+      "X-Request-Id",
+    );
+    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+      "analytics:test_api:failed_requests",
+    );
+  });
+
+  it("records dedicated analytics when the rate-limit provider throws", async () => {
+    const limiter = {
+      limit: mock().mockRejectedValue(new Error("Upstash exploded")),
+    } as never;
+
+    await expect(
+      checkRateLimit(
+        createApiRequest(),
+        "127.0.0.1",
+        "Test API",
+        "test_api",
+        limiter,
+      ),
+    ).rejects.toThrow("Upstash exploded");
+
+    await flushScheduledTelemetryTasksForTests();
+
+    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+      "analytics:test_api:rate_limit_errors",
+    );
+  });
+
+  it("returns initializeApiRequest context from request headers on success", async () => {
+    const limit = mock().mockResolvedValue({
+      success: true,
+      limit: 10,
+      remaining: 9,
+      reset: Date.now() + 10_000,
+      pending: Promise.resolve(),
+    });
+    const limiter = { limit };
+
+    const result = await initializeApiRequest(
+      createApiRequest({
+        "user-agent": "AniCardsTest/3.0",
+        "x-request-id": "req-init-12345",
+        "x-vercel-forwarded-for": "198.51.100.42",
+        "x-vercel-ip-country": "US",
+      }),
+      "Test API",
+      "test_api",
+      limiter as never,
+    );
+
+    expect(result.errorResponse).toBeUndefined();
+    expect(result.endpoint).toBe("Test API");
+    expect(result.endpointKey).toBe("test_api");
+    expect(result.ip).toBe("198.51.100.42");
+    expect(result.requestId).toBe("req-init-12345");
+    expect(typeof result.startTime).toBe("number");
+    expect(limit).toHaveBeenCalledWith("198.51.100.42", {
+      ip: "198.51.100.42",
+      userAgent: "AniCardsTest/3.0",
+      country: "US",
+    });
+  });
+
+  it("short-circuits initializeApiRequest with a request-id aware rate-limit response", async () => {
+    const limiter = {
+      limit: mock().mockResolvedValue({
+        success: false,
+        limit: 3,
+        remaining: 0,
+        reset: Date.now() + 5_000,
+        pending: Promise.resolve(),
+      }),
+    } as never;
+
+    const result = await initializeApiRequest(
+      createApiRequest({
+        "x-request-id": "req-init-limited-12345",
+      }),
+      "Test API",
+      "test_api",
+      limiter,
+    );
+
+    await flushScheduledTelemetryTasksForTests();
+
+    expect(result.requestId).toBe("req-init-limited-12345");
+    expect(result.errorResponse?.status).toBe(429);
+    expect(result.errorResponse?.headers.get("X-Request-Id")).toBe(
+      "req-init-limited-12345",
+    );
+  });
+
+  it("builds apiErrorResponse payloads with merged headers and request-id exposure", async () => {
+    const response = apiErrorResponse(
+      createApiRequest({
+        "x-request-id": "req-api-error-12345",
+      }),
+      422,
+      "Invalid filter",
+      {
+        headers: {
+          "Access-Control-Expose-Headers": "X-Debug-Token",
+          "X-Debug-Token": "trace-123",
+        },
+        category: "invalid_data",
+        retryable: false,
+        additionalFields: {
+          field: "username",
+        },
+      },
+    );
+
+    expect(response.status).toBe(422);
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe(
+      "http://localhost",
+    );
+    expect(response.headers.get("X-Debug-Token")).toBe("trace-123");
+    expect(response.headers.get("X-Request-Id")).toBe("req-api-error-12345");
+    expect(response.headers.get("Access-Control-Expose-Headers")).toContain(
+      "X-Debug-Token",
+    );
+    expect(response.headers.get("Access-Control-Expose-Headers")).toContain(
+      "X-Request-Id",
+    );
+
+    const body = await response.json();
+    expect(body).toMatchObject({
+      error: "Invalid filter",
+      category: "invalid_data",
+      retryable: false,
+      status: 422,
+      field: "username",
+    });
+  });
+
+  it("builds invalidJsonResponse payloads with the expected invalid-data contract", async () => {
+    const response = invalidJsonResponse(
+      createApiRequest({
+        "x-request-id": "req-invalid-json-12345",
+      }),
+      {
+        headers: {
+          "X-Test-Source": "unit",
+        },
+      },
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get("X-Test-Source")).toBe("unit");
+    expect(response.headers.get("X-Request-Id")).toBe("req-invalid-json-12345");
+
+    const body = await response.json();
+    expect(body).toMatchObject({
+      error: "Invalid JSON body",
+      category: "invalid_data",
+      retryable: false,
+      status: 400,
+    });
   });
 });
