@@ -667,6 +667,51 @@ describe("Card SVG Route", () => {
       await expectErrorResponse(res, "Client Error: Invalid card type", 400);
     });
 
+    it("should return 400 when an explicit titleColor query param is invalid", async () => {
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+          titleColor: "definitely-not-a-color",
+        }),
+      );
+
+      const res = await GET(req);
+
+      await expectErrorResponse(res, "Client Error: Invalid titleColor", 400);
+      expect(sharedRedisMockGet).not.toHaveBeenCalled();
+    });
+
+    it("should return 400 when an explicit borderColor query param is invalid", async () => {
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+          borderColor: "rgb(255, 0, 0)",
+        }),
+      );
+
+      const res = await GET(req);
+
+      await expectErrorResponse(res, "Client Error: Invalid borderColor", 400);
+      expect(sharedRedisMockGet).not.toHaveBeenCalled();
+    });
+
+    it("should return 400 when colorPreset is unknown", async () => {
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+          colorPreset: "totallyNotReal",
+        }),
+      );
+
+      const res = await GET(req);
+
+      await expectErrorResponse(res, "Client Error: Invalid colorPreset", 400);
+      expect(sharedRedisMockGet).not.toHaveBeenCalled();
+    });
+
     it("should accept all allowed card types", async () => {
       const allowedTypes = ["animeStats", "socialStats", "mangaStats"];
 
@@ -1907,6 +1952,42 @@ describe("Card SVG Route", () => {
         mediaStatsTemplate as MockFunction<typeof mediaStatsTemplate>
       ).mock.calls[0][0];
       expect(callArgs.styles.titleColor).toBe("#ff0000");
+    });
+
+    it("should accept valid gradient JSON color query params", async () => {
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupUserDataOnlyMocks(userData, "animeStats");
+
+      const titleGradient = JSON.stringify({
+        type: "linear",
+        angle: 45,
+        stops: [
+          { color: "#ff0000", offset: 0 },
+          { color: "#00ff00", offset: 100 },
+        ],
+      });
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+          titleColor: titleGradient,
+          backgroundColor: "#000000",
+          textColor: "#ffffff",
+          circleColor: "#00ff00",
+        }),
+      );
+
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(mediaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (
+        mediaStatsTemplate as MockFunction<typeof mediaStatsTemplate>
+      ).mock.calls[0][0];
+      expect(callArgs.styles.titleColor).toBe(titleGradient);
     });
 
     it("should allow URL color params to override DB named preset", async () => {

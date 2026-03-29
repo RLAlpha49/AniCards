@@ -7,6 +7,7 @@
  * cache with stale-while-revalidate behavior so common embeds stay fast without
  * giving up freshness.
  */
+import { colorPresets } from "@/components/stat-card-generator/constants";
 import {
   buildAnalyticsMetricKey,
   checkRateLimit,
@@ -50,7 +51,9 @@ import {
   DEFAULT_CARD_BORDER_RADIUS,
   escapeForXml,
   getCardBorderRadius,
+  getColorInvalidReason,
   markTrustedSvg,
+  validateColorValue,
 } from "@/lib/utils";
 
 /** Rate limiter for card SVG requests to prevent abuse. @source */
@@ -111,6 +114,24 @@ const ALLOWED_CARD_TYPES = new Set([
   "reviewStats",
   "studioCollaboration",
 ]);
+
+const COLOR_QUERY_PARAM_NAMES = [
+  "titleColor",
+  "backgroundColor",
+  "textColor",
+  "circleColor",
+  "borderColor",
+] as const;
+
+const ALLOWED_COLOR_PRESETS = new Set(Object.keys(colorPresets));
+
+function getTrimmedSearchParam(
+  searchParams: URLSearchParams,
+  key: string,
+): string | null {
+  const value = searchParams.get(key);
+  return value === null ? null : value.trim();
+}
 
 /**
  * Generate a minimal error SVG containing a single message.
@@ -299,6 +320,15 @@ function extractAndValidateParams(
   const userId = searchParams.get("userId");
   const username = searchParams.get("username") ?? searchParams.get("userName");
   const cardType = searchParams.get("cardType");
+  const colorPresetParam = getTrimmedSearchParam(searchParams, "colorPreset");
+  const titleColorParam = getTrimmedSearchParam(searchParams, "titleColor");
+  const backgroundColorParam = getTrimmedSearchParam(
+    searchParams,
+    "backgroundColor",
+  );
+  const textColorParam = getTrimmedSearchParam(searchParams, "textColor");
+  const circleColorParam = getTrimmedSearchParam(searchParams, "circleColor");
+  const borderColorParam = getTrimmedSearchParam(searchParams, "borderColor");
 
   if (!cardType) {
     logPrivacySafe(
@@ -377,6 +407,62 @@ function extractAndValidateParams(
     );
   }
 
+  if (
+    colorPresetParam !== null &&
+    !ALLOWED_COLOR_PRESETS.has(colorPresetParam)
+  ) {
+    logPrivacySafe(
+      "warn",
+      "Card SVG",
+      "Invalid color preset query parameter",
+      {
+        colorPreset: colorPresetParam,
+        validPresetCount: ALLOWED_COLOR_PRESETS.size,
+      },
+      request,
+    );
+    return new Response(
+      toCleanSvgResponse(svgError("Client Error: Invalid colorPreset")),
+      {
+        headers: errorHeaders(request),
+        status: 400,
+      },
+    );
+  }
+
+  const colorQueryParams = {
+    titleColor: titleColorParam,
+    backgroundColor: backgroundColorParam,
+    textColor: textColorParam,
+    circleColor: circleColorParam,
+    borderColor: borderColorParam,
+  } satisfies Record<(typeof COLOR_QUERY_PARAM_NAMES)[number], string | null>;
+
+  for (const paramName of COLOR_QUERY_PARAM_NAMES) {
+    const colorValue = colorQueryParams[paramName];
+    if (colorValue === null || validateColorValue(colorValue)) {
+      continue;
+    }
+
+    logPrivacySafe(
+      "warn",
+      "Card SVG",
+      "Invalid color query parameter",
+      {
+        paramName,
+        reason: getColorInvalidReason(colorValue) || undefined,
+      },
+      request,
+    );
+    return new Response(
+      toCleanSvgResponse(svgError(`Client Error: Invalid ${paramName}`)),
+      {
+        headers: errorHeaders(request),
+        status: 400,
+      },
+    );
+  }
+
   return {
     userId: userId || "",
     username,
@@ -389,12 +475,12 @@ function extractAndValidateParams(
     piePercentagesParam: searchParams.get("piePercentages"),
     gridColsParam: searchParams.get("gridCols"),
     gridRowsParam: searchParams.get("gridRows"),
-    colorPresetParam: searchParams.get("colorPreset"),
-    titleColorParam: searchParams.get("titleColor"),
-    backgroundColorParam: searchParams.get("backgroundColor"),
-    textColorParam: searchParams.get("textColor"),
-    circleColorParam: searchParams.get("circleColor"),
-    borderColorParam: searchParams.get("borderColor"),
+    colorPresetParam,
+    titleColorParam,
+    backgroundColorParam,
+    textColorParam,
+    circleColorParam,
+    borderColorParam,
     borderRadiusParam: searchParams.get("borderRadius"),
     _t: searchParams.get("_t"),
   };
