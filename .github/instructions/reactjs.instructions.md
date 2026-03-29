@@ -6,7 +6,7 @@ applyTo: "components/**, app/**, hooks/**, **/*.{jsx,tsx,js,ts,css,scss}"
 
 # ReactJS Development Instructions
 
-Instructions for building high-quality ReactJS applications with modern patterns, hooks, and best practices following the official React documentation at https://react.dev.
+Instructions for building high-quality ReactJS applications with modern patterns, hooks, and best practices following the official React documentation at <https://react.dev>.
 
 ## Project Context
 
@@ -16,6 +16,7 @@ Instructions for building high-quality ReactJS applications with modern patterns
 - Follow React's official style guide and best practices
 - Use modern build tools (Vite, Create React App, or custom Webpack setup)
 - Implement proper component composition and reusability patterns
+- In this repository, shared UI lives in `components/`, route code lives in `app/`, and reusable hooks live in `hooks/`
 
 ## Development Standards
 

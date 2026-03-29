@@ -1,4 +1,3 @@
-// Animation timing constants
 export const ANIMATION = {
   BASE_DELAY: 450,
   STAGGER_INCREMENT: 150,
@@ -9,7 +8,6 @@ export const ANIMATION = {
   FADE_DURATION: 300,
   RANK_DURATION: 1000,
 
-  // Additional animation patterns used across templates
   LEGEND_BASE_DELAY: 600,
   LEGEND_INCREMENT: 50,
   PROFILE_BASE_DELAY: 250,
@@ -17,7 +15,6 @@ export const ANIMATION = {
   CHART_INCREMENT: 70,
 } as const;
 
-// Spacing and layout constants
 export const SPACING = {
   CARD_PADDING: 25,
   HEADER_Y: 35,
@@ -30,7 +27,6 @@ export const SPACING = {
   BAR_SPACING: 42,
 } as const;
 
-// Typography constants
 export const TYPOGRAPHY = {
   HEADER_SIZE: 18,
   HEADER_SIZE_LARGE: 20,
@@ -44,7 +40,6 @@ export const TYPOGRAPHY = {
   USERNAME_SIZE: 18,
 } as const;
 
-// Circle and shape constants
 export const SHAPES = {
   CIRCLE_RADIUS_LARGE: 40,
   CIRCLE_RADIUS_MEDIUM: 30,
@@ -60,7 +55,6 @@ export const SHAPES = {
   CELL_GAP: 2,
 } as const;
 
-// Positioning constants
 export const POSITIONING = {
   STAT_LABEL_X: 0,
   STAT_VALUE_X_DEFAULT: 199.01,
@@ -74,16 +68,6 @@ export const POSITIONING = {
   AVATAR_OFFSET_X: 100,
 } as const;
 
-// Heatmap specific constants
-export const HEATMAP = {
-  WEEKS: 13,
-  DAYS_PER_WEEK: 7,
-  BASE_ANIMATION_DELAY: 300,
-  WEEK_DELAY_INCREMENT: 30,
-  DAY_DELAY_INCREMENT: 10,
-} as const;
-
-// Milestone specific constants
 export const MILESTONES = {
   BAR_SPACING: 42,
   BAR_HEIGHT: 14,
@@ -95,7 +79,6 @@ export const MILESTONES = {
   DELAY_INCREMENT: 100,
 } as const;
 
-// Distribution chart constants
 export const DISTRIBUTION = {
   MAX_BAR_WIDTH_OFFSET: 60,
   COUNT_BASE_X: 35,
@@ -107,7 +90,6 @@ export const DISTRIBUTION = {
   MAX_ITEMS: 15,
 } as const;
 
-// Profile overview constants
 export const PROFILE = {
   AVATAR_SIZE: 60,
   AVATAR_RADIUS: 30,

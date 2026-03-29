@@ -1,9 +1,19 @@
+import { gunzipSync, gzipSync } from "node:zlib";
+
 import { LRUCache } from "lru-cache";
+
 import {
-  redisClient,
-  incrementAnalytics,
   buildAnalyticsMetricKey,
+  incrementAnalyticsBatch,
+  redisClient,
 } from "@/lib/api-utils";
+
+const DEFAULT_MEMORY_TTL_MS = 12 * 60 * 60 * 1000;
+const DEFAULT_SHARED_TTL_MS = 24 * 60 * 60 * 1000;
+const SHARED_CACHE_KEY_PREFIX = "svg-cache";
+const SHARED_CACHE_COMPRESSION = "gzip-base64-v1" as const;
+
+type CacheMetricSource = "memory" | "redis";
 
 /**
  * Represents a cached SVG entry with metadata.
@@ -18,16 +28,23 @@ export interface CachedSvgEntry {
   ttl: number;
   /** Whether this entry is stale but still usable (stale-while-revalidate) */
   isStale: boolean;
+  /** Border radius used to render the card so headers stay accurate on cache hits. */
+  borderRadius?: number;
 }
 
-/**
- * Represents a cache key with user context.
- * @source
- */
-export interface CacheKey {
-  userId: number;
-  cardType: string;
-  hash: string; // Hash of parameters to differentiate variations
+interface PersistedCachedSvgEntryBase {
+  cachedAt: number;
+  ttl: number;
+  borderRadius?: number;
+}
+
+interface LegacyPersistedCachedSvgEntry extends PersistedCachedSvgEntryBase {
+  svg: string;
+}
+
+interface CompressedPersistedCachedSvgEntry extends PersistedCachedSvgEntryBase {
+  compression: typeof SHARED_CACHE_COMPRESSION;
+  svgCompressed: string;
 }
 
 /**
@@ -88,7 +105,6 @@ export function generateCacheKey(
     .map(([k, v]) => `${k}=${v}`)
     .join("&");
 
-  // Create a deterministic key
   const suffix = sortedParams ? `:${sortedParams}` : "";
   return `svg:${userId}:${cardType}${suffix}`;
 }
@@ -137,19 +153,154 @@ export function getSvgFromMemoryCache(cacheKey: string): CachedSvgEntry | null {
 export function setSvgInMemoryCache(
   cacheKey: string,
   svg: string,
-  ttl: number = 12 * 60 * 60 * 1000, // 12 hours
+  ttl: number = DEFAULT_MEMORY_TTL_MS,
   userId?: number,
+  borderRadius?: number,
 ): void {
   const entry: CachedSvgEntry = {
     svg,
     cachedAt: Date.now(),
     ttl,
     isStale: false,
+    ...(typeof borderRadius === "number" ? { borderRadius } : {}),
   };
 
   svgCache.set(cacheKey, entry);
 
   // Track user request statistics for cache warming
+  if (userId) {
+    updateUserRequestStats(userId);
+  }
+}
+
+function getSharedCacheKey(cacheKey: string): string {
+  return `${SHARED_CACHE_KEY_PREFIX}:${cacheKey}`;
+}
+
+function hasPersistedCachedSvgEntryMetadata(
+  value: unknown,
+): value is PersistedCachedSvgEntryBase {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.cachedAt === "number" &&
+    Number.isFinite(candidate.cachedAt) &&
+    typeof candidate.ttl === "number" &&
+    Number.isFinite(candidate.ttl) &&
+    (candidate.borderRadius === undefined ||
+      (typeof candidate.borderRadius === "number" &&
+        Number.isFinite(candidate.borderRadius)))
+  );
+}
+
+function isLegacyPersistedCachedSvgEntry(
+  value: unknown,
+): value is LegacyPersistedCachedSvgEntry {
+  return (
+    hasPersistedCachedSvgEntryMetadata(value) &&
+    typeof (value as { svg?: unknown }).svg === "string"
+  );
+}
+
+function isCompressedPersistedCachedSvgEntry(
+  value: unknown,
+): value is CompressedPersistedCachedSvgEntry {
+  return (
+    hasPersistedCachedSvgEntryMetadata(value) &&
+    (value as { compression?: unknown }).compression ===
+      SHARED_CACHE_COMPRESSION &&
+    typeof (value as { svgCompressed?: unknown }).svgCompressed === "string"
+  );
+}
+
+function compressSvg(svg: string): string {
+  return gzipSync(Buffer.from(svg, "utf-8")).toString("base64");
+}
+
+function decompressSvg(svgCompressed: string): string {
+  return gunzipSync(Buffer.from(svgCompressed, "base64")).toString("utf-8");
+}
+
+/**
+ * Retrieves a cached SVG from the shared Redis-backed cache layer.
+ *
+ * This acts as an L2 cache so separate server instances can reuse previously
+ * rendered SVGs even after their local L1 memory caches are cold.
+ *
+ * @param cacheKey - The normalized cache key to load.
+ * @returns A cached SVG entry or null when missing/corrupt.
+ * @source
+ */
+export async function getSvgFromSharedCache(
+  cacheKey: string,
+): Promise<CachedSvgEntry | null> {
+  try {
+    const raw = await redisClient.get(getSharedCacheKey(cacheKey));
+    if (!raw) return null;
+
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (isLegacyPersistedCachedSvgEntry(parsed)) {
+      return {
+        ...parsed,
+        isStale: false,
+      };
+    }
+
+    if (!isCompressedPersistedCachedSvgEntry(parsed)) {
+      return null;
+    }
+
+    return {
+      cachedAt: parsed.cachedAt,
+      ttl: parsed.ttl,
+      svg: decompressSvg(parsed.svgCompressed),
+      isStale: false,
+      ...(typeof parsed.borderRadius === "number"
+        ? { borderRadius: parsed.borderRadius }
+        : {}),
+    };
+  } catch (error) {
+    console.warn("[Card SVG] Failed to read shared SVG cache entry:", error);
+    return null;
+  }
+}
+
+/**
+ * Persists a rendered SVG to the shared Redis-backed cache layer.
+ *
+ * @param cacheKey - The normalized cache key to store under.
+ * @param svg - The rendered SVG content.
+ * @param ttl - Time-to-live in milliseconds.
+ * @param userId - Optional user ID for request tracking.
+ * @param borderRadius - Optional border radius metadata for response headers.
+ * @source
+ */
+export async function setSvgInSharedCache(
+  cacheKey: string,
+  svg: string,
+  ttl: number = DEFAULT_SHARED_TTL_MS,
+  userId?: number,
+  borderRadius?: number,
+): Promise<void> {
+  const entry: CompressedPersistedCachedSvgEntry = {
+    compression: SHARED_CACHE_COMPRESSION,
+    svgCompressed: compressSvg(svg),
+    cachedAt: Date.now(),
+    ttl,
+    ...(typeof borderRadius === "number" ? { borderRadius } : {}),
+  };
+
+  try {
+    await redisClient.set(getSharedCacheKey(cacheKey), JSON.stringify(entry), {
+      ex: Math.max(1, Math.ceil(ttl / 1000)),
+    });
+  } catch (error) {
+    console.warn("[Card SVG] Failed to write shared SVG cache entry:", error);
+  }
+
   if (userId) {
     updateUserRequestStats(userId);
   }
@@ -191,21 +342,6 @@ function updateUserRequestStats(userId: number): void {
 }
 
 /**
- * Retrieves the list of top N most requested users.
- * Used for cache warming strategies.
- *
- * @param limit - Number of top users to return (default: 100)
- * @returns Array of user IDs sorted by request count
- * @source
- */
-export function getTopRequestedUsers(limit: number = 100): number[] {
-  return Array.from(userRequestStats.values())
-    .sort((a, b) => b.requestCount - a.requestCount)
-    .slice(0, limit)
-    .map((s) => s.userId);
-}
-
-/**
  * Clears the entire in-memory SVG cache.
  * Useful for memory cleanup or testing.
  *
@@ -226,21 +362,6 @@ export function clearUserRequestStats(): void {
 }
 
 /**
- * Gets cache statistics for monitoring and debugging.
- *
- * @returns Object with cache metrics
- * @source
- */
-export function getSvgCacheStats() {
-  return {
-    size: svgCache.size,
-    itemCount: svgCache.size, // LRUCache.size is the item count
-    maxSize: svgCache.maxSize,
-    maxItems: svgCache.max,
-  };
-}
-
-/**
  * Tracks cache hits and misses in analytics.
  * Should be called when checking cache to record metrics.
  *
@@ -250,112 +371,14 @@ export function getSvgCacheStats() {
  */
 export async function trackCacheMetric(
   hit: boolean,
-  source: "memory" | "redis",
+  source: CacheMetricSource,
+  options?: { includeOverall?: boolean },
 ): Promise<void> {
   const metricType = hit ? "cache_hits" : "cache_misses";
   const metric = buildAnalyticsMetricKey("card_svg", metricType);
   const suffixedMetric = `${metric}:${source}`;
+  const includeOverall = options?.includeOverall ?? true;
 
-  await Promise.all([
-    incrementAnalytics(metric), // Overall cache metric
-    incrementAnalytics(suffixedMetric), // Source-specific metric
-  ]).catch(() => {
-    // Silently fail analytics to not affect primary functionality
-  });
-}
-
-/**
- * Warms the cache by pre-loading frequently accessed cards from Redis.
- * Should be called periodically (e.g., via a cron job).
- *
- * @param topUsers - Array of user IDs to warm cache for
- * @param cardTypes - Array of card types to pre-load (e.g., ["animeStats", "socialStats"])
- * @returns Promise with statistics about the warming process
- * @source
- */
-export async function warmSvgCache(
-  topUsers: number[] = getTopRequestedUsers(100),
-  cardTypes: string[] = [
-    "animeStats",
-    "mangaStats",
-    "socialStats",
-    "animeGenres",
-  ],
-): Promise<{
-  attemptedCount: number;
-  successCount: number;
-  failureCount: number;
-}> {
-  const stats = {
-    attemptedCount: 0,
-    successCount: 0,
-    failureCount: 0,
-  };
-
-  for (const userId of topUsers) {
-    for (const cardType of cardTypes) {
-      stats.attemptedCount++;
-
-      try {
-        // Try to fetch from Redis (user and card data)
-        const redisKey = `user:${userId}`;
-        const userDoc = await redisClient.get(redisKey);
-
-        if (!userDoc) {
-          stats.failureCount++;
-          continue;
-        }
-
-        // Cache is warmed on-demand when cards are generated
-        // This preloads user data into Redis for faster access
-        stats.successCount++;
-      } catch (error) {
-        console.warn(
-          "Failed to warm cache for user %d, cardType %s:",
-          userId,
-          cardType,
-          error,
-        );
-        stats.failureCount++;
-      }
-    }
-  }
-
-  console.log(
-    `✨ [Cache Warming] Attempted: ${stats.attemptedCount}, Success: ${stats.successCount}, Failed: ${stats.failureCount}`,
-  );
-
-  await incrementAnalytics(
-    buildAnalyticsMetricKey("cache_warming", "attempts"),
-  ).catch(() => {});
-
-  return stats;
-}
-
-/**
- * Invalidates a specific cached SVG entry (e.g., when user updates settings).
- * Also supports pattern-based invalidation.
- *
- * @param userId - User ID to invalidate for
- * @param cardType - Specific card type to invalidate, or undefined for all
- * @source
- */
-export function invalidateSvgCache(userId: number, cardType?: string): void {
-  if (cardType) {
-    // Invalidate specific card type
-    const pattern = `svg:${userId}:${cardType}`;
-    for (const key of svgCache.keys()) {
-      if (key.startsWith(pattern)) {
-        svgCache.delete(key);
-      }
-    }
-  } else {
-    // Invalidate all cards for this user
-    const pattern = `svg:${userId}:`;
-    for (const key of svgCache.keys()) {
-      if (key.startsWith(pattern)) {
-        svgCache.delete(key);
-      }
-    }
-  }
+  const metrics = includeOverall ? [metric, suffixedMetric] : [suffixedMetric];
+  await incrementAnalyticsBatch(metrics);
 }

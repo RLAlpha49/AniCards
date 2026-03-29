@@ -1,90 +1,376 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Card, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
-import { Play, ExternalLink } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Check, Copy, ExternalLink, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 
-interface CardVariant {
-  name: string;
-  url: string;
-  description?: string;
-}
+import { CardPreviewPlaceholder } from "@/components/CardPreviewPlaceholder";
+import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
+import {
+  DARK_PREVIEW_COLOR_PRESET,
+  LIGHT_PREVIEW_COLOR_PRESET,
+  type PreviewColorPreset,
+  selectThemePreviewUrl,
+} from "@/lib/preview-theme";
+import type { SettingsTemplateV1 } from "@/lib/user-page-settings-io";
+import {
+  queuePendingSettingsTemplateApply,
+  upsertSettingsTemplateInStorage,
+} from "@/lib/user-page-settings-templates";
+import { cn, toCardApiHref } from "@/lib/utils";
+
+import type { ExampleCardVariant } from "./types";
 
 interface ExampleCardProps {
-  variant: CardVariant;
+  variant: ExampleCardVariant;
   cardTypeTitle: string;
-  gradient: string;
-  onOpenGenerator: () => void;
+  previewColorPreset: PreviewColorPreset | null;
   index?: number;
+}
+
+function getSelectedSettingsSnapshot(
+  variant: ExampleCardVariant,
+  previewColorPreset: PreviewColorPreset | null,
+) {
+  if (previewColorPreset === DARK_PREVIEW_COLOR_PRESET) {
+    return variant.settingsSnapshots.dark;
+  }
+
+  if (previewColorPreset === LIGHT_PREVIEW_COLOR_PRESET) {
+    return variant.settingsSnapshots.light;
+  }
+
+  return null;
+}
+
+function buildButtonLabels(opts: {
+  isPreviewReady: boolean;
+  copied: boolean;
+  queuedForEditor: boolean;
+}) {
+  let copy = "Preview is still loading";
+  let editor = "Pick a preview theme to use this style";
+
+  if (opts.isPreviewReady) {
+    copy = opts.copied ? "Copied!" : "Copy embed URL";
+    editor = opts.queuedForEditor
+      ? "Queued for editor"
+      : "Use this style in the editor";
+  }
+
+  return {
+    copy,
+    editor,
+  };
+}
+
+function buildExampleTemplateId(
+  cardTypeTitle: string,
+  variantName: string,
+  themeLabel: string,
+): string {
+  const slugify = (value: string): string => {
+    const trimmed = value.trim().toLowerCase();
+    let slug = "";
+    let pendingSeparator = false;
+
+    for (const char of trimmed) {
+      const code = char.codePointAt(0);
+      const isLowerAlphaNumeric =
+        code !== undefined &&
+        ((code >= 97 && code <= 122) || (code >= 48 && code <= 57));
+
+      if (isLowerAlphaNumeric) {
+        if (pendingSeparator && slug.length > 0) {
+          slug += "-";
+        }
+
+        pendingSeparator = false;
+        slug += char;
+      } else if (slug.length > 0) {
+        pendingSeparator = true;
+      }
+    }
+
+    return slug;
+  };
+
+  return [
+    "example",
+    slugify(cardTypeTitle),
+    slugify(variantName),
+    slugify(themeLabel),
+  ].join(":");
 }
 
 export function ExampleCard({
   variant,
   cardTypeTitle,
-  gradient,
-  onOpenGenerator,
+  previewColorPreset,
   index = 0,
 }: Readonly<ExampleCardProps>) {
+  const router = useRouter();
+  const [copied, setCopied] = useState(false);
+  const [queuedForEditor, setQueuedForEditor] = useState(false);
+  const previewUrl = selectThemePreviewUrl(
+    variant.previewUrls,
+    previewColorPreset,
+  );
+  const previewHref = previewUrl
+    ? (toCardApiHref(previewUrl) ?? previewUrl)
+    : undefined;
+  const selectedSettingsSnapshot = getSelectedSettingsSnapshot(
+    variant,
+    previewColorPreset,
+  );
+  const isPreviewReady = previewUrl !== undefined;
+  const buttonLabels = buildButtonLabels({
+    isPreviewReady,
+    copied,
+    queuedForEditor,
+  });
+
+  useEffect(() => {
+    if (copied) {
+      const timer = setTimeout(() => setCopied(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [copied]);
+
+  useEffect(() => {
+    if (queuedForEditor) {
+      const timer = setTimeout(() => setQueuedForEditor(false), 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [queuedForEditor]);
+
+  const handleCopy = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (!isPreviewReady || !navigator.clipboard || !previewHref) return;
+
+      try {
+        await navigator.clipboard.writeText(
+          new URL(previewHref, globalThis.window.location.origin).toString(),
+        );
+        setCopied(true);
+      } catch (error) {
+        console.error("Failed to copy:", error);
+      }
+    },
+    [isPreviewReady, previewHref],
+  );
+
+  const handleUseInEditor = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+
+      if (!selectedSettingsSnapshot || !previewColorPreset) return;
+
+      const themeLabel =
+        previewColorPreset === DARK_PREVIEW_COLOR_PRESET ? "Dark" : "Light";
+      const now = Date.now();
+      const template: SettingsTemplateV1 = {
+        id: buildExampleTemplateId(cardTypeTitle, variant.name, themeLabel),
+        name: `${cardTypeTitle} — ${variant.name} (${themeLabel})`,
+        snapshot: selectedSettingsSnapshot,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      upsertSettingsTemplateInStorage(template);
+      queuePendingSettingsTemplateApply({
+        templateId: template.id,
+        templateName: template.name,
+        applyTo: "global",
+        source: "examples",
+        queuedAt: now,
+      });
+
+      setQueuedForEditor(true);
+      toast.success("Style queued for your editor", {
+        description:
+          "Pick a user and AniCards will apply this example as a reusable template.",
+      });
+      router.push("/search");
+    },
+    [
+      cardTypeTitle,
+      previewColorPreset,
+      router,
+      selectedSettingsSnapshot,
+      variant.name,
+    ],
+  );
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 24 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: 0.4, delay: index * 0.05 }}
+      viewport={{ once: true, margin: "-40px" }}
+      transition={{
+        duration: 0.5,
+        delay: Math.min(index * 0.05, 0.25),
+        ease: [0.22, 1, 0.36, 1],
+      }}
       className="w-full"
     >
-      <Card className="group overflow-hidden border-0 bg-white/80 shadow-lg shadow-slate-200/50 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:bg-slate-800/80 dark:shadow-slate-900/50">
-        <CardContent className="p-0">
-          <div className="relative overflow-hidden bg-gradient-to-br from-slate-100 to-slate-50 p-6 dark:from-slate-900 dark:to-slate-800">
-            <div
-              className={cn(
-                "absolute -right-10 -top-10 h-32 w-32 rounded-full bg-gradient-to-r opacity-20 blur-2xl transition-all group-hover:scale-150 group-hover:opacity-30",
-                gradient,
-              )}
-            />
+      <div
+        className={cn(
+          "group/card relative overflow-hidden rounded-sm",
+          "border border-transparent transition-all duration-500",
+          "hover:border-gold/20",
+          "hover:shadow-[0_16px_48px_-12px_hsl(var(--gold)/0.1)]",
+          "group-focus-visible/card:border-gold/20",
+          "group-focus-visible/card:shadow-[0_16px_48px_-12px_hsl(var(--gold)/0.1)]",
+          "group-focus-visible/card:ring-2",
+          "group-focus-visible/card:ring-gold/50",
+          "group-focus-visible/card:ring-offset-2",
+          "group-focus-visible/card:ring-offset-background",
+        )}
+      >
+        {/* Full-card link overlay */}
+        {isPreviewReady && previewHref && (
+          <a
+            href={previewHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Open ${cardTypeTitle} — ${variant.name} in new tab`}
+            className="absolute inset-0 z-10 rounded-[inherit] focus-visible:outline-none"
+          />
+        )}
 
-            <div className="relative flex items-center justify-center">
+        {/* Image area with cinematic treatment */}
+        <div className="
+          relative overflow-hidden bg-[hsl(var(--foreground)/0.02)]
+          dark:bg-[hsl(var(--foreground)/0.02)]
+        ">
+          {/* Subtle vignette on hover */}
+          <div className="
+            pointer-events-none absolute inset-0 z-2 opacity-0 transition-opacity duration-500
+            group-hover/card:opacity-100
+            group-focus-visible/card:opacity-100
+          ">
+            <div className="
+              size-full
+              bg-[radial-gradient(ellipse_at_center,transparent_40%,hsl(var(--background)/0.3))]
+            " />
+          </div>
+
+          <div className="
+            flex justify-center p-4 transition-transform duration-700 ease-out
+            group-hover/card:scale-[1.03]
+            group-focus-visible/card:scale-[1.03]
+          ">
+            {isPreviewReady && previewHref ? (
               <ImageWithSkeleton
-                src={variant.url}
+                src={previewHref}
                 alt={`${cardTypeTitle} - ${variant.name}`}
-                className="h-auto w-full rounded-lg shadow-sm transition-transform duration-300 group-hover:scale-[1.02]"
+                className="h-auto w-full"
               />
-            </div>
-
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/0 transition-colors duration-300 group-hover:bg-slate-900/60">
-              <Button
-                onClick={onOpenGenerator}
-                className="translate-y-4 rounded-full bg-white text-slate-900 opacity-0 shadow-lg transition-all duration-300 hover:bg-slate-100 group-hover:translate-y-0 group-hover:opacity-100"
-              >
-                <Play className="mr-2 h-4 w-4 fill-current" />
-                Create This Card
-              </Button>
-            </div>
+            ) : (
+              <CardPreviewPlaceholder
+                className="w-full"
+                aspectRatio={
+                  variant.width && variant.height
+                    ? variant.width / variant.height
+                    : undefined
+                }
+              />
+            )}
           </div>
 
-          <div className="p-5">
-            <div className="mb-2 flex items-start justify-between gap-2">
-              <h4 className="font-bold text-slate-900 dark:text-white">
-                {variant.name}
-              </h4>
-              <a
-                href={variant.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="shrink-0 text-slate-400 transition-colors hover:text-blue-600 dark:text-slate-500 dark:hover:text-blue-400"
+          {/* Hover action badge */}
+          {isPreviewReady && previewHref && (
+            <div className="
+              pointer-events-none absolute inset-0 z-3 flex items-center justify-center
+            ">
+              <motion.div
+                className="
+                  flex items-center gap-1.5 bg-[hsl(var(--gold)/0.9)] px-3 py-1.5 text-[0.65rem]
+                  font-semibold tracking-wider text-[#0c0a10] uppercase opacity-0 shadow-lg
+                  transition-all duration-400
+                  group-hover/card:opacity-100
+                  group-focus-visible/card:opacity-100
+                "
+                style={{ transitionDelay: "50ms" }}
               >
-                <ExternalLink className="h-4 w-4" />
-              </a>
+                <ExternalLink className="size-3" />
+                Open Full Size
+              </motion.div>
             </div>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              {cardTypeTitle}
-            </p>
+          )}
+        </div>
+
+        {/* Footer bar */}
+        <div className="
+          flex items-center justify-between gap-2 border-t border-[hsl(var(--gold)/0.06)]
+          bg-[hsl(var(--gold)/0.01)] px-4 py-3
+        ">
+          <p className="line-clamp-1 text-xs font-medium tracking-wide text-foreground/55">
+            {variant.name}
+          </p>
+          <div className="relative z-20 flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleUseInEditor}
+              className={cn(
+                `
+                  pointer-events-auto inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1
+                  text-[10px] font-semibold tracking-[0.18em] uppercase transition-all duration-200
+                  focus-visible:border-gold/35 focus-visible:ring-2 focus-visible:ring-gold/50
+                  focus-visible:ring-offset-2 focus-visible:ring-offset-background
+                  focus-visible:outline-none
+                `,
+                !selectedSettingsSnapshot && "cursor-not-allowed opacity-50",
+                queuedForEditor
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                  : `
+                    border-gold/20 bg-gold/8 text-gold-dim
+                    hover:border-gold/35 hover:bg-gold/12
+                    dark:text-gold
+                  `,
+              )}
+              aria-label={buttonLabels.editor}
+              disabled={!selectedSettingsSnapshot}
+            >
+              <Sparkles className="size-3" />
+              <span className="hidden sm:inline">
+                {queuedForEditor ? "Queued" : "Use in editor"}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleCopy}
+              className={cn(
+                `
+                  pointer-events-auto shrink-0 rounded-full p-1.5 transition-all duration-200
+                  focus-visible:text-gold focus-visible:ring-2 focus-visible:ring-gold/50
+                  focus-visible:ring-offset-2 focus-visible:ring-offset-background
+                  focus-visible:outline-none
+                `,
+                !isPreviewReady && "cursor-not-allowed opacity-50",
+                copied
+                  ? "text-emerald-500 dark:text-emerald-400"
+                  : "text-foreground/15 hover:text-gold",
+              )}
+              aria-label={buttonLabels.copy}
+              disabled={!isPreviewReady}
+            >
+              {copied ? (
+                <Check className="size-3.5" />
+              ) : (
+                <Copy className="size-3.5" />
+              )}
+            </button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </motion.div>
   );
 }

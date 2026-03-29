@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 const PROJECTS = [
   {
@@ -10,6 +10,8 @@ const PROJECTS = [
     url: "https://github.com/RLAlpha49/KenmeiToAnilist",
   },
 ];
+
+test.use({ serviceWorkers: "block" });
 
 test.describe("Projects page", () => {
   test.beforeEach(async ({ page }) => {
@@ -29,16 +31,13 @@ test.describe("Projects page", () => {
     });
 
     await test.step("Validate GitHub links", async () => {
-      const viewButtons = page.getByRole("link", { name: /view on github/i });
-      await expect(viewButtons).toHaveCount(PROJECTS.length);
-
       for (const project of PROJECTS) {
-        const quickLink = page.getByLabel(
-          new RegExp(`View ${project.name} on GitHub`, "i"),
-        );
-        await expect(quickLink).toHaveAttribute("href", project.url);
-        await expect(quickLink).toHaveAttribute("target", "_blank");
-        await expect(quickLink).toHaveAttribute("rel", /noopener/i);
+        const projectLink = page.getByRole("link", {
+          name: new RegExp(project.name, "i"),
+        });
+        await expect(projectLink).toHaveAttribute("href", project.url);
+        await expect(projectLink).toHaveAttribute("target", "_blank");
+        await expect(projectLink).toHaveAttribute("rel", /noopener/i);
       }
     });
 

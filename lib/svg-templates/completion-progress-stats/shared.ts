@@ -1,10 +1,10 @@
-import type { MediaListEntry } from "@/lib/types/records";
-import { escapeForXml } from "@/lib/utils";
 import { ANIMATION } from "@/lib/svg-templates/common/constants";
 import {
   CARD_DIMENSIONS,
   getCardDimensions,
 } from "@/lib/svg-templates/common/dimensions";
+import type { MediaListEntry } from "@/lib/types/records";
+import { escapeForXml } from "@/lib/utils";
 
 /** Status color mapping for list statuses. @source */
 export const STATUS_COLORS: Record<string, string> = {
@@ -113,7 +113,11 @@ export function truncateWithEllipsis(text: string, maxChars: number): string {
  */
 export function calculateCompletionRatio(
   statuses: { status: string; count: number }[],
-): { completedCount: number; totalCount: number; percentage: string } {
+): {
+  completedCount: number;
+  totalCount: number;
+  percentage: string;
+} {
   const completedCount =
     statuses.find((s) => s.status === "COMPLETED")?.count ?? 0;
   const totalCount = statuses.reduce((sum, s) => sum + s.count, 0);

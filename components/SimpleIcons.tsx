@@ -1,4 +1,4 @@
-import { siDiscord, siAnilist, siGithub } from "simple-icons";
+import { siAnilist, siDiscord, siGithub } from "simple-icons";
 
 /**
  * Props accepted by the simple icon components.

@@ -1,3 +1,8 @@
+import {
+  ANIMATION,
+  SPACING,
+  TYPOGRAPHY,
+} from "@/lib/svg-templates/common/constants";
 import type { ColorValue } from "@/lib/types/card";
 import type { MediaListEntry } from "@/lib/types/records";
 import type { TrustedSVG } from "@/lib/types/svg";
@@ -8,11 +13,7 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
-import {
-  ANIMATION,
-  SPACING,
-  TYPOGRAPHY,
-} from "@/lib/svg-templates/common/constants";
+
 import { getDimensions, getMediaTitle, truncateWithEllipsis } from "./shared";
 
 /** Personal records card input structure. @source */
@@ -71,7 +72,6 @@ export function personalRecordsTemplate(
   const safeTitle = escapeForXml(title);
   const headerFontSize = calculateDynamicFontSize(title, 18, dims.w - 40);
 
-  // Find records
   const longestAnime = [...animeCompleted].sort(
     (a, b) => (b.media.episodes ?? 0) - (a.media.episodes ?? 0),
   )[0];

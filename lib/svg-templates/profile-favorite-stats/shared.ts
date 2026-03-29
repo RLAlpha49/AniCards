@@ -1,6 +1,6 @@
+import { ANIMATION, SPACING } from "@/lib/svg-templates/common/constants";
 import type { ColorValue } from "@/lib/types/card";
 import type { UserFavourites } from "@/lib/types/records";
-import { ANIMATION, SPACING } from "@/lib/svg-templates/common/constants";
 
 /** Common styles interface for all profile/favourites templates. @source */
 export interface TemplateStyles {
@@ -46,6 +46,7 @@ export function generateFavouritesSummaryBody(
   counts: ReturnType<typeof getFavouriteCounts>,
   resolvedColors: Record<string, string>,
 ): string {
+  void resolvedColors;
   const total =
     counts.anime +
     counts.manga +

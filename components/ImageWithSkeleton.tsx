@@ -1,9 +1,9 @@
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { Skeleton } from "@/components/ui/Skeleton";
 import type React from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { Skeleton } from "@/components/ui/Skeleton";
 
 /**
  * Props for ImageWithSkeleton component.
@@ -24,46 +24,49 @@ type ImageWithSkeletonProps = {
   width?: number;
   height?: number;
   containerClassName?: string;
+  loading?: "eager" | "lazy";
+  decoding?: "async" | "auto" | "sync";
+  fixedDimensions?: boolean;
 };
 
-function useInView<T extends HTMLElement | null>(
-  ref: React.RefObject<T | null>,
-  rootMargin = "200px",
-) {
-  const [isInView, setIsInView] = useState(false);
+export type ImageLoadState = "loading" | "slow" | "loaded" | "error";
 
-  useEffect(() => {
-    const node = ref.current;
-    if (!node || isInView) return;
-    if (typeof IntersectionObserver === "undefined") {
-      setIsInView(true);
-      return;
-    }
+export const SLOW_LOAD_THRESHOLD_MS = 2000;
 
-    const observer = new IntersectionObserver(
-      (entries, obs) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setIsInView(true);
-            obs.disconnect();
-            return;
-          }
-        }
-      },
-      { rootMargin },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [ref, isInView, rootMargin]);
+export function isImageReady(
+  imageElement: HTMLImageElement | null,
+): imageElement is HTMLImageElement {
+  return Boolean(imageElement?.complete && imageElement.naturalWidth > 0);
+}
 
-  return isInView;
+export function getImageLoadState({
+  isLoaded,
+  isSlowLoading,
+  hasError,
+}: {
+  isLoaded: boolean;
+  isSlowLoading: boolean;
+  hasError: boolean;
+}): ImageLoadState {
+  if (hasError) {
+    return "error";
+  }
+
+  if (isLoaded) {
+    return "loaded";
+  }
+
+  if (isSlowLoading) {
+    return "slow";
+  }
+
+  return "loading";
 }
 
 function useImageDimensions(
   src: string,
   imgRef: React.RefObject<HTMLImageElement | null>,
   isMounted: boolean,
-  isInView: boolean,
   width?: number,
   height?: number,
 ): readonly [
@@ -81,13 +84,12 @@ function useImageDimensions(
     if (!isMounted) return;
     const el = imgRef.current;
     if (!el) return;
-    if (el.complete) {
-      if (!imageDimensions && el.naturalWidth && el.naturalHeight) {
-        setImageDimensions({
-          width: el.naturalWidth,
-          height: el.naturalHeight,
-        });
-      }
+
+    if (isImageReady(el) && !imageDimensions && el.naturalHeight > 0) {
+      setImageDimensions({
+        width: el.naturalWidth,
+        height: el.naturalHeight,
+      });
     }
   }, [isMounted, src, imageDimensions, imgRef]);
 
@@ -106,62 +108,81 @@ function useImageLoader(
   imgRef: React.RefObject<HTMLImageElement | null>,
   src: string,
   isMounted: boolean,
-  fallbackMs = 2000,
+  slowLoadMs = SLOW_LOAD_THRESHOLD_MS,
 ): {
   isLoaded: boolean;
+  isSlowLoading: boolean;
   hasError: boolean;
   handleLoad: () => void;
   handleError: () => void;
-  setIsLoaded: React.Dispatch<React.SetStateAction<boolean>>;
-  setHasError: React.Dispatch<React.SetStateAction<boolean>>;
 } {
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isSlowLoading, setIsSlowLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
-  useEffect(() => {
-    if (!isMounted) return;
-
-    const fallbackTimer = setTimeout(() => {
-      if (!isLoaded && !hasError) {
-        setIsLoaded(true);
-      }
-    }, fallbackMs);
-
-    return () => clearTimeout(fallbackTimer);
-  }, [isLoaded, hasError, isMounted, fallbackMs]);
-
-  useEffect(() => {
-    if (!isMounted) return;
-    const el = imgRef.current;
-    if (!el) return;
-    if (el.complete) {
-      setIsLoaded(true);
-    }
-  }, [isMounted, src]);
 
   useEffect(() => {
     setIsLoaded(false);
+    setIsSlowLoading(false);
     setHasError(false);
   }, [src]);
 
-  const handleLoad = () => setIsLoaded(true);
-  const handleError = () => setHasError(true);
+  useEffect(() => {
+    if (!isMounted || isLoaded || hasError) {
+      setIsSlowLoading(false);
+      return;
+    }
+
+    const slowLoadingTimer = setTimeout(() => {
+      setIsSlowLoading(true);
+    }, slowLoadMs);
+
+    return () => clearTimeout(slowLoadingTimer);
+  }, [hasError, isLoaded, isMounted, slowLoadMs, src]);
+
+  useEffect(() => {
+    if (!isMounted) return;
+
+    const el = imgRef.current;
+    if (isImageReady(el)) {
+      setIsLoaded(true);
+      setIsSlowLoading(false);
+    }
+  }, [imgRef, isMounted, src]);
+
+  const handleLoad = () => {
+    setIsLoaded(true);
+    setIsSlowLoading(false);
+  };
+
+  const handleError = () => {
+    setIsLoaded(false);
+    setIsSlowLoading(false);
+    setHasError(true);
+  };
 
   return {
     isLoaded,
+    isSlowLoading,
     hasError,
     handleLoad,
     handleError,
-    setIsLoaded,
-    setHasError,
   };
 }
 
 function getContainerStyle(
   imageDimensions: { width: number; height: number } | null,
   fallbackAspectRatio: number | undefined,
+  fixedDimensions: boolean,
 ): React.CSSProperties {
   if (imageDimensions) {
-    const style: React.CSSProperties = { maxWidth: imageDimensions.width };
+    const style: React.CSSProperties = fixedDimensions
+      ? {
+          width: imageDimensions.width,
+          minWidth: imageDimensions.width,
+          maxWidth: imageDimensions.width,
+        }
+      : { maxWidth: imageDimensions.width };
+
     if (fallbackAspectRatio) style.aspectRatio = fallbackAspectRatio;
     return style;
   }
@@ -184,25 +205,21 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
   width,
   height,
   containerClassName,
+  loading = "lazy",
+  decoding = "async",
+  fixedDimensions = false,
 }) => {
   const [isMounted, setIsMounted] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const isInView = useInView(containerRef, "200px");
   const [imageDimensions, setImageDimensions] = useImageDimensions(
     src,
     imgRef,
     isMounted,
-    isInView,
     width,
     height,
   );
-  const { isLoaded, hasError, handleLoad, handleError } = useImageLoader(
-    imgRef,
-    src,
-    isMounted,
-    2000,
-  );
+  const { isLoaded, isSlowLoading, hasError, handleLoad, handleError } =
+    useImageLoader(imgRef, src, isMounted, SLOW_LOAD_THRESHOLD_MS);
 
   const onImageLoad = () => {
     if (imgRef.current && !imageDimensions) {
@@ -231,6 +248,7 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
   const containerStyle = getContainerStyle(
     imageDimensions,
     fallbackAspectRatio,
+    fixedDimensions,
   );
 
   const showSkeleton = !hasError && !isLoaded;
@@ -239,15 +257,22 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
   const shouldShowSkeleton = !isMounted || showSkeleton;
   const shouldShowImage = isMounted && showImage;
 
+  const imageState = getImageLoadState({
+    isLoaded,
+    isSlowLoading,
+    hasError,
+  });
+
   return (
     <div
-      ref={containerRef}
       className={`relative w-full ${containerClassName ?? ""}`}
       style={containerStyle}
+      data-image-state={imageState}
+      aria-busy={imageState === "loading" || imageState === "slow"}
     >
       {shouldShowSkeleton && (
         <Skeleton
-          className="absolute inset-0 h-full w-full rounded-lg"
+          className="absolute inset-0 size-full"
           style={
             fallbackAspectRatio
               ? { aspectRatio: fallbackAspectRatio }
@@ -259,16 +284,22 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
         ref={imgRef}
         src={src}
         alt={alt}
-        className={`${className} ${shouldShowImage ? "opacity-100" : "opacity-0"} transition-opacity duration-300`}
-        style={{ borderRadius: "4px" }}
+        className={`${className} ${shouldShowImage ? "opacity-100" : "opacity-0"}
+          transition-opacity duration-300
+        `}
+        style={{ borderRadius: "4px", ...style }}
         width={width}
         height={height}
-        loading="lazy"
+        loading={loading}
+        decoding={decoding}
         onLoad={onImageLoad}
         onError={onImageError}
       />
       {hasError && (
-        <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
+        <div className="
+          absolute inset-0 flex items-center justify-center bg-gray-100
+          dark:bg-gray-800
+        ">
           <span className="text-sm text-gray-500">Failed to load</span>
         </div>
       )}

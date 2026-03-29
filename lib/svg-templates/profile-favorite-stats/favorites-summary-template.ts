@@ -1,5 +1,7 @@
-import type { TrustedSVG } from "@/lib/types/svg";
+import { SPACING, TYPOGRAPHY } from "@/lib/svg-templates/common/constants";
+import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
 import type { UserFavourites } from "@/lib/types/records";
+import type { TrustedSVG } from "@/lib/types/svg";
 import {
   calculateDynamicFontSize,
   escapeForXml,
@@ -7,15 +9,14 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
-import { SPACING, TYPOGRAPHY } from "@/lib/svg-templates/common/constants";
-import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
+
+import { generateCardBackground } from "../common/base-template-utils";
+import { generateCommonStyles } from "../common/style-generators";
 import {
   generateFavouritesSummaryBody,
   getFavouriteCounts,
   type TemplateStyles,
 } from "./shared";
-import { generateCommonStyles } from "../common/style-generators";
-import { generateCardBackground } from "../common/base-template-utils";
 
 /**
  * Renders the Favourites Summary card - a compact KPI-style card summarizing
@@ -47,7 +48,6 @@ export const favoritesSummaryTemplate = (data: {
     ],
   );
 
-  // Get counts from each category
   const counts = getFavouriteCounts(data.favourites);
   const animeCount = counts.anime;
   const mangaCount = counts.manga;
@@ -83,10 +83,7 @@ export const favoritesSummaryTemplate = (data: {
   </desc>
 
   <style>
-    ${generateCommonStyles(
-      resolvedColors,
-      Number.parseFloat(calculateDynamicFontSize(title)),
-    )}
+    ${generateCommonStyles(resolvedColors, Number.parseFloat(calculateDynamicFontSize(title)))}
 
     .total-count {
       fill: ${resolvedColors.circleColor};

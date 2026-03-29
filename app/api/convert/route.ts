@@ -1,11 +1,46 @@
-import sharp from "sharp";
+/**
+ * Sanitizes trusted AniCards SVG output before raster conversion.
+ *
+ * The conversion endpoint accepts SVG URLs from allow-listed origins only, then
+ * strips animations and brittle style fragments before handing the markup to
+ * `sharp`. That keeps exported PNG/WebP images stable across templates while
+ * reducing SSRF risk and renderer-specific SVG edge cases.
+ */
 import type { NextRequest, NextResponse } from "next/server";
+import sharp from "sharp";
+
 import {
-  incrementAnalytics,
+  apiErrorResponse,
   apiJsonHeaders,
+  createRateLimiter,
+  fetchUpstreamWithRetry,
+  handleError,
+  incrementAnalytics,
+  initializeApiRequest,
+  invalidJsonResponse,
   jsonWithCors,
+  logPrivacySafe,
+  UpstreamTransportError,
 } from "@/lib/api-utils";
 import type { ConversionFormat } from "@/lib/utils";
+
+const ratelimit = createRateLimiter({ limit: 20, window: "1 m" });
+const SVG_FETCH_TIMEOUT_MS = 5_000;
+const SVG_MAX_BYTES = 1_000_000;
+const SVG_MAX_DIMENSION_PX = 4_096;
+const SVG_MAX_RASTER_PIXELS = 16_777_216;
+
+type ConvertResponseMode = "binary" | "json";
+
+class ConvertRouteError extends Error {
+  readonly statusCode: number;
+
+  constructor(message: string, statusCode: number) {
+    super(message);
+    this.name = "ConvertRouteError";
+    this.statusCode = statusCode;
+  }
+}
 
 /**
  * Determines whether a CSS fragment contains only whitespace or block comments.
@@ -20,19 +55,17 @@ function isWhitespaceOrComments(substr: string): boolean {
     const ch = substr[i];
     const nxt = substr[i + 1];
     if (inComment) {
-      // Found end of comment marker '*/'
       if (ch === "*" && nxt === "/") {
         inComment = false;
-        i += 2; // skip '*/'
+        i += 2;
         continue;
       }
       i += 1;
       continue;
     }
-    // Start of a comment '/*'
     if (ch === "/" && nxt === "*") {
       inComment = true;
-      i += 2; // skip '/*'
+      i += 2;
       continue;
     }
     if (!/\s/.test(ch)) return false;
@@ -50,10 +83,9 @@ function isWhitespaceOrComments(substr: string): boolean {
  * @source
  */
 function advanceIndexPastEndOfComment(input: string, start: number): number {
-  // start points to '/' and next is '*'
   let j = start + 2;
   while (j < input.length) {
-    if (input[j] === "*" && input[j + 1] === "/") return j + 2; // position after '*/'
+    if (input[j] === "*" && input[j + 1] === "/") return j + 2;
     j += 1;
   }
   return j;
@@ -75,7 +107,7 @@ function advanceIndexPastEndOfQuote(
   let j = start + 1;
   while (j < input.length) {
     // treat escaped quotes as not closing
-    if (input[j] === quote && input[j - 1] !== "\\") return j + 1; // position after closing quote
+    if (input[j] === quote && input[j - 1] !== "\\") return j + 1;
     j += 1;
   }
   return j;
@@ -95,12 +127,10 @@ function findMatchingBraceEndIndex(input: string, openIdx: number): number {
   while (j < input.length && depth > 0) {
     const ch = input[j];
     const nxt = input[j + 1];
-    // skip comments
     if (ch === "/" && nxt === "*") {
       j = advanceIndexPastEndOfComment(input, j);
       continue;
     }
-    // skip quoted strings
     if (ch === "'") {
       j = advanceIndexPastEndOfQuote(input, j, "'");
       continue;
@@ -168,12 +198,10 @@ function collectCssBlocks(input: string): Array<{
   while (i < input.length) {
     const ch = input[i];
     const nxt = input[i + 1];
-    // skip comments
     if (ch === "/" && nxt === "*") {
       i = advanceIndexPastEndOfComment(input, i);
       continue;
     }
-    // skip quotes
     if (ch === "'") {
       i = advanceIndexPastEndOfQuote(input, i, "'");
       continue;
@@ -342,12 +370,9 @@ function removeAtRuleBlocks(inputCss: string, atRuleName: string): string {
       out += inputCss.slice(i);
       break;
     }
-    // Append thing before the at-rule
     out += inputCss.slice(i, idx);
-    // Find opening brace for the at-rule, while respecting quotes/comments
     const j = findOpeningBraceIndex(inputCss, idx);
     if (j >= inputCss.length) break; // malformed at-rule without block
-    // Find the end of the brace-block using helper
     const endIndex = findMatchingBraceEndIndex(inputCss, j);
     i = endIndex;
   }
@@ -471,18 +496,12 @@ export function sanitizeCssContent(css: string): {
   classesToStrip: string[];
 } {
   if (!css?.includes("{")) return { css, classesToStrip: [] };
-  // 1) Remove @keyframes via a safe scan. Also remove vendor-prefixed keyframes.
   let sanitized = removeAtRuleBlocks(css, "keyframes");
   sanitized = removeAtRuleBlocks(sanitized, "-webkit-keyframes");
   sanitized = removeAtRuleBlocks(sanitized, "-moz-keyframes");
   sanitized = removeAtRuleBlocks(sanitized, "-ms-keyframes");
-  // Lowercase copy for content checks - not needed at the moment
   const classesToStrip = new Set<string>();
-
-  // 2) Parse block-based rules using brace matching (we can reuse existing helpers)
   const blocks = collectCssBlocks(sanitized);
-
-  // Rebuild sanitized CSS by iterating blocks and sanitizing inner content
   let out = "";
   let lastPos = 0;
   for (const b of blocks) {
@@ -498,31 +517,23 @@ export function sanitizeCssContent(css: string): {
     // to `.stagger` selectors that are used for AniList templates' animations.
     if (/\.stagger\b/i.test(selectorText)) {
       if (/(?:animation\b|animation-\w+\b|animation\s*:)/i.test(innerText)) {
-        // remove .stagger token(s) from the selectorList
         const selectors = splitSelectors(selectorText);
         const filtered = selectors.filter(
           (s) => !selectorContainsClass(s, "stagger"),
         );
         if (filtered.length === 0) {
-          // Skip the entire rule
           lastPos = b.closeIdx + 1;
-          // Mark that we should remove class="stagger" tokens from markup later
           classesToStrip.add("stagger");
           continue;
         }
         newSelectorText = filtered.join(", ");
-        // Mark removal from markup if we changed selector list to drop .stagger
         classesToStrip.add("stagger");
       }
     }
-
-    // Append sanitized rule
     out += `${newSelectorText}{${newInner}}`;
     lastPos = b.closeIdx + 1;
   }
   out += sanitized.slice(lastPos);
-
-  // 3) Global cleanup: remove any leftover animation properties or vendor prefixes
   out = out.replaceAll(
     /(?:-webkit-|-moz-|-ms-)?animation(?:-[\w-]+)?\s*:\s*[^;]+;?/gi,
     "",
@@ -533,14 +544,11 @@ export function sanitizeCssContent(css: string): {
   );
   // Replace any leftover to blocks (safety)
   out = out.replaceAll(/\bto\s*\{[^}]*\}/gi, "");
-  // Normalize opacity/visibility
   out = out.replaceAll(/opacity\s*:\s*0+(?:\.\d+)?\s*;?/gi, "opacity: 1;");
   out = out.replaceAll(
     /visibility\s*:\s*hidden\s*;?/gi,
     "visibility: visible;",
   );
-
-  // 4) Remove empty rules that become empty after our changes
   out = removeEmptyCssRules(out);
   return { css: out, classesToStrip: Array.from(classesToStrip) };
 }
@@ -557,14 +565,13 @@ export function removeClassTokensFromMarkup(
   classTokens: string[],
 ): string {
   if (!classTokens || classTokens.length === 0) return svg;
-  // Replace both single and double-quoted class attributes
   svg = svg.replaceAll(/class=(['"])(.*?)\1/gi, (match, quote, clsValue) => {
     const tokens = clsValue
       .split(/\s+/)
       .map((s: string) => s.trim())
       .filter(Boolean);
     const remaining = tokens.filter((t: string) => !classTokens.includes(t));
-    if (remaining.length === 0) return ""; // remove entire attribute
+    if (remaining.length === 0) return "";
     return `class=${quote}${remaining.join(" ")}${quote}`;
   });
   return svg;
@@ -579,7 +586,6 @@ export function removeClassTokensFromMarkup(
  */
 export function sanitizeInlineStyleAttributes(svg: string): string {
   return svg.replaceAll(/style=(['"])(.*?)\1/gi, (m, quote, styleValue) => {
-    // Split declarations by semicolon, but tolerate trailing/leading semicolons
     const parts = styleValue
       .split(/;+/)
       .map((p: string) => p.trim())
@@ -590,13 +596,10 @@ export function sanitizeInlineStyleAttributes(svg: string): string {
       if (!rawName || rest.length === 0) continue;
       const name = rawName.trim().toLowerCase();
       const val = rest.join(":").trim();
-      // Skip animation properties and vendor prefixed animation
       if (/^(?:-webkit-|-moz-|-ms-)?animation(?:-.*)?$/i.test(name)) continue;
       let finalVal = val;
-      // Normalize opacity
       if (name === "opacity" && /^\s*0+(?:\.\d+)?\s*$/.test(val))
         finalVal = "1";
-      // Normalize visibility
       if (name === "visibility" && /^\s*hidden\s*$/i.test(val))
         finalVal = "visible";
       outParts.push(`${name}: ${finalVal}`);
@@ -642,6 +645,261 @@ function isLocalhost(hostname: string): boolean {
   );
 }
 
+function isAllowedSvgContentType(contentType: string | null): boolean {
+  if (!contentType) return false;
+  const mimeType = contentType.split(";")[0]?.trim().toLowerCase();
+  return [
+    "image/svg+xml",
+    "text/plain",
+    "application/xml",
+    "text/xml",
+  ].includes(mimeType);
+}
+
+function looksLikeSvgDocument(content: string): boolean {
+  return /^\s*(?:<\?xml[\s\S]*?\?>\s*)?<svg\b/i.test(content);
+}
+
+async function readTextResponseWithLimit(
+  response: Response,
+  maxBytes: number,
+): Promise<string> {
+  const contentLengthHeader = response.headers.get("content-length");
+  const contentLength = contentLengthHeader
+    ? Number.parseInt(contentLengthHeader, 10)
+    : Number.NaN;
+
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    throw new ConvertRouteError("SVG response too large", 413);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    const text = await response.text();
+    if (Buffer.byteLength(text, "utf8") > maxBytes) {
+      throw new ConvertRouteError("SVG response too large", 413);
+    }
+    return text;
+  }
+
+  const decoder = new TextDecoder();
+  let totalBytes = 0;
+  let svgContent = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+
+    totalBytes += value.byteLength;
+    if (totalBytes > maxBytes) {
+      await reader.cancel();
+      throw new ConvertRouteError("SVG response too large", 413);
+    }
+
+    svgContent += decoder.decode(value, { stream: true });
+  }
+
+  svgContent += decoder.decode();
+  return svgContent;
+}
+
+function parseSvgLength(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const match = /^\s*(\d+(?:\.\d+)?)(?:px)?\s*$/i.exec(value);
+  if (!match) return undefined;
+  const parsed = Number.parseFloat(match[1]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function getAllowedConvertDomains(): {
+  allowedDomains: string[];
+  isDevelopment: boolean;
+} {
+  const allowedDomains: string[] = [
+    ...(process.env.NEXT_PUBLIC_API_URL
+      ? [new URL(process.env.NEXT_PUBLIC_API_URL).hostname]
+      : []),
+  ];
+  const isDevelopment =
+    process.env.NODE_ENV === "development" ||
+    allowedDomains.some(
+      (domain) =>
+        domain === "localhost" ||
+        domain?.startsWith("127.") ||
+        domain === "::1",
+    );
+
+  if (isDevelopment) {
+    allowedDomains.push("localhost", "api.localhost", "127.0.0.1", "::1");
+  }
+
+  return { allowedDomains, isDevelopment };
+}
+
+function normalizeSvgUrl(svgUrl: unknown): string | undefined {
+  return typeof svgUrl === "string" && svgUrl.trim() ? svgUrl : undefined;
+}
+
+function normalizeInlineSvgContent(svgContent: unknown): string | undefined {
+  if (typeof svgContent !== "string" || !svgContent.trim()) {
+    return undefined;
+  }
+
+  if (Buffer.byteLength(svgContent, "utf8") > SVG_MAX_BYTES) {
+    throw new ConvertRouteError("SVG response too large", 413);
+  }
+
+  if (!looksLikeSvgDocument(svgContent)) {
+    throw new ConvertRouteError("Provided content is not a valid SVG", 415);
+  }
+
+  return svgContent;
+}
+
+function parseRequestedFormat(format: unknown): ConversionFormat {
+  const allowedFormats: ConversionFormat[] = ["png", "webp"];
+  const normalizedFormat =
+    typeof format === "string" ? format.toLowerCase() : "png";
+
+  if (!allowedFormats.includes(normalizedFormat as ConversionFormat)) {
+    throw new ConvertRouteError("Invalid format parameter", 400);
+  }
+
+  return normalizedFormat as ConversionFormat;
+}
+
+function parseResponseMode(responseType: unknown): ConvertResponseMode {
+  return responseType === "binary" ? "binary" : "json";
+}
+
+function parseSvgRequestBody(body: unknown): {
+  responseMode: ConvertResponseMode;
+  requestedFormat: ConversionFormat;
+  svgContent?: string;
+  svgUrl?: string;
+} {
+  const parsedBody =
+    typeof body === "object" && body !== null
+      ? (body as {
+          format?: unknown;
+          responseType?: unknown;
+          svgContent?: unknown;
+          svgUrl?: unknown;
+        })
+      : undefined;
+  const svgUrl = parsedBody?.svgUrl;
+  const svgContent = parsedBody?.svgContent;
+  const format = parsedBody?.format;
+  const responseType = parsedBody?.responseType;
+
+  const normalizedSvgUrl = normalizeSvgUrl(svgUrl);
+  const normalizedSvgContent = normalizeInlineSvgContent(svgContent);
+
+  if (!normalizedSvgUrl && !normalizedSvgContent) {
+    throw new ConvertRouteError("Missing svgUrl or svgContent parameter", 400);
+  }
+
+  return {
+    requestedFormat: parseRequestedFormat(format),
+    responseMode: parseResponseMode(responseType),
+    ...(normalizedSvgUrl ? { svgUrl: normalizedSvgUrl } : {}),
+    ...(normalizedSvgContent ? { svgContent: normalizedSvgContent } : {}),
+  };
+}
+
+function parseSvgTargetUrl(request: NextRequest, svgUrl: string): URL {
+  try {
+    const baseUrl =
+      request.headers.get("origin") ||
+      request.headers.get("referer")?.split("?")[0] ||
+      `${request.headers.get("x-forwarded-proto") || "https"}://${request.headers.get("host")}`;
+    return new URL(svgUrl, baseUrl);
+  } catch {
+    throw new ConvertRouteError("Invalid URL format", 400);
+  }
+}
+
+function validateSvgTargetUrl(parsedUrl: URL): URL {
+  const { allowedDomains, isDevelopment } = getAllowedConvertDomains();
+
+  if (!isUrlAuthorized(parsedUrl, allowedDomains, isDevelopment)) {
+    throw new ConvertRouteError("Unauthorized or unsafe domain/protocol", 403);
+  }
+
+  if (isDevelopment && parsedUrl.hostname === "api.localhost") {
+    parsedUrl.hostname = "localhost";
+  }
+
+  return parsedUrl;
+}
+
+function createConvertErrorResponse(
+  error: ConvertRouteError,
+  request: NextRequest,
+  endpoint: string,
+): NextResponse {
+  logPrivacySafe(
+    error.statusCode >= 500 ? "error" : "warn",
+    endpoint,
+    "Conversion rejected",
+    {
+      statusCode: error.statusCode,
+      error: error.message,
+    },
+    request,
+  );
+  incrementAnalytics("analytics:convert_api:failed_requests").catch(() => {});
+  return apiErrorResponse(request, error.statusCode, error.message);
+}
+
+function validateSvgRasterizationBounds(svg: string): void {
+  const svgTagMatch = /<svg\b([^>]*)>/i.exec(svg);
+  const attributes = svgTagMatch?.[1] ?? "";
+  const width = parseSvgLength(
+    /\bwidth=(['"])(.*?)\1/i.exec(attributes)?.[2] ?? null,
+  );
+  const height = parseSvgLength(
+    /\bheight=(['"])(.*?)\1/i.exec(attributes)?.[2] ?? null,
+  );
+  const viewBoxMatch = /\bviewBox=(['"])(.*?)\1/i.exec(attributes);
+  const viewBoxParts = viewBoxMatch?.[2]
+    ?.trim()
+    .split(/[\s,]+/)
+    .map((part) => Number.parseFloat(part));
+  const viewBoxWidth =
+    viewBoxParts?.length === 4 && Number.isFinite(viewBoxParts[2])
+      ? Math.abs(viewBoxParts[2])
+      : undefined;
+  const viewBoxHeight =
+    viewBoxParts?.length === 4 && Number.isFinite(viewBoxParts[3])
+      ? Math.abs(viewBoxParts[3])
+      : undefined;
+
+  const effectiveWidth = width ?? viewBoxWidth;
+  const effectiveHeight = height ?? viewBoxHeight;
+
+  if (
+    typeof effectiveWidth === "number" &&
+    typeof effectiveHeight === "number" &&
+    effectiveWidth * effectiveHeight > SVG_MAX_RASTER_PIXELS
+  ) {
+    throw new ConvertRouteError("SVG rasterization exceeds pixel limits", 413);
+  }
+
+  if (
+    (typeof effectiveWidth === "number" &&
+      effectiveWidth > SVG_MAX_DIMENSION_PX) ||
+    (typeof effectiveHeight === "number" &&
+      effectiveHeight > SVG_MAX_DIMENSION_PX)
+  ) {
+    throw new ConvertRouteError(
+      "SVG rasterization exceeds dimension limits",
+      413,
+    );
+  }
+}
+
 /**
  * Sanitizes an SVG by extracting <style> blocks and inline styles, cleaning both,
  * and returning the updated markup and a list of class tokens to strip.
@@ -651,7 +909,7 @@ function sanitizeFullSvg(svgContent: string): {
   classesToStrip: string[];
 } {
   const styleMatch = /<style>([\s\S]*?)<\/style>/.exec(svgContent);
-  let cssContent = styleMatch?.[1] || "";
+  const cssContent = styleMatch?.[1] || "";
   const { css: sanitizedCss, classesToStrip } = sanitizeCssContent(cssContent);
 
   if (styleMatch) {
@@ -691,190 +949,339 @@ function isUrlAuthorized(
   return true;
 }
 
+function recordConvertFailureMetric(): void {
+  incrementAnalytics("analytics:convert_api:failed_requests").catch(() => {});
+}
+
+function createSvgFetchErrorResponse(
+  request: NextRequest,
+  status: number,
+  message: string,
+  options?: {
+    category?: "invalid_data";
+    retryable?: boolean;
+    headers?: Record<string, string>;
+  },
+): { errorResponse: NextResponse } {
+  recordConvertFailureMetric();
+  return {
+    errorResponse: apiErrorResponse(request, status, message, {
+      headers: options?.headers,
+      category: options?.category,
+      retryable: options?.retryable,
+    }),
+  };
+}
+
+async function readValidatedSvgResponse(
+  response: Response,
+  request: NextRequest,
+): Promise<{ errorResponse?: NextResponse; svg?: string }> {
+  if (response.status >= 300 && response.status < 400) {
+    return createSvgFetchErrorResponse(
+      request,
+      403,
+      "SVG redirects are not allowed",
+      {
+        category: "invalid_data",
+        retryable: false,
+      },
+    );
+  }
+
+  if (!response.ok) {
+    return createSvgFetchErrorResponse(
+      request,
+      response.status,
+      "Failed to fetch SVG",
+    );
+  }
+
+  const contentType = response.headers.get("content-type");
+  const svgText = await readTextResponseWithLimit(response, SVG_MAX_BYTES);
+  if (!isAllowedSvgContentType(contentType) || !looksLikeSvgDocument(svgText)) {
+    return createSvgFetchErrorResponse(
+      request,
+      415,
+      "Fetched content is not a valid SVG",
+      {
+        category: "invalid_data",
+        retryable: false,
+      },
+    );
+  }
+
+  return { svg: svgText };
+}
+
+function handleFetchSvgContentError(
+  err: unknown,
+  request: NextRequest,
+): { errorResponse: NextResponse } {
+  logPrivacySafe(
+    "error",
+    "Convert API",
+    "SVG fetch failed",
+    {
+      error: err instanceof Error ? err.message : String(err),
+      ...(err instanceof Error && err.stack ? { stack: err.stack } : {}),
+    },
+    request,
+  );
+  recordConvertFailureMetric();
+
+  if (err instanceof ConvertRouteError) {
+    return {
+      errorResponse: apiErrorResponse(request, err.statusCode, err.message),
+    };
+  }
+
+  if (err instanceof UpstreamTransportError) {
+    return {
+      errorResponse: apiErrorResponse(
+        request,
+        err.statusCode,
+        err.statusCode === 504 ? "SVG fetch timed out" : "Failed to fetch SVG",
+        {
+          headers:
+            typeof err.retryAfterMs === "number"
+              ? {
+                  "Retry-After": String(
+                    Math.max(1, Math.ceil(err.retryAfterMs / 1000)),
+                  ),
+                }
+              : undefined,
+        },
+      ),
+    };
+  }
+
+  return {
+    errorResponse: apiErrorResponse(request, 500, "Failed to fetch SVG"),
+  };
+}
+
 /**
  * Fetches an SVG from the provided URL, returning a NextResponse on failure
  * (so callers can early-return) or the SVG text on success.
  */
 async function fetchSvgContent(
   parsedUrl: URL,
-  ip: string,
   request: NextRequest,
 ): Promise<{ errorResponse?: NextResponse; svg?: string }> {
   try {
-    const response = await fetch(parsedUrl.href);
-    if (!response.ok) {
-      incrementAnalytics("analytics:convert_api:failed_requests").catch(
-        () => {},
-      );
-      return {
-        errorResponse: jsonWithCors(
-          { error: "Failed to fetch SVG" },
-          request,
-          response.status,
-        ),
-      };
-    }
-    const svgText = await response.text();
-    return { svg: svgText };
+    const response = await fetchUpstreamWithRetry({
+      service: "SVG Fetch",
+      url: parsedUrl.href,
+      init: {
+        headers: {
+          Accept:
+            "image/svg+xml,text/plain;q=0.9,application/xml;q=0.8,text/xml;q=0.7",
+        },
+        redirect: "manual",
+      },
+      timeoutMs: SVG_FETCH_TIMEOUT_MS,
+      maxAttempts: 1,
+      circuitBreaker: false,
+    });
+
+    return readValidatedSvgResponse(response, request);
   } catch (err: unknown) {
-    console.error("🔴 [Convert API] fetchSvgContent error:", err);
-    incrementAnalytics("analytics:convert_api:failed_requests").catch(() => {});
-    return {
-      errorResponse: jsonWithCors(
-        { error: "Failed to fetch SVG" },
-        request,
-        500,
-      ),
-    };
+    return handleFetchSvgContentError(err, request);
   }
 }
 
 /**
  * Converts an SVG string into a raster data URL using sharp.
  */
-async function convertSvgToDataUrl(
+async function convertSvgToRaster(
   svg: string,
   requestedFormat: ConversionFormat,
-) {
-  const transformer = sharp(Buffer.from(svg));
+): Promise<{ convertedBuffer: Buffer; mimeType: string }> {
+  validateSvgRasterizationBounds(svg);
+
+  const inputBuffer = Buffer.from(svg);
+  const sourceImage = sharp(inputBuffer, {
+    limitInputPixels: SVG_MAX_RASTER_PIXELS,
+  });
+  const metadata = await sourceImage.metadata();
+
+  if (
+    (metadata.width && metadata.width > SVG_MAX_DIMENSION_PX) ||
+    (metadata.height && metadata.height > SVG_MAX_DIMENSION_PX)
+  ) {
+    throw new ConvertRouteError(
+      "SVG rasterization exceeds dimension limits",
+      413,
+    );
+  }
+
+  if (
+    metadata.width &&
+    metadata.height &&
+    metadata.width * metadata.height > SVG_MAX_RASTER_PIXELS
+  ) {
+    throw new ConvertRouteError("SVG rasterization exceeds pixel limits", 413);
+  }
+
+  const transformer = sourceImage.clone();
   if (requestedFormat === "webp") transformer.webp({ quality: 90 });
   else transformer.png();
   const convertedBuffer = await transformer.toBuffer();
   const mimeType = requestedFormat === "webp" ? "image/webp" : "image/png";
+  return { convertedBuffer, mimeType };
+}
+
+function encodeRasterDataUrl(
+  convertedBuffer: Buffer,
+  mimeType: string,
+): string {
   return `data:${mimeType};base64,${convertedBuffer.toString("base64")}`;
 }
 
+type ConvertJsonResponse = {
+  format: ConversionFormat;
+  imageDataUrl: string;
+};
+
+function binaryWithCors(
+  body: Blob,
+  mimeType: string,
+  request: NextRequest,
+): Response {
+  return new Response(body, {
+    headers: {
+      ...apiJsonHeaders(request),
+      "Content-Type": mimeType,
+    },
+  });
+}
+
 /**
- * Handles POST requests that sanitize SVGs and convert them to PNG data URLs.
+ * Handles POST requests that sanitize SVGs and convert them to raster outputs.
  * @param request - Incoming Next.js request with the svgUrl payload.
- * @returns NextResponse containing pngDataUrl on success or an error description.
+ * @returns JSON data URL or binary image output on success, or an error description.
  * @source
  */
 export async function POST(request: NextRequest) {
-  const startTime = Date.now();
-  const ip = request.headers.get("x-forwarded-for") || "unknown IP";
-  console.log(`🚀 [Convert API] Request received from ${ip}`);
+  const init = await initializeApiRequest(
+    request,
+    "Convert API",
+    "convert_api",
+    ratelimit,
+    { skipSameOrigin: true },
+  );
+  if (init.errorResponse) return init.errorResponse;
+
+  const { startTime, endpoint, ip } = init;
+
+  logPrivacySafe("log", endpoint, "Request received", { ip }, request);
 
   try {
-    // 1. Parse input and fetch SVG content
-    const { svgUrl, format } = await request.json();
-    if (!svgUrl) {
-      console.warn(`⚠️ [Convert API] Missing 'svgUrl' parameter from ${ip}`);
-      incrementAnalytics("analytics:convert_api:failed_requests").catch(
-        () => {},
-      );
-      return jsonWithCors({ error: "Missing svgUrl parameter" }, request, 400);
-    }
-
-    const allowedFormats: ConversionFormat[] = ["png", "webp"];
-    const normalizedFormat =
-      typeof format === "string" ? format.toLowerCase() : "png";
-    if (!allowedFormats.includes(normalizedFormat as ConversionFormat)) {
-      console.warn(
-        `⚠️ [Convert API] Unsupported format '${format}' from ${ip}`,
-      );
-      // Increment analytics for failed requests to keep metrics consistent
-      incrementAnalytics("analytics:convert_api:failed_requests").catch(
-        () => {},
-      );
-      return jsonWithCors({ error: "Invalid format parameter" }, request, 400);
-    }
-    let requestedFormat = normalizedFormat;
-
-    // Validate the svgUrl
-    let parsedUrl;
+    let requestBody: unknown;
     try {
-      // Handle relative URLs by using the request origin as base
-      const baseUrl =
-        request.headers.get("origin") ||
-        request.headers.get("referer")?.split("?")[0] ||
-        `${request.headers.get("x-forwarded-proto") || "https"}://${request.headers.get("host")}`;
-      parsedUrl = new URL(svgUrl, baseUrl);
+      requestBody = await request.json();
     } catch {
-      console.warn(
-        `⚠️ [Convert API] Invalid URL format for 'svgUrl' from ${ip}`,
-      );
-      return jsonWithCors({ error: "Invalid URL format" }, request, 400);
+      return invalidJsonResponse(request);
     }
 
-    const allowedDomains: string[] = [
-      ...(process.env.NEXT_PUBLIC_API_URL
-        ? [new URL(process.env.NEXT_PUBLIC_API_URL).hostname]
-        : []),
-    ];
-    // In development, allow localhost/127.0.0.1 with HTTP
-    const isDevelopment =
-      process.env.NODE_ENV === "development" ||
-      allowedDomains.some(
-        (domain) =>
-          domain === "localhost" ||
-          domain?.startsWith("127.") ||
-          domain === "::1",
-      );
+    const { requestedFormat, responseMode, svgContent, svgUrl } =
+      parseSvgRequestBody(requestBody);
+    let resolvedSvgContent = svgContent || "";
 
-    if (isDevelopment) {
-      allowedDomains.push("localhost", "api.localhost", "127.0.0.1", "::1");
-    }
-
-    // In production, require HTTPS. In development, allow HTTP for localhost
-    if (!isUrlAuthorized(parsedUrl, allowedDomains, isDevelopment)) {
-      console.warn(
-        `⚠️ [Convert API] Unauthorized or unsafe domain/protocol in 'svgUrl': ${parsedUrl.href} from ${ip}`,
-      );
-      return jsonWithCors(
-        { error: "Unauthorized or unsafe domain/protocol" },
+    if (resolvedSvgContent) {
+      logPrivacySafe(
+        "log",
+        endpoint,
+        "Received inline SVG content",
+        { svgLength: resolvedSvgContent.length },
         request,
-        403,
+      );
+    } else {
+      const parsedUrl = validateSvgTargetUrl(
+        parseSvgTargetUrl(request, svgUrl || ""),
+      );
+
+      logPrivacySafe(
+        "log",
+        endpoint,
+        "Fetching SVG from URL",
+        { svgUrl: parsedUrl.href },
+        request,
+      );
+      const fetched = await fetchSvgContent(parsedUrl, request);
+      if (fetched.errorResponse) return fetched.errorResponse;
+      resolvedSvgContent = fetched.svg || "";
+      logPrivacySafe(
+        "log",
+        endpoint,
+        "Received remote SVG content",
+        { svgLength: resolvedSvgContent.length },
+        request,
       );
     }
 
-    // In development, normalize api.localhost to localhost for DNS resolution
-    if (isDevelopment && parsedUrl.hostname === "api.localhost") {
-      parsedUrl.hostname = "localhost";
-    }
-
-    console.log(`🔍 [Convert API] Fetching SVG from: ${parsedUrl.href}`);
-    const fetched = await fetchSvgContent(parsedUrl, ip, request);
-    if (fetched.errorResponse) return fetched.errorResponse;
-    let svgContent = fetched.svg || "";
-    console.log(
-      `📝 [Convert API] Received SVG content (${svgContent.length} characters)`,
+    const { svg: sanitizedSvg } = sanitizeFullSvg(resolvedSvgContent);
+    resolvedSvgContent = sanitizedSvg;
+    logPrivacySafe(
+      "log",
+      endpoint,
+      "Final SVG cleanup completed",
+      undefined,
+      request,
     );
 
-    // 1. Extract and sanitize CSS style blocks
-    // Regex explanation:
-    // - <style>([\s\S]*?)<\/style> matches the <style> tag and everything inside it
-    const { svg: sanitizedSvg } = sanitizeFullSvg(svgContent);
-    svgContent = sanitizedSvg;
-    console.log("🧼 [Convert API] Final SVG cleanup completed.");
-
-    // 4. Convert the processed SVG to the requested raster format using sharp
-    console.log(
-      `🔄 [Convert API] Converting SVG to ${requestedFormat.toUpperCase()} using sharp...`,
+    logPrivacySafe(
+      "log",
+      endpoint,
+      "Converting SVG to raster",
+      { requestedFormat },
+      request,
     );
-    const pngDataUrl = await convertSvgToDataUrl(
-      svgContent,
-      requestedFormat as ConversionFormat,
+    const { convertedBuffer, mimeType } = await convertSvgToRaster(
+      resolvedSvgContent,
+      requestedFormat,
     );
     const conversionDuration = Date.now() - startTime;
-    console.log(
-      `✅ [Convert API] SVG converted to ${requestedFormat.toUpperCase()} successfully in ${conversionDuration}ms`,
+    logPrivacySafe(
+      "log",
+      endpoint,
+      "SVG converted successfully",
+      { requestedFormat, durationMs: conversionDuration },
+      request,
     );
     incrementAnalytics("analytics:convert_api:successful_requests").catch(
       () => {},
     );
-    return jsonWithCors({ pngDataUrl }, request);
+
+    if (responseMode === "binary") {
+      return binaryWithCors(
+        new Blob([Uint8Array.from(convertedBuffer)], { type: mimeType }),
+        mimeType,
+        request,
+      );
+    }
+
+    const responseBody: ConvertJsonResponse = {
+      format: requestedFormat,
+      imageDataUrl: encodeRasterDataUrl(convertedBuffer, mimeType),
+    };
+
+    return jsonWithCors(responseBody, request);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
-    const errorDuration = Date.now() - startTime;
-    console.error(
-      `🔥 [Convert API] Conversion error after ${errorDuration}ms: ${error.message}`,
-    );
-    if (error.stack) {
-      console.error(`💥 [Convert API] Stack Trace: ${error.stack}`);
+    if (error instanceof ConvertRouteError) {
+      return createConvertErrorResponse(error, request, endpoint);
     }
-    incrementAnalytics("analytics:convert_api:failed_requests").catch(() => {});
-    return jsonWithCors({ error: "Conversion failed" }, request, 500);
+
+    return handleError(
+      error as Error,
+      endpoint,
+      startTime,
+      "analytics:convert_api:failed_requests",
+      "Conversion failed",
+      request,
+    );
   }
 }
 

@@ -1,3 +1,5 @@
+import { ColorValue } from "./card";
+
 /** Genre bucket in anime statistics with a count of items. @source */
 export interface AnimeStatGenre {
   genre: string;
@@ -398,16 +400,35 @@ export interface UserAggregates {
   studioCollaborationTotals?: StudioCollaborationTotalsEntry[];
 }
 
-/** Redis user record shape used for persisting user data and stats. @source */
-export interface UserRecord {
+/**
+ * Minimized internal request metadata retained with persisted user records.
+ *
+ * Raw client IPs are intentionally not stored. The bucket is coarse enough for
+ * abuse correlation while avoiding direct re-identification in normal reads.
+ */
+export interface PersistedRequestMetadata {
+  lastSeenIpBucket?: string;
+}
+
+/**
+ * Explicit minimized schema written by the store-users persistence path.
+ */
+export interface PersistedUserRecord {
   userId: string;
   username?: string;
   stats: UserStatsData;
+  aggregates?: UserAggregates;
+  requestMetadata?: PersistedRequestMetadata;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Redis user record shape used for persisting user data and stats. @source */
+export interface UserRecord extends PersistedUserRecord {
   animeSourceMaterialDistributionTotals?: SourceMaterialDistributionTotalsEntry[];
   animeSeasonalPreferenceTotals?: SeasonalPreferenceTotalsEntry[];
   animeGenreSynergyTotals?: AnimeGenreSynergyTotalsEntry[];
   studioCollaborationTotals?: StudioCollaborationTotalsEntry[];
-  aggregates?: UserAggregates;
   statistics?: UserSection["statistics"];
   favourites?: UserSection["favourites"];
   pages?: {
@@ -417,9 +438,30 @@ export interface UserRecord {
     threadCommentsPage?: ThreadCommentsPage;
     reviewsPage?: ReviewsPage;
   };
-  ip: string;
-  createdAt: string;
-  updatedAt: string;
+}
+
+/** Public DTO returned by `/api/get-user`. */
+export interface PublicUserRecord {
+  userId: string;
+  username?: string;
+  stats: UserStatsData;
+  statistics: UserSection["statistics"];
+  favourites: UserSection["favourites"];
+  pages: {
+    followersPage: FollowersPage;
+    followingPage: FollowingPage;
+    threadsPage: ThreadsPage;
+    threadCommentsPage: ThreadCommentsPage;
+    reviewsPage: ReviewsPage;
+  };
+  aggregates?: UserAggregates;
+}
+
+/** Lightweight bootstrap DTO returned by `/api/get-user?view=bootstrap`. */
+export interface UserBootstrapRecord {
+  userId: string;
+  username?: string;
+  avatarUrl?: string | null;
 }
 
 /**
@@ -442,17 +484,36 @@ export type ReconstructedUserRecord = UserRecord & {
 /** Stored card configuration shape persisted in user-card records. @source */
 export interface StoredCardConfig {
   cardName: string;
-  variation: string;
+  variation?: string;
   colorPreset?: string;
-  titleColor?: string;
-  backgroundColor?: string;
-  textColor?: string;
-  circleColor?: string;
+  titleColor?: ColorValue;
+  backgroundColor?: ColorValue;
+  textColor?: ColorValue;
+  circleColor?: ColorValue;
   borderColor?: string;
   borderRadius?: number;
   showFavorites?: boolean;
   useStatusColors?: boolean;
   showPiePercentages?: boolean;
+  gridCols?: number;
+  gridRows?: number;
+  useCustomSettings?: boolean;
+  disabled?: boolean;
+}
+
+/** Global settings for user card configurations. @source */
+export interface GlobalCardSettings {
+  colorPreset?: string;
+  titleColor?: ColorValue;
+  backgroundColor?: ColorValue;
+  textColor?: ColorValue;
+  circleColor?: ColorValue;
+  borderEnabled?: boolean;
+  borderColor?: string;
+  borderRadius?: number;
+  useStatusColors?: boolean;
+  showPiePercentages?: boolean;
+  showFavorites?: boolean;
   gridCols?: number;
   gridRows?: number;
 }
@@ -461,5 +522,6 @@ export interface StoredCardConfig {
 export interface CardsRecord {
   userId: number;
   cards: StoredCardConfig[];
+  globalSettings?: GlobalCardSettings;
   updatedAt: string;
 }

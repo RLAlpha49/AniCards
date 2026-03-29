@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+import { useEffect } from "react";
+
 import { pageview, safeTrack } from "@/lib/utils/google-analytics";
 
 /**
@@ -10,16 +11,19 @@ import { pageview, safeTrack } from "@/lib/utils/google-analytics";
  * @returns {void}
  * @source
  */
-export function useGoogleAnalytics() {
+export function useGoogleAnalytics(consentGranted: boolean) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const queryString = searchParams.toString();
 
-  // Record pageview when the pathname or query changes
   useEffect(() => {
-    if (process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID) {
-      const queryString = searchParams.toString();
-      const url = pathname + (queryString ? "?" + queryString : "");
-      safeTrack(() => pageview(url));
-    }
-  }, [pathname, searchParams]);
+    if (!consentGranted || !process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID) return;
+
+    safeTrack(() =>
+      pageview({
+        pathname,
+        search: queryString,
+      }),
+    );
+  }, [consentGranted, pathname, queryString]);
 }

@@ -1,7 +1,11 @@
-import type { TrustedSVG } from "@/lib/types/svg";
-
+/**
+ * Shared renderer for score and year distribution cards.
+ *
+ * This module normalizes sparse input data, handles variant-specific layouts,
+ * and marks year gaps/cumulative views so card-specific callers only need to
+ * provide typed values and styling.
+ */
 import { generateCardBackground } from "@/lib/svg-templates/common/base-template-utils";
-import { generateCommonStyles } from "@/lib/svg-templates/common/style-generators";
 import {
   ANIMATION,
   DISTRIBUTION,
@@ -9,21 +13,22 @@ import {
   TYPOGRAPHY,
 } from "@/lib/svg-templates/common/constants";
 import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
+import { generateCommonStyles } from "@/lib/svg-templates/common/style-generators";
 import {
   createRectElement,
   createStaggeredGroup,
   createTextElement,
 } from "@/lib/svg-templates/common/svg-primitives";
-
+import type { ColorValue } from "@/lib/types/card";
+import type { TrustedSVG } from "@/lib/types/svg";
 import {
   calculateDynamicFontSize,
-  getCardBorderRadius,
-  processColorsForSVG,
   escapeForXml,
+  getCardBorderRadius,
   markTrustedSvg,
+  processColorsForSVG,
   toFiniteNumber,
 } from "@/lib/utils";
-import type { ColorValue } from "@/lib/types/card";
 
 /** Simple representation of a distribution item with value and a count. @source */
 interface DistributionDatum {
@@ -493,7 +498,6 @@ export function distributionTemplate(
 ): TrustedSVG {
   const { username, mediaType, styles, variant = "default", kind } = input;
 
-  // Process colors for gradient support
   const { gradientDefs, resolvedColors } = processColorsForSVG(
     {
       titleColor: styles.titleColor,
@@ -512,7 +516,6 @@ export function distributionTemplate(
   );
   const cardRadius = getCardBorderRadius(styles.borderRadius);
 
-  // Normalize and sort data
   const normalizedData = normalizeDistributionData(input.data, kind);
 
   const { renderedData, maxCount, hasYearGaps } = prepareRenderedData(
@@ -523,7 +526,6 @@ export function distributionTemplate(
 
   const showYearGaps = kind === "year";
 
-  // Generate title and get dimensions
   const baseTitle =
     kind === "score" ? "Score Distribution" : "Year Distribution";
   const title = `${username}'s ${capitalize(mediaType)} ${baseTitle}`;
@@ -531,7 +533,6 @@ export function distributionTemplate(
   const baseDims = getCardDimensions("distribution", variant);
   const dims = computeDimsForVariant(variant, renderedData, baseDims);
 
-  // Layout constants
   const barColor = resolvedColors.circleColor;
   const countBaseX = DISTRIBUTION.COUNT_BASE_X;
   const maxBarWidth = Math.max(
@@ -539,7 +540,6 @@ export function distributionTemplate(
     dims.w - countBaseX - DISTRIBUTION.MAX_BAR_WIDTH_OFFSET,
   );
 
-  // Generate content based on variant
   const mainContent = renderMainContent(variant, kind, renderedData, {
     dims,
     maxCount,
@@ -595,24 +595,6 @@ export function distributionTemplate(
     <g transform="translate(20,35)"><text class="header">${safeTitle}</text></g>
     ${mainContent}
   </svg>`);
-}
-
-/**
- * Factory function to create distribution template wrappers.
- * Accepts mediaType and kind, returns a wrapper that omits both from input.
- */
-export function createDistributionTemplate(
-  mediaType: "anime" | "manga",
-  kind: "score" | "year",
-) {
-  return (
-    input: Omit<
-      Parameters<typeof distributionTemplate>[0],
-      "mediaType" | "kind"
-    >,
-  ) => {
-    return distributionTemplate({ ...input, mediaType, kind });
-  };
 }
 
 /** Capitalize the first letter of a string. @source */

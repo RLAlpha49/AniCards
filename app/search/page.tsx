@@ -1,46 +1,54 @@
-"use client";
+import { MarketingBackdrop } from "@/components/marketing/MarketingBackdrop";
+import { SectionReveal } from "@/components/marketing/SectionReveal";
+import { SearchCapabilities } from "@/components/search/SearchCapabilities";
+import { SearchCTA } from "@/components/search/SearchCTA";
+import { SearchJourney } from "@/components/search/SearchJourney";
+import { StructuredDataScript } from "@/components/StructuredDataScript";
+import { getRequestNonce } from "@/lib/request-nonce";
+import { generateMetadata as createMetadata, seoConfigs } from "@/lib/seo";
+import { generateStructuredData } from "@/lib/structured-data";
 
-import { useState } from "react";
-import PageShell from "@/components/PageShell";
-import { FloatingCardsLayer } from "@/components/FloatingCardsLayer";
-import { LoadingOverlay } from "@/components/LoadingSpinner";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { usePageSEO } from "@/hooks/usePageSEO";
-import { SearchHeroSection } from "@/components/search/SearchHeroSection";
-import { SearchForm } from "@/components/search/SearchForm";
+import SearchHeroShell from "./SearchHeroShell";
 
-/**
- * Renders the AniList user search page with modern styling matching
- * the home and examples pages.
- * @returns The markup for the search page.
- * @source
- */
-export default function UserSearchPage() {
-  usePageSEO("search");
+export const metadata = createMetadata(seoConfigs.search);
 
-  const [loading, setLoading] = useState(false);
+export default async function UserSearchPage() {
+  const nonce = await getRequestNonce();
 
   return (
-    <ErrorBoundary
-      resetKeys={[loading ? "loading" : "idle"]}
-      onReset={() => setLoading(false)}
-    >
-      <div className="relative h-full w-full overflow-hidden">
-        {loading && <LoadingOverlay text="Searching for user..." />}
+    <>
+      <StructuredDataScript
+        data={generateStructuredData("search")}
+        nonce={nonce}
+      />
+      <div className="relative min-h-screen">
+        <MarketingBackdrop />
+        <SearchHeroShell />
 
-        <PageShell mainClassName="h-full" variant="none">
-          <section className="relative h-full w-full overflow-hidden">
-            <FloatingCardsLayer layout="search" />
+        <SectionReveal
+          variant="lineExpand"
+          style={{ originX: 0.5 }}
+          className="gold-line-thick mx-auto max-w-[60%]"
+        />
 
-            <div className="container relative z-10 mx-auto flex h-full flex-col items-center justify-center px-4 py-20">
-              <SearchHeroSection />
-              <div className="mt-12 flex w-full justify-center">
-                <SearchForm onLoadingChange={setLoading} />
-              </div>
-            </div>
-          </section>
-        </PageShell>
+        <SectionReveal>
+          <SearchJourney />
+        </SectionReveal>
+
+        <SectionReveal
+          variant="lineExpand"
+          style={{ originX: 0.5 }}
+          className="gold-line mx-auto max-w-[40%]"
+        />
+
+        <SectionReveal>
+          <SearchCapabilities />
+        </SectionReveal>
+
+        <SectionReveal>
+          <SearchCTA />
+        </SectionReveal>
       </div>
-    </ErrorBoundary>
+    </>
   );
 }

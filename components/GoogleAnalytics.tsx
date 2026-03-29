@@ -1,4 +1,12 @@
+"use client";
+
 import Script from "next/script";
+import { useEffect } from "react";
+
+import {
+  buildAnalyticsConsentMode,
+  updateAnalyticsConsentMode,
+} from "@/lib/utils/google-analytics";
 
 /**
  * Props used to render the Google Analytics script snippets.
@@ -11,7 +19,8 @@ import Script from "next/script";
  * @source
  */
 interface GoogleAnalyticsProps {
-  GA_TRACKING_ID: string;
+  trackingId: string;
+  consentGranted: boolean;
   /** CSP nonce for inline script authorization */
   nonce?: string;
 }
@@ -30,27 +39,44 @@ interface GoogleAnalyticsProps {
  * @source
  */
 export default function GoogleAnalytics({
-  GA_TRACKING_ID,
+  trackingId,
+  consentGranted,
   nonce,
 }: Readonly<GoogleAnalyticsProps>) {
+  const serializedTrackingId = JSON.stringify(trackingId);
+  const defaultConsentMode = JSON.stringify(buildAnalyticsConsentMode(false));
+
+  useEffect(() => {
+    updateAnalyticsConsentMode(consentGranted);
+  }, [consentGranted]);
+
   return (
     <>
       <Script
-        src={`https://www.googletagmanager.com/gtag/js?id=${GA_TRACKING_ID}`}
+        id="google-analytics-bootstrap"
         strategy="afterInteractive"
         nonce={nonce}
-      />
-      <Script id="google-analytics" strategy="afterInteractive" nonce={nonce}>
+      >
         {`
           window.dataLayer = window.dataLayer || [];
-          function gtag(){dataLayer.push(arguments);}
-          gtag('js', new Date());
-          gtag('config', '${GA_TRACKING_ID}', {
-            page_title: document.title,
-            page_location: window.location.href,
+          window.gtag = window.gtag || function gtag(){window.dataLayer.push(arguments);};
+          window.gtag('js', new Date());
+          window.gtag('consent', 'default', ${defaultConsentMode});
+          window.gtag('config', ${serializedTrackingId}, {
+            allow_google_signals: false,
+            allow_ad_personalization_signals: false,
+            send_page_view: false,
           });
         `}
       </Script>
+      {consentGranted ? (
+        <Script
+          id="google-analytics-loader"
+          src={`https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(trackingId)}`}
+          strategy="afterInteractive"
+          nonce={nonce}
+        />
+      ) : null}
     </>
   );
 }

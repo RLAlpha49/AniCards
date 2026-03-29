@@ -1,3 +1,8 @@
+import {
+  ANIMATION,
+  SPACING,
+  TYPOGRAPHY,
+} from "@/lib/svg-templates/common/constants";
 import type { ColorValue } from "@/lib/types/card";
 import type { MediaListEntry } from "@/lib/types/records";
 import type { TrustedSVG } from "@/lib/types/svg";
@@ -8,15 +13,11 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
+
 import {
-  ANIMATION,
-  SPACING,
-  TYPOGRAPHY,
-} from "@/lib/svg-templates/common/constants";
-import {
+  dedupeByMediaIdKeepHighestRepeat,
   getDimensions,
   getMediaTitle,
-  dedupeByMediaIdKeepHighestRepeat,
 } from "./shared";
 
 /** Most rewatched card input structure. @source */

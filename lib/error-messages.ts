@@ -228,6 +228,13 @@ const STATUS_CODE_CATEGORIES: Record<number, ErrorCategory> = {
   504: "timeout",
 };
 
+const RETRYABLE_ERROR_CATEGORIES = new Set<ErrorCategory>([
+  "network_error",
+  "rate_limited",
+  "server_error",
+  "timeout",
+]);
+
 /**
  * Map a status code to an error category.
  * @param statusCode - HTTP status code.
@@ -237,6 +244,27 @@ const STATUS_CODE_CATEGORIES: Record<number, ErrorCategory> = {
 export function categorizeByStatusCode(statusCode?: number): ErrorCategory {
   if (!statusCode) return "unknown";
   return STATUS_CODE_CATEGORIES[statusCode] || "server_error";
+}
+
+/**
+ * Determine whether a categorized failure should be treated as retryable.
+ * @param category - Error category to evaluate.
+ * @returns True when retry/backoff is appropriate.
+ * @source
+ */
+export function isRetryableErrorCategory(category: ErrorCategory): boolean {
+  return RETRYABLE_ERROR_CATEGORIES.has(category);
+}
+
+/**
+ * Determine whether an HTTP status code should be retried for transient upstream failures.
+ * @param statusCode - HTTP status code from an upstream response.
+ * @returns True when the status represents a transient condition.
+ * @source
+ */
+export function isRetryableStatusCode(statusCode?: number): boolean {
+  if (!statusCode) return false;
+  return isRetryableErrorCategory(categorizeByStatusCode(statusCode));
 }
 
 /**
@@ -317,7 +345,6 @@ export function getErrorDetails(
   message: string,
   statusCode?: number,
 ): ErrorDetails {
-  // Check exact match in map
   const exactMatch = Object.entries(ERROR_MESSAGE_MAP).find(
     ([key]) =>
       message.toLowerCase().includes(key) ||
@@ -342,7 +369,6 @@ export function getErrorDetails(
     return categoryMatch;
   }
 
-  // Return generic error details
   return {
     userMessage: "Something went wrong",
     technicalMessage: message,
@@ -359,34 +385,37 @@ export function getErrorDetails(
 }
 
 /**
- * Format error details for display to user.
- * Returns tuple of [title, description].
- * @param details - ErrorDetails from getErrorDetails.
- * @returns Formatted [title, description] pair.
+ * Build a safe summary string for user-facing fallbacks without exposing raw
+ * technical error details.
+ * @param message - Error message or key to look up.
+ * @param statusCode - Optional HTTP status code for categorization.
+ * @returns Concise user-facing summary derived from the structured error model.
  * @source
  */
-export function formatErrorForDisplay(details: ErrorDetails): [string, string] {
-  return [details.userMessage, details.technicalMessage];
-}
+export function getSafeErrorSummary(
+  message: string,
+  statusCode?: number,
+): string {
+  const details = getErrorDetails(message, statusCode);
+  const primarySuggestion = details.suggestions.find(
+    (suggestion) => suggestion.description.trim().length > 0,
+  )?.description;
 
-/**
- * Check if an error should be retried based on its characteristics.
- * @param details - ErrorDetails to analyze.
- * @returns True if the error is retryable.
- * @source
- */
-export function isErrorRetryable(details: ErrorDetails): boolean {
-  return details.retryable;
-}
+  if (!primarySuggestion) {
+    return details.userMessage;
+  }
 
-/**
- * Get recovery suggestions for an error.
- * @param details - ErrorDetails from getErrorDetails.
- * @returns Array of RecoverySuggestion objects.
- * @source
- */
-export function getRecoverySuggestions(
-  details: ErrorDetails,
-): RecoverySuggestion[] {
-  return details.suggestions;
+  const normalizedUserMessage = details.userMessage.trim();
+  const normalizedSuggestion = primarySuggestion.trim();
+
+  if (
+    normalizedSuggestion
+      .toLowerCase()
+      .startsWith(normalizedUserMessage.toLowerCase())
+  ) {
+    return normalizedSuggestion;
+  }
+
+  const hasTerminalPunctuation = /[.!?]$/.test(normalizedUserMessage);
+  return `${normalizedUserMessage}${hasTerminalPunctuation ? "" : "."} ${normalizedSuggestion}`;
 }

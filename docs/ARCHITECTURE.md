@@ -1,0 +1,92 @@
+# AniCards architecture
+
+A high-level map of how the application fits together. This document is the durable reference — it won't track every in-flight change, but it should give you a reliable orientation to the core structure.
+
+## Directory layout
+
+AniCards runs on the Next.js App Router. The main directories:
+
+- `app/` — routes, layouts, route handlers, middleware, and metadata
+- `components/` — reusable UI, shells, analytics wrappers, and page-specific building blocks
+- `hooks/` — client hooks for analytics pageview tracking and editor helpers
+- `lib/` — shared runtime logic: card generation, API utilities, persistence, CSP, SEO, and server-side data handling
+- `tests/` — regression coverage
+
+## How requests flow through the app
+
+### HTML routes
+
+Non-API page requests follow this path:
+
+1. `app/middleware.ts` runs first — always.
+2. It creates a per-request CSP nonce and request ID.
+3. The middleware forwards the nonce through the `x-nonce` request header and sets the `Content-Security-Policy` response header.
+4. `app/layout.tsx` reads that nonce via `getRequestNonce()` and passes it to nonce-aware inline scripts, including structured data and analytics bootstrap code.
+5. Client-side analytics and consent UI live in `components/AnalyticsProvider.tsx`.
+
+### API requests
+
+Most route handlers call `initializeApiRequest()` from `lib/api-utils.ts` — that's the centralized point for shared protections. It covers:
+
+- request ID setup
+- privacy-safe request logging
+- shared rate limiting
+- same-origin validation for browser-facing mutation routes
+- shared JSON/text response helpers
+
+Public read routes like `/api/get-user` and `/api/get-cards` deliberately skip same-origin checks so they function as open public APIs. They still apply bounded DTOs, CORS policy, and rate limiting.
+
+## Persistence model
+
+### User snapshots
+
+User data goes to Upstash Redis through `lib/server/user-data.ts` as a split record keyed by stable per-part keys, with a `split-user-v2` commit pointer carrying commit metadata.
+
+Rather than writing a single large JSON blob, AniCards stores broader sections separately:
+
+- `meta`
+- `activity`
+- `favourites`
+- `statistics`
+- `pages`
+- `planning`
+- `current`
+- `rewatched`
+- `completed`
+- `aggregates`
+
+That split lets card rendering and API handlers load only what they actually need, while still allowing the app to reconstruct a bounded public user DTO when needed. The live `user:{id}:{part}` keys are stable; historical state lives in the commit metadata instead.
+
+### Card configuration
+
+Saved editor state is stored separately in `cards:{userId}` records:
+
+- `userId`
+- `cards`
+- optional `globalSettings`
+- `updatedAt`
+
+Both user snapshot and card settings writes support optimistic concurrency through `ifMatchUpdatedAt`.
+
+## External services
+
+- **AniList GraphQL** — upstream source for profile and stats data
+- **Upstash Redis / Ratelimit** — persistence, analytics counters, and rate limiting
+- **Google Analytics** — consent-gated pageview tracking and bounded event telemetry when `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID` is configured
+- **Vercel Analytics / Speed Insights** — consent-gated runtime telemetry on Vercel deployments
+
+## Public API boundaries
+
+The public API contract is documented in `openapi.yaml`.
+
+The current route families:
+
+- public reads: `/api/get-user`, `/api/get-cards`, `/api/card`
+- browser-facing writes: `/api/store-users`, `/api/store-cards`, `/api/anilist`, `/api/error-reports`
+- operator-only cron routes guarded by `x-cron-secret`
+
+## Related docs
+
+- [`SECURITY.md`](./SECURITY.md)
+- [`PRIVACY.md`](./PRIVACY.md)
+- [`../openapi.yaml`](../openapi.yaml)

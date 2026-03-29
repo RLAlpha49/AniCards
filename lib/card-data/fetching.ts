@@ -1,17 +1,19 @@
 import {
-  redisClient,
-  incrementAnalytics,
   buildAnalyticsMetricKey,
+  incrementAnalytics,
+  isRedisBackplaneUnavailable,
+  redisClient,
 } from "@/lib/api-utils";
-import { safeParse } from "@/lib/utils";
-import { UserRecord, CardsRecord } from "@/lib/types/records";
-import { CardDataError } from "./validation";
 import {
   fetchUserDataParts,
+  getPartsForCard,
   reconstructUserRecord,
   UserDataPart,
-  getPartsForCard,
 } from "@/lib/server/user-data";
+import { CardsRecord, UserRecord } from "@/lib/types/records";
+import { safeParse } from "@/lib/utils";
+
+import { CardDataError } from "./validation";
 
 /**
  * Resolves a username to a numeric user ID via the Redis username index.
@@ -63,46 +65,12 @@ export async function fetchUserDataForCard(
   } catch (error) {
     if (error instanceof CardDataError) throw error;
 
-    incrementAnalytics(
-      buildAnalyticsMetricKey("card_svg", "corrupted_user_records"),
-    ).catch(() => {});
-    throw new CardDataError("Server Error: Corrupted user record", 500);
-  }
-}
-
-/**
- * Loads only the user record from Redis for a numeric user ID.
- * This is used when card configuration can be built entirely from URL params.
- * @param numericUserId - Numeric user id stored in Redis key 'user:{id}'.
- * @returns Parsed UserRecord.
- * @throws {CardDataError} If no data exists (404) or parsed data is corrupted (500).
- * @source
- */
-export async function fetchUserDataOnly(
-  numericUserId: number,
-): Promise<UserRecord> {
-  try {
-    const allParts: UserDataPart[] = [
-      "meta",
-      "activity",
-      "favourites",
-      "statistics",
-      "pages",
-      "planning",
-      "current",
-      "rewatched",
-      "completed",
-      "aggregates",
-    ];
-    const userDataParts = await fetchUserDataParts(numericUserId, allParts);
-
-    if (!userDataParts.meta) {
-      throw new CardDataError("Not Found: User data not found", 404);
+    if (isRedisBackplaneUnavailable(error)) {
+      throw new CardDataError(
+        "Server Error: User data is temporarily unavailable",
+        503,
+      );
     }
-
-    return reconstructUserRecord(userDataParts);
-  } catch (error) {
-    if (error instanceof CardDataError) throw error;
 
     incrementAnalytics(
       buildAnalyticsMetricKey("card_svg", "corrupted_user_records"),
@@ -138,21 +106,49 @@ export async function fetchUserData(
         "completed",
       ] as UserDataPart[]);
 
-  // Fetch cards data first - if this fails with a Redis error, let it bubble up
-  // to generate a generic "Internal Error" response as expected by tests.
-  const cardsDataStr = await redisClient.get(`cards:${numericUserId}`);
+  const [cardsDataResult, userDataPartsResult] = await Promise.all([
+    redisClient.get(`cards:${numericUserId}`).then(
+      (value) => ({ ok: true as const, value }),
+      (error) => ({ ok: false as const, error }),
+    ),
+    fetchUserDataParts(numericUserId, parts).then(
+      (value) => ({ ok: true as const, value }),
+      (error) => ({ ok: false as const, error }),
+    ),
+  ]);
 
-  let userDataParts: Partial<Record<UserDataPart, unknown>>;
-  try {
-    userDataParts = await fetchUserDataParts(numericUserId, parts);
-  } catch (error) {
+  if (!cardsDataResult.ok) {
+    const { error } = cardsDataResult;
+    if (isRedisBackplaneUnavailable(error)) {
+      throw new CardDataError(
+        "Server Error: Card data is temporarily unavailable",
+        503,
+      );
+    }
+
+    throw error;
+  }
+
+  const cardsDataStr = cardsDataResult.value;
+
+  if (!userDataPartsResult.ok) {
+    const { error } = userDataPartsResult;
     if (error instanceof CardDataError) throw error;
+
+    if (isRedisBackplaneUnavailable(error)) {
+      throw new CardDataError(
+        "Server Error: User data is temporarily unavailable",
+        503,
+      );
+    }
 
     incrementAnalytics(
       buildAnalyticsMetricKey("card_svg", "corrupted_user_records"),
     ).catch(() => {});
     throw new CardDataError("Server Error: Corrupted user record", 500);
   }
+
+  const userDataParts = userDataPartsResult.value;
 
   if (!cardsDataStr || cardsDataStr === "null" || !userDataParts.meta) {
     throw new CardDataError("Not Found: User data not found", 404);

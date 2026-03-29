@@ -1,5 +1,12 @@
 import type { Metadata } from "next";
 
+import {
+  buildCanonicalUrl,
+  getSiteUrlObject,
+  resolveSiteUrl,
+  SITE_NAME,
+} from "@/lib/site-config";
+
 /**
  * Configuration object used to generate SEO metadata for pages.
  * @source
@@ -18,15 +25,97 @@ interface SEOConfig {
     title?: string;
     description?: string;
     images?: string[];
+    card?: "summary" | "summary_large_image";
   };
   canonical?: string;
+  robots?: Metadata["robots"];
 }
 
-/** Base site URL used when canonical links or OpenGraph urls are not provided. @source */
-const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL || "https://anicards.alpha49.com";
-/** Canonical site name used across generated metadata. @source */
-const SITE_NAME = "AniCards";
+export type SEOPageKey = keyof typeof seoConfigs;
+export type SearchParamValue = string | string[] | undefined;
+export type StaticSitemapChangeFrequency =
+  | "daily"
+  | "weekly"
+  | "monthly"
+  | "yearly";
+
+const DEFAULT_ROBOTS: Metadata["robots"] = {
+  index: true,
+  follow: true,
+  googleBot: {
+    index: true,
+    follow: true,
+    "max-video-preview": -1,
+    "max-image-preview": "large",
+    "max-snippet": -1,
+  },
+};
+
+export const NOINDEX_ROBOTS: Metadata["robots"] = {
+  index: false,
+  follow: true,
+  googleBot: {
+    index: false,
+    follow: true,
+    "max-video-preview": -1,
+    "max-image-preview": "large",
+    "max-snippet": -1,
+  },
+};
+
+const DEFAULT_SOCIAL_PREVIEW_CARD_QUERY = {
+  cardType: "animeStats",
+  userId: "542244",
+  variation: "compact",
+  colorPreset: "anicardsDarkGradient",
+} as const;
+
+const DEFAULT_TWITTER_CARD = "summary_large_image" as const;
+
+function resolveSocialPreviewImages(images?: readonly string[]): string[] {
+  const normalizedImages = (
+    images?.length ? [...images] : [getDefaultSocialPreviewImage()]
+  ).map(resolveSiteUrl);
+
+  return normalizedImages.length
+    ? normalizedImages
+    : [getDefaultSocialPreviewImage()];
+}
+
+export function getDefaultSocialPreviewImage(): string {
+  return buildCanonicalUrl("/card.svg", DEFAULT_SOCIAL_PREVIEW_CARD_QUERY);
+}
+
+export function getDefaultSocialPreviewImages(): string[] {
+  return [getDefaultSocialPreviewImage()];
+}
+
+export function buildUserSocialPreviewImage(params: {
+  username?: string;
+  userId?: string;
+}): string | undefined {
+  const normalizedUsername = params.username?.trim();
+  const normalizedUserId = params.userId?.trim();
+
+  if (!normalizedUsername && !normalizedUserId) {
+    return undefined;
+  }
+
+  return buildCanonicalUrl("/card.svg", {
+    cardType: "profileOverview",
+    colorPreset: "anilistDark",
+    ...(normalizedUsername
+      ? { username: normalizedUsername }
+      : { userId: normalizedUserId }),
+  });
+}
+
+function getSearchParamValue(value: SearchParamValue): string | undefined {
+  const normalizedValue = Array.isArray(value) ? value[0] : value;
+  const trimmedValue = normalizedValue?.trim();
+
+  return trimmedValue || undefined;
+}
 
 /**
  * Generate a Next.js-compatible Metadata object from a lightweight
@@ -42,49 +131,61 @@ export function generateMetadata(config: SEOConfig): Metadata {
     description,
     keywords = [],
     openGraph = {},
+    twitter = {},
     canonical,
+    robots,
   } = config;
+  const canonicalReference = canonical?.trim();
+  const canonicalUrl = canonicalReference
+    ? resolveSiteUrl(canonicalReference)
+    : undefined;
+  const openGraphImages = resolveSocialPreviewImages(openGraph.images);
+  const twitterImages = resolveSocialPreviewImages(
+    twitter.images ?? openGraph.images,
+  );
 
   const fullTitle = title.includes(SITE_NAME)
     ? title
     : `${title} | ${SITE_NAME}`;
 
-  return {
+  const metadata: Metadata = {
+    metadataBase: getSiteUrlObject(),
     title: fullTitle,
     description,
-    keywords: keywords.join(", "),
+    keywords,
 
     // Open Graph (Facebook, LinkedIn, etc.)
     openGraph: {
       title: openGraph.title || fullTitle,
       description: openGraph.description || description,
-      url: canonical || SITE_URL,
       siteName: SITE_NAME,
-      type: (openGraph.type as "website" | "article") || "website",
+      type: (openGraph.type as "article" | "profile" | "website") || "website",
       locale: "en_US",
+      images: openGraphImages,
+      ...(canonicalUrl ? { url: canonicalUrl } : {}),
+    },
+
+    twitter: {
+      card: twitter.card ?? DEFAULT_TWITTER_CARD,
+      title: twitter.title || openGraph.title || fullTitle,
+      description: twitter.description || openGraph.description || description,
+      images: twitterImages,
     },
 
     // Additional SEO
-    robots: {
-      index: true,
-      follow: true,
-      googleBot: {
-        index: true,
-        follow: true,
-        "max-video-preview": -1,
-        "max-image-preview": "large",
-        "max-snippet": -1,
-      },
-    },
-
-    // Canonical URL
-    alternates: {
-      canonical: canonical || SITE_URL,
-    },
+    robots: robots ?? DEFAULT_ROBOTS,
 
     // Additional metadata
     category: "Technology",
   };
+
+  if (canonicalReference) {
+    metadata.alternates = {
+      canonical: canonicalReference,
+    };
+  }
+
+  return metadata;
 }
 
 /** Canonical SEO configurations for static app pages. @source */
@@ -119,7 +220,7 @@ export const seoConfigs = {
       "anime dashboard",
       "weeb stats",
     ],
-    canonical: SITE_URL,
+    canonical: "/",
   },
 
   search: {
@@ -134,7 +235,7 @@ export const seoConfigs = {
       "anilist lookup",
       "user statistics",
     ],
-    canonical: `${SITE_URL}/search`,
+    canonical: "/search",
   },
 
   examples: {
@@ -152,7 +253,7 @@ export const seoConfigs = {
       "anilist card gallery",
       "anime cards showcase",
     ],
-    canonical: `${SITE_URL}/examples`,
+    canonical: "/examples",
   },
 
   contact: {
@@ -160,7 +261,7 @@ export const seoConfigs = {
     description:
       "Get in touch with the AniCards team. Find our social media links, GitHub repository, and contact information for support or feedback.",
     keywords: ["contact", "support", "feedback", "github", "social media"],
-    canonical: `${SITE_URL}/contact`,
+    canonical: "/contact",
   },
 
   projects: {
@@ -175,29 +276,21 @@ export const seoConfigs = {
       "anilist utilities",
       "anime applications",
     ],
-    canonical: `${SITE_URL}/projects`,
+    canonical: "/projects",
   },
 
-  settings: {
-    title: "Settings - AniCards",
+  privacy: {
+    title: "Privacy Disclosure - AniCards",
     description:
-      "Customize your AniCards experience. Adjust theme preferences, sidebar behavior, and default card settings to personalize your stat card generation.",
+      "Read AniCards' plain-language summary of analytics consent, saved data, telemetry minimization, and current retention limits.",
     keywords: [
-      "settings",
-      "preferences",
-      "customization",
-      "theme",
-      "configuration",
+      "privacy disclosure",
+      "analytics consent",
+      "data retention",
+      "telemetry",
+      "saved data",
     ],
-    canonical: `${SITE_URL}/settings`,
-  },
-
-  license: {
-    title: "License - AniCards",
-    description:
-      "View the MIT license for AniCards. Learn about the terms and conditions for using and contributing to this open-source project.",
-    keywords: ["license", "MIT", "open source", "terms", "legal"],
-    canonical: `${SITE_URL}/license`,
+    canonical: "/privacy",
   },
 
   user: {
@@ -213,55 +306,190 @@ export const seoConfigs = {
       "download cards",
       "custom colors",
     ],
-    canonical: `${SITE_URL}/user`,
+    canonical: "/user",
   },
+} as const satisfies Record<string, SEOConfig>;
+
+type StaticSitemapEntryDef = {
+  seoKey: Exclude<SEOPageKey, "user">;
+  priority: number;
+  changefreq: StaticSitemapChangeFrequency;
 };
 
+const staticSitemapEntryDefs = [
+  {
+    seoKey: "home",
+    priority: 1,
+    changefreq: "daily",
+  },
+  {
+    seoKey: "search",
+    priority: 0.9,
+    changefreq: "weekly",
+  },
+  {
+    seoKey: "examples",
+    priority: 0.85,
+    changefreq: "weekly",
+  },
+  {
+    seoKey: "projects",
+    priority: 0.6,
+    changefreq: "monthly",
+  },
+  {
+    seoKey: "privacy",
+    priority: 0.55,
+    changefreq: "yearly",
+  },
+  {
+    seoKey: "contact",
+    priority: 0.6,
+    changefreq: "yearly",
+  },
+] as const satisfies readonly StaticSitemapEntryDef[];
+
+export function getStaticSitemapEntries() {
+  return staticSitemapEntryDefs.map((entry) => ({
+    ...entry,
+    path: seoConfigs[entry.seoKey].canonical ?? "/",
+  }));
+}
+
+export function getUserProfilePath(username: string): string {
+  return `/user/${encodeURIComponent(username.trim())}`;
+}
+
+function createUserSeoConfig(params: {
+  canonical?: string;
+  description: string;
+  keywords: string[];
+  previewImage?: string;
+  robots?: Metadata["robots"];
+  title: string;
+}): SEOConfig {
+  return {
+    title: params.title,
+    description: params.description,
+    keywords: params.keywords,
+    ...(params.canonical ? { canonical: params.canonical } : {}),
+    openGraph: {
+      ...(params.previewImage ? { images: [params.previewImage] } : {}),
+      type: "profile",
+    },
+    ...(params.previewImage
+      ? {
+          twitter: {
+            images: [params.previewImage],
+          },
+        }
+      : {}),
+    ...(params.robots ? { robots: params.robots } : {}),
+  };
+}
+
+function hasUserPageStatefulParams({
+  q,
+  visibility,
+  group,
+}: {
+  q?: SearchParamValue;
+  visibility?: SearchParamValue;
+  group?: SearchParamValue;
+}): boolean {
+  const normalizedQuery = getSearchParamValue(q);
+  const normalizedVisibility = getSearchParamValue(visibility);
+  const normalizedGroup = getSearchParamValue(group);
+
+  return Boolean(
+    normalizedQuery ||
+    (normalizedVisibility && normalizedVisibility !== "all") ||
+    (normalizedGroup && normalizedGroup !== "All"),
+  );
+}
+
 /**
- * Dynamically updates the current document's metadata like title,
- * description, keywords, and canonical link for client components.
- * This function performs DOM operations only when `document` is available.
- * @param pageKey - Key of the page in the `seoConfigs` map.
- * @source
+ * Returns a canonical SEO configuration for the user page based on resolved search params.
  */
-export function updatePageTitle(pageKey: keyof typeof seoConfigs) {
-  const config = seoConfigs[pageKey];
-  if (typeof document !== "undefined") {
-    document.title = config.title.includes(SITE_NAME)
-      ? config.title
-      : `${config.title} | ${SITE_NAME}`;
+export function getUserPageSEOConfig({
+  username,
+  userId,
+  q,
+  visibility,
+  group,
+  routeType = "lookup",
+}: {
+  username?: SearchParamValue;
+  userId?: SearchParamValue;
+  q?: SearchParamValue;
+  visibility?: SearchParamValue;
+  group?: SearchParamValue;
+  routeType?: "lookup" | "profile";
+}): SEOConfig {
+  const normalizedUsername = getSearchParamValue(username);
+  const normalizedUserId = getSearchParamValue(userId);
+  const profilePreviewImage = buildUserSocialPreviewImage({
+    username: normalizedUsername,
+    userId: normalizedUserId,
+  });
+  const shouldNoIndex =
+    routeType === "lookup" ||
+    hasUserPageStatefulParams({ q, visibility, group });
+  const robots = shouldNoIndex ? NOINDEX_ROBOTS : undefined;
 
-    // Update meta description
-    const metaDescription = document.querySelector('meta[name="description"]');
-    if (metaDescription) {
-      metaDescription.setAttribute("content", config.description);
-    } else {
-      const meta = document.createElement("meta");
-      meta.name = "description";
-      meta.content = config.description;
-      document.head.appendChild(meta);
-    }
-
-    // Update meta keywords
-    const metaKeywords = document.querySelector('meta[name="keywords"]');
-    if (metaKeywords) {
-      metaKeywords.setAttribute("content", config.keywords?.join(", ") || "");
-    } else if (config.keywords) {
-      const meta = document.createElement("meta");
-      meta.name = "keywords";
-      meta.content = config.keywords.join(", ");
-      document.head.appendChild(meta);
-    }
-
-    // Update canonical URL
-    let canonical = document.querySelector('link[rel="canonical"]');
-    if (canonical) {
-      canonical.setAttribute("href", config.canonical || SITE_URL);
-    } else {
-      canonical = document.createElement("link");
-      canonical.setAttribute("rel", "canonical");
-      canonical.setAttribute("href", config.canonical || SITE_URL);
-      document.head.appendChild(canonical);
-    }
+  if (routeType === "lookup" && normalizedUserId) {
+    return createUserSeoConfig({
+      title: `AniList User ${normalizedUserId} Stats - AniCards`,
+      description: `View anime and manga statistics for AniList user ${normalizedUserId}. Generate and download beautiful stat cards showcasing viewing habits, preferences, and achievements.`,
+      keywords: [
+        `anilist user ${normalizedUserId}`,
+        "anilist user stats",
+        "anime statistics",
+        "manga statistics",
+        "stat cards",
+      ],
+      robots,
+      previewImage: profilePreviewImage,
+    });
   }
+
+  if (normalizedUsername) {
+    return createUserSeoConfig({
+      title: `${normalizedUsername}'s AniList Stats - AniCards`,
+      description: `View ${normalizedUsername}'s anime and manga statistics from AniList. Generate and download beautiful stat cards showcasing their viewing habits, preferences, and achievements.`,
+      keywords: [
+        `${normalizedUsername} anilist`,
+        `${normalizedUsername} anime stats`,
+        `${normalizedUsername} manga stats`,
+        "anilist profile",
+        "anime statistics",
+        "manga statistics",
+        "stat cards",
+      ],
+      canonical: getUserProfilePath(normalizedUsername),
+      robots,
+      previewImage: profilePreviewImage,
+    });
+  }
+
+  if (normalizedUserId) {
+    return createUserSeoConfig({
+      title: `AniList User ${normalizedUserId} Stats - AniCards`,
+      description: `View anime and manga statistics for AniList user ${normalizedUserId}. Generate and download beautiful stat cards showcasing viewing habits, preferences, and achievements.`,
+      keywords: [
+        `anilist user ${normalizedUserId}`,
+        "anilist user stats",
+        "anime statistics",
+        "manga statistics",
+        "stat cards",
+      ],
+      robots,
+      previewImage: profilePreviewImage,
+    });
+  }
+
+  return {
+    ...seoConfigs.user,
+    robots,
+  };
 }

@@ -1,18 +1,27 @@
 import type { NextResponse } from "next/server";
-import { UserRecord } from "@/lib/types/records";
-import { validateAndNormalizeUserRecord } from "@/lib/card-data";
-import { saveUserRecord, fetchUserDataParts } from "@/lib/server/user-data";
+
 import {
-  incrementAnalytics,
-  handleError,
+  apiErrorResponse,
   apiJsonHeaders,
-  logSuccess,
-  redisClient,
-  initializeApiRequest,
-  validateUserData,
   buildAnalyticsMetricKey,
+  buildPersistedRequestMetadata,
+  handleError,
+  incrementAnalytics,
+  initializeApiRequest,
   jsonWithCors,
+  logPrivacySafe,
+  logSuccess,
+  readJsonRequestBody,
+  scheduleTelemetryTask,
+  validateUserData,
 } from "@/lib/api-utils";
+import { validateAndNormalizeUserRecord } from "@/lib/card-data";
+import {
+  getPersistedUserState,
+  saveUserRecord,
+  UserDataIntegrityError,
+} from "@/lib/server/user-data";
+import { PersistedUserRecord, UserRecord } from "@/lib/types/records";
 
 /**
  * Persists or updates a user record in Redis while keeping analytics and the username index aligned.
@@ -31,71 +40,152 @@ export async function POST(request: Request): Promise<NextResponse> {
   const { startTime, ip, endpoint, endpointKey } = init;
 
   try {
-    const data = await request.json();
-    console.log(
-      `📝 [${endpoint}] Processing user ${data.userId} (${data.username || "no username"})`,
+    const bodyResult = await readJsonRequestBody<Record<string, unknown>>(
+      request,
+      {
+        endpointName: endpoint,
+        endpointKey,
+      },
     );
+    if (!bodyResult.success) return bodyResult.errorResponse;
 
-    // Validate incoming data
-    const validationError = validateUserData(
-      data as Record<string, unknown>,
+    const data = bodyResult.data;
+
+    logPrivacySafe(
+      "log",
       endpoint,
+      "Processing store-users payload",
+      {
+        userId: data.userId,
+        username: data.username,
+      },
       request,
     );
-    if (validationError) {
-      await incrementAnalytics(
-        buildAnalyticsMetricKey(endpointKey, "failed_requests"),
-      );
-      return validationError;
+
+    const validationResult = validateUserData(data, endpoint, request);
+    if (!validationResult.success) {
+      const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
+      scheduleTelemetryTask(() => incrementAnalytics(metric), {
+        endpoint,
+        taskName: metric,
+        request,
+      });
+      return validationResult.error;
     }
 
-    let createdAt = new Date().toISOString();
+    const { userId, username, stats, ifMatchUpdatedAt } = validationResult.data;
+    const requestMetadata = buildPersistedRequestMetadata(ip);
 
-    const partsData = await fetchUserDataParts(data.userId, ["meta"]);
-    if (partsData.meta) {
-      const meta = partsData.meta as Record<string, unknown>;
-      createdAt = (meta.createdAt as string) || createdAt;
+    const now = new Date().toISOString();
+    let createdAt = now;
+
+    let existingState;
+    try {
+      existingState = await getPersistedUserState(userId);
+    } catch (error) {
+      if (error instanceof UserDataIntegrityError) {
+        logPrivacySafe(
+          "warn",
+          endpoint,
+          "Ignoring corrupt persisted user state during overwrite",
+          {
+            userId,
+            error: error.message,
+          },
+          request,
+        );
+      } else {
+        throw error;
+      }
+    }
+
+    if (existingState?.createdAt) {
+      createdAt = existingState.createdAt;
+    }
+
+    if (
+      ifMatchUpdatedAt &&
+      existingState?.updatedAt &&
+      existingState.updatedAt !== ifMatchUpdatedAt
+    ) {
+      const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
+      scheduleTelemetryTask(() => incrementAnalytics(metric), {
+        endpoint,
+        taskName: metric,
+        request,
+      });
+      return apiErrorResponse(
+        request,
+        409,
+        "Conflict: data was updated elsewhere. Please reload and try again.",
+        {
+          category: "invalid_data",
+          retryable: false,
+          additionalFields: {
+            currentUpdatedAt: existingState.updatedAt,
+          },
+        },
+      );
     }
 
     const userData: UserRecord = {
-      userId: data.userId,
-      username: data.username,
-      stats: data.stats,
-      ip,
+      userId: String(userId),
+      username,
+      stats: stats as unknown as UserRecord["stats"],
+      ...(requestMetadata ? { requestMetadata } : {}),
       createdAt,
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
     };
 
-    // Normalize and prune data before saving to Redis
     const normalizationResult = validateAndNormalizeUserRecord(userData);
     const finalUserData =
       "normalized" in normalizationResult
         ? normalizationResult.normalized
         : userData;
+    const persistedRequestMetadata =
+      finalUserData.requestMetadata ?? requestMetadata;
 
-    console.log(
-      `📝 [${endpoint}] Saving user data to Redis in split format for userId: ${data.userId}`,
+    const persistedUserData: PersistedUserRecord = {
+      userId: finalUserData.userId,
+      username: finalUserData.username,
+      stats: finalUserData.stats,
+      createdAt: finalUserData.createdAt,
+      updatedAt: finalUserData.updatedAt,
+      ...(finalUserData.aggregates
+        ? { aggregates: finalUserData.aggregates }
+        : {}),
+      ...(persistedRequestMetadata
+        ? { requestMetadata: persistedRequestMetadata }
+        : {}),
+    };
+
+    logPrivacySafe(
+      "log",
+      endpoint,
+      "Saving user data to split Redis record",
+      {
+        userId,
+      },
+      request,
     );
 
-    await saveUserRecord(finalUserData);
-
-    // Create/update the username index if a username is provided.
-    if (data.username) {
-      const normalizedUsername = data.username.trim().toLowerCase();
-      const usernameIndexKey = `username:${normalizedUsername}`;
-      console.log(
-        `📝 [${endpoint}] Updating username index for: ${normalizedUsername}`,
-      );
-      await redisClient.set(usernameIndexKey, data.userId.toString());
-    }
+    const saveResult = await saveUserRecord(persistedUserData, {
+      existingState: existingState ?? undefined,
+    });
 
     const duration = Date.now() - startTime;
-    logSuccess(endpoint, data.userId, duration);
-    await incrementAnalytics(
-      buildAnalyticsMetricKey(endpointKey, "successful_requests"),
-    );
+    logSuccess(endpoint, userId, duration, undefined, request);
+    const metric = buildAnalyticsMetricKey(endpointKey, "successful_requests");
+    scheduleTelemetryTask(() => incrementAnalytics(metric), {
+      endpoint,
+      taskName: metric,
+      request,
+    });
 
-    return jsonWithCors({ success: true, userId: data.userId }, request);
+    return jsonWithCors(
+      { success: true, userId, updatedAt: saveResult.updatedAt },
+      request,
+    );
   } catch (error) {
     return handleError(
       error as Error,
@@ -104,6 +194,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       buildAnalyticsMetricKey(endpointKey, "failed_requests"),
       "User storage failed",
       request,
+      {
+        redisUnavailableMessage: "User storage is temporarily unavailable",
+      },
     );
   }
 }

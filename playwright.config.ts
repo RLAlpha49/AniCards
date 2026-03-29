@@ -1,18 +1,36 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+const automationBypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+const playwrightArtifactsDir = "./.artifacts";
+const shouldLaunchLocalServer = !process.env.PLAYWRIGHT_BASE_URL;
+const extraHTTPHeaders = automationBypassSecret
+  ? {
+      "x-vercel-protection-bypass": automationBypassSecret,
+      "x-vercel-set-bypass-cookie": "true",
+    }
+  : undefined;
+
 export default defineConfig({
   testDir: "./tests/e2e",
-  outputDir: "./tests/e2e/test-results",
+  outputDir: `${playwrightArtifactsDir}/playwright-test-results`,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? "50%" : 5,
   reporter: [
     ["list"],
-    ["html", { outputFolder: "./tests/e2e/playwright-report", open: "never" }],
+    [
+      "html",
+      {
+        outputFolder: `${playwrightArtifactsDir}/playwright-report`,
+        open: "never",
+      },
+    ],
   ],
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000",
+    baseURL,
+    extraHTTPHeaders,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "on-first-retry",
@@ -31,10 +49,12 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
-    command: process.env.CI ? "bun run build && bun run start" : "bun run dev",
-    url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
-  },
+  webServer: shouldLaunchLocalServer
+    ? {
+        command: process.env.CI ? "bun run start" : "bun run dev",
+        url: baseURL,
+        reuseExistingServer: !process.env.CI,
+        timeout: 120 * 1000,
+      }
+    : undefined,
 });

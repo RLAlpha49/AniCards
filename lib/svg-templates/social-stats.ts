@@ -1,5 +1,3 @@
-import { SocialStats, ColorValue } from "@/lib/types/card";
-import type { TrustedSVG } from "@/lib/types/svg";
 import {
   ANIMATION,
   POSITIONING,
@@ -7,13 +5,15 @@ import {
   TYPOGRAPHY,
 } from "@/lib/svg-templates/common/constants";
 import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
+import { ColorValue, SocialStats } from "@/lib/types/card";
+import type { TrustedSVG } from "@/lib/types/svg";
 
 import {
   calculateDynamicFontSize,
-  processColorsForSVG,
-  getCardBorderRadius,
   escapeForXml,
+  getCardBorderRadius,
   markTrustedSvg,
+  processColorsForSVG,
 } from "../utils";
 
 /**
@@ -38,7 +38,6 @@ export const socialStatsTemplate = (data: {
   stats: SocialStats;
   activityHistory?: { date: number; amount: number }[];
 }): TrustedSVG => {
-  // Process colors for gradient support
   const { gradientDefs, resolvedColors } = processColorsForSVG(
     {
       titleColor: data.styles.titleColor,
@@ -81,12 +80,10 @@ export const socialStatsTemplate = (data: {
     data.stats.threadCommentsPage?.pageInfo?.total,
   );
   const reviews = toSafeInt(data.stats.reviewsPage?.pageInfo?.total);
-  // Calculate total activity amount
   const totalActivity = activityHistory.length
     ? activityHistory.reduce((acc, curr) => acc + curr.amount, 0)
     : 0;
 
-  // Calculate the number of days between the earliest and latest activity
   const dates = activityHistory.map((entry) => entry.date * 1000);
   let earliestDate = 0;
   let latestDate = 0;

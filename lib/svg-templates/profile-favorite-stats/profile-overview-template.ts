@@ -1,11 +1,11 @@
-import type { TrustedSVG } from "@/lib/types/svg";
-import type { UserAvatar, UserStatistics } from "@/lib/types/records";
 import {
   ANIMATION,
   PROFILE,
   TYPOGRAPHY,
 } from "@/lib/svg-templates/common/constants";
 import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
+import type { UserAvatar, UserStatistics } from "@/lib/types/records";
+import type { TrustedSVG } from "@/lib/types/svg";
 import {
   calculateDynamicFontSize,
   escapeForXml,
@@ -14,9 +14,10 @@ import {
   processColorsForSVG,
   toFiniteNumber,
 } from "@/lib/utils";
-import { type TemplateStyles } from "./shared";
-import { generateCommonStyles } from "../common/style-generators";
+
 import { generateCardBackground } from "../common/base-template-utils";
+import { generateCommonStyles } from "../common/style-generators";
+import { type TemplateStyles } from "./shared";
 
 /**
  * Renders the Profile Overview card showing avatar, display name, and high-level
@@ -54,13 +55,11 @@ export const profileOverviewTemplate = (data: {
   const animeStats = data.statistics.anime;
   const mangaStats = data.statistics.manga;
 
-  // Calculate days watched from minutes
   const daysWatched = Math.round(
     (toFiniteNumber(animeStats.minutesWatched, { fallback: 0 }) ?? 0) /
       (60 * 24),
   );
 
-  // Calculate years active if createdAt is available
   const yearsActive = data.createdAt
     ? Math.max(
         1,
@@ -109,10 +108,7 @@ export const profileOverviewTemplate = (data: {
   </desc>
 
   <style>
-    ${generateCommonStyles(
-      resolvedColors,
-      Number.parseFloat(calculateDynamicFontSize(title)),
-    )}
+    ${generateCommonStyles(resolvedColors, Number.parseFloat(calculateDynamicFontSize(title)))}
 
     .username {
       fill: ${resolvedColors.titleColor};
@@ -127,7 +123,6 @@ export const profileOverviewTemplate = (data: {
   ${generateCardBackground(dims, cardRadius, resolvedColors)}
 
   ${(() => {
-    // Default variant
     return `
       <g data-testid="card-title" transform="translate(100, 45)">
         <text x="0" y="0" class="header">${safeUsername}</text>

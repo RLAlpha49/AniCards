@@ -1,0 +1,130 @@
+name: Deployed Vercel Smoke
+
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+
+jobs:
+  deployed-smoke:
+    if: ${{ github.event.deployment_status.state == 'success' }}
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    env:
+      DEFAULT_BASE_URL: https://anicards.alpha49.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: |
+          VERSION=$(node -p "const version = require('./package.json').devDependencies['@playwright/test']; if (!version) throw new Error('Missing @playwright/test devDependency'); version.replace(/^[^0-9]*/, '')")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Bun deps & node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            ~/.bun
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright browsers and system dependencies
+        run: bunx playwright install --with-deps
+
+      - name: Resolve deployed Vercel URL
+        env:
+          DEPLOYMENT_URL: ${{ github.event.deployment_status.environment_url }}
+          TARGET_URL: ${{ github.event.deployment_status.target_url }}
+        run: |
+          set -euo pipefail
+
+          candidate="${DEPLOYMENT_URL:-${TARGET_URL:-$DEFAULT_BASE_URL}}"
+
+          case "$candidate" in
+            http://*|https://*) ;;
+            *)
+              echo "[ERROR] Deployment URL must use http(s): $candidate"
+              exit 1
+              ;;
+          esac
+
+          host="${candidate#http://}"
+          host="${host#https://}"
+          host="${host%%/*}"
+
+          if [[ "$host" != "anicards.alpha49.com" && "$host" != *.vercel.app ]]; then
+            echo "[ERROR] Refusing unexpected deployment host: $host"
+            exit 1
+          fi
+
+          echo "PLAYWRIGHT_BASE_URL=$candidate" >> "$GITHUB_ENV"
+          echo "[INFO] Using deployed smoke URL: $candidate"
+
+      - name: Wait for deployed Vercel URL
+        env:
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          set -euo pipefail
+
+          curl_headers=()
+          if [[ -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]]; then
+            curl_headers=(
+              -H "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}"
+              -H "x-vercel-set-bypass-cookie: true"
+            )
+          fi
+
+          for attempt in {1..5}; do
+            if curl --fail --silent --show-error "${curl_headers[@]}" "$PLAYWRIGHT_BASE_URL" > /dev/null; then
+              echo "[INFO] Deployed target is reachable: $PLAYWRIGHT_BASE_URL"
+              exit 0
+            fi
+
+            echo "[INFO] Waiting for deployed target ($attempt/5): $PLAYWRIGHT_BASE_URL"
+            sleep 15
+          done
+
+          if [[ -z "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]]; then
+            echo "[ERROR] Timed out waiting for deployed target. If this preview is protected, configure VERCEL_AUTOMATION_BYPASS_SECRET in GitHub secrets to bypass Vercel deployment protection."
+          fi
+
+          echo "[ERROR] Timed out waiting for deployed target: $PLAYWRIGHT_BASE_URL"
+          exit 1
+
+      - name: Run deployed smoke tests (Chromium)
+        id: playwright_deployed
+        env:
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: bun run test:e2e:deployed-smoke -- --project=chromium
+
+      - name: Upload Playwright artifacts (Deployed Smoke)
+        if: ${{ always() && steps.playwright_deployed.outcome == 'failure' }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: playwright-report-deployed-smoke
+          path: |
+            .artifacts/playwright-report
+            .artifacts/playwright-test-results
+          if-no-files-found: ignore
+          retention-days: 7

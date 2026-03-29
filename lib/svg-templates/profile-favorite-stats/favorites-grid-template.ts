@@ -1,5 +1,5 @@
-import type { TrustedSVG } from "../../types/svg";
 import type { UserFavourites } from "../../types/records";
+import type { TrustedSVG } from "../../types/svg";
 import {
   calculateDynamicFontSize,
   escapeForXml,
@@ -7,10 +7,10 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "../../utils";
-import { getVariantLabel, type TemplateStyles } from "./shared";
-import { generateCommonStyles } from "../common/style-generators";
 import { generateCardBackground } from "../common/base-template-utils";
 import { ANIMATION, TYPOGRAPHY } from "../common/constants";
+import { generateCommonStyles } from "../common/style-generators";
+import { getVariantLabel, type TemplateStyles } from "./shared";
 
 /**
  * Renders the Favourites Grid card - displays the user's favourite anime, manga,
@@ -197,7 +197,6 @@ export const favoritesGridTemplate = (data: {
   } else if (variant === "studios") {
     gridItems = buildStudioItems().slice(0, gridCapacity);
   } else {
-    // mixed
     gridItems = takeInterleavedMixed(
       buildAnimeItems(),
       buildMangaItems(),
@@ -251,16 +250,11 @@ export const favoritesGridTemplate = (data: {
   ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
   <title id="title-id">${safeTitle}</title>
   <desc id="desc-id">
-    ${escapeForXml(
-      `${variantLabel}: ${gridItems.map((item) => item.name).join(", ") || "None"}.`,
-    )}
+    ${escapeForXml(`${variantLabel}: ${gridItems.map((item) => item.name).join(", ") || "None"}.`)}
   </desc>
 
   <style>
-    ${generateCommonStyles(
-      resolvedColors,
-      Number.parseFloat(calculateDynamicFontSize(title)),
-    )}
+    ${generateCommonStyles(resolvedColors, Number.parseFloat(calculateDynamicFontSize(title)))}
 
     .item-name {
       fill: ${resolvedColors.textColor};
@@ -327,11 +321,7 @@ export const favoritesGridTemplate = (data: {
                     font-family="'Segoe UI', Ubuntu, Sans-Serif">${escapeForXml(initials)}</text>
             </a>
             <text class="item-name" style="font-size:${TYPOGRAPHY.LARGE_TEXT_SIZE}px" x="0" y="${cellHeight - 3}">
-              ${escapeForXml(
-                item.name.length > 15
-                  ? item.name.substring(0, 15) + "…"
-                  : item.name,
-              )}
+              ${escapeForXml(item.name.length > 15 ? item.name.substring(0, 15) + "…" : item.name)}
             </text>
           </g>
         `;
@@ -359,11 +349,7 @@ export const favoritesGridTemplate = (data: {
             `
             }
             <text class="item-name" style="font-size:${TYPOGRAPHY.LARGE_TEXT_SIZE}px" x="0" y="${cellHeight - 3}">
-              ${escapeForXml(
-                item.name.length > 15
-                  ? item.name.substring(0, 15) + "…"
-                  : item.name,
-              )}
+              ${escapeForXml(item.name.length > 15 ? item.name.substring(0, 15) + "…" : item.name)}
             </text>
           </g>
         `;

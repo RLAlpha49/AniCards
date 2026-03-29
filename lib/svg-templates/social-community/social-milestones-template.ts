@@ -1,8 +1,5 @@
 import type { ColorValue } from "../../types/card";
 import type { TrustedSVG } from "../../types/svg";
-import { MILESTONES } from "../common/constants";
-import { getCardDimensions } from "../common/dimensions";
-import { toSvgIdFragment } from "../completion-progress-stats/shared";
 import {
   calculateDynamicFontSize,
   escapeForXml,
@@ -10,6 +7,9 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "../../utils";
+import { MILESTONES } from "../common/constants";
+import { getCardDimensions } from "../common/dimensions";
+import { toSvgIdFragment } from "../completion-progress-stats/shared";
 
 interface SocialMilestonesTemplateInput {
   username: string;

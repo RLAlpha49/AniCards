@@ -1,5 +1,5 @@
-import type { StyleOptions } from "@/lib/svg-templates/common/types";
 import { TYPOGRAPHY } from "@/lib/svg-templates/common/constants";
+import type { StyleOptions } from "@/lib/svg-templates/common/types";
 
 export function generateFadeInKeyframes(): string {
   return `

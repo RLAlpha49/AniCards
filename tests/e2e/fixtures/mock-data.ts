@@ -1,15 +1,11 @@
 import type {
-  UserRecord,
-  CardsRecord,
-  UserStatsData,
   AnimeStats,
+  CardsRecord,
   MangaStats,
+  UserRecord,
+  UserStatsData,
 } from "../../../lib/types/records";
 
-/**
- * Mock anime statistics for E2E tests.
- * Provides realistic data structure matching the AniList API response.
- */
 export const mockAnimeStats: AnimeStats = {
   count: 250,
   episodesWatched: 3500,
@@ -88,9 +84,6 @@ export const mockAnimeStats: AnimeStats = {
   ],
 };
 
-/**
- * Mock manga statistics for E2E tests.
- */
 export const mockMangaStats: MangaStats = {
   count: 120,
   chaptersRead: 5200,
@@ -146,9 +139,6 @@ export const mockMangaStats: MangaStats = {
   ],
 };
 
-/**
- * Mock user stats data matching AniList GraphQL response structure.
- */
 export const mockUserStatsData: UserStatsData = {
   User: {
     stats: {
@@ -242,7 +232,7 @@ export const mockUserRecord: UserRecord = {
   userId: "123456",
   username: "TestUser",
   stats: mockUserStatsData,
-  ip: "127.0.0.1",
+  requestMetadata: { lastSeenIpBucket: "loopback" },
   createdAt: "2024-01-15T10:00:00.000Z",
   updatedAt: "2024-12-01T15:30:00.000Z",
 };
@@ -276,9 +266,6 @@ export const mockCardsRecord: CardsRecord = {
   updatedAt: "2024-12-01T15:30:00.000Z",
 };
 
-/**
- * Mock user record for a user with no data (edge case testing).
- */
 export const mockEmptyUserRecord: UserRecord = {
   userId: "999999",
   username: "EmptyUser",
@@ -333,31 +320,22 @@ export const mockEmptyUserRecord: UserRecord = {
     threadCommentsPage: { pageInfo: { total: 0 }, threadComments: [] },
     reviewsPage: { pageInfo: { total: 0 }, reviews: [] },
   },
-  ip: "127.0.0.1",
+  requestMetadata: { lastSeenIpBucket: "loopback" },
   createdAt: "2024-01-01T00:00:00.000Z",
   updatedAt: "2024-01-01T00:00:00.000Z",
 };
 
-/**
- * Mock error response for rate limiting.
- */
 export const mockRateLimitError = {
   error: "Rate limit exceeded",
   message: "Too many requests. Please wait before trying again.",
   retryAfter: 60,
 };
 
-/**
- * Mock error response for user not found.
- */
 export const mockUserNotFoundError = {
   error: "User not found",
   message: "The AniList username could not be found.",
 };
 
-/**
- * Mock error response for network/server errors.
- */
 export const mockServerError = {
   error: "Server error",
   message: "An unexpected error occurred. Please try again later.",

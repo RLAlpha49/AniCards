@@ -1,71 +1,41 @@
-import {
-  describe,
-  it,
-  beforeAll,
-  afterAll,
-  beforeEach,
-  afterEach,
-  expect,
-  mock,
-} from "bun:test";
-import { sharedRatelimitMockLimit } from "@/tests/unit/__setup__.test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
-// Set the app URL for same-origin validation testing
+import { OPTIONS, POST } from "@/app/api/anilist/route";
+import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
+import { flushScheduledTelemetryTasksForTests } from "@/lib/api-utils";
+import {
+  allowConsoleWarningsAndErrors,
+  sharedRatelimitMockLimit,
+  sharedRedisMockIncr,
+  sharedRedisMockLtrim,
+  sharedRedisMockRpush,
+} from "@/tests/unit/__setup__";
+
 process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
 
-import { POST, OPTIONS } from "@/app/api/anilist/route";
-
-/**
- * Local endpoint used to build requests against the AniList proxy during tests.
- * @source
- */
 const BASE_URL = "http://localhost/api/anilist";
 
-/**
- * GraphQL query string used when a test does not provide a custom query.
- * @source
- */
-const DEFAULT_QUERY = "query GetUserStats { dummyField }";
-
-/**
- * Default set of variables accompanying the default query.
- * @source
- */
-const DEFAULT_VARIABLES = { userId: 123 };
-
-/**
- * Variables for GetUserId operation
- */
-const GET_USER_ID_VARIABLES = { userName: "testUser" };
-
-/**
- * Builds a POST request targeting the AniList proxy with optional overrides.
- * @param headers - Additional headers merged with the JSON content type.
- * @param body - Optional payload to stringify for the request.
- * @returns Configured Request instance for the AniList endpoint.
- * @source
- */
-function createAniListRequest(
-  headers: Record<string, string> = {},
-  body?: object,
-): Request {
-  const requestBody = body ? JSON.stringify(body) : JSON.stringify({});
-
+function createAniListRequest(options?: {
+  body?: Record<string, unknown>;
+  headers?: Record<string, string>;
+}) {
+  const extraHeaders = options?.headers;
   return new Request(BASE_URL, {
     method: "POST",
     headers: new Headers({
       "Content-Type": "application/json",
-      ...headers,
+      origin: "http://localhost",
+      ...extraHeaders,
     }),
-    body: requestBody,
+    body: JSON.stringify(options?.body ?? {}),
   });
 }
 
-/**
- * Sets up environment variables for tests
- */
-function setupEnvironment(nodeEnv: string, includeToken = false) {
-  (process.env as Record<string, string>).NODE_ENV = nodeEnv;
+function setEnvironment(
+  nodeEnv: "development" | "production" | "test",
+  includeToken = false,
+) {
+  process.env = { ...process.env, NODE_ENV: nodeEnv };
   if (includeToken) {
     process.env.ANILIST_TOKEN = "dummy-token";
   } else {
@@ -73,695 +43,340 @@ function setupEnvironment(nodeEnv: string, includeToken = false) {
   }
 }
 
-/**
- * Creates a GraphQL request payload
- */
-function createGraphQLBody(
-  query = DEFAULT_QUERY,
-  variables?: Record<string, unknown>,
-) {
-  return { query, variables: variables || DEFAULT_VARIABLES };
-}
-
-/**
- * Mocks the global fetch call so tests can provide controlled responses.
- * @param responseData - Data that the mocked fetch should resolve to.
- * @param options - Optional overrides for status, headers, and ok flag.
- * @returns The mocked response object used by the fetch stub.
- * @source
- */
-function mockFetchResponse(
-  responseData: unknown,
-  options: {
-    ok?: boolean;
-    status?: number;
+function mockJsonFetch(
+  payload: unknown,
+  init: {
     headers?: Record<string, string>;
+    status?: number;
   } = {},
 ) {
-  const { ok = true, status = 200, headers = {} } = options;
-
-  const fetchResponse = {
-    ok,
-    status,
-    json: mock(() => Promise.resolve(responseData)),
-    headers: new Headers(headers),
-  };
+  const extraHeaders = init.headers;
+  const response = new Response(JSON.stringify(payload), {
+    status: init.status ?? 200,
+    headers: {
+      "Content-Type": "application/json",
+      ...extraHeaders,
+    },
+  });
 
   globalThis.fetch = mock(() =>
-    Promise.resolve(fetchResponse as unknown),
+    Promise.resolve(response),
   ) as unknown as typeof fetch;
-  return fetchResponse;
 }
 
-/**
- * Asserts the response status and optionally validates the payload shape.
- * @param response - Response returned from the POST handler.
- * @param expectedStatus - HTTP status the response should have.
- * @param expectedData - Optional data expectations that may include error checks.
- * @returns Parsed data when expectations were provided; otherwise the original response.
- * @source
- */
-async function expectResponse(
-  response: Response,
-  expectedStatus: number,
-  expectedData?:
-    | { error?: string; contains?: string }
-    | Record<string, unknown>,
-) {
-  expect(response.status).toBe(expectedStatus);
-
-  if (expectedData) {
-    const data = await response.json();
-    if (
-      typeof expectedData === "object" &&
-      expectedData !== null &&
-      "error" in expectedData
-    ) {
-      expect(data.error).toBe((expectedData as { error: string }).error);
-    } else if (
-      typeof expectedData === "object" &&
-      expectedData !== null &&
-      "contains" in expectedData
-    ) {
-      expect(data.error).toContain(
-        (expectedData as { contains: string }).contains,
-      );
-    } else {
-      expect(data).toEqual(expectedData);
-    }
-    return data;
-  }
-
-  return response;
-}
-
-describe("AniList API Proxy Endpoint", () => {
+describe("AniList API Route", () => {
   const originalEnv = process.env;
 
-  beforeAll(() => {
-    mock(console.log);
-    mock(console.error);
-    mock(console.warn);
-  });
-
-  afterAll(() => {
-    // Bun mocks clean up automatically
-  });
-
   beforeEach(() => {
-    process.env = { ...originalEnv };
+    allowConsoleWarningsAndErrors();
+    process.env = { ...originalEnv, NEXT_PUBLIC_APP_URL: "http://localhost" };
     sharedRatelimitMockLimit.mockReset();
-    sharedRatelimitMockLimit.mockResolvedValue({ success: true });
+    sharedRedisMockIncr.mockReset();
+    sharedRedisMockRpush.mockReset();
+    sharedRedisMockLtrim.mockReset();
+    sharedRatelimitMockLimit.mockResolvedValue({
+      success: true,
+      limit: 10,
+      remaining: 9,
+      reset: Date.now() + 5_000,
+      pending: Promise.resolve(),
+    });
+    sharedRedisMockIncr.mockResolvedValue(1);
+    sharedRedisMockRpush.mockResolvedValue(1);
+    sharedRedisMockLtrim.mockResolvedValue("OK");
   });
 
   afterEach(() => {
     process.env = originalEnv;
+    mock.clearAllMocks();
   });
 
-  describe("Test Simulation (Development Only)", () => {
-    it("should simulate 429 rate limit error only in development mode", async () => {
-      setupEnvironment("development");
+  it("simulates a 429 test response only in development", async () => {
+    setEnvironment("development");
 
-      const request = createAniListRequest({ "X-Test-Status": "429" });
-      const response = await POST(request);
+    const response = await POST(
+      createAniListRequest({
+        headers: { "X-Test-Status": "429" },
+      }),
+    );
 
-      expect(response.status).toBe(429);
-      expect(response.headers.get("Retry-After")).toBe("60");
-      await expectResponse(response, 429, {
-        error: "Rate limited (test simulation)",
-      });
-    });
-
-    it("should simulate 500 internal server error only in development mode", async () => {
-      setupEnvironment("development");
-
-      const request = createAniListRequest({ "X-Test-Status": "500" });
-      const response = await POST(request);
-
-      await expectResponse(response, 500, {
-        error: "Internal server error (test simulation)",
-      });
-    });
-
-    it("should not simulate errors in production mode", async () => {
-      setupEnvironment("production", true);
-
-      const requestBody = createGraphQLBody();
-      const request = createAniListRequest(
-        { "X-Test-Status": "429" },
-        requestBody,
-      );
-
-      mockFetchResponse({ data: { user: "testUser" } });
-
-      const response = await POST(request);
-
-      // Should make actual API call, not simulate
-      expect(globalThis.fetch).toHaveBeenCalledWith(
-        "https://graphql.anilist.co",
-        expect.any(Object),
-      );
-      expect(response.status).toBe(200);
-    });
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("60");
+    expect((await response.json()).error).toBe(
+      "Rate limited (test simulation)",
+    );
   });
 
-  describe("Successful Requests", () => {
-    it("should forward request and return JSON data on successful AniList response", async () => {
-      setupEnvironment("production", true);
+  it("accepts the explicit GetUserStats contract and forwards the canonical query", async () => {
+    setEnvironment("production", true);
+    mockJsonFetch({ data: { User: { id: 123 } } });
 
-      const requestBody = createGraphQLBody();
-      const request = createAniListRequest({}, requestBody);
-
-      const mockData = { data: { user: { id: 1, name: "testUser" } } };
-      mockFetchResponse(mockData);
-
-      const response = await POST(request);
-
-      expect(globalThis.fetch).toHaveBeenCalledWith(
-        "https://graphql.anilist.co",
-        expect.any(Object),
-      );
-      await expectResponse(response, 200, mockData.data);
-    });
-
-    it("should include AniList token in Authorization header when present", async () => {
-      setupEnvironment("production", true);
-
-      const requestBody = createGraphQLBody();
-      const request = createAniListRequest({}, requestBody);
-
-      mockFetchResponse({ data: { user: "testUser" } });
-
-      await POST(request);
-
-      const fetchCall = (globalThis.fetch as unknown as ReturnType<typeof mock>)
-        .mock.calls[0];
-      const fetchOptions = fetchCall[1] as Record<string, unknown>;
-      expect(fetchOptions.headers).toHaveProperty(
-        "Authorization",
-        "Bearer dummy-token",
-      );
-    });
-
-    it("should not include Authorization header when token is not set", async () => {
-      setupEnvironment("production", false);
-
-      const requestBody = createGraphQLBody();
-      const request = createAniListRequest({}, requestBody);
-
-      mockFetchResponse({ data: { user: "testUser" } });
-
-      await POST(request);
-
-      const fetchCall = (globalThis.fetch as unknown as ReturnType<typeof mock>)
-        .mock.calls[0];
-      const fetchOptions = fetchCall[1] as Record<string, unknown>;
-      expect(fetchOptions.headers).not.toHaveProperty("Authorization");
-    });
-
-    it("should track analytics for successful requests", async () => {
-      setupEnvironment("production", true);
-
-      const requestBody = createGraphQLBody();
-      const request = createAniListRequest({}, requestBody);
-
-      mockFetchResponse({ data: { user: "testUser" } });
-
-      await POST(request);
-
-      // Analytics is tracked asynchronously, just verify request succeeds
-      expect(globalThis.fetch).toHaveBeenCalled();
-    });
-
-    it("should log rate limit headers when present in response", async () => {
-      setupEnvironment("production", true);
-
-      const requestBody = createGraphQLBody();
-      const request = createAniListRequest({}, requestBody);
-
-      mockFetchResponse(
-        { data: { user: "testUser" } },
-        {
-          headers: {
-            "X-RateLimit-Limit": "90",
-            "X-RateLimit-Remaining": "85",
-            "X-RateLimit-Reset": "1234567890",
-          },
+    const response = await POST(
+      createAniListRequest({
+        body: {
+          operation: "GetUserStats",
+          variables: { userId: 123 },
         },
-      );
+      }),
+    );
 
-      const response = await POST(request);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ User: { id: 123 } });
 
-      // Verify response is successful despite logging
-      expect(response.status).toBe(200);
+    const [, init] = (globalThis.fetch as unknown as ReturnType<typeof mock>)
+      .mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(String(init.body));
+    expect(body.query).toBe(USER_STATS_QUERY);
+    expect(body.variables).toEqual({ userId: 123 });
+    expect(init.headers).toMatchObject({
+      Authorization: "Bearer dummy-token",
     });
 
-    it("should log slow requests when duration exceeds 1000ms", async () => {
-      setupEnvironment("production", true);
-
-      const requestBody = createGraphQLBody();
-      const request = createAniListRequest({}, requestBody);
-
-      mockFetchResponse({ data: { user: "testUser" } });
-
-      // Mock Date.now to simulate slow request
-      const originalDateNow = Date.now;
-      let callCount = 0;
-      const dateNowMock = mock(() => {
-        callCount++;
-        if (callCount === 1) return 1000; // startTime
-        return 2500; // after request: 1500ms elapsed
-      });
-      Date.now = dateNowMock as unknown as typeof Date.now;
-
-      const response = await POST(request);
-
-      // Verify response is successful and slow warning would be logged
-      expect(response.status).toBe(200);
-
-      Date.now = originalDateNow;
-    });
+    await flushScheduledTelemetryTasksForTests();
+    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+      "analytics:anilist_api:successful_requests",
+    );
   });
 
-  describe("Origin Validation", () => {
-    it("should reject cross-origin requests in production when origin differs", async () => {
-      setupEnvironment("production", true);
+  it("accepts the exact approved GetUserId query for backward compatibility", async () => {
+    setEnvironment("production");
+    mockJsonFetch({ data: { User: { id: 99 } } });
 
-      const requestBody = createGraphQLBody();
-      const request = createAniListRequest(
-        { origin: "http://different-origin.com" },
-        requestBody,
-      );
+    const response = await POST(
+      createAniListRequest({
+        body: {
+          query: USER_ID_QUERY,
+          variables: { userName: "testUser" },
+        },
+      }),
+    );
 
-      mockFetchResponse({ data: { user: "testUser" } });
+    expect(response.status).toBe(200);
 
-      const response = await POST(request);
-
-      expect(response.status).toBe(401);
-      const data = await response.json();
-      expect(data.error).toBe("Unauthorized");
-      // Fetch should not be called due to early rejection
-      expect(globalThis.fetch).not.toHaveBeenCalled();
-    });
-
-    it("should accept requests with matching origin in production", async () => {
-      setupEnvironment("production", true);
-
-      const requestBody = createGraphQLBody();
-      const request = createAniListRequest(
-        { origin: "http://localhost" },
-        requestBody,
-      );
-
-      mockFetchResponse({ data: { user: "testUser" } });
-
-      const response = await POST(request);
-
-      expect(response.status).toBe(200);
-      expect(globalThis.fetch).toHaveBeenCalled();
-    });
+    const [, init] = (globalThis.fetch as unknown as ReturnType<typeof mock>)
+      .mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(String(init.body));
+    expect(body.query).toBe(USER_ID_QUERY);
+    expect(body.variables).toEqual({ userName: "testUser" });
   });
 
-  describe("AniList Error Responses", () => {
-    it("should handle GraphQL errors in response", async () => {
-      setupEnvironment("production", true);
+  it("rejects unsupported operations", async () => {
+    setEnvironment("production");
 
-      const requestBody = createGraphQLBody();
-      const request = createAniListRequest({}, requestBody);
+    const response = await POST(
+      createAniListRequest({
+        body: {
+          query: "query TotallyUnsupported { Viewer { id } }",
+          variables: {},
+        },
+      }),
+    );
 
-      const errorResponse = { errors: [{ message: "User not found" }] };
-      mockFetchResponse(errorResponse);
-
-      const response = await POST(request);
-
-      await expectResponse(response, 500, { error: "User not found" });
-    });
-
-    it("should handle non-ok HTTP responses from AniList", async () => {
-      setupEnvironment("production", true);
-
-      const requestBody = createGraphQLBody();
-      const request = createAniListRequest({}, requestBody);
-
-      mockFetchResponse(
-        { error: "AniList API was rate limited" },
-        { ok: false, status: 429, headers: { "retry-after": "60" } },
-      );
-
-      const response = await POST(request);
-
-      expect(response.status).toBe(429);
-      const data = await response.json();
-      expect(data.error).toContain("AniList API was rate limited");
-      expect(data.error).toContain("Retry-After: 60");
-    });
-
-    it("should handle 400 Bad Request from AniList", async () => {
-      setupEnvironment("production", true);
-
-      const requestBody = createGraphQLBody();
-      const request = createAniListRequest({}, requestBody);
-
-      mockFetchResponse({ error: "Invalid query" }, { ok: false, status: 400 });
-
-      const response = await POST(request);
-
-      expect(response.status).toBe(400);
-      const data = await response.json();
-      expect(data.error).toContain("Invalid query");
-    });
-
-    it("should handle 401 Unauthorized from AniList", async () => {
-      setupEnvironment("production", true);
-
-      const requestBody = createGraphQLBody();
-      const request = createAniListRequest({}, requestBody);
-
-      mockFetchResponse({ error: "Invalid token" }, { ok: false, status: 401 });
-
-      const response = await POST(request);
-
-      expect(response.status).toBe(401);
-    });
-
-    it("should handle 403 Forbidden from AniList", async () => {
-      setupEnvironment("production", true);
-
-      const requestBody = createGraphQLBody();
-      const request = createAniListRequest({}, requestBody);
-
-      mockFetchResponse({ error: "Access denied" }, { ok: false, status: 403 });
-
-      const response = await POST(request);
-
-      expect(response.status).toBe(403);
-    });
-
-    it("should handle 500 Internal Server Error from AniList", async () => {
-      setupEnvironment("production", true);
-
-      const requestBody = createGraphQLBody();
-      const request = createAniListRequest({}, requestBody);
-
-      mockFetchResponse(
-        { error: "Internal server error" },
-        { ok: false, status: 500 },
-      );
-
-      const response = await POST(request);
-
-      expect(response.status).toBe(500);
-    });
-
-    it("should return error with descriptive message on 500 failure", async () => {
-      setupEnvironment("production", true);
-
-      const requestBody = createGraphQLBody();
-      const request = createAniListRequest({}, requestBody);
-
-      mockFetchResponse(
-        { error: "Database connection failed" },
-        { ok: false, status: 500 },
-      );
-
-      const response = await POST(request);
-
-      expect(response.status).toBe(500);
-      const data = await response.json();
-      expect(data.error).toContain("Database connection failed");
-    });
-
-    it("should handle errors gracefully and return them to client", async () => {
-      setupEnvironment("production", true);
-
-      const requestBody = createGraphQLBody();
-      const request = createAniListRequest({}, requestBody);
-
-      globalThis.fetch = mock(() =>
-        Promise.reject(new Error("Network error")),
-      ) as unknown as typeof fetch;
-
-      const response = await POST(request);
-
-      expect(response.status).toBe(500);
-      const data = await response.json();
-      expect(data.error).toContain("Network error");
-    });
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain(
+      "Unsupported AniList operation",
+    );
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
-  describe("Request Parsing", () => {
-    it("should parse GetUserStats operation and extract userId from variables", async () => {
-      setupEnvironment("production", true);
+  it("rejects invalid user identifiers before contacting AniList", async () => {
+    setEnvironment("production");
 
-      const GET_USER_STATS_QUERY = "query GetUserStats { dummyField }";
-      const requestBody = createGraphQLBody(
-        GET_USER_STATS_QUERY,
-        DEFAULT_VARIABLES,
-      );
-      const request = createAniListRequest({}, requestBody);
+    const invalidUserIdResponse = await POST(
+      createAniListRequest({
+        body: {
+          operation: "GetUserStats",
+          variables: { userId: -1 },
+        },
+      }),
+    );
+    expect(invalidUserIdResponse.status).toBe(400);
+    expect((await invalidUserIdResponse.json()).error).toContain(
+      "Invalid AniList userId",
+    );
 
-      mockFetchResponse({ data: { stats: {} } });
-
-      const response = await POST(request);
-
-      // Verify operation is processed correctly
-      expect(response.status).toBe(200);
-    });
-
-    it("should parse GetUserId operation and extract userName from variables", async () => {
-      setupEnvironment("production", true);
-
-      const requestBody = createGraphQLBody(
-        "query GetUserId { user { id } }",
-        GET_USER_ID_VARIABLES,
-      );
-      const request = createAniListRequest({}, requestBody);
-
-      mockFetchResponse({ data: { user: { id: 1 } } });
-
-      const response = await POST(request);
-
-      // Verify operation is processed correctly
-      expect(response.status).toBe(200);
-    });
-
-    it("should handle anonymous operations (query without name)", async () => {
-      setupEnvironment("production", true);
-
-      const anonQuery = "query { user { id } }";
-      const requestBody = createGraphQLBody(anonQuery);
-      const request = createAniListRequest({}, requestBody);
-
-      mockFetchResponse({ data: { user: { id: 1 } } });
-
-      const response = await POST(request);
-
-      // Verify operation is processed correctly
-      expect(response.status).toBe(200);
-    });
-
-    it("should handle GetUserStats without userId variable", async () => {
-      setupEnvironment("production", true);
-
-      const GET_USER_STATS_QUERY = "query GetUserStats { dummyField }";
-      const requestBody = createGraphQLBody(GET_USER_STATS_QUERY);
-      const request = createAniListRequest({}, requestBody);
-
-      mockFetchResponse({ data: { stats: {} } });
-
-      const response = await POST(request);
-
-      // Verify operation is processed correctly even without specific userId
-      expect(response.status).toBe(200);
-    });
-
-    it("should handle GetUserId without userName variable", async () => {
-      setupEnvironment("production", true);
-
-      const requestBody = createGraphQLBody("query GetUserId { user { id } }");
-      const request = createAniListRequest({}, requestBody);
-
-      mockFetchResponse({ data: { user: { id: 1 } } });
-
-      const response = await POST(request);
-
-      // Verify operation is processed correctly even without specific userName
-      expect(response.status).toBe(200);
-    });
+    const invalidUserNameResponse = await POST(
+      createAniListRequest({
+        body: {
+          operation: "GetUserId",
+          variables: { userName: "   " },
+        },
+      }),
+    );
+    expect(invalidUserNameResponse.status).toBe(400);
+    expect((await invalidUserNameResponse.json()).error).toContain(
+      "Invalid AniList username",
+    );
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
-  describe("Network and JSON Parsing Errors", () => {
-    it("should handle fetch network errors", async () => {
-      setupEnvironment("production", true);
+  it("rejects missing or mismatched origins for browser-facing mutations", async () => {
+    setEnvironment("production");
 
-      const requestBody = createGraphQLBody();
-      const request = createAniListRequest({}, requestBody);
+    const missingOriginResponse = await POST(
+      createAniListRequest({
+        headers: { origin: "" },
+        body: {
+          operation: "GetUserStats",
+          variables: { userId: 123 },
+        },
+      }),
+    );
+    expect(missingOriginResponse.status).toBe(401);
 
-      globalThis.fetch = mock(() =>
-        Promise.reject(new Error("Network error")),
-      ) as unknown as typeof fetch;
+    const crossOriginResponse = await POST(
+      createAniListRequest({
+        headers: { origin: "https://evil.example" },
+        body: {
+          operation: "GetUserStats",
+          variables: { userId: 123 },
+        },
+      }),
+    );
+    expect(crossOriginResponse.status).toBe(401);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
 
-      const response = await POST(request);
+  it("fails closed when NEXT_PUBLIC_APP_URL is missing in production", async () => {
+    setEnvironment("production");
+    delete process.env.NEXT_PUBLIC_APP_URL;
 
-      expect(response.status).toBe(500);
-      const data = await response.json();
-      expect(data.error).toContain("Network error");
-    });
+    const response = await POST(
+      createAniListRequest({
+        body: {
+          operation: "GetUserStats",
+          variables: { userId: 123 },
+        },
+      }),
+    );
 
-    it("should handle invalid JSON in request body", async () => {
-      setupEnvironment("production", true);
+    expect(response.status).toBe(503);
+    expect((await response.json()).error).toBe("Server misconfigured");
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
 
-      const request = new Request(BASE_URL, {
+  it("surfaces non-retried AniList HTTP errors", async () => {
+    setEnvironment("production");
+    mockJsonFetch(
+      { error: "Invalid query" },
+      {
+        status: 400,
+      },
+    );
+
+    const response = await POST(
+      createAniListRequest({
+        body: {
+          operation: "GetUserStats",
+          variables: { userId: 123 },
+        },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain("Invalid query");
+
+    await flushScheduledTelemetryTasksForTests();
+    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+      "analytics:anilist_api:failed_requests",
+    );
+    expect(sharedRedisMockRpush).toHaveBeenCalledWith(
+      "telemetry:error-reports:v1",
+      expect.any(String),
+    );
+  });
+
+  it("returns GraphQL payload errors as 500s", async () => {
+    setEnvironment("production");
+    mockJsonFetch({ errors: [{ message: "User not found" }] });
+
+    const response = await POST(
+      createAniListRequest({
+        body: {
+          operation: "GetUserStats",
+          variables: { userId: 123 },
+        },
+      }),
+    );
+
+    expect(response.status).toBe(500);
+    expect((await response.json()).error).toBe("User not found");
+  });
+
+  it("wraps upstream transport failures", async () => {
+    setEnvironment("production");
+    globalThis.fetch = mock(() =>
+      Promise.reject(new Error("Network error")),
+    ) as unknown as typeof fetch;
+
+    const response = await POST(
+      createAniListRequest({
+        body: {
+          operation: "GetUserStats",
+          variables: { userId: 123 },
+        },
+      }),
+    );
+
+    expect(response.status).toBe(502);
+    expect((await response.json()).error).toContain("Network error");
+  });
+
+  it("handles invalid JSON request bodies gracefully", async () => {
+    setEnvironment("production");
+
+    const response = await POST(
+      new Request(BASE_URL, {
         method: "POST",
-        headers: new Headers({
-          "Content-Type": "application/json",
-        }),
-        body: "invalid json {",
-      });
-
-      const response = await POST(request);
-
-      expect(response.status).toBe(500);
-      const data = await response.json();
-      expect(data.error).toBeDefined();
-    });
-  });
-
-  describe("CORS and OPTIONS", () => {
-    it("should respond to OPTIONS preflight with CORS headers", async () => {
-      const request = new Request(BASE_URL, {
-        method: "OPTIONS",
         headers: {
           origin: "http://localhost",
           "Content-Type": "application/json",
         },
-      });
+        body: "{ invalid json",
+      }),
+    );
 
-      const response = OPTIONS(request);
+    const payload = await response.json();
+    expect(response.status).toBe(400);
+    expect(payload.error).toBe("Invalid JSON body");
+    expect(payload.category).toBe("invalid_data");
+  });
 
-      expect(response.status).toBe(200);
-      expect(response.headers.get("Access-Control-Allow-Origin")).toBe(
-        "http://localhost",
-      );
-    });
-
-    it("should allow POST method in CORS preflight", async () => {
-      const request = new Request(BASE_URL, {
+  it("returns CORS headers on OPTIONS", () => {
+    const response = OPTIONS(
+      new Request(BASE_URL, {
         method: "OPTIONS",
-        headers: {
-          origin: "http://localhost",
+        headers: { origin: "http://localhost" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe(
+      "http://localhost",
+    );
+    expect(response.headers.get("Access-Control-Allow-Methods")).toContain(
+      "POST",
+    );
+  });
+
+  it("echoes X-Request-Id on successful responses", async () => {
+    setEnvironment("production");
+    mockJsonFetch({ data: { User: { id: 123 } } });
+
+    const response = await POST(
+      createAniListRequest({
+        headers: { "x-request-id": "req-anilist-12345" },
+        body: {
+          operation: "GetUserStats",
+          variables: { userId: 123 },
         },
-      });
+      }),
+    );
 
-      const response = OPTIONS(request);
-
-      expect(response.headers.get("Access-Control-Allow-Methods")).toContain(
-        "POST",
-      );
-    });
-
-    it("should include Content-Type in allowed headers", async () => {
-      const request = new Request(BASE_URL, {
-        method: "OPTIONS",
-        headers: {
-          origin: "http://localhost",
-        },
-      });
-
-      const response = OPTIONS(request);
-
-      expect(response.headers.get("Access-Control-Allow-Headers")).toContain(
-        "Content-Type",
-      );
-    });
-  });
-
-  describe("Rate Limiting", () => {
-    it("should handle rate limit rejection from initializeApiRequest", async () => {
-      setupEnvironment("production", true);
-
-      const requestBody = createGraphQLBody();
-      const request = createAniListRequest({}, requestBody);
-
-      // Note: initializeApiRequest is real and implements its own rate limit logic
-      // This test verifies that successful requests pass through correctly
-      mockFetchResponse({ data: { user: "testUser" } });
-
-      const response = await POST(request);
-
-      // Verify the response succeeds (no rate limit hit in this case)
-      expect(response.status).toBe(200);
-    });
-  });
-
-  describe("IP Logging", () => {
-    it("should extract and log IP from x-forwarded-for header", async () => {
-      setupEnvironment("production", true);
-
-      const requestBody = createGraphQLBody();
-      const request = createAniListRequest(
-        { "x-forwarded-for": "192.168.1.1" },
-        requestBody,
-      );
-
-      mockFetchResponse({ data: { user: "testUser" } });
-
-      const response = await POST(request);
-
-      // Verify request is processed with IP extracted
-      expect(response.status).toBe(200);
-    });
-
-    it("should default to 127.0.0.1 when x-forwarded-for is not present", async () => {
-      setupEnvironment("production", true);
-
-      const requestBody = createGraphQLBody();
-      const request = createAniListRequest({}, requestBody);
-
-      mockFetchResponse({ data: { user: "testUser" } });
-
-      const response = await POST(request);
-
-      // Verify request is processed with default IP
-      expect(response.status).toBe(200);
-    });
-  });
-
-  describe("Dev-only Headers", () => {
-    it("should include X-Test-Status header in dev mode", async () => {
-      setupEnvironment("development", true);
-
-      const requestBody = createGraphQLBody();
-      const request = createAniListRequest(
-        { "X-Test-Status": "custom" },
-        requestBody,
-      );
-
-      mockFetchResponse({ data: { user: "testUser" } });
-
-      await POST(request);
-
-      const fetchCall = (globalThis.fetch as unknown as ReturnType<typeof mock>)
-        .mock.calls[0];
-      const fetchOptions = fetchCall[1] as Record<string, unknown>;
-      expect(fetchOptions.headers).toHaveProperty("X-Test-Status", "custom");
-    });
-
-    it("should not include X-Test-Status header in production", async () => {
-      setupEnvironment("production", true);
-
-      const requestBody = createGraphQLBody();
-      const request = createAniListRequest(
-        { "X-Test-Status": "custom" },
-        requestBody,
-      );
-
-      mockFetchResponse({ data: { user: "testUser" } });
-
-      const response = await POST(request);
-
-      // Verify the response is successful (no test simulation in production)
-      expect(response.status).toBe(200);
-    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("X-Request-Id")).toBe("req-anilist-12345");
+    expect(response.headers.get("Access-Control-Expose-Headers")).toContain(
+      "X-Request-Id",
+    );
   });
 });

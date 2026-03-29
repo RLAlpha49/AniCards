@@ -1,52 +1,43 @@
-import { test, expect } from "@playwright/test";
-import { GeneratorPage } from "../fixtures/test-utils";
+import { expect, test } from "@playwright/test";
 
 test.describe("Home page", () => {
-  test("opens generator from hero CTA", async ({ page }) => {
-    const generator = new GeneratorPage(page);
-
+  test("navigates to search from hero CTA", async ({ page }) => {
     await test.step("Open homepage", async () => {
       await page.goto("/");
     });
 
-    await test.step("Open generator via hero CTA", async () => {
-      await page.getByRole("button", { name: /create your card/i }).click();
-      await generator.waitForGeneratorOpen();
-    });
+    await test.step("Navigate to search via hero CTA", async () => {
+      const getStartedLink = page.getByRole("link", { name: /get started/i });
 
-    await test.step("Close generator with Escape", async () => {
-      await page.keyboard.press("Escape");
-      await expect(generator.getDialog()).not.toBeVisible();
+      await expect(getStartedLink).toHaveAttribute("href", "/search");
+
+      await Promise.all([
+        page.waitForURL(/\/search(?:\?|$)/, { timeout: 15000 }),
+        getStartedLink.click(),
+      ]);
+
+      await expect(page).toHaveURL(/\/search(?:\?|$)/);
+      await expect(page.getByLabel(/anilist username/i)).toBeVisible();
     });
   });
 
-  test("scrolls to preview showcase from View Examples CTA", async ({
-    page,
-  }) => {
+  test("navigates to examples from View Gallery CTA", async ({ page }) => {
     await page.goto("/");
 
-    const showcase = page.locator("#preview-showcase");
-    await expect(showcase).toBeVisible();
-    const initialScrollY = await page.evaluate(() => window.scrollY);
+    await test.step("Open the examples gallery", async () => {
+      const viewGalleryLink = page.getByRole("link", { name: /view gallery/i });
 
-    await test.step("Trigger smooth scroll", async () => {
-      await page
-        .getByRole("button", { name: /view examples/i })
-        .first()
-        .click();
+      await expect(viewGalleryLink).toHaveAttribute("href", "/examples");
+
+      await Promise.all([
+        page.waitForURL(/\/examples(?:\?|$)/),
+        viewGalleryLink.click(),
+      ]);
     });
 
-    await expect
-      .poll(async () => await page.evaluate(() => window.scrollY))
-      .toBeGreaterThan(initialScrollY);
-
-    const viewportState = await showcase.evaluate((element) => {
-      const rect = element.getBoundingClientRect();
-      return { top: rect.top, viewportHeight: window.innerHeight };
-    });
-
-    expect(viewportState.top).toBeLessThanOrEqual(
-      viewportState.viewportHeight * 0.95,
-    );
+    await expect(page).toHaveURL(/\/examples(?:\?|$)/);
+    await expect(
+      page.getByRole("heading", { name: /every card, every variant/i }),
+    ).toBeVisible();
   });
 });

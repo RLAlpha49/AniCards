@@ -1,3 +1,5 @@
+import { MILESTONES } from "@/lib/svg-templates/common/constants";
+import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
 import type { ColorValue } from "@/lib/types/card";
 import type { TrustedSVG } from "@/lib/types/svg";
 import {
@@ -7,8 +9,7 @@ import {
   markTrustedSvg,
   processColorsForSVG,
 } from "@/lib/utils";
-import { MILESTONES } from "@/lib/svg-templates/common/constants";
-import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
+
 import { toSvgIdFragment } from "./shared";
 
 /** Milestones card input structure. @source */

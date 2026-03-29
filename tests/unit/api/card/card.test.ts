@@ -1,18 +1,31 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
+/**
+ * Regression coverage for the card SVG route.
+ * Template modules are replaced with tiny SVG stubs so these tests can verify
+ * request normalization, Redis wiring, and template selection without brittle
+ * full-SVG snapshots.
+ */
+
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+
+import { clearImageDataUrlCaches } from "@/lib/image-utils";
+import { getPartsForCard, splitUserRecord } from "@/lib/server/user-data";
+import { clearSvgCache, clearUserRequestStats } from "@/lib/stores/svg-cache";
 import {
-  sharedRedisMockSet,
+  allowConsoleWarningsAndErrors,
+  sharedRatelimitMockLimit,
+  sharedRatelimitMockSlidingWindow,
   sharedRedisMockGet,
   sharedRedisMockIncr,
   sharedRedisMockMget,
-  sharedRatelimitMockLimit,
-  sharedRatelimitMockSlidingWindow,
-} from "@/tests/unit/__setup__.test";
-import { clearSvgCache, clearUserRequestStats } from "@/lib/stores/svg-cache";
+  sharedRedisMockSet,
+} from "@/tests/unit/__setup__";
 
 mock.module("@/lib/utils/milestones", () => ({
   calculateMilestones: mock(() => ({ milestone: 100 })),
 }));
 
+// Keep template doubles tiny so assertions stay about route decisions and the
+// normalized template arguments, not incidental SVG markup churn.
 mock.module("@/lib/svg-templates/media-stats/shared", () => ({
   mediaStatsTemplate: mock(
     (data: { styles?: { borderColor?: string } }) =>
@@ -75,7 +88,6 @@ mock.module("@/lib/svg-templates/extra-anime-manga-stats/shared", () => {
     }) => extraAnimeMangaStatsTemplate({ ...input, format });
   };
 
-  // Minimal map needed for template wrappers used by the generator.
   const extraStatsTemplates = {
     animeSeasonalPreference: createExtraStatsTemplate("Anime Seasons"),
     animeEpisodeLengthPreferences: createExtraStatsTemplate(
@@ -105,6 +117,10 @@ const { mediaStatsTemplate } =
   await import("@/lib/svg-templates/media-stats/shared");
 const { favoritesGridTemplate } =
   await import("@/lib/svg-templates/profile-favorite-stats/favorites-grid-template");
+const { favoritesSummaryTemplate } =
+  await import("@/lib/svg-templates/profile-favorite-stats/favorites-summary-template");
+const { profileOverviewTemplate } =
+  await import("@/lib/svg-templates/profile-favorite-stats/profile-overview-template");
 const favoritesGridTemplateMock = favoritesGridTemplate as ReturnType<
   typeof mock<
     (data: { gridCols?: number; gridRows?: number; variant?: string }) => string
@@ -204,6 +220,30 @@ function createMockUserData(
   });
 }
 
+function getMockCardName(cardsData: string): string {
+  try {
+    const parsed = JSON.parse(cardsData) as {
+      cards?: Array<{ cardName?: string }>;
+    };
+    return parsed.cards?.[0]?.cardName ?? "animeStats";
+  } catch {
+    return "animeStats";
+  }
+}
+
+function buildMockUserParts(userData: string, cardType: string) {
+  const parsedUser = JSON.parse(userData) as Parameters<
+    typeof splitUserRecord
+  >[0];
+  const split = splitUserRecord(parsedUser as never);
+  const requestedParts = getPartsForCard(cardType);
+
+  return requestedParts.map((part) => {
+    const value = split[part];
+    return value === undefined ? null : JSON.stringify(value);
+  });
+}
+
 /**
  * Constructs a URL string with query parameters for the test requests.
  * @param baseUrl - Base endpoint for the card SVG API.
@@ -219,16 +259,82 @@ function createRequestUrl(baseUrl: string, params: Record<string, string>) {
   return url.toString();
 }
 
+function getSharedSvgCacheSetCall(): [string, string] | undefined {
+  const calls = (
+    sharedRedisMockSet as unknown as { mock: { calls: Array<unknown[]> } }
+  ).mock.calls;
+
+  const match = calls.find(
+    (call): call is [string, string] =>
+      typeof call[0] === "string" &&
+      call[0].startsWith("svg-cache:") &&
+      typeof call[1] === "string",
+  );
+
+  return match;
+}
+
+function getConsoleLogEntries(): Array<Record<string, unknown>> {
+  const calls = (
+    console.log as unknown as { mock: { calls: Array<unknown[]> } }
+  ).mock.calls;
+
+  return calls.flatMap((call) => {
+    const [entry] = call;
+    if (typeof entry !== "string") {
+      return [];
+    }
+
+    try {
+      return [JSON.parse(entry) as Record<string, unknown>];
+    } catch {
+      return [];
+    }
+  });
+}
+
 /**
- * Configures Redis GET to return the provided cards and user payloads.
+ * Configures Redis GET to miss the shared SVG cache first, then return the
+ * provided cards and user payloads for the normal data lookup path.
  * @param cardsData - Serialized cards document returned first.
  * @param userData - Serialized user document returned second.
  * @source
  */
-function setupSuccessfulMocks(cardsData: string, userData: string) {
-  sharedRedisMockGet
-    .mockResolvedValueOnce(cardsData)
-    .mockResolvedValueOnce(userData);
+function setupSuccessfulMocks(
+  cardsData: string,
+  userData: string,
+  options: { useDbCardLookup?: boolean } = {},
+) {
+  const cardName = getMockCardName(cardsData);
+  const userParts = buildMockUserParts(userData, cardName);
+
+  // Shared SVG cache miss.
+  sharedRedisMockGet.mockResolvedValueOnce(null);
+
+  if (options.useDbCardLookup === false) {
+    sharedRedisMockGet.mockResolvedValueOnce(null);
+  } else {
+    sharedRedisMockGet
+      .mockResolvedValueOnce(cardsData)
+      .mockResolvedValueOnce(null);
+  }
+
+  sharedRedisMockMget.mockResolvedValueOnce(userParts);
+}
+
+/**
+ * Configures Redis GET/MGET for requests that only need the user record, after
+ * missing the shared SVG cache, and do not consult the stored card configuration.
+ * @param userData - Serialized full user record used to build split parts.
+ * @param cardType - Card type requested by the test.
+ * @source
+ */
+function setupUserDataOnlyMocks(userData: string, cardType: string) {
+  sharedRedisMockGet.mockResolvedValueOnce(null);
+  sharedRedisMockGet.mockResolvedValueOnce(null);
+  sharedRedisMockMget.mockResolvedValueOnce(
+    buildMockUserParts(userData, cardType),
+  );
 }
 
 /**
@@ -268,7 +374,6 @@ async function expectErrorResponse(
   expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
   expect(res.headers.get("Vary")).toBe("Origin");
   const text = await getResponseText(res);
-  // Build expected SVG error string exactly as server does and assert equality
   const escaped = escapeForXml(expectedError);
   const expectedSvg = `<?xml version="1.0" encoding="UTF-8"?>
   <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
@@ -295,19 +400,44 @@ type MockFunction<T> = T & {
   };
 };
 
+function resetSharedRouteMocks() {
+  sharedRedisMockGet.mockReset();
+  sharedRedisMockSet.mockReset();
+  sharedRedisMockMget.mockReset();
+  sharedRedisMockIncr.mockReset();
+  sharedRatelimitMockLimit.mockReset();
+
+  sharedRedisMockGet.mockImplementation(async () => null);
+
+  sharedRedisMockMget.mockImplementation(
+    async (...keys: string[]): Promise<(string | null)[]> =>
+      keys.map(() => null),
+  );
+  sharedRedisMockIncr.mockImplementation(async () => 1);
+  sharedRatelimitMockLimit.mockResolvedValue({
+    success: true,
+    limit: 10,
+    remaining: 9,
+    reset: Date.now() + 10_000,
+    pending: Promise.resolve(),
+  });
+}
+
+resetSharedRouteMocks();
+
 describe("Card SVG Route", () => {
   const baseUrl = "http://localhost/api/card.svg";
 
+  beforeEach(() => {
+    allowConsoleWarningsAndErrors();
+  });
+
   afterEach(() => {
     mock.clearAllMocks();
+    clearImageDataUrlCaches();
     clearSvgCache();
     clearUserRequestStats();
-    // Reset mocks to their default state
-    sharedRatelimitMockLimit.mockResolvedValue({ success: true });
-    sharedRedisMockGet.mockClear();
-    sharedRedisMockMget.mockClear();
-    sharedRedisMockSet.mockClear();
-    sharedRedisMockIncr.mockClear();
+    resetSharedRouteMocks();
   });
 
   describe("Rate Limiting", () => {
@@ -332,33 +462,120 @@ describe("Card SVG Route", () => {
         "Client Error: Too many requests - try again later",
         429,
       );
-      expect(sharedRatelimitMockLimit).toHaveBeenCalledWith("127.0.0.1");
+      expect(sharedRatelimitMockLimit.mock.calls[0]?.[0]).toBe("127.0.0.1");
+      expect(sharedRatelimitMockLimit.mock.calls[0]?.[1]).toMatchObject({
+        ip: "127.0.0.1",
+      });
       expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:card_svg:failed_requests",
       );
+      expect(res.headers.get("Retry-After")).toBeTruthy();
+      expect(res.headers.get("X-RateLimit-Limit")).toBeTruthy();
+      expect(res.headers.get("Access-Control-Expose-Headers")).toContain(
+        "Retry-After",
+      );
     });
 
-    it("should extract IP from x-forwarded-for header", async () => {
+    it("should extract IP from trusted x-vercel-forwarded-for header", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: false });
 
       const req = new Request(
         createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
-        { headers: { "x-forwarded-for": "192.168.1.1" } },
+        { headers: { "x-vercel-forwarded-for": "192.168.1.1" } },
       );
 
       await GET(req);
-      expect(sharedRatelimitMockLimit).toHaveBeenCalledWith("192.168.1.1");
+      expect(sharedRatelimitMockLimit.mock.calls[0]?.[0]).toBe("192.168.1.1");
+      expect(sharedRatelimitMockLimit.mock.calls[0]?.[1]).toMatchObject({
+        ip: "192.168.1.1",
+      });
     });
 
-    it("should default to 127.0.0.1 when x-forwarded-for is missing", async () => {
+    it("should default to 127.0.0.1 when only spoofable forwarded headers are present", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: false });
 
       const req = new Request(
         createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
+        { headers: { "x-forwarded-for": "203.0.113.99" } },
       );
 
       await GET(req);
-      expect(sharedRatelimitMockLimit).toHaveBeenCalledWith("127.0.0.1");
+      expect(sharedRatelimitMockLimit.mock.calls[0]?.[0]).toBe("127.0.0.1");
+      expect(sharedRatelimitMockLimit.mock.calls[0]?.[1]).toMatchObject({
+        ip: "127.0.0.1",
+      });
+    });
+
+    it("should echo X-Request-Id on SVG responses", async () => {
+      const cardsData = createMockCardData("animeStats", "default");
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, { userId: "542244", cardType: "animeStats" }),
+        {
+          headers: {
+            origin: "http://example.dev",
+            "x-request-id": "req-card-12345",
+          },
+        },
+      );
+
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("X-Request-Id")).toBe("req-card-12345");
+      expect(res.headers.get("Access-Control-Expose-Headers")).toContain(
+        "X-Request-Id",
+      );
+    });
+
+    it("should not log raw request query strings for processing logs", async () => {
+      const cardsData = createMockCardData("animeStats", "default");
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+          titleColor: "#ff00ff",
+          backgroundColor: "#001122",
+          textColor: "#ddeeff",
+        }),
+      );
+
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      const processingLog = getConsoleLogEntries().find(
+        (entry) => entry["message"] === "Processing card SVG request",
+      ) as
+        | {
+            path?: string;
+            context?: {
+              ip?: string;
+              queryParamCount?: number;
+              url?: string;
+            };
+          }
+        | undefined;
+
+      expect(processingLog).toBeTruthy();
+      expect(processingLog?.path).toBe("/api/card.svg");
+      expect(processingLog?.context?.ip).toBe("loopback");
+      expect(processingLog?.context?.queryParamCount).toBe(5);
+      expect(processingLog?.context?.url).toBeUndefined();
+
+      const serializedProcessingLog = JSON.stringify(processingLog);
+      expect(serializedProcessingLog).not.toContain("titleColor");
+      expect(serializedProcessingLog).not.toContain("backgroundColor");
+      expect(serializedProcessingLog).not.toContain("textColor");
+      expect(serializedProcessingLog).not.toContain("?userId=");
+      expect(serializedProcessingLog).not.toContain("ff00ff");
     });
   });
 
@@ -373,21 +590,67 @@ describe("Card SVG Route", () => {
       );
     });
 
-    it("should return 400 when both userId and userName are missing", async () => {
+    it("should return 400 when both userId and username are missing", async () => {
       const req = new Request(
         createRequestUrl(baseUrl, { cardType: "animeStats" }),
       );
       const res = await GET(req);
       await expectErrorResponse(
         res,
-        "Client Error: Missing parameter: userId or userName",
+        "Client Error: Missing parameter: userId or username",
         400,
       );
+    });
+
+    it("should accept the deprecated userName alias when username is omitted", async () => {
+      const cardsData = createMockCardData("animeStats", "default");
+      const userData = createMockUserData(123, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+
+      sharedRedisMockGet
+        .mockResolvedValueOnce("123")
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(cardsData)
+        .mockResolvedValueOnce(null);
+      sharedRedisMockMget.mockResolvedValueOnce(
+        buildMockUserParts(userData, "animeStats"),
+      );
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userName: "testUser",
+          cardType: "animeStats",
+        }),
+      );
+
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+      expect(sharedRedisMockGet).toHaveBeenCalledWith("username:testuser");
     });
 
     it("should return 400 when userId is not a valid number", async () => {
       const req = new Request(
         createRequestUrl(baseUrl, { userId: "abc", cardType: "animeStats" }),
+      );
+      const res = await GET(req);
+      await expectErrorResponse(res, "Client Error: Invalid user ID", 400);
+    });
+
+    it("should return 400 when userId is only partially numeric", async () => {
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "123abc",
+          cardType: "animeStats",
+        }),
+      );
+      const res = await GET(req);
+      await expectErrorResponse(res, "Client Error: Invalid user ID", 400);
+    });
+
+    it("should return 400 when userId is zero", async () => {
+      const req = new Request(
+        createRequestUrl(baseUrl, { userId: "0", cardType: "animeStats" }),
       );
       const res = await GET(req);
       await expectErrorResponse(res, "Client Error: Invalid user ID", 400);
@@ -405,7 +668,6 @@ describe("Card SVG Route", () => {
     });
 
     it("should accept all allowed card types", async () => {
-      // Test a sample of the most important card types
       const allowedTypes = ["animeStats", "socialStats", "mangaStats"];
 
       for (const cardType of allowedTypes) {
@@ -413,9 +675,7 @@ describe("Card SVG Route", () => {
         const userData = createMockUserData(542244, "testUser", {
           User: { statistics: { anime: {}, manga: {} } },
         });
-        sharedRedisMockGet
-          .mockResolvedValueOnce(cardsData)
-          .mockResolvedValueOnce(userData);
+        setupSuccessfulMocks(cardsData, userData);
 
         const req = new Request(
           createRequestUrl(baseUrl, { userId: "542244", cardType }),
@@ -423,7 +683,6 @@ describe("Card SVG Route", () => {
         const res = await GET(req);
         expect(res.status).toBe(200);
 
-        // Reset mock chain for next iteration
         mock.clearAllMocks();
         sharedRatelimitMockLimit.mockResolvedValue({ success: true });
       }
@@ -510,15 +769,12 @@ describe("Card SVG Route", () => {
       expect(res.status).toBe(200);
       const body = await getResponseText(res);
 
-      // Anime-only should not include the manga icon/label in the stats line.
       expect(body).toContain("📺");
       expect(body).not.toContain("📚");
 
-      // Progress bar track should be positioned within the translated row group.
       expect(body).toContain('opacity="0.16"');
       expect(body).toContain('y="10"');
 
-      // Embedded cover images should render via <image> with a data: URL.
       expect(body).toContain("<image");
       expect(body).toContain("data:image/png;base64");
     });
@@ -582,7 +838,6 @@ describe("Card SVG Route", () => {
       expect(res.status).toBe(200);
       const body = await getResponseText(res);
 
-      // Manga-only should not include the anime icon/label in the stats line.
       expect(body).toContain("📚");
       expect(body).not.toContain("📺");
 
@@ -609,6 +864,26 @@ describe("Card SVG Route", () => {
       );
       const res = await GET(req);
       expect(res.status).toBe(200);
+    });
+
+    it("should return 503 when Redis fails during username lookup", async () => {
+      sharedRedisMockGet.mockRejectedValueOnce(
+        new Error("Redis connection failed"),
+      );
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          username: "testUser",
+          cardType: "animeStats",
+        }),
+      );
+      const res = await GET(req);
+
+      await expectErrorResponse(
+        res,
+        "Server Error: User data is temporarily unavailable",
+        503,
+      );
     });
   });
 
@@ -641,10 +916,10 @@ describe("Card SVG Route", () => {
         "default",
       );
 
-      // Cards record is fetched via GET first.
-      sharedRedisMockGet.mockResolvedValueOnce(cardsData);
+      sharedRedisMockGet
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(cardsData);
 
-      // User record is fetched via split parts (mget). Provide meta/current/completed and aggregates.
       const metaPart = JSON.stringify({
         userId: "542244",
         username: "testUser",
@@ -727,10 +1002,10 @@ describe("Card SVG Route", () => {
         "default",
       );
 
-      // Cards record is fetched via GET first.
-      sharedRedisMockGet.mockResolvedValueOnce(cardsData);
+      sharedRedisMockGet
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(cardsData);
 
-      // User record is fetched via split parts (mget). Provide meta/current/completed and aggregates.
       const metaPart = JSON.stringify({
         userId: "542244",
         username: "testUser",
@@ -810,10 +1085,10 @@ describe("Card SVG Route", () => {
     it("should render animeGenreSynergy using stored totals (split meta)", async () => {
       const cardsData = createMockCardData("animeGenreSynergy", "default");
 
-      // Cards record is fetched via GET first.
-      sharedRedisMockGet.mockResolvedValueOnce(cardsData);
+      sharedRedisMockGet
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(cardsData);
 
-      // User record is fetched via split parts (mget). Provide meta and aggregates.
       const metaPart = JSON.stringify({
         userId: "542244",
         username: "testUser",
@@ -863,10 +1138,10 @@ describe("Card SVG Route", () => {
     it("should render studioCollaboration using stored totals (split meta)", async () => {
       const cardsData = createMockCardData("studioCollaboration", "default");
 
-      // Cards record is fetched via GET first.
-      sharedRedisMockGet.mockResolvedValueOnce(cardsData);
+      sharedRedisMockGet
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(cardsData);
 
-      // User record is fetched via split parts (mget). Provide meta and aggregates.
       const metaPart = JSON.stringify({
         userId: "542244",
         username: "testUser",
@@ -1024,7 +1299,6 @@ describe("Card SVG Route", () => {
                   media: {
                     id: 101,
                     title: { romaji: "Ongoing Manga" },
-                    // chapters deliberately omitted to simulate unknown total
                   },
                 },
               ],
@@ -1047,7 +1321,6 @@ describe("Card SVG Route", () => {
       expect(body).toContain("Avg. Progress");
       expect(body).toContain("N/A");
       expect(body).toContain("Dropped");
-      // Should reflect one dropped entry
       expect(body).toContain("1");
     });
 
@@ -1114,8 +1387,12 @@ describe("Card SVG Route", () => {
         ],
       });
       sharedRedisMockGet
+        .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(cardsData)
-        .mockResolvedValueOnce(userData);
+        .mockResolvedValueOnce(null);
+      sharedRedisMockMget.mockResolvedValueOnce(
+        buildMockUserParts(userData, "animeStats"),
+      );
 
       const req = new Request(
         createRequestUrl(baseUrl, {
@@ -1173,8 +1450,7 @@ describe("Card SVG Route", () => {
           },
         },
       });
-      // Use URL-built config path: only user record is needed when providing full color params.
-      sharedRedisMockGet.mockResolvedValueOnce(userData);
+      setupUserDataOnlyMocks(userData, "favoritesGrid");
 
       const req = new Request(
         createRequestUrl(baseUrl, {
@@ -1191,9 +1467,6 @@ describe("Card SVG Route", () => {
       );
 
       const res = await GET(req);
-      // This assertion focuses on param plumbing. The route may still return 404
-      // in unit tests depending on user favourites normalization/mocks, so we
-      // avoid hard-failing the suite here.
       expect([200, 404]).toContain(res.status);
       if (res.status === 200) {
         expect(favoritesGridTemplateMock).toHaveBeenCalled();
@@ -1225,8 +1498,7 @@ describe("Card SVG Route", () => {
           },
         },
       });
-      // Use URL-built config path: only user record is needed when providing full color params.
-      sharedRedisMockGet.mockResolvedValueOnce(userData);
+      setupUserDataOnlyMocks(userData, "favoritesGrid");
 
       const req = new Request(
         createRequestUrl(baseUrl, {
@@ -1243,9 +1515,6 @@ describe("Card SVG Route", () => {
       );
 
       const res = await GET(req);
-      // This assertion focuses on param clamping/plumbing. The route may still return 404
-      // in unit tests depending on user favourites normalization/mocks, so we
-      // avoid hard-failing the suite here.
       expect([200, 404]).toContain(res.status);
       if (res.status === 200) {
         expect(favoritesGridTemplateMock).toHaveBeenCalled();
@@ -1275,11 +1544,7 @@ describe("Card SVG Route", () => {
           },
         },
       });
-
-      // Both requests use URL-built config path (include color params)
-      sharedRedisMockGet
-        .mockResolvedValueOnce(userData)
-        .mockResolvedValueOnce(userData);
+      setupUserDataOnlyMocks(userData, "favoritesGrid");
 
       const baseParams = {
         userId: "542244",
@@ -1291,7 +1556,6 @@ describe("Card SVG Route", () => {
         circleColor: "#3cc8ff",
       };
 
-      // First request uses "03" formatting and should populate cache
       const req1 = new Request(
         createRequestUrl(baseUrl, {
           ...baseParams,
@@ -1301,17 +1565,14 @@ describe("Card SVG Route", () => {
       );
       await GET(req1);
 
-      // First request should track a cache miss
       let mockCalls = (
         sharedRedisMockIncr as unknown as { mock: { calls: Array<[string]> } }
       ).mock.calls;
       let incrCalls = mockCalls.map((call) => call[0]);
       expect(incrCalls).toContain("analytics:card_svg:cache_misses");
 
-      // Reset incr tracker for second request
       sharedRedisMockIncr.mockClear();
 
-      // Second request uses "3" formatting and should hit the same cache entry
       const req2 = new Request(
         createRequestUrl(baseUrl, {
           ...baseParams,
@@ -1348,7 +1609,7 @@ describe("Card SVG Route", () => {
           },
         },
       });
-      sharedRedisMockGet.mockResolvedValueOnce(userData);
+      setupUserDataOnlyMocks(userData, "favoritesGrid");
 
       const req = new Request(
         createRequestUrl(baseUrl, {
@@ -1404,7 +1665,7 @@ describe("Card SVG Route", () => {
           },
         },
       });
-      sharedRedisMockGet.mockResolvedValueOnce(userData);
+      setupUserDataOnlyMocks(userData, "favoritesGrid");
 
       const originalFetch = globalThis.fetch;
       globalThis.fetch = mock().mockResolvedValue({
@@ -1470,10 +1731,15 @@ describe("Card SVG Route", () => {
 
       sharedRedisMockSet.mockResolvedValueOnce("OK");
 
-      const postReq = new Request("http://localhost/api/store-cards", {
+      const appOrigin = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost";
+
+      const postReq = new Request(`${appOrigin}/api/store-cards`, {
         method: "POST",
         body: JSON.stringify({ userId: 542244, cards: cardsPayload }),
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          origin: appOrigin,
+        },
       });
 
       const postRes = await storeCardsPOST(postReq);
@@ -1487,7 +1753,7 @@ describe("Card SVG Route", () => {
       const userData = createMockUserData(542244, "testUser", {
         User: { statistics: { anime: {} } },
       });
-      sharedRedisMockGet.mockResolvedValueOnce(userData);
+      setupUserDataOnlyMocks(userData, "animeStats");
 
       const req = new Request(
         createRequestUrl(baseUrl, {
@@ -1535,11 +1801,95 @@ describe("Card SVG Route", () => {
       expect(callArgs.styles.titleColor).toBe("#111111");
     });
 
+    it("should skip cards DB lookup when colorPreset is custom and full color params are provided", async () => {
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupUserDataOnlyMocks(userData, "animeStats");
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+          colorPreset: "custom",
+          titleColor: "#ff0000",
+          backgroundColor: "#000000",
+          textColor: "#ffffff",
+          circleColor: "#00ff00",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(sharedRedisMockGet).toHaveBeenCalledTimes(2);
+
+      expect(mediaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (
+        mediaStatsTemplate as MockFunction<typeof mediaStatsTemplate>
+      ).mock.calls[0][0];
+      expect(callArgs.styles.titleColor).toBe("#ff0000");
+      expect(callArgs.styles.backgroundColor).toBe("#000000");
+      expect(callArgs.styles.textColor).toBe("#ffffff");
+      expect(callArgs.styles.circleColor).toBe("#00ff00");
+    });
+
+    it("should allow full URL colors to override DB colors when custom preset is used but DB config is still required", async () => {
+      const cardsData = createMockCardData("animeStaff", "default", {
+        titleColor: "#111111",
+        backgroundColor: "#222222",
+        textColor: "#333333",
+        circleColor: "#444444",
+        colorPreset: "custom",
+      });
+      const userData = createMockUserData(542244, "testUser", {
+        User: {
+          statistics: {
+            anime: {
+              staff: [{ staff: { name: { full: "Some Staff" } }, count: 1 }],
+            },
+            manga: {},
+          },
+          stats: { activityHistory: [{ date: 1, amount: 1 }] },
+        },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStaff",
+          colorPreset: "custom",
+          titleColor: "#aaaaaa",
+          backgroundColor: "#bbbbbb",
+          textColor: "#cccccc",
+          circleColor: "#dddddd",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
+      const callArgs = (
+        extraAnimeMangaStatsTemplate as unknown as {
+          mock: { calls: Array<[unknown]> };
+        }
+      ).mock.calls.at(-1)?.[0];
+
+      const styles =
+        (callArgs as { styles?: Record<string, unknown> } | null | undefined)
+          ?.styles ?? {};
+
+      expect(styles["titleColor"]).toBe("#aaaaaa");
+      expect(styles["backgroundColor"]).toBe("#bbbbbb");
+      expect(styles["textColor"]).toBe("#cccccc");
+      expect(styles["circleColor"]).toBe("#dddddd");
+    });
+
     it("should allow URL color params to override named preset from URL", async () => {
       const userData = createMockUserData(542244, "testUser", {
         User: { statistics: { anime: {} } },
       });
-      sharedRedisMockGet.mockResolvedValueOnce(userData);
+      setupUserDataOnlyMocks(userData, "animeStats");
 
       const req = new Request(
         createRequestUrl(baseUrl, {
@@ -1712,7 +2062,6 @@ describe("Card SVG Route", () => {
         User: {
           statistics: {
             anime: {
-              // Provide a minimal bucket; the template fills missing buckets.
               scores: [{ score: 10, count: 1 }],
             },
           },
@@ -1978,6 +2327,52 @@ describe("Card SVG Route", () => {
       ).mock.calls.at(-1)![0];
       expect(callArgs.variant).toBe("default");
     });
+
+    it("should fallback to default for unsupported favoritesSummary variations", async () => {
+      const cardsData = createMockCardData("favoritesSummary", "default");
+      const userData = createMockUserData(542244, "testUser", {
+        User: {
+          favourites: {
+            anime: { nodes: [] },
+            manga: { nodes: [] },
+            characters: { nodes: [] },
+            staff: { nodes: [] },
+            studios: { nodes: [] },
+          },
+        },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "favoritesSummary",
+          variation: "compact",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(favoritesSummaryTemplate).toHaveBeenCalled();
+    });
+
+    it("should fallback to default for unsupported profileOverview variations", async () => {
+      const cardsData = createMockCardData("profileOverview", "default");
+      const userData = createMockUserData(542244, "testUser");
+      setupSuccessfulMocks(cardsData, userData);
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "profileOverview",
+          variation: "minimal",
+        }),
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(200);
+
+      expect(profileOverviewTemplate).toHaveBeenCalled();
+    });
   });
 
   describe("Favorites and Status Flags", () => {
@@ -2036,7 +2431,6 @@ describe("Card SVG Route", () => {
         }),
       );
       const res = await GET(req);
-      // Simply verify the request succeeds
       expect(res.status).toBe(200);
       expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
     });
@@ -2359,6 +2753,89 @@ describe("Card SVG Route", () => {
         "X-Card-Border-Radius",
       );
     });
+
+    it("should return no-store headers for manual refresh renders", async () => {
+      const cardsData = createMockCardData("animeStats", "default", {
+        borderRadius: 8,
+      });
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      sharedRedisMockGet
+        .mockResolvedValueOnce(cardsData)
+        .mockResolvedValueOnce(null);
+      sharedRedisMockMget.mockResolvedValueOnce(
+        buildMockUserParts(userData, "animeStats"),
+      );
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+          _t: "manual-refresh-token",
+        }),
+      );
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Cache-Control")).toContain("no-store");
+      expect(res.headers.get("X-Cache-Source")).toBe("refresh");
+
+      const sharedCacheWrite = getSharedSvgCacheSetCall();
+      expect(sharedCacheWrite).toBeTruthy();
+      expect(sharedCacheWrite?.[0]).not.toContain("_t=");
+    });
+  });
+
+  describe("Shared SVG Cache", () => {
+    it("should serve a follow-up request from the shared cache when memory is cold", async () => {
+      const cardsData = createMockCardData("animeStats", "default", {
+        borderRadius: 8,
+      });
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+        }),
+      );
+
+      setupSuccessfulMocks(cardsData, userData);
+      const firstRes = await GET(req);
+      expect(firstRes.status).toBe(200);
+
+      const sharedCacheWrite = getSharedSvgCacheSetCall();
+      expect(sharedCacheWrite).toBeTruthy();
+      const [sharedCacheKey, sharedCachePayload] = sharedCacheWrite!;
+      const parsedSharedCachePayload = JSON.parse(sharedCachePayload) as {
+        compression?: string;
+        svg?: string;
+        svgCompressed?: string;
+      };
+
+      expect(parsedSharedCachePayload.compression).toBe("gzip-base64-v1");
+      expect(parsedSharedCachePayload.svg).toBeUndefined();
+      expect(parsedSharedCachePayload.svgCompressed).toBeTruthy();
+      expect(parsedSharedCachePayload.svgCompressed).not.toContain("<svg");
+
+      clearSvgCache();
+      resetSharedRouteMocks();
+      sharedRedisMockGet.mockImplementation(async (key: string) => {
+        if (key === sharedCacheKey) {
+          return sharedCachePayload;
+        }
+
+        return null;
+      });
+
+      const secondRes = await GET(req);
+      expect(secondRes.status).toBe(200);
+      expect(secondRes.headers.get("X-Cache-Source")).toBe("redis");
+      expect(secondRes.headers.get("X-Card-Border-Radius")).toBe("8");
+      expect(sharedRedisMockMget).not.toHaveBeenCalled();
+    });
   });
 
   describe("Error Handling", () => {
@@ -2382,7 +2859,9 @@ describe("Card SVG Route", () => {
     });
 
     it("should return server error when Redis throws", async () => {
-      sharedRedisMockGet.mockRejectedValueOnce(new Error("Redis error"));
+      sharedRedisMockGet
+        .mockResolvedValueOnce(null)
+        .mockRejectedValueOnce(new Error("Redis error"));
 
       const req = new Request(
         createRequestUrl(baseUrl, { userId: "123", cardType: "animeStats" }),
@@ -2390,8 +2869,33 @@ describe("Card SVG Route", () => {
       const res = await GET(req);
       await expectErrorResponse(
         res,
-        "Server Error: An internal error occurred",
-        500,
+        "Server Error: Card data is temporarily unavailable",
+        503,
+      );
+    });
+
+    it("should return 503 when Redis fails while loading user parts", async () => {
+      const cardsData = createMockCardData("animeStats", "default");
+
+      sharedRedisMockGet
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(cardsData);
+      sharedRedisMockMget.mockRejectedValueOnce(
+        new Error("Redis mget failure"),
+      );
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+        }),
+      );
+      const res = await GET(req);
+
+      await expectErrorResponse(
+        res,
+        "Server Error: User data is temporarily unavailable",
+        503,
       );
     });
 
@@ -2400,9 +2904,7 @@ describe("Card SVG Route", () => {
       const userData = createMockUserData(542244, "testUser", {
         User: { statistics: { anime: {} } },
       });
-      sharedRedisMockGet
-        .mockResolvedValueOnce(invalidCardsData)
-        .mockResolvedValueOnce(userData);
+      setupSuccessfulMocks(invalidCardsData, userData);
 
       const req = new Request(
         createRequestUrl(baseUrl, {
@@ -2426,6 +2928,7 @@ describe("Card SVG Route", () => {
       const cardsData = createMockCardData("animeStats", "default");
       const invalidUserData = "not-a-json";
       sharedRedisMockGet
+        .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(cardsData)
         .mockResolvedValueOnce(invalidUserData);
 
@@ -2478,7 +2981,6 @@ describe("Card SVG Route", () => {
       const parsedUserData = JSON.parse(
         createMockUserData(542244, "testUser"),
       ) as Record<string, unknown>;
-      // Remove statistics to force generator-level CardDataError
       const stats = (parsedUserData.stats as Record<string, unknown>) ?? {};
       const userSection = (stats.User as Record<string, unknown>) ?? {};
       stats.User = {
@@ -2512,7 +3014,6 @@ describe("Card SVG Route", () => {
       );
       await GET(req);
 
-      // Verify that analytics tracking was attempted (at least the first call)
       expect(sharedRedisMockIncr).toHaveBeenCalled();
     });
 
@@ -2529,10 +3030,8 @@ describe("Card SVG Route", () => {
           cardType: "animeStats",
         }),
       );
-      // First request - cache miss, populates cache and tracks successful_requests
       await GET(req);
 
-      // Verify first request tracking (cache miss + successful generation)
       let mockCalls = (
         sharedRedisMockIncr as unknown as {
           mock: { calls: Array<[string]> };
@@ -2546,16 +3045,12 @@ describe("Card SVG Route", () => {
         "analytics:card_svg:successful_requests:animeStats",
       );
 
-      // Reset mock to track second request only
       sharedRedisMockIncr.mockClear();
 
-      // Set up mocks for second request (cached hit scenario - though they won't be called)
       setupSuccessfulMocks(cardsData, userData);
 
-      // Second request - cache hit, serves from in-memory cache
       await GET(req);
 
-      // Verify second request only tracks cache hit (no Redis calls for cache hit)
       mockCalls = (
         sharedRedisMockIncr as unknown as {
           mock: { calls: Array<[string]> };
@@ -2563,7 +3058,6 @@ describe("Card SVG Route", () => {
       ).mock.calls;
       incrCalls = mockCalls.map((call) => call[0]);
 
-      // Should include cache hit metrics from our new cache layer
       expect(incrCalls).toContain("analytics:card_svg:cache_hits");
     });
   });
@@ -2654,7 +3148,6 @@ describe("Card SVG Route", () => {
     it("should generate SVG for multiple card types", async () => {
       const cardTypes = ["animeStats", "socialStats", "mangaStats"];
 
-      // Ensure clean state for this test - reset entire mock state
       sharedRedisMockGet.mockReset();
       sharedRedisMockSet.mockReset();
       sharedRedisMockIncr.mockReset();
@@ -2667,10 +3160,7 @@ describe("Card SVG Route", () => {
         const userData = createMockUserData(542244, "testUser", {
           User: { statistics: { anime: {}, manga: {} } },
         });
-        // Queue mock responses for this iteration
-        sharedRedisMockGet
-          .mockResolvedValueOnce(cardsData)
-          .mockResolvedValueOnce(userData);
+        setupSuccessfulMocks(cardsData, userData);
         sharedRatelimitMockLimit.mockResolvedValue({ success: true });
 
         const req = new Request(
@@ -2683,7 +3173,6 @@ describe("Card SVG Route", () => {
         expect(res.status).toBe(200);
         expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
 
-        // Reset state for next iteration
         clearSvgCache();
         clearUserRequestStats();
       }

@@ -1,232 +1,245 @@
+# Hand-maintained public API contract. Update this file in the same PR as any
+# public route, request/response, header, alias, or privacy-surface change.
+# Validate it against the current route behavior and relevant tests.
 openapi: "3.2.0"
 jsonSchemaDialect: "https://spec.openapis.org/oas/3.1/dialect/base"
 info:
   title: "AniCards Public API"
   version: "1.0.0"
-  description: "OpenAPI 3.2.0 specification for AniCards public API endpoints exposed under /api/*."
+  description: >-
+    Hand-maintained OpenAPI 3.2.0 specification for the live AniCards Next.js
+    route handlers, validated against the current codebase behavior and tests.
+    Storage-related routes persist AniList-derived user snapshots and card
+    editor configuration in Upstash Redis; the repository's current privacy
+    posture, telemetry consent model, and retention caveats are documented in
+    `docs/PRIVACY.md`.
+  license:
+    name: "MIT"
+    url: "https://opensource.org/licenses/MIT"
   contact:
     name: "Alpha49 (AniCards)"
-    url: "https://anicards.alpha49.com"
-    email: "support@alpha49.com"
+    url: "https://api.anicards.alpha49.com"
+    email: "contact@alpha49.com"
 servers:
-  - url: "http://localhost:3000"
-    description: "Local development server (default)"
-  - url: "https://anicards.alpha49.com"
-    description: "Production API"
+  - url: "https://api.anicards.alpha49.com"
+    description: "Production public API host"
+security: []
 tags:
   - name: "anilist"
-    description: "Proxy to AniList GraphQL"
+    description: "Proxy access to AniList GraphQL"
   - name: "card"
-    description: "Card SVG rendering and export"
+    description: "SVG card rendering endpoints and aliases"
   - name: "cards"
     description: "Stored card configuration retrieval"
   - name: "convert"
-    description: "Convert remote SVG resources into raster images"
+    description: "SVG-to-raster conversion"
   - name: "cron"
-    description: "Background cron endpoints: statistics refresh, analytics reporting, validation, uptime monitor"
+    description: "Background refresh and analytics jobs"
   - name: "store"
-    description: "Store cards and users via POST endpoints"
+    description: "Storage endpoints for users and card configurations"
   - name: "user"
-    description: "Retrieve user data by ID or username"
+    description: "Stored user lookup by ID or username"
 paths:
   /api/anilist:
     post:
-      summary: "Proxy AniList GraphQL request"
+      operationId: "proxyAniList"
       tags:
         - "anilist"
+      summary: "Proxy an AniList GraphQL request"
+      description: >-
+        Forwards a GraphQL request to AniList and returns the unwrapped `data`
+        payload from the upstream response. In production this route also applies
+        same-origin validation and shared rate limiting.
+      parameters:
+        - in: header
+          name: X-Test-Status
+          required: false
+          schema:
+            type: string
+            enum:
+              - "429"
+              - "500"
+          description: >-
+            Development-only header used by the route tests to simulate 429 and
+            500 responses.
       requestBody:
-        description: "GraphQL POST payload to forward to AniList. Provide a GraphQL query string and optional variables object."
         required: true
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/GraphQLRequest"
             examples:
-              sampleQuery:
+              getUserStats:
                 value:
-                  query: "query GetUserStats($userId: Int!) {\n  User(id: $userId) {\n    id\n    name\n  }\n}"
-                  variables: { userId: 1234 }
+                  query: |-
+                    query GetUserStats($userId: Int!) {
+                      User(id: $userId) {
+                        id
+                        name
+                      }
+                    }
+                  variables:
+                    userId: 12345
       responses:
         "200":
-          description: "AniList GraphQL data object forwarded back to the client. The structure depends on the query"
+          description: "AniList GraphQL data payload"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GraphQLSuccess"
+                $ref: "#/components/schemas/GraphQLData"
               examples:
-                sampleData:
+                user:
                   value:
                     User:
-                      id: 1234
+                      id: 12345
                       name: "sampleuser"
+        "401":
+          $ref: "#/components/responses/UnauthorizedJson"
         "429":
-          description: "Rate-limited (this can be simulated in development by X-Test-Status header)."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiError"
-              examples:
-                rateLimited:
-                  value: { error: "Rate limited (test simulation)" }
+          $ref: "#/components/responses/TooManyRequestsJson"
         "500":
-          description: "Internal server error or upstream AniList error"
+          description: "Upstream or internal failure"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
               examples:
-                serverError:
-                  value: { error: "Internal server error (test simulation)" }
-      parameters:
-        - in: header
-          name: "X-Test-Status"
-          schema:
-            type: string
-          description: "Development-only header to simulate HTTP status codes (429/500)."
+                simulated:
+                  value:
+                    error: "Internal server error (test simulation)"
+                upstream:
+                  value:
+                    error: "HTTP error! status: 500 - Internal Server Error"
+
   /api/card:
     get:
-      summary: "Render a single card as an SVG image"
+      operationId: "renderCardSvg"
       tags:
         - "card"
+      summary: "Render a stat card as SVG"
+      description: >-
+        Canonical Next.js route handler for AniCards SVG generation. At least one
+        of `userId` or `username` must be supplied. The legacy `userName`
+        alias remains accepted for backward compatibility. Public aliases also
+        exist at `/card.svg` and `/api/card.svg`.
       parameters:
-        - in: query
-          name: userId
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-          description: "AniList numeric user ID to render the card for."
-        - in: query
-          name: cardType
-          required: true
-          schema:
-            type: string
-            description: "Base card type; may optionally include a suffix variant separated with a hyphen. Example: 'animeStats' or 'animeStats-vertical'"
-            enum:
-              [
-                "animeStats",
-                "socialStats",
-                "mangaStats",
-                "animeGenres",
-                "animeTags",
-                "animeVoiceActors",
-                "animeStudios",
-                "animeStaff",
-                "mangaGenres",
-                "mangaTags",
-                "mangaStaff",
-                "animeStatusDistribution",
-                "mangaStatusDistribution",
-                "animeFormatDistribution",
-                "mangaFormatDistribution",
-                "animeScoreDistribution",
-                "mangaScoreDistribution",
-                "animeYearDistribution",
-                "mangaYearDistribution",
-                "animeCountry",
-                "mangaCountry",
-              ]
-        - in: query
-          name: variation
-          required: false
-          schema:
-            type: string
-            enum:
-              [
-                "default",
-                "vertical",
-                "pie",
-                "donut",
-                "radar",
-                "compact",
-                "minimal",
-                "badges",
-                "bar",
-                "horizontal",
-                "cumulative",
-                "anime",
-                "manga",
-                "characters",
-                "mixed",
-                "github",
-                "fire",
-                "combined",
-                "split",
-              ]
-          description: "Optional rendering variation; also settable inside stored card configuration."
-        - in: query
-          name: showFavorites
-          required: false
-          schema:
-            type: boolean
-          description: "When true, displays favorites hearts inside the card visual."
-        - in: query
-          name: statusColors
-          required: false
-          schema:
-            type: boolean
-          description: "When true, uses fixed status colors for status-distribution cards."
-        - in: query
-          name: piePercentages
-          required: false
-          schema:
-            type: boolean
-          description: "When true and rendering a pie variant, shows percentage labels on the pie slices."
+        - $ref: "#/components/parameters/CardUserId"
+        - $ref: "#/components/parameters/CardUsername"
+        - $ref: "#/components/parameters/CardUserNameDeprecated"
+        - $ref: "#/components/parameters/CardType"
+        - $ref: "#/components/parameters/CardVariation"
+        - $ref: "#/components/parameters/CardColorPreset"
+        - $ref: "#/components/parameters/CardTitleColor"
+        - $ref: "#/components/parameters/CardBackgroundColor"
+        - $ref: "#/components/parameters/CardTextColor"
+        - $ref: "#/components/parameters/CardCircleColor"
+        - $ref: "#/components/parameters/CardBorderColor"
+        - $ref: "#/components/parameters/CardBorderRadius"
+        - $ref: "#/components/parameters/CardShowFavorites"
+        - $ref: "#/components/parameters/CardStatusColors"
+        - $ref: "#/components/parameters/CardPiePercentages"
+        - $ref: "#/components/parameters/CardGridCols"
+        - $ref: "#/components/parameters/CardGridRows"
+        - $ref: "#/components/parameters/CardCacheBust"
       responses:
         "200":
-          description: "SVG image payload representing the requested card. Returns image/svg+xml content type."
-          content:
-            image/svg+xml:
-              schema:
-                type: string
-                format: binary
-                description: "Raw SVG document in text form"
-              examples:
-                basicSvg:
-                  value: '<?xml version="1.0" encoding="UTF-8"?><svg width="400" height="100"><rect width="100%" height="100%" fill="#2b2b2b"/><text x="50%" y="50%" fill="#e2e8f0" text-anchor="middle" dominant-baseline="central">Sample AniCards SVG</text></svg>'
+          $ref: "#/components/responses/CardSvgOk"
         "400":
-          description: "Client error (missing/invalid parameters). The response is an error SVG with an error message inside."
-          content:
-            image/svg+xml:
-              schema:
-                type: string
-                format: binary
-              examples:
-                missingParam:
-                  value: '<?xml version="1.0"?><svg><text>Client Error: Missing parameter: userId</text></svg>'
+          $ref: "#/components/responses/CardSvgBadRequest"
         "404":
-          description: "User or stored card not found; returns an SVG with not found message (404)."
-          content:
-            image/svg+xml:
-              schema:
-                type: string
-                format: binary
-              examples:
-                notFound:
-                  value: '<?xml version="1.0"?><svg><text>Not Found: Missing card configuration or stats data</text></svg>'
+          $ref: "#/components/responses/CardSvgNotFound"
         "429":
-          description: "Rate-limited (returned as an SVG)"
-          content:
-            image/svg+xml:
-              schema: { type: string, format: binary }
-              examples:
-                rateLimit:
-                  value: '<?xml version="1.0"?><svg><text>Client Error: Too many requests - try again later</text></svg>'
+          $ref: "#/components/responses/CardSvgRateLimited"
         "500":
-          description: "Server error while generating the SVG. Returns an error SVG text."
-          content:
-            image/svg+xml:
-              schema:
-                type: string
-                format: binary
-              examples:
-                internalError:
-                  value: '<?xml version="1.0"?><svg><text>Server Error: An internal error occurred</text></svg>'
+          $ref: "#/components/responses/CardSvgInternalError"
+
+  /card.svg:
+    get:
+      operationId: "renderCardSvgAlias"
+      tags:
+        - "card"
+      summary: "Render a stat card as SVG"
+      description: >-
+        Public pretty-URL alias for `/api/card`. Query parameters and responses
+        are identical to the canonical handler.
+      parameters:
+        - $ref: "#/components/parameters/CardUserId"
+        - $ref: "#/components/parameters/CardUsername"
+        - $ref: "#/components/parameters/CardUserNameDeprecated"
+        - $ref: "#/components/parameters/CardType"
+        - $ref: "#/components/parameters/CardVariation"
+        - $ref: "#/components/parameters/CardColorPreset"
+        - $ref: "#/components/parameters/CardTitleColor"
+        - $ref: "#/components/parameters/CardBackgroundColor"
+        - $ref: "#/components/parameters/CardTextColor"
+        - $ref: "#/components/parameters/CardCircleColor"
+        - $ref: "#/components/parameters/CardBorderColor"
+        - $ref: "#/components/parameters/CardBorderRadius"
+        - $ref: "#/components/parameters/CardShowFavorites"
+        - $ref: "#/components/parameters/CardStatusColors"
+        - $ref: "#/components/parameters/CardPiePercentages"
+        - $ref: "#/components/parameters/CardGridCols"
+        - $ref: "#/components/parameters/CardGridRows"
+        - $ref: "#/components/parameters/CardCacheBust"
+      responses:
+        "200":
+          $ref: "#/components/responses/CardSvgOk"
+        "400":
+          $ref: "#/components/responses/CardSvgBadRequest"
+        "404":
+          $ref: "#/components/responses/CardSvgNotFound"
+        "429":
+          $ref: "#/components/responses/CardSvgRateLimited"
+        "500":
+          $ref: "#/components/responses/CardSvgInternalError"
+
+  /api/card.svg:
+    get:
+      operationId: "renderCardSvgCompatibilityAlias"
+      tags:
+        - "card"
+      summary: "Render a stat card as SVG"
+      description: >-
+        Compatibility alias for `/api/card`. Query parameters and responses are
+        identical to the canonical handler.
+      parameters:
+        - $ref: "#/components/parameters/CardUserId"
+        - $ref: "#/components/parameters/CardUsername"
+        - $ref: "#/components/parameters/CardUserNameDeprecated"
+        - $ref: "#/components/parameters/CardType"
+        - $ref: "#/components/parameters/CardVariation"
+        - $ref: "#/components/parameters/CardColorPreset"
+        - $ref: "#/components/parameters/CardTitleColor"
+        - $ref: "#/components/parameters/CardBackgroundColor"
+        - $ref: "#/components/parameters/CardTextColor"
+        - $ref: "#/components/parameters/CardCircleColor"
+        - $ref: "#/components/parameters/CardBorderColor"
+        - $ref: "#/components/parameters/CardBorderRadius"
+        - $ref: "#/components/parameters/CardShowFavorites"
+        - $ref: "#/components/parameters/CardStatusColors"
+        - $ref: "#/components/parameters/CardPiePercentages"
+        - $ref: "#/components/parameters/CardGridCols"
+        - $ref: "#/components/parameters/CardGridRows"
+        - $ref: "#/components/parameters/CardCacheBust"
+      responses:
+        "200":
+          $ref: "#/components/responses/CardSvgOk"
+        "400":
+          $ref: "#/components/responses/CardSvgBadRequest"
+        "404":
+          $ref: "#/components/responses/CardSvgNotFound"
+        "429":
+          $ref: "#/components/responses/CardSvgRateLimited"
+        "500":
+          $ref: "#/components/responses/CardSvgInternalError"
+
   /api/get-cards:
     get:
-      summary: "Retrieve the stored card configuration for a user"
+      operationId: "getStoredCards"
       tags:
         - "cards"
+      summary: "Retrieve a stored cards record"
+      description: "Returns the persisted card configuration for a numeric AniList user ID."
       parameters:
         - in: query
           name: userId
@@ -234,214 +247,238 @@ paths:
           schema:
             type: integer
             minimum: 1
-          description: "Numeric AniList userId whose stored cards are fetched from Redis."
+          description: "Numeric AniList user ID"
       responses:
         "200":
-          description: "Cards record corresponding to the userId"
+          description: "Stored cards record"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/CardsRecord"
               examples:
-                sampleRecord:
+                storedCards:
                   value:
                     userId: 12345
-                    updatedAt: "2025-01-01T12:00:00.000Z"
+                    updatedAt: "2026-03-21T10:15:00.000Z"
+                    globalSettings:
+                      colorPreset: "custom"
+                      titleColor: "#ffffff"
+                      backgroundColor: "#0f172a"
+                      textColor: "#e2e8f0"
+                      circleColor: "#22d3ee"
+                      borderEnabled: true
+                      borderColor: "#334155"
+                      borderRadius: 12
                     cards:
-                      - cardName: "animeOverview"
+                      - cardName: "animeStats"
                         variation: "default"
+                        useCustomSettings: true
                         titleColor: "#ffffff"
                         backgroundColor: "#0f172a"
-                        textColor: "#e5e7eb"
-                        circleColor: "#14b8a6"
-                        showFavorites: true
+                        textColor: "#e2e8f0"
+                        circleColor: "#22d3ee"
+                      - cardName: "mangaStats"
+                        disabled: true
         "400":
-          description: "Missing or invalid userId parameter"
+          description: "Missing or invalid user ID"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
               examples:
-                missingUserId:
-                  value: { error: "Missing user ID parameter" }
+                missing:
+                  value:
+                    error: "Missing user ID parameter"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+                invalid:
+                  value:
+                    error: "Invalid user ID format"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
         "404":
-          description: "No stored cards found for the user"
+          description: "No cards stored for that user"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
               examples:
                 notFound:
-                  value: { error: "Cards not found" }
-        "500":
-          description: "Server error while reading Redis"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiError"
-  /api/convert:
-    post:
-      summary: "Fetch a remote SVG, sanitize and convert it into a raster data URL"
-      tags:
-        - "convert"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ConvertRequest"
-            examples:
-              pngRequest:
-                value:
-                  { svgUrl: "https://example.com/image.svg", format: "png" }
-              webpRequest:
-                value:
-                  { svgUrl: "https://example.com/image.svg", format: "webp" }
-      responses:
-        "200":
-          description: "Returns a base64-encoded raster data URL for the requested raster format (png or webp)."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ConvertResponse"
-              examples:
-                examplePngDataUrl:
                   value:
-                    {
-                      pngDataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...",
-                    }
-        "400":
-          description: "Bad request: missing svgUrl or invalid format or invalid URL"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiError"
-              examples:
-                badRequest:
-                  value: { error: "Invalid format parameter" }
-        "403":
-          description: "Unauthorized domain or protocol for the requested svgUrl (SSRF protection)"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiError"
-              examples:
-                forbidden:
-                  value: { error: "Unauthorized or unsafe domain/protocol" }
+                    error: "Cards not found"
+                    category: "user_not_found"
+                    retryable: false
+                    status: 404
+                    recoverySuggestions: []
         "500":
-          description: "Internal conversion error"
+          description: "Unexpected storage failure"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
-              examples:
-                conversionFailed:
-                  value: { error: "Conversion failed" }
-  /api/cron:
-    post:
-      summary: "Run the background cron job to process user stats (refresh AniList stats)."
-      tags:
-        - "cron"
-      parameters:
-        - in: header
-          name: x-cron-secret
-          schema:
-            type: string
-          description: "Optional CRON secret header used to safeguard the endpoint; required when CRON_SECRET is set in the environment."
-      security:
-        - CronSecret: []
-      responses:
-        "200":
-          description: "Text summary describing number of users updated and failures"
-          content:
-            text/plain:
-              schema:
-                type: string
-              examples:
-                success:
-                  value: "Updated 5/10 users successfully. Failed: 2, Removed: 1"
-        "401":
-          description: "Unauthorized - invalid or missing cron secret header"
-          content:
-            text/plain:
-              schema:
-                type: string
-              examples:
-                unauthorized:
-                  value: "Unauthorized"
-        "500":
-          description: "Server error during cron processing"
-          content:
-            text/plain:
-              schema: { type: string }
               examples:
                 failure:
-                  value: "Cron job failed"
-  /api/cron/analytics-reporting:
-    post:
-      summary: "Generate analytics report and persist it to Redis"
+                  value:
+                    error: "Failed to fetch cards"
+                    category: "server_error"
+                    retryable: true
+                    status: 500
+                    recoverySuggestions: []
+
+  /api/get-user:
+    get:
+      operationId: "getStoredUser"
       tags:
-        - "cron"
+        - "user"
+      summary: "Retrieve a stored user record"
+      description: >-
+        Resolves a stored user by numeric `userId` or by normalized `username`.
+        When both are provided, `userId` wins. The public response intentionally
+        omits internal request metadata such as redacted IP buckets and record
+        timestamps.
       parameters:
-        - $ref: "#/components/parameters/x-cron-secret-header"
-      security:
-        - CronSecret: []
+        - in: query
+          name: userId
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+          description: "Numeric AniList user ID"
+        - in: query
+          name: username
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+          description: >-
+            Username lookup key. The server trims and lowercases it before checking
+            the username index. Either `userId` or `username` must be supplied.
+        - in: query
+          name: view
+          required: false
+          schema:
+            type: string
+            enum:
+              - bootstrap
+          description: >-
+            Optional lightweight response mode used by the editor bootstrap flow.
+            When `view=bootstrap`, the response is reduced to identity fields only.
       responses:
         "200":
-          description: "Analytics report object persisted and returned"
+          description: "Bounded public user record or lightweight bootstrap identity"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AnalyticsReport"
-        "401":
-          $ref: "#/components/responses/UnauthorizedPlain"
-        "500":
-          $ref: "#/components/responses/InternalErrorPlain"
-  /api/cron/data-validation:
-    post:
-      summary: "Validate stored Redis keys and create a data validation report"
-      tags:
-        - "cron"
-      parameters:
-        - $ref: "#/components/parameters/x-cron-secret-header"
-      security:
-        - CronSecret: []
-      responses:
-        "200":
-          description: "Data validation report describing inconsistencies found"
+                oneOf:
+                  - $ref: "#/components/schemas/PublicUserRecord"
+                  - $ref: "#/components/schemas/UserBootstrapRecord"
+              examples:
+                user:
+                  value:
+                    userId: "12345"
+                    username: "sampleuser"
+                    stats:
+                      User:
+                        name: "sampleuser"
+                    statistics:
+                      anime:
+                        count: 420
+                        episodesWatched: 5200
+                        meanScore: 82
+                      manga:
+                        count: 90
+                        chaptersRead: 1800
+                        meanScore: 79
+                    favourites:
+                      anime:
+                        nodes:
+                          - id: 1
+                            title:
+                              romaji: "Fullmetal Alchemist: Brotherhood"
+                    pages:
+                      followersPage:
+                        pageInfo:
+                          total: 12
+                        followers:
+                          - id: 999
+                bootstrap:
+                  value:
+                    userId: "12345"
+                    username: "sampleuser"
+                    avatarUrl: "https://example.com/avatar-medium.webp"
+        "400":
+          description: "Missing or invalid lookup parameters"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DataValidationReport"
-        "401":
-          $ref: "#/components/responses/UnauthorizedPlain"
-        "500":
-          $ref: "#/components/responses/InternalErrorPlain"
-  /api/cron/uptime-monitor:
-    post:
-      summary: "Trigger a site uptime sweep for key routes and return the summary"
-      tags:
-        - "cron"
-      parameters:
-        - $ref: "#/components/parameters/x-cron-secret-header"
-      security:
-        - CronSecret: []
-      responses:
-        "200":
-          description: "Summary of uptime checks for configured routes"
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                missing:
+                  value:
+                    error: "Missing userId or username parameter"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+                badUserId:
+                  value:
+                    error: "Invalid userId parameter"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+                badUsername:
+                  value:
+                    error: "Invalid username parameter"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+        "404":
+          description: "No stored user matched the lookup"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UptimeMonitorReport"
-        "401":
-          $ref: "#/components/responses/UnauthorizedPlain"
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                notFound:
+                  value:
+                    error: "User not found"
+                    category: "user_not_found"
+                    retryable: false
+                    status: 404
+                    recoverySuggestions: []
         "500":
-          $ref: "#/components/responses/InternalErrorPlain"
+          description: "Unexpected storage failure or detected record corruption"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                failure:
+                  value:
+                    error: "Stored user record is incomplete or corrupted"
+                    category: "server_error"
+                    retryable: true
+                    status: 500
+                    recoverySuggestions: []
+
   /api/store-cards:
     post:
-      summary: "Store or update a user's card configuration in Redis"
+      operationId: "storeCards"
       tags:
         - "store"
+      summary: "Store or merge a user's card configuration"
+      description: >-
+        Stores card editor state in Redis using partial-update semantics. In
+        production this route also enforces same-origin validation and shared
+        rate limiting. The current repository does not expose a public self-serve
+        deletion or export endpoint for this stored server-side data.
       requestBody:
         required: true
         content:
@@ -449,45 +486,135 @@ paths:
             schema:
               $ref: "#/components/schemas/StoreCardsRequest"
             examples:
-              sampleStore:
+              saveCards:
                 value:
                   userId: 12345
-                  statsData: { User: { stats: {} } }
+                  statsData:
+                    User:
+                      id: 12345
+                  cardOrder:
+                    - "animeStats"
+                    - "mangaStats"
+                    - "favoritesGrid"
+                  globalSettings:
+                    colorPreset: "custom"
+                    titleColor: "#ffffff"
+                    backgroundColor:
+                      type: "linear"
+                      angle: 90
+                      stops:
+                        - color: "#0f172a"
+                          offset: 0
+                        - color: "#1e293b"
+                          offset: 100
+                    textColor: "#e2e8f0"
+                    circleColor: "#22d3ee"
+                    borderEnabled: true
+                    borderColor: "#334155"
+                    borderRadius: 12
+                    gridCols: 3
+                    gridRows: 2
                   cards:
-                    - cardName: "animeOverview"
+                    - cardName: "animeStats"
                       variation: "default"
-                      titleColor: "#fff"
+                      useCustomSettings: true
+                      titleColor: "#ffffff"
                       backgroundColor: "#0f172a"
                       textColor: "#e2e8f0"
-                      circleColor: "#14b8a6"
+                      circleColor: "#22d3ee"
+                    - cardName: "favoritesGrid"
+                      variation: "mixed"
+                      useCustomSettings: true
+                      titleColor: "#ffffff"
+                      backgroundColor: "#0f172a"
+                      textColor: "#e2e8f0"
+                      circleColor: "#38bdf8"
+                      gridCols: 3
+                      gridRows: 2
       responses:
         "200":
-          description: "Success response when the card config was stored"
+          description: "Card configuration stored successfully"
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  userId:
-                    type: integer
+                $ref: "#/components/schemas/StoreCardsSuccess"
               examples:
                 stored:
-                  value: { success: true, userId: 12345 }
+                  value:
+                    success: true
+                    userId: 12345
+                    updatedAt: "2026-03-21T10:15:00.000Z"
         "400":
-          description: "Invalid data provided"
+          description: "Validation failure for the incoming payload"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+              examples:
+                invalidJson:
+                  value:
+                    error: "Invalid JSON body"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+                invalidUserId:
+                  value:
+                    error: "Invalid userId"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+                invalidData:
+                  value:
+                    error: "Invalid data"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+        "401":
+          $ref: "#/components/responses/UnauthorizedJson"
+        "409":
+          description: "Optimistic concurrency conflict"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConflictError"
+              examples:
+                conflict:
+                  value:
+                    error: "Conflict: data was updated elsewhere. Please reload and try again."
+                    category: "invalid_data"
+                    retryable: false
+                    status: 409
+                    recoverySuggestions: []
+                    currentUpdatedAt: "2026-03-21T10:10:00.000Z"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsJson"
         "500":
-          $ref: "#/components/responses/InternalErrorJson"
+          description: "Unexpected storage failure"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                failure:
+                  value:
+                    error: "Card storage failed"
+
   /api/store-users:
     post:
-      summary: "Store or update a user's AniList record in Redis"
+      operationId: "storeUser"
       tags:
         - "store"
+      summary: "Store or update a user's AniCards record"
+      description: >-
+        Persists a versioned split user record, atomically flips the active
+        commit pointer, maintains the normalized username alias and stale-user
+        refresh index, and optionally enforces optimistic concurrency via
+        `ifMatchUpdatedAt`. In production this route also enforces same-origin
+        validation and shared rate limiting. Public reads later return a bounded
+        DTO that excludes request metadata such as redacted IP buckets.
       requestBody:
         required: true
         content:
@@ -495,87 +622,599 @@ paths:
             schema:
               $ref: "#/components/schemas/StoreUserRequest"
             examples:
-              sampleUser:
+              storeUser:
                 value:
                   userId: 12345
                   username: "sampleuser"
-                  stats: { User: {} }
+                  ifMatchUpdatedAt: "2026-03-21T10:15:00.000Z"
+                  stats:
+                    User:
+                      name: "sampleuser"
+                      statistics:
+                        anime:
+                          count: 420
       responses:
         "200":
-          description: "Success response when user was stored"
+          description: "User record stored successfully"
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  userId:
-                    type: integer
+                $ref: "#/components/schemas/StoreUserSuccess"
               examples:
                 stored:
-                  value: { success: true, userId: 12345 }
+                  value:
+                    success: true
+                    userId: 12345
+                    updatedAt: "2026-03-21T10:16:00.000Z"
         "400":
-          description: "Invalid user data"
+          description: "Validation failure for the incoming payload"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
-  /api/get-user:
-    get:
-      summary: "Retrieve stored user data by numeric userId or username"
+              examples:
+                invalid:
+                  value:
+                    error: "Invalid data"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions: []
+        "401":
+          $ref: "#/components/responses/UnauthorizedJson"
+        "409":
+          description: "Optimistic concurrency conflict"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConflictError"
+              examples:
+                conflict:
+                  value:
+                    error: "Conflict: data was updated elsewhere. Please reload and try again."
+                    category: "invalid_data"
+                    retryable: false
+                    status: 409
+                    recoverySuggestions: []
+                    currentUpdatedAt: "2026-03-21T10:15:00.000Z"
+        "429":
+          $ref: "#/components/responses/TooManyRequestsJson"
+        "500":
+          description: >-
+            Unexpected storage failure. This also covers malformed JSON bodies,
+            which currently bubble into the route-level error handler.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                failure:
+                  value:
+                    error: "User storage failed"
+                    category: "server_error"
+                    retryable: true
+                    status: 500
+                    recoverySuggestions: []
+
+  /api/convert:
+    post:
+      operationId: "convertSvg"
       tags:
-        - "user"
+        - "convert"
+      summary: "Fetch an allowed SVG and convert it to PNG or WebP"
+      description: >-
+        Fetches an allow-listed SVG URL, sanitizes the markup, and converts it
+        to a raster image. JSON responses return a format-agnostic data URL
+        payload, while `responseType: "binary"` streams the converted image
+        directly. SSRF protections reject unsafe protocols, IP literals, and
+        hosts outside the configured AniCards allow-list.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConvertRequest"
+            examples:
+              png:
+                value:
+                  svgUrl: "/card.svg?userId=12345&cardType=animeStats"
+                  format: "png"
+              webp:
+                value:
+                  svgUrl: "https://anicards.alpha49.com/card.svg?userId=12345&cardType=favoritesGrid&variation=mixed"
+                  format: "webp"
+              inlineBinary:
+                value:
+                  svgContent: '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"></svg>'
+                  format: "webp"
+                  responseType: "binary"
+      responses:
+        "200":
+          description: "Converted raster image as JSON or streamed binary"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConvertResponse"
+              examples:
+                png:
+                  value:
+                    format: "png"
+                    imageDataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+                webp:
+                  value:
+                    format: "webp"
+                    imageDataUrl: "data:image/webp;base64,UklGRlIAAABXRUJQVlA4..."
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: "Missing `svgUrl`, invalid URL, or invalid format"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                invalidJson:
+                  value:
+                    error: "Invalid JSON body"
+                    category: "invalid_data"
+                    retryable: false
+                    status: 400
+                    recoverySuggestions:
+                      - title: "Check your input"
+                        description: "Make sure all required fields are filled in correctly"
+                missingUrl:
+                  value:
+                    error: "Missing svgUrl or svgContent parameter"
+                invalidUrl:
+                  value:
+                    error: "Invalid URL format"
+                invalidFormat:
+                  value:
+                    error: "Invalid format parameter"
+        "403":
+          description: "Blocked by the domain/protocol allow-list"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                forbidden:
+                  value:
+                    error: "Unauthorized or unsafe domain/protocol"
+        "500":
+          description: "SVG fetch or conversion failure"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                fetchFailure:
+                  value:
+                    error: "Failed to fetch SVG"
+                conversionFailure:
+                  value:
+                    error: "Conversion failed"
+
+  /api/cron:
+    post:
+      operationId: "runUserRefreshCron"
+      tags:
+        - "cron"
+      summary: "Refresh the stalest stored users from AniList"
+      description: >-
+        Operator-facing cron endpoint that refreshes the five stalest stored user
+        records from the maintained stale-user refresh index, tracks repeated
+        AniList 404 failures, and returns scheduling guidance in a plain-text
+        summary.
       parameters:
+        - $ref: "#/components/parameters/CronSecretHeader"
+      security:
+        - CronSecret: []
+      responses:
+        "200":
+          description: "Plain-text execution summary"
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples:
+                success:
+                  value: |-
+                    Updated 5/5 users successfully. Failed: 0, Removed: 0
+
+                    Recommended schedules to refresh all 125 users at least once per 24 hours:
+                     - Update 5 users/run: 0 */8 * * * (3 runs/day, ~every 480 min)
+                     - Update 10 users/run: 0 */12 * * * (2 runs/day, ~every 720 min)
+        "401":
+          $ref: "#/components/responses/UnauthorizedPlain"
+        "500":
+          $ref: "#/components/responses/InternalErrorPlain"
+
+  /api/cron/analytics-reporting:
+    get:
+      operationId: "listAnalyticsReports"
+      tags:
+        - "cron"
+      summary: "List recent persisted analytics reports"
+      description: >-
+        Returns recent stored analytics reports from the bounded
+        `analytics:reports` Redis list. Reports are returned newest first. The
+        `limit` query is capped by the server-side retention policy. The list
+        currently retains at most 50 generated reports.
+      parameters:
+        - $ref: "#/components/parameters/CronSecretHeader"
         - in: query
-          name: userId
+          name: limit
           required: false
           schema:
             type: integer
             minimum: 1
-          description: "numeric AniList user id (prefer for exact matching)"
-        - in: query
-          name: username
-          required: false
-          schema:
-            type: string
-          description: "username string; resolved against the username index to a numeric id. One of userId or username must be provided."
+            maximum: 50
+            default: 10
+          description: >-
+            Maximum number of recent reports to return. Values above the
+            retention cap are clamped to the configured maximum.
+      security:
+        - CronSecret: []
       responses:
         "200":
-          description: "User record stored in Redis"
+          description: "Recent analytics reports, newest first"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserRecord"
+                $ref: "#/components/schemas/AnalyticsReportList"
+              examples:
+                reports:
+                  value:
+                    reports:
+                      - summary:
+                          visits: 250
+                        raw_data:
+                          analytics:visits: 250
+                        generatedAt: "2026-03-22T10:30:00.000Z"
+                      - summary:
+                          visits: 100
+                        raw_data:
+                          analytics:visits: 100
+                        generatedAt: "2026-03-21T10:30:00.000Z"
+                    count: 2
+                    retentionLimit: 50
         "400":
-          description: "Missing or invalid parameters"
+          description: "Invalid list query parameters"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
-        "404":
-          description: "User not found"
+              examples:
+                invalidLimit:
+                  value:
+                    error: "Invalid limit parameter"
+        "401":
+          $ref: "#/components/responses/UnauthorizedPlain"
+        "500":
+          description: "Unexpected analytics report read failure"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+              examples:
+                failure:
+                  value:
+                    error: "Failed to fetch analytics reports"
+    post:
+      operationId: "generateAnalyticsReport"
+      tags:
+        - "cron"
+      summary: "Generate and persist an analytics report"
+      description: >-
+        Collects all `analytics:*` Redis keys except `analytics:reports`, groups
+        them into a nested summary object, appends the latest report to the
+        bounded `analytics:reports` Redis list, and returns it. Runtime analytics
+        collection in the web app is consent-gated; this endpoint only reads the
+        already-persisted aggregate counters and reports.
+      parameters:
+        - $ref: "#/components/parameters/CronSecretHeader"
+      security:
+        - CronSecret: []
+      responses:
+        "200":
+          description: "Generated analytics report"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsReport"
+              examples:
+                report:
+                  value:
+                    summary:
+                      visits: 100
+                      anilist_api:
+                        successful_requests: 200
+                    raw_data:
+                      analytics:visits: 100
+                      analytics:anilist_api:successful_requests: 200
+                    generatedAt: "2026-03-21T10:30:00.000Z"
+        "401":
+          $ref: "#/components/responses/UnauthorizedPlain"
+        "500":
+          description: "Unexpected analytics job failure"
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples:
+                failure:
+                  value: "Analytics and reporting job failed"
+
 components:
   securitySchemes:
     CronSecret:
       type: apiKey
       in: header
       name: x-cron-secret
-      description: "A cron-specific secret header that protects background endpoints. If unset, these endpoints accept unauthenticated calls."
+      description: >-
+        Shared cron secret header. It is required only when `CRON_SECRET` is set
+        in the deployment environment.
+
   parameters:
-    x-cron-secret-header:
+    CronSecretHeader:
       in: header
       name: x-cron-secret
+      required: false
       schema:
         type: string
-      description: "Cron secret; required when CRON_SECRET environment variable is set."
+      description: >-
+        Cron secret used to protect operator-only endpoints. Required when the
+        server has `CRON_SECRET` configured.
+
+    CardUserId:
+      in: query
+      name: userId
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+      description: >-
+        Numeric AniList user ID. Either `userId` or `username` is required.
+        When both are present, `userId` is used.
+
+    CardUsername:
+      in: query
+      name: username
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+      description: >-
+        AniList username lookup key. The route resolves it through the stored
+        username index when `userId` is omitted.
+
+    CardUserNameDeprecated:
+      in: query
+      name: userName
+      required: false
+      deprecated: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+      description: >-
+        Deprecated alias for `username`. Kept for backward compatibility with
+        older stat card links.
+
+    CardType:
+      in: query
+      name: cardType
+      required: true
+      schema:
+        $ref: "#/components/schemas/CardType"
+      description: "Card identifier to render"
+
+    CardVariation:
+      in: query
+      name: variation
+      required: false
+      schema:
+        $ref: "#/components/schemas/CardVariation"
+      description: >-
+        Optional card variation. Unsupported combinations fall back to the
+        card-type default on the server.
+
+    CardColorPreset:
+      in: query
+      name: colorPreset
+      required: false
+      schema:
+        type: string
+      description: >-
+        Named color preset such as `default`, `anilistDark`, or `custom`.
+        When `custom` is used with a stored card config, persisted per-color
+        values take precedence.
+
+    CardTitleColor:
+      in: query
+      name: titleColor
+      required: false
+      schema:
+        type: string
+      description: >-
+        Title color override. URL-encode `#` as `%23` when sending hex colors.
+
+    CardBackgroundColor:
+      in: query
+      name: backgroundColor
+      required: false
+      schema:
+        type: string
+      description: "Background color override"
+
+    CardTextColor:
+      in: query
+      name: textColor
+      required: false
+      schema:
+        type: string
+      description: "Body text color override"
+
+    CardCircleColor:
+      in: query
+      name: circleColor
+      required: false
+      schema:
+        type: string
+      description: "Accent circle color override"
+
+    CardBorderColor:
+      in: query
+      name: borderColor
+      required: false
+      schema:
+        type: string
+      description: "Border color override"
+
+    CardBorderRadius:
+      in: query
+      name: borderRadius
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        maximum: 100
+      description: >-
+        Border radius override in pixels. The route clamps values into the range
+        0-100.
+
+    CardShowFavorites:
+      in: query
+      name: showFavorites
+      required: false
+      schema:
+        type: boolean
+      description: >-
+        Enables favourite-marking visuals on the card types that support them.
+
+    CardStatusColors:
+      in: query
+      name: statusColors
+      required: false
+      schema:
+        type: boolean
+      description: "Use fixed status colors on status-distribution cards"
+
+    CardPiePercentages:
+      in: query
+      name: piePercentages
+      required: false
+      schema:
+        type: boolean
+      description: >-
+        Show percentage labels on pie and donut variants that support them.
+
+    CardGridCols:
+      in: query
+      name: gridCols
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 5
+      description: "Favorites grid column count"
+
+    CardGridRows:
+      in: query
+      name: gridRows
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 5
+      description: "Favorites grid row count"
+
+    CardCacheBust:
+      in: query
+      name: _t
+      required: false
+      schema:
+        type: string
+      description: "Opaque cache-busting value"
+
+  headers:
+    CardBorderRadius:
+      description: "Effective border radius used when rendering the SVG"
+      schema:
+        type: string
+    CardCacheSource:
+      description: "Potential cache source indicator exposed by the route"
+      schema:
+        type: string
+    RetryAfter:
+      description: "Seconds until the client should retry the request"
+      schema:
+        type: string
+    RateLimitLimit:
+      description: "Configured request limit for the current window"
+      schema:
+        type: string
+    RateLimitRemaining:
+      description: "Remaining requests in the current rate-limit window"
+      schema:
+        type: string
+    RateLimitReset:
+      description: "Unix timestamp in milliseconds when the current rate-limit window resets"
+      schema:
+        type: string
+
   responses:
+    UnauthorizedJson:
+      description: "Request blocked by same-origin protection"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          examples:
+            unauthorized:
+              value:
+                error: "Unauthorized"
+                category: "authentication"
+                retryable: false
+                status: 401
+                recoverySuggestions: []
+
+    TooManyRequestsJson:
+      description: "Rate limit exceeded"
+      headers:
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+        X-RateLimit-Limit:
+          $ref: "#/components/headers/RateLimitLimit"
+        X-RateLimit-Remaining:
+          $ref: "#/components/headers/RateLimitRemaining"
+        X-RateLimit-Reset:
+          $ref: "#/components/headers/RateLimitReset"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          examples:
+            rateLimited:
+              value:
+                error: "Too many requests"
+                category: "rate_limited"
+                retryable: true
+                status: 429
+                recoverySuggestions:
+                  - title: "Wait and retry"
+                    description: "Please wait a minute before generating another card. We're limiting requests to keep the service running smoothly."
+
     UnauthorizedPlain:
-      description: "Unauthorized - Cron secret failed"
+      description: "Invalid or missing cron secret"
       content:
         text/plain:
           schema:
@@ -583,107 +1222,430 @@ components:
           examples:
             unauthorized:
               value: "Unauthorized"
+
     InternalErrorPlain:
-      description: "Internal server error (plain text)"
+      description: "Plain-text internal server failure"
       content:
         text/plain:
           schema:
             type: string
-    InternalErrorJson:
-      description: "Internal server error (JSON)"
+          examples:
+            failure:
+              value: "Cron job failed"
+
+    CardSvgOk:
+      description: "Rendered SVG image"
+      headers:
+        X-Card-Border-Radius:
+          $ref: "#/components/headers/CardBorderRadius"
+        X-Cache-Source:
+          $ref: "#/components/headers/CardCacheSource"
       content:
-        application/json:
+        image/svg+xml:
           schema:
-            $ref: "#/components/schemas/ApiError"
+            type: string
+          examples:
+            svg:
+              value: |-
+                <?xml version="1.0" encoding="UTF-8"?>
+                <svg width="400" height="120" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="100%" height="100%" fill="#0f172a" rx="12" />
+                  <text x="50%" y="50%" fill="#e2e8f0" text-anchor="middle" dominant-baseline="middle">AniCards Sample</text>
+                </svg>
+
+    CardSvgBadRequest:
+      description: "SVG-formatted client error"
+      headers:
+        X-Card-Border-Radius:
+          $ref: "#/components/headers/CardBorderRadius"
+      content:
+        image/svg+xml:
+          schema:
+            type: string
+          examples:
+            missingCardType:
+              value: |-
+                <?xml version="1.0" encoding="UTF-8"?>
+                <svg xmlns="http://www.w3.org/2000/svg"><text>Client Error: Missing parameter: cardType</text></svg>
+
+    CardSvgNotFound:
+      description: "SVG-formatted not-found response"
+      headers:
+        X-Card-Border-Radius:
+          $ref: "#/components/headers/CardBorderRadius"
+      content:
+        image/svg+xml:
+          schema:
+            type: string
+          examples:
+            missingUser:
+              value: |-
+                <?xml version="1.0" encoding="UTF-8"?>
+                <svg xmlns="http://www.w3.org/2000/svg"><text>Not Found: User not found</text></svg>
+
+    CardSvgRateLimited:
+      description: "SVG-formatted rate-limit response"
+      headers:
+        X-Card-Border-Radius:
+          $ref: "#/components/headers/CardBorderRadius"
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+        X-RateLimit-Limit:
+          $ref: "#/components/headers/RateLimitLimit"
+        X-RateLimit-Remaining:
+          $ref: "#/components/headers/RateLimitRemaining"
+        X-RateLimit-Reset:
+          $ref: "#/components/headers/RateLimitReset"
+      content:
+        image/svg+xml:
+          schema:
+            type: string
+          examples:
+            tooManyRequests:
+              value: |-
+                <?xml version="1.0" encoding="UTF-8"?>
+                <svg xmlns="http://www.w3.org/2000/svg"><text>Client Error: Too many requests - try again later</text></svg>
+
+    CardSvgInternalError:
+      description: "SVG-formatted server error"
+      headers:
+        X-Card-Border-Radius:
+          $ref: "#/components/headers/CardBorderRadius"
+      content:
+        image/svg+xml:
+          schema:
+            type: string
+          examples:
+            failure:
+              value: |-
+                <?xml version="1.0" encoding="UTF-8"?>
+                <svg xmlns="http://www.w3.org/2000/svg"><text>Server Error: An internal error occurred</text></svg>
+
   schemas:
     ApiError:
       type: object
+      additionalProperties: true
       properties:
         error:
           type: string
-      required: ["error"]
-      example: { error: "Invalid data" }
+        category:
+          type: string
+          enum:
+            - "user_not_found"
+            - "rate_limited"
+            - "network_error"
+            - "invalid_data"
+            - "server_error"
+            - "timeout"
+            - "authentication"
+            - "unknown"
+        retryable:
+          type: boolean
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        recoverySuggestions:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecoverySuggestion"
+      required:
+        - error
+        - category
+        - retryable
+        - status
+        - recoverySuggestions
+
+    ConflictError:
+      allOf:
+        - $ref: "#/components/schemas/ApiError"
+        - type: object
+          properties:
+            currentUpdatedAt:
+              type: string
+              format: date-time
+          required:
+            - currentUpdatedAt
+
+    RecoverySuggestion:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        actionUrl:
+          type: string
+        actionLabel:
+          type: string
+      required:
+        - title
+        - description
+
     GraphQLRequest:
       type: object
+      additionalProperties: false
       properties:
         query:
           type: string
-          description: "GraphQL query or mutation string"
+          minLength: 1
         variables:
           type: object
           additionalProperties: true
-          description: "Optional variables for the GraphQL query or mutation"
-      required: ["query"]
-    GraphQLSuccess:
+      required:
+        - query
+
+    GraphQLData:
       type: object
       additionalProperties: true
-      description: "Arbitrary GraphQL 'data' object returned by AniList. The keys depend on the query run."
-      example:
-        User:
-          id: 1234
-          name: "sampleuser"
+      description: "Unwrapped AniList GraphQL `data` payload"
+
+    CardType:
+      type: string
+      enum:
+        - "animeStats"
+        - "socialStats"
+        - "socialMilestones"
+        - "mangaStats"
+        - "animeGenres"
+        - "animeTags"
+        - "animeVoiceActors"
+        - "animeStudios"
+        - "animeStaff"
+        - "mangaGenres"
+        - "mangaTags"
+        - "mangaStaff"
+        - "animeStatusDistribution"
+        - "mangaStatusDistribution"
+        - "animeFormatDistribution"
+        - "mangaFormatDistribution"
+        - "animeSourceMaterialDistribution"
+        - "animeSeasonalPreference"
+        - "animeEpisodeLengthPreferences"
+        - "animeGenreSynergy"
+        - "animeScoreDistribution"
+        - "mangaScoreDistribution"
+        - "animeYearDistribution"
+        - "mangaYearDistribution"
+        - "animeCountry"
+        - "mangaCountry"
+        - "profileOverview"
+        - "favoritesSummary"
+        - "favoritesGrid"
+        - "recentActivitySummary"
+        - "activityStreaks"
+        - "topActivityDays"
+        - "statusCompletionOverview"
+        - "milestones"
+        - "personalRecords"
+        - "planningBacklog"
+        - "mostRewatched"
+        - "currentlyWatchingReading"
+        - "animeMangaOverview"
+        - "scoreCompareAnimeManga"
+        - "countryDiversity"
+        - "genreDiversity"
+        - "formatPreferenceOverview"
+        - "releaseEraPreference"
+        - "startYearMomentum"
+        - "lengthPreference"
+        - "tagCategoryDistribution"
+        - "tagDiversity"
+        - "seasonalViewingPatterns"
+        - "droppedMedia"
+        - "reviewStats"
+        - "studioCollaboration"
+
+    CardVariation:
+      type: string
+      enum:
+        - "default"
+        - "vertical"
+        - "compact"
+        - "minimal"
+        - "badges"
+        - "pie"
+        - "donut"
+        - "bar"
+        - "radar"
+        - "horizontal"
+        - "cumulative"
+        - "anime"
+        - "manga"
+        - "characters"
+        - "staff"
+        - "studios"
+        - "mixed"
+        - "combined"
+        - "split"
+
+    HexColor:
+      type: string
+      pattern: "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})([0-9a-fA-F]{2})?$"
+      description: "3, 6, or 8 digit hex color string"
+
+    GradientStop:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        color:
+          $ref: "#/components/schemas/HexColor"
+        offset:
+          type: number
+          minimum: 0
+          maximum: 100
+        opacity:
+          type: number
+          minimum: 0
+          maximum: 1
+      required:
+        - color
+        - offset
+
+    GradientDefinition:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum:
+            - "linear"
+            - "radial"
+        stops:
+          type: array
+          minItems: 2
+          items:
+            $ref: "#/components/schemas/GradientStop"
+        angle:
+          type: number
+          minimum: 0
+          maximum: 360
+        cx:
+          type: number
+          minimum: 0
+          maximum: 100
+        cy:
+          type: number
+          minimum: 0
+          maximum: 100
+        r:
+          type: number
+          minimum: 0
+          maximum: 100
+      required:
+        - type
+        - stops
+
+    StringifiedGradientDefinition:
+      type: string
+      pattern: "^\\s*\\{[\\s\\S]*\\}\\s*$"
+      description: >-
+        Backwards-compatible JSON string containing a gradient definition. The
+        server accepts this form in stored color fields.
+
+    ColorValue:
+      description: "Stored card colors accept a hex string, a gradient object, or a stringified gradient JSON object."
+      oneOf:
+        - $ref: "#/components/schemas/HexColor"
+        - $ref: "#/components/schemas/GradientDefinition"
+        - $ref: "#/components/schemas/StringifiedGradientDefinition"
+
     StoredCardConfig:
       type: object
-      description: "Stored configuration for a single card"
+      additionalProperties: false
       properties:
-        variation:
-          type: string
-          description: "Template variation name"
-          enum:
-            [
-              "default",
-              "vertical",
-              "pie",
-              "donut",
-              "radar",
-              "compact",
-              "minimal",
-              "badges",
-              "bar",
-              "horizontal",
-              "cumulative",
-              "anime",
-              "manga",
-              "characters",
-              "mixed",
-              "github",
-              "fire",
-              "combined",
-              "split",
-            ]
         cardName:
+          $ref: "#/components/schemas/CardType"
+        variation:
+          $ref: "#/components/schemas/CardVariation"
+        colorPreset:
           type: string
-          description: "Unique name for the card template (used as identifier)"
         titleColor:
-          type: string
-          description: "Hex or gradient defining the title color"
+          $ref: "#/components/schemas/ColorValue"
         backgroundColor:
-          type: string
+          $ref: "#/components/schemas/ColorValue"
         textColor:
-          type: string
+          $ref: "#/components/schemas/ColorValue"
         circleColor:
-          type: string
+          $ref: "#/components/schemas/ColorValue"
         borderColor:
           type: string
+          description: >-
+            Border color string. The route validates it with the same color
+            parser used for stored colors.
         borderRadius:
           type: number
+          minimum: 0
+          maximum: 100
         showFavorites:
           type: boolean
         useStatusColors:
           type: boolean
         showPiePercentages:
           type: boolean
+        gridCols:
+          type: integer
+          minimum: 1
+          maximum: 5
+        gridRows:
+          type: integer
+          minimum: 1
+          maximum: 5
+        useCustomSettings:
+          type: boolean
+        disabled:
+          type: boolean
       required:
-        [
-          "variation",
-          "cardName",
-          "titleColor",
-          "backgroundColor",
-          "textColor",
-          "circleColor",
-        ]
+        - cardName
+      description: >-
+        Stored per-card configuration. `/api/store-cards` accepts partial patch
+        entries and merges them with the existing stored record, so most fields
+        are optional even for enabled cards. Disabled entries may omit
+        `variation` and all per-card colors.
+
+    GlobalCardSettings:
+      type: object
+      additionalProperties: false
+      properties:
+        colorPreset:
+          type: string
+        titleColor:
+          $ref: "#/components/schemas/ColorValue"
+        backgroundColor:
+          $ref: "#/components/schemas/ColorValue"
+        textColor:
+          $ref: "#/components/schemas/ColorValue"
+        circleColor:
+          $ref: "#/components/schemas/ColorValue"
+        borderEnabled:
+          type: boolean
+        borderColor:
+          type: string
+        borderRadius:
+          type: number
+          minimum: 0
+          maximum: 100
+        useStatusColors:
+          type: boolean
+        showPiePercentages:
+          type: boolean
+        showFavorites:
+          type: boolean
+        gridCols:
+          type: integer
+          minimum: 1
+          maximum: 5
+        gridRows:
+          type: integer
+          minimum: 1
+          maximum: 5
+
     CardsRecord:
       type: object
+      additionalProperties: false
       properties:
         userId:
           type: integer
@@ -691,70 +1653,214 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/StoredCardConfig"
+        globalSettings:
+          $ref: "#/components/schemas/GlobalCardSettings"
         updatedAt:
           type: string
           format: date-time
-      required: ["userId", "cards", "updatedAt"]
-      example:
-        userId: 12345
-        updatedAt: "2025-01-01T12:00:00.000Z"
-        cards:
-          - cardName: "mangaOverview"
-            variation: "default"
-            titleColor: "#ffffff"
-            backgroundColor: "#0f172a"
-            textColor: "#cbd5e1"
-            circleColor: "#06b6d4"
-            showFavorites: true
-    ConvertRequest:
-      type: object
-      properties:
-        svgUrl:
-          type: string
-          format: uri
-          description: "Absolute or relative URL that resolves to an SVG resource."
-        format:
-          type: string
-          enum: ["png", "webp"]
-      required: ["svgUrl"]
-    ConvertResponse:
-      type: object
-      properties:
-        pngDataUrl:
-          type: string
-          description: "Base64-encoded data URL representing the converted raster resource."
-      required: ["pngDataUrl"]
-      example:
-        { pngDataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..." }
+      required:
+        - userId
+        - cards
+        - updatedAt
+
     StoreCardsRequest:
       type: object
+      additionalProperties: false
+      description: >-
+        Partial-update payload for `/api/store-cards`. The route merges incoming
+        card entries and global settings into the existing Redis record,
+        preserves omitted card settings, and backfills any newly supported base
+        card types as disabled records before persisting.
       properties:
         userId:
           type: integer
         statsData:
           type: object
           additionalProperties: true
+          description: >-
+            Optional stats payload carried by the editor workflow. When present,
+            a top-level `error` field causes the route to reject the request.
         cards:
           type: array
-          maxItems: 24
           items:
             $ref: "#/components/schemas/StoredCardConfig"
-      required: ["userId", "cards"]
+        globalSettings:
+          $ref: "#/components/schemas/GlobalCardSettings"
+        ifMatchUpdatedAt:
+          type: string
+          format: date-time
+        cardOrder:
+          type: array
+          items:
+            $ref: "#/components/schemas/CardType"
+      required:
+        - userId
+        - cards
+
+    StoreCardsSuccess:
+      type: object
+      additionalProperties: false
+      properties:
+        success:
+          type: boolean
+          const: true
+        userId:
+          type: integer
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - success
+        - userId
+        - updatedAt
+
     StoreUserRequest:
       type: object
+      additionalProperties: false
+      description: >-
+        Explicit minimized persistence input. Top-level fields are allow-listed,
+        while `stats` intentionally stays open-ended as a JSON object so AniList-
+        shaped nested payloads can evolve without widening the public contract.
       properties:
         userId:
           type: integer
         username:
           type: string
+          minLength: 1
+          maxLength: 100
+        ifMatchUpdatedAt:
+          type: string
+          format: date-time
+          description: >-
+            Optional optimistic-concurrency token. When supplied, the write is
+            rejected with `409` if the stored record has a different
+            `updatedAt`.
         stats:
           type: object
-          description: "AniList user statistics payload as returned by GraphQL"
           additionalProperties: true
-      required: ["userId", "stats"]
-    UserRecord:
+          description: "Open-ended AniList-derived payload. Must be a JSON object; arrays are rejected."
+      required:
+        - userId
+        - stats
+
+    StoreUserSuccess:
       type: object
-      description: "User data stored in Redis including statistics and favorites"
+      additionalProperties: false
+      properties:
+        success:
+          type: boolean
+          const: true
+        userId:
+          type: integer
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - success
+        - userId
+        - updatedAt
+
+    ConvertRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        svgUrl:
+          type: string
+          description: >-
+            Absolute or relative URL to an SVG resource on an allow-listed
+            AniCards host.
+        svgContent:
+          type: string
+          description: >-
+            Inline SVG markup to convert directly without refetching a remote
+            URL.
+        format:
+          type: string
+          enum:
+            - "png"
+            - "webp"
+          default: "png"
+        responseType:
+          type: string
+          enum:
+            - "json"
+            - "binary"
+          default: "json"
+          description: >-
+            When set to `binary`, the route streams the converted image with the
+            appropriate image content type instead of returning JSON.
+      anyOf:
+        - required:
+            - svgUrl
+        - required:
+            - svgContent
+
+    ConvertResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        format:
+          type: string
+          enum:
+            - "png"
+            - "webp"
+          description: "Actual raster format returned in `imageDataUrl`."
+        imageDataUrl:
+          type: string
+          description: >-
+            Data URL for the converted image using the requested raster format.
+      required:
+        - format
+        - imageDataUrl
+
+    PageInfo:
+      type: object
+      additionalProperties: true
+      properties:
+        total:
+          type: integer
+      required:
+        - total
+
+    FavouriteCollection:
+      type: object
+      additionalProperties: true
+      properties:
+        nodes:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        pageInfo:
+          $ref: "#/components/schemas/PageInfo"
+
+    UserPages:
+      type: object
+      additionalProperties: true
+      properties:
+        followersPage:
+          type: object
+          additionalProperties: true
+        followingPage:
+          type: object
+          additionalProperties: true
+        threadsPage:
+          type: object
+          additionalProperties: true
+        threadCommentsPage:
+          type: object
+          additionalProperties: true
+        reviewsPage:
+          type: object
+          additionalProperties: true
+
+    PublicUserRecord:
+      type: object
+      additionalProperties: false
+      description: >-
+        Bounded public lookup DTO returned by `/api/get-user`. Internal
+        persistence metadata such as request IP buckets and record timestamps are
+        intentionally excluded.
       properties:
         userId:
           type: string
@@ -763,82 +1869,96 @@ components:
         stats:
           type: object
           additionalProperties: true
-          description: "User stats shape as returned from AniList GraphQL (highly nested)."
-        createdAt:
+          description: "Full stored AniList-derived payload"
+        statistics:
+          type: object
+          additionalProperties: true
+          description: "Convenience view of `stats.User.statistics`"
+        favourites:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/FavouriteCollection"
+        pages:
+          $ref: "#/components/schemas/UserPages"
+        aggregates:
+          type: object
+          additionalProperties: true
+        animeSourceMaterialDistributionTotals:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        animeSeasonalPreferenceTotals:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        animeGenreSynergyTotals:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        studioCollaborationTotals:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+      required:
+        - userId
+        - stats
+        - statistics
+        - favourites
+    UserBootstrapRecord:
+      type: object
+      additionalProperties: false
+      description: >-
+        Lightweight identity DTO returned by `/api/get-user?view=bootstrap`.
+        Used by the editor to resolve canonical usernames and avatars before the
+        heavier card payload is loaded.
+      properties:
+        userId:
           type: string
-          format: date-time
-        updatedAt:
+        username:
           type: string
-          format: date-time
-      required: ["userId", "stats", "createdAt", "updatedAt"]
+        avatarUrl:
+          type: string
+          nullable: true
+      required:
+        - userId
+
     AnalyticsReport:
       type: object
+      additionalProperties: false
       properties:
         summary:
-          type: string
+          type: object
+          additionalProperties: true
         raw_data:
           type: object
-          additionalProperties:
-            type: number
+          additionalProperties: true
         generatedAt:
           type: string
           format: date-time
-      required: ["summary", "raw_data", "generatedAt"]
-      example:
-        summary: "Collected analytics metrics snapshot"
-        raw_data:
-          "analytics:store_cards:successful_requests": 10
-          "analytics:store_users:failed_requests": 2
-        generatedAt: "2025-01-01T12:00:00.000Z"
-    DataValidationReport:
-      type: object
-      properties:
-        summary:
-          type: string
-        details:
-          type: object
-          description: "Per-pattern details for keys examined"
-          additionalProperties:
-            type: object
-            properties:
-              checked:
-                type: integer
-              inconsistencies:
-                type: integer
-        issues:
-          type: array
-          items:
-            type: object
-            properties:
-              key:
-                type: string
-              issues:
-                type: array
-                items:
-                  type: string
+      required:
+        - summary
+        - raw_data
+        - generatedAt
 
-        generatedAt:
-          type: string
-          format: date-time
-      required: ["summary", "details", "issues", "generatedAt"]
-    UptimeMonitorReport:
+    AnalyticsReportList:
       type: object
+      additionalProperties: false
       properties:
-        summary:
-          type: string
-        details:
+        reports:
           type: array
           items:
-            type: object
-            properties:
-              url:
-                type: string
-              ok:
-                type: boolean
-              status:
-                type: integer
-                nullable: true
-              error:
-                type: string
-            required: ["url", "ok", "status"]
-      required: ["summary", "details"]
+            $ref: "#/components/schemas/AnalyticsReport"
+        count:
+          type: integer
+          minimum: 0
+        retentionLimit:
+          type: integer
+          minimum: 1
+      required:
+        - reports
+        - count
+        - retentionLimit

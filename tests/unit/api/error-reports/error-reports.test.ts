@@ -1,0 +1,230 @@
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+
+import { OPTIONS, POST } from "@/app/api/error-reports/route";
+import { flushScheduledTelemetryTasksForTests } from "@/lib/api-utils";
+import {
+  allowConsoleWarningsAndErrors,
+  sharedRatelimitMockLimit,
+  sharedRatelimitMockSlidingWindow,
+  sharedRedisMockLtrim,
+  sharedRedisMockRpush,
+} from "@/tests/unit/__setup__";
+
+process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
+
+const BASE_URL = "http://localhost/api/error-reports";
+
+function createRequest(
+  body?: Record<string, unknown>,
+  headers?: Record<string, string>,
+) {
+  return new Request(BASE_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      origin: "http://localhost",
+      ...headers,
+    },
+    body: JSON.stringify(
+      body ?? {
+        source: "react_error_boundary",
+        userAction: "render_component_tree",
+        message: "Failed to fetch user Alex profile",
+        route: "/user/Alex?tab=cards",
+      },
+    ),
+  });
+}
+
+describe("error reports API route", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    allowConsoleWarningsAndErrors();
+    process.env = { ...originalEnv, NEXT_PUBLIC_APP_URL: "http://localhost" };
+    sharedRatelimitMockLimit.mockReset();
+    sharedRedisMockRpush.mockReset();
+    sharedRedisMockLtrim.mockReset();
+    sharedRatelimitMockLimit.mockResolvedValue({
+      success: true,
+      limit: 10,
+      remaining: 9,
+      reset: Date.now() + 5_000,
+      pending: Promise.resolve(),
+    });
+    sharedRedisMockRpush.mockResolvedValue(1);
+    sharedRedisMockLtrim.mockResolvedValue("OK");
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+    mock.clearAllMocks();
+  });
+
+  it("uses a dedicated 3 requests / 10 seconds limiter", () => {
+    expect(sharedRatelimitMockSlidingWindow).toHaveBeenCalledWith(3, "10 s");
+  });
+
+  it("ignores spoofed client identifiers and persists the sanitized report", async () => {
+    const response = await POST(
+      createRequest({
+        source: "react_error_boundary",
+        userAction: "render_component_tree",
+        message: "Failed to fetch user Alex profile",
+        route: "/user/Alex?tab=cards",
+        userId: "999999",
+        username: "SpoofedUser",
+      }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(202);
+    expect(payload).toEqual({ accepted: true });
+
+    await flushScheduledTelemetryTasksForTests();
+    expect(sharedRedisMockRpush).toHaveBeenCalledWith(
+      "telemetry:error-reports:v1",
+      expect.any(String),
+    );
+
+    const serializedReport = sharedRedisMockRpush.mock.calls[0]?.[1] as string;
+    const report = JSON.parse(serializedReport) as {
+      route?: string;
+      source: string;
+      category: string;
+    };
+
+    expect(report.route).toBe("/user/[username]");
+    expect(report.source).toBe("react_error_boundary");
+    expect(report.category).toBe("network_error");
+    expect(report).not.toHaveProperty("userId");
+    expect(report).not.toHaveProperty("username");
+  });
+
+  it("persists the resolved request ID in the structured report", async () => {
+    const response = await POST(
+      createRequest(undefined, {
+        "x-request-id": "req-error-route-12345",
+      }),
+    );
+
+    expect(response.status).toBe(202);
+
+    await flushScheduledTelemetryTasksForTests();
+
+    const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1] as
+      | string
+      | undefined;
+    const report = JSON.parse(String(serializedReport)) as {
+      requestId?: string;
+    };
+
+    expect(report.requestId).toBe("req-error-route-12345");
+  });
+
+  it("prefers payload request IDs when the client cannot rely on headers alone", async () => {
+    const response = await POST(
+      createRequest(
+        {
+          source: "react_error_boundary",
+          userAction: "render_component_tree",
+          message: "Failed to fetch user Alex profile",
+          requestId: "req-payload-12345",
+          route: "/user/Alex?tab=cards",
+        },
+        {
+          "x-request-id": "req-ingestion-99999",
+        },
+      ),
+    );
+
+    expect(response.status).toBe(202);
+
+    await flushScheduledTelemetryTasksForTests();
+
+    const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1] as
+      | string
+      | undefined;
+    const report = JSON.parse(String(serializedReport)) as {
+      requestId?: string;
+    };
+
+    expect(report.requestId).toBe("req-payload-12345");
+  });
+
+  it("returns 429 when the dedicated error-report limiter is exceeded", async () => {
+    sharedRatelimitMockLimit.mockResolvedValueOnce({
+      success: false,
+      limit: 3,
+      remaining: 0,
+      reset: Date.now() + 5_000,
+      pending: Promise.resolve(),
+    });
+
+    const response = await POST(createRequest());
+
+    expect(response.status).toBe(429);
+    expect((await response.json()).error).toBe("Too many requests");
+    expect(sharedRedisMockRpush).not.toHaveBeenCalled();
+  });
+
+  it("returns 202 before durable error persistence settles", async () => {
+    let resolveRpush: ((value: number) => void) | undefined;
+
+    sharedRedisMockRpush.mockImplementationOnce(
+      () =>
+        new Promise<number>((resolve) => {
+          resolveRpush = resolve;
+        }),
+    );
+
+    const response = await POST(createRequest());
+
+    expect(response.status).toBe(202);
+    expect(sharedRedisMockRpush).toHaveBeenCalledWith(
+      "telemetry:error-reports:v1",
+      expect.any(String),
+    );
+    expect(sharedRedisMockLtrim).not.toHaveBeenCalled();
+
+    resolveRpush?.(1);
+    await flushScheduledTelemetryTasksForTests();
+
+    expect(sharedRedisMockLtrim).toHaveBeenCalledWith(
+      "telemetry:error-reports:v1",
+      -250,
+      -1,
+    );
+  });
+
+  it("rejects missing required fields", async () => {
+    const response = await POST(
+      createRequest({
+        source: "react_error_boundary",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toBe("Invalid error report payload");
+  });
+
+  it("returns the expected CORS headers on OPTIONS", () => {
+    const response = OPTIONS(
+      new Request(BASE_URL, {
+        method: "OPTIONS",
+        headers: { origin: "http://localhost" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe(
+      "http://localhost",
+    );
+    expect(response.headers.get("Access-Control-Allow-Headers")).toContain(
+      "X-Request-Id",
+    );
+    expect(response.headers.get("Access-Control-Allow-Methods")).toContain(
+      "POST",
+    );
+  });
+});
