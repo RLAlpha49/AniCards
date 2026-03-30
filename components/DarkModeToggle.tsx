@@ -27,14 +27,11 @@ export default function DarkModeToggle() {
 
   if (!mounted) {
     return (
-      <button
-        type="button"
-        aria-label="Toggle color mode"
-        disabled
+      <span
+        aria-hidden
         className="
-          group relative isolate flex size-11 cursor-default items-center justify-center
-          rounded-full border border-gold/40 bg-transparent transition-[border-color] duration-300
-          outline-none
+          group relative isolate flex size-11 items-center justify-center rounded-full border
+          border-gold/40 bg-transparent transition-[border-color] duration-300 outline-none
           md:size-9
         "
       >
@@ -42,7 +39,7 @@ export default function DarkModeToggle() {
           aria-hidden
           className="size-[10px] rounded-full border border-gold/60 bg-gold/10"
         />
-      </button>
+      </span>
     );
   }
 
