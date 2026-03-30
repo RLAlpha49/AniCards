@@ -1,6 +1,10 @@
 import { describe, expect, it } from "bun:test";
 
-import { buildCSPHeader, CSP_DIRECTIVES } from "@/lib/csp-config";
+import {
+  buildCSPHeader,
+  CSP_DIRECTIVES,
+  getImageSrcAllowlist,
+} from "@/lib/csp-config";
 
 describe("CSP header builder", () => {
   it("injects the request nonce into script-src", () => {
@@ -32,5 +36,18 @@ describe("CSP header builder", () => {
     expect(imgSrcDirective).toBeTruthy();
     expect(header).toContain("object-src 'none'");
     expect(imgSrcDirective).not.toMatch(/\shttps:(?=[\s;]|$)/);
+  });
+
+  it("allows the canonical api subdomain derived from NEXT_PUBLIC_API_URL", () => {
+    const allowlist = getImageSrcAllowlist({
+      apiUrl: "http://localhost:3000",
+      nodeEnv: "production",
+    });
+
+    expect(allowlist).toContain("http://localhost:3000");
+    expect(allowlist).toContain("http://api.localhost:3000");
+    expect(
+      allowlist.filter((origin) => origin === "http://api.localhost:3000"),
+    ).toHaveLength(1);
   });
 });

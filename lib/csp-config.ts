@@ -61,28 +61,56 @@ function normalizeImageSourceOrigin(
   }
 }
 
-function getConfiguredImageSources(): string[] {
+function normalizeCanonicalApiImageSourceOrigin(
+  urlString: string | undefined,
+): string | null {
+  if (!urlString) return null;
+
+  try {
+    const url = new URL(urlString);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return null;
+    }
+
+    if (!url.hostname.startsWith("api.")) {
+      url.hostname = `api.${url.hostname}`;
+    }
+
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+export function getImageSrcAllowlist(
+  options: {
+    apiUrl?: string;
+    siteUrl?: string;
+    nodeEnv?: string;
+  } = {},
+): string[] {
+  const apiUrl = options.apiUrl ?? process.env.NEXT_PUBLIC_API_URL;
+  const siteUrl = options.siteUrl ?? process.env.NEXT_PUBLIC_SITE_URL;
+  const nodeEnv = options.nodeEnv ?? process.env.NODE_ENV;
+
   const configuredOrigins = [
-    normalizeImageSourceOrigin(process.env.NEXT_PUBLIC_API_URL),
-    normalizeImageSourceOrigin(process.env.NEXT_PUBLIC_SITE_URL),
+    normalizeImageSourceOrigin(apiUrl),
+    normalizeCanonicalApiImageSourceOrigin(apiUrl),
+    normalizeImageSourceOrigin(siteUrl),
   ];
 
   return [
-    ...new Set(
-      configuredOrigins.filter((origin): origin is string => Boolean(origin)),
-    ),
+    ...new Set([
+      ...STATIC_REMOTE_IMAGE_SOURCES,
+      ...configuredOrigins.filter((origin): origin is string =>
+        Boolean(origin),
+      ),
+      ...(nodeEnv === "production" ? [] : DEVELOPMENT_REMOTE_IMAGE_SOURCES),
+    ]),
   ];
 }
 
-const IMAGE_SRC_ALLOWLIST = [
-  ...new Set([
-    ...STATIC_REMOTE_IMAGE_SOURCES,
-    ...getConfiguredImageSources(),
-    ...(process.env.NODE_ENV === "production"
-      ? []
-      : DEVELOPMENT_REMOTE_IMAGE_SOURCES),
-  ]),
-];
+const IMAGE_SRC_ALLOWLIST = getImageSrcAllowlist();
 
 /**
  * CSP Directives Configuration
