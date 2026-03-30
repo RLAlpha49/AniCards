@@ -1,5 +1,5 @@
 ---
-name: implement-new-card-types
+name: Implement New Card Types
 argument-hint: "Section: <section name> | CardType: <card id or display name>"
 description: "Implement card types from docs/NEW_CARD_TYPES.md with full registry wiring, data handling, and unit coverage."
 agent: agent
@@ -44,7 +44,7 @@ If both are provided, treat `CardType` as the narrower request and implement onl
 - `lib/card-generator.ts` dispatches templates by base card type.
 - `lib/card-groups.ts`, `components/user/UserPageEditor.tsx`, and `app/api/store-cards/route.ts` may also need updates when a card introduces new variants or advanced flags.
 - `openapi.yaml`, `README.md`, and `app/examples/page.tsx` are user-facing surfaces that may need updates when a new card becomes publicly supported.
-- AniList query changes belong in `lib/anilist/queries.ts`; verify fields against https://docs.anilist.co/reference/ before editing the query.
+- AniList query changes belong in `lib/anilist/queries.ts`; verify fields against <https://docs.anilist.co/reference/> before editing the query.
 
 ## Required workflow
 

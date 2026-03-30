@@ -1,5 +1,5 @@
 ---
-name: unified-card-types-combiner
+name: Unified Card Types Combiner
 argument-hint: "Inputs: ./docs/NEW_CARD_TYPES_*.md"
 description: "Combine multiple NEW_CARD_TYPES_<MODEL>.md proposal files into one deduplicated, implementation-ready docs/NEW_CARD_TYPES.md."
 agent: agent
@@ -26,7 +26,7 @@ You are consolidating multiple model-generated proposal files into one authorita
 
 - A list of proposal files such as `./docs/NEW_CARD_TYPES_*.md`.
 - If no explicit list is provided, combine all matching proposal files you can find.
-- If an input file is missing fields, normalize or enrich it using only repository evidence outside `./docs` and the AniList reference: https://docs.anilist.co/reference/
+- If an input file is missing fields, normalize or enrich it using only repository evidence outside `./docs` and the AniList reference: <https://docs.anilist.co/reference/>
 - If an explicitly requested input file does not exist, stop and report which file is missing instead of silently combining a partial set.
 - If no matching proposal files exist at all, stop and tell the user the combiner has no source documents yet.
 

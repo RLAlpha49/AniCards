@@ -1,5 +1,5 @@
 ---
-name: new-card-types-research
+name: New Card Types Research
 argument-hint: "Focus: <anime|manga|user|social|mixed> | Count: <number> | Model: <suffix>"
 description: "Research new AniCards card ideas or variants and write a deduplicated proposal file in docs/. No code changes."
 agent: agent
@@ -34,7 +34,7 @@ Produce a research artifact that an implementation agent can act on with minimal
 - **Research-only:** do not implement code, rename files, refactor, or modify runtime behavior.
 - **`./docs` is write-only during research:** do not read existing `./docs` proposal files or use them as evidence while generating ideas.
 - **Avoid duplicates:** do not propose a card or variant that already exists, or that is only a cosmetic rewording of an existing capability.
-- **Prefer feasible ideas:** most proposals should be implementable with existing AniList fields from https://docs.anilist.co/reference/ or already-cached local data.
+- **Prefer feasible ideas:** most proposals should be implementable with existing AniList fields from <https://docs.anilist.co/reference/> or already-cached local data.
 - **Do not pad the list:** fewer strong ideas are better than many weak or repetitive ones.
 
 ## Where to verify duplicates and feasibility
@@ -57,11 +57,9 @@ A proposal counts as a duplicate if the same underlying metric, comparison, lead
 1. Search the repo for existing card ids, labels, and similar metrics.
 2. Identify promising gaps that fit AniCards' current card families and data model.
 3. For each candidate, verify one of these feasibility paths:
-
-- **AniList-ready** — can be built from documented AniList fields
-- **Local-ready** — can be built from existing project data already fetched or stored
-- **Requires backend changes** — needs new collection/storage; use this sparingly and be explicit
-
+   - **AniList-ready** — can be built from documented AniList fields
+   - **Local-ready** — can be built from existing project data already fetched or stored
+   - **Requires backend changes** — needs new collection/storage; use this sparingly and be explicit
 4. Reject ideas that are too close to existing cards, too thin to justify their own card, or purely visual variants with no meaningful new insight.
 5. Write the final Markdown artifact in a format that makes future deduplication and implementation easy.
 
@@ -86,7 +84,7 @@ Only keep ideas whose data path is clear.
 
 ### A) AniList-ready
 
-Use the AniList GraphQL reference: https://docs.anilist.co/reference/
+Use the AniList GraphQL reference: <https://docs.anilist.co/reference/>
 
 For AniList-ready ideas, include:
 
@@ -133,10 +131,8 @@ For **each** proposal:
 
 1. **Run targeted repository searches** to confirm it does _not_ already exist.
 2. If a similar card exists:
-
-- either reject it, or
-- explain precisely why the proposal is distinct enough to keep.
-
+   - either reject it, or
+   - explain precisely why the proposal is distinct enough to keep.
 3. Record the search terms used and at least one concrete repo citation.
 
 ## Required Structure of the Output File
