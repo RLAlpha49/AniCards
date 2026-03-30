@@ -1,8 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { usePathname, useSearchParams } from "next/navigation";
 import type React from "react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import {
@@ -16,7 +17,45 @@ import {
 } from "@/components/examples";
 import { usePreviewColorPreset } from "@/hooks/usePreviewColorPreset";
 import { fadeUp, VIEWPORT_ONCE } from "@/lib/animations";
+
 const SEARCH_PAGE_HREF = "/search";
+const SEARCH_QUERY_PARAM = "search";
+const CATEGORY_QUERY_PARAM = "category";
+
+function parseExampleCategory(
+  category: string | null,
+  categories: ReadonlySet<ExampleCategory>,
+): ExampleCategory | null {
+  if (!category) {
+    return null;
+  }
+
+  return categories.has(category as ExampleCategory)
+    ? (category as ExampleCategory)
+    : null;
+}
+
+function buildFilterQueryString(
+  searchParams: Pick<URLSearchParams, "toString">,
+  searchQuery: string,
+  activeCategory: ExampleCategory | null,
+): string {
+  const params = new URLSearchParams(searchParams.toString());
+
+  if (searchQuery.length > 0) {
+    params.set(SEARCH_QUERY_PARAM, searchQuery);
+  } else {
+    params.delete(SEARCH_QUERY_PARAM);
+  }
+
+  if (activeCategory) {
+    params.set(CATEGORY_QUERY_PARAM, activeCategory);
+  } else {
+    params.delete(CATEGORY_QUERY_PARAM);
+  }
+
+  return params.toString();
+}
 
 interface ExamplesPageClientProps {
   catalog: ExamplesCatalogPayload;
@@ -25,34 +64,92 @@ interface ExamplesPageClientProps {
 export default function ExamplesPageClient({
   catalog,
 }: Readonly<ExamplesPageClientProps>) {
-  const [searchQuery, setSearchQuery] = useState("");
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const categorySet = useMemo(
+    () => new Set<ExampleCategory>(catalog.categories),
+    [catalog.categories],
+  );
+  const [searchQuery, setSearchQuery] = useState(
+    () => searchParams.get(SEARCH_QUERY_PARAM) ?? "",
+  );
   const [activeCategory, setActiveCategory] = useState<ExampleCategory | null>(
-    null,
+    () =>
+      parseExampleCategory(searchParams.get(CATEGORY_QUERY_PARAM), categorySet),
   );
   const previewColorPreset = usePreviewColorPreset();
 
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchQuery(value);
-  }, []);
-
-  const handleCategoryChange = useCallback(
-    (category: string | null) => {
-      if (category === null) {
-        setActiveCategory(null);
+  const replaceQueryString = useCallback(
+    (nextQueryString: string) => {
+      if (nextQueryString === searchParams.toString()) {
         return;
       }
 
-      if (catalog.categories.includes(category as ExampleCategory)) {
-        setActiveCategory(category as ExampleCategory);
-      }
+      const queryStringPrefix = nextQueryString ? `?${nextQueryString}` : "";
+      const nextUrl = `${pathname}${queryStringPrefix}${globalThis.location.hash}`;
+
+      globalThis.history.replaceState(null, "", nextUrl);
     },
-    [catalog.categories],
+    [pathname, searchParams],
+  );
+
+  useEffect(() => {
+    const nextSearchQuery = searchParams.get(SEARCH_QUERY_PARAM) ?? "";
+    const nextActiveCategory = parseExampleCategory(
+      searchParams.get(CATEGORY_QUERY_PARAM),
+      categorySet,
+    );
+
+    setSearchQuery((currentSearchQuery) =>
+      currentSearchQuery === nextSearchQuery
+        ? currentSearchQuery
+        : nextSearchQuery,
+    );
+    setActiveCategory((currentActiveCategory) =>
+      currentActiveCategory === nextActiveCategory
+        ? currentActiveCategory
+        : nextActiveCategory,
+    );
+
+    const normalizedQueryString = buildFilterQueryString(
+      searchParams,
+      nextSearchQuery,
+      nextActiveCategory,
+    );
+
+    if (normalizedQueryString !== searchParams.toString()) {
+      replaceQueryString(normalizedQueryString);
+    }
+  }, [categorySet, replaceQueryString, searchParams]);
+
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      setSearchQuery(value);
+      replaceQueryString(
+        buildFilterQueryString(searchParams, value, activeCategory),
+      );
+    },
+    [activeCategory, replaceQueryString, searchParams],
+  );
+
+  const handleCategoryChange = useCallback(
+    (category: string | null) => {
+      const nextActiveCategory =
+        category === null ? null : parseExampleCategory(category, categorySet);
+
+      setActiveCategory(nextActiveCategory);
+      replaceQueryString(
+        buildFilterQueryString(searchParams, searchQuery, nextActiveCategory),
+      );
+    },
+    [categorySet, replaceQueryString, searchParams, searchQuery],
   );
 
   const handleClearFilters = useCallback(() => {
     setSearchQuery("");
     setActiveCategory(null);
-  }, []);
+    replaceQueryString(buildFilterQueryString(searchParams, "", null));
+  }, [replaceQueryString, searchParams]);
 
   const hasActiveFilters = searchQuery.length > 0 || activeCategory !== null;
 
@@ -78,10 +175,7 @@ export default function ExamplesPageClient({
   return (
     <ErrorBoundary
       resetKeys={[searchQuery, activeCategory ?? ""]}
-      onReset={() => {
-        setSearchQuery("");
-        setActiveCategory(null);
-      }}
+      onReset={handleClearFilters}
     >
       <div className="relative min-h-screen">
         <motion.div
