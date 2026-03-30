@@ -708,3 +708,150 @@ button {
     transform: translateY(0);
   }
 }
+
+/* ── Loading Skeleton System ── */
+
+@keyframes skel-sweep {
+  0% {
+    transform: translateX(-100%) skewX(-12deg);
+  }
+  100% {
+    transform: translateX(200%) skewX(-12deg);
+  }
+}
+
+@keyframes skel-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes skel-trace {
+  0% {
+    stroke-dashoffset: 1;
+  }
+  60% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes skel-breathe {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes skel-edge-trace {
+  0% {
+    clip-path: inset(0 100% 0 0);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@utility skel-bone {
+  position: relative;
+  overflow: hidden;
+  border-radius: 2px;
+  background: hsl(var(--gold) / 0.06);
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      105deg,
+      transparent 0%,
+      hsl(var(--gold) / 0.1) 35%,
+      hsl(var(--gold) / 0.18) 50%,
+      hsl(var(--gold) / 0.1) 65%,
+      transparent 100%
+    );
+    animation: skel-sweep 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+}
+
+@utility skel-bone-rect {
+  position: relative;
+  overflow: hidden;
+  border-radius: 2px;
+  background: hsl(var(--gold) / 0.04);
+  border: 1px solid hsl(var(--gold) / 0.06);
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      105deg,
+      transparent 0%,
+      hsl(var(--gold) / 0.08) 35%,
+      hsl(var(--gold) / 0.14) 50%,
+      hsl(var(--gold) / 0.08) 65%,
+      transparent 100%
+    );
+    animation: skel-sweep 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+}
+
+@utility skel-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 2px;
+  border: 1px solid hsl(var(--gold) / 0.1);
+  background: hsl(var(--background) / 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+
+  &::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      hsl(var(--gold) / 0.2),
+      transparent
+    );
+    animation: skel-edge-trace 1.2s ease-out both;
+  }
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      105deg,
+      transparent 0%,
+      hsl(var(--gold) / 0.04) 40%,
+      hsl(var(--gold) / 0.08) 50%,
+      hsl(var(--gold) / 0.04) 60%,
+      transparent 100%
+    );
+    animation: skel-sweep 3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+}
+
+@utility skel-reveal {
+  animation: skel-reveal 0.45s ease-out both;
+}
+
+@utility skel-breathe {
+  animation: skel-breathe 2.8s ease-in-out infinite;
+}
