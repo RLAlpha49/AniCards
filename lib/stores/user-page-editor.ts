@@ -93,18 +93,82 @@ export type LocalEditsPatch = {
   cardOrder?: string[];
 };
 
-/**
- * Build a patch representing all local edits since the last baseline.
- * Returns null when no diffs are detected.
- */
-export function buildLocalEditsPatch(
+type DirtyCardIdMap = Record<string, true>;
+
+type DirtyTrackerState = {
+  isGlobalDirty: boolean;
+  isCardOrderDirty: boolean;
+  dirtyCardIds: DirtyCardIdMap;
+};
+
+function hasDirtyCardIds(dirtyCardIds: DirtyCardIdMap): boolean {
+  return Object.keys(dirtyCardIds).length > 0;
+}
+
+function hasDirtyTrackerState(
+  state: UserPageEditorState,
+): state is UserPageEditorState & DirtyTrackerState {
+  return (
+    typeof (state as Partial<DirtyTrackerState>).isGlobalDirty === "boolean" &&
+    typeof (state as Partial<DirtyTrackerState>).isCardOrderDirty ===
+      "boolean" &&
+    typeof (state as Partial<DirtyTrackerState>).dirtyCardIds === "object" &&
+    (state as Partial<DirtyTrackerState>).dirtyCardIds !== null
+  );
+}
+
+function hasCardOrderChanged(
+  currentOrder: readonly string[],
+  baselineOrder: readonly string[],
+): boolean {
+  return (
+    baselineOrder.length !== currentOrder.length ||
+    baselineOrder.some((id, idx) => id !== currentOrder[idx])
+  );
+}
+
+function computeCardDirtyFlag(
+  state: UserPageEditorState,
+  cardId: string,
+): boolean {
+  const current = state.cardConfigs[cardId];
+  const baseline = state.baselineCardConfigs[cardId];
+
+  if (!current) return baseline !== undefined;
+  if (!baseline) return true;
+
+  return !areCardConfigsEqual(current, baseline);
+}
+
+function computeGlobalDirtyFlag(state: UserPageEditorState): boolean {
+  const baselineGlobal = state.baselineGlobalSnapshot;
+  if (!baselineGlobal) return true;
+
+  const currentGlobal = buildGlobalSettingsSnapshot(state);
+  return !areSettingsSnapshotsEqual(currentGlobal, baselineGlobal);
+}
+
+function computeCardOrderDirtyFlag(state: UserPageEditorState): boolean {
+  return hasCardOrderChanged(state.cardOrder, state.baselineCardOrder);
+}
+
+function buildDirtyCardIdMapByFullDiff(
+  state: UserPageEditorState,
+): DirtyCardIdMap {
+  const dirtyCardIds: DirtyCardIdMap = {};
+
+  for (const cardId of Object.keys(state.cardConfigs)) {
+    if (computeCardDirtyFlag(state, cardId)) {
+      dirtyCardIds[cardId] = true;
+    }
+  }
+
+  return dirtyCardIds;
+}
+
+function buildLocalEditsPatchByFullDiff(
   state: UserPageEditorState,
 ): LocalEditsPatch | null {
-  // Always compute a patch from the provided state. Earlier versions
-  // short-circuited when `state.isDirty` was false which prevented
-  // callers (e.g., actions that need to detect a revert-to-baseline)
-  // from determining whether there are any outstanding edits.
-
   const patch: LocalEditsPatch = {};
 
   const currentGlobal = buildGlobalSettingsSnapshot(state);
@@ -127,16 +191,64 @@ export function buildLocalEditsPatch(
     patch.cardConfigs = changedCards;
   }
 
-  const baselineOrder = state.baselineCardOrder;
-  const currentOrder = state.cardOrder;
-  const orderChanged =
-    baselineOrder.length !== currentOrder.length ||
-    baselineOrder.some((id, idx) => id !== currentOrder[idx]);
-  if (orderChanged) {
-    patch.cardOrder = [...currentOrder];
+  if (hasCardOrderChanged(state.cardOrder, state.baselineCardOrder)) {
+    patch.cardOrder = [...state.cardOrder];
   }
 
   return Object.keys(patch).length > 0 ? patch : null;
+}
+
+function buildLocalEditsPatchFromDirtyTrackers(
+  state: UserPageEditorState & DirtyTrackerState,
+): LocalEditsPatch | null {
+  const patch: LocalEditsPatch = {};
+
+  if (state.isGlobalDirty) {
+    patch.globalSnapshot = buildGlobalSettingsSnapshot(state);
+  }
+
+  if (hasDirtyCardIds(state.dirtyCardIds)) {
+    const changedCards: Record<string, CardEditorConfig> = {};
+
+    for (const cardId of Object.keys(state.dirtyCardIds)) {
+      const config = state.cardConfigs[cardId];
+      if (!config) continue;
+      changedCards[cardId] = cloneCardEditorConfig(config);
+    }
+
+    if (Object.keys(changedCards).length > 0) {
+      patch.cardConfigs = changedCards;
+    }
+  }
+
+  if (state.isCardOrderDirty) {
+    patch.cardOrder = [...state.cardOrder];
+  }
+
+  return Object.keys(patch).length > 0 ? patch : null;
+}
+
+/**
+ * Build a patch representing all local edits since the last baseline.
+ * Returns null when no diffs are detected.
+ */
+export function buildLocalEditsPatch(
+  state: UserPageEditorState,
+): LocalEditsPatch | null {
+  // Always compute a patch from the provided state. Earlier versions
+  // short-circuited when `state.isDirty` was false which prevented
+  // callers (e.g., actions that need to detect a revert-to-baseline)
+  // from determining whether there are any outstanding edits.
+
+  if (hasDirtyTrackerState(state)) {
+    const trackedPatch = buildLocalEditsPatchFromDirtyTrackers(state);
+
+    if (trackedPatch || !state.isDirty) {
+      return trackedPatch;
+    }
+  }
+
+  return buildLocalEditsPatchByFullDiff(state);
 }
 
 /**
@@ -194,6 +306,14 @@ export interface UserPageEditorState {
    * Used for optimistic concurrency (detecting concurrent edits across tabs).
    */
   serverUpdatedAt: string | null;
+
+  /**
+   * Internal dirty trackers so common mutations can update `isDirty`
+   * incrementally instead of diffing the full editor snapshot every time.
+   */
+  isGlobalDirty: boolean;
+  isCardOrderDirty: boolean;
+  dirtyCardIds: DirtyCardIdMap;
 
   // Local-only user templates (not persisted to the server)
   settingsTemplates: SettingsTemplateV1[];
@@ -1048,6 +1168,9 @@ const initialState: UserPageEditorState = {
   baselineCardConfigs: {},
   baselineCardOrder: [...DEFAULT_CARD_ORDER],
   serverUpdatedAt: null,
+  isGlobalDirty: false,
+  isCardOrderDirty: false,
+  dirtyCardIds: {},
   settingsTemplates: readSettingsTemplatesFromStorage(),
   expandedCardId: null,
   selectedCardIds: new Set(),
@@ -1139,23 +1262,119 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
             bulkLastMessage: `Applied: ${label}`,
           },
           opts.actionName,
+          { cardIds: changedIds },
         );
 
         return { changedIds, skippedIds };
       };
 
-      // Helper: set state and automatically recompute `isDirty` by building
-      // a local edits patch against what the state would look like after
-      // applying `next`.
+      type DirtyChangeScope = {
+        global?: boolean;
+        cardOrder?: boolean;
+        cardIds?: readonly string[];
+      };
+
+      const updateDirtyCardIds = (
+        currentDirtyCardIds: DirtyCardIdMap,
+        candidate: UserPageEditorState,
+        cardIds: readonly string[],
+      ): DirtyCardIdMap => {
+        let nextDirtyCardIds = currentDirtyCardIds;
+
+        for (const cardId of cardIds) {
+          const isDirtyCard = computeCardDirtyFlag(candidate, cardId);
+          const wasDirty = currentDirtyCardIds[cardId] === true;
+
+          if (isDirtyCard === wasDirty) continue;
+
+          if (nextDirtyCardIds === currentDirtyCardIds) {
+            nextDirtyCardIds = { ...currentDirtyCardIds };
+          }
+
+          if (isDirtyCard) {
+            nextDirtyCardIds[cardId] = true;
+          } else {
+            delete nextDirtyCardIds[cardId];
+          }
+        }
+
+        return nextDirtyCardIds;
+      };
+
+      const recomputeDirtyState = (candidate: UserPageEditorState) => {
+        const nextGlobalDirty = computeGlobalDirtyFlag(candidate);
+        const nextCardOrderDirty = computeCardOrderDirtyFlag(candidate);
+        const nextDirtyCardIds = buildDirtyCardIdMapByFullDiff(candidate);
+
+        return {
+          nextGlobalDirty,
+          nextCardOrderDirty,
+          nextDirtyCardIds,
+          isDirty:
+            nextGlobalDirty ||
+            nextCardOrderDirty ||
+            hasDirtyCardIds(nextDirtyCardIds),
+        };
+      };
+
+      // Helper: update `isDirty` by touching only the fields that changed.
+      // Callers can omit `scope` to fall back to a full recompute.
       const setWithDirty = (
         next: Partial<UserPageEditorState>,
         actionName?: string,
+        scope?: DirtyChangeScope,
       ) => {
         const snapshot = get();
         const candidate = { ...snapshot, ...next } as UserPageEditorState;
-        const patch = buildLocalEditsPatch(candidate);
-        const dirty = patch != null;
-        set({ ...next, isDirty: dirty }, false, actionName ?? "setWithDirty");
+
+        if (!scope) {
+          const recomputed = recomputeDirtyState(candidate);
+          set(
+            {
+              ...next,
+              isDirty: recomputed.isDirty,
+              isGlobalDirty: recomputed.nextGlobalDirty,
+              isCardOrderDirty: recomputed.nextCardOrderDirty,
+              dirtyCardIds: recomputed.nextDirtyCardIds,
+            },
+            false,
+            actionName ?? "setWithDirty",
+          );
+          return;
+        }
+
+        const nextGlobalDirty =
+          scope.global === true
+            ? computeGlobalDirtyFlag(candidate)
+            : snapshot.isGlobalDirty;
+        const nextCardOrderDirty =
+          scope.cardOrder === true
+            ? computeCardOrderDirtyFlag(candidate)
+            : snapshot.isCardOrderDirty;
+        const nextDirtyCardIds =
+          scope.cardIds && scope.cardIds.length > 0
+            ? updateDirtyCardIds(
+                snapshot.dirtyCardIds,
+                candidate,
+                scope.cardIds,
+              )
+            : snapshot.dirtyCardIds;
+        const dirty =
+          nextGlobalDirty ||
+          nextCardOrderDirty ||
+          hasDirtyCardIds(nextDirtyCardIds);
+
+        set(
+          {
+            ...next,
+            isDirty: dirty,
+            isGlobalDirty: nextGlobalDirty,
+            isCardOrderDirty: nextCardOrderDirty,
+            dirtyCardIds: nextDirtyCardIds,
+          },
+          false,
+          actionName ?? "setWithDirty",
+        );
       };
 
       return {
@@ -1183,6 +1402,7 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
               globalColors: colors,
             },
             "setGlobalColorPreset",
+            { global: true },
           );
         },
 
@@ -1193,6 +1413,7 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
               globalColorPreset: "custom",
             },
             "setGlobalColors",
+            { global: true },
           );
         },
 
@@ -1206,6 +1427,7 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
               globalColorPreset: "custom",
             },
             "setGlobalColor",
+            { global: true },
           );
         },
 
@@ -1214,11 +1436,14 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
           setWithDirty(
             { globalBorderEnabled: enabled },
             "setGlobalBorderEnabled",
+            { global: true },
           );
         },
 
         setGlobalBorderColor: (color) => {
-          setWithDirty({ globalBorderColor: color }, "setGlobalBorderColor");
+          setWithDirty({ globalBorderColor: color }, "setGlobalBorderColor", {
+            global: true,
+          });
         },
 
         setGlobalBorderRadius: (radius) => {
@@ -1226,6 +1451,7 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
           setWithDirty(
             { globalBorderRadius: clamped },
             "setGlobalBorderRadius",
+            { global: true },
           );
         },
 
@@ -1240,6 +1466,7 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
               },
             },
             "setGlobalAdvancedSetting",
+            { global: true },
           );
         },
 
@@ -1271,6 +1498,7 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
               },
             },
             "resetGlobalSettings",
+            { global: true },
           );
         },
 
@@ -1282,7 +1510,9 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
             ...cardConfigs,
             [cardId]: { ...existing, enabled },
           };
-          setWithDirty({ cardConfigs: nextCardConfigs }, "setCardEnabled");
+          setWithDirty({ cardConfigs: nextCardConfigs }, "setCardEnabled", {
+            cardIds: [cardId],
+          });
         },
 
         setCardVariant: (cardId, variant) => {
@@ -1292,7 +1522,9 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
             ...cardConfigs,
             [cardId]: { ...existing, variant },
           };
-          setWithDirty({ cardConfigs: nextCardConfigs }, "setCardVariant");
+          setWithDirty({ cardConfigs: nextCardConfigs }, "setCardVariant", {
+            cardIds: [cardId],
+          });
         },
 
         toggleCardCustomColors: (cardId, useCustom) => {
@@ -1317,6 +1549,7 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
           setWithDirty(
             { cardConfigs: nextCardConfigs },
             "toggleCardCustomColors",
+            { cardIds: [cardId] },
           );
         },
 
@@ -1336,7 +1569,9 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
               },
             },
           };
-          setWithDirty({ cardConfigs: nextCardConfigs }, "setCardColorPreset");
+          setWithDirty({ cardConfigs: nextCardConfigs }, "setCardColorPreset", {
+            cardIds: [cardId],
+          });
         },
 
         setCardColors: (cardId, colors) => {
@@ -1354,7 +1589,9 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
               },
             },
           };
-          setWithDirty({ cardConfigs: nextCardConfigs }, "setCardColors");
+          setWithDirty({ cardConfigs: nextCardConfigs }, "setCardColors", {
+            cardIds: [cardId],
+          });
         },
 
         setCardColor: (cardId, index, color) => {
@@ -1377,7 +1614,9 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
               },
             },
           };
-          setWithDirty({ cardConfigs: nextCardConfigs }, "setCardColor");
+          setWithDirty({ cardConfigs: nextCardConfigs }, "setCardColor", {
+            cardIds: [cardId],
+          });
         },
 
         setCardAdvancedSetting: (cardId, key, value) => {
@@ -1396,6 +1635,7 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
           setWithDirty(
             { cardConfigs: nextCardConfigs },
             "setCardAdvancedSetting",
+            { cardIds: [cardId] },
           );
         },
 
@@ -1406,7 +1646,9 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
             ...cardConfigs,
             [cardId]: { ...existing, borderColor: color },
           };
-          setWithDirty({ cardConfigs: nextCardConfigs }, "setCardBorderColor");
+          setWithDirty({ cardConfigs: nextCardConfigs }, "setCardBorderColor", {
+            cardIds: [cardId],
+          });
         },
 
         setCardBorderRadius: (cardId, radius) => {
@@ -1418,7 +1660,11 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
             ...cardConfigs,
             [cardId]: { ...existing, borderRadius: newRadius },
           };
-          setWithDirty({ cardConfigs: nextCardConfigs }, "setCardBorderRadius");
+          setWithDirty(
+            { cardConfigs: nextCardConfigs },
+            "setCardBorderRadius",
+            { cardIds: [cardId] },
+          );
         },
 
         setCardOrder: (order) => {
@@ -1428,7 +1674,9 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
               ? Object.keys(snapshot.cardConfigs)
               : DEFAULT_CARD_ORDER;
           const nextOrder = normalizeCardOrder(order, allowedIds);
-          setWithDirty({ cardOrder: nextOrder }, "setCardOrder");
+          setWithDirty({ cardOrder: nextOrder }, "setCardOrder", {
+            cardOrder: true,
+          });
         },
 
         reorderCardsInScope: ({ activeId, overId, scopeIds }) => {
@@ -1473,7 +1721,9 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
             nextOrder.push(...nextScope);
           }
 
-          setWithDirty({ cardOrder: nextOrder }, "reorderCardsInScope");
+          setWithDirty({ cardOrder: nextOrder }, "reorderCardsInScope", {
+            cardOrder: true,
+          });
         },
 
         // UI actions
@@ -1594,7 +1844,9 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
               advancedSettings: {},
             },
           };
-          setWithDirty({ cardConfigs: nextCardConfigs }, "resetCardToGlobal");
+          setWithDirty({ cardConfigs: nextCardConfigs }, "resetCardToGlobal", {
+            cardIds: [cardId],
+          });
         },
 
         resetSelectedCardsToGlobal: (cardIds) => {
@@ -1736,6 +1988,7 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
               bulkLastMessage: `Undid: ${entry.label}`,
             },
             "undoBulk",
+            { cardIds: entry.affectedCardIds },
           );
         },
 
@@ -1764,6 +2017,7 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
               bulkLastMessage: `Redid: ${entry.label}`,
             },
             "redoBulk",
+            { cardIds: entry.affectedCardIds },
           );
         },
         // Save actions
@@ -1806,26 +2060,52 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
             nextBaselineCardOrder = [...applied.cardOrder];
           }
 
+          const touchedCardIds = applied?.cardConfigs
+            ? Object.keys(applied.cardConfigs)
+            : [];
+          const nextState = {
+            baselineGlobalSnapshot: nextBaselineGlobal,
+            baselineCardConfigs: nextBaselineCardConfigs,
+            baselineCardOrder: nextBaselineCardOrder,
+            isSaving: false,
+            saveError: null,
+            lastSavedAt: Date.now(),
+            serverUpdatedAt: opts?.serverUpdatedAt ?? snapshot.serverUpdatedAt,
+          } satisfies Partial<UserPageEditorState>;
+          const candidate = {
+            ...snapshot,
+            ...nextState,
+          } as UserPageEditorState;
+          const nextGlobalDirty = applied?.globalSnapshot
+            ? computeGlobalDirtyFlag(candidate)
+            : snapshot.isGlobalDirty;
+          const nextCardOrderDirty = applied?.cardOrder
+            ? computeCardOrderDirtyFlag(candidate)
+            : snapshot.isCardOrderDirty;
+          const nextDirtyCardIds =
+            touchedCardIds.length > 0
+              ? updateDirtyCardIds(
+                  snapshot.dirtyCardIds,
+                  candidate,
+                  touchedCardIds,
+                )
+              : snapshot.dirtyCardIds;
+          const dirty =
+            nextGlobalDirty ||
+            nextCardOrderDirty ||
+            hasDirtyCardIds(nextDirtyCardIds);
+
           set(
             {
-              baselineGlobalSnapshot: nextBaselineGlobal,
-              baselineCardConfigs: nextBaselineCardConfigs,
-              baselineCardOrder: nextBaselineCardOrder,
-              isSaving: false,
-              saveError: null,
-              lastSavedAt: Date.now(),
-              serverUpdatedAt:
-                opts?.serverUpdatedAt ?? snapshot.serverUpdatedAt,
+              ...nextState,
+              isDirty: dirty,
+              isGlobalDirty: nextGlobalDirty,
+              isCardOrderDirty: nextCardOrderDirty,
+              dirtyCardIds: nextDirtyCardIds,
             },
             false,
             "markSaved",
           );
-
-          // Recompute isDirty based on the updated baselines and current state
-          const current = get();
-          const newPatch = buildLocalEditsPatch(current);
-          const dirty = newPatch != null;
-          set({ isDirty: dirty }, false, "markSaved:recomputeIsDirty");
         },
 
         discardChanges: () => {
@@ -1879,6 +2159,9 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
               cardConfigs: nextCardConfigs,
               cardOrder: [...snapshot.baselineCardOrder],
               isDirty: false,
+              isGlobalDirty: false,
+              isCardOrderDirty: false,
+              dirtyCardIds: {},
               isSaving: false,
               saveError: null,
               selectedCardIds: new Set(),
@@ -1938,7 +2221,13 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
                 : DEFAULT_CARD_ORDER;
             next.cardOrder = normalizeCardOrder(patch.cardOrder, allowedIds);
           }
-          setWithDirty(next, "applyLocalEditsPatch");
+          setWithDirty(next, "applyLocalEditsPatch", {
+            global: patch.globalSnapshot !== undefined,
+            cardIds: patch.cardConfigs
+              ? Object.keys(patch.cardConfigs)
+              : undefined,
+            cardOrder: patch.cardOrder !== undefined,
+          });
         },
 
         initializeFromServerData: (
@@ -2003,6 +2292,9 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
               isLoading: false,
               loadError: null,
               isDirty: false,
+              isGlobalDirty: false,
+              isCardOrderDirty: false,
+              dirtyCardIds: {},
               bulkPast: [],
               bulkFuture: [],
               bulkLastMessage: null,
@@ -2059,6 +2351,7 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
               globalAdvancedSettings: nextAdvanced,
             },
             "applySettingsSnapshotToGlobal",
+            { global: true },
           );
         },
 
@@ -2090,6 +2383,7 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
           setWithDirty(
             { cardConfigs: { ...cardConfigs, [cardId]: nextConfig } },
             "applySettingsSnapshotToCard",
+            { cardIds: [cardId] },
           );
         },
 
@@ -2115,6 +2409,7 @@ export const useUserPageEditor = create<UserPageEditorStore>()(
           setWithDirty(
             { cardConfigs: { ...cardConfigs, [targetCardId]: nextTarget } },
             "copySettingsFromCard",
+            { cardIds: [targetCardId] },
           );
         },
 
@@ -2250,6 +2545,10 @@ export const selectIsCardModified = (
   const baselineGlobal = state.baselineGlobalSnapshot;
   if (!baselineGlobal) return false;
   if (!doesCardInheritGlobalSettings(current)) return false;
+
+  if (typeof state.isGlobalDirty === "boolean") {
+    return state.isGlobalDirty;
+  }
 
   const currentGlobal = buildGlobalSettingsSnapshot(state);
   return !areSettingsSnapshotsEqual(currentGlobal, baselineGlobal);

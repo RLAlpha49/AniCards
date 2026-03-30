@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import { useShallow } from "zustand/react/shallow";
 
 import {
   Dialog,
@@ -44,12 +45,13 @@ export function CardSettingsDialog({
   currentVariant = "default",
 }: Readonly<CardSettingsDialogProps>) {
   const {
-    cardConfigs,
+    configFromStore,
     globalColors,
     globalColorPreset,
     globalBorderEnabled,
     globalBorderColor,
     globalBorderRadius,
+    globalAdvancedSettings,
     setCardColorPreset,
     setCardColor,
     setCardBorderColor,
@@ -57,10 +59,26 @@ export function CardSettingsDialog({
     setCardAdvancedSetting,
     resetCardToGlobal,
     toggleCardCustomColors,
-    globalAdvancedSettings,
-  } = useUserPageEditor();
+  } = useUserPageEditor(
+    useShallow((state) => ({
+      configFromStore: state.cardConfigs[cardId],
+      globalColors: state.globalColors,
+      globalColorPreset: state.globalColorPreset,
+      globalBorderEnabled: state.globalBorderEnabled,
+      globalBorderColor: state.globalBorderColor,
+      globalBorderRadius: state.globalBorderRadius,
+      globalAdvancedSettings: state.globalAdvancedSettings,
+      setCardColorPreset: state.setCardColorPreset,
+      setCardColor: state.setCardColor,
+      setCardBorderColor: state.setCardBorderColor,
+      setCardBorderRadius: state.setCardBorderRadius,
+      setCardAdvancedSetting: state.setCardAdvancedSetting,
+      resetCardToGlobal: state.resetCardToGlobal,
+      toggleCardCustomColors: state.toggleCardCustomColors,
+    })),
+  );
 
-  const config = cardConfigs[cardId] || {
+  const config = configFromStore || {
     cardId,
     enabled: false,
     variant: "default",

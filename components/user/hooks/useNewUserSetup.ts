@@ -176,7 +176,6 @@ async function saveInitialCards(userId: number, stats: unknown) {
 }
 
 export function useNewUserSetup() {
-  const { setUserData, initializeFromServerData } = useUserPageEditor();
   const [isNewUser, setIsNewUser] = useState(false);
   const [cardsWarning, setCardsWarning] = useState<string | null>(null);
 
@@ -309,15 +308,17 @@ export function useNewUserSetup() {
       updatedAt: string | null;
       cardsPersisted: boolean;
     }) => {
-      initializeFromServerData(
-        String(params.userId),
-        params.username,
-        params.avatarUrl,
-        params.initialCards,
-        NEW_USER_STARTER_GLOBAL_SETTINGS,
-        ALL_CARD_IDS,
-        params.updatedAt,
-      );
+      useUserPageEditor
+        .getState()
+        .initializeFromServerData(
+          String(params.userId),
+          params.username,
+          params.avatarUrl,
+          params.initialCards,
+          NEW_USER_STARTER_GLOBAL_SETTINGS,
+          ALL_CARD_IDS,
+          params.updatedAt,
+        );
 
       if (params.cardsPersisted) {
         setCardsWarning(null);
@@ -328,7 +329,7 @@ export function useNewUserSetup() {
         "We couldn't persist your starter cards yet, so you're editing a local starter setup for now. Saving once will store it.",
       );
     },
-    [initializeFromServerData],
+    [],
   );
 
   const startSetup = useCallback(
@@ -354,11 +355,13 @@ export function useNewUserSetup() {
         setLoadingPhase?.("loading_cards");
         // Expose the resolved identity first so the page shell can render the
         // correct user context while card hydration finishes in the next step.
-        setUserData(
-          setupResult.userId.toString(),
-          setupResult.username,
-          setupResult.avatarUrl,
-        );
+        useUserPageEditor
+          .getState()
+          .setUserData(
+            setupResult.userId.toString(),
+            setupResult.username,
+            setupResult.avatarUrl,
+          );
 
         hydrateNewUserCards({
           userId: setupResult.userId,
@@ -396,7 +399,7 @@ export function useNewUserSetup() {
         return { error: message } as const;
       }
     },
-    [setupNewUserNetwork, setUserData, hydrateNewUserCards],
+    [setupNewUserNetwork, hydrateNewUserCards],
   );
 
   return {

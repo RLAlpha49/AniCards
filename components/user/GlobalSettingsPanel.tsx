@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import { useShallow } from "zustand/react/shallow";
 
 import { colorPresets } from "@/components/stat-card-generator/constants";
 import {
@@ -36,7 +37,25 @@ export function GlobalSettingsPanel({
     setGlobalBorderRadius,
     setGlobalAdvancedSetting,
     resetGlobalSettings,
-  } = useUserPageEditor();
+  } = useUserPageEditor(
+    useShallow((state) => ({
+      globalColorPreset: state.globalColorPreset,
+      globalColors: state.globalColors,
+      globalBorderEnabled: state.globalBorderEnabled,
+      globalBorderColor: state.globalBorderColor,
+      globalBorderRadius: state.globalBorderRadius,
+      globalAdvancedSettings: state.globalAdvancedSettings,
+      isDirty: state.isDirty,
+      isSaving: state.isSaving,
+      setGlobalColorPreset: state.setGlobalColorPreset,
+      setGlobalColor: state.setGlobalColor,
+      setGlobalBorderEnabled: state.setGlobalBorderEnabled,
+      setGlobalBorderColor: state.setGlobalBorderColor,
+      setGlobalBorderRadius: state.setGlobalBorderRadius,
+      setGlobalAdvancedSetting: state.setGlobalAdvancedSetting,
+      resetGlobalSettings: state.resetGlobalSettings,
+    })),
+  );
 
   const handleResetToDefaults = useCallback(() => {
     resetGlobalSettings();

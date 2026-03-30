@@ -4,6 +4,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 
 import { fetchUserCards } from "@/lib/api/cards";
 import { isValidUsername } from "@/lib/api-utils";
@@ -106,14 +107,12 @@ export function useUserDataLoader(options?: { routeUsername?: string }) {
   const lastLoadedUserRef = useRef<string | null>(null);
   const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>("idle");
 
-  const {
-    setUserData,
-    initializeFromServerData,
-    setLoading,
-    setLoadError,
-    isLoading,
-    loadError,
-  } = useUserPageEditor();
+  const { isLoading, loadError } = useUserPageEditor(
+    useShallow((state) => ({
+      isLoading: state.isLoading,
+      loadError: state.loadError,
+    })),
+  );
   const { startSetup } = useNewUserSetup();
 
   const navigateToCanonicalUserRoute = useCallback(
@@ -150,11 +149,12 @@ export function useUserDataLoader(options?: { routeUsername?: string }) {
       aUrl: string | null,
       cardsResultPromise: ReturnType<typeof fetchUserCards>,
     ) => {
+      const store = useUserPageEditor.getState();
       const cardsResult = await cardsResultPromise;
 
       if ("error" in cardsResult) {
         if (cardsResult.notFound) {
-          initializeFromServerData(
+          store.initializeFromServerData(
             userIdStr,
             uname,
             aUrl,
@@ -174,11 +174,11 @@ export function useUserDataLoader(options?: { routeUsername?: string }) {
             errorDetails.category,
           );
           setLoadingPhase("complete");
-          setLoading(false);
-          setLoadError(
+          store.setLoading(false);
+          store.setLoadError(
             "Failed to load saved cards due to a server error. Default cards are shown for now.",
           );
-          initializeFromServerData(
+          store.initializeFromServerData(
             userIdStr,
             uname,
             aUrl,
@@ -190,7 +190,7 @@ export function useUserDataLoader(options?: { routeUsername?: string }) {
         }
       }
 
-      initializeFromServerData(
+      store.initializeFromServerData(
         userIdStr,
         uname,
         aUrl,
@@ -199,10 +199,10 @@ export function useUserDataLoader(options?: { routeUsername?: string }) {
         ALL_CARD_IDS,
         cardsResult.updatedAt ?? null,
       );
-      setLoading(false);
+      store.setLoading(false);
       setLoadingPhase("complete");
     },
-    [initializeFromServerData, setLoading, setLoadError, setLoadingPhase],
+    [],
   );
 
   const load = useCallback(async () => {
@@ -218,30 +218,33 @@ export function useUserDataLoader(options?: { routeUsername?: string }) {
       usernameParam = null;
 
     const requestedId = `${userIdParam ?? ""}|${usernameParam ?? ""}`;
+    const store = useUserPageEditor.getState();
 
     if (lastLoadedUserRef.current === requestedId) {
-      setLoading(false);
+      store.setLoading(false);
       return;
     }
     lastLoadedUserRef.current = requestedId;
 
-    setLoadError(null);
+    store.setLoadError(null);
 
     if (!userIdParam && !usernameParam) {
       if (rawUserIdParam || rawUsernameParam) {
-        setLoadError(
+        store.setLoadError(
           "Invalid user specified. Please check the username/user ID and try again.",
         );
       } else {
-        setLoadError("No user specified. Please search for a user first.");
+        store.setLoadError(
+          "No user specified. Please search for a user first.",
+        );
       }
-      setLoading(false);
+      store.setLoading(false);
       setLoadingPhase("error");
       lastLoadedUserRef.current = null;
       return;
     }
 
-    setLoading(true);
+    store.setLoading(true);
     setLoadingPhase("checking");
 
     const userResult = await fetchUserData(userIdParam, usernameParam);
@@ -255,8 +258,10 @@ export function useUserDataLoader(options?: { routeUsername?: string }) {
       );
 
       if ("error" in setupResult) {
-        setLoading(false);
-        setLoadError(getSafeErrorSummary(setupResult.error ?? "Unknown error"));
+        store.setLoading(false);
+        store.setLoadError(
+          getSafeErrorSummary(setupResult.error ?? "Unknown error"),
+        );
         setLoadingPhase("error");
         lastLoadedUserRef.current = null;
         return;
@@ -274,14 +279,20 @@ export function useUserDataLoader(options?: { routeUsername?: string }) {
         new Error(userResult.error ?? "Unknown error"),
         errorDetails.category,
       );
-      setLoading(false);
-      setLoadError(getSafeErrorSummary(userResult.error ?? "Unknown error"));
+      store.setLoading(false);
+      store.setLoadError(
+        getSafeErrorSummary(userResult.error ?? "Unknown error"),
+      );
       setLoadingPhase("error");
       lastLoadedUserRef.current = null;
       return;
     }
 
-    setUserData(userResult.userId, userResult.username, userResult.avatarUrl);
+    store.setUserData(
+      userResult.userId,
+      userResult.username,
+      userResult.avatarUrl,
+    );
     setLoadingPhase("loading_cards");
 
     const cardsResultPromise = fetchUserCards(userResult.userId);
@@ -295,27 +306,25 @@ export function useUserDataLoader(options?: { routeUsername?: string }) {
 
     navigateToCanonicalUserRoute(userResult.username);
 
-    setLoading(false);
+    store.setLoading(false);
     setLoadingPhase("complete");
   }, [
     options?.routeUsername,
     navigateToCanonicalUserRoute,
     searchParams,
-    setLoading,
-    setLoadError,
-    setUserData,
     startSetup,
     handleCardsForExistingUser,
-    setLoadingPhase,
   ]);
 
   useEffect(() => {
     load().catch((err) => {
       console.error("Error loading user data:", err);
       lastLoadedUserRef.current = null;
-      setLoadError(
-        "Failed to fetch user data. Please check your connection and try again.",
-      );
+      useUserPageEditor
+        .getState()
+        .setLoadError(
+          "Failed to fetch user data. Please check your connection and try again.",
+        );
       setLoadingPhase("error");
     });
   }, [load]);

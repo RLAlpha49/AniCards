@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useShallow } from "zustand/react/shallow";
 
 import { colorPresets } from "@/components/stat-card-generator/constants";
 import type { ServerCardData } from "@/lib/api/cards";
@@ -383,8 +384,13 @@ interface UseCardAutoSaveOptions {
 export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
   const { debounceMs = DEFAULT_DEBOUNCE_MS, enabled = true } = options;
 
-  const { userId, isDirty, isSaving, setSaving, setSaveError, markSaved } =
-    useUserPageEditor();
+  const { userId, isDirty, isSaving } = useUserPageEditor(
+    useShallow((state) => ({
+      userId: state.userId,
+      isDirty: state.isDirty,
+      isSaving: state.isSaving,
+    })),
+  );
 
   const [saveConflict, setSaveConflict] = useState<SaveConflictInfo | null>(
     null,
@@ -422,9 +428,10 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
       const snapshot = useUserPageEditor.getState();
       const payload = buildSavePayloadFromStoreState(snapshot);
       if (!payload || !isMountedRef.current) return;
+      const store = useUserPageEditor.getState();
 
       setAutoSaveDueAt(null);
-      setSaving(true);
+      store.setSaving(true);
 
       const toastId = "user-page-autosave";
       toast.loading(opts?.reason === "manual" ? "Saving…" : "Auto-saving…", {
@@ -440,7 +447,7 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
       const shouldNotify = isMountedRef.current;
 
       if ("conflict" in result) {
-        setSaveError(result.error);
+        store.setSaveError(result.error);
         if (shouldNotify) {
           setSaveConflict({ currentUpdatedAt: result.currentUpdatedAt });
           toast.error("Save conflict", {
@@ -450,7 +457,7 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
           });
         }
       } else if ("error" in result) {
-        setSaveError(result.error);
+        store.setSaveError(result.error);
         if (shouldNotify) {
           toast.error("Save failed", {
             id: toastId,
@@ -458,7 +465,7 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
           });
         }
       } else {
-        markSaved({
+        store.markSaved({
           serverUpdatedAt: result.updatedAt,
           appliedPatch: payload.patch,
         });
@@ -468,13 +475,13 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
         }
       }
     },
-    [markSaved, saveConflict, setSaveError, setSaving],
+    [saveConflict],
   );
 
   const clearSaveConflict = useCallback(() => {
     setSaveConflict(null);
-    setSaveError(null);
-  }, [setSaveError]);
+    useUserPageEditor.getState().setSaveError(null);
+  }, []);
 
   useEffect(() => {
     if (!isDirty && saveConflict) {
