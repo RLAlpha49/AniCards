@@ -1,14 +1,107 @@
-import { describe, expect, it, mock } from "bun:test";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  mock,
+} from "bun:test";
+import JSZip from "jszip";
+
+import {
+  installHappyDom,
+  resetHappyDom,
+  restoreHappyDom,
+} from "@/tests/unit/hooks/test-helpers";
 
 const convertSvgToBlob = mock();
 const readSvgMarkupFromObjectUrl = mock();
+const readSvgMarkupFromUrl = mock();
+const cn = (...inputs: Array<string | false | null | undefined>) =>
+  inputs.filter(Boolean).join(" ");
 
 mock.module("@/lib/utils", () => ({
+  cn,
   convertSvgToBlob,
   readSvgMarkupFromObjectUrl,
+  readSvgMarkupFromUrl,
 }));
 
-const { batchConvertSvgsToPngs } = await import("@/lib/batch-export");
+installHappyDom();
+
+const { batchConvertAndZip, batchConvertSvgsToPngs } =
+  await import("@/lib/batch-export");
+
+let createdAnchors: HTMLAnchorElement[] = [];
+const originalCreateElement = document.createElement.bind(document);
+const originalAnchorClick = HTMLAnchorElement.prototype.click;
+const originalCreateObjectURL = URL.createObjectURL;
+const originalRevokeObjectURL = URL.revokeObjectURL;
+
+const anchorClick = mock(() => {});
+const createObjectURL = mock((resource: Blob | MediaSource) => {
+  void resource;
+  return "blob:zip-download";
+});
+const revokeObjectURL = mock(() => {});
+
+beforeEach(() => {
+  resetHappyDom();
+  createdAnchors = [];
+  convertSvgToBlob.mockReset();
+  readSvgMarkupFromObjectUrl.mockReset();
+  readSvgMarkupFromUrl.mockReset();
+  anchorClick.mockReset();
+  createObjectURL.mockReset();
+  revokeObjectURL.mockReset();
+  createObjectURL.mockReturnValue("blob:zip-download");
+
+  document.createElement = ((
+    tagName: string,
+    options?: ElementCreationOptions,
+  ) => {
+    const element = originalCreateElement(tagName, options);
+    if (tagName.toLowerCase() === "a") {
+      createdAnchors.push(element as HTMLAnchorElement);
+    }
+    return element;
+  }) as typeof document.createElement;
+
+  Object.defineProperty(HTMLAnchorElement.prototype, "click", {
+    configurable: true,
+    value: anchorClick,
+  });
+  Object.defineProperty(URL, "createObjectURL", {
+    configurable: true,
+    value: createObjectURL,
+  });
+  Object.defineProperty(URL, "revokeObjectURL", {
+    configurable: true,
+    value: revokeObjectURL,
+  });
+});
+
+afterEach(() => {
+  document.createElement = originalCreateElement;
+  Object.defineProperty(HTMLAnchorElement.prototype, "click", {
+    configurable: true,
+    value: originalAnchorClick,
+  });
+  Object.defineProperty(URL, "createObjectURL", {
+    configurable: true,
+    value: originalCreateObjectURL,
+  });
+  Object.defineProperty(URL, "revokeObjectURL", {
+    configurable: true,
+    value: originalRevokeObjectURL,
+  });
+});
+
+afterAll(() => {
+  mock.restore();
+  restoreHappyDom();
+});
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -186,5 +279,86 @@ describe("batch-export queue scheduling", () => {
         total: 6,
       },
     ]);
+  });
+
+  it("packages raw SVG files into the ZIP without raster conversion", async () => {
+    readSvgMarkupFromObjectUrl.mockResolvedValue('<svg data-cache="cached" />');
+    readSvgMarkupFromUrl.mockImplementation(
+      async (svgUrl: string) => `<svg data-url="${svgUrl}" />`,
+    );
+
+    const cards = [
+      {
+        rawType: "animeStats-default",
+        svgUrl: "/api/card?card=animeStats",
+        type: "animeStats",
+      },
+      {
+        cachedSvgObjectUrl: "blob:cached-social-preview",
+        rawType: "socialStats-default",
+        svgUrl: "/api/card?card=socialStats",
+        type: "socialStats",
+      },
+    ];
+
+    const summary = await batchConvertAndZip(cards, "svg");
+
+    expect(summary).toEqual({
+      total: 2,
+      exported: 2,
+      failed: 0,
+      failedCards: undefined,
+    });
+    expect(convertSvgToBlob).not.toHaveBeenCalled();
+    expect(readSvgMarkupFromUrl).toHaveBeenCalledWith(
+      "/api/card?card=animeStats",
+    );
+    expect(readSvgMarkupFromObjectUrl).toHaveBeenCalledWith(
+      "blob:cached-social-preview",
+    );
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+
+    const firstCreateObjectUrlCall = createObjectURL.mock.calls[0];
+    if (!firstCreateObjectUrlCall) {
+      throw new TypeError("Expected SVG batch export to create an object URL.");
+    }
+
+    const [zipBlob] = firstCreateObjectUrlCall;
+    if (!(zipBlob instanceof Blob)) {
+      throw new TypeError("Expected SVG batch export to create a ZIP blob.");
+    }
+
+    const zip = await JSZip.loadAsync(await zipBlob.arrayBuffer());
+    expect(Object.keys(zip.files).sort((a, b) => a.localeCompare(b))).toEqual([
+      "animeStats-default.svg",
+      "socialStats-default.svg",
+    ]);
+
+    const animeStatsFile = zip.file("animeStats-default.svg");
+    const socialStatsFile = zip.file("socialStats-default.svg");
+
+    if (!animeStatsFile || !socialStatsFile) {
+      throw new TypeError(
+        "Expected the ZIP archive to contain both SVG files.",
+      );
+    }
+
+    expect(await animeStatsFile.async("string")).toBe(
+      '<svg data-url="/api/card?card=animeStats" />',
+    );
+    expect(await socialStatsFile.async("string")).toBe(
+      '<svg data-cache="cached" />',
+    );
+    expect(anchorClick).toHaveBeenCalledTimes(1);
+
+    const createdAnchor = createdAnchors[0];
+    if (!createdAnchor) {
+      throw new TypeError(
+        "Expected the batch export to create a download anchor.",
+      );
+    }
+
+    expect(createdAnchor.download).toMatch(/^anicards-export-.*\.zip$/);
+    expect(createdAnchor.href).toBe("blob:zip-download");
   });
 });

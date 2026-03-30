@@ -7,12 +7,77 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
-type DownloadSummary = {
-  total: number;
+export interface DownloadSummary {
+  requestedTotal: number;
   exported: number;
   failed: number;
+  skippedDisabled: number;
   failedCardRawTypes?: string[];
-};
+  skippedDisabledCardRawTypes?: string[];
+}
+
+interface CreateDownloadSummaryArgs {
+  requestedTotal: number;
+  exported?: number;
+  failed?: number;
+  failedCardRawTypes?: string[];
+  skippedDisabledCardRawTypes?: string[];
+}
+
+function formatSummaryList(items: readonly string[]): string {
+  return `${items.slice(0, 5).join(", ")}${items.length > 5 ? ", ..." : ""}`;
+}
+
+export function createDownloadSummary(
+  args: Readonly<CreateDownloadSummaryArgs>,
+): DownloadSummary {
+  const exported = Math.max(0, args.exported ?? 0);
+  const failed = Math.max(0, args.failed ?? 0);
+  const failedCardRawTypes = (args.failedCardRawTypes ?? []).filter(
+    (value): value is string => value.trim().length > 0,
+  );
+  const skippedDisabledCardRawTypes = (
+    args.skippedDisabledCardRawTypes ?? []
+  ).filter((value): value is string => value.trim().length > 0);
+  const skippedDisabled = skippedDisabledCardRawTypes.length;
+  const requestedTotal = Math.max(
+    0,
+    args.requestedTotal,
+    exported + failed + skippedDisabled,
+  );
+
+  return {
+    requestedTotal,
+    exported,
+    failed,
+    skippedDisabled,
+    ...(failedCardRawTypes.length > 0 ? { failedCardRawTypes } : {}),
+    ...(skippedDisabled > 0 ? { skippedDisabledCardRawTypes } : {}),
+  };
+}
+
+export function getDownloadSummaryTitle(
+  summary: Readonly<DownloadSummary>,
+): string {
+  if (summary.failed > 0) {
+    const issueParts = [`${summary.failed} failed`];
+    if (summary.skippedDisabled > 0) {
+      issueParts.push(`${summary.skippedDisabled} skipped disabled`);
+    }
+
+    return `Exported ${summary.exported}/${summary.requestedTotal} selected (${issueParts.join(", ")})`;
+  }
+
+  if (summary.skippedDisabled > 0) {
+    if (summary.exported > 0) {
+      return `Exported ${summary.exported}/${summary.requestedTotal} selected (${summary.skippedDisabled} skipped disabled)`;
+    }
+
+    return `Skipped ${summary.skippedDisabled} disabled selected card${summary.skippedDisabled === 1 ? "" : "s"}`;
+  }
+
+  return `Exported ${summary.exported}/${summary.requestedTotal}`;
+}
 
 interface DownloadStatusAlertsProps {
   downloadSummary: DownloadSummary | null;
@@ -95,24 +160,41 @@ export function DownloadStatusAlerts({
                   : "text-foreground"
               }
             >
-              {downloadSummary.failed > 0
-                ? `Export completed with ${downloadSummary.failed} failed`
-                : `Exported ${downloadSummary.exported}/${downloadSummary.total}`}
+              {getDownloadSummaryTitle(downloadSummary)}
             </AlertTitle>
 
-            {downloadSummary.failedCardRawTypes &&
-              downloadSummary.failedCardRawTypes.length > 0 && (
-                <AlertDescription
-                  className={
-                    downloadSummary.failed > 0
-                      ? "text-red-700 dark:text-red-300"
-                      : "text-muted-foreground"
-                  }
-                >
-                  {downloadSummary.failedCardRawTypes.slice(0, 5).join(", ")}
-                  {downloadSummary.failedCardRawTypes.length > 5 ? ", ..." : ""}
-                </AlertDescription>
-              )}
+            {(downloadSummary.failedCardRawTypes?.length ?? 0) > 0 ||
+            (downloadSummary.skippedDisabledCardRawTypes?.length ?? 0) > 0 ? (
+              <AlertDescription
+                className={
+                  downloadSummary.failed > 0
+                    ? "text-red-700 dark:text-red-300"
+                    : "text-muted-foreground"
+                }
+              >
+                {downloadSummary.failedCardRawTypes?.length ? (
+                  <p>
+                    <span className="font-medium">Failed:</span>{" "}
+                    {formatSummaryList(downloadSummary.failedCardRawTypes)}
+                  </p>
+                ) : null}
+
+                {downloadSummary.skippedDisabledCardRawTypes?.length ? (
+                  <p
+                    className={
+                      downloadSummary.failedCardRawTypes?.length
+                        ? "mt-1"
+                        : undefined
+                    }
+                  >
+                    <span className="font-medium">Skipped disabled:</span>{" "}
+                    {formatSummaryList(
+                      downloadSummary.skippedDisabledCardRawTypes,
+                    )}
+                  </p>
+                ) : null}
+              </AlertDescription>
+            ) : null}
 
             <div className="ml-auto flex items-center gap-2">
               <Button

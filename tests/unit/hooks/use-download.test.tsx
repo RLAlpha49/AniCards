@@ -27,13 +27,18 @@ const getAbsoluteUrl = mock((previewUrl: string) =>
   new URL(previewUrl, globalThis.location.origin).toString(),
 );
 const readSvgMarkupFromObjectUrl = mock(async () => "<svg />");
+const readSvgMarkupFromUrl = mock(async () => "<svg />");
 const toCardApiHref = mock((previewUrl: string): string | null => previewUrl);
+const cn = (...inputs: Array<string | false | null | undefined>) =>
+  inputs.filter(Boolean).join(" ");
 
 mock.module("@/components/user/tile/preview-cache", () => previewCache);
 mock.module("@/lib/utils", () => ({
+  cn,
   convertSvgToBlob,
   getAbsoluteUrl,
   readSvgMarkupFromObjectUrl,
+  readSvgMarkupFromUrl,
   toCardApiHref,
 }));
 
@@ -48,7 +53,10 @@ const originalCreateObjectURL = URL.createObjectURL;
 const originalRevokeObjectURL = URL.revokeObjectURL;
 
 const anchorClick = mock(() => {});
-const createObjectURL = mock(() => "blob:download-result");
+const createObjectURL = mock((resource: Blob | MediaSource) => {
+  void resource;
+  return "blob:download-result";
+});
 const revokeObjectURL = mock(() => {});
 
 beforeEach(() => {
@@ -58,6 +66,7 @@ beforeEach(() => {
   convertSvgToBlob.mockReset();
   getAbsoluteUrl.mockReset();
   readSvgMarkupFromObjectUrl.mockReset();
+  readSvgMarkupFromUrl.mockReset();
   toCardApiHref.mockReset();
   anchorClick.mockReset();
   createObjectURL.mockReset();
@@ -71,6 +80,7 @@ beforeEach(() => {
     new URL(previewUrl, globalThis.location.origin).toString(),
   );
   readSvgMarkupFromObjectUrl.mockResolvedValue("<svg />");
+  readSvgMarkupFromUrl.mockResolvedValue("<svg />");
   toCardApiHref.mockImplementation((previewUrl: string) => previewUrl);
   createObjectURL.mockReturnValue("blob:download-result");
 
@@ -219,5 +229,53 @@ describe("useDownload", () => {
       "Failed to download card:",
       downloadError,
     );
+  });
+
+  it("downloads raw SVG markup directly without routing through raster conversion", async () => {
+    getAbsoluteUrl.mockReturnValue(
+      "https://anicards.test/api/card?card=animeStats",
+    );
+    toCardApiHref.mockReturnValue("/api/card?card=animeStats");
+    previewCache.getCachedPreviewObjectUrl.mockReturnValue(null);
+    readSvgMarkupFromUrl.mockResolvedValue("<svg>live</svg>");
+
+    const { result } = renderHook(() =>
+      useDownload("/api/card?card=animeStats", {
+        cardId: "animeStats",
+        variant: "minimal",
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleDownload("svg");
+    });
+
+    expect(readSvgMarkupFromUrl).toHaveBeenCalledWith(
+      "https://anicards.test/api/card?card=animeStats",
+    );
+    expect(convertSvgToBlob).not.toHaveBeenCalled();
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+
+    const firstCreateObjectUrlCall = createObjectURL.mock.calls[0];
+    if (!firstCreateObjectUrlCall) {
+      throw new TypeError("Expected the SVG download to create an object URL.");
+    }
+
+    const [downloadBlob] = firstCreateObjectUrlCall;
+    if (!(downloadBlob instanceof Blob)) {
+      throw new TypeError("Expected SVG download to create a Blob.");
+    }
+
+    expect(downloadBlob.type).toBe("image/svg+xml");
+    expect(await downloadBlob.text()).toBe("<svg>live</svg>");
+    expect(anchorClick).toHaveBeenCalledTimes(1);
+
+    const createdAnchor = createdAnchors[0];
+    if (!createdAnchor) {
+      throw new Error("Expected the hook to create a download anchor.");
+    }
+
+    expect(createdAnchor.download).toBe("animeStats-minimal.svg");
+    expect(createdAnchor.href).toBe("blob:download-result");
   });
 });

@@ -8,12 +8,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover";
-import { cn, type ConversionFormat } from "@/lib/utils";
+import { type CardDownloadFormat, cn } from "@/lib/utils";
 
 interface DownloadPopoverProps {
   isDownloading: boolean;
   downloadProgress: { current: number; total: number };
-  handleDownloadAll: (format?: ConversionFormat) => Promise<void> | void;
+  handleDownloadAll: (format?: CardDownloadFormat) => Promise<void> | void;
 }
 
 /**
@@ -69,7 +69,7 @@ export function DownloadPopover({
         </span>
       )}
 
-      <PopoverContent className="w-40 p-1.5" align="center" side="top">
+      <PopoverContent className="w-44 p-1.5" align="center" side="top">
         <div className="flex flex-col gap-0.5">
           <Button
             variant="ghost"
@@ -98,6 +98,21 @@ export function DownloadPopover({
             <span className="font-medium text-foreground">WebP</span>
             <span className="ml-auto text-xs text-muted-foreground">
               Smaller
+            </span>
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 justify-start gap-2 px-2.5 text-sm hover:bg-gold/5 dark:hover:bg-gold/5"
+            disabled={isDownloading}
+            onClick={() => {
+              handleDownloadAll("svg");
+            }}
+          >
+            <span className="font-medium text-foreground">SVG</span>
+            <span className="ml-auto text-xs text-muted-foreground">
+              Vector
             </span>
           </Button>
         </div>

@@ -15,6 +15,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { useShallow } from "zustand/react/shallow";
 
 import { colorPresets } from "@/components/stat-card-generator/constants";
 import { Button } from "@/components/ui/Button";
@@ -30,11 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/Select";
-import {
-  batchConvertAndZip,
-  type BatchExportCard,
-  type ConversionFormat,
-} from "@/lib/batch-export";
+import { batchConvertAndZip, type BatchExportCard } from "@/lib/batch-export";
 import {
   buildCardUrlWithParams,
   mapStoredConfigToCardUrlParams,
@@ -44,12 +41,16 @@ import {
   type CardEditorConfig,
   useUserPageEditor,
 } from "@/lib/stores/user-page-editor";
-import { cn, toCardApiHref } from "@/lib/utils";
+import { type CardDownloadFormat, cn, toCardApiHref } from "@/lib/utils";
 
 import { BulkConfirmDialog } from "./bulk/BulkConfirmDialog";
 import { CopyUrlsPopover } from "./bulk/CopyUrlsPopover";
 import { DownloadPopover } from "./bulk/DownloadPopover";
-import { DownloadStatusAlerts } from "./bulk/DownloadStatusAlerts";
+import {
+  createDownloadSummary,
+  DownloadStatusAlerts,
+  type DownloadSummary,
+} from "./bulk/DownloadStatusAlerts";
 import { SelectionCounter } from "./bulk/SelectionCounter";
 import { getCachedPreviewObjectUrl } from "./tile/preview-cache";
 
@@ -70,12 +71,8 @@ export function BulkActionsToolbar({
     total: 0,
   });
 
-  const [downloadSummary, setDownloadSummary] = useState<{
-    total: number;
-    exported: number;
-    failed: number;
-    failedCardRawTypes?: string[];
-  } | null>(null);
+  const [downloadSummary, setDownloadSummary] =
+    useState<DownloadSummary | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const downloadSummaryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -103,32 +100,56 @@ export function BulkActionsToolbar({
   const {
     userId,
     selectedCardIds,
+    selectedCount,
     cardConfigs,
     globalColorPreset,
+    globalAdvancedSettings,
+    bulkPastLength,
+    bulkFutureLength,
+    bulkLastMessage,
     clearSelection,
     selectAllEnabled,
     selectCardsByGroup,
     getEffectiveColors,
     getEffectiveBorderColor,
     getEffectiveBorderRadius,
-    globalAdvancedSettings,
     bulkSetVariant,
     bulkApplyColorPreset,
     resetSelectedCardsToGlobal,
     undoBulk,
     redoBulk,
-    bulkPast,
-    bulkFuture,
-    bulkLastMessage,
-  } = useUserPageEditor();
+  } = useUserPageEditor(
+    useShallow((state) => ({
+      userId: state.userId,
+      selectedCardIds: state.selectedCardIds,
+      selectedCount: state.selectedCardIds.size,
+      cardConfigs: state.cardConfigs,
+      globalColorPreset: state.globalColorPreset,
+      globalAdvancedSettings: state.globalAdvancedSettings,
+      bulkPastLength: state.bulkPast.length,
+      bulkFutureLength: state.bulkFuture.length,
+      bulkLastMessage: state.bulkLastMessage,
+      clearSelection: state.clearSelection,
+      selectAllEnabled: state.selectAllEnabled,
+      selectCardsByGroup: state.selectCardsByGroup,
+      getEffectiveColors: state.getEffectiveColors,
+      getEffectiveBorderColor: state.getEffectiveBorderColor,
+      getEffectiveBorderRadius: state.getEffectiveBorderRadius,
+      bulkSetVariant: state.bulkSetVariant,
+      bulkApplyColorPreset: state.bulkApplyColorPreset,
+      resetSelectedCardsToGlobal: state.resetSelectedCardsToGlobal,
+      undoBulk: state.undoBulk,
+      redoBulk: state.redoBulk,
+    })),
+  );
 
   const selectedIds = useMemo(
     () => Array.from(selectedCardIds),
     [selectedCardIds],
   );
 
-  const canUndo = bulkPast.length > 0;
-  const canRedo = bulkFuture.length > 0;
+  const canUndo = bulkPastLength > 0;
+  const canRedo = bulkFutureLength > 0;
 
   const groupOptions = useMemo(() => {
     const present = new Set(Object.keys(cardConfigs));
@@ -213,81 +234,104 @@ export function BulkActionsToolbar({
   const toolbarBottom = "calc(1.5rem + env(safe-area-inset-bottom))";
   const toolbarGutter = "1rem";
 
-  const selectedCount = selectedCardIds.size;
-
-  const selectedCards = useMemo(() => {
-    if (!userId) return [];
-
-    return Array.from(selectedCardIds)
-      .map((cardId) => {
-        const config = cardConfigs[cardId];
-        if (!config?.enabled) return null;
-
-        const effectiveColors = getEffectiveColors(cardId);
-        const effectiveBorderColor = getEffectiveBorderColor(cardId);
-        const effectiveBorderRadius = getEffectiveBorderRadius(cardId);
-        const effectiveColorPreset = config.colorOverride.useCustomSettings
-          ? config.colorOverride.colorPreset || "custom"
-          : globalColorPreset;
-        const urlColorPreset =
-          effectiveColorPreset === "custom" ? undefined : effectiveColorPreset;
-
-        const urlParams = mapStoredConfigToCardUrlParams(
-          {
-            cardName: cardId,
-            variation: config.variant,
-            colorPreset: urlColorPreset,
-            titleColor: effectiveColors[0],
-            backgroundColor: effectiveColors[1],
-            textColor: effectiveColors[2],
-            circleColor: effectiveColors[3],
-            borderColor: effectiveBorderColor,
-            borderRadius: effectiveBorderRadius,
-            useStatusColors:
-              config.advancedSettings.useStatusColors ??
-              globalAdvancedSettings.useStatusColors,
-            showPiePercentages:
-              config.advancedSettings.showPiePercentages ??
-              globalAdvancedSettings.showPiePercentages,
-            showFavorites:
-              config.advancedSettings.showFavorites ??
-              globalAdvancedSettings.showFavorites,
-            gridCols:
-              config.advancedSettings.gridCols ??
-              globalAdvancedSettings.gridCols,
-            gridRows:
-              config.advancedSettings.gridRows ??
-              globalAdvancedSettings.gridRows,
-          },
-          {
-            userId,
-            includeColors: true,
-            defaultToCustomPreset: false,
-            allowPresetColorOverrides: false,
-          },
-        );
-
-        const url = buildCardUrlWithParams(urlParams);
-        const previewApiHref = toCardApiHref(url);
-        const cachedSvgObjectUrl = previewApiHref
-          ? getCachedPreviewObjectUrl(previewApiHref)
-          : null;
-
-        return { cardId, config, url, cachedSvgObjectUrl };
-      })
-      .filter(
-        (
-          item,
-        ): item is {
+  const { selectedCards, skippedDisabledCards } = useMemo(() => {
+    if (!userId) {
+      return {
+        selectedCards: [] as Array<{
           cardId: string;
           cachedSvgObjectUrl: string | null;
           config: CardEditorConfig;
+          rawType: string;
           url: string;
-        } => item !== null,
+        }>,
+        skippedDisabledCards: [] as Array<{ cardId: string; rawType: string }>,
+      };
+    }
+
+    const nextSelectedCards: Array<{
+      cardId: string;
+      cachedSvgObjectUrl: string | null;
+      config: CardEditorConfig;
+      rawType: string;
+      url: string;
+    }> = [];
+    const nextSkippedDisabledCards: Array<{ cardId: string; rawType: string }> =
+      [];
+
+    for (const cardId of selectedIds) {
+      const config = cardConfigs[cardId];
+      if (!config) continue;
+
+      const rawType = `${cardId}-${config.variant}`;
+      if (!config.enabled) {
+        nextSkippedDisabledCards.push({ cardId, rawType });
+        continue;
+      }
+
+      const effectiveColors = getEffectiveColors(cardId);
+      const effectiveBorderColor = getEffectiveBorderColor(cardId);
+      const effectiveBorderRadius = getEffectiveBorderRadius(cardId);
+      const effectiveColorPreset = config.colorOverride.useCustomSettings
+        ? config.colorOverride.colorPreset || "custom"
+        : globalColorPreset;
+      const urlColorPreset =
+        effectiveColorPreset === "custom" ? undefined : effectiveColorPreset;
+
+      const urlParams = mapStoredConfigToCardUrlParams(
+        {
+          cardName: cardId,
+          variation: config.variant,
+          colorPreset: urlColorPreset,
+          titleColor: effectiveColors[0],
+          backgroundColor: effectiveColors[1],
+          textColor: effectiveColors[2],
+          circleColor: effectiveColors[3],
+          borderColor: effectiveBorderColor,
+          borderRadius: effectiveBorderRadius,
+          useStatusColors:
+            config.advancedSettings.useStatusColors ??
+            globalAdvancedSettings.useStatusColors,
+          showPiePercentages:
+            config.advancedSettings.showPiePercentages ??
+            globalAdvancedSettings.showPiePercentages,
+          showFavorites:
+            config.advancedSettings.showFavorites ??
+            globalAdvancedSettings.showFavorites,
+          gridCols:
+            config.advancedSettings.gridCols ?? globalAdvancedSettings.gridCols,
+          gridRows:
+            config.advancedSettings.gridRows ?? globalAdvancedSettings.gridRows,
+        },
+        {
+          userId,
+          includeColors: true,
+          defaultToCustomPreset: false,
+          allowPresetColorOverrides: false,
+        },
       );
+
+      const url = buildCardUrlWithParams(urlParams);
+      const previewApiHref = toCardApiHref(url);
+      const cachedSvgObjectUrl = previewApiHref
+        ? getCachedPreviewObjectUrl(previewApiHref)
+        : null;
+
+      nextSelectedCards.push({
+        cardId,
+        config,
+        rawType,
+        url,
+        cachedSvgObjectUrl,
+      });
+    }
+
+    return {
+      selectedCards: nextSelectedCards,
+      skippedDisabledCards: nextSkippedDisabledCards,
+    };
   }, [
     userId,
-    selectedCardIds,
+    selectedIds,
     cardConfigs,
     globalColorPreset,
     getEffectiveColors,
@@ -420,8 +464,33 @@ export function BulkActionsToolbar({
   );
 
   const handleDownloadAll = useCallback(
-    async (format: ConversionFormat = "png") => {
-      if (selectedCards.length === 0 || isDownloading) return;
+    async (format: CardDownloadFormat = "png") => {
+      if (isDownloading) return;
+
+      const skippedDisabledRawTypes = skippedDisabledCards.map(
+        (card) => card.rawType,
+      );
+
+      if (selectedCards.length === 0 && skippedDisabledRawTypes.length === 0) {
+        return;
+      }
+
+      if (downloadSummaryTimerRef.current) {
+        clearTimeout(downloadSummaryTimerRef.current);
+        downloadSummaryTimerRef.current = null;
+      }
+      setDownloadSummary(null);
+      setDownloadError(null);
+
+      if (selectedCards.length === 0) {
+        setDownloadSummary(
+          createDownloadSummary({
+            requestedTotal: selectedCount,
+            skippedDisabledCardRawTypes: skippedDisabledRawTypes,
+          }),
+        );
+        return;
+      }
 
       setIsDownloading(true);
       setDownloadProgress({ current: 0, total: selectedCards.length });
@@ -430,16 +499,9 @@ export function BulkActionsToolbar({
         const batchCards: BatchExportCard[] = selectedCards.map((card) => ({
           cachedSvgObjectUrl: card.cachedSvgObjectUrl,
           type: card.cardId,
-          rawType: `${card.cardId}-${card.config.variant}`,
+          rawType: card.rawType,
           svgUrl: card.url,
         }));
-
-        if (downloadSummaryTimerRef.current) {
-          clearTimeout(downloadSummaryTimerRef.current);
-          downloadSummaryTimerRef.current = null;
-        }
-        setDownloadSummary(null);
-        setDownloadError(null);
 
         const result = await batchConvertAndZip(
           batchCards,
@@ -452,27 +514,26 @@ export function BulkActionsToolbar({
           },
         );
 
-        if (result.failed > 0) {
-          const failedRawTypes =
-            result.failedCards?.map((c) => c.rawType || c.type) ?? [];
-          setDownloadSummary({
-            total: result.total,
-            exported: result.exported,
-            failed: result.failed,
-            failedCardRawTypes: failedRawTypes,
-          });
+        const failedRawTypes =
+          result.failedCards?.map((c) => c.rawType || c.type) ?? [];
+        const nextSummary = createDownloadSummary({
+          requestedTotal: selectedCount,
+          exported: result.exported,
+          failed: result.failed,
+          failedCardRawTypes: failedRawTypes,
+          skippedDisabledCardRawTypes: skippedDisabledRawTypes,
+        });
 
-          console.warn(
-            `Batch download completed with ${result.failed} failed card(s) out of ${result.total}`,
+        setDownloadSummary(nextSummary);
+
+        if (nextSummary.failed > 0 || nextSummary.skippedDisabled > 0) {
+          console.warn("Batch download completed with issues.", {
+            exported: nextSummary.exported,
             failedRawTypes,
-          );
-        } else {
-          setDownloadSummary({
-            total: result.total,
-            exported: result.exported,
-            failed: 0,
+            requestedTotal: nextSummary.requestedTotal,
+            skippedDisabledRawTypes,
           });
-
+        } else {
           downloadSummaryTimerRef.current = globalThis.setTimeout(() => {
             setDownloadSummary(null);
             downloadSummaryTimerRef.current = null;
@@ -487,7 +548,7 @@ export function BulkActionsToolbar({
         setDownloadProgress({ current: 0, total: 0 });
       }
     },
-    [selectedCards, isDownloading],
+    [selectedCards, selectedCount, skippedDisabledCards, isDownloading],
   );
 
   const copyFailedListToClipboard = useCallback(

@@ -107,6 +107,13 @@ export function buildApiUrl(path: string): string {
 /** Export formats supported for image conversion. @source */
 export type ConversionFormat = "png" | "webp";
 
+/**
+ * Download formats supported by the user-facing card download/export flows.
+ * SVG remains a direct-markup path and is intentionally kept separate from the
+ * shared raster conversion contract above.
+ */
+export type CardDownloadFormat = ConversionFormat | "svg";
+
 export interface SvgConversionSource {
   svgContent?: string;
   svgUrl?: string;
@@ -776,6 +783,23 @@ export async function readSvgMarkupFromObjectUrl(
   const response = await fetch(objectUrl);
   if (!response.ok) {
     throw new Error(`Failed to read cached preview SVG: ${response.status}`);
+  }
+
+  return await response.text();
+}
+
+/**
+ * Reads SVG markup directly from a preview URL when no cached object URL is available.
+ */
+export async function readSvgMarkupFromUrl(svgUrl: string): Promise<string> {
+  const response = await fetch(svgUrl, {
+    headers: {
+      Accept: "image/svg+xml,*/*",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch preview SVG: ${response.status}`);
   }
 
   return await response.text();

@@ -8,7 +8,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover";
-import type { ConversionFormat } from "@/lib/utils";
+import type { CardDownloadFormat } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
 interface DownloadPopoverProps {
@@ -16,7 +16,7 @@ interface DownloadPopoverProps {
   onOpenChange: (open: boolean) => void;
   previewUrl: string | null;
   isDownloading: boolean;
-  onDownload: (format: ConversionFormat) => Promise<void> | void;
+  onDownload: (format: CardDownloadFormat) => Promise<void> | void;
   downloadDescrId?: string;
   downloadTitle?: string;
   triggerClassName?: string;
@@ -44,7 +44,7 @@ export function DownloadPopover({
           disabled={!previewUrl || isDownloading}
           aria-describedby={downloadDescrId}
           title={downloadTitle}
-          aria-label={isDownloading ? "Converting..." : "Download"}
+          aria-label={isDownloading ? "Preparing download..." : "Download"}
           className={cn(
             triggerLabel
               ? "h-11 w-full justify-center gap-2 rounded-xl px-3 text-sm shadow-none"
@@ -62,12 +62,12 @@ export function DownloadPopover({
           )}
           {triggerLabel ? <span>{triggerLabel}</span> : null}
           <span className="sr-only">
-            {isDownloading ? "Converting..." : "Download"}
+            {isDownloading ? "Preparing download..." : "Download"}
           </span>
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-40 border-gold/20 p-1.5 dark:border-gold/15"
+        className="w-44 border-gold/20 p-1.5 dark:border-gold/15"
         align="center"
       >
         <div className="flex flex-col gap-0.5">
@@ -108,6 +108,26 @@ export function DownloadPopover({
             <span className="font-medium text-foreground">WebP</span>
             <span className="ml-auto text-xs text-muted-foreground">
               Smaller
+            </span>
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="
+              h-9 justify-start gap-2 px-2.5 text-sm
+              hover:bg-gold/5
+              disabled:cursor-not-allowed disabled:opacity-70
+              dark:hover:bg-gold/5
+            "
+            onClick={() => onDownload("svg")}
+            disabled={!previewUrl || isDownloading}
+            aria-describedby={downloadDescrId}
+            title={downloadTitle}
+          >
+            <span className="font-medium text-foreground">SVG</span>
+            <span className="ml-auto text-xs text-muted-foreground">
+              Vector
             </span>
           </Button>
         </div>

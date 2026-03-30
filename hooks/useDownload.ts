@@ -9,12 +9,78 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getCachedPreviewObjectUrl } from "@/components/user/tile/preview-cache";
 import {
-  type ConversionFormat,
+  type CardDownloadFormat,
   convertSvgToBlob,
   getAbsoluteUrl,
   readSvgMarkupFromObjectUrl,
+  readSvgMarkupFromUrl,
   toCardApiHref,
 } from "@/lib/utils";
+
+async function resolveDownloadSvgMarkup(
+  previewUrl: string,
+  cachedSvgObjectUrl: string | null,
+): Promise<string> {
+  if (cachedSvgObjectUrl) {
+    try {
+      return await readSvgMarkupFromObjectUrl(cachedSvgObjectUrl);
+    } catch (error) {
+      console.warn(
+        "Failed to reuse cached preview SVG for download; falling back to a live SVG fetch.",
+        error,
+      );
+    }
+  }
+
+  return await readSvgMarkupFromUrl(previewUrl);
+}
+
+async function createRasterDownloadUrl(
+  previewUrl: string,
+  cachedSvgObjectUrl: string | null,
+  format: Exclude<CardDownloadFormat, "svg">,
+): Promise<string> {
+  let conversionSource:
+    | string
+    | {
+        svgContent: string;
+      } = previewUrl;
+
+  if (cachedSvgObjectUrl) {
+    try {
+      conversionSource = {
+        svgContent: await readSvgMarkupFromObjectUrl(cachedSvgObjectUrl),
+      };
+    } catch (error) {
+      console.warn(
+        "Failed to reuse cached preview SVG for download; falling back to URL conversion.",
+        error,
+      );
+    }
+  }
+
+  const rasterBlob = await convertSvgToBlob(conversionSource, format);
+  return URL.createObjectURL(rasterBlob);
+}
+
+async function createDownloadObjectUrl(
+  previewUrl: string,
+  cachedSvgObjectUrl: string | null,
+  format: CardDownloadFormat,
+): Promise<string> {
+  if (format === "svg") {
+    const svgMarkup = await resolveDownloadSvgMarkup(
+      previewUrl,
+      cachedSvgObjectUrl,
+    );
+
+    return URL.createObjectURL(
+      new Blob([svgMarkup], { type: "image/svg+xml" }),
+    );
+  }
+
+  return await createRasterDownloadUrl(previewUrl, cachedSvgObjectUrl, format);
+}
 
 export function useDownload(
   previewUrl: string | null,
@@ -38,7 +104,7 @@ export function useDownload(
   }, []);
 
   const handleDownload = useCallback(
-    async (format: ConversionFormat = "png") => {
+    async (format: CardDownloadFormat = "png") => {
       if (!previewUrl || isDownloadingRef.current) return;
       isDownloadingRef.current = true;
       if (isMountedRef.current) {
@@ -55,27 +121,12 @@ export function useDownload(
           ? getCachedPreviewObjectUrl(previewApiHref)
           : null;
 
-        let conversionSource:
-          | string
-          | {
-              svgContent: string;
-            } = absoluteUrl;
+        downloadUrl = await createDownloadObjectUrl(
+          absoluteUrl,
+          cachedSvgObjectUrl,
+          format,
+        );
 
-        if (cachedSvgObjectUrl) {
-          try {
-            conversionSource = {
-              svgContent: await readSvgMarkupFromObjectUrl(cachedSvgObjectUrl),
-            };
-          } catch (error) {
-            console.warn(
-              "Failed to reuse cached preview SVG for download; falling back to URL conversion.",
-              error,
-            );
-          }
-        }
-
-        const rasterBlob = await convertSvgToBlob(conversionSource, format);
-        downloadUrl = URL.createObjectURL(rasterBlob);
         // Browsers still behave most consistently when downloads come from a
         // real anchor click instead of navigating directly to the response.
         link = document.createElement("a");

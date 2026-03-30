@@ -1,13 +1,15 @@
 import JSZip from "jszip";
 
 import {
+  type CardDownloadFormat,
   type ConversionFormat,
   convertSvgToBlob,
   readSvgMarkupFromObjectUrl,
+  readSvgMarkupFromUrl,
   type SvgConversionSource,
 } from "@/lib/utils";
 
-export type { ConversionFormat } from "@/lib/utils";
+export type { CardDownloadFormat, ConversionFormat } from "@/lib/utils";
 
 /** A card entry used for batch export operations. @source */
 export interface BatchExportCard {
@@ -31,7 +33,7 @@ type BatchConversionSuccess = {
   success: true;
   blob: Blob;
   card: BatchExportCard;
-  format: ConversionFormat;
+  format: CardDownloadFormat;
   cardIndex: number;
 };
 
@@ -52,7 +54,7 @@ export type BatchConversionResult =
 interface BatchConversionImage {
   filename: string;
   blob: Blob;
-  format: ConversionFormat;
+  format: CardDownloadFormat;
 }
 
 /** Summary after exporting a batch of converted images. @source */
@@ -66,18 +68,51 @@ export interface BatchExportSummary {
 /** Max number of concurrent conversions during batch processing. @source */
 const BATCH_CONCURRENCY_LIMIT = 4;
 
-/**
- * Converts multiple SVG URLs to raster images with concurrency limits.
- *
- * @param cards - Cards to convert, each containing type/rawType and svgUrl.
- * @param format - Target format for conversion (png | webp).
- * @param progressCallback - Optional progress callback invoked per card.
- * @returns Array of success/failure results.
- * @source
- */
-export async function batchConvertSvgsToPngs(
+async function readRawSvgMarkup(card: BatchExportCard): Promise<string> {
+  if (card.cachedSvgObjectUrl) {
+    try {
+      return await readSvgMarkupFromObjectUrl(card.cachedSvgObjectUrl);
+    } catch (error) {
+      console.warn(
+        `Failed to reuse cached preview SVG for ${card.rawType || card.type}; falling back to a live SVG fetch.`,
+        error,
+      );
+    }
+  }
+
+  return await readSvgMarkupFromUrl(card.svgUrl);
+}
+
+async function convertCardToBlob(
+  card: BatchExportCard,
+  format: CardDownloadFormat,
+): Promise<Blob> {
+  if (format === "svg") {
+    const svgMarkup = await readRawSvgMarkup(card);
+    return new Blob([svgMarkup], { type: "image/svg+xml" });
+  }
+
+  let source: string | SvgConversionSource = card.svgUrl;
+
+  if (card.cachedSvgObjectUrl) {
+    try {
+      source = {
+        svgContent: await readSvgMarkupFromObjectUrl(card.cachedSvgObjectUrl),
+      };
+    } catch (error) {
+      console.warn(
+        `Failed to reuse cached preview SVG for ${card.rawType || card.type}; falling back to URL conversion.`,
+        error,
+      );
+    }
+  }
+
+  return await convertSvgToBlob(source, format);
+}
+
+async function batchExportCards(
   cards: BatchExportCard[],
-  format: ConversionFormat,
+  format: CardDownloadFormat,
   progressCallback?: (progress: BatchConversionProgress) => void,
 ): Promise<BatchConversionResult[]> {
   const queue = cards.map((card, index) => ({ card, index }));
@@ -92,24 +127,7 @@ export async function batchConvertSvgsToPngs(
     index: number,
   ): Promise<BatchConversionResult> => {
     try {
-      let source: string | SvgConversionSource = card.svgUrl;
-
-      if (card.cachedSvgObjectUrl) {
-        try {
-          source = {
-            svgContent: await readSvgMarkupFromObjectUrl(
-              card.cachedSvgObjectUrl,
-            ),
-          };
-        } catch (error) {
-          console.warn(
-            `Failed to reuse cached preview SVG for ${card.rawType || card.type}; falling back to URL conversion.`,
-            error,
-          );
-        }
-      }
-
-      const blob = await convertSvgToBlob(source, format);
+      const blob = await convertCardToBlob(card, format);
       successCount += 1;
       return {
         success: true,
@@ -169,6 +187,23 @@ export async function batchConvertSvgsToPngs(
 }
 
 /**
+ * Converts multiple SVG URLs to raster images with concurrency limits.
+ *
+ * @param cards - Cards to convert, each containing type/rawType and svgUrl.
+ * @param format - Target format for conversion (png | webp).
+ * @param progressCallback - Optional progress callback invoked per card.
+ * @returns Array of success/failure results.
+ * @source
+ */
+export async function batchConvertSvgsToPngs(
+  cards: BatchExportCard[],
+  format: ConversionFormat,
+  progressCallback?: (progress: BatchConversionProgress) => void,
+): Promise<BatchConversionResult[]> {
+  return await batchExportCards(cards, format, progressCallback);
+}
+
+/**
  * Generates a ZIP archive from converted images.
  *
  * @param images - Image data with filenames and formats.
@@ -214,14 +249,14 @@ export function downloadBlob(blob: Blob, filename: string) {
  */
 export async function batchConvertAndZip(
   cards: BatchExportCard[],
-  format: ConversionFormat,
+  format: CardDownloadFormat,
   progressCallback?: (progress: BatchConversionProgress) => void,
 ): Promise<BatchExportSummary> {
   if (cards.length === 0) {
     throw new Error("No cards available for export.");
   }
 
-  const conversionResults = await batchConvertSvgsToPngs(
+  const conversionResults = await batchExportCards(
     cards,
     format,
     progressCallback,

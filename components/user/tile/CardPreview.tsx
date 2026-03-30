@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { CopyPopover } from "@/components/user/tile/CopyPopover";
 import { DownloadPopover } from "@/components/user/tile/DownloadPopover";
 import { useCachedCardPreview } from "@/components/user/tile/useCachedCardPreview";
-import { cn, type ConversionFormat, toCardApiHref } from "@/lib/utils";
+import { type CardDownloadFormat, cn, toCardApiHref } from "@/lib/utils";
 
 function withCacheBust(apiHref: string, cacheBust: string | null): string {
   if (!cacheBust) return apiHref;
@@ -56,7 +56,7 @@ function getDownloadA11yState(args: {
   }
   if (args.isDownloading) {
     return {
-      downloadTitle: "Converting...",
+      downloadTitle: "Preparing download...",
       downloadDescrId: args.convertingId,
     };
   }
@@ -192,7 +192,7 @@ interface CardPreviewProps {
   setDownloadPopoverOpen: (open: boolean) => void;
   onCopyUrl: () => Promise<void> | void;
   onCopyAniList: () => Promise<void> | void;
-  onDownload: (format: ConversionFormat) => Promise<void> | void;
+  onDownload: (format: CardDownloadFormat) => Promise<void> | void;
   isAnyPopoverOpen: boolean;
   forceActionsVisible?: boolean;
   /** Notifies the parent when the pointer is over the preview area. */
@@ -370,7 +370,7 @@ export const CardPreview = memo(function CardPreview({
         )}
         {isDownloading && (
           <span id={convertingId} className="sr-only">
-            Converting...
+            Preparing download...
           </span>
         )}
         <div
