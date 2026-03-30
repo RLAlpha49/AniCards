@@ -7,6 +7,16 @@ import type {
   UserStatsData,
 } from "../../../lib/types/records";
 
+function buildRecentActivityHistory() {
+  const now = Math.floor(Date.now() / 1000);
+  const oneDayInSeconds = 24 * 60 * 60;
+
+  return [5, 3, 8, 2, 6].map((amount, index, values) => ({
+    date: now - (values.length - index) * oneDayInSeconds,
+    amount,
+  }));
+}
+
 export const mockAnimeStats: AnimeStats = {
   count: 250,
   episodesWatched: 3500,
@@ -143,13 +153,7 @@ export const mockMangaStats: MangaStats = {
 export const mockUserStatsData: UserStatsData = {
   User: {
     stats: {
-      activityHistory: [
-        { date: 1700000000, amount: 5 },
-        { date: 1700086400, amount: 3 },
-        { date: 1700172800, amount: 8 },
-        { date: 1700259200, amount: 2 },
-        { date: 1700345600, amount: 6 },
-      ],
+      activityHistory: buildRecentActivityHistory(),
     },
     favourites: {
       staff: {

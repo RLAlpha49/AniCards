@@ -15,6 +15,7 @@ import {
   mock,
 } from "bun:test";
 
+import { mockUserStatsData } from "@/tests/e2e/fixtures/mock-data";
 import {
   allowConsoleWarningsAndErrors,
   sharedRatelimitMockLimit,
@@ -80,6 +81,10 @@ function findSetCall(key: string) {
 
 function parseJsonSetCall(key: string) {
   return JSON.parse(String(findSetCall(key)[1]));
+}
+
+function cloneMockUserStatsData() {
+  return structuredClone(mockUserStatsData);
 }
 
 /**
@@ -337,7 +342,11 @@ describe("Store Users API", () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       sharedRedisMockSet.mockResolvedValue(true);
 
-      const reqBody = { userId: 1, username: "UserOne", stats: { score: 10 } };
+      const reqBody = {
+        userId: 1,
+        username: "UserOne",
+        stats: cloneMockUserStatsData(),
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
@@ -365,7 +374,7 @@ describe("Store Users API", () => {
       expect(metaValue).toHaveProperty("updatedAt");
 
       const statsValue = parseJsonSetCall("user:1:activity");
-      expect(statsValue).toEqual({ score: 10 });
+      expect(statsValue).toEqual(mockUserStatsData.User.stats);
 
       expect(findSetCall("username:userone")[1]).toBe("1");
       expect(sharedRedisMockSadd).toHaveBeenCalledWith("users:known-ids", "1");
@@ -392,7 +401,7 @@ describe("Store Users API", () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       sharedRedisMockSet.mockResolvedValue(true);
 
-      const reqBody = { userId: 2, stats: { score: 20 } };
+      const reqBody = { userId: 2, stats: cloneMockUserStatsData() };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
@@ -416,7 +425,11 @@ describe("Store Users API", () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       sharedRedisMockSet.mockResolvedValue(true);
 
-      const reqBody = { userId: 3, username: null, stats: { score: 30 } };
+      const reqBody = {
+        userId: 3,
+        username: null,
+        stats: cloneMockUserStatsData(),
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
@@ -433,7 +446,7 @@ describe("Store Users API", () => {
       const reqBody = {
         userId: 4,
         username: "  UserName  ",
-        stats: { score: 40 },
+        stats: cloneMockUserStatsData(),
       };
       const req = createTestRequest(reqBody, "http://localhost");
 
@@ -449,67 +462,52 @@ describe("Store Users API", () => {
       sharedRedisMockGet.mockResolvedValueOnce(null);
       sharedRedisMockSet.mockResolvedValue(true);
 
-      const statsPayload = {
-        User: {
-          statistics: {
-            anime: {},
-            manga: {},
+      const statsPayload = cloneMockUserStatsData();
+      statsPayload.animeCurrent = {
+        lists: [
+          {
+            name: "Watching",
+            entries: [
+              {
+                id: 1,
+                progress: 1,
+                media: { id: 10, source: "MANGA", title: { romaji: "A" } },
+              },
+              {
+                id: 2,
+                progress: 1,
+                media: { id: 12, title: { romaji: "B" } },
+              },
+            ],
           },
-          stats: {
-            activityHistory: [],
+        ],
+      };
+      statsPayload.animeCompleted = {
+        lists: [
+          {
+            name: "Completed",
+            entries: [
+              {
+                id: 3,
+                score: 10,
+                media: {
+                  id: 10,
+                  source: "MANGA",
+                  title: { romaji: "A" },
+                },
+              },
+              {
+                id: 4,
+                score: 10,
+                media: {
+                  id: 11,
+                  source: "ORIGINAL",
+                  title: { romaji: "C" },
+                },
+              },
+            ],
           },
-        },
-        followersPage: { pageInfo: { total: 0 }, followers: [] },
-        followingPage: { pageInfo: { total: 0 }, following: [] },
-        threadsPage: { pageInfo: { total: 0 }, threads: [] },
-        threadCommentsPage: { pageInfo: { total: 0 }, threadComments: [] },
-        reviewsPage: { pageInfo: { total: 0 }, reviews: [] },
-        animeCurrent: {
-          lists: [
-            {
-              name: "Watching",
-              entries: [
-                {
-                  id: 1,
-                  progress: 1,
-                  media: { id: 10, source: "MANGA", title: { romaji: "A" } },
-                },
-                {
-                  id: 2,
-                  progress: 1,
-                  media: { id: 12, title: { romaji: "B" } },
-                },
-              ],
-            },
-          ],
-        },
-        animeCompleted: {
-          lists: [
-            {
-              name: "Completed",
-              entries: [
-                {
-                  id: 3,
-                  score: 10,
-                  media: {
-                    id: 10,
-                    source: "MANGA",
-                    title: { romaji: "A" },
-                  },
-                },
-                {
-                  id: 4,
-                  score: 10,
-                  media: {
-                    id: 11,
-                    source: "ORIGINAL",
-                    title: { romaji: "C" },
-                  },
-                },
-              ],
-            },
-          ],
-        },
+        ],
       };
 
       const reqBody = {
@@ -542,74 +540,59 @@ describe("Store Users API", () => {
       sharedRedisMockGet.mockResolvedValueOnce(null);
       sharedRedisMockSet.mockResolvedValue(true);
 
-      const statsPayload = {
-        User: {
-          statistics: {
-            anime: {},
-            manga: {},
+      const statsPayload = cloneMockUserStatsData();
+      statsPayload.animeCurrent = {
+        lists: [
+          {
+            name: "Watching",
+            entries: [
+              {
+                id: 1,
+                progress: 1,
+                media: {
+                  id: 10,
+                  season: "WINTER",
+                  seasonYear: 2024,
+                  title: { romaji: "A" },
+                },
+              },
+              {
+                id: 2,
+                progress: 1,
+                media: { id: 12, title: { romaji: "B" } },
+              },
+            ],
           },
-          stats: {
-            activityHistory: [],
+        ],
+      };
+      statsPayload.animeCompleted = {
+        lists: [
+          {
+            name: "Completed",
+            entries: [
+              {
+                id: 3,
+                score: 10,
+                media: {
+                  id: 10,
+                  season: "WINTER",
+                  seasonYear: 2024,
+                  title: { romaji: "A" },
+                },
+              },
+              {
+                id: 4,
+                score: 10,
+                media: {
+                  id: 11,
+                  season: "SPRING",
+                  seasonYear: 2024,
+                  title: { romaji: "C" },
+                },
+              },
+            ],
           },
-        },
-        followersPage: { pageInfo: { total: 0 }, followers: [] },
-        followingPage: { pageInfo: { total: 0 }, following: [] },
-        threadsPage: { pageInfo: { total: 0 }, threads: [] },
-        threadCommentsPage: { pageInfo: { total: 0 }, threadComments: [] },
-        reviewsPage: { pageInfo: { total: 0 }, reviews: [] },
-        animeCurrent: {
-          lists: [
-            {
-              name: "Watching",
-              entries: [
-                {
-                  id: 1,
-                  progress: 1,
-                  media: {
-                    id: 10,
-                    season: "WINTER",
-                    seasonYear: 2024,
-                    title: { romaji: "A" },
-                  },
-                },
-                {
-                  id: 2,
-                  progress: 1,
-                  media: { id: 12, title: { romaji: "B" } },
-                },
-              ],
-            },
-          ],
-        },
-        animeCompleted: {
-          lists: [
-            {
-              name: "Completed",
-              entries: [
-                {
-                  id: 3,
-                  score: 10,
-                  media: {
-                    id: 10,
-                    season: "WINTER",
-                    seasonYear: 2024,
-                    title: { romaji: "A" },
-                  },
-                },
-                {
-                  id: 4,
-                  score: 10,
-                  media: {
-                    id: 11,
-                    season: "SPRING",
-                    seasonYear: 2024,
-                    title: { romaji: "C" },
-                  },
-                },
-              ],
-            },
-          ],
-        },
+        ],
       };
 
       const reqBody = {
@@ -639,57 +622,42 @@ describe("Store Users API", () => {
       sharedRedisMockGet.mockResolvedValueOnce(null);
       sharedRedisMockSet.mockResolvedValue(true);
 
-      const statsPayload = {
-        User: {
-          statistics: {
-            anime: {},
-            manga: {},
+      const statsPayload = cloneMockUserStatsData();
+      statsPayload.animeCompleted = {
+        lists: [
+          {
+            name: "Completed",
+            entries: [
+              {
+                id: 1,
+                score: 10,
+                media: {
+                  id: 101,
+                  title: { romaji: "A" },
+                  genres: ["Action", "Drama", "Comedy"],
+                },
+              },
+              {
+                id: 2,
+                score: 10,
+                media: {
+                  id: 102,
+                  title: { romaji: "B" },
+                  genres: ["Action", "Drama"],
+                },
+              },
+              {
+                id: 3,
+                score: 10,
+                media: {
+                  id: 103,
+                  title: { romaji: "C" },
+                  genres: ["Drama", "Fantasy"],
+                },
+              },
+            ],
           },
-          stats: {
-            activityHistory: [],
-          },
-        },
-        followersPage: { pageInfo: { total: 0 }, followers: [] },
-        followingPage: { pageInfo: { total: 0 }, following: [] },
-        threadsPage: { pageInfo: { total: 0 }, threads: [] },
-        threadCommentsPage: { pageInfo: { total: 0 }, threadComments: [] },
-        reviewsPage: { pageInfo: { total: 0 }, reviews: [] },
-        animeCompleted: {
-          lists: [
-            {
-              name: "Completed",
-              entries: [
-                {
-                  id: 1,
-                  score: 10,
-                  media: {
-                    id: 101,
-                    title: { romaji: "A" },
-                    genres: ["Action", "Drama", "Comedy"],
-                  },
-                },
-                {
-                  id: 2,
-                  score: 10,
-                  media: {
-                    id: 102,
-                    title: { romaji: "B" },
-                    genres: ["Action", "Drama"],
-                  },
-                },
-                {
-                  id: 3,
-                  score: 10,
-                  media: {
-                    id: 103,
-                    title: { romaji: "C" },
-                    genres: ["Drama", "Fantasy"],
-                  },
-                },
-              ],
-            },
-          ],
-        },
+        ],
       };
 
       const reqBody = {
@@ -721,109 +689,92 @@ describe("Store Users API", () => {
       sharedRedisMockGet.mockResolvedValueOnce(null);
       sharedRedisMockSet.mockResolvedValue(true);
 
-      const statsPayload = {
-        User: {
-          statistics: {
-            anime: {},
-            manga: {},
+      const statsPayload = cloneMockUserStatsData();
+      statsPayload.userReviews = {
+        reviews: [
+          {
+            id: 100,
+            score: 70,
+            rating: 10,
+            ratingAmount: 42,
+            summary: "A review summary",
+            createdAt: 1700000000,
+            media: {
+              id: 200,
+              title: { romaji: "Example Anime" },
+              type: "ANIME",
+              genres: ["Action"],
+            },
           },
-          stats: {
-            activityHistory: [],
+        ],
+      };
+      statsPayload.userRecommendations = {
+        recommendations: [
+          {
+            id: 300,
+            rating: 5,
+            media: { id: 1, title: { romaji: "A" } },
+            mediaRecommendation: { id: 2, title: { romaji: "B" } },
           },
-        },
-        followersPage: { pageInfo: { total: 0 }, followers: [] },
-        followingPage: { pageInfo: { total: 0 }, following: [] },
-        threadsPage: { pageInfo: { total: 0 }, threads: [] },
-        threadCommentsPage: { pageInfo: { total: 0 }, threadComments: [] },
-        reviewsPage: { pageInfo: { total: 0 }, reviews: [] },
-        userReviews: {
-          pageInfo: { total: 1 },
-          reviews: [
-            {
-              id: 100,
-              score: 70,
-              rating: 10,
-              ratingAmount: 42,
-              summary: "A review summary",
-              createdAt: 1700000000,
-              media: {
-                id: 200,
-                title: { romaji: "Example Anime" },
-                type: "ANIME",
-                genres: ["Action"],
+        ],
+      };
+      statsPayload.animeCompleted = {
+        lists: [
+          {
+            name: "Completed",
+            entries: [
+              {
+                id: 1,
+                score: 9,
+                media: {
+                  id: 10,
+                  title: { romaji: "Completed With Dates" },
+                  episodes: 12,
+                  averageScore: 82,
+                  genres: ["Drama"],
+                },
               },
-            },
-          ],
-        },
-        userRecommendations: {
-          pageInfo: { total: 1 },
-          recommendations: [
-            {
-              id: 300,
-              rating: 5,
-              media: { id: 1, title: { romaji: "A" } },
-              mediaRecommendation: { id: 2, title: { romaji: "B" } },
-            },
-          ],
-        },
-        animeCompleted: {
-          lists: [
-            {
-              name: "Completed",
-              entries: [
-                {
-                  id: 1,
-                  score: 9,
-                  media: {
-                    id: 10,
-                    title: { romaji: "Completed With Dates" },
-                    episodes: 12,
-                    averageScore: 82,
-                    genres: ["Drama"],
-                  },
+            ],
+          },
+        ],
+      };
+      statsPayload.animeDropped = {
+        lists: [
+          {
+            name: "Dropped",
+            entries: [
+              {
+                id: 2,
+                progress: 3,
+                media: {
+                  id: 11,
+                  title: { romaji: "Dropped Anime" },
+                  episodes: 12,
+                  genres: ["Comedy"],
                 },
-              ],
-            },
-          ],
-        },
-        animeDropped: {
-          lists: [
-            {
-              name: "Dropped",
-              entries: [
-                {
-                  id: 2,
-                  progress: 3,
-                  media: {
-                    id: 11,
-                    title: { romaji: "Dropped Anime" },
-                    episodes: 12,
-                    genres: ["Comedy"],
-                  },
+              },
+            ],
+          },
+        ],
+      };
+      statsPayload.mangaDropped = {
+        lists: [
+          {
+            name: "Dropped",
+            entries: [
+              {
+                id: 3,
+                progress: 5,
+                media: {
+                  id: 21,
+                  title: { romaji: "Dropped Manga" },
+                  chapters: 100,
+                  genres: ["Adventure"],
                 },
-              ],
-            },
-          ],
-        },
-        mangaDropped: {
-          lists: [
-            {
-              name: "Dropped",
-              entries: [
-                {
-                  id: 3,
-                  progress: 5,
-                  media: {
-                    id: 21,
-                    title: { romaji: "Dropped Manga" },
-                    chapters: 100,
-                    genres: ["Adventure"],
-                  },
-                },
-              ],
-            },
-          ],
-        },
+              },
+            ],
+          },
+        ],
       };
 
       const reqBody = {
@@ -869,7 +820,11 @@ describe("Store Users API", () => {
       });
       sharedRedisMockSet.mockResolvedValue(true);
 
-      const reqBody = { userId: 5, username: "NewName", stats: { score: 100 } };
+      const reqBody = {
+        userId: 5,
+        username: "NewName",
+        stats: cloneMockUserStatsData(),
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
@@ -883,11 +838,11 @@ describe("Store Users API", () => {
       expect(metaValue.username).toBe("NewName");
 
       const statsValue = parseJsonSetCall("user:5:activity");
-      expect(statsValue).toEqual({ score: 100 });
+      expect(statsValue).toEqual(mockUserStatsData.User.stats);
       expect(sharedRedisMockDel).toHaveBeenCalledWith("username:oldname");
     });
 
-    it("should handle complex stats objects", async () => {
+    it("should reject stats payloads that fail persisted schema validation", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       sharedRedisMockSet.mockResolvedValue(true);
 
@@ -902,11 +857,10 @@ describe("Store Users API", () => {
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
-      expect(res.status).toBe(200);
-
-      expect(sharedRedisMockSet).toHaveBeenCalledTimes(11);
-      const statsValue = parseJsonSetCall("user:6:activity");
-      expect(statsValue).toEqual(complexStats);
+      expect(res.status).toBe(400);
+      const data = await getJsonResponse(res);
+      expect(data.error).toBe("Invalid data");
+      expect(sharedRedisMockSet).not.toHaveBeenCalled();
     });
 
     it("should update existing user without username when not provided", async () => {
@@ -928,7 +882,7 @@ describe("Store Users API", () => {
       });
       sharedRedisMockSet.mockResolvedValue(true);
 
-      const reqBody = { userId: 7, stats: { score: 50 } };
+      const reqBody = { userId: 7, stats: cloneMockUserStatsData() };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
@@ -959,7 +913,11 @@ describe("Store Users API", () => {
       });
       sharedRedisMockSet.mockResolvedValue(true);
 
-      const reqBody = { userId: 8, username: "NewName", stats: { score: 50 } };
+      const reqBody = {
+        userId: 8,
+        username: "NewName",
+        stats: cloneMockUserStatsData(),
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
@@ -1015,7 +973,11 @@ describe("Store Users API", () => {
       sharedRedisMockSet.mockResolvedValue(true);
 
       const beforeTime = new Date();
-      const reqBody = { userId: 9, username: "user9", stats: { score: 10 } };
+      const reqBody = {
+        userId: 9,
+        username: "user9",
+        stats: cloneMockUserStatsData(),
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
@@ -1034,7 +996,11 @@ describe("Store Users API", () => {
       sharedRedisMockSet.mockResolvedValue(true);
 
       const beforeTime = new Date();
-      const reqBody = { userId: 10, username: "user10", stats: { score: 10 } };
+      const reqBody = {
+        userId: 10,
+        username: "user10",
+        stats: cloneMockUserStatsData(),
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
@@ -1057,7 +1023,11 @@ describe("Store Users API", () => {
         new Error("Redis failure"),
       );
 
-      const reqBody = { userId: 11, username: "user11", stats: { score: 30 } };
+      const reqBody = {
+        userId: 11,
+        username: "user11",
+        stats: cloneMockUserStatsData(),
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
@@ -1094,7 +1064,11 @@ describe("Store Users API", () => {
       });
       sharedRedisMockSet.mockResolvedValue(true);
 
-      const reqBody = { userId: 13, username: "user13", stats: { score: 30 } };
+      const reqBody = {
+        userId: 13,
+        username: "user13",
+        stats: cloneMockUserStatsData(),
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
@@ -1118,7 +1092,11 @@ describe("Store Users API", () => {
       sharedRedisMockSet.mockResolvedValue(true);
 
       const beforeTime = new Date();
-      const reqBody = { userId: 14, username: "user14", stats: { score: 30 } };
+      const reqBody = {
+        userId: 14,
+        username: "user14",
+        stats: cloneMockUserStatsData(),
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
@@ -1139,7 +1117,11 @@ describe("Store Users API", () => {
       sharedRedisMockGet.mockResolvedValueOnce(null);
       sharedRedisMockSet.mockResolvedValueOnce(true);
 
-      const reqBody = { userId: 15, username: "user15", stats: { score: 10 } };
+      const reqBody = {
+        userId: 15,
+        username: "user15",
+        stats: cloneMockUserStatsData(),
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       const res = await POST(req);
@@ -1167,7 +1149,7 @@ describe("Store Users API", () => {
           body: JSON.stringify({
             userId: 101,
             username: "user101",
-            stats: { score: 10 },
+            stats: cloneMockUserStatsData(),
           }),
         }),
       );
@@ -1199,7 +1181,11 @@ describe("Store Users API", () => {
       sharedRedisMockGet.mockResolvedValueOnce(null);
       sharedRedisMockSet.mockResolvedValueOnce(true);
 
-      const reqBody = { userId: 16, username: "user16", stats: { score: 10 } };
+      const reqBody = {
+        userId: 16,
+        username: "user16",
+        stats: cloneMockUserStatsData(),
+      };
       const req = createTestRequest(reqBody, "http://localhost");
 
       await POST(req);

@@ -1,6 +1,10 @@
 import type { NextResponse } from "next/server";
 
 import {
+  getSchemaValidationIssueSummary,
+  validatePersistedUserRecord,
+} from "@/lib/api/validation";
+import {
   apiErrorResponse,
   apiJsonHeaders,
   buildAnalyticsMetricKey,
@@ -22,6 +26,121 @@ import {
   UserDataIntegrityError,
 } from "@/lib/server/user-data";
 import { PersistedUserRecord, UserRecord } from "@/lib/types/records";
+
+function scheduleStoreUsersMetric(
+  endpoint: string,
+  endpointKey: string,
+  metric: "failed_requests" | "successful_requests",
+  request: Request,
+): void {
+  const analyticsMetric = buildAnalyticsMetricKey(endpointKey, metric);
+  scheduleTelemetryTask(() => incrementAnalytics(analyticsMetric), {
+    endpoint,
+    taskName: analyticsMetric,
+    request,
+  });
+}
+
+function rejectInvalidStoreUsersPayload(params: {
+  endpoint: string;
+  endpointKey: string;
+  request: Request;
+  userId: number;
+  message: string;
+  context?: Record<string, unknown>;
+}): NextResponse {
+  logPrivacySafe(
+    "warn",
+    params.endpoint,
+    params.message,
+    params.context
+      ? { userId: params.userId, ...params.context }
+      : { userId: params.userId },
+    params.request,
+  );
+  scheduleStoreUsersMetric(
+    params.endpoint,
+    params.endpointKey,
+    "failed_requests",
+    params.request,
+  );
+
+  return apiErrorResponse(params.request, 400, "Invalid data", {
+    category: "invalid_data",
+    retryable: false,
+  });
+}
+
+function preparePersistedUserRecord(params: {
+  endpoint: string;
+  endpointKey: string;
+  request: Request;
+  requestMetadata?: PersistedUserRecord["requestMetadata"];
+  userData: UserRecord;
+  userId: number;
+}):
+  | { persistedUserData: PersistedUserRecord }
+  | { errorResponse: NextResponse } {
+  const normalizationResult = validateAndNormalizeUserRecord(params.userData, {
+    mode: "write",
+  });
+  if (!("normalized" in normalizationResult)) {
+    return {
+      errorResponse: rejectInvalidStoreUsersPayload({
+        endpoint: params.endpoint,
+        endpointKey: params.endpointKey,
+        request: params.request,
+        userId: params.userId,
+        message: "Rejected store-users payload that failed normalization",
+        context: {
+          validationError: normalizationResult.error,
+          validationStatus: normalizationResult.status,
+        },
+      }),
+    };
+  }
+
+  const finalUserData = normalizationResult.normalized;
+  const persistedRequestMetadata =
+    finalUserData.requestMetadata ?? params.requestMetadata;
+
+  const persistedUserData: PersistedUserRecord = {
+    userId: finalUserData.userId,
+    username: finalUserData.username,
+    stats: finalUserData.stats,
+    createdAt: finalUserData.createdAt,
+    updatedAt: finalUserData.updatedAt,
+    ...(finalUserData.aggregates
+      ? { aggregates: finalUserData.aggregates }
+      : {}),
+    ...(persistedRequestMetadata
+      ? { requestMetadata: persistedRequestMetadata }
+      : {}),
+  };
+
+  const persistedValidation = validatePersistedUserRecord(persistedUserData);
+  if (!persistedValidation.success) {
+    return {
+      errorResponse: rejectInvalidStoreUsersPayload({
+        endpoint: params.endpoint,
+        endpointKey: params.endpointKey,
+        request: params.request,
+        userId: params.userId,
+        message:
+          "Rejected normalized user record that failed write-boundary schema validation",
+        context: {
+          validationIssue: getSchemaValidationIssueSummary(
+            persistedValidation.error,
+          ),
+        },
+      }),
+    };
+  }
+
+  return {
+    persistedUserData: persistedValidation.data,
+  };
+}
 
 /**
  * Persists or updates a user record in Redis while keeping analytics and the username index aligned.
@@ -64,12 +183,12 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const validationResult = validateUserData(data, endpoint, request);
     if (!validationResult.success) {
-      const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
-      scheduleTelemetryTask(() => incrementAnalytics(metric), {
+      scheduleStoreUsersMetric(
         endpoint,
-        taskName: metric,
+        endpointKey,
+        "failed_requests",
         request,
-      });
+      );
       return validationResult.error;
     }
 
@@ -108,12 +227,12 @@ export async function POST(request: Request): Promise<NextResponse> {
       existingState?.updatedAt &&
       existingState.updatedAt !== ifMatchUpdatedAt
     ) {
-      const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
-      scheduleTelemetryTask(() => incrementAnalytics(metric), {
+      scheduleStoreUsersMetric(
         endpoint,
-        taskName: metric,
+        endpointKey,
+        "failed_requests",
         request,
-      });
+      );
       return apiErrorResponse(
         request,
         409,
@@ -137,27 +256,17 @@ export async function POST(request: Request): Promise<NextResponse> {
       updatedAt: now,
     };
 
-    const normalizationResult = validateAndNormalizeUserRecord(userData);
-    const finalUserData =
-      "normalized" in normalizationResult
-        ? normalizationResult.normalized
-        : userData;
-    const persistedRequestMetadata =
-      finalUserData.requestMetadata ?? requestMetadata;
-
-    const persistedUserData: PersistedUserRecord = {
-      userId: finalUserData.userId,
-      username: finalUserData.username,
-      stats: finalUserData.stats,
-      createdAt: finalUserData.createdAt,
-      updatedAt: finalUserData.updatedAt,
-      ...(finalUserData.aggregates
-        ? { aggregates: finalUserData.aggregates }
-        : {}),
-      ...(persistedRequestMetadata
-        ? { requestMetadata: persistedRequestMetadata }
-        : {}),
-    };
+    const preparedRecord = preparePersistedUserRecord({
+      endpoint,
+      endpointKey,
+      request,
+      requestMetadata,
+      userData,
+      userId,
+    });
+    if ("errorResponse" in preparedRecord) {
+      return preparedRecord.errorResponse;
+    }
 
     logPrivacySafe(
       "log",
@@ -169,18 +278,18 @@ export async function POST(request: Request): Promise<NextResponse> {
       request,
     );
 
-    const saveResult = await saveUserRecord(persistedUserData, {
+    const saveResult = await saveUserRecord(preparedRecord.persistedUserData, {
       existingState: existingState ?? undefined,
     });
 
     const duration = Date.now() - startTime;
     logSuccess(endpoint, userId, duration, undefined, request);
-    const metric = buildAnalyticsMetricKey(endpointKey, "successful_requests");
-    scheduleTelemetryTask(() => incrementAnalytics(metric), {
+    scheduleStoreUsersMetric(
       endpoint,
-      taskName: metric,
+      endpointKey,
+      "successful_requests",
       request,
-    });
+    );
 
     return jsonWithCors(
       { success: true, userId, updatedAt: saveResult.updatedAt },

@@ -6,6 +6,7 @@ import { flushScheduledTelemetryTasksForTests } from "@/lib/api-utils";
 import {
   allowConsoleWarningsAndErrors,
   sharedRatelimitMockLimit,
+  sharedRedisMockGet,
   sharedRedisMockIncr,
   sharedRedisMockLtrim,
   sharedRedisMockRpush,
@@ -71,6 +72,7 @@ describe("AniList API Route", () => {
     allowConsoleWarningsAndErrors();
     process.env = { ...originalEnv, NEXT_PUBLIC_APP_URL: "http://localhost" };
     sharedRatelimitMockLimit.mockReset();
+    sharedRedisMockGet.mockReset();
     sharedRedisMockIncr.mockReset();
     sharedRedisMockRpush.mockReset();
     sharedRedisMockLtrim.mockReset();
@@ -81,6 +83,7 @@ describe("AniList API Route", () => {
       reset: Date.now() + 5_000,
       pending: Promise.resolve(),
     });
+    sharedRedisMockGet.mockResolvedValue(null);
     sharedRedisMockIncr.mockResolvedValue(1);
     sharedRedisMockRpush.mockResolvedValue(1);
     sharedRedisMockLtrim.mockResolvedValue("OK");
@@ -320,6 +323,46 @@ describe("AniList API Route", () => {
 
     expect(response.status).toBe(502);
     expect((await response.json()).error).toContain("Network error");
+  });
+
+  it("propagates Retry-After when the shared upstream circuit is already open", async () => {
+    setEnvironment("production");
+
+    const openedUntil = Date.now() + 30_000;
+    sharedRedisMockGet.mockImplementation((key: string) => {
+      if (key === "upstream:circuit:anilist-graphql:opened-until") {
+        return Promise.resolve(String(openedUntil));
+      }
+
+      return Promise.resolve(null);
+    });
+
+    globalThis.fetch = mock(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ data: { User: { id: 123 } } }), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }),
+      ),
+    ) as unknown as typeof fetch;
+
+    const response = await POST(
+      createAniListRequest({
+        body: {
+          operation: "GetUserStats",
+          variables: { userId: 123 },
+        },
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBeTruthy();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+
+    const body = (await response.json()) as { error: string };
+    expect(body.error).toContain("circuit breaker is open");
   });
 
   it("handles invalid JSON request bodies gracefully", async () => {

@@ -261,6 +261,7 @@ describe("Cron API Route", () => {
     sharedRedisMockZadd.mockResolvedValue(1);
     sharedRedisMockZcard.mockResolvedValue(0);
     sharedRedisMockZrange.mockResolvedValue([]);
+    sharedRedisMockGet.mockImplementation(() => Promise.resolve(null));
   });
 
   afterEach(() => {
@@ -377,7 +378,7 @@ describe("Cron API Route", () => {
 
     const responsePromise = POST(createCronRequest());
 
-    await flushMicrotasks();
+    await flushMicrotasks(12);
 
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
     expect(sharedRedisMockMget).toHaveBeenCalledTimes(1);
@@ -673,7 +674,13 @@ describe("Cron API Route", () => {
     await expectApiErrorResponse(scanFailure, 500, "Cron job failed");
 
     sharedRedisMockSmembers.mockResolvedValueOnce(["123"]);
-    sharedRedisMockGet.mockRejectedValueOnce(new Error("Redis error"));
+    sharedRedisMockGet.mockImplementation((key: string) => {
+      if (key === "user:123:commit") {
+        return Promise.reject(new Error("Redis error"));
+      }
+
+      return Promise.resolve(null);
+    });
     const getFailure = await POST(createCronRequest());
     await expectApiErrorResponse(getFailure, 500, "Cron job failed");
   });

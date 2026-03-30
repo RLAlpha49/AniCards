@@ -32,6 +32,78 @@ import {
   validateColorValue,
 } from "@/lib/utils";
 
+export { redisClient, scanAllKeys } from "@/lib/api/clients";
+export {
+  apiJsonHeaders,
+  apiTextHeaders,
+  getAllowedApiOrigin,
+  getAllowedCardSvgOrigin,
+  jsonWithCors,
+} from "@/lib/api/cors";
+export type { ApiError } from "@/lib/api/errors";
+export {
+  apiErrorResponse,
+  handleError,
+  invalidJsonResponse,
+  isRedisBackplaneUnavailable,
+  payloadTooLargeResponse,
+} from "@/lib/api/errors";
+export {
+  buildPersistedRequestMetadata,
+  logPrivacySafe,
+  logRequest,
+  logSuccess,
+  redactIp,
+  redactUserIdentifier,
+} from "@/lib/api/logging";
+export {
+  isStrictPositiveIntegerString,
+  parseStrictPositiveInteger,
+} from "@/lib/api/primitives";
+export {
+  checkRateLimit,
+  createRateLimiter,
+  ratelimit,
+} from "@/lib/api/rate-limit";
+export type { ReadJsonRequestBodyResult } from "@/lib/api/request-body";
+export { readJsonRequestBody } from "@/lib/api/request-body";
+export {
+  ensureRequestContext,
+  getRequestContext,
+  getRequestId,
+  withRequestIdHeaders,
+} from "@/lib/api/request-context";
+export type { ApiInitResult } from "@/lib/api/request-guards";
+export {
+  getRequestIp,
+  initializeApiRequest,
+  validateSameOrigin,
+} from "@/lib/api/request-guards";
+export {
+  ANALYTICS_COUNTER_TTL_SECONDS,
+  buildAnalyticsMetricKey,
+  buildAnalyticsStorageKey,
+  flushScheduledTelemetryTasksForTests,
+  incrementAnalytics,
+  incrementAnalyticsBatch,
+  scheduleTelemetryTask,
+} from "@/lib/api/telemetry";
+export {
+  authorizeCronRequest,
+  fetchUpstreamWithRetry,
+  UpstreamCircuitOpenError,
+  UpstreamTransportError,
+} from "@/lib/api/upstream";
+export type {
+  ValidateCardDataResult,
+  ValidateUserDataResult,
+} from "@/lib/api/validation";
+export {
+  isValidUsername,
+  validateCardData,
+  validateUserData,
+} from "@/lib/api/validation";
+
 // Create the Redis client lazily to prevent calling `Redis.fromEnv()` during module initialization.
 // This avoids side effects in test environments (jest mocking) and preserves edge runtime safety.
 let _realRedisClient: Redis | undefined;
@@ -59,7 +131,7 @@ function createRealRedisClient(): Redis {
  * initialization side-effect free and supports edge runtimes.
  * @source
  */
-export const redisClient: Redis = new Proxy({} as Record<string, unknown>, {
+const redisClient: Redis = new Proxy({} as Record<string, unknown>, {
   get(_: unknown, prop: string | symbol) {
     const client = createRealRedisClient();
     const value: unknown = (client as unknown as Record<string, unknown>)[
@@ -85,33 +157,6 @@ type AnalyticsRedisPipeline = {
   exec: () => Promise<unknown>;
 };
 
-/**
- * Scans all keys matching a pattern using the Redis SCAN command.
- * This is safer and more efficient than the KEYS command for large datasets.
- * @param pattern - The pattern to match (e.g., "user:*").
- * @param count - The number of keys to fetch per scan iteration.
- * @returns A promise that resolves to an array of all matching keys.
- * @source
- */
-export async function scanAllKeys(
-  pattern: string,
-  count: number = 1000,
-): Promise<string[]> {
-  let cursor: string | number = 0;
-  const allKeys: string[] = [];
-
-  do {
-    const [nextCursor, keys] = (await redisClient.scan(cursor, {
-      match: pattern,
-      count,
-    })) as [string | number, string[]];
-    cursor = nextCursor;
-    allKeys.push(...keys);
-  } while (cursor !== 0 && cursor !== "0");
-
-  return allKeys;
-}
-
 function readBooleanEnv(name: string): boolean | undefined {
   const raw = process.env[name]?.trim().toLowerCase();
   if (raw === "true") return true;
@@ -127,14 +172,14 @@ function readPositiveIntegerEnv(name: string): number | undefined {
   return parsed;
 }
 
-export function isStrictPositiveIntegerString(
+function isStrictPositiveIntegerString(
   value: string | null | undefined,
 ): value is string {
   if (typeof value !== "string") return false;
   return /^[1-9]\d*$/.test(value.trim());
 }
 
-export function parseStrictPositiveInteger(
+function parseStrictPositiveInteger(
   value: string | null | undefined,
 ): number | null {
   if (!isStrictPositiveIntegerString(value)) return null;
@@ -218,7 +263,7 @@ let _realRatelimit: Ratelimit | undefined;
  * RateLimit instance on first use with a default sliding window limiter.
  * @source
  */
-export const ratelimit: Ratelimit = new Proxy({} as Record<string, unknown>, {
+const ratelimit: Ratelimit = new Proxy({} as Record<string, unknown>, {
   get(_: unknown, prop: string | symbol) {
     _realRatelimit ??= createConfiguredRateLimiter();
     const val: unknown = (_realRatelimit as unknown as Record<string, unknown>)[
@@ -249,7 +294,7 @@ export const ratelimit: Ratelimit = new Proxy({} as Record<string, unknown>, {
  * @param options.timeout - Optional fail-open timeout in milliseconds
  * @returns A configured Ratelimit instance ready to be used for limiting
  */
-export function createRateLimiter(options?: {
+function createRateLimiter(options?: {
   limit?: number;
   window?: Parameters<typeof Ratelimit.slidingWindow>[1];
   redis?: Redis;
@@ -265,7 +310,7 @@ export function createRateLimiter(options?: {
  * Standardized API error response shape returned from API routes.
  * @source
  */
-export interface ApiError {
+interface ApiError {
   error: string;
   category: ErrorCategory;
   retryable: boolean;
@@ -339,7 +384,7 @@ function looksLikeRedisTransportFailure(message: string): boolean {
   ].some((token) => normalized.includes(token));
 }
 
-export function isRedisBackplaneUnavailable(error: unknown): boolean {
+function isRedisBackplaneUnavailable(error: unknown): boolean {
   if (!(error instanceof Error)) {
     return false;
   }
@@ -421,7 +466,7 @@ function createApiErrorPayload(
   return payload;
 }
 
-export function apiErrorResponse(
+function apiErrorResponse(
   request: Request | undefined,
   status: number,
   error: string,
@@ -446,7 +491,7 @@ export function apiErrorResponse(
   );
 }
 
-export function invalidJsonResponse(
+function invalidJsonResponse(
   request: Request | undefined,
   options?: { headers?: Record<string, string> },
 ): NextResponse<ApiError & Record<string, unknown>> {
@@ -457,7 +502,7 @@ export function invalidJsonResponse(
   });
 }
 
-export class UpstreamTransportError extends Error {
+class UpstreamTransportError extends Error {
   readonly statusCode: number;
   readonly retryAfterMs?: number;
 
@@ -469,7 +514,7 @@ export class UpstreamTransportError extends Error {
   }
 }
 
-export class UpstreamCircuitOpenError extends UpstreamTransportError {
+class UpstreamCircuitOpenError extends UpstreamTransportError {
   readonly service: string;
   readonly degradedMode: boolean;
 
@@ -545,7 +590,7 @@ const DEFAULT_UPSTREAM_MAX_BACKOFF_MS = 5_000;
 const DEFAULT_CIRCUIT_BREAKER_FAILURE_THRESHOLD = 5;
 const DEFAULT_CIRCUIT_BREAKER_COOLDOWN_MS = 30_000;
 const DEFAULT_JSON_BODY_LIMIT_BYTES = 512 * 1024;
-export const ANALYTICS_COUNTER_TTL_SECONDS = 400 * 24 * 60 * 60;
+const ANALYTICS_COUNTER_TTL_SECONDS = 400 * 24 * 60 * 60;
 const upstreamCircuitStates = new Map<string, UpstreamCircuitState>();
 const apiRequestContextStore = new WeakMap<Request, ApiRequestContext>();
 const REQUEST_ID_HEADER = "X-Request-Id";
@@ -593,7 +638,7 @@ function createDeferredTelemetryTask(task: () => Promise<void>): Promise<void> {
   }).then(task);
 }
 
-export async function flushScheduledTelemetryTasksForTests(): Promise<void> {
+async function flushScheduledTelemetryTasksForTests(): Promise<void> {
   if (!shouldTrackTelemetryTasksForTests()) return;
 
   while (pendingTelemetryTasks.size > 0) {
@@ -601,7 +646,7 @@ export async function flushScheduledTelemetryTasksForTests(): Promise<void> {
   }
 }
 
-export function scheduleTelemetryTask(
+function scheduleTelemetryTask(
   task: () => Promise<unknown> | void,
   options?: {
     endpoint?: string;
@@ -713,7 +758,7 @@ function mergeHeaderList(
   return [...mergedEntries.values()].join(", ");
 }
 
-export function ensureRequestContext(
+function ensureRequestContext(
   request: Request,
   options?: Partial<Omit<ApiRequestContext, "requestId">> & {
     requestId?: string;
@@ -749,14 +794,12 @@ export function ensureRequestContext(
   return nextContext;
 }
 
-export function getRequestContext(
-  request?: Request,
-): ApiRequestContext | undefined {
+function getRequestContext(request?: Request): ApiRequestContext | undefined {
   if (!request) return undefined;
   return apiRequestContextStore.get(request);
 }
 
-export function getRequestId(request?: Request): string | undefined {
+function getRequestId(request?: Request): string | undefined {
   if (!request) return undefined;
 
   return (
@@ -768,7 +811,7 @@ export function getRequestId(request?: Request): string | undefined {
   );
 }
 
-export function withRequestIdHeaders(
+function withRequestIdHeaders(
   headers: Record<string, string>,
   request?: Request,
   requestId?: string,
@@ -792,7 +835,7 @@ export function withRequestIdHeaders(
  * This helper centralizes CORS policy and is used by card route header helpers.
  * @param request - Optional Request used to extract the request origin in development.
  */
-export function getAllowedCardSvgOrigin(request?: Request): string {
+function getAllowedCardSvgOrigin(request?: Request): string {
   const rawConfigured = process.env.NEXT_PUBLIC_CARD_SVG_ALLOWED_ORIGIN;
   const configured = normalizeOrigin(rawConfigured);
 
@@ -824,7 +867,7 @@ export function getAllowedCardSvgOrigin(request?: Request): string {
  * This helper centralizes CORS policy for JSON APIs.
  * @param request - Optional Request used to extract the request origin in development.
  */
-export function getAllowedApiOrigin(request?: Request): string | null {
+function getAllowedApiOrigin(request?: Request): string | null {
   const rawConfigured = process.env.NEXT_PUBLIC_APP_URL;
   const configured = normalizeOrigin(rawConfigured);
 
@@ -851,7 +894,7 @@ export function getAllowedApiOrigin(request?: Request): string | null {
  * Standard headers for JSON API responses including CORS and Vary semantics.
  * @param request - Optional request to calculate the allowed origin in development.
  */
-export function apiJsonHeaders(request?: Request): Record<string, string> {
+function apiJsonHeaders(request?: Request): Record<string, string> {
   const allowedOrigin = getAllowedApiOrigin(request);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -868,7 +911,7 @@ export function apiJsonHeaders(request?: Request): Record<string, string> {
   return withRequestIdHeaders(headers, request);
 }
 
-export function apiTextHeaders(request?: Request): Record<string, string> {
+function apiTextHeaders(request?: Request): Record<string, string> {
   return {
     ...apiJsonHeaders(request),
     "Content-Type": "text/plain",
@@ -897,7 +940,7 @@ function getUtf8ByteLength(value: string): number {
   return new TextEncoder().encode(value).length;
 }
 
-export function payloadTooLargeResponse(
+function payloadTooLargeResponse(
   request: Request | undefined,
   options?: {
     headers?: Record<string, string>;
@@ -921,14 +964,14 @@ export function payloadTooLargeResponse(
   );
 }
 
-export type ReadJsonRequestBodyResult<T> =
+type ReadJsonRequestBodyResult<T> =
   | { success: true; data: T }
   | {
       success: false;
       errorResponse: NextResponse<ApiError & Record<string, unknown>>;
     };
 
-export async function readJsonRequestBody<T>(
+async function readJsonRequestBody<T>(
   request: Request,
   options: {
     endpointName: string;
@@ -1369,7 +1412,7 @@ function recordUpstreamErrorFailure(
   }
 }
 
-export async function fetchUpstreamWithRetry(
+async function fetchUpstreamWithRetry(
   options: UpstreamFetchOptions,
 ): Promise<Response> {
   const normalizedOptions = normalizeUpstreamFetchOptions(options);
@@ -1461,7 +1504,7 @@ function shouldAllowUnsecuredCronInDevelopment(): boolean {
   );
 }
 
-export function authorizeCronRequest(
+function authorizeCronRequest(
   request: Request,
   endpointName: string,
 ): Response | null {
@@ -1511,7 +1554,7 @@ export function authorizeCronRequest(
  * @param request - Request used to compute the allowed origin in dev
  * @param status - optional HTTP status code
  */
-export function jsonWithCors<T = unknown>(
+function jsonWithCors<T = unknown>(
   data: T,
   request?: Request,
   status?: number,
@@ -1554,7 +1597,7 @@ export function jsonWithCors<T = unknown>(
  * @param request - Incoming request whose headers may contain proxy IPs.
  * @returns The normalized client IP or a development fallback.
  */
-export function getRequestIp(request?: Request): string {
+function getRequestIp(request?: Request): string {
   if (!request) return "127.0.0.1";
 
   const trustedHeaderNames = ["x-vercel-forwarded-for", "cf-connecting-ip"];
@@ -1645,7 +1688,7 @@ function summarizeStackForLogs(value: unknown): string | undefined {
   return truncateLogString(frames.join(" | "), 200);
 }
 
-export function redactIp(ip: string): string {
+function redactIp(ip: string): string {
   const normalized = ip.trim();
   if (!normalized || normalized === "unknown") return "unknown";
   if (normalized === "127.0.0.1" || normalized === "::1") {
@@ -1679,7 +1722,7 @@ export function redactIp(ip: string): string {
   return "redacted";
 }
 
-export function redactUserIdentifier(value: unknown): string {
+function redactUserIdentifier(value: unknown): string {
   if (value === undefined || value === null) return "missing";
 
   const normalized = String(value).trim();
@@ -1693,7 +1736,7 @@ export function redactUserIdentifier(value: unknown): string {
   return `${prefix}${normalized.length > 2 ? "***" : "*"}(${normalized.length})`;
 }
 
-export function buildPersistedRequestMetadata(
+function buildPersistedRequestMetadata(
   ip: string,
 ): PersistedRequestMetadata | undefined {
   const lastSeenIpBucket = redactIp(ip);
@@ -1736,7 +1779,7 @@ function sanitizeLogContextValue(
   return truncateLogString(safeStringifyValue(value));
 }
 
-export function logPrivacySafe(
+function logPrivacySafe(
   level: "log" | "warn" | "error",
   endpoint: string,
   message: string,
@@ -1804,7 +1847,7 @@ function createRateLimitHeaders(options: {
  * @returns A NextResponse with an ApiError when limited, or null when allowed.
  * @source
  */
-export async function checkRateLimit(
+async function checkRateLimit(
   request: Request | undefined,
   ip: string,
   endpointName: string,
@@ -1913,7 +1956,7 @@ export async function checkRateLimit(
  * @returns A NextResponse with an ApiError when unauthorized, or null when allowed.
  * @source
  */
-export function validateSameOrigin(
+function validateSameOrigin(
   request: Request,
   endpointName: string,
   endpointKey: string,
@@ -2004,7 +2047,7 @@ export function validateSameOrigin(
  * @param metric - Redis key for the analytics counter to increment.
  * @source
  */
-export function buildAnalyticsStorageKey(
+function buildAnalyticsStorageKey(
   metric: string,
   now: Date = new Date(),
 ): string {
@@ -2015,7 +2058,7 @@ export function buildAnalyticsStorageKey(
   return `${metric}:month:${now.toISOString().slice(0, 7)}`;
 }
 
-export async function incrementAnalytics(
+async function incrementAnalytics(
   metric: string,
   options?: { now?: Date },
 ): Promise<void> {
@@ -2034,7 +2077,7 @@ export async function incrementAnalytics(
   }
 }
 
-export async function incrementAnalyticsBatch(
+async function incrementAnalyticsBatch(
   metrics: Iterable<string>,
   options?: { now?: Date },
 ): Promise<void> {
@@ -2070,7 +2113,7 @@ export async function incrementAnalyticsBatch(
  * returns "analytics:store_cards:failed_requests".
  * An optional extraSuffix is appended if provided for more granular metrics.
  */
-export function buildAnalyticsMetricKey(
+function buildAnalyticsMetricKey(
   endpointKey: string,
   metric: string,
   extraSuffix?: string,
@@ -2087,7 +2130,7 @@ export function buildAnalyticsMetricKey(
  * @param details - Optional additional info about the request.
  * @source
  */
-export function logRequest(
+function logRequest(
   endpoint: string,
   ip: string,
   request?: Request,
@@ -2116,7 +2159,7 @@ export function logRequest(
  * @returns A NextResponse containing an ApiError.
  * @source
  */
-export function handleError(
+function handleError(
   error: Error,
   endpoint: string,
   startTime: number,
@@ -2165,7 +2208,7 @@ export function handleError(
  * @param details - Optional details string for the log.
  * @source
  */
-export function logSuccess(
+function logSuccess(
   endpoint: string,
   userId: number,
   duration: number,
@@ -2226,7 +2269,7 @@ function invalidStoreUserData(
   };
 }
 
-export type ValidateUserDataResult =
+type ValidateUserDataResult =
   | {
       success: true;
       data: {
@@ -2238,7 +2281,7 @@ export type ValidateUserDataResult =
     }
   | { success: false; error: NextResponse<ApiError> };
 
-export function validateUserData(
+function validateUserData(
   data: Record<string, unknown>,
   endpoint: string,
   request?: Request,
@@ -2310,7 +2353,7 @@ export function validateUserData(
  * @returns True if the username is valid.
  * @source
  */
-export function isValidUsername(value: unknown): boolean {
+function isValidUsername(value: unknown): boolean {
   if (value === undefined || value === null) return false;
   if (typeof value !== "string") return false;
   const trimmed = value.trim();
@@ -2895,11 +2938,11 @@ function validateCardsItems(
  * @returns A discriminated union: success with typed cards or failure with an API error response.
  * @source
  */
-export type ValidateCardDataResult =
+type ValidateCardDataResult =
   | { success: true; cards: StoredCardConfig[] }
   | { success: false; error: NextResponse<ApiError> };
 
-export function validateCardData(
+function validateCardData(
   cards: unknown,
   userId: unknown,
   endpoint: string,
@@ -2973,7 +3016,7 @@ export function validateCardData(
  * context and any early error response encountered during initialization.
  * @source
  */
-export interface ApiInitResult {
+interface ApiInitResult {
   startTime: number;
   ip: string;
   endpoint: string;
@@ -2991,7 +3034,7 @@ export interface ApiInitResult {
  * @returns ApiInitResult with startTime, ip, endpoint and any early errorResponse.
  * @source
  */
-export async function initializeApiRequest(
+async function initializeApiRequest(
   request: Request,
   endpointName: string,
   endpointKey: string,
@@ -3064,3 +3107,23 @@ export async function initializeApiRequest(
     requestId: requestContext.requestId,
   };
 }
+
+const LEGACY_API_UTILS_INTERNALS = [
+  parseStrictPositiveInteger,
+  createRateLimiter,
+  flushScheduledTelemetryTasksForTests,
+  getAllowedCardSvgOrigin,
+  apiTextHeaders,
+  readJsonRequestBody,
+  fetchUpstreamWithRetry,
+  authorizeCronRequest,
+  buildPersistedRequestMetadata,
+  incrementAnalyticsBatch,
+  handleError,
+  logSuccess,
+  validateUserData,
+  validateCardData,
+  initializeApiRequest,
+] as const;
+
+void LEGACY_API_UTILS_INTERNALS;

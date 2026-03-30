@@ -10,6 +10,10 @@
 import type { NextResponse } from "next/server";
 
 import {
+  storeCardsRequestSchema,
+  validateStoreCardsStatsData,
+} from "@/lib/api/validation";
+import {
   apiErrorResponse,
   apiJsonHeaders,
   buildAnalyticsMetricKey,
@@ -663,25 +667,35 @@ async function validateIncomingPayload(
     scheduleStoreCardsMetric(endpoint, endpointKey, "failed_requests", request);
     return validated.error;
   }
-  const statsError =
-    statsData && typeof statsData === "object"
-      ? (statsData as Record<string, unknown>).error
-      : undefined;
-  if (statsError !== undefined) {
-    const errMsg = String(statsError);
+
+  const statsValidation = validateStoreCardsStatsData(statsData);
+  if (!statsValidation.success) {
+    const isSchemaValidationFailure =
+      statsValidation.errorMessage === "Invalid stats payload";
+    const errMsg = statsValidation.errorMessage;
     logPrivacySafe(
       "warn",
       endpoint,
       "Invalid store-cards stats payload",
-      { userId, error: errMsg },
+      {
+        userId,
+        error: errMsg,
+        ...(statsValidation.issue ? { issue: statsValidation.issue } : {}),
+      },
       request,
     );
     scheduleStoreCardsMetric(endpoint, endpointKey, "failed_requests", request);
-    return apiErrorResponse(request, 400, "Invalid data: " + errMsg, {
-      category: "invalid_data",
-      retryable: false,
-    });
+    return apiErrorResponse(
+      request,
+      400,
+      isSchemaValidationFailure ? "Invalid data" : `Invalid data: ${errMsg}`,
+      {
+        category: "invalid_data",
+        retryable: false,
+      },
+    );
   }
+
   return undefined;
 }
 
@@ -777,34 +791,51 @@ async function parseStoreCardsRequestBody(
 
   const body = bodyResult.data;
 
-  const statsData = body.statsData;
-  const rawUserId = body.userId;
-  const userId = typeof rawUserId === "number" ? rawUserId : Number(rawUserId);
-  if (!Number.isFinite(userId)) {
+  const parsedBody = storeCardsRequestSchema.safeParse(body);
+  if (!parsedBody.success) {
     scheduleStoreCardsMetric(endpoint, endpointKey, "failed_requests", request);
+
+    const issueField = parsedBody.error.issues[0]?.path[0];
+    if (issueField === "userId") {
+      return {
+        errorResponse: apiErrorResponse(request, 400, "Invalid userId", {
+          category: "invalid_data",
+          retryable: false,
+        }),
+      };
+    }
+
+    if (issueField === "cardOrder") {
+      return {
+        errorResponse: apiErrorResponse(request, 400, "Invalid cardOrder", {
+          category: "invalid_data",
+          retryable: false,
+        }),
+      };
+    }
+
     return {
-      errorResponse: apiErrorResponse(request, 400, "Invalid userId", {
+      errorResponse: apiErrorResponse(request, 400, "Invalid data", {
         category: "invalid_data",
         retryable: false,
       }),
     };
   }
 
-  const incomingCards = body.cards;
+  const {
+    statsData,
+    userId,
+    cards: incomingCards,
+    globalSettings,
+    ifMatchUpdatedAt,
+    cardOrder: rawCardOrder,
+  } = parsedBody.data;
+
   const incomingCardsCount = Array.isArray(incomingCards)
     ? incomingCards.length
     : 0;
 
-  const globalSettings = body.globalSettings as
-    | Partial<GlobalCardSettings>
-    | undefined;
-
-  const ifMatchUpdatedAt =
-    typeof body.ifMatchUpdatedAt === "string"
-      ? body.ifMatchUpdatedAt
-      : undefined;
-
-  const cardOrderResult = normalizeIncomingCardOrder(body.cardOrder);
+  const cardOrderResult = normalizeIncomingCardOrder(rawCardOrder);
   if (cardOrderResult.invalid) {
     scheduleStoreCardsMetric(endpoint, endpointKey, "failed_requests", request);
     return {
