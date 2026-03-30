@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import {
   makeSettingsExport,
+  parseLocalEditsPatch,
   parseSettingsExportJson,
   parseSettingsSnapshot,
   type SettingsSnapshot,
@@ -191,6 +192,95 @@ describe("user-page-settings-io JSON import parsing", () => {
       ok: false,
       error: "Invalid templates payload.",
     });
+  });
+});
+
+describe("user-page-settings-io local draft patch parsing", () => {
+  it("salvages recoverable draft sections and normalizes them", () => {
+    const parsed = parseLocalEditsPatch({
+      globalSnapshot: {
+        colors: ["#111111", "#222222", "#333333", "#444444"],
+        advancedSettings: {
+          gridCols: 99.6,
+          gridRows: -7.2,
+        },
+      },
+      cardOrder: ["animeStats", 42, "favoritesGrid", ""],
+      cardConfigs: {
+        animeStats: {
+          enabled: true,
+          variant: "compact",
+          colorOverride: {
+            useCustomSettings: true,
+            colors: ["#aaaaaa", "#bbbbbb", "#cccccc", "#dddddd"],
+          },
+          advancedSettings: {
+            gridCols: 0,
+            gridRows: 7.4,
+          },
+          borderRadius: "invalid",
+        },
+        brokenCard: {
+          enabled: true,
+          variant: "default",
+          colorOverride: {
+            useCustomSettings: true,
+            colorPreset: "custom",
+            colors: ["#111111", "#222222"],
+          },
+          advancedSettings: {},
+        },
+      },
+    });
+
+    expect(parsed).toEqual({
+      globalSnapshot: {
+        colorPreset: "custom",
+        colors: ["#111111", "#222222", "#333333", "#444444"],
+        borderEnabled: false,
+        borderColor: "#e4e2e2",
+        borderRadius: DEFAULT_CARD_BORDER_RADIUS,
+        advancedSettings: {
+          gridCols: 5,
+          gridRows: 1,
+        },
+      },
+      cardOrder: ["animeStats", "favoritesGrid"],
+      cardConfigs: {
+        animeStats: {
+          cardId: "animeStats",
+          enabled: true,
+          variant: "compact",
+          colorOverride: {
+            useCustomSettings: true,
+            colors: ["#aaaaaa", "#bbbbbb", "#cccccc", "#dddddd"],
+          },
+          advancedSettings: {
+            gridCols: 1,
+            gridRows: 5,
+          },
+        },
+      },
+    });
+  });
+
+  it("rejects draft patches whose custom-card overrides cannot be trusted", () => {
+    const parsed = parseLocalEditsPatch({
+      cardConfigs: {
+        animeStats: {
+          enabled: true,
+          variant: "default",
+          colorOverride: {
+            useCustomSettings: true,
+            colorPreset: "custom",
+            colors: ["#111111", "#222222"],
+          },
+          advancedSettings: {},
+        },
+      },
+    });
+
+    expect(parsed).toBeNull();
   });
 });
 

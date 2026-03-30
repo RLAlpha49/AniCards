@@ -1,9 +1,15 @@
-// Owns the import/export JSON contract for user page settings. The editor lets
-// people move settings between global defaults, individual cards, and saved
-// templates, so this module stays deliberately defensive: accept friendly input
-// shapes, normalize them, and reject malformed payloads with user-facing errors
-// instead of letting invalid JSON leak deeper into editor state.
+// Owns the import/export JSON contract plus shared normalization/validation for
+// user page settings payloads. The editor lets people move settings between
+// global defaults, individual cards, saved templates, and local draft backup,
+// so this module stays deliberately defensive: accept friendly input shapes,
+// normalize them, and reject malformed payloads before they leak deeper into
+// editor state.
 
+import type {
+  CardColorOverride,
+  CardEditorConfig,
+  LocalEditsPatch,
+} from "./stores/user-page-editor";
 import type {
   ColorValue,
   GradientDefinition,
@@ -125,6 +131,22 @@ function isColorValue(value: unknown): value is ColorValue {
   return isGradientDefinition(value);
 }
 
+function parseColorTuple(value: unknown): SettingsSnapshot["colors"] | null {
+  if (!Array.isArray(value) || value.length !== 4) return null;
+
+  const [c0, c1, c2, c3] = value;
+  if (![c0, c1, c2, c3].every(isColorValue)) return null;
+
+  return [c0, c1, c2, c3];
+}
+
+function parseOptionalColorTuple(
+  value: unknown,
+): SettingsSnapshot["colors"] | undefined | null {
+  if (value === undefined) return undefined;
+  return parseColorTuple(value);
+}
+
 function parseAdvancedSettingsSnapshot(
   value: unknown,
 ): AdvancedSettingsSnapshot {
@@ -163,9 +185,8 @@ export function parseSettingsSnapshot(value: unknown): SettingsSnapshot | null {
   const preset =
     typeof value.colorPreset === "string" ? value.colorPreset : undefined;
 
-  if (!Array.isArray(value.colors) || value.colors.length !== 4) return null;
-  const [c0, c1, c2, c3] = value.colors;
-  if (![c0, c1, c2, c3].every(isColorValue)) return null;
+  const colors = parseColorTuple(value.colors);
+  if (!colors) return null;
 
   const borderEnabled =
     typeof value.borderEnabled === "boolean" ? value.borderEnabled : false;
@@ -183,12 +204,132 @@ export function parseSettingsSnapshot(value: unknown): SettingsSnapshot | null {
 
   return {
     colorPreset: preset ?? "custom",
-    colors: [c0, c1, c2, c3],
+    colors,
     borderEnabled,
     borderColor,
     borderRadius,
     advancedSettings,
   };
+}
+
+function parseCardColorOverride(value: unknown): CardColorOverride | null {
+  if (!isPlainObject(value)) {
+    return { useCustomSettings: false };
+  }
+
+  const useCustomSettings =
+    typeof value.useCustomSettings === "boolean"
+      ? value.useCustomSettings
+      : false;
+  const colorPreset =
+    typeof value.colorPreset === "string" ? value.colorPreset : undefined;
+  const colors = parseOptionalColorTuple(value.colors);
+  const resolvedPreset = colorPreset ?? "custom";
+
+  if (useCustomSettings && resolvedPreset === "custom" && !colors) {
+    return null;
+  }
+
+  const colorOverride: CardColorOverride = {
+    useCustomSettings,
+  };
+
+  if (colorPreset !== undefined) {
+    colorOverride.colorPreset = colorPreset;
+  }
+
+  if (colors) {
+    colorOverride.colors = [...colors];
+  }
+
+  return colorOverride;
+}
+
+function parseCardEditorConfig(
+  expectedCardId: string,
+  value: unknown,
+): CardEditorConfig | null {
+  const cardId = expectedCardId.trim();
+  if (!cardId) return null;
+  if (!isPlainObject(value)) return null;
+
+  const embeddedCardId =
+    typeof value.cardId === "string" && value.cardId.trim().length > 0
+      ? value.cardId
+      : undefined;
+
+  if (embeddedCardId !== undefined && embeddedCardId !== cardId) {
+    return null;
+  }
+
+  if (typeof value.enabled !== "boolean") return null;
+  if (typeof value.variant !== "string") return null;
+
+  const colorOverride = parseCardColorOverride(value.colorOverride);
+  if (!colorOverride) return null;
+
+  const borderColor =
+    typeof value.borderColor === "string" ? value.borderColor : undefined;
+  const borderRadius = asFiniteNumber(value.borderRadius);
+
+  return {
+    cardId,
+    enabled: value.enabled,
+    variant: value.variant,
+    colorOverride,
+    advancedSettings: parseAdvancedSettingsSnapshot(value.advancedSettings),
+    ...(borderColor === undefined ? {} : { borderColor }),
+    ...(borderRadius === undefined
+      ? {}
+      : { borderRadius: clampBorderRadius(borderRadius) }),
+  };
+}
+
+function parseCardOrder(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+
+  return value.filter(
+    (entry): entry is string =>
+      typeof entry === "string" && entry.trim().length > 0,
+  );
+}
+
+function parseCardConfigsRecord(
+  value: unknown,
+): Record<string, CardEditorConfig> | null {
+  if (!isPlainObject(value)) return null;
+
+  const next: Record<string, CardEditorConfig> = {};
+  for (const [cardId, config] of Object.entries(value)) {
+    const parsedConfig = parseCardEditorConfig(cardId, config);
+    if (!parsedConfig) continue;
+    next[cardId] = parsedConfig;
+  }
+
+  return next;
+}
+
+export function parseLocalEditsPatch(value: unknown): LocalEditsPatch | null {
+  if (!isPlainObject(value)) return null;
+
+  const patch: LocalEditsPatch = {};
+
+  const globalSnapshot = parseSettingsSnapshot(value.globalSnapshot);
+  if (globalSnapshot) {
+    patch.globalSnapshot = globalSnapshot;
+  }
+
+  const cardOrder = parseCardOrder(value.cardOrder);
+  if (cardOrder && cardOrder.length > 0) {
+    patch.cardOrder = cardOrder;
+  }
+
+  const cardConfigs = parseCardConfigsRecord(value.cardConfigs);
+  if (cardConfigs && Object.keys(cardConfigs).length > 0) {
+    patch.cardConfigs = cardConfigs;
+  }
+
+  return Object.keys(patch).length > 0 ? patch : null;
 }
 
 export function parseSettingsExportJson(

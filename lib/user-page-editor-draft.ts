@@ -5,11 +5,8 @@
  * restore stays resilient to schema changes and ignores malformed localStorage
  * data instead of polluting the live editor state.
  */
-import type {
-  CardEditorConfig,
-  LocalEditsPatch,
-} from "./stores/user-page-editor";
-import type { SettingsSnapshot } from "./user-page-settings-io";
+import type { LocalEditsPatch } from "./stores/user-page-editor";
+import { parseLocalEditsPatch } from "./user-page-settings-io";
 
 const DRAFT_STORAGE_VERSION = 1 as const;
 
@@ -25,92 +22,7 @@ function draftStorageKey(userId: string): string {
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function isSettingsSnapshot(value: unknown): value is SettingsSnapshot {
-  if (!isRecord(value)) return false;
-  if (typeof value.colorPreset !== "string") return false;
-  if (!Array.isArray(value.colors) || value.colors.length !== 4) return false;
-  if (typeof value.borderEnabled !== "boolean") return false;
-  if (typeof value.borderColor !== "string") return false;
-  if (
-    typeof value.borderRadius !== "number" ||
-    !Number.isFinite(value.borderRadius)
-  )
-    return false;
-  if (
-    value.advancedSettings !== undefined &&
-    !isRecord(value.advancedSettings)
-  ) {
-    return false;
-  }
-  return true;
-}
-
-function isCardEditorConfig(value: unknown): value is CardEditorConfig {
-  if (!isRecord(value)) return false;
-  if (typeof value.cardId !== "string") return false;
-  if (typeof value.enabled !== "boolean") return false;
-  if (typeof value.variant !== "string") return false;
-
-  if (!isRecord(value.colorOverride)) return false;
-  if (typeof value.colorOverride.useCustomSettings !== "boolean") return false;
-
-  if (
-    value.colorOverride.colorPreset !== undefined &&
-    typeof value.colorOverride.colorPreset !== "string"
-  ) {
-    return false;
-  }
-  if (
-    value.colorOverride.colors !== undefined &&
-    !Array.isArray(value.colorOverride.colors)
-  ) {
-    return false;
-  }
-
-  if (!isRecord(value.advancedSettings)) return false;
-  if (value.borderColor !== undefined && typeof value.borderColor !== "string")
-    return false;
-  if (
-    value.borderRadius !== undefined &&
-    typeof value.borderRadius !== "number"
-  )
-    return false;
-
-  return true;
-}
-
-function isOptionalGlobalSnapshot(value: Record<string, unknown>): boolean {
-  return (
-    value.globalSnapshot === undefined ||
-    isSettingsSnapshot(value.globalSnapshot)
-  );
-}
-
-function isOptionalCardOrder(value: Record<string, unknown>): boolean {
-  if (value.cardOrder === undefined) return true;
-  if (!Array.isArray(value.cardOrder)) return false;
-  return value.cardOrder.every((x) => typeof x === "string");
-}
-
-function isOptionalCardConfigs(value: Record<string, unknown>): boolean {
-  if (value.cardConfigs === undefined) return true;
-  if (!isRecord(value.cardConfigs)) return false;
-  for (const cfg of Object.values(value.cardConfigs)) {
-    if (!isCardEditorConfig(cfg)) return false;
-  }
-  return true;
-}
-
-function isLocalEditsPatch(value: unknown): value is LocalEditsPatch {
-  if (!isRecord(value)) return false;
-  return (
-    isOptionalGlobalSnapshot(value) &&
-    isOptionalCardOrder(value) &&
-    isOptionalCardConfigs(value)
-  );
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export function writeUserPageDraft(
@@ -119,11 +31,14 @@ export function writeUserPageDraft(
 ): void {
   if (!globalThis.window) return;
   try {
+    const normalizedPatch = parseLocalEditsPatch(patch);
+    if (!normalizedPatch) return;
+
     const record: DraftRecordV1 = {
       version: DRAFT_STORAGE_VERSION,
       userId,
       savedAt: Date.now(),
-      patch,
+      patch: normalizedPatch,
     };
     globalThis.window.localStorage.setItem(
       draftStorageKey(userId),
@@ -151,9 +66,16 @@ export function readUserPageDraft(userId: string): DraftRecordV1 | null {
     ) {
       return null;
     }
-    if (!isLocalEditsPatch(parsed.patch)) return null;
 
-    return parsed as DraftRecordV1;
+    const patch = parseLocalEditsPatch(parsed.patch);
+    if (!patch) return null;
+
+    return {
+      version: DRAFT_STORAGE_VERSION,
+      userId,
+      savedAt: parsed.savedAt,
+      patch,
+    };
   } catch {
     return null;
   }
