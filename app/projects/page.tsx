@@ -6,13 +6,20 @@ import { ProjectEthos } from "@/components/projects/ProjectEthos";
 import { ProjectsCTA } from "@/components/projects/ProjectsCTA";
 import { ProjectsHeroSection } from "@/components/projects/ProjectsHeroSection";
 import { StructuredDataScript } from "@/components/StructuredDataScript";
+import { SHOW_LOADING_PREVIEW } from "@/lib/dev-loading-preview";
 import { getRequestNonce } from "@/lib/request-nonce";
 import { generateMetadata as createMetadata, seoConfigs } from "@/lib/seo";
 import { generateStructuredData } from "@/lib/structured-data";
 
+import LoadingPreview from "./loading";
+
 export const metadata = createMetadata(seoConfigs.projects);
 
 export default async function ProjectsPage() {
+  if (SHOW_LOADING_PREVIEW) {
+    return <LoadingPreview />;
+  }
+
   const nonce = await getRequestNonce();
 
   return (

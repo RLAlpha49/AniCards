@@ -6,12 +6,15 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import PageShell from "@/components/PageShell";
 import { StructuredDataScript } from "@/components/StructuredDataScript";
 import { UserPageEditor } from "@/components/user/UserPageEditor";
+import { SHOW_LOADING_PREVIEW } from "@/lib/dev-loading-preview";
 import { getRequestNonce } from "@/lib/request-nonce";
 import {
   generateMetadata as createMetadata,
   getUserPageSEOConfig,
 } from "@/lib/seo";
 import { generateStructuredData } from "@/lib/structured-data";
+
+import LoadingPreview from "./loading";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +53,10 @@ export default async function UserProfilePage({
   params,
   searchParams,
 }: Readonly<UserProfilePageProps>) {
+  if (SHOW_LOADING_PREVIEW) {
+    return <LoadingPreview />;
+  }
+
   const [{ username }, resolvedSearchParams] = await Promise.all([
     params,
     searchParams,

@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { SHOW_LOADING_PREVIEW } from "@/lib/dev-loading-preview";
+
+import LoadingPreview from "./loading";
+
 export const metadata: Metadata = {
   title: `Offline | AniCards`,
   description:
@@ -19,6 +23,10 @@ export const metadata: Metadata = {
 };
 
 export default function OfflinePage() {
+  if (SHOW_LOADING_PREVIEW) {
+    return <LoadingPreview />;
+  }
+
   return (
     <main className="
       mx-auto flex min-h-[70vh] w-full max-w-5xl items-center px-6 py-16

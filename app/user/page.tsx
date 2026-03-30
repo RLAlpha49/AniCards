@@ -7,6 +7,7 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import PageShell from "@/components/PageShell";
 import { StructuredDataScript } from "@/components/StructuredDataScript";
 import { UserPageEditor } from "@/components/user/UserPageEditor";
+import { SHOW_LOADING_PREVIEW } from "@/lib/dev-loading-preview";
 import { getRequestNonce } from "@/lib/request-nonce";
 import {
   generateMetadata as createMetadata,
@@ -14,6 +15,8 @@ import {
   getUserProfilePath,
 } from "@/lib/seo";
 import { generateStructuredData } from "@/lib/structured-data";
+
+import LoadingPreview from "./loading";
 
 /**
  * Forces Next.js to render this route on each request so user data stays fresh.
@@ -93,6 +96,10 @@ export default async function UserPage({
     group?: string;
   }>;
 }>) {
+  if (SHOW_LOADING_PREVIEW) {
+    return <LoadingPreview />;
+  }
+
   const params = await searchParams;
   const nonce = await getRequestNonce();
 
