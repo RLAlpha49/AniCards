@@ -486,11 +486,6 @@ const storedCardConfigInputSchema = z
   })
   .strip();
 
-export const storeCardsStatsDataSchema = z.union([
-  z.object({}).strict(),
-  userStatsDataSchema,
-]);
-
 export const storeCardsRequestSchema = z
   .object({
     userId: z.coerce.number().int().positive(),
