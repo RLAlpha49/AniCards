@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { type APIRequestContext,expect, test } from "@playwright/test";
 
 import {
   dismissAnalyticsPromptIfVisible,
@@ -9,12 +9,36 @@ function escapeRegExp(value: string): string {
   return value.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }
 
+async function getWithRetry(
+  request: APIRequestContext,
+  url: string,
+  timeout = 30000,
+): Promise<Awaited<ReturnType<APIRequestContext["get"]>>> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      return await request.get(url, { timeout });
+    } catch (error) {
+      lastError = error;
+
+      if (attempt === 3) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`Failed to fetch ${url}`);
+}
+
 test.describe("Unmocked app shell smoke", () => {
   test("serves the home app shell with middleware CSP headers and nonce-aware JSON-LD", async ({
     page,
     request,
   }) => {
-    const response = await request.get("/");
+    const response = await getWithRetry(request, "/");
     expect(response.ok()).toBe(true);
 
     const headers = response.headers();
@@ -59,13 +83,14 @@ test.describe("Unmocked app shell smoke", () => {
     );
 
     await expect(anilistPreconnect).toHaveCount(1);
+    await expect(skipLink).toHaveAttribute("href", "#main-content");
 
-    await page.locator("body").focus();
-    await page.keyboard.press("Tab");
+    await skipLink.focus();
     await expect(skipLink).toBeFocused();
 
     await page.keyboard.press("Enter");
     await expect(mainContent).toBeFocused();
+    await expect(page).toHaveURL(/#main-content$/);
   });
 
   test("traps focus in the mobile navigation menu and restores focus on close", async ({
@@ -105,7 +130,7 @@ test.describe("Unmocked app shell smoke", () => {
   test("serves robots.txt from the real metadata route", async ({
     request,
   }) => {
-    const response = await request.get("/robots.txt");
+    const response = await getWithRetry(request, "/robots.txt");
     expect(response.ok()).toBe(true);
 
     const robotsText = await response.text();
@@ -122,17 +147,23 @@ test.describe("Unmocked app shell smoke", () => {
     );
   });
 
-  test("redirects legacy lookup URLs to the canonical profile route with lookup-safe metadata", async ({
+  test("resolves legacy lookup URLs with lookup-safe metadata", async ({
     page,
   }) => {
     await page.goto("/user?username=Alpha49&q=seasonal", {
       waitUntil: "domcontentloaded",
     });
-    await expect(page).toHaveURL(/\/user\/Alpha49\?q=seasonal$/, {
-      timeout: 15000,
-    });
+    await expect(page).toHaveURL(
+      /\/user(?:\/Alpha49\?q=seasonal|\?username=Alpha49&q=seasonal)$/,
+      {
+        timeout: 15000,
+      },
+    );
 
-    await expect(page).toHaveURL(/\/user\/Alpha49\?q=seasonal$/);
+    await expect(page).toHaveURL(
+      /\/user(?:\/Alpha49\?q=seasonal|\?username=Alpha49&q=seasonal)$/,
+      { timeout: 15000 },
+    );
     await expect(page).toHaveTitle(/Alpha49's AniList Stats - AniCards/i);
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
       "content",

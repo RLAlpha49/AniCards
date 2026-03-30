@@ -8,8 +8,9 @@ const themeControlSelector = [
 
 export async function waitForAppReady(page: Page): Promise<void> {
   const themeControl = page.locator(themeControlSelector).first();
+  await page.waitForFunction(() => document.readyState !== "loading");
+  await expect(page.getByRole("banner")).toBeVisible({ timeout: 15000 });
   await expect(themeControl).toBeVisible({ timeout: 15000 });
-  await expect(themeControl).toBeEnabled({ timeout: 15000 });
 }
 
 export async function dismissAnalyticsPromptIfVisible(
@@ -35,6 +36,7 @@ export async function clickAnchorAndExpectUrl(
   locator: Locator,
   urlPattern: RegExp,
 ): Promise<void> {
+  await locator.scrollIntoViewIfNeeded();
   await locator.evaluate((element) => {
     (element as HTMLAnchorElement).click();
   });

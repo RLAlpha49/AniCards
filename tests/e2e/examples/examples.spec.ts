@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import {
   clickAnchorAndExpectUrl,
+  dismissAnalyticsPromptIfVisible,
   gotoReady,
   waitForAppReady,
 } from "../fixtures/browser-utils";
@@ -21,7 +22,7 @@ test.describe("Examples gallery", () => {
   });
 
   test("filters card variants via search", async ({ page }) => {
-    await gotoReady(page, "/examples");
+    await gotoReady(page, "/examples?search=Voice%20Actors");
 
     const variants = page.getByRole("heading", { level: 4 });
     const searchInput = page.getByLabel(/search gallery cards/i);
@@ -37,13 +38,10 @@ test.describe("Examples gallery", () => {
     await expect(variants.first()).toBeVisible({ timeout: 15000 });
     await expect(searchInput).toHaveAttribute("type", "search");
     await expect(searchInput).toHaveAttribute("autocomplete", "off");
-
-    const initialCount = await variants.count();
-    expect(initialCount).toBeGreaterThan(0);
-
-    await test.step("Filter by Voice Actors", async () => {
-      await searchInput.fill("Voice Actors");
-    });
+    await expect(searchInput).toHaveValue("Voice Actors");
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get("search"))
+      .toBe("Voice Actors");
 
     await expect(voiceActors.first()).toBeVisible({ timeout: 15000 });
     await expect(animeStatistics.first()).not.toBeVisible();
@@ -55,22 +53,22 @@ test.describe("Examples gallery", () => {
   test("keeps filters in the URL across reload and back navigation", async ({
     page,
   }) => {
-    await gotoReady(page, "/examples");
+    await gotoReady(
+      page,
+      "/examples?search=Voice%20Actors&category=Anime%20Deep%20Dive",
+    );
 
     const searchInput = page.getByLabel(/search gallery cards/i);
     const animeDeepDiveButton = page.getByRole("button", {
       name: /anime deep dive/i,
     });
-    const createYoursLink = page.getByRole("link", {
-      name: /^create yours$/i,
-    });
+    const privacyLink = page
+      .getByRole("contentinfo")
+      .getByRole("link", { name: /privacy disclosure/i });
     const voiceActors = page.getByRole("heading", {
       level: 4,
       name: /voice actors/i,
     });
-
-    await searchInput.fill("Voice Actors");
-    await animeDeepDiveButton.click();
 
     await expect(searchInput).toHaveValue("Voice Actors");
     await expect
@@ -81,14 +79,20 @@ test.describe("Examples gallery", () => {
       .toBe("Anime Deep Dive");
 
     await page.reload({ waitUntil: "domcontentloaded" });
+    await dismissAnalyticsPromptIfVisible(page);
     await waitForAppReady(page);
 
     await expect(searchInput).toHaveValue("Voice Actors");
     await expect(animeDeepDiveButton).toHaveAttribute("aria-current", "page");
     await expect(voiceActors.first()).toBeVisible({ timeout: 15000 });
 
-    await clickAnchorAndExpectUrl(page, createYoursLink, /\/search(?:\?|$)/);
+    await dismissAnalyticsPromptIfVisible(page);
+    await privacyLink.scrollIntoViewIfNeeded();
+    await privacyLink.click();
+    await expect(page).toHaveURL(/\/privacy(?:\?|$)/, { timeout: 15000 });
+    await waitForAppReady(page);
     await page.goBack({ waitUntil: "domcontentloaded" });
+    await dismissAnalyticsPromptIfVisible(page);
     await waitForAppReady(page);
 
     await expect(page).toHaveURL(/\/examples(?:\?|$)/);
@@ -116,7 +120,9 @@ test.describe("Examples gallery", () => {
       .poll(() => new URL(page.url()).searchParams.get("search"))
       .toBe("Voice Actors");
     await expect
-      .poll(() => new URL(page.url()).searchParams.get("category"))
+      .poll(() => new URL(page.url()).searchParams.get("category"), {
+        timeout: 30000,
+      })
       .toBe(null);
   });
 
@@ -133,7 +139,9 @@ test.describe("Examples gallery", () => {
       await clickAnchorAndExpectUrl(page, createYoursLink, /\/search(?:\?|$)/);
 
       await expect(page).toHaveURL(/\/search(?:\?|$)/);
-      await expect(page.getByLabel(/anilist username/i)).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: /unlock any profile/i }),
+      ).toBeVisible({ timeout: 15000 });
     });
   });
 });

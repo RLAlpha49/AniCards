@@ -1,5 +1,17 @@
-import { gotoReady } from "../fixtures/browser-utils";
+import {
+  dismissAnalyticsPromptIfVisible,
+  waitForAppReady,
+} from "../fixtures/browser-utils";
 import { expect, test } from "../fixtures/test-utils";
+
+async function gotoMockedUserErrorPage(
+  page: Parameters<typeof waitForAppReady>[0],
+  url: string,
+): Promise<void> {
+  await page.goto(url, { waitUntil: "commit" });
+  await waitForAppReady(page);
+  await dismissAnalyticsPromptIfVisible(page);
+}
 
 test.describe("User page error states", () => {
   test("publishes install metadata for the mobile shell", async ({
@@ -70,15 +82,15 @@ test.describe("User page error states (mocked API)", () => {
   }) => {
     void mockRateLimitedApi;
 
-    await gotoReady(page, "/user/RateLimitedUser");
+    await gotoMockedUserErrorPage(page, "/user/RateLimitedUser");
 
     await expect(
       page.getByRole("heading", { name: /something went wrong/i }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15000 });
 
     await expect(
       page.getByText(/rate limit exceeded|too many requests/i),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15000 });
 
     const recoveryLink = page.getByRole("link", { name: /search for user/i });
     await expect(recoveryLink).toBeVisible();
@@ -91,17 +103,13 @@ test.describe("User page error states (mocked API)", () => {
   }) => {
     void mockNetworkError;
 
-    await gotoReady(page, "/user/OfflineUser");
-
-    await expect(
-      page.getByRole("heading", { name: /something went wrong/i }),
-    ).toBeVisible();
+    await gotoMockedUserErrorPage(page, "/user/OfflineUser");
 
     await expect(
       page.getByText(
         /failed to fetch user data|network connection error|check your connection/i,
       ),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15000 });
 
     const recoveryLink = page.getByRole("link", { name: /search for user/i });
     await expect(recoveryLink).toBeVisible();

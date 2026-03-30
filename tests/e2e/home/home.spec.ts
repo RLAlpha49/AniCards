@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-import { clickAnchorAndExpectUrl, gotoReady } from "../fixtures/browser-utils";
+import {
+  clickAnchorAndExpectUrl,
+  gotoReady,
+  waitForAppReady,
+} from "../fixtures/browser-utils";
 
 test.describe("Home page", () => {
   test("navigates to search from hero CTA", async ({ page }) => {
@@ -16,7 +20,9 @@ test.describe("Home page", () => {
       await clickAnchorAndExpectUrl(page, getStartedLink, /\/search(?:\?|$)/);
 
       await expect(page).toHaveURL(/\/search(?:\?|$)/);
-      await expect(page.getByLabel(/anilist username/i)).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: /unlock any profile/i }),
+      ).toBeVisible({ timeout: 15000 });
     });
   });
 
@@ -36,8 +42,9 @@ test.describe("Home page", () => {
     });
 
     await expect(page).toHaveURL(/\/examples(?:\?|$)/);
+    await waitForAppReady(page);
     await expect(
       page.getByRole("heading", { name: /every card, every variant/i }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15000 });
   });
 });

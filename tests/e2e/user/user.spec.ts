@@ -13,9 +13,11 @@ test.describe("User page", () => {
     await test.step("Render not found state", async () => {
       await expect(
         page.getByRole("heading", { name: /something went wrong/i }),
-      ).toBeVisible();
+      ).toBeVisible({ timeout: 15000 });
 
-      await expect(page.getByText(/no user specified/i)).toBeVisible();
+      await expect(page.getByText(/no user specified/i)).toBeVisible({
+        timeout: 15000,
+      });
 
       const searchForUser = page.getByRole("link", {
         name: /search for user/i,
@@ -167,13 +169,15 @@ test.describe("User page", () => {
     });
 
     await test.step("Show error UI with recovery", async () => {
-      await expect(page.getByText(/something went wrong/i)).toBeVisible();
+      await expect(page.getByText(/something went wrong/i)).toBeVisible({
+        timeout: 15000,
+      });
       await expect(
         page.getByText(/server error|an unexpected error occurred/i),
-      ).toBeVisible();
+      ).toBeVisible({ timeout: 15000 });
       await expect(
         page.getByRole("link", { name: /search for user/i }),
-      ).toBeVisible();
+      ).toBeVisible({ timeout: 15000 });
     });
   });
 

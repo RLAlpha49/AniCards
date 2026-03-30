@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page,test } from "@playwright/test";
 
 import { gotoReady } from "../fixtures/browser-utils";
 
@@ -11,6 +11,37 @@ const SVG_IMAGE_RESPONSE = `
 
 const CARD_PREVIEW_ROUTE = /\/(?:api\/card|card\.svg)(?:\?.*)?$/;
 
+async function forceDarkPreviewTheme(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    try {
+      globalThis.localStorage.setItem("theme", "dark");
+    } catch {
+      // Ignore storage access failures in restrictive test contexts.
+    }
+
+    document.documentElement.classList.add("dark");
+  });
+
+  await page.emulateMedia({ colorScheme: "dark" });
+}
+
+async function mockExamplePreviewResponses(
+  page: Page,
+  options: Readonly<{ delay?: Promise<void> }> = {},
+): Promise<void> {
+  await page.context().route(CARD_PREVIEW_ROUTE, async (route) => {
+    if (options.delay) {
+      await options.delay;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "image/svg+xml",
+      body: SVG_IMAGE_RESPONSE,
+    });
+  });
+}
+
 test.use({ serviceWorkers: "block" });
 
 test.describe("ImageWithSkeleton", () => {
@@ -19,14 +50,8 @@ test.describe("ImageWithSkeleton", () => {
   }) => {
     const imageGate = Promise.withResolvers<void>();
 
-    await page.context().route(CARD_PREVIEW_ROUTE, async (route) => {
-      await imageGate.promise;
-      await route.fulfill({
-        status: 200,
-        contentType: "image/svg+xml",
-        body: SVG_IMAGE_RESPONSE,
-      });
-    });
+    await forceDarkPreviewTheme(page);
+    await mockExamplePreviewResponses(page, { delay: imageGate.promise });
 
     await gotoReady(page, "/examples");
 
@@ -36,29 +61,53 @@ test.describe("ImageWithSkeleton", () => {
     });
     await gallery.scrollIntoViewIfNeeded();
 
-    const firstImageCard = gallery.locator("[data-image-state]").first();
-    await expect(firstImageCard).toBeVisible({ timeout: 15000 });
-    const firstSlowImage = firstImageCard.getByRole("img");
+    const imageCards = gallery.locator("[data-image-state]");
+    await expect
+      .poll(async () => await imageCards.count(), {
+        timeout: 30000,
+      })
+      .toBeGreaterThan(0);
+    await expect(imageCards.first()).toBeVisible({ timeout: 15000 });
 
-    await expect(firstImageCard.locator(".animate-pulse")).toBeVisible({
+    await expect
+      .poll(
+        async () => await gallery.locator('[data-image-state="slow"]').count(),
+        {
+          timeout: 30000,
+        },
+      )
+      .toBeGreaterThan(0);
+
+    const firstSlowCard = gallery.locator('[data-image-state="slow"]').first();
+    const firstSlowImage = firstSlowCard.locator("img[alt]");
+
+    await expect(firstSlowCard.locator(".animate-pulse")).toBeVisible({
       timeout: 15000,
     });
-    await expect(firstImageCard).toHaveAttribute("data-image-state", "slow", {
-      timeout: 15000,
-    });
-    await expect(firstImageCard).toHaveAttribute("aria-busy", "true");
-    await expect(firstImageCard.locator(".animate-pulse")).toBeVisible();
+    await expect(firstSlowCard).toHaveAttribute("aria-busy", "true");
     await expect(firstSlowImage).toHaveClass(/opacity-0/);
 
     imageGate.resolve();
 
-    await expect(firstImageCard).toHaveAttribute("data-image-state", "loaded", {
+    await expect
+      .poll(
+        async () =>
+          await gallery.locator('[data-image-state="loaded"]').count(),
+        {
+          timeout: 30000,
+        },
+      )
+      .toBeGreaterThan(0);
+
+    const firstLoadedCard = gallery
+      .locator('[data-image-state="loaded"]')
+      .first();
+    const firstLoadedImage = firstLoadedCard.locator("img[alt]");
+
+    await expect(firstLoadedImage).toHaveClass(/opacity-100/, {
       timeout: 15000,
     });
-    await expect(firstSlowImage).toHaveClass(/opacity-100/, {
-      timeout: 15000,
-    });
-    await expect(firstSlowImage).toBeVisible({ timeout: 15000 });
+    await expect(firstLoadedImage).toBeVisible({ timeout: 15000 });
 
     await expect(
       gallery
@@ -71,7 +120,8 @@ test.describe("ImageWithSkeleton", () => {
   test("preserves the error fallback instead of pretending failed images loaded", async ({
     page,
   }) => {
-    await page.emulateMedia({ colorScheme: "dark" });
+    await forceDarkPreviewTheme(page);
+    await mockExamplePreviewResponses(page);
 
     await gotoReady(page, "/examples");
 
@@ -79,25 +129,41 @@ test.describe("ImageWithSkeleton", () => {
     await expect(gallery).toBeVisible({ timeout: 15000 });
     await gallery.scrollIntoViewIfNeeded();
 
-    const targetImage = gallery.locator("[data-image-state] img[alt]").first();
-    await expect(targetImage).toBeVisible({ timeout: 15000 });
-
-    await targetImage.evaluate((image) => {
-      image.setAttribute("src", "data:image/png;base64,invalid-image-data");
-    });
-
-    const errorCards = gallery.locator('[data-image-state="error"]');
+    const imageCards = gallery.locator("[data-image-state]");
     await expect
-      .poll(async () => await errorCards.count(), {
-        timeout: 15000,
+      .poll(async () => await imageCards.count(), {
+        timeout: 30000,
       })
       .toBeGreaterThan(0);
 
-    await expect(gallery.getByText(/failed to load/i).first()).toBeVisible();
+    const targetCard = imageCards.first();
 
-    await expect(
-      page.getByRole("heading", { name: /anime statistics/i }),
-    ).toBeVisible();
+    await targetCard.evaluate((element) => {
+      element.dataset.playwrightTarget = "image-error-card";
+    });
+
+    const taggedCard = gallery.locator(
+      '[data-playwright-target="image-error-card"]',
+    );
+    const targetImage = taggedCard.locator("img[alt]");
+
+    await expect(targetImage).toHaveAttribute(
+      "src",
+      /\/(?:api\/card|card\.svg)/,
+      {
+        timeout: 15000,
+      },
+    );
+
+    await targetImage.evaluate((image) => {
+      image.dispatchEvent(new Event("error"));
+    });
+
+    await expect(taggedCard).toHaveAttribute("data-image-state", "error", {
+      timeout: 15000,
+    });
+
+    await expect(taggedCard.getByText(/failed to load/i)).toBeVisible();
 
     await expect(
       gallery

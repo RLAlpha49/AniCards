@@ -6,33 +6,36 @@ test.describe("Privacy disclosure", () => {
   test("renders the public privacy summary with current retention details", async ({
     page,
   }) => {
-    await page.goto("/privacy");
+    await gotoReady(page, "/privacy");
 
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: /Privacy summary/i,
+        name: /your data/i,
+      }),
+    ).toBeVisible();
+    await expect(page.getByText(/public product disclosure/i)).toBeVisible();
+    await expect(page.getByText(/not a legal privacy policy/i)).toBeVisible();
+    await expect(
+      page.getByRole("heading", {
+        level: 2,
+        name: /retention & limits/i,
       }),
     ).toBeVisible();
     await expect(
-      page.getByText(/not a legal privacy policy or a contractual promise/i),
-    ).toBeVisible();
-    await expect(
-      page.getByText(/monthly buckets with a roughly 400-day ttl/i).first(),
+      page.getByText(/monthly buckets with a ~400-day ttl/i).first(),
     ).toBeVisible();
     await expect(
       page
-        .getByText(/client error reports ignore userid and username fields/i)
+        .getByText(/strip userid and username fields before persistence/i)
         .first(),
     ).toBeVisible();
     await expect(
       page
-        .getByText(/server lifecycle audit logs are capped at 250 entries/i)
+        .getByText(/server lifecycle logs are capped at 250 entries/i)
         .first(),
     ).toBeVisible();
-    await expect(
-      page.getByText(/failed update counters expire after 14 days/i).first(),
-    ).toBeVisible();
+    await expect(page.getByText(/expire after 14 days/i).first()).toBeVisible();
   });
 
   test("is discoverable from the footer on the home page", async ({ page }) => {

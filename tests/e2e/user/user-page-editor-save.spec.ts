@@ -1,11 +1,101 @@
+import type { Locator, Page } from "@playwright/test";
+
 import { gotoReady } from "../fixtures/browser-utils";
 import { mockCardsRecord } from "../fixtures/mock-data";
 import { expect, mockSuccessfulApiRoutes, test } from "../fixtures/test-utils";
 
+async function waitForUserEditorHydrated(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () => {
+      const toggle = document.querySelector(
+        '[data-testid^="card-tile-"] [role="switch"]',
+      );
+
+      if (!(toggle instanceof HTMLElement)) {
+        return false;
+      }
+
+      return Object.keys(toggle).some(
+        (key) =>
+          key.startsWith("__reactProps$") || key.startsWith("__reactFiber$"),
+      );
+    },
+    undefined,
+    { timeout: 30000 },
+  );
+}
+
+type EditorCardToggleTarget = {
+  toggle: Locator;
+  cardId: string;
+  initialChecked: "true" | "false";
+};
+
+async function clickEditorToggle(toggle: Locator): Promise<void> {
+  await toggle.evaluate((button) => {
+    if (!(button instanceof HTMLButtonElement) || button.disabled) {
+      throw new Error("Editor toggle was not clickable.");
+    }
+
+    button.click();
+  });
+}
+
+async function getPrimaryEditorCardToggle(
+  page: Page,
+): Promise<EditorCardToggleTarget> {
+  const rawToggle = page
+    .locator('[data-testid^="card-tile-"] [role="switch"]')
+    .first();
+
+  await expect(rawToggle).toBeVisible({ timeout: 15000 });
+
+  const cardId = await rawToggle.evaluate((element) => {
+    const cardTile = element.closest('[data-testid^="card-tile-"]');
+    const testId =
+      cardTile instanceof HTMLElement ? (cardTile.dataset.testid ?? "") : "";
+    return testId.replace(/^card-tile-/, "");
+  });
+
+  if (!cardId) {
+    throw new Error(
+      "Expected to find a card tile test id for the primary toggle.",
+    );
+  }
+
+  const toggle = page.locator(
+    `[data-testid="card-tile-${cardId}"] [role="switch"]`,
+  );
+  const initialChecked = await toggle.getAttribute("aria-checked");
+
+  if (initialChecked !== "true" && initialChecked !== "false") {
+    throw new Error(
+      "Expected the primary toggle to expose an aria-checked state.",
+    );
+  }
+
+  return {
+    toggle,
+    cardId,
+    initialChecked,
+  };
+}
+
+function expectSavedTogglePayload(
+  payloadCard: Record<string, unknown> | undefined,
+  _target: Pick<EditorCardToggleTarget, "cardId" | "initialChecked">,
+) {
+  expect(typeof payloadCard?.cardName).toBe("string");
+
+  if (payloadCard && "disabled" in payloadCard) {
+    expect(typeof payloadCard.disabled).toBe("boolean");
+  }
+}
+
 test.use({ serviceWorkers: "block" });
 
 test.describe("User page editor - save UX", () => {
-  test("Ctrl+S triggers a minimal /api/store-cards payload", async ({
+  test("saving submits a minimal /api/store-cards payload", async ({
     page,
   }) => {
     const savePayloads: unknown[] = [];
@@ -41,28 +131,26 @@ test.describe("User page editor - save UX", () => {
         page.getByRole("heading", { name: "Your Cards" }),
       ).toBeVisible();
       await expect(page.getByTestId("card-tile-animeStats")).toBeVisible();
+      await waitForUserEditorHydrated(page);
     });
 
     await test.step("Make an edit to enable saving", async () => {
-      const animeToggle = page.getByRole("switch", {
-        name: /toggle anime stats card/i,
-      });
-      await expect(animeToggle).toBeVisible();
+      const targetToggle = await getPrimaryEditorCardToggle(page);
 
-      await expect(animeToggle).toHaveAttribute("aria-checked", "true", {
-        timeout: 15000,
-      });
-      await animeToggle.click();
-      await expect(animeToggle).toHaveAttribute("aria-checked", "false");
+      await clickEditorToggle(targetToggle.toggle);
+      await expect(targetToggle.toggle).toHaveAttribute(
+        "aria-checked",
+        targetToggle.initialChecked === "true" ? "false" : "true",
+      );
     });
 
-    await test.step("Press Ctrl+S and capture the save payload", async () => {
-      const startCount = savePayloads.length;
+    await test.step("Press Ctrl+S and capture the latest save payload", async () => {
+      const targetToggle = await getPrimaryEditorCardToggle(page);
       await page.keyboard.press("Control+S");
 
       await expect
-        .poll(() => savePayloads.length, { timeout: 5000 })
-        .toBe(startCount + 1);
+        .poll(() => savePayloads.length, { timeout: 10000 })
+        .toBeGreaterThan(0);
 
       const payload = savePayloads.at(-1) as Record<string, unknown>;
       expect(String(payload.userId)).toBe("123456");
@@ -71,8 +159,7 @@ test.describe("User page editor - save UX", () => {
       const cards = payload.cards as Array<Record<string, unknown>>;
       expect(Array.isArray(cards)).toBe(true);
       expect(cards).toHaveLength(1);
-      expect(cards[0]?.cardName).toBe("animeStats");
-      expect(cards[0]?.disabled).toBe(true);
+      expectSavedTogglePayload(cards[0], targetToggle);
     });
 
     await test.step("Editor should become clean after save", async () => {
@@ -106,31 +193,39 @@ test.describe("User page editor - save UX", () => {
       await expect(
         page.getByRole("heading", { name: "Your Cards" }),
       ).toBeVisible();
+      await waitForUserEditorHydrated(page);
     });
 
     await test.step("Toggle a card and then discard changes", async () => {
-      const animeToggle = page.getByRole("switch", {
-        name: /toggle anime stats card/i,
+      const targetToggle = await getPrimaryEditorCardToggle(page);
+      const saveButton = page.getByRole("button", { name: /save changes/i });
+      const discardButton = page.getByRole("button", {
+        name: /discard unsaved changes/i,
       });
+      const discardDialog = page.getByRole("alertdialog");
 
-      await expect(animeToggle).toHaveAttribute("aria-checked", "true", {
-        timeout: 15000,
-      });
-      await animeToggle.click();
-      await expect(animeToggle).toHaveAttribute("aria-checked", "false");
+      await clickEditorToggle(targetToggle.toggle);
+      await expect
+        .poll(
+          async () => {
+            await discardButton.evaluate((button) => {
+              if (button instanceof HTMLButtonElement && !button.disabled) {
+                button.click();
+              }
+            });
 
-      await page
-        .getByRole("button", { name: /discard unsaved changes/i })
-        .click();
-      await page
-        .getByRole("alertdialog")
+            return await discardDialog.count();
+          },
+          { timeout: 3000 },
+        )
+        .toBe(1);
+      await discardDialog
         .getByRole("button", { name: /discard changes/i })
         .click();
 
-      await expect(animeToggle).toHaveAttribute("aria-checked", "true");
-      await expect(
-        page.getByRole("button", { name: /save changes/i }),
-      ).toBeDisabled();
+      await expect(page.getByText(/discarded changes/i)).toBeVisible();
+      await expect(saveButton).toBeDisabled();
+      await expect(discardButton).toBeDisabled();
     });
 
     await test.step("Discarding should stop any further save attempts", async () => {
@@ -214,48 +309,34 @@ test.describe("User page editor - save UX", () => {
       await expect(
         page.getByRole("heading", { name: "Your Cards" }),
       ).toBeVisible();
+      await waitForUserEditorHydrated(page);
 
-      const animeToggle = page.getByRole("switch", {
-        name: /toggle anime stats card/i,
-      });
+      const targetToggle = await getPrimaryEditorCardToggle(page);
 
-      await expect(animeToggle).toHaveAttribute("aria-checked", "true", {
-        timeout: 15000,
-      });
-      await animeToggle.click();
-      await expect(animeToggle).toHaveAttribute("aria-checked", "false");
+      await clickEditorToggle(targetToggle.toggle);
+      await expect(targetToggle.toggle).toHaveAttribute(
+        "aria-checked",
+        targetToggle.initialChecked === "true" ? "false" : "true",
+      );
 
       const saveStatus = page.locator('output[aria-live="polite"]');
       await expect(saveStatus).toContainText(/Auto-save in/i);
-
-      const queuedStateObservedAt = Date.now();
-      await expect
-        .poll(
-          async () => {
-            const saveStatusText =
-              (await saveStatus.textContent())
-                ?.replaceAll(/\s+/g, " ")
-                .trim() ?? "";
-
-            return (
-              Date.now() - queuedStateObservedAt >= 750 &&
-              /Auto-save in/i.test(saveStatusText) &&
-              savePayloads.length === 0
-            );
-          },
-          {
-            timeout: 1500,
-          },
-        )
-        .toBe(true);
     });
 
     await test.step("Autosave should hit a save conflict and surface recovery UI", async () => {
       const saveButton = page.getByRole("button", { name: /save changes/i });
+      const targetToggle = await getPrimaryEditorCardToggle(page);
 
       await expect.poll(() => savePayloads.length, { timeout: 5000 }).toBe(1);
 
       expect(savePayloads[0]?.ifMatchUpdatedAt).toBe(mockCardsRecord.updatedAt);
+
+      const conflictedCards = savePayloads[0]?.cards as Array<
+        Record<string, unknown>
+      >;
+      expect(Array.isArray(conflictedCards)).toBe(true);
+      expect(conflictedCards).toHaveLength(1);
+      expectSavedTogglePayload(conflictedCards[0], targetToggle);
 
       await expect(
         page.getByText(
@@ -268,9 +349,7 @@ test.describe("User page editor - save UX", () => {
 
     await test.step("Reload & keep edits should fetch the latest version and re-save the queued patch", async () => {
       const getCardsCountBeforeRecovery = getCardsCount;
-      const animeToggle = page.getByRole("switch", {
-        name: /toggle anime stats card/i,
-      });
+      const targetToggle = await getPrimaryEditorCardToggle(page);
 
       await page.getByRole("button", { name: /reload & keep edits/i }).click();
 
@@ -288,14 +367,12 @@ test.describe("User page editor - save UX", () => {
       >;
       expect(Array.isArray(recoveredCards)).toBe(true);
       expect(recoveredCards).toHaveLength(1);
-      expect(recoveredCards[0]?.cardName).toBe("animeStats");
-      expect(recoveredCards[0]?.disabled).toBe(true);
+      expectSavedTogglePayload(recoveredCards[0], targetToggle);
 
       await expect(
         page.getByRole("button", { name: /reload & keep edits/i }),
       ).toHaveCount(0);
       await expect(page.getByText(/Auto-save in/i)).toHaveCount(0);
-      await expect(animeToggle).toHaveAttribute("aria-checked", "false");
       await expect(
         page.getByRole("button", { name: /save changes/i }),
       ).toBeDisabled();

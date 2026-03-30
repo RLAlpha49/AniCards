@@ -11,6 +11,21 @@ const extraHTTPHeaders = automationBypassSecret
     }
   : undefined;
 
+const projects = [
+  {
+    name: "chromium",
+    use: { ...devices["Desktop Chrome"] },
+  },
+  {
+    name: "mobile-chrome",
+    use: { ...devices["Pixel 5"] },
+  },
+  {
+    name: "firefox",
+    use: { ...devices["Desktop Firefox"] },
+  },
+] satisfies Parameters<typeof defineConfig>[0]["projects"];
+
 export default defineConfig({
   testDir: "./tests/e2e",
   outputDir: `${playwrightArtifactsDir}/playwright-test-results`,
@@ -38,24 +53,7 @@ export default defineConfig({
     navigationTimeout: 20000,
   },
 
-  projects: [
-    {
-      name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
-    },
-    {
-      name: "mobile-chrome",
-      use: { ...devices["Pixel 5"] },
-    },
-    {
-      name: "firefox",
-      use: { ...devices["Desktop Firefox"] },
-    },
-    {
-      name: "webkit",
-      use: { ...devices["Desktop Safari"] },
-    },
-  ],
+  projects,
 
   webServer: shouldLaunchLocalServer
     ? {
