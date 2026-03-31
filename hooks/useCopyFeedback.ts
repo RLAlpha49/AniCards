@@ -1,9 +1,21 @@
+// useCopyFeedback.ts
+//
+// Handles clipboard feedback for preview actions without pushing ephemeral status
+// into the shared editor store. Each caller gets a short-lived success or error state
+// that clears itself after the confirmation window ends.
+//
+// The AniList format wraps the resolved preview URL in AniList's `img200(...)` helper
+// so users can paste it directly into custom profile styling fields.
+
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type CopyFormat = "url" | "anilist" | "failed-list";
 
+/**
+ * Copies the current preview URL in either raw or AniList helper format and tracks transient UI feedback.
+ */
 export function useCopyFeedback(previewUrl: string | null) {
   const [copiedFormat, setCopiedFormat] = useState<CopyFormat | null>(null);
   const [error, setError] = useState<string | null>(null);

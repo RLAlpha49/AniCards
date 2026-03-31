@@ -1,9 +1,13 @@
-"use client";
+// useDownload.ts
+//
+// Browser-only download hook for rendered card previews.
+// It turns the current preview into a file, reuses the cached SVG when possible,
+// and keeps the download status local because this is short-lived UI feedback.
+//
+// Object URLs are revoked after each download so repeated exports do not leak memory
+// during long editing sessions.
 
-// Browser-only download hook for rendered card previews. Download state stays
-// local to the caller because this is transient UI work: turn the current SVG
-// preview into a file, trigger the browser download flow, and surface short-
-// lived success or error feedback.
+"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -82,6 +86,12 @@ async function createDownloadObjectUrl(
   return await createRasterDownloadUrl(previewUrl, cachedSvgObjectUrl, format);
 }
 
+/**
+ * Creates a download action for the current preview.
+ *
+ * SVG downloads reuse the live preview markup, while raster formats convert that SVG
+ * through the shared API utilities so the downloaded file matches the on-screen card.
+ */
 export function useDownload(
   previewUrl: string | null,
   opts: { cardId: string; variant: string },

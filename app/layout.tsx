@@ -1,3 +1,11 @@
+// app/layout.tsx
+//
+// Composes the shared shell for every route: fonts, structured data, consent-aware
+// analytics, the PWA bootstrap, and the global layout wrapper.
+//
+// The early accessibility script runs before React hydrates so skip-link and
+// mobile-menu interactions still work during slow boots or while JavaScript is loading.
+
 import "./globals.css";
 
 import type { Metadata, Viewport } from "next";
@@ -26,6 +34,8 @@ import { Providers } from "./providers";
 
 const LIGHT_THEME_COLOR = "#faf6f0";
 const DARK_THEME_COLOR = "#0c0a10";
+// Inline because the skip link and mobile-menu fallback need to work before any
+// client component can attach event handlers.
 const EARLY_ACCESSIBILITY_SHELL_SCRIPT = `(function () {
   const root = document.documentElement;
   const focusableSelector = [

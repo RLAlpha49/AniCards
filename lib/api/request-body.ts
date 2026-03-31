@@ -1,3 +1,12 @@
+// lib/api/request-body.ts
+//
+// Reads JSON bodies at the API boundary with consistent size enforcement, telemetry,
+// and privacy-safe logging. It fails early on oversized `Content-Length` headers and
+// double-checks the actual UTF-8 body size so callers stay protected when clients omit
+// or lie about the header.
+//
+// Centralizing this keeps every route handler aligned on malformed-body behavior.
+
 import type { NextResponse } from "next/server";
 
 import {
@@ -41,6 +50,9 @@ function getUtf8ByteLength(value: string): number {
   return new TextEncoder().encode(value).length;
 }
 
+/**
+ * Result shape returned by `readJsonRequestBody` so callers can short-circuit with a typed error response.
+ */
 export type ReadJsonRequestBodyResult<T> =
   | { success: true; data: T }
   | {
@@ -48,6 +60,13 @@ export type ReadJsonRequestBodyResult<T> =
       errorResponse: NextResponse<ApiError & Record<string, unknown>>;
     };
 
+/**
+ * Parses a JSON request body while enforcing a byte limit.
+ *
+ * The parser checks `Content-Length` first for a cheap reject, then measures the
+ * actual UTF-8 payload after reading so oversized bodies cannot bypass the limit
+ * by omitting or understating the header.
+ */
 export async function readJsonRequestBody<T>(
   request: Request,
   options: {

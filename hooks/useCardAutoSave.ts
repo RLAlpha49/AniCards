@@ -1,8 +1,13 @@
-"use client";
+// useCardAutoSave.ts
+//
+// Coordinates debounced persistence for the user-page editor store.
+// This hook saves only the local diff, so manual saves, auto-saves, draft restore,
+// and conflict recovery all operate on the same patch shape.
+//
+// Keeping the save boundary here avoids duplicating timing, toast, and conflict logic
+// across components that only need to know whether the editor is dirty or saving.
 
-// Coordinates debounced persistence for the user page editor store.
-// This hook saves only the local diff, so manual saves, draft restore, and
-// conflict recovery all operate on the same payload shape.
+"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -381,6 +386,13 @@ interface UseCardAutoSaveOptions {
   enabled?: boolean;
 }
 
+/**
+ * Connects the editor store to the debounced `/api/store-cards` save flow.
+ *
+ * The hook returns save controls plus derived status so toolbar buttons and autosave
+ * indicators can share one source of truth for manual saves, queued saves, and 409
+ * conflict handling.
+ */
 export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
   const { debounceMs = DEFAULT_DEBOUNCE_MS, enabled = true } = options;
 

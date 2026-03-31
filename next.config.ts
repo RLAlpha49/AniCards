@@ -1,3 +1,11 @@
+// next.config.ts
+//
+// Central Next.js runtime configuration for AniCards. Static security headers live here,
+// while CSP nonces stay in `app/middleware.ts` because they must be generated per request.
+//
+// Host-based rewrites preserve the public `api.*` domains and the legacy `/card.svg`
+// entry points without forcing the app code to duplicate API route implementations.
+
 import type { NextConfig } from "next";
 
 /**
@@ -134,6 +142,8 @@ const nextConfig: NextConfig = {
       "api.anicards.lvh.me",
     ];
 
+    // Duplicate the development hosts with and without an explicit port because
+    // local proxies and browsers do not agree on whether `Host` preserves `:PORT`.
     const devRules = devHosts.flatMap((h) => [
       {
         source: "/:path((?!api/).*)",
@@ -160,6 +170,7 @@ const nextConfig: NextConfig = {
     return [
       ...primaryRules,
       ...devRules,
+      // Keep old embeddable card URLs working while `/api/card` remains the canonical handler.
       {
         source: "/card.svg",
         destination: "/api/card",

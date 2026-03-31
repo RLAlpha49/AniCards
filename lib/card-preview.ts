@@ -1,3 +1,12 @@
+// lib/card-preview.ts
+//
+// Builds stable preview URLs and matching settings snapshots for the examples gallery
+// and the user-page editor handoff. Keeping both in one module ensures the preview users
+// see and the settings we preload into the editor stay in sync.
+//
+// Variation extras are applied to both the URL params and the settings snapshot so theme
+// demos, feature flags, and example tiles do not drift apart.
+
 import { colorPresets } from "@/components/stat-card-generator/constants";
 import {
   buildCardUrlWithParams,
@@ -108,6 +117,9 @@ function applyPreviewExtras(
   return candidate;
 }
 
+/**
+ * Builds a single preview URL for a card variation using the shared example user and API path.
+ */
 export function buildCardPreviewUrl(params: {
   cardType: string;
   variation: string;
@@ -132,6 +144,10 @@ export function buildCardPreviewUrl(params: {
   );
 }
 
+/**
+ * Builds light and dark preview URLs from the same variation settings so galleries can switch themes
+ * without rebuilding config elsewhere.
+ */
 export function buildThemePreviewUrls(params: {
   cardType: string;
   variation: string;
@@ -206,6 +222,9 @@ function buildPreviewSettingsSnapshot(params: {
   };
 }
 
+/**
+ * Builds the light and dark settings snapshots that should be queued into the editor when a preview theme is selected.
+ */
 export function buildThemeSettingsSnapshots(params: {
   extras?: PreviewVariationExtras;
 }): ThemeSettingsSnapshots {

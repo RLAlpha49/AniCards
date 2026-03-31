@@ -1,3 +1,12 @@
+// PwaRegistration.tsx
+//
+// Adds progressive PWA behavior on top of the regular site: service-worker registration,
+// update prompts when a waiting worker is ready, and a polite install prompt that remembers
+// dismissals across visits.
+//
+// Every branch here fails open. AniCards should still behave like a normal website when
+// service workers, storage, or install events are unavailable.
+
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -23,6 +32,12 @@ interface BeforeInstallPromptEvent extends Event {
 type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 type MatchMediaLike = (query: string) => Pick<MediaQueryList, "matches">;
 
+/**
+ * Reads the last install-prompt dismissal timestamp from storage.
+ *
+ * Returns `null` when the preference is missing or unreadable so callers can
+ * treat storage failures as "prompt not dismissed" instead of hard-failing the UI.
+ */
 export function readInstallPromptDismissedAt(
   storage: StorageLike | undefined = globalThis.window?.localStorage,
 ) {
@@ -41,6 +56,9 @@ export function readInstallPromptDismissedAt(
   }
 }
 
+/**
+ * Persists the install-prompt dismissal time so the banner stays quiet during the cooldown.
+ */
 export function writeInstallPromptDismissedAt(
   dismissedAt: number,
   storage: StorageLike | undefined = globalThis.window?.localStorage,
@@ -52,6 +70,9 @@ export function writeInstallPromptDismissedAt(
   }
 }
 
+/**
+ * Clears any remembered dismissal once the app is installed or the cooldown should reset.
+ */
 export function clearInstallPromptDismissal(
   storage: StorageLike | undefined = globalThis.window?.localStorage,
 ) {
@@ -62,6 +83,9 @@ export function clearInstallPromptDismissal(
   }
 }
 
+/**
+ * Returns whether the install prompt is still inside the dismissal cooldown window.
+ */
 export function isInstallPromptDismissed(
   storage: StorageLike | undefined = globalThis.window?.localStorage,
   now = Date.now(),
@@ -75,6 +99,12 @@ export function isInstallPromptDismissed(
   return now - dismissedAt < INSTALL_PROMPT_DISMISSAL_COOLDOWN_MS;
 }
 
+/**
+ * Detects whether AniCards is already running as an installed app.
+ *
+ * Both `display-mode` and the legacy iOS `navigator.standalone` flag are checked
+ * because install detection is not standardized across browsers yet.
+ */
 export function isStandaloneDisplayMode(
   matchMedia: MatchMediaLike | undefined = globalThis.window?.matchMedia?.bind(
     globalThis.window,
@@ -96,6 +126,9 @@ export function isStandaloneDisplayMode(
   return Boolean(browserNavigator?.standalone);
 }
 
+/**
+ * Registers the service worker and renders update or install prompts when the browser supports them.
+ */
 export default function PwaRegistration() {
   const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(
     null,

@@ -1,3 +1,12 @@
+// lib/api/upstream.ts
+//
+// Shared transport layer for external requests that need timeouts, retries, and a
+// circuit breaker. Route handlers use it to keep flaky upstream services from
+// cascading into retry storms across server instances.
+//
+// Circuit state is backed by Redis when available, but falls back to in-memory
+// storage so an observability dependency never becomes a hard availability dependency.
+
 import { createHash, timingSafeEqual } from "node:crypto";
 
 import { redisClient } from "@/lib/api/clients";
@@ -50,6 +59,12 @@ const DEFAULT_CIRCUIT_BREAKER_COOLDOWN_MS = 30_000;
 const UPSTREAM_CIRCUIT_KEY_PREFIX = "upstream:circuit";
 const upstreamCircuitStates = new Map<string, UpstreamCircuitState>();
 
+/**
+ * Error shape for upstream failures that callers can translate into HTTP responses.
+ *
+ * `publicMessage` is safe to surface to clients while the richer underlying error
+ * stays in privacy-safe server logs.
+ */
 export class UpstreamTransportError extends Error {
   readonly statusCode: number;
   readonly retryAfterMs?: number;
@@ -64,6 +79,11 @@ export class UpstreamTransportError extends Error {
   }
 }
 
+/**
+ * Thrown when the shared circuit breaker refuses a request before the fetch starts.
+ *
+ * Callers can honor `retryAfterMs` to avoid retrying while the upstream is still cooling down.
+ */
 export class UpstreamCircuitOpenError extends UpstreamTransportError {
   readonly service: string;
   readonly degradedMode: boolean;
@@ -596,6 +616,13 @@ async function recordUpstreamErrorFailure(
   }
 }
 
+/**
+ * Fetches an upstream resource with bounded retries, timeout enforcement, and optional circuit breaking.
+ *
+ * Retryable transport failures and status codes back off with jitter. When a circuit breaker
+ * is configured, successful and failed attempts update shared state in Redis so one bad
+ * upstream does not fan out into every instance retrying at once.
+ */
 export async function fetchUpstreamWithRetry(
   options: UpstreamFetchOptions,
 ): Promise<Response> {
@@ -690,6 +717,12 @@ function shouldAllowUnsecuredCronInDevelopment(): boolean {
   );
 }
 
+/**
+ * Verifies the cron secret for internal maintenance routes.
+ *
+ * Local development can opt into unsecured cron calls with `ALLOW_UNSECURED_CRON_IN_DEV`,
+ * but production stays fail-closed when the shared secret is missing or wrong.
+ */
 export function authorizeCronRequest(
   request: Request,
   endpointName: string,

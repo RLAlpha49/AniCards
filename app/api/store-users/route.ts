@@ -1,3 +1,12 @@
+// app/api/store-users/route.ts
+//
+// Persists the split Redis user record that powers the user page and analytics cards.
+// This boundary normalizes incoming AniList data, preserves the original `createdAt`
+// across overwrites, and keeps the username lookup index in sync with the saved record.
+//
+// Clients can send `ifMatchUpdatedAt` to reject stale writes instead of silently
+// overwriting fresher data from another tab or device.
+
 import type { NextResponse } from "next/server";
 
 import {

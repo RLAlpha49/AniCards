@@ -1,9 +1,20 @@
+// playwright.config.ts
+//
+// Shared Playwright configuration for local development and protected preview deployments.
+// When `PLAYWRIGHT_BASE_URL` is unset, the suite boots the app locally; otherwise it treats
+// the provided URL as the system under test and optionally sends Vercel bypass headers.
+//
+// Artifacts live under `.artifacts/` so traces, videos, screenshots, and the HTML report
+// are easy to collect from CI.
+
 import { defineConfig, devices } from "@playwright/test";
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
 const automationBypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
 const playwrightArtifactsDir = "./.artifacts";
 const shouldLaunchLocalServer = !process.env.PLAYWRIGHT_BASE_URL;
+// Preview deployments can be protection-gated; these headers let CI reach them
+// without weakening the public site configuration.
 const extraHTTPHeaders = automationBypassSecret
   ? {
       "x-vercel-protection-bypass": automationBypassSecret,

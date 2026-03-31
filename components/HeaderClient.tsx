@@ -1,3 +1,12 @@
+// HeaderClient.tsx
+//
+// Handles the interactive half of the site header after the server-rendered shell is visible.
+// It picks up any mobile-menu state opened before hydration, then takes over focus trapping,
+// escape handling, and route-change cleanup for the mobile nav.
+//
+// The `data-*` flags on `<html>` let this component coordinate with the early accessibility
+// script in `app/layout.tsx` without duplicating the header state in another bootstrap store.
+
 "use client";
 
 import { Menu, X } from "lucide-react";
@@ -67,6 +76,8 @@ export default function HeaderClient() {
   const shouldRestoreFocusRef = useRef(false);
 
   useEffect(() => {
+    // Preserve a click that opened the menu before hydration so the UI does not
+    // appear to ignore the first interaction on slow boots.
     setMobileMenuOpen(isMobileMenuPreopened());
     document.documentElement.dataset[MOBILE_MENU_HYDRATED_DATASET_KEY] = "true";
 
@@ -76,6 +87,8 @@ export default function HeaderClient() {
   }, []);
 
   useEffect(() => {
+    // Mirror state back to `<html>` so the pre-hydration shell and hydrated menu
+    // agree about visibility and ARIA state.
     document.documentElement.dataset[MOBILE_MENU_OPEN_DATASET_KEY] =
       mobileMenuOpen ? "true" : "false";
   }, [mobileMenuOpen]);

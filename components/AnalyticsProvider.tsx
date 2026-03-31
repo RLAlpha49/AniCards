@@ -1,3 +1,13 @@
+// AnalyticsProvider.tsx
+//
+// Hosts the client-side analytics boundary for the whole app. It keeps Google
+// Analytics opt-in, mirrors consent changes across tabs, and leaves Vercel runtime
+// telemetry on a separate path because that signal is deployment-controlled rather
+// than user-toggled storage.
+//
+// Mounted in `app/layout.tsx` so route transitions, privacy messaging, and top-level
+// scripts all share one consent source of truth.
+
 "use client";
 
 import { Analytics as VercelAnalytics } from "@vercel/analytics/next";
@@ -34,11 +44,11 @@ interface AnalyticsProviderProps {
 }
 
 /**
- * Client wrapper that initializes Google Analytics once on the client
- * and renders top-level children.
- * @param props - React children to render inside the provider.
- * @returns Rendered children.
- * @source
+ * Provides analytics scripts plus the consent UI for Google Analytics.
+ *
+ * Google Analytics stays off until the visitor opts in. Runtime telemetry can
+ * still be enabled separately so deployment-level performance signals do not
+ * depend on the consent banner's localStorage state.
  */
 export default function AnalyticsProvider({
   children,
