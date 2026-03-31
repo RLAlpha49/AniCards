@@ -17,50 +17,51 @@ const sections = [
     id: "data-collection",
     ordinal: "01",
     heading: "Data Collection",
-    lead: "What AniCards stores — and what it doesn't.",
+    lead: "Here's the short version of what actually lands in our database.",
     paragraphs: [
-      "AniCards can persist minimized AniList-derived user snapshots, saved card settings, and an on-device Google Analytics consent choice. Google Analytics stays off unless you explicitly opt in.",
-      "Client error reports strip userId and username fields before persistence, so those client-supplied identifiers are never stored with structured error reports.",
+      "When you use AniCards, we may store a trimmed snapshot of your AniList profile alongside your card settings and your consent decision for Google Analytics. That last one is off by default — it only switches on if you accept it.",
+      "Whenever your browser logs an error, we strip userId and username out of the report before writing anything to storage. Your identity has no business being attached to a stack trace.",
     ],
   },
   {
     id: "telemetry",
     ordinal: "02",
     heading: "Telemetry",
-    lead: "How analytics events work after consent.",
+    lead: "Analytics only kicks in when you say so.",
     paragraphs: [
-      "Google Analytics events only fire after consent and stay scoped to normalized route patterns and bounded labels rather than raw browsing history.",
-      "Separate Vercel runtime telemetry can still collect privacy-safe performance signal — these never include personal identifiers.",
+      "If you've consented, Google Analytics fires on normalized route patterns — something like /user/* rather than your actual username. We deliberately stay away from capturing raw browsing trails.",
+      "Vercel's own performance telemetry runs separately and is always privacy-safe. No personal identifiers, ever. Just latency numbers and the occasional server health signal.",
     ],
   },
   {
     id: "retention",
     ordinal: "03",
     heading: "Retention & Limits",
-    lead: "Bounded by design, documented in detail.",
+    lead: "Everything has a ceiling. Nothing lingers indefinitely.",
     items: [
       {
         label: "User data",
         detail:
-          "Snapshots and card settings remain until overwritten, manually deleted, or removed by the stale-user cleanup flow.",
+          "Lives until you overwrite it, manually deleted, or the automated cleanup catches it going stale.",
       },
       {
         label: "Analytics",
         detail:
-          "Counters rotate into monthly buckets with a ~400-day TTL — roughly 13 months of raw retention.",
+          "Rotates into monthly buckets with a ~400-day TTL — roughly 13 months of raw retention before counters expire.",
       },
       {
         label: "Error reports",
-        detail: "Bounded list, capped at 250 entries.",
+        detail:
+          "Hard cap at 250 entries. Oldest records get pushed out as new ones arrive.",
       },
       {
         label: "Audit logs",
-        detail: "Server lifecycle logs are capped at 250 entries.",
+        detail: "Same deal — server lifecycle entries are capped at 250.",
       },
       {
         label: "Failure counters",
         detail:
-          "Expire after 14 days. Three consecutive AniList 404s inside that window trigger cleanup of the stored user.",
+          "Expire after 14 days. Hit three consecutive AniList 404s within that window and the stored user record gets cleaned up automatically.",
       },
     ],
   },
@@ -151,9 +152,9 @@ export default async function PrivacyPage() {
                 mx-auto max-w-xl text-center text-base/7 text-muted-foreground
                 sm:text-lg/8
               ">
-                A public product disclosure — not a legal privacy policy.
+                This is a plain-language disclosure, not a legal privacy policy.
                 <br className="hidden sm:block" />
-                For full technical detail, see{" "}
+                If you want the full technical picture, see{" "}
                 <Link
                   href="https://github.com/RLAlpha49/AniCards/blob/main/docs/PRIVACY.md"
                   target="_blank"
@@ -357,11 +358,11 @@ export default async function PrivacyPage() {
                     font-display text-lg tracking-[0.06em] text-foreground uppercase
                     sm:text-xl
                   ">
-                    Questions about your data?
+                    Got questions about your data?
                   </h2>
                   <p className="max-w-md text-sm text-muted-foreground sm:text-base">
-                    No self-serve portal yet — but we handle manual requests
-                    directly.
+                    No self-serve portal yet — but we're not hard to reach, and
+                    we handle every request personally.
                   </p>
                 </div>
                 <Link
