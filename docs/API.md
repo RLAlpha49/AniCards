@@ -2,6 +2,13 @@
 
 Pull this up whenever you're touching public routes, adjusting how requests or responses behave, or just trying to figure out which path is actually canonical. It won't answer everything — that's what the spec is for — but it'll orient you quickly.
 
+## Supporting diagrams
+
+- [`public-api-surface.drawio`](./diagrams/public-api-surface.drawio) — the route-family map from consumers to canonical handlers, aliases, shared controls, and backing services.
+- [`runtime-architecture.drawio`](./diagrams/runtime-architecture.drawio) — where the public routes sit relative to middleware, shared API protections, storage, and upstream services.
+- [`user-page-editor-flow.drawio`](./diagrams/user-page-editor-flow.drawio) — the main user-facing path that drives `/api/get-user`, `/api/get-cards`, `/api/store-users`, `/api/store-cards`, `/api/anilist`, and `/api/card`.
+- [`card-generation-pipeline.drawio`](./diagrams/card-generation-pipeline.drawio) — the end-to-end SVG render path for `/api/card`, including cache layers, data resolution, and template dispatch.
+
 ## Contract source of truth
 
 The public API contract lives in [`openapi.yaml`](../openapi.yaml).

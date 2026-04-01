@@ -2,16 +2,24 @@
 
 The long-lived reference for security-sensitive behavior in the codebase. Code comments throughout the app point here — that's intentional.
 
+## Supporting diagrams
+
+- [`security-request-flow.drawio`](./diagrams/security-request-flow.drawio) — the HTML CSP/nonce path plus the API protection branches for public reads, browser writes, SVG renders, and cron jobs.
+- [`runtime-architecture.drawio`](./diagrams/runtime-architecture.drawio) — the broader runtime map showing where middleware, layouts, API routes, Redis, and telemetry sit relative to each other.
+- [`card-generation-pipeline.drawio`](./diagrams/card-generation-pipeline.drawio) — the card render pipeline showing where rate limiting, cache layers, and data validation sit in the SVG path.
+- [`error-handling-flow.drawio`](./diagrams/error-handling-flow.drawio) — the error handling chain from component throw through boundaries, structured reporting, and the `/api/error-reports` ingestion endpoint.
+
 ## Content Security Policy
 
 AniCards applies a nonce-based CSP on all HTML routes. No `unsafe-inline` for scripts.
 
 ### The nonce flow
 
-1. `app/middleware.ts` creates a fresh 128-bit nonce per matching request.
-2. The middleware calls `buildCSPHeader()` from `lib/csp-config.ts` and includes that nonce in `script-src`.
-3. The nonce travels into the app via the `x-nonce` request header.
-4. `app/layout.tsx` reads it with `getRequestNonce()` and passes it to any component that renders inline scripts.
+1. `proxy.ts` receives the matched request under the Next.js 16 convention and delegates into `app/middleware.ts`.
+2. `app/middleware.ts` creates a fresh request ID for matched routes, and a fresh 128-bit nonce for non-API HTML routes.
+3. The middleware calls `buildCSPHeader()` from `lib/csp-config.ts` and includes that nonce in `script-src`.
+4. The nonce travels into the app via the `x-nonce` request header.
+5. `app/layout.tsx` reads it with `getRequestNonce()` and passes it to any component that renders inline scripts.
 
 ### Development `unsafe-eval`
 
@@ -63,6 +71,8 @@ CSP is excluded here — middleware generates it dynamically.
 - same-origin enforcement for browser-facing mutation routes
 
 Calling `initializeApiRequest()` gives a route handler all of that automatically.
+
+The main exception is `/api/card`, which serves SVG and therefore uses `ensureRequestContext()`, `checkRateLimit()`, and `svgHeaders()` directly instead of the shared JSON initializer path.
 
 ### Public read routes
 

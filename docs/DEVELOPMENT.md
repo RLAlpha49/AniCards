@@ -2,6 +2,10 @@
 
 Local setup, environment variables worth knowing about, validation commands, and the contributor process — all in one place.
 
+## Supporting diagram
+
+- [`development-workflow.drawio`](./diagrams/development-workflow.drawio) — the local setup, validation gate, and contributor flow at a glance.
+
 ## Two ways to work locally
 
 There's no single "right" setup. It depends on what you're actually building:

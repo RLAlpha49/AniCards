@@ -4,6 +4,13 @@ A maintainer-facing technical summary of the privacy posture baked into the repo
 
 The app also exposes a public-facing summary at `/privacy`. That page is likewise a product disclosure, not a legal privacy policy.
 
+## Storage map
+
+- [`redis-persistence.drawio`](./diagrams/redis-persistence.drawio) — the server-side Redis keys, lookup indexes, saved card records, and lifecycle audit list discussed below.
+- [`data-lifecycle.drawio`](./diagrams/data-lifecycle.drawio) — the full data lifecycle from AniList ingestion through validation and pruning to Redis storage, plus the deletion and cleanup flow.
+- [`user-page-editor-flow.drawio`](./diagrams/user-page-editor-flow.drawio) — the higher-level client/editor flow that shows where autosave and local draft backup fit around the server-side records.
+- [`analytics-consent-flow.drawio`](./diagrams/analytics-consent-flow.drawio) — the consent state management, Google Analytics bootstrap, and tracking pipeline including where consent gates sit.
+
 ## Data currently handled by the repo
 
 ### Persisted AniList-derived user snapshots

@@ -71,6 +71,7 @@ Next.js (App Router, Turbopack) · TypeScript · Tailwind CSS · Radix UI · Ups
 
 ## Documentation
 
+- [`docs/README.md`](docs/README.md) — documentation index, including the linked draw.io diagrams for runtime, API surface, security, editor flow, and Redis persistence
 - [`docs/CARD_REFERENCE.md`](docs/CARD_REFERENCE.md) — full card catalog, variations, and URL parameter reference
 - [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) — local setup, env variables, validation commands, contributor workflow
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — request flow, storage model, external services

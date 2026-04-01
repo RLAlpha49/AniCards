@@ -2,6 +2,11 @@
 
 Browse supported card types, decode URL parameters, or build an embed from scratch — this is the reference for all of it.
 
+## Supporting diagrams
+
+- [`card-generation-pipeline.drawio`](./diagrams/card-generation-pipeline.drawio) — the end-to-end SVG render path from `/api/card` request through cache layers, data resolution, template dispatch, and response.
+- [`card-type-taxonomy.drawio`](./diagrams/card-type-taxonomy.drawio) — every card family, its card types, supported variations, and the SVG template directory that renders each.
+
 ## Start here
 
 - **Fastest option:** the [live generator](https://anicards.alpha49.com) handles everything visually
