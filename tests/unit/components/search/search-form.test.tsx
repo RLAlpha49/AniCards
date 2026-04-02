@@ -16,17 +16,14 @@ import { Window } from "happy-dom";
 import type { ComponentProps, ReactNode } from "react";
 
 const routerPush = mock((href: string) => Promise.resolve(href));
-const trackFormSubmission = mock(
-  (formName: string, wasSuccessful: boolean) => ({
-    formName,
-    wasSuccessful,
-  }),
-);
-const trackNavigation = mock((destination: string, source: string) => ({
-  destination,
-  source,
-}));
-const trackColorPresetSelection = mock((preset: string) => preset);
+const ANALYTICS_CONSENT_STORAGE_KEY = "anicards:analytics-consent:v1";
+const originalGtag = (globalThis as typeof globalThis & { gtag?: unknown })
+  .gtag;
+const originalTrackingId = process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
+const gtagMock = mock((...args: unknown[]) => {
+  void args.length;
+  return undefined;
+});
 const NEXT_NAVIGATION_STATE_KEY = "__ANICARDS_TEST_NEXT_NAVIGATION__";
 let rejectNextPush = false;
 let restoreDomGlobals: (() => void) | null = null;
@@ -156,13 +153,6 @@ mock.module("@/components/ui/Input", () => ({
   Input: (props: ComponentProps<"input">) => <input {...props} />,
 }));
 
-mock.module("@/lib/utils/google-analytics", () => ({
-  safeTrack: (callback: () => void) => callback(),
-  trackColorPresetSelection,
-  trackFormSubmission,
-  trackNavigation,
-}));
-
 function installDomGlobals() {
   const window = new Window({
     url: "http://localhost/search",
@@ -264,9 +254,20 @@ describe("SearchForm", () => {
   beforeEach(() => {
     rejectNextPush = false;
     restoreDomGlobals = installDomGlobals();
+    globalThis.window.localStorage.setItem(
+      ANALYTICS_CONSENT_STORAGE_KEY,
+      "granted",
+    );
+    process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID = "G-TEST123";
     routerPush.mockClear();
-    trackFormSubmission.mockClear();
-    trackNavigation.mockClear();
+    gtagMock.mockClear();
+    Object.defineProperty(globalThis, "gtag", {
+      configurable: true,
+      value: gtagMock,
+      writable: true,
+    });
+    (globalThis.window as unknown as Window & { gtag?: typeof gtagMock }).gtag =
+      gtagMock;
     (globalThis as Record<string, unknown>)[NEXT_NAVIGATION_STATE_KEY] = {
       pathname: "/search",
       routerPush: (href: string) => {
@@ -286,6 +287,17 @@ describe("SearchForm", () => {
   afterEach(() => {
     restoreDomGlobals?.();
     restoreDomGlobals = null;
+    Object.defineProperty(globalThis, "gtag", {
+      configurable: true,
+      value: originalGtag,
+      writable: true,
+    });
+
+    if (originalTrackingId === undefined) {
+      delete process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
+    } else {
+      process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID = originalTrackingId;
+    }
   });
 
   afterAll(() => {
@@ -307,8 +319,14 @@ describe("SearchForm", () => {
     );
     expect(routerPush.mock.calls).toHaveLength(0);
     expect(onLoadingChange.mock.calls).toHaveLength(0);
-    expect(trackFormSubmission.mock.calls).toEqual([["user_search", false]]);
-    expect(trackNavigation.mock.calls).toHaveLength(0);
+    expect(gtagMock).toHaveBeenCalledTimes(1);
+    expect(gtagMock.mock.calls[0]?.[0]).toBe("event");
+    expect(gtagMock.mock.calls[0]?.[1]).toBe("form_submitted_error");
+    expect(gtagMock.mock.calls[0]?.[2]).toMatchObject({
+      event_category: "conversion",
+      event_label: "user_search",
+      send_to: "G-TEST123",
+    });
   });
 
   it("switches to user ID mode, updates the form copy, and clears prior errors", async () => {
@@ -349,8 +367,21 @@ describe("SearchForm", () => {
     });
 
     expect(onLoadingChange.mock.calls).toEqual([[true]]);
-    expect(trackFormSubmission.mock.calls).toEqual([["user_search", true]]);
-    expect(trackNavigation.mock.calls).toEqual([["user_page", "search_form"]]);
+    expect(gtagMock).toHaveBeenCalledTimes(2);
+    expect(gtagMock.mock.calls[0]?.[0]).toBe("event");
+    expect(gtagMock.mock.calls[0]?.[1]).toBe("form_submitted_success");
+    expect(gtagMock.mock.calls[0]?.[2]).toMatchObject({
+      event_category: "conversion",
+      event_label: "user_search",
+      send_to: "G-TEST123",
+    });
+    expect(gtagMock.mock.calls[1]?.[0]).toBe("event");
+    expect(gtagMock.mock.calls[1]?.[1]).toBe("navigation");
+    expect(gtagMock.mock.calls[1]?.[2]).toMatchObject({
+      event_category: "engagement",
+      event_label: "search_form_to_user_page",
+      send_to: "G-TEST123",
+    });
     expect(
       view.getByRole("button", { name: /pulling up their page/i }),
     ).toBeTruthy();
