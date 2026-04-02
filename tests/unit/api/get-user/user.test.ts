@@ -28,6 +28,21 @@ const USER_PART_KEYS = [
   "completed",
   "aggregates",
 ] as const;
+const EXPECTED_BOUNDED_SECTIONS = [
+  "activity",
+  "favourites",
+  "pages",
+  "planning",
+  "current",
+  "rewatched",
+  "completed",
+] as const;
+const EXPECTED_MISSING_AGGREGATES = [
+  "animeSourceMaterialDistributionTotals",
+  "animeSeasonalPreferenceTotals",
+  "animeGenreSynergyTotals",
+  "studioCollaborationTotals",
+] as const;
 
 function createReq(query?: string, headers?: Record<string, string>): Request {
   const url = query?.length ? `${API_BASE}?${query}` : API_BASE;
@@ -184,6 +199,17 @@ async function expectOkJson(query: string | undefined) {
         pageInfo: { total: 12 },
       },
     },
+    recordMeta: {
+      storageFormat: "legacy-split",
+      schemaVersion: 1,
+      completeness: {
+        sampled: true,
+        fullHistory: false,
+        boundedSections: EXPECTED_BOUNDED_SECTIONS,
+        availableAggregates: [],
+        missingAggregates: EXPECTED_MISSING_AGGREGATES,
+      },
+    },
   });
 
   expect(json).not.toHaveProperty("ip");
@@ -200,10 +226,21 @@ async function expectBootstrapJson(query: string | undefined) {
 
   const json = await getResponseJson<Record<string, unknown>>(res);
 
-  expect(json).toEqual({
+  expect(json).toMatchObject({
     userId: 123,
     username: "testUser",
     avatarUrl: "https://example.com/avatar-medium.webp",
+    recordMeta: {
+      storageFormat: "legacy-split",
+      schemaVersion: 1,
+      completeness: {
+        sampled: true,
+        fullHistory: false,
+        boundedSections: EXPECTED_BOUNDED_SECTIONS,
+        availableAggregates: [],
+        missingAggregates: EXPECTED_MISSING_AGGREGATES,
+      },
+    },
   });
 
   return json;

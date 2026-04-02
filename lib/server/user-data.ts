@@ -21,6 +21,7 @@ import {
   PersistedRequestMetadata,
   PersistedUserRecord,
   PublicUserRecord,
+  PublicUserRecordMetadata,
   ReconstructedUserRecord,
   ReviewsPage,
   SeasonalPreferenceTotalsEntry,
@@ -28,12 +29,16 @@ import {
   StudioCollaborationTotalsEntry,
   ThreadCommentsPage,
   ThreadsPage,
+  USER_AGGREGATE_KEYS,
+  UserAggregateKey,
   UserAvatar,
   UserBootstrapRecord,
+  UserPayloadCompleteness,
   UserRecommendationsPage,
   UserRecord,
   UserReviewsPage,
   UserSection,
+  UserSnapshotRef,
   UserStatsData,
 } from "@/lib/types/records";
 import { safeParse } from "@/lib/utils";
@@ -71,11 +76,21 @@ export const USER_BOOTSTRAP_DATA_PARTS: readonly UserDataPart[] = ["meta"];
 const OPTIONAL_USER_DATA_PARTS = new Set<UserDataPart>(["aggregates"]);
 const USER_STORAGE_FORMAT = "split-user-v2";
 export const USER_RECORD_SCHEMA_VERSION = 2;
+const USER_COMMITTED_READ_SHAPE = "committed-user-snapshot-v1";
 const USER_REFRESH_INDEX_KEY = "users:stale-by-updated-at";
 const USER_REFRESH_REGISTRY_KEY = "users:known-ids";
 const USER_LIFECYCLE_AUDIT_KEY = "telemetry:user-lifecycle-audit:v1";
 const MAX_USER_LIFECYCLE_AUDIT_EVENTS = 250;
 const LEGACY_USER_MIGRATION_LOCK_TTL_SECONDS = 30;
+const USER_BOUNDED_SECTIONS = [
+  "activity",
+  "favourites",
+  "pages",
+  "planning",
+  "current",
+  "rewatched",
+  "completed",
+] as const;
 
 const getUserCommitKey = (userId: string | number) => `user:${userId}:commit`;
 const getLegacyUserMigrationLockKey = (userId: string | number) =>
@@ -84,10 +99,19 @@ const getUserUsernameAliasSetKey = (userId: string | number) =>
   `user:${userId}:username-aliases`;
 const getUsernameIndexKey = (normalizedUsername: string) =>
   `username:${normalizedUsername}`;
+const getUserSnapshotKeyPrefix = (
+  userId: string | number,
+  snapshotToken: string,
+) => `user:${userId}:snapshot:${snapshotToken}`;
+const getUserSnapshotPartKey = (
+  snapshotKeyPrefix: string,
+  part: UserDataPart,
+) => `${snapshotKeyPrefix}:${part}`;
 
 interface UserCommitPointer {
   userId: string;
   storageFormat: typeof USER_STORAGE_FORMAT;
+  readShape?: string;
   schemaVersion: number;
   revision: number;
   createdAt: string;
@@ -95,6 +119,15 @@ interface UserCommitPointer {
   username?: string;
   usernameNormalized?: string;
   committedAt: string;
+  snapshotToken?: string;
+  snapshotKeyPrefix?: string;
+  previousSnapshotToken?: string;
+  previousSnapshotKeyPrefix?: string;
+  previousRevision?: number;
+  previousUpdatedAt?: string;
+  previousCommittedAt?: string;
+  completeness?: UserPayloadCompleteness;
+  previousCompleteness?: UserPayloadCompleteness;
 }
 
 export interface PersistedUserState {
@@ -106,6 +139,15 @@ export interface PersistedUserState {
   updatedAt?: string;
   username?: string;
   normalizedUsername?: string;
+  committedAt?: string;
+  snapshot?: UserSnapshotRef;
+  completeness?: UserPayloadCompleteness;
+}
+
+export interface UserDataReadResult {
+  parts: Partial<Record<UserDataPart, unknown>>;
+  state: PersistedUserState | null;
+  snapshotMatched: boolean;
 }
 
 export type UserLifecycleAuditAction = "access" | "delete" | "save";
@@ -138,6 +180,28 @@ export class UserDataIntegrityError extends Error {
     super(message);
     this.name = "UserDataIntegrityError";
     this.userId = String(userId);
+  }
+}
+
+export class UserRecordConflictError extends Error {
+  readonly kind = "conflict" as const;
+  readonly userId: string;
+  readonly statusCode = 409 as const;
+  readonly category = "invalid_data" as const;
+  readonly retryable = false;
+  readonly publicMessage =
+    "Conflict: data was updated elsewhere. Please reload and try again.";
+  readonly currentUpdatedAt?: string;
+
+  constructor(
+    userId: string | number,
+    message = "Conflict: data was updated elsewhere. Please reload and try again.",
+    options?: { currentUpdatedAt?: string },
+  ) {
+    super(message);
+    this.name = "UserRecordConflictError";
+    this.userId = String(userId);
+    this.currentUpdatedAt = options?.currentUpdatedAt;
   }
 }
 
@@ -483,6 +547,133 @@ function normalizeTrackedUsernameAliases(values: Iterable<unknown>): string[] {
   return [...aliases];
 }
 
+function normalizeUserAggregateKeyArray(value: unknown): UserAggregateKey[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const normalized = new Set<UserAggregateKey>();
+
+  value.forEach((candidate) => {
+    if (
+      typeof candidate === "string" &&
+      USER_AGGREGATE_KEYS.includes(candidate as UserAggregateKey)
+    ) {
+      normalized.add(candidate as UserAggregateKey);
+    }
+  });
+
+  return [...normalized];
+}
+
+function getAvailableUserAggregateKeysFromValue(
+  value: unknown,
+): UserAggregateKey[] {
+  if (!isObject(value)) {
+    return [];
+  }
+
+  return USER_AGGREGATE_KEYS.filter((key) => {
+    const aggregateValue = value[key];
+    return Array.isArray(aggregateValue) && aggregateValue.length > 0;
+  });
+}
+
+function buildDefaultUserPayloadCompleteness(): UserPayloadCompleteness {
+  return {
+    sampled: true,
+    fullHistory: false,
+    boundedSections: [...USER_BOUNDED_SECTIONS],
+    availableAggregates: [],
+    missingAggregates: [...USER_AGGREGATE_KEYS],
+  };
+}
+
+function buildUserPayloadCompletenessFromParts(
+  parts: Partial<Record<UserDataPart, unknown>>,
+): UserPayloadCompleteness {
+  const availableAggregates = getAvailableUserAggregateKeysFromValue(
+    parts.aggregates,
+  );
+  const availableAggregateSet = new Set<UserAggregateKey>(availableAggregates);
+
+  return {
+    sampled: true,
+    fullHistory: false,
+    boundedSections: [...USER_BOUNDED_SECTIONS],
+    availableAggregates,
+    missingAggregates: USER_AGGREGATE_KEYS.filter(
+      (key) => !availableAggregateSet.has(key),
+    ),
+  };
+}
+
+function normalizeUserPayloadCompleteness(
+  value: unknown,
+): UserPayloadCompleteness | undefined {
+  if (!isObject(value)) {
+    return undefined;
+  }
+
+  const availableAggregates = normalizeUserAggregateKeyArray(
+    value.availableAggregates,
+  );
+  const availableAggregateSet = new Set<UserAggregateKey>(availableAggregates);
+  const explicitMissingAggregates = normalizeUserAggregateKeyArray(
+    value.missingAggregates,
+  );
+  const boundedSections = Array.isArray(value.boundedSections)
+    ? Array.from(
+        new Set(
+          value.boundedSections.flatMap((section) => {
+            if (typeof section !== "string") {
+              return [];
+            }
+
+            const trimmed = section.trim();
+            return trimmed.length > 0 ? [trimmed] : [];
+          }),
+        ),
+      )
+    : [];
+
+  return {
+    sampled: value.sampled !== false,
+    fullHistory: false,
+    boundedSections:
+      boundedSections.length > 0 ? boundedSections : [...USER_BOUNDED_SECTIONS],
+    availableAggregates,
+    missingAggregates:
+      explicitMissingAggregates.length > 0
+        ? explicitMissingAggregates
+        : USER_AGGREGATE_KEYS.filter((key) => !availableAggregateSet.has(key)),
+  };
+}
+
+function buildPublicUserRecordMetadata(
+  state: PersistedUserState | null | undefined,
+): PublicUserRecordMetadata | undefined {
+  if (!state) {
+    return undefined;
+  }
+
+  let storageFormat: PublicUserRecordMetadata["storageFormat"];
+  if (state.storageFormat === "legacy") {
+    storageFormat = "legacy";
+  } else if (state.snapshot) {
+    storageFormat = "committed-split";
+  } else {
+    storageFormat = "legacy-split";
+  }
+
+  return {
+    storageFormat,
+    schemaVersion: state.schemaVersion,
+    ...(state.snapshot ? { snapshot: state.snapshot } : {}),
+    completeness: state.completeness ?? buildDefaultUserPayloadCompleteness(),
+  };
+}
+
 function buildUsernameIndexKeys(aliases: Iterable<string>): string[] {
   return [...aliases].map((alias) => getUsernameIndexKey(alias));
 }
@@ -684,6 +875,9 @@ function buildPersistedUserState(options: {
   updatedAt?: unknown;
   username?: unknown;
   normalizedUsername?: unknown;
+  committedAt?: unknown;
+  snapshot?: UserSnapshotRef;
+  completeness?: UserPayloadCompleteness;
 }): PersistedUserState {
   const username =
     typeof options.username === "string" ? options.username : undefined;
@@ -712,13 +906,112 @@ function buildPersistedUserState(options: {
         : undefined,
     ...(username ? { username } : {}),
     ...(normalizedUsername ? { normalizedUsername } : {}),
+    ...(typeof options.committedAt === "string" &&
+    options.committedAt.length > 0
+      ? { committedAt: options.committedAt }
+      : {}),
+    ...(options.snapshot ? { snapshot: options.snapshot } : {}),
+    ...(options.completeness ? { completeness: options.completeness } : {}),
   };
 }
 
-function parseUserCommitPointer(
+function buildUserSnapshotRef(options: {
+  token?: unknown;
+  revision?: unknown;
+  updatedAt?: unknown;
+  committedAt?: unknown;
+}): UserSnapshotRef | undefined {
+  const token =
+    typeof options.token === "string" && options.token.length > 0
+      ? options.token
+      : undefined;
+  const revision =
+    typeof options.revision === "number" && options.revision > 0
+      ? options.revision
+      : undefined;
+  const updatedAt =
+    typeof options.updatedAt === "string" && options.updatedAt.length > 0
+      ? options.updatedAt
+      : undefined;
+  const committedAt =
+    typeof options.committedAt === "string" && options.committedAt.length > 0
+      ? options.committedAt
+      : undefined;
+
+  if (!token || !revision || !updatedAt || !committedAt) {
+    return undefined;
+  }
+
+  return {
+    token,
+    revision,
+    updatedAt,
+    committedAt,
+  };
+}
+
+function buildPersistedStateFromCommitPointerSnapshot(
+  commitPointer: UserCommitPointer,
+  snapshotKind: "current" | "previous" = "current",
+): PersistedUserState {
+  const isCurrentSnapshot = snapshotKind === "current";
+  const revision = isCurrentSnapshot
+    ? commitPointer.revision
+    : commitPointer.previousRevision;
+  const updatedAt = isCurrentSnapshot
+    ? commitPointer.updatedAt
+    : commitPointer.previousUpdatedAt;
+  const committedAt = isCurrentSnapshot
+    ? commitPointer.committedAt
+    : commitPointer.previousCommittedAt;
+  const snapshot = buildUserSnapshotRef({
+    token: isCurrentSnapshot
+      ? commitPointer.snapshotToken
+      : commitPointer.previousSnapshotToken,
+    revision,
+    updatedAt,
+    committedAt,
+  });
+  const completeness = normalizeUserPayloadCompleteness(
+    isCurrentSnapshot
+      ? commitPointer.completeness
+      : commitPointer.previousCompleteness,
+  );
+
+  return buildPersistedUserState({
+    userId: commitPointer.userId,
+    storageFormat: "split",
+    schemaVersion: commitPointer.schemaVersion,
+    revision,
+    createdAt: commitPointer.createdAt,
+    updatedAt,
+    username: commitPointer.username,
+    normalizedUsername: commitPointer.usernameNormalized,
+    committedAt,
+    snapshot,
+    completeness,
+  });
+}
+
+function readOptionalCommitPointerString(
+  value: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  return typeof value[key] === "string" ? value[key] : undefined;
+}
+
+function readOptionalCommitPointerPositiveNumber(
+  value: Record<string, unknown>,
+  key: string,
+): number | undefined {
+  const candidate = value[key];
+  return typeof candidate === "number" && candidate > 0 ? candidate : undefined;
+}
+
+function parseUserCommitPointerRecord(
   userId: string | number,
   raw: unknown,
-): UserCommitPointer {
+): Record<string, unknown> {
   const parsed = safeParseStoredJson<Record<string, unknown>>(
     raw,
     userId,
@@ -731,6 +1024,14 @@ function parseUserCommitPointer(
     });
   }
 
+  return parsed;
+}
+
+function parseUserCommitPointer(
+  userId: string | number,
+  raw: unknown,
+): UserCommitPointer {
+  const parsed = parseUserCommitPointerRecord(userId, raw);
   const revision = Number(parsed.revision);
   if (
     parsed.storageFormat !== USER_STORAGE_FORMAT ||
@@ -745,19 +1046,47 @@ function parseUserCommitPointer(
   return {
     userId: String(parsed.userId ?? userId),
     storageFormat: USER_STORAGE_FORMAT,
+    readShape: readOptionalCommitPointerString(parsed, "readShape"),
     schemaVersion:
-      typeof parsed.schemaVersion === "number" && parsed.schemaVersion > 0
-        ? parsed.schemaVersion
-        : USER_RECORD_SCHEMA_VERSION,
+      readOptionalCommitPointerPositiveNumber(parsed, "schemaVersion") ??
+      USER_RECORD_SCHEMA_VERSION,
     revision,
-    createdAt: typeof parsed.createdAt === "string" ? parsed.createdAt : "",
-    updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : "",
-    username: typeof parsed.username === "string" ? parsed.username : undefined,
+    createdAt: readOptionalCommitPointerString(parsed, "createdAt") ?? "",
+    updatedAt: readOptionalCommitPointerString(parsed, "updatedAt") ?? "",
+    username: readOptionalCommitPointerString(parsed, "username"),
     usernameNormalized: normalizeUsernameIndexValue(parsed.usernameNormalized),
     committedAt:
-      typeof parsed.committedAt === "string"
-        ? parsed.committedAt
-        : new Date().toISOString(),
+      readOptionalCommitPointerString(parsed, "committedAt") ??
+      new Date().toISOString(),
+    snapshotToken: readOptionalCommitPointerString(parsed, "snapshotToken"),
+    snapshotKeyPrefix: readOptionalCommitPointerString(
+      parsed,
+      "snapshotKeyPrefix",
+    ),
+    previousSnapshotToken: readOptionalCommitPointerString(
+      parsed,
+      "previousSnapshotToken",
+    ),
+    previousSnapshotKeyPrefix: readOptionalCommitPointerString(
+      parsed,
+      "previousSnapshotKeyPrefix",
+    ),
+    previousRevision: readOptionalCommitPointerPositiveNumber(
+      parsed,
+      "previousRevision",
+    ),
+    previousUpdatedAt: readOptionalCommitPointerString(
+      parsed,
+      "previousUpdatedAt",
+    ),
+    previousCommittedAt: readOptionalCommitPointerString(
+      parsed,
+      "previousCommittedAt",
+    ),
+    completeness: normalizeUserPayloadCompleteness(parsed.completeness),
+    previousCompleteness: normalizeUserPayloadCompleteness(
+      parsed.previousCompleteness,
+    ),
   };
 }
 
@@ -807,16 +1136,7 @@ export async function getPersistedUserState(
 ): Promise<PersistedUserState | null> {
   const commitPointer = await readUserCommitPointer(userId);
   if (commitPointer) {
-    return buildPersistedUserState({
-      userId: commitPointer.userId,
-      storageFormat: "split",
-      schemaVersion: commitPointer.schemaVersion,
-      revision: commitPointer.revision,
-      createdAt: commitPointer.createdAt,
-      updatedAt: commitPointer.updatedAt,
-      username: commitPointer.username,
-      normalizedUsername: commitPointer.usernameNormalized,
-    });
+    return buildPersistedStateFromCommitPointerSnapshot(commitPointer);
   }
 
   const splitMetaRaw = await redisClient.get(getUserDataKey(userId, "meta"));
@@ -854,16 +1174,17 @@ export async function getPersistedUserState(
   return buildPersistedStateFromLegacyRecord(userId, legacyRecord);
 }
 
-async function loadCommittedUserDataParts(
+async function loadSnapshotUserDataParts(
   userId: string | number,
   parts: UserDataPart[],
-  commitPointer: UserCommitPointer,
+  snapshotKeyPrefix: string,
+  storageLabel: string,
 ): Promise<Partial<Record<UserDataPart, unknown>>> {
   const splitLoaded = await loadStoredUserDataParts(
     userId,
     parts,
-    (part) => getUserDataKey(userId, part),
-    `split-user:${commitPointer.revision}`,
+    (part) => getUserSnapshotPartKey(snapshotKeyPrefix, part),
+    storageLabel,
   );
 
   if (
@@ -877,8 +1198,61 @@ async function loadCommittedUserDataParts(
     userId,
     "Stored split user record is incomplete",
     splitLoaded.missingRequiredParts,
-    { revision: commitPointer.revision },
+    { storageLabel },
   );
+}
+
+function selectCommittedSnapshotState(
+  commitPointer: UserCommitPointer,
+  options?: {
+    expectedSnapshotToken?: string;
+    expectedUpdatedAt?: string;
+  },
+): {
+  snapshotKind: "current" | "previous";
+  snapshotKeyPrefix?: string;
+  snapshotMatched: boolean;
+  state: PersistedUserState;
+} {
+  const expectedSnapshotToken = options?.expectedSnapshotToken;
+  const expectedUpdatedAt = options?.expectedUpdatedAt;
+
+  const matchesCurrentSnapshot = Boolean(
+    (expectedSnapshotToken &&
+      commitPointer.snapshotToken === expectedSnapshotToken) ||
+    (expectedUpdatedAt && commitPointer.updatedAt === expectedUpdatedAt),
+  );
+  const matchesPreviousSnapshot = Boolean(
+    (expectedSnapshotToken &&
+      commitPointer.previousSnapshotToken === expectedSnapshotToken) ||
+    (expectedUpdatedAt &&
+      commitPointer.previousUpdatedAt === expectedUpdatedAt),
+  );
+
+  if (matchesPreviousSnapshot && commitPointer.previousRevision) {
+    return {
+      snapshotKind: "previous",
+      snapshotKeyPrefix: commitPointer.previousSnapshotKeyPrefix,
+      snapshotMatched: true,
+      state: buildPersistedStateFromCommitPointerSnapshot(
+        commitPointer,
+        "previous",
+      ),
+    };
+  }
+
+  const currentState =
+    buildPersistedStateFromCommitPointerSnapshot(commitPointer);
+
+  return {
+    snapshotKind: "current",
+    snapshotKeyPrefix: commitPointer.snapshotKeyPrefix,
+    snapshotMatched:
+      !expectedSnapshotToken && !expectedUpdatedAt
+        ? true
+        : matchesCurrentSnapshot,
+    state: currentState,
+  };
 }
 
 function canReconstructFullUserRecord(
@@ -907,10 +1281,14 @@ function selectRequestedUserDataParts(
 async function loadRequestedPartsFromLegacyRecord(
   userId: string | number,
   parts: UserDataPart[],
-): Promise<Partial<Record<UserDataPart, unknown>>> {
+): Promise<UserDataReadResult> {
   const legacyRaw = await redisClient.get(`user:${userId}`);
   if (!legacyRaw) {
-    return {};
+    return {
+      parts: {},
+      state: null,
+      snapshotMatched: true,
+    };
   }
 
   const legacyRecord = safeParseStoredJson<UserRecord>(
@@ -918,11 +1296,22 @@ async function loadRequestedPartsFromLegacyRecord(
     userId,
     `legacy-user:${userId}`,
   );
+  const split = splitUserRecord(legacyRecord) as Partial<
+    Record<UserDataPart, unknown>
+  >;
 
-  return selectRequestedUserDataParts(
-    parts,
-    splitUserRecord(legacyRecord) as Partial<Record<UserDataPart, unknown>>,
-  );
+  return {
+    parts: selectRequestedUserDataParts(parts, split),
+    state: buildPersistedUserState({
+      userId: legacyRecord.userId || String(userId),
+      storageFormat: "legacy",
+      createdAt: legacyRecord.createdAt,
+      updatedAt: legacyRecord.updatedAt,
+      username: legacyRecord.username,
+      completeness: buildUserPayloadCompletenessFromParts(split),
+    }),
+    snapshotMatched: true,
+  };
 }
 
 async function tryAcquireLegacyUserMigrationLock(
@@ -965,10 +1354,56 @@ async function releaseLegacyUserMigrationLock(
 async function loadLegacyCompatibleUserDataPartsWithoutSaving(
   userId: string | number,
   parts: UserDataPart[],
-): Promise<Partial<Record<UserDataPart, unknown>>> {
+  options?: {
+    expectedSnapshotToken?: string;
+    expectedUpdatedAt?: string;
+  },
+): Promise<UserDataReadResult> {
   const commitPointer = await readUserCommitPointer(userId);
   if (commitPointer) {
-    return loadCommittedUserDataParts(userId, parts, commitPointer);
+    const selection = selectCommittedSnapshotState(commitPointer, options);
+
+    if (selection.snapshotKeyPrefix) {
+      return {
+        parts: await loadSnapshotUserDataParts(
+          userId,
+          parts,
+          selection.snapshotKeyPrefix,
+          `${selection.snapshotKind}-snapshot:${selection.state.revision}`,
+        ),
+        state: selection.state,
+        snapshotMatched: selection.snapshotMatched,
+      };
+    }
+
+    const loaded = await loadStoredUserDataParts(
+      userId,
+      parts,
+      (part) => getUserDataKey(userId, part),
+      `legacy-committed-split:${commitPointer.revision}`,
+    );
+
+    if (loaded.foundAnyRequestedPart) {
+      if (loaded.missingRequiredParts.length > 0) {
+        throwMissingUserDataParts(
+          userId,
+          "Stored split user record is incomplete",
+          loaded.missingRequiredParts,
+          { revision: commitPointer.revision },
+        );
+      }
+
+      return {
+        parts: loaded.data,
+        state: buildPersistedUserState({
+          ...selection.state,
+          completeness:
+            selection.state.completeness ??
+            buildUserPayloadCompletenessFromParts(loaded.data),
+        }),
+        snapshotMatched: selection.snapshotMatched,
+      };
+    }
   }
 
   const loaded = await loadStoredUserDataParts(
@@ -987,7 +1422,20 @@ async function loadLegacyCompatibleUserDataPartsWithoutSaving(
       );
     }
 
-    return loaded.data;
+    const meta = loaded.data.meta as
+      | (UserMeta & Record<string, unknown>)
+      | undefined;
+
+    return {
+      parts: loaded.data,
+      state: meta
+        ? buildPersistedUserState({
+            ...buildPersistedStateFromMeta(userId, meta, "split"),
+            completeness: buildUserPayloadCompletenessFromParts(loaded.data),
+          })
+        : null,
+      snapshotMatched: true,
+    };
   }
 
   return loadRequestedPartsFromLegacyRecord(userId, parts);
@@ -996,27 +1444,85 @@ async function loadLegacyCompatibleUserDataPartsWithoutSaving(
 async function migrateLegacyUserDataPartsWithLock(
   userId: string | number,
   parts: UserDataPart[],
-): Promise<Partial<Record<UserDataPart, unknown>>> {
+  options?: {
+    expectedSnapshotToken?: string;
+    expectedUpdatedAt?: string;
+  },
+): Promise<UserDataReadResult> {
   const migrationLockToken = await tryAcquireLegacyUserMigrationLock(userId);
   if (!migrationLockToken) {
-    return loadLegacyCompatibleUserDataPartsWithoutSaving(userId, parts);
+    return loadLegacyCompatibleUserDataPartsWithoutSaving(
+      userId,
+      parts,
+      options,
+    );
   }
 
   try {
     const commitPointer = await readUserCommitPointer(userId);
     if (commitPointer) {
-      return loadCommittedUserDataParts(userId, parts, commitPointer);
+      return loadLegacyCompatibleUserDataPartsWithoutSaving(
+        userId,
+        parts,
+        options,
+      );
     }
 
     const migratedRecord = await migrateUserRecord(userId);
     if (!migratedRecord) {
-      return loadLegacyCompatibleUserDataPartsWithoutSaving(userId, parts);
+      return loadLegacyCompatibleUserDataPartsWithoutSaving(
+        userId,
+        parts,
+        options,
+      );
     }
 
-    return selectRequestedUserDataParts(
-      parts,
-      splitUserRecord(migratedRecord) as Partial<Record<UserDataPart, unknown>>,
-    );
+    const split = splitUserRecord(migratedRecord) as Partial<
+      Record<UserDataPart, unknown>
+    >;
+
+    return {
+      parts: selectRequestedUserDataParts(parts, split),
+      state: buildPersistedUserState({
+        userId: migratedRecord.userId || String(userId),
+        storageFormat: "split",
+        createdAt: migratedRecord.createdAt,
+        updatedAt: migratedRecord.updatedAt,
+        username: migratedRecord.username,
+        completeness: buildUserPayloadCompletenessFromParts(split),
+      }),
+      snapshotMatched: true,
+    };
+  } finally {
+    await releaseLegacyUserMigrationLock(userId, migrationLockToken);
+  }
+}
+
+async function rewriteLegacyCommittedUserDataWithLock(
+  userId: string | number,
+  data: Partial<Record<UserDataPart, unknown>>,
+  commitPointer: UserCommitPointer,
+): Promise<void> {
+  const migrationLockToken = await tryAcquireLegacyUserMigrationLock(userId);
+
+  if (!migrationLockToken) {
+    return;
+  }
+
+  try {
+    const latestCommitPointer = await readUserCommitPointer(userId);
+    if (latestCommitPointer?.snapshotKeyPrefix) {
+      return;
+    }
+
+    const reconstructed = reconstructUserRecord(data);
+
+    await saveUserRecord(reconstructed, {
+      existingState: buildPersistedStateFromCommitPointerSnapshot(
+        latestCommitPointer ?? commitPointer,
+      ),
+      triggerSource: "legacy_split_rewrite",
+    });
   } finally {
     await releaseLegacyUserMigrationLock(userId, migrationLockToken);
   }
@@ -1055,7 +1561,33 @@ async function rewriteLegacySplitUserDataWithLock(
 async function loadLegacyCompatibleUserDataParts(
   userId: string | number,
   parts: UserDataPart[],
-): Promise<Partial<Record<UserDataPart, unknown>>> {
+  options?: {
+    expectedSnapshotToken?: string;
+    expectedUpdatedAt?: string;
+  },
+): Promise<UserDataReadResult> {
+  const commitPointer = await readUserCommitPointer(userId);
+  if (commitPointer) {
+    const result = await loadLegacyCompatibleUserDataPartsWithoutSaving(
+      userId,
+      parts,
+      options,
+    );
+
+    if (
+      !commitPointer.snapshotKeyPrefix &&
+      canReconstructFullUserRecord(result.parts)
+    ) {
+      await rewriteLegacyCommittedUserDataWithLock(
+        userId,
+        result.parts,
+        commitPointer,
+      );
+    }
+
+    return result;
+  }
+
   const loaded = await loadStoredUserDataParts(
     userId,
     parts,
@@ -1064,7 +1596,7 @@ async function loadLegacyCompatibleUserDataParts(
   );
 
   if (!loaded.foundAnyRequestedPart) {
-    return migrateLegacyUserDataPartsWithLock(userId, parts);
+    return migrateLegacyUserDataPartsWithLock(userId, parts, options);
   }
 
   if (loaded.missingRequiredParts.length > 0) {
@@ -1079,7 +1611,20 @@ async function loadLegacyCompatibleUserDataParts(
     await rewriteLegacySplitUserDataWithLock(userId, loaded.data);
   }
 
-  return loaded.data;
+  const meta = loaded.data.meta as
+    | (UserMeta & Record<string, unknown>)
+    | undefined;
+
+  return {
+    parts: loaded.data,
+    state: meta
+      ? buildPersistedUserState({
+          ...buildPersistedStateFromMeta(userId, meta, "split"),
+          completeness: buildUserPayloadCompletenessFromParts(loaded.data),
+        })
+      : null,
+    snapshotMatched: true,
+  };
 }
 
 async function rebuildUserRefreshIndex(): Promise<number> {
@@ -1440,9 +1985,11 @@ export function reconstructUserRecord(
  */
 export function reconstructPublicUserRecord(
   parts: Partial<Record<UserDataPart, unknown>>,
+  options?: { state?: PersistedUserState | null },
 ): PublicUserRecord {
   const record = reconstructUserRecord(parts);
   const publicUserId = normalizeStoredUserIdForPublicDto(record.userId);
+  const recordMeta = buildPublicUserRecordMetadata(options?.state);
 
   return {
     userId: publicUserId,
@@ -1452,6 +1999,7 @@ export function reconstructPublicUserRecord(
     favourites: record.favourites,
     pages: record.pages,
     ...(record.aggregates ? { aggregates: record.aggregates } : {}),
+    ...(recordMeta ? { recordMeta } : {}),
   };
 }
 
@@ -1461,15 +2009,320 @@ export function reconstructPublicUserRecord(
  */
 export function reconstructUserBootstrapRecord(
   parts: Partial<Record<UserDataPart, unknown>>,
+  options?: { state?: PersistedUserState | null },
 ): UserBootstrapRecord {
   const meta = parts.meta as UserMeta | undefined;
   const publicUserId = normalizeStoredUserIdForPublicDto(meta?.userId);
+  const recordMeta = buildPublicUserRecordMetadata(options?.state);
 
   return {
     userId: publicUserId,
     username: meta?.username,
     avatarUrl: meta?.avatar?.medium || meta?.avatar?.large || null,
+    ...(recordMeta ? { recordMeta } : {}),
   };
+}
+
+const SAVE_USER_RECORD_LUA = `
+local payload = cjson.decode(ARGV[1])
+
+local function parse_json_object(raw)
+  if type(raw) ~= "string" or string.len(raw) == 0 then
+    return nil
+  end
+
+  local ok, decoded = pcall(cjson.decode, raw)
+  if not ok or type(decoded) ~= "table" then
+    return nil
+  end
+
+  return decoded
+end
+
+local function normalize_username(value)
+  if type(value) ~= "string" then
+    return nil
+  end
+
+  local normalized = string.lower(value)
+  normalized = string.gsub(normalized, "^%s+", "")
+  normalized = string.gsub(normalized, "%s+$", "")
+  if string.len(normalized) == 0 then
+    return nil
+  end
+
+  return normalized
+end
+
+local function resolve_current_state()
+  local pointer = parse_json_object(redis.call("GET", KEYS[1]))
+  if pointer then
+    return {
+      revision = tonumber(pointer["revision"]) or 0,
+      updatedAt = type(pointer["updatedAt"]) == "string" and pointer["updatedAt"] or nil,
+      usernameNormalized = normalize_username(pointer["usernameNormalized"]),
+      snapshotToken = type(pointer["snapshotToken"]) == "string" and pointer["snapshotToken"] or nil,
+      snapshotKeyPrefix = type(pointer["snapshotKeyPrefix"]) == "string" and pointer["snapshotKeyPrefix"] or nil,
+      committedAt = type(pointer["committedAt"]) == "string" and pointer["committedAt"] or nil,
+      previousSnapshotToken = type(pointer["previousSnapshotToken"]) == "string" and pointer["previousSnapshotToken"] or nil,
+      previousSnapshotKeyPrefix = type(pointer["previousSnapshotKeyPrefix"]) == "string" and pointer["previousSnapshotKeyPrefix"] or nil,
+      previousRevision = tonumber(pointer["previousRevision"]) or nil,
+      previousUpdatedAt = type(pointer["previousUpdatedAt"]) == "string" and pointer["previousUpdatedAt"] or nil,
+      previousCommittedAt = type(pointer["previousCommittedAt"]) == "string" and pointer["previousCommittedAt"] or nil,
+      completeness = type(pointer["completeness"]) == "table" and pointer["completeness"] or nil,
+    }
+  end
+
+  local legacyMeta = parse_json_object(redis.call("GET", KEYS[5]))
+  if legacyMeta then
+    return {
+      revision = tonumber(legacyMeta["revision"]) or 0,
+      updatedAt = type(legacyMeta["updatedAt"]) == "string" and legacyMeta["updatedAt"] or nil,
+      usernameNormalized = normalize_username(legacyMeta["usernameNormalized"] or legacyMeta["username"]),
+    }
+  end
+
+  local legacyRecord = parse_json_object(redis.call("GET", KEYS[6]))
+  if legacyRecord then
+    return {
+      revision = 0,
+      updatedAt = type(legacyRecord["updatedAt"]) == "string" and legacyRecord["updatedAt"] or nil,
+      usernameNormalized = normalize_username(legacyRecord["username"]),
+    }
+  end
+
+  return {
+    revision = 0,
+  }
+end
+
+local expectedUpdatedAt = type(payload["expectedUpdatedAt"]) == "string" and payload["expectedUpdatedAt"] or nil
+local normalizedUsername = normalize_username(payload["normalizedUsername"])
+local currentState = resolve_current_state()
+
+if expectedUpdatedAt and currentState["updatedAt"] and currentState["updatedAt"] ~= expectedUpdatedAt then
+  return {0, currentState["updatedAt"]}
+end
+
+local nextRevision = (tonumber(currentState["revision"]) or 0) + 1
+local meta = payload["parts"]["meta"]
+if type(meta) ~= "table" then
+  meta = {}
+end
+
+meta["userId"] = payload["userId"]
+meta["createdAt"] = payload["createdAt"]
+meta["updatedAt"] = payload["updatedAt"]
+meta["schemaVersion"] = payload["schemaVersion"]
+meta["revision"] = nextRevision
+meta["storageFormat"] = payload["storageFormat"]
+meta["snapshotToken"] = payload["snapshotToken"]
+if payload["username"] then
+  meta["username"] = payload["username"]
+else
+  meta["username"] = nil
+end
+if normalizedUsername then
+  meta["usernameNormalized"] = normalizedUsername
+else
+  meta["usernameNormalized"] = nil
+end
+payload["parts"]["meta"] = meta
+
+for _, partName in ipairs(payload["presentParts"]) do
+  redis.call(
+    "SET",
+    payload["snapshotKeyPrefix"] .. ":" .. partName,
+    cjson.encode(payload["parts"][partName])
+  )
+end
+
+local commitPointer = {
+  userId = payload["userId"],
+  storageFormat = payload["storageFormat"],
+  readShape = payload["readShape"],
+  schemaVersion = payload["schemaVersion"],
+  revision = nextRevision,
+  createdAt = payload["createdAt"],
+  updatedAt = payload["updatedAt"],
+  committedAt = payload["committedAt"],
+  snapshotToken = payload["snapshotToken"],
+  snapshotKeyPrefix = payload["snapshotKeyPrefix"],
+  completeness = payload["completeness"],
+}
+
+if payload["username"] then
+  commitPointer["username"] = payload["username"]
+end
+if normalizedUsername then
+  commitPointer["usernameNormalized"] = normalizedUsername
+end
+
+if currentState["snapshotToken"] and currentState["snapshotKeyPrefix"] then
+  commitPointer["previousSnapshotToken"] = currentState["snapshotToken"]
+  commitPointer["previousSnapshotKeyPrefix"] = currentState["snapshotKeyPrefix"]
+  commitPointer["previousRevision"] = tonumber(currentState["revision"]) or nil
+  commitPointer["previousUpdatedAt"] = currentState["updatedAt"]
+  commitPointer["previousCommittedAt"] = currentState["committedAt"]
+  if currentState["completeness"] then
+    commitPointer["previousCompleteness"] = currentState["completeness"]
+  end
+end
+
+redis.call("SET", KEYS[1], cjson.encode(commitPointer))
+
+local aliasMap = {}
+for _, alias in ipairs(redis.call("SMEMBERS", KEYS[2])) do
+  if type(alias) == "string" and string.len(alias) > 0 then
+    aliasMap[alias] = true
+  end
+end
+if currentState["usernameNormalized"] then
+  aliasMap[currentState["usernameNormalized"]] = true
+end
+if normalizedUsername then
+  aliasMap[normalizedUsername] = true
+end
+
+local aliasList = {}
+for alias, _ in pairs(aliasMap) do
+  table.insert(aliasList, alias)
+end
+
+redis.call("DEL", KEYS[2])
+if #aliasList > 0 then
+  redis.call("SADD", KEYS[2], unpack(aliasList))
+end
+
+for _, alias in ipairs(aliasList) do
+  local aliasKey = "username:" .. alias
+  if normalizedUsername and alias == normalizedUsername then
+    redis.call("SET", aliasKey, payload["userId"])
+  else
+    local aliasOwner = redis.call("GET", aliasKey)
+    if aliasOwner == payload["userId"] then
+      redis.call("DEL", aliasKey)
+    end
+  end
+end
+
+redis.call("SADD", KEYS[3], payload["userId"])
+redis.call("ZADD", KEYS[4], payload["updatedAtScore"], payload["userId"])
+
+for _, partName in ipairs(payload["allParts"]) do
+  redis.call("DEL", "user:" .. payload["userId"] .. ":" .. partName)
+end
+
+redis.call("DEL", KEYS[6])
+
+local staleSnapshotKeyPrefix = currentState["previousSnapshotKeyPrefix"]
+if type(staleSnapshotKeyPrefix) == "string" and string.len(staleSnapshotKeyPrefix) > 0 then
+  for _, partName in ipairs(payload["allParts"]) do
+    redis.call("DEL", staleSnapshotKeyPrefix .. ":" .. partName)
+  end
+end
+
+return {1, payload["updatedAt"], tostring(nextRevision), payload["snapshotToken"]}
+`;
+
+const REPAIR_STALE_USERNAME_ALIAS_LUA = `
+local attemptedOwner = redis.call("GET", KEYS[1])
+if attemptedOwner == ARGV[1] and ARGV[2] ~= ARGV[3] then
+  redis.call("DEL", KEYS[1])
+end
+
+if string.len(ARGV[3]) > 0 then
+  local canonicalOwner = redis.call("GET", KEYS[2])
+  if not canonicalOwner or canonicalOwner == ARGV[1] then
+    redis.call("SET", KEYS[2], ARGV[1])
+  end
+end
+
+if string.len(ARGV[2]) > 0 then
+  redis.call("SADD", KEYS[3], ARGV[2])
+end
+if string.len(ARGV[3]) > 0 then
+  redis.call("SADD", KEYS[3], ARGV[3])
+end
+
+return {1}
+`;
+
+type SaveUserRecordScriptResult =
+  | {
+      didWrite: true;
+      updatedAt: string;
+      revision: number;
+      snapshotToken: string;
+    }
+  | {
+      didWrite: false;
+      currentUpdatedAt?: string;
+    };
+
+function normalizeScriptStatus(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return undefined;
+}
+
+function parseSaveUserRecordScriptResult(
+  userId: string,
+  result: unknown,
+): SaveUserRecordScriptResult {
+  if (!Array.isArray(result)) {
+    throw new UserDataIntegrityError(
+      userId,
+      "Unexpected result from saveUserRecord atomic write",
+    );
+  }
+
+  const status = normalizeScriptStatus(result[0]);
+  if (status === 1) {
+    const updatedAt =
+      typeof result[1] === "string" && result[1].length > 0 ? result[1] : "";
+    const revision = normalizeScriptStatus(result[2]);
+    const snapshotToken =
+      typeof result[3] === "string" && result[3].length > 0 ? result[3] : "";
+
+    if (!updatedAt || !revision || !snapshotToken) {
+      throw new UserDataIntegrityError(
+        userId,
+        "Unexpected result from saveUserRecord atomic write",
+      );
+    }
+
+    return {
+      didWrite: true,
+      updatedAt,
+      revision,
+      snapshotToken,
+    };
+  }
+
+  if (status === 0) {
+    return {
+      didWrite: false,
+      currentUpdatedAt:
+        typeof result[1] === "string" && result[1].length > 0
+          ? result[1]
+          : undefined,
+    };
+  }
+
+  throw new UserDataIntegrityError(
+    userId,
+    "Unexpected result from saveUserRecord atomic write",
+  );
 }
 
 /**
@@ -1479,93 +2332,72 @@ export async function saveUserRecord(
   record: PersistedUserRecord,
   options?: {
     existingState?: PersistedUserState;
+    expectedUpdatedAt?: string;
     triggerSource?: UserLifecycleAuditTriggerSource;
   },
-): Promise<{ updatedAt: string; revision: number }> {
-  const currentState =
-    options && Object.hasOwn(options, "existingState")
-      ? options.existingState
-      : await getPersistedUserState(record.userId);
+): Promise<{ updatedAt: string; revision: number; snapshotToken: string }> {
   const split = splitUserRecord(record) as unknown as Record<
     UserDataPart,
     unknown
   >;
   const userId = String(record.userId);
-  const nextRevision = Math.max(0, currentState?.revision ?? 0) + 1;
   const normalizedUsername = normalizeUsernameIndexValue(record.username);
-  const previousNormalizedUsername = currentState?.normalizedUsername;
-  const trackedUsernameAliases = await readTrackedUsernameAliases(
-    userId,
-    currentState,
-  );
-  const knownUsernameAliases = normalizeTrackedUsernameAliases([
-    ...trackedUsernameAliases,
-    previousNormalizedUsername,
-    normalizedUsername,
-  ]);
-  const pipeline = redisClient.pipeline() as unknown as RedisPipeline;
   const presentParts = Object.keys(split) as UserDataPart[];
-  const missingParts = ALL_USER_DATA_PARTS.filter(
-    (part) => !Object.hasOwn(split, part),
-  );
-
-  const meta = split.meta as UserMeta & Record<string, unknown>;
-  meta.schemaVersion = USER_RECORD_SCHEMA_VERSION;
-  meta.revision = nextRevision;
-  meta.storageFormat = USER_STORAGE_FORMAT;
-  if (normalizedUsername) {
-    meta.usernameNormalized = normalizedUsername;
-  } else {
-    delete meta.usernameNormalized;
-  }
-
-  const commitPointer: UserCommitPointer = {
+  const completeness = buildUserPayloadCompletenessFromParts(split);
+  const snapshotToken = randomUUID();
+  const snapshotKeyPrefix = getUserSnapshotKeyPrefix(userId, snapshotToken);
+  const savePayload = {
     userId,
+    username: record.username,
+    normalizedUsername,
+    expectedUpdatedAt: options?.expectedUpdatedAt,
+    existingState: options?.existingState
+      ? {
+          revision: options.existingState.revision,
+          updatedAt: options.existingState.updatedAt,
+          normalizedUsername: options.existingState.normalizedUsername,
+          committedAt: options.existingState.committedAt,
+          snapshot: options.existingState.snapshot,
+          completeness: options.existingState.completeness,
+        }
+      : undefined,
     storageFormat: USER_STORAGE_FORMAT,
+    readShape: USER_COMMITTED_READ_SHAPE,
     schemaVersion: USER_RECORD_SCHEMA_VERSION,
-    revision: nextRevision,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
-    ...(record.username ? { username: record.username } : {}),
-    ...(normalizedUsername ? { usernameNormalized: normalizedUsername } : {}),
     committedAt: new Date().toISOString(),
+    snapshotToken,
+    snapshotKeyPrefix,
+    updatedAtScore: getUpdatedAtScore(record.updatedAt),
+    presentParts,
+    allParts: [...ALL_USER_DATA_PARTS],
+    parts: split,
+    completeness,
   };
 
-  presentParts.forEach((part) => {
-    pipeline.set(getUserDataKey(userId, part), JSON.stringify(split[part]));
-  });
-
-  pipeline.sadd(USER_REFRESH_REGISTRY_KEY, userId);
-
-  if (knownUsernameAliases.length > 0) {
-    pipeline.sadd(getUserUsernameAliasSetKey(userId), ...knownUsernameAliases);
-  }
-
-  if (normalizedUsername) {
-    pipeline.set(getUsernameIndexKey(normalizedUsername), userId);
-  }
-
-  pipeline.zadd(USER_REFRESH_INDEX_KEY, {
-    score: getUpdatedAtScore(record.updatedAt),
-    member: userId,
-  });
-
-  pipeline.set(getUserCommitKey(userId), JSON.stringify(commitPointer));
-
-  const staleAliasKeys = buildUsernameIndexKeys(
-    knownUsernameAliases.filter((alias) => alias !== normalizedUsername),
-  );
-  if (staleAliasKeys.length > 0) {
-    pipeline.del(...staleAliasKeys);
-  }
-
-  const staleSplitKeys = missingParts.map((part) =>
-    getUserDataKey(userId, part),
+  const saveResult = parseSaveUserRecordScriptResult(
+    userId,
+    await redisClient.eval(
+      SAVE_USER_RECORD_LUA,
+      [
+        getUserCommitKey(userId),
+        getUserUsernameAliasSetKey(userId),
+        USER_REFRESH_REGISTRY_KEY,
+        USER_REFRESH_INDEX_KEY,
+        getUserDataKey(userId, "meta"),
+        `user:${userId}`,
+      ],
+      [JSON.stringify(savePayload)],
+    ),
   );
 
-  pipeline.del(`user:${userId}`, ...staleSplitKeys);
+  if (!saveResult.didWrite) {
+    throw new UserRecordConflictError(userId, undefined, {
+      currentUpdatedAt: saveResult.currentUpdatedAt,
+    });
+  }
 
-  await pipeline.exec();
   await auditUserLifecycleEvent({
     action: "save",
     triggerSource: options?.triggerSource ?? "user_data_save",
@@ -1573,9 +2405,48 @@ export async function saveUserRecord(
   });
 
   return {
-    updatedAt: record.updatedAt,
-    revision: nextRevision,
+    updatedAt: saveResult.updatedAt,
+    revision: saveResult.revision,
+    snapshotToken: saveResult.snapshotToken,
   };
+}
+
+export async function repairStaleUsernameAlias(options: {
+  userId: string | number;
+  attemptedUsername: string;
+  canonicalUsername?: string;
+  state?: PersistedUserState | null;
+}): Promise<void> {
+  if (!options.state?.snapshot) {
+    return;
+  }
+
+  const attemptedNormalizedUsername = normalizeUsernameIndexValue(
+    options.attemptedUsername,
+  );
+  if (!attemptedNormalizedUsername) {
+    return;
+  }
+
+  const canonicalNormalizedUsername = normalizeUsernameIndexValue(
+    options.canonicalUsername,
+  );
+
+  await redisClient.eval(
+    REPAIR_STALE_USERNAME_ALIAS_LUA,
+    [
+      getUsernameIndexKey(attemptedNormalizedUsername),
+      getUsernameIndexKey(
+        canonicalNormalizedUsername ?? attemptedNormalizedUsername,
+      ),
+      getUserUsernameAliasSetKey(options.userId),
+    ],
+    [
+      String(options.userId),
+      attemptedNormalizedUsername,
+      canonicalNormalizedUsername ?? "",
+    ],
+  );
 }
 
 /**
@@ -1630,6 +2501,39 @@ export async function deleteUserRecord(
   const usernameIndexKeys = await findUsernameIndexKeysForUser(userId);
   const normalizedUserId = String(userId);
   const keys = ALL_USER_DATA_PARTS.map((part) => getUserDataKey(userId, part));
+  const commitPointer = await readUserCommitPointer(userId).catch((error) => {
+    if (error instanceof UserDataIntegrityError) {
+      logPrivacySafe(
+        "warn",
+        "User Data",
+        "Continuing delete after commit-pointer read failed",
+        {
+          userId,
+          error: error.message,
+        },
+      );
+      return null;
+    }
+
+    throw error;
+  });
+
+  if (commitPointer?.snapshotKeyPrefix) {
+    keys.push(
+      ...ALL_USER_DATA_PARTS.map((part) =>
+        getUserSnapshotPartKey(commitPointer.snapshotKeyPrefix!, part),
+      ),
+    );
+  }
+
+  if (commitPointer?.previousSnapshotKeyPrefix) {
+    keys.push(
+      ...ALL_USER_DATA_PARTS.map((part) =>
+        getUserSnapshotPartKey(commitPointer.previousSnapshotKeyPrefix!, part),
+      ),
+    );
+  }
+
   keys.push(
     getUserCommitKey(userId),
     getUserUsernameAliasSetKey(userId),
@@ -1691,29 +2595,35 @@ export async function fetchUserDataParts(
     triggerSource?: UserLifecycleAuditTriggerSource;
   },
 ): Promise<Partial<Record<UserDataPart, unknown>>> {
-  const shouldAudit = options?.audit !== false;
-  const commitPointer = await readUserCommitPointer(userId);
-  if (commitPointer) {
-    const data = await loadCommittedUserDataParts(userId, parts, commitPointer);
-    if (shouldAudit && Object.keys(data).length > 0) {
-      await auditUserLifecycleEvent({
-        action: "access",
-        triggerSource: options?.triggerSource ?? "user_data_fetch",
-        userId,
-      });
-    }
-    return data;
-  }
+  const result = await fetchUserDataSnapshot(userId, parts, options);
 
-  const data = await loadLegacyCompatibleUserDataParts(userId, parts);
-  if (shouldAudit && Object.keys(data).length > 0) {
+  return result.parts;
+}
+
+export async function fetchUserDataSnapshot(
+  userId: string | number,
+  parts: UserDataPart[],
+  options?: {
+    audit?: boolean;
+    expectedSnapshotToken?: string;
+    expectedUpdatedAt?: string;
+    triggerSource?: UserLifecycleAuditTriggerSource;
+  },
+): Promise<UserDataReadResult> {
+  const shouldAudit = options?.audit !== false;
+  const result = await loadLegacyCompatibleUserDataParts(userId, parts, {
+    expectedSnapshotToken: options?.expectedSnapshotToken,
+    expectedUpdatedAt: options?.expectedUpdatedAt,
+  });
+  if (shouldAudit && Object.keys(result.parts).length > 0) {
     await auditUserLifecycleEvent({
       action: "access",
       triggerSource: options?.triggerSource ?? "user_data_fetch",
       userId,
     });
   }
-  return data;
+
+  return result;
 }
 
 /**

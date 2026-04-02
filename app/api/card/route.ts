@@ -24,15 +24,16 @@ import {
 import {
   buildCardConfigFromParams,
   CardDataError,
-  fetchUserData,
-  fetchUserDataForCard,
+  fetchUserDataForCardWithState,
+  fetchUserDataWithState,
   needsCardConfigFromDb,
   processCardConfig,
   processFavorites,
   resolveUserIdFromUsername,
 } from "@/lib/card-data";
 import {
-  validateAndNormalizeUserRecord,
+  getRequiredAggregateKeyForCardType,
+  userHasRequiredAggregateForCardType,
   validateUserRecordForCardRender,
 } from "@/lib/card-data/validation";
 import generateCardSvg from "@/lib/card-generator";
@@ -949,41 +950,42 @@ export async function GET(request: Request) {
  * It returns an object with the resolved data on success, or an object
  * with an `error` response to be returned from the route on failure.
  */
-function needsAggregateFallback(
+function validateUserRecordForCard(
   baseCardType: string,
   userDoc: UserRecord,
-): boolean {
-  switch (baseCardType) {
-    case "animeSourceMaterialDistribution":
-      return !userDoc.aggregates?.animeSourceMaterialDistributionTotals?.length;
-    case "animeSeasonalPreference":
-      return !userDoc.aggregates?.animeSeasonalPreferenceTotals?.length;
-    case "animeGenreSynergy":
-      return !userDoc.aggregates?.animeGenreSynergyTotals?.length;
-    case "studioCollaboration":
-      return !userDoc.aggregates?.studioCollaborationTotals?.length;
-    default:
-      return false;
-  }
-}
-
-function validateUserRecordForCard(baseCardType: string, userDoc: UserRecord) {
+  options?: { snapshotMatched?: boolean },
+) {
   const fastPathResult = validateUserRecordForCardRender(userDoc);
   if ("error" in fastPathResult) {
     return fastPathResult;
   }
 
-  if (!needsAggregateFallback(baseCardType, fastPathResult.normalized)) {
+  if (
+    userHasRequiredAggregateForCardType(baseCardType, fastPathResult.normalized)
+  ) {
+    return fastPathResult;
+  }
+
+  const requiredAggregateKey = getRequiredAggregateKeyForCardType(baseCardType);
+  if (!requiredAggregateKey) {
     return fastPathResult;
   }
 
   logPrivacySafe(
     "warn",
     "Card SVG",
-    "Missing stored aggregates; falling back to write-time normalization for legacy data",
-    { cardType: baseCardType },
+    "Missing required stored aggregate for card render",
+    {
+      cardType: baseCardType,
+      missingAggregate: requiredAggregateKey,
+      snapshotMatched: options?.snapshotMatched ?? true,
+    },
   );
-  return validateAndNormalizeUserRecord(userDoc);
+
+  return {
+    error: `Missing required stored aggregate: ${requiredAggregateKey}`,
+    status: 500,
+  };
 }
 
 async function loadUserAndCardConfig(
@@ -1001,13 +1003,31 @@ async function loadUserAndCardConfig(
   | { error: Response }
 > {
   if (needsDbCardConfig) {
-    const data = await fetchUserData(effectiveUserId, params.cardType);
+    const data = await fetchUserDataWithState(effectiveUserId, params.cardType);
     const { cardDoc } = data;
     let userDoc = data.userDoc;
+
+    if (!data.snapshotMatched) {
+      logPrivacySafe(
+        "warn",
+        "Card SVG",
+        "Card configuration snapshot no longer matches a retained user snapshot; rendering latest committed user data",
+        {
+          userId: effectiveUserId,
+          cardType: params.cardType,
+          requestedSnapshotToken: cardDoc.userSnapshot?.token,
+          requestedSnapshotUpdatedAt: cardDoc.userSnapshot?.updatedAt,
+          resolvedSnapshotToken: data.userReadState?.snapshot?.token,
+          resolvedSnapshotUpdatedAt: data.userReadState?.snapshot?.updatedAt,
+        },
+        request,
+      );
+    }
 
     const validationResult = validateUserRecordForCard(
       params.baseCardType,
       userDoc,
+      { snapshotMatched: data.snapshotMatched },
     );
     if ("error" in validationResult) {
       return {
@@ -1033,10 +1053,15 @@ async function loadUserAndCardConfig(
     };
   }
 
-  const userDoc = await fetchUserDataForCard(effectiveUserId, params.cardType);
+  const userData = await fetchUserDataForCardWithState(
+    effectiveUserId,
+    params.cardType,
+  );
+  const userDoc = userData.userDoc;
   const validationResult = validateUserRecordForCard(
     params.baseCardType,
     userDoc,
+    { snapshotMatched: userData.snapshotMatched },
   );
   if ("error" in validationResult) {
     return {

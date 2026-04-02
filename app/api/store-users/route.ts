@@ -33,6 +33,7 @@ import {
   getPersistedUserState,
   saveUserRecord,
   UserDataIntegrityError,
+  UserRecordConflictError,
 } from "@/lib/server/user-data";
 import { PersistedUserRecord, UserRecord } from "@/lib/types/records";
 
@@ -78,6 +79,75 @@ function rejectInvalidStoreUsersPayload(params: {
     category: "invalid_data",
     retryable: false,
   });
+}
+
+function createStoreUsersConflictResponse(params: {
+  endpoint: string;
+  endpointKey: string;
+  request: Request;
+  currentUpdatedAt?: string;
+}): NextResponse {
+  scheduleStoreUsersMetric(
+    params.endpoint,
+    params.endpointKey,
+    "failed_requests",
+    params.request,
+  );
+
+  return apiErrorResponse(
+    params.request,
+    409,
+    "Conflict: data was updated elsewhere. Please reload and try again.",
+    {
+      category: "invalid_data",
+      retryable: false,
+      additionalFields: params.currentUpdatedAt
+        ? {
+            currentUpdatedAt: params.currentUpdatedAt,
+          }
+        : undefined,
+    },
+  );
+}
+
+async function persistPreparedUserRecord(params: {
+  endpoint: string;
+  endpointKey: string;
+  request: Request;
+  persistedUserData: PersistedUserRecord;
+  existingState?: Awaited<ReturnType<typeof getPersistedUserState>>;
+  ifMatchUpdatedAt?: string;
+}): Promise<
+  | {
+      saveResult: {
+        updatedAt: string;
+        revision: number;
+        snapshotToken: string;
+      };
+    }
+  | { errorResponse: NextResponse }
+> {
+  try {
+    const saveResult = await saveUserRecord(params.persistedUserData, {
+      existingState: params.existingState ?? undefined,
+      expectedUpdatedAt: params.ifMatchUpdatedAt,
+    });
+
+    return { saveResult };
+  } catch (error) {
+    if (error instanceof UserRecordConflictError) {
+      return {
+        errorResponse: createStoreUsersConflictResponse({
+          endpoint: params.endpoint,
+          endpointKey: params.endpointKey,
+          request: params.request,
+          currentUpdatedAt: error.currentUpdatedAt,
+        }),
+      };
+    }
+
+    throw error;
+  }
 }
 
 function preparePersistedUserRecord(params: {
@@ -236,24 +306,12 @@ export async function POST(request: Request): Promise<NextResponse> {
       existingState?.updatedAt &&
       existingState.updatedAt !== ifMatchUpdatedAt
     ) {
-      scheduleStoreUsersMetric(
+      return createStoreUsersConflictResponse({
         endpoint,
         endpointKey,
-        "failed_requests",
         request,
-      );
-      return apiErrorResponse(
-        request,
-        409,
-        "Conflict: data was updated elsewhere. Please reload and try again.",
-        {
-          category: "invalid_data",
-          retryable: false,
-          additionalFields: {
-            currentUpdatedAt: existingState.updatedAt,
-          },
-        },
-      );
+        currentUpdatedAt: existingState.updatedAt,
+      });
     }
 
     const userData: UserRecord = {
@@ -287,9 +345,17 @@ export async function POST(request: Request): Promise<NextResponse> {
       request,
     );
 
-    const saveResult = await saveUserRecord(preparedRecord.persistedUserData, {
-      existingState: existingState ?? undefined,
+    const persistResult = await persistPreparedUserRecord({
+      endpoint,
+      endpointKey,
+      request,
+      persistedUserData: preparedRecord.persistedUserData,
+      existingState,
+      ifMatchUpdatedAt,
     });
+    if ("errorResponse" in persistResult) {
+      return persistResult.errorResponse;
+    }
 
     const duration = Date.now() - startTime;
     logSuccess(endpoint, userId, duration, undefined, request);
@@ -301,7 +367,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
 
     return jsonWithCors(
-      { success: true, userId, updatedAt: saveResult.updatedAt },
+      { success: true, userId, updatedAt: persistResult.saveResult.updatedAt },
       request,
     );
   } catch (error) {

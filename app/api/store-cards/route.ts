@@ -28,8 +28,11 @@ import {
   scheduleTelemetryTask,
   validateCardData,
 } from "@/lib/api-utils";
+import { parseStoredCardsRecord as parsePersistedCardsRecord } from "@/lib/card-data/fetching";
 import { displayNames, isValidCardType } from "@/lib/card-data/validation";
+import { getPersistedUserState } from "@/lib/server/user-data";
 import {
+  CARDS_RECORD_SCHEMA_VERSION,
   CardsRecord,
   GlobalCardSettings,
   StoredCardConfig,
@@ -120,41 +123,24 @@ function supportsPieVariation(cardName: string): boolean {
   return CARD_TYPES_WITH_PIE_VARIATION.has(cardName);
 }
 
-function parseStoredCardsRecord(
+function parseExistingCardsRecord(
   rawValue: unknown,
   endpoint: string,
   endpointKey: string,
   cardsKey: string,
-): StoredCardConfig[] {
-  if (rawValue === undefined || rawValue === null) return [];
+  userId: number,
+): CardsRecord | undefined {
+  if (rawValue === undefined || rawValue === null) return undefined;
 
   try {
-    const parsedValue =
-      typeof rawValue === "string"
-        ? safeParse(rawValue, `${endpoint}:stored-cards:${cardsKey}`)
-        : rawValue;
-
-    if (parsedValue && typeof parsedValue === "object") {
-      const cards = (parsedValue as CardsRecord).cards;
-      if (Array.isArray(cards)) {
-        const filtered = cards.filter(
-          (c): c is StoredCardConfig =>
-            !!c &&
-            typeof c === "object" &&
-            typeof c.cardName === "string" &&
-            isValidCardType(c.cardName),
-        );
-        if (filtered.length !== cards.length) {
-          logPrivacySafe(
-            "warn",
-            endpoint,
-            "Removed unsupported card types from stored record",
-            { cardsKey },
-          );
-        }
-        return filtered;
-      }
-    }
+    return parsePersistedCardsRecord(
+      typeof rawValue === "string" ? rawValue : JSON.stringify(rawValue),
+      `${endpoint}:stored-cards:${cardsKey}`,
+      userId,
+      {
+        allowLegacyMissingUpdatedAt: true,
+      },
+    );
   } catch (error) {
     logPrivacySafe("warn", endpoint, "Stored card record corrupted", {
       cardsKey,
@@ -165,29 +151,26 @@ function parseStoredCardsRecord(
     ).catch(() => {});
   }
 
-  return [];
+  return undefined;
 }
 
-/** Helper to safely parse existing global settings from stored data */
-function parseExistingGlobalSettings(
-  existingData: unknown,
+function filterSupportedStoredCards(
+  cards: StoredCardConfig[],
   endpoint: string,
-): GlobalCardSettings | undefined {
-  try {
-    return (
-      typeof existingData === "string"
-        ? safeParse<CardsRecord>(existingData, `${endpoint}:globalSettings`)
-        : (existingData as CardsRecord | null)
-    )?.globalSettings;
-  } catch (error) {
+  cardsKey: string,
+): StoredCardConfig[] {
+  const filtered = cards.filter((card) => isValidCardType(card.cardName));
+
+  if (filtered.length !== cards.length) {
     logPrivacySafe(
       "warn",
       endpoint,
-      "Failed to parse existing global settings",
-      { error: error instanceof Error ? error.message : String(error) },
+      "Removed unsupported card types from stored record",
+      { cardsKey },
     );
-    return undefined;
   }
+
+  return filtered;
 }
 
 /**
@@ -1287,17 +1270,20 @@ export async function POST(request: Request): Promise<NextResponse> {
       request,
     );
     if (ifMatchCheck.conflictResponse) return ifMatchCheck.conflictResponse;
-    const existingCards = parseStoredCardsRecord(
+    const existingRecord = parseExistingCardsRecord(
       existingData,
       endpoint,
       endpointKey,
       cardsKey,
+      userId,
+    );
+    const existingCards = filterSupportedStoredCards(
+      existingRecord?.cards ?? [],
+      endpoint,
+      cardsKey,
     );
 
-    const existingGlobalSettings = parseExistingGlobalSettings(
-      existingData,
-      endpoint,
-    );
+    const existingGlobalSettings = existingRecord?.globalSettings;
 
     const assembly = await assembleStoredCardsAndGlobalSettings({
       incomingCards: incomingCardsTyped,
@@ -1320,11 +1306,16 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
     if (colorValidationError) return colorValidationError;
 
+    const persistedUserState = await getPersistedUserState(userId);
     const cardData: CardsRecord = {
       userId,
       cards: orderedStoredCards,
       globalSettings: mergedGlobalSettings,
       updatedAt: new Date().toISOString(),
+      schemaVersion: CARDS_RECORD_SCHEMA_VERSION,
+      ...(persistedUserState?.snapshot
+        ? { userSnapshot: persistedUserState.snapshot }
+        : {}),
     };
 
     const storeResult = await storeCardsRecord({

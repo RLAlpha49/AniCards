@@ -286,7 +286,7 @@ describe("user-data persistence", () => {
 
     const userScopedSetKeys = sharedRedisMockSet.mock.calls
       .map((call) => String(call[0]))
-      .filter((key) => key.startsWith("user:5:"))
+      .filter((key) => key.startsWith("user:5:") && !key.includes(":snapshot:"))
       .sort();
 
     expect(userScopedSetKeys).toEqual([
@@ -464,6 +464,7 @@ describe("user-data persistence", () => {
     const state = await getPersistedUserState("22");
 
     expect(state).toEqual({
+      committedAt: "2026-03-27T00:00:02.000Z",
       userId: "22",
       storageFormat: "split",
       schemaVersion: USER_RECORD_SCHEMA_VERSION,
@@ -636,18 +637,21 @@ describe("user-data persistence", () => {
     expect(sharedRedisMockDel).toHaveBeenCalledWith("user:26:migrating");
   });
 
-  it("treats missing stable part keys as corrupt even when the commit pointer exists", async () => {
+  it("treats missing committed snapshot part keys as corrupt when the commit pointer exists", async () => {
     sharedRedisMockGet.mockImplementation((key: string) => {
       if (key === "user:9:commit") {
         return Promise.resolve(
           JSON.stringify({
             userId: "9",
             storageFormat: "split-user-v2",
+            readShape: "committed-user-snapshot-v1",
             schemaVersion: 2,
             revision: 3,
             createdAt: "2026-03-27T00:00:00.000Z",
             updatedAt: "2026-03-27T00:00:01.000Z",
             committedAt: "2026-03-27T00:00:02.000Z",
+            snapshotToken: "snapshot-9",
+            snapshotKeyPrefix: "user:9:snapshot:snapshot-9",
           }),
         );
       }
@@ -656,7 +660,10 @@ describe("user-data persistence", () => {
     });
 
     sharedRedisMockMget.mockImplementation(async (...keys: string[]) => {
-      expect(keys).toEqual(["user:9:meta", "user:9:activity"]);
+      expect(keys).toEqual([
+        "user:9:snapshot:snapshot-9:meta",
+        "user:9:snapshot:snapshot-9:activity",
+      ]);
       return [null, null];
     });
 

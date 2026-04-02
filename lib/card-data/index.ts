@@ -9,6 +9,8 @@ export {
 export {
   fetchUserData,
   fetchUserDataForCard,
+  fetchUserDataForCardWithState,
+  fetchUserDataWithState,
   resolveUserIdFromUsername,
 } from "./fetching";
 export {

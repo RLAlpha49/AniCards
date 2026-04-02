@@ -390,6 +390,53 @@ export interface StudioCollaborationTotalsEntry {
   count: number;
 }
 
+/** Aggregate keys persisted alongside sampled user snapshots. @source */
+export const USER_AGGREGATE_KEYS = [
+  "animeSourceMaterialDistributionTotals",
+  "animeSeasonalPreferenceTotals",
+  "animeGenreSynergyTotals",
+  "studioCollaborationTotals",
+] as const;
+
+/** Aggregate key union used by completeness metadata. @source */
+export type UserAggregateKey = (typeof USER_AGGREGATE_KEYS)[number];
+
+/** Snapshot completeness metadata exposed on sampled public user payloads. @source */
+export interface UserPayloadCompleteness {
+  sampled: boolean;
+  fullHistory: false;
+  boundedSections: string[];
+  availableAggregates: UserAggregateKey[];
+  missingAggregates: UserAggregateKey[];
+}
+
+/** Stable token identifying one committed user snapshot. @source */
+export interface UserSnapshotRef {
+  token: string;
+  revision: number;
+  updatedAt: string;
+  committedAt: string;
+}
+
+/** Public metadata about the sampled user payload returned by `/api/get-user`. @source */
+export interface PublicUserRecordMetadata {
+  storageFormat: "committed-split" | "legacy-split" | "legacy";
+  schemaVersion: number;
+  snapshot?: UserSnapshotRef;
+  completeness: UserPayloadCompleteness;
+}
+
+/** Snapshot reference stored with card records so card reads can pin one user state. @source */
+export interface CardsRecordUserSnapshot {
+  token?: string;
+  revision?: number;
+  updatedAt?: string;
+  committedAt?: string;
+}
+
+/** Current card-record schema version for compatibility-aware readers and writers. @source */
+export const CARDS_RECORD_SCHEMA_VERSION = 2;
+
 /**
  * Aggregates / precomputed totals stored separately from main `meta`.
  */
@@ -458,6 +505,7 @@ export interface PublicUserRecord {
     reviewsPage: ReviewsPage;
   };
   aggregates?: UserAggregates;
+  recordMeta?: PublicUserRecordMetadata;
 }
 
 /** Lightweight bootstrap DTO returned by `/api/get-user?view=bootstrap`. */
@@ -465,6 +513,7 @@ export interface UserBootstrapRecord {
   userId: number;
   username?: string;
   avatarUrl?: string | null;
+  recordMeta?: PublicUserRecordMetadata;
 }
 
 /**
@@ -527,4 +576,6 @@ export interface CardsRecord {
   cards: StoredCardConfig[];
   globalSettings?: GlobalCardSettings;
   updatedAt: string;
+  schemaVersion?: number;
+  userSnapshot?: CardsRecordUserSnapshot;
 }

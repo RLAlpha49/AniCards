@@ -22,10 +22,12 @@ import {
 } from "@/lib/api-utils";
 import {
   ALL_USER_DATA_PARTS,
-  fetchUserDataParts,
+  fetchUserDataSnapshot,
   normalizeUsernameIndexValue,
+  PersistedUserState,
   reconstructPublicUserRecord,
   reconstructUserBootstrapRecord,
+  repairStaleUsernameAlias,
   USER_BOOTSTRAP_DATA_PARTS,
 } from "@/lib/server/user-data";
 
@@ -153,6 +155,8 @@ async function handleStaleUsernameAlias(
   request: Request,
   userId: number,
   normalizedLookupUsername: string,
+  canonicalUsername?: string,
+  state?: PersistedUserState | null,
 ): Promise<Response> {
   logPrivacySafe(
     "warn",
@@ -164,6 +168,14 @@ async function handleStaleUsernameAlias(
     },
     request,
   );
+
+  await repairStaleUsernameAlias({
+    userId,
+    attemptedUsername: normalizedLookupUsername,
+    canonicalUsername,
+    state,
+  });
+
   trackUserApiMetric(USER_API_FAILED_METRIC);
   return apiErrorResponse(request, 404, "User not found");
 }
@@ -215,12 +227,13 @@ export async function GET(request: Request) {
     const { userId: numericUserId, normalizedLookupUsername } = resolvedLookup;
     resolvedUserId = numericUserId;
 
-    const userDataParts = await fetchUserDataParts(
+    const userReadResult = await fetchUserDataSnapshot(
       numericUserId,
       shouldReturnBootstrap
         ? [...USER_BOOTSTRAP_DATA_PARTS]
         : [...ALL_USER_DATA_PARTS],
     );
+    const { parts: userDataParts, state: userDataState } = userReadResult;
     const duration = Date.now() - startTime;
 
     if (!userDataParts.meta) {
@@ -238,11 +251,15 @@ export async function GET(request: Request) {
     }
 
     const userData = shouldReturnBootstrap
-      ? reconstructUserBootstrapRecord(userDataParts)
-      : reconstructPublicUserRecord(userDataParts);
-    const persistedNormalizedUsername = normalizeUsernameIndexValue(
-      userData.username,
-    );
+      ? reconstructUserBootstrapRecord(userDataParts, {
+          state: userDataState,
+        })
+      : reconstructPublicUserRecord(userDataParts, {
+          state: userDataState,
+        });
+    const canonicalUsername = userData.username ?? userDataState?.username;
+    const persistedNormalizedUsername =
+      normalizeUsernameIndexValue(canonicalUsername);
     if (
       normalizedLookupUsername &&
       persistedNormalizedUsername !== normalizedLookupUsername
@@ -251,6 +268,8 @@ export async function GET(request: Request) {
         request,
         numericUserId,
         normalizedLookupUsername,
+        canonicalUsername,
+        userDataState,
       );
     }
 

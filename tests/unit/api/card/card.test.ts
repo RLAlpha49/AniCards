@@ -1244,7 +1244,7 @@ describe("Card SVG Route", () => {
       });
     });
 
-    it("should render studioCollaboration using completed lists", async () => {
+    it("should fail when studioCollaboration is missing its stored aggregate", async () => {
       const cardsData = createMockCardData("studioCollaboration", "default");
 
       const statsPayload = {
@@ -1304,24 +1304,12 @@ describe("Card SVG Route", () => {
       );
 
       const res = await GET(req);
-      expect(res.status).toBe(200);
-
-      expect(extraAnimeMangaStatsTemplate).toHaveBeenCalled();
-      const callArgs = (
-        extraAnimeMangaStatsTemplate as MockFunction<
-          typeof extraAnimeMangaStatsTemplate
-        >
-      ).mock.calls.at(-1)![0];
-
-      expect(callArgs.format).toBe("Studio Collaboration");
-      expect(callArgs.stats).toContainEqual({
-        name: "MAPPA + Wit Studio",
-        count: 1,
-      });
-      expect(callArgs.stats).toContainEqual({
-        name: "Bones + Wit Studio",
-        count: 1,
-      });
+      await expectErrorResponse(
+        res,
+        "Server Error: Missing required stored aggregate: studioCollaborationTotals",
+        500,
+      );
+      expect(extraAnimeMangaStatsTemplate).not.toHaveBeenCalled();
     });
 
     it("should display N/A for avg progress for manga drops with unknown chapter totals", async () => {

@@ -5,8 +5,11 @@
  * `UserRecord` and card contracts the rest of the app relies on, while also
  * computing aggregates that must survive list-pruning in storage.
  */
-import type { ErrorCategory, RecoverySuggestion } from "@/lib/error-messages";
-import { getErrorDetails } from "@/lib/error-messages";
+import {
+  type ErrorCategory,
+  getErrorDetails,
+  type RecoverySuggestion,
+} from "@/lib/error-messages";
 import {
   AnimeGenreSynergyTotalsEntry,
   AnimeStats,
@@ -22,6 +25,8 @@ import {
   SeasonalPreferenceTotalsEntry,
   SourceMaterialDistributionTotalsEntry,
   StudioCollaborationTotalsEntry,
+  USER_AGGREGATE_KEYS,
+  UserAggregateKey,
   UserAvatar,
   UserRecommendationsPage,
   UserRecord,
@@ -137,6 +142,66 @@ export const displayNames: { [key: string]: string } = {
   reviewStats: "Review Statistics",
   studioCollaboration: "Studio Collaboration",
 };
+
+const CARD_TYPE_REQUIRED_AGGREGATES: Partial<Record<string, UserAggregateKey>> =
+  {
+    animeSourceMaterialDistribution: "animeSourceMaterialDistributionTotals",
+    animeSeasonalPreference: "animeSeasonalPreferenceTotals",
+    animeGenreSynergy: "animeGenreSynergyTotals",
+    studioCollaboration: "studioCollaborationTotals",
+  };
+
+/** Returns the aggregate key required by a card type, if any. @source */
+export function getRequiredAggregateKeyForCardType(
+  baseCardType: string,
+): UserAggregateKey | undefined {
+  return CARD_TYPE_REQUIRED_AGGREGATES[baseCardType];
+}
+
+/** Returns the aggregate keys already stored on a user record. @source */
+export function getAvailableUserAggregateKeys(
+  user:
+    | Pick<UserRecord, "aggregates">
+    | Partial<Pick<UserRecord, "aggregates">>
+    | null
+    | undefined,
+): UserAggregateKey[] {
+  const storedAggregates = user?.aggregates;
+
+  return USER_AGGREGATE_KEYS.filter((key) => {
+    const value = storedAggregates?.[key];
+    return Array.isArray(value) && value.length > 0;
+  });
+}
+
+/** Returns the aggregate keys missing from a sampled user record. @source */
+export function getMissingUserAggregateKeys(
+  user:
+    | Pick<UserRecord, "aggregates">
+    | Partial<Pick<UserRecord, "aggregates">>
+    | null
+    | undefined,
+): UserAggregateKey[] {
+  const available = new Set(getAvailableUserAggregateKeys(user));
+  return USER_AGGREGATE_KEYS.filter((key) => !available.has(key));
+}
+
+/** Returns whether the user record already has the aggregate needed by a card. @source */
+export function userHasRequiredAggregateForCardType(
+  baseCardType: string,
+  user:
+    | Pick<UserRecord, "aggregates">
+    | Partial<Pick<UserRecord, "aggregates">>
+    | null
+    | undefined,
+): boolean {
+  const requiredAggregateKey = getRequiredAggregateKeyForCardType(baseCardType);
+  if (!requiredAggregateKey) {
+    return true;
+  }
+
+  return !getMissingUserAggregateKeys(user).includes(requiredAggregateKey);
+}
 
 /**
  * Returns whether the provided card type string corresponds to a supported

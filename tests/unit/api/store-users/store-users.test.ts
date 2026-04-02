@@ -20,6 +20,7 @@ import {
   allowConsoleWarningsAndErrors,
   sharedRatelimitMockLimit,
   sharedRedisMockDel,
+  sharedRedisMockEval,
   sharedRedisMockGet,
   sharedRedisMockIncr,
   sharedRedisMockMget,
@@ -1019,9 +1020,7 @@ describe("Store Users API", () => {
     it("should return 500 error if redis storage fails", async () => {
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
       sharedRedisMockGet.mockResolvedValueOnce(null);
-      sharedRedisMockPipelineExec.mockRejectedValueOnce(
-        new Error("Redis failure"),
-      );
+      sharedRedisMockEval.mockRejectedValueOnce(new Error("Redis failure"));
 
       const reqBody = {
         userId: 11,
