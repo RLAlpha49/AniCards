@@ -2104,6 +2104,93 @@ components:
           type: object
           additionalProperties: true
 
+    UserAggregateKey:
+      type: string
+      enum:
+        - animeSourceMaterialDistributionTotals
+        - animeSeasonalPreferenceTotals
+        - animeGenreSynergyTotals
+        - studioCollaborationTotals
+
+    UserPayloadCompleteness:
+      type: object
+      additionalProperties: false
+      description: >-
+        Snapshot completeness metadata describing the sampled user payload that
+        was retained in storage.
+      properties:
+        sampled:
+          type: boolean
+        fullHistory:
+          type: boolean
+          enum:
+            - false
+        boundedSections:
+          type: array
+          items:
+            type: string
+        availableAggregates:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserAggregateKey"
+        missingAggregates:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserAggregateKey"
+      required:
+        - sampled
+        - fullHistory
+        - boundedSections
+        - availableAggregates
+        - missingAggregates
+
+    UserSnapshotRef:
+      type: object
+      additionalProperties: false
+      description: Stable identifier for one committed user snapshot.
+      properties:
+        token:
+          type: string
+        revision:
+          type: integer
+          minimum: 1
+        updatedAt:
+          type: string
+          format: date-time
+        committedAt:
+          type: string
+          format: date-time
+      required:
+        - token
+        - revision
+        - updatedAt
+        - committedAt
+
+    PublicUserRecordMetadata:
+      type: object
+      additionalProperties: false
+      description: >-
+        Public metadata about the sampled record returned by `/api/get-user`,
+        including storage shape and snapshot completeness.
+      properties:
+        storageFormat:
+          type: string
+          enum:
+            - committed-split
+            - legacy-split
+            - legacy
+        schemaVersion:
+          type: integer
+          minimum: 1
+        snapshot:
+          $ref: "#/components/schemas/UserSnapshotRef"
+        completeness:
+          $ref: "#/components/schemas/UserPayloadCompleteness"
+      required:
+        - storageFormat
+        - schemaVersion
+        - completeness
+
     PublicUserRecord:
       type: object
       additionalProperties: false
@@ -2134,26 +2221,8 @@ components:
         aggregates:
           type: object
           additionalProperties: true
-        animeSourceMaterialDistributionTotals:
-          type: array
-          items:
-            type: object
-            additionalProperties: true
-        animeSeasonalPreferenceTotals:
-          type: array
-          items:
-            type: object
-            additionalProperties: true
-        animeGenreSynergyTotals:
-          type: array
-          items:
-            type: object
-            additionalProperties: true
-        studioCollaborationTotals:
-          type: array
-          items:
-            type: object
-            additionalProperties: true
+        recordMeta:
+          $ref: "#/components/schemas/PublicUserRecordMetadata"
       required:
         - userId
         - stats
@@ -2175,6 +2244,8 @@ components:
         avatarUrl:
           type: string
           nullable: true
+        recordMeta:
+          $ref: "#/components/schemas/PublicUserRecordMetadata"
       required:
         - userId
 
