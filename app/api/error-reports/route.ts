@@ -4,11 +4,12 @@ import {
   apiJsonHeaders,
   createRateLimiter,
   initializeApiRequest,
-  invalidJsonResponse,
   jsonWithCors,
+  readJsonRequestBody,
   scheduleTelemetryTask,
 } from "@/lib/api-utils";
 import {
+  ERROR_REPORT_REQUEST_MAX_BYTES,
   type ErrorReportSource,
   reportStructuredError,
 } from "@/lib/error-tracking";
@@ -25,18 +26,29 @@ export async function POST(request: Request) {
     "Error Reports API",
     "error_reports",
     errorReportsRateLimiter,
-    { requireOrigin: true },
+    {
+      requireOrigin: true,
+      requireRequestProof: true,
+      requireVerifiedClientIp: true,
+    },
   );
   if (init.errorResponse) return init.errorResponse;
 
-  const { requestId: ingestionRequestId } = init;
+  const { endpoint, endpointKey, requestId: ingestionRequestId } = init;
 
-  let payload: unknown;
-  try {
-    payload = await request.json();
-  } catch {
-    return invalidJsonResponse(request);
+  const bodyResult = await readJsonRequestBody<Record<string, unknown>>(
+    request,
+    {
+      endpointName: endpoint,
+      endpointKey,
+      maxBytes: ERROR_REPORT_REQUEST_MAX_BYTES,
+    },
+  );
+  if (!bodyResult.success) {
+    return bodyResult.errorResponse;
   }
+
+  const payload = bodyResult.data;
 
   const parsedPayload = errorReportPayloadSchema.safeParse(payload);
   if (!parsedPayload.success) {

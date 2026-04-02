@@ -121,6 +121,56 @@ describe("error tracking", () => {
     expect(payload.requestId).toBe("req-track-12345");
   });
 
+  it("redacts sensitive message fragments and drops sensitive metadata before persistence", async () => {
+    const report = await trackUserActionError(
+      "user_page_load",
+      new Error(
+        "Failed request for alex@example.com with token=super-secret-token-value-1234567890",
+      ),
+      "network_error",
+      {
+        metadata: {
+          authToken: "super-secret-token-value-1234567890",
+          boundary: "client_hook",
+          email: "alex@example.com",
+          note: "retry email=alex@example.com token=super-secret-token-value-1234567890",
+        },
+        source: "client_hook",
+      },
+    );
+
+    expect(report).not.toBeNull();
+    expect(report?.metadata?.boundary).toBe("client_hook");
+    expect(report?.metadata).not.toHaveProperty("authToken");
+    expect(report?.metadata).not.toHaveProperty("email");
+    expect(report?.technicalMessage).not.toContain("alex@example.com");
+    expect(report?.technicalMessage).not.toContain(
+      "super-secret-token-value-1234567890",
+    );
+
+    const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1] as
+      | string
+      | undefined;
+    expect(serializedReport).toBeTruthy();
+    expect(serializedReport).not.toContain("alex@example.com");
+    expect(serializedReport).not.toContain(
+      "super-secret-token-value-1234567890",
+    );
+
+    const payload = JSON.parse(String(serializedReport)) as {
+      metadata?: Record<string, string>;
+      technicalMessage: string;
+    };
+
+    expect(payload.metadata?.boundary).toBe("client_hook");
+    expect(payload.metadata).not.toHaveProperty("authToken");
+    expect(payload.metadata).not.toHaveProperty("email");
+    expect(payload.technicalMessage).not.toContain("alex@example.com");
+    expect(payload.technicalMessage).not.toContain(
+      "super-secret-token-value-1234567890",
+    );
+  });
+
   it("sanitizes stack traces before persisting server reports", async () => {
     const report = await trackUserActionError(
       "render_component_tree",
@@ -357,6 +407,77 @@ describe("error tracking", () => {
     expect(
       sessionStorageState.get("anicards:error-report-queue:v1"),
     ).toBeUndefined();
+  });
+
+  it("stores only minimized payloads in the client retry queue", async () => {
+    const sessionStorageState = new Map<string, string>();
+    const sessionStorageMock = {
+      clear() {
+        sessionStorageState.clear();
+      },
+      getItem(key: string) {
+        return sessionStorageState.get(key) ?? null;
+      },
+      key(index: number) {
+        return [...sessionStorageState.keys()][index] ?? null;
+      },
+      get length() {
+        return sessionStorageState.size;
+      },
+      removeItem(key: string) {
+        sessionStorageState.delete(key);
+      },
+      setItem(key: string, value: string) {
+        sessionStorageState.set(key, value);
+      },
+    } satisfies Storage;
+    const fetchMock = mock(() =>
+      Promise.resolve(new Response(null, { status: 503 })),
+    );
+
+    Object.defineProperty(globalThis, "window", {
+      value: {
+        sessionStorage: sessionStorageMock,
+      } satisfies Pick<Window, "sessionStorage">,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "location", {
+      value: new URL("https://anicards.test/user/Alex?tab=cards"),
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "fetch", {
+      value: fetchMock,
+      configurable: true,
+      writable: true,
+    });
+
+    await trackUserActionError(
+      "render_component_tree",
+      new Error(
+        "Failed request for alex@example.com with token=super-secret-token-value-1234567890",
+      ),
+      "network_error",
+      {
+        metadata: {
+          authToken: "super-secret-token-value-1234567890",
+          boundary: "client_error_boundary",
+          email: "alex@example.com",
+          note: "retry email=alex@example.com token=super-secret-token-value-1234567890",
+        },
+        source: "react_error_boundary",
+      },
+    );
+
+    const queuedPayload = sessionStorageState.get(
+      "anicards:error-report-queue:v1",
+    );
+    expect(queuedPayload).toBeTruthy();
+    expect(queuedPayload).not.toContain("alex@example.com");
+    expect(queuedPayload).not.toContain("super-secret-token-value-1234567890");
+    expect(queuedPayload).not.toContain("authToken");
+    expect(queuedPayload).toContain("client_error_boundary");
   });
 
   it("sends sanitized stacks to the client ingestion route", async () => {

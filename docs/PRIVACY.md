@@ -69,13 +69,20 @@ These runtime signals are not gated behind the Google Analytics consent toggle.
 
 The app supports structured error reporting through `/api/error-reports`.
 
-Those reports can include sanitized versions of:
+That endpoint only accepts reports from same-site AniCards pages carrying the
+server-issued request-proof cookie used for protected write surfaces.
 
-- error message
+Those reports can include minimized versions of:
+
+- error message with obvious emails, tokens, URLs, and file paths redacted
 - error name
-- route
-- stack / component stack
-- bounded metadata
+- normalized route patterns
+- stack / component stack with file paths and URLs stripped
+- bounded metadata limited to a small number of safe keys and values
+
+The ingestion route enforces a small request-body cap of roughly **24 KB**. The
+browser retry queue stores only the same minimized payload and drops entries
+that exceed that limit.
 
 Client-supplied `userId` and `username` fields are ignored by this route and are not persisted as part of the structured error report payload.
 

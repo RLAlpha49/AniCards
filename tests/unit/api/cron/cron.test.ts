@@ -648,6 +648,7 @@ describe("Cron API Route", () => {
     const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1];
     const payload = JSON.parse(String(serializedReport)) as {
       metadata?: Record<string, unknown>;
+      requestId?: string;
       route?: string;
       source?: string;
       technicalMessage?: string;
@@ -657,13 +658,14 @@ describe("Cron API Route", () => {
     expect(payload.userAction).toBe("cron_refresh_user");
     expect(payload.source).toBe("api_route");
     expect(payload.route).toBe("/api/cron");
+    expect(payload.requestId).toBe("req-cron-user-error");
     expect(payload.technicalMessage).toBe("Part fetch exploded");
     expect(payload.metadata).toMatchObject({
       endpoint: "cron_job",
-      requestId: "req-cron-user-error",
       stage: "fetch_user_data_parts",
-      userId: "123",
     });
+    expect(payload.metadata).not.toHaveProperty("requestId");
+    expect(payload.metadata).not.toHaveProperty("userId");
   });
 
   it("returns 500 when Redis scanning or metadata loading fails critically", async () => {

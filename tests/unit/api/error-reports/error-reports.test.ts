@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import { OPTIONS, POST } from "@/app/api/error-reports/route";
+import {
+  createRequestProofToken,
+  REQUEST_PROOF_COOKIE_NAME,
+} from "@/lib/api/request-proof";
 import { flushScheduledTelemetryTasksForTests } from "@/lib/api-utils";
+import { ERROR_REPORT_REQUEST_MAX_BYTES } from "@/lib/error-tracking";
 import {
   allowConsoleWarningsAndErrors,
   sharedRatelimitMockLimit,
@@ -18,14 +23,8 @@ function createRequest(
   body?: Record<string, unknown>,
   headers?: Record<string, string>,
 ) {
-  return new Request(BASE_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      origin: "http://localhost",
-      ...headers,
-    },
-    body: JSON.stringify(
+  return createRawRequest(
+    JSON.stringify(
       body ?? {
         source: "react_error_boundary",
         userAction: "render_component_tree",
@@ -33,6 +32,19 @@ function createRequest(
         route: "/user/Alex?tab=cards",
       },
     ),
+    headers,
+  );
+}
+
+function createRawRequest(body: string, headers?: Record<string, string>) {
+  return new Request(BASE_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      origin: "http://localhost",
+      ...headers,
+    },
+    body,
   });
 }
 
@@ -168,6 +180,49 @@ describe("error reports API route", () => {
     expect(sharedRedisMockRpush).not.toHaveBeenCalled();
   });
 
+  it("rejects missing request proof when API_SECRET_TOKEN is configured", async () => {
+    process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+
+    const response = await POST(createRequest());
+
+    expect(response.status).toBe(401);
+    expect((await response.json()).error).toBe("Unauthorized");
+    expect(sharedRedisMockRpush).not.toHaveBeenCalled();
+  });
+
+  it("accepts authenticated error reports when a valid request proof cookie is present", async () => {
+    process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+
+    const token = await createRequestProofToken({ ip: "127.0.0.1" });
+    if (!token) {
+      throw new Error("Expected request proof token to be generated");
+    }
+
+    const response = await POST(
+      createRequest(undefined, {
+        cookie: `${REQUEST_PROOF_COOKIE_NAME}=${token}`,
+      }),
+    );
+
+    expect(response.status).toBe(202);
+  });
+
+  it("rejects oversized JSON payloads before validation or persistence", async () => {
+    const response = await POST(
+      createRawRequest(
+        JSON.stringify({
+          source: "react_error_boundary",
+          userAction: "render_component_tree",
+          message: "x".repeat(ERROR_REPORT_REQUEST_MAX_BYTES),
+        }),
+      ),
+    );
+
+    expect(response.status).toBe(413);
+    expect((await response.json()).error).toBe("Request body too large");
+    expect(sharedRedisMockRpush).not.toHaveBeenCalled();
+  });
+
   it("returns 202 before durable error persistence settles", async () => {
     let resolveRpush: ((value: number) => void) | undefined;
 
@@ -206,6 +261,47 @@ describe("error reports API route", () => {
 
     expect(response.status).toBe(400);
     expect((await response.json()).error).toBe("Invalid error report payload");
+  });
+
+  it("persists redacted error text and minimized metadata", async () => {
+    const response = await POST(
+      createRequest({
+        source: "react_error_boundary",
+        userAction: "render_component_tree",
+        message:
+          "Failed request for alex@example.com with token=super-secret-token-value-1234567890",
+        route: "/user/Alex?token=secret",
+        metadata: {
+          authToken: "super-secret-token-value-1234567890",
+          boundary: "client_error_boundary",
+          email: "alex@example.com",
+          note: "retry email=alex@example.com token=super-secret-token-value-1234567890",
+        },
+      }),
+    );
+
+    expect(response.status).toBe(202);
+
+    await flushScheduledTelemetryTasksForTests();
+
+    const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1] as
+      | string
+      | undefined;
+    const report = JSON.parse(String(serializedReport)) as {
+      metadata?: Record<string, string>;
+      route?: string;
+      technicalMessage: string;
+    };
+
+    expect(report.route).toBe("/user/[username]");
+    expect(report.metadata?.boundary).toBe("client_error_boundary");
+    expect(report.metadata).not.toHaveProperty("authToken");
+    expect(report.metadata).not.toHaveProperty("email");
+    expect(report.technicalMessage).not.toContain("alex@example.com");
+    expect(report.technicalMessage).not.toContain(
+      "super-secret-token-value-1234567890",
+    );
+    expect(JSON.stringify(report)).not.toContain("token=secret");
   });
 
   it("returns the expected CORS headers on OPTIONS", () => {

@@ -20,7 +20,7 @@ const sections = [
     lead: "Here's the short version of what actually lands in our database.",
     paragraphs: [
       "When you use AniCards, we may store a trimmed snapshot of your AniList profile alongside your card settings and your consent decision for Google Analytics. That last one is off by default — it only switches on if you accept it.",
-      "Whenever your browser logs an error, we strip userId and username out of the report before writing anything to storage. Your identity has no business being attached to a stack trace.",
+      "Whenever your browser logs an error, AniCards only accepts the report from a page carrying a server-issued request proof. Before anything touches storage, we strip identifiers, normalize routes, scrub stack details, and redact secret-looking text or metadata. Your identity has no business being attached to a stack trace.",
     ],
   },
   {

@@ -4,6 +4,11 @@ import { z } from "zod";
 import { type ApiError, apiErrorResponse } from "@/lib/api/errors";
 import { logPrivacySafe } from "@/lib/api/logging";
 import { displayNames, isValidCardType } from "@/lib/card-data/validation";
+import {
+  sanitizeErrorReportMetadata,
+  sanitizeErrorReportRoute,
+  sanitizeErrorReportText,
+} from "@/lib/error-report-sanitization";
 import type {
   GlobalCardSettings,
   PersistedUserRecord,
@@ -42,16 +47,6 @@ function coerceToString(value: unknown): string {
   return typeof value === "string" ? value : safeStringifyValue(value);
 }
 
-function sanitizeRequiredTrimmedString(maxLength: number) {
-  return z.preprocess((value) => {
-    if (typeof value !== "string") {
-      return value;
-    }
-
-    return value.trim().slice(0, maxLength);
-  }, z.string().min(1).max(maxLength));
-}
-
 function sanitizeOptionalTrimmedString(maxLength: number) {
   return z.preprocess((value) => {
     if (typeof value !== "string") {
@@ -75,31 +70,59 @@ function sanitizeUsernameInput(value: unknown): unknown {
   return value.trim();
 }
 
-function sanitizeMetadataInput(
+function describeValueType(value: unknown): string {
+  if (Array.isArray(value)) {
+    return "array";
+  }
+
+  return value === null ? "null" : typeof value;
+}
+
+function logValidationWarning(
+  endpoint: string,
+  message: string,
+  request?: Request,
+  context?: Record<string, unknown>,
+): void {
+  logPrivacySafe("warn", endpoint, message, context, request);
+}
+
+function sanitizeRequiredErrorReportText(maxLength: number) {
+  return z.preprocess((value) => {
+    if (typeof value !== "string") {
+      return value;
+    }
+
+    return sanitizeErrorReportText(value, maxLength);
+  }, z.string().min(1).max(maxLength));
+}
+
+function sanitizeOptionalErrorReportText(maxLength: number) {
+  return z.preprocess((value) => {
+    if (typeof value !== "string") {
+      return undefined;
+    }
+
+    return sanitizeErrorReportText(value, maxLength);
+  }, z.string().min(1).max(maxLength).optional());
+}
+
+function sanitizeErrorReportRouteInput(value: unknown): unknown {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  return sanitizeErrorReportRoute(value);
+}
+
+function sanitizeErrorReportMetadataInput(
   value: unknown,
 ): Record<string, string | number | boolean | null> | undefined {
   if (!isPlainObject(value)) {
     return undefined;
   }
 
-  const entries = Object.entries(value).flatMap(([key, entryValue]) => {
-    if (
-      entryValue === null ||
-      typeof entryValue === "string" ||
-      typeof entryValue === "number" ||
-      typeof entryValue === "boolean"
-    ) {
-      return [[key, entryValue]];
-    }
-
-    return [];
-  });
-
-  if (entries.length === 0) {
-    return undefined;
-  }
-
-  return Object.fromEntries(entries);
+  return sanitizeErrorReportMetadata(value);
 }
 
 const finiteNumberSchema = z.number();
@@ -518,8 +541,8 @@ const errorReportSourceSchema = z.enum([
 export const errorReportPayloadSchema = z
   .object({
     source: errorReportSourceSchema.optional(),
-    userAction: sanitizeRequiredTrimmedString(120),
-    message: sanitizeRequiredTrimmedString(2_000),
+    userAction: sanitizeRequiredErrorReportText(120),
+    message: sanitizeRequiredErrorReportText(2_000),
     requestId: z
       .preprocess((value) => {
         if (typeof value !== "string") {
@@ -530,8 +553,11 @@ export const errorReportPayloadSchema = z
         return trimmed.length > 0 ? trimmed : undefined;
       }, z.string().regex(REQUEST_ID_PATTERN).optional())
       .optional(),
-    errorName: sanitizeOptionalTrimmedString(120),
-    route: sanitizeOptionalTrimmedString(512),
+    errorName: sanitizeOptionalErrorReportText(120),
+    route: z.preprocess(
+      sanitizeErrorReportRouteInput,
+      z.string().min(1).max(512).optional(),
+    ),
     statusCode: z
       .preprocess((value) => {
         if (typeof value !== "number" || !Number.isInteger(value)) {
@@ -545,7 +571,7 @@ export const errorReportPayloadSchema = z
     stack: sanitizeOptionalTrimmedString(8_000),
     componentStack: sanitizeOptionalTrimmedString(8_000),
     metadata: z.preprocess(
-      sanitizeMetadataInput,
+      sanitizeErrorReportMetadataInput,
       z
         .record(
           z.string(),
@@ -696,15 +722,28 @@ function validateRequiredCardStringFields(
   for (const field of getRequiredCardStringFields(card)) {
     const value = card[field];
     if (typeof value !== "string") {
-      console.warn(
-        `⚠️ [${endpoint}] Card ${cardIndex} missing or invalid field: ${field}`,
+      logValidationWarning(
+        endpoint,
+        "Card missing or invalid required string field",
+        request,
+        {
+          cardIndex,
+          field,
+          valueType: describeValueType(value),
+        },
       );
       return invalidCardDataResponse(request);
     }
 
     if (value.length === 0 || value.length > 100) {
-      console.warn(
-        `⚠️ [${endpoint}] Card ${cardIndex} field ${field} exceeds length limits`,
+      logValidationWarning(
+        endpoint,
+        "Card required string field exceeded length constraints",
+        request,
+        {
+          cardIndex,
+          field,
+        },
       );
       return invalidCardDataResponse(request);
     }
@@ -724,9 +763,10 @@ function validateCardTypeField(
     return null;
   }
 
-  console.warn(
-    `⚠️ [${endpoint}] Card ${cardIndex} has an invalid cardName: ${safeStringifyValue(cardNameRaw)}`,
-  );
+  logValidationWarning(endpoint, "Card has invalid cardName", request, {
+    cardIndex,
+    valueType: describeValueType(cardNameRaw),
+  });
   return invalidCardDataResponse(request, "Invalid data: Invalid card type");
 }
 
@@ -758,8 +798,14 @@ function validateRequiredCardColorFields(
   for (const field of requiredColorFields) {
     const value = card[field];
     if (value === undefined || value === null) {
-      console.warn(
-        `⚠️ [${endpoint}] Card ${cardIndex} missing required color field: ${field}`,
+      logValidationWarning(
+        endpoint,
+        "Card missing required color field",
+        request,
+        {
+          cardIndex,
+          field,
+        },
       );
       return invalidCardDataResponse(request);
     }
@@ -769,9 +815,15 @@ function validateRequiredCardColorFields(
     }
 
     const reason = getColorInvalidReason(value);
-    const reasonSuffix = reason ? ` (${reason})` : "";
-    console.warn(
-      `⚠️ [${endpoint}] Card ${cardIndex} invalid color or gradient format for ${field}${reasonSuffix}`,
+    logValidationWarning(
+      endpoint,
+      "Card has invalid required color field",
+      request,
+      {
+        cardIndex,
+        field,
+        ...(reason ? { reason } : {}),
+      },
     );
     return invalidCardDataResponse(request);
   }
@@ -846,8 +898,15 @@ function validateOptionalBooleanFields(
   for (const field of optionalBooleanFields) {
     const value = card[field];
     if (value !== undefined && typeof value !== "boolean") {
-      console.warn(
-        `⚠️ [${endpoint}] Card ${cardIndex} field ${field} must be boolean`,
+      logValidationWarning(
+        endpoint,
+        "Card boolean field must be boolean when provided",
+        request,
+        {
+          cardIndex,
+          field,
+          valueType: describeValueType(value),
+        },
       );
       return apiErrorResponse(request, 400, "Invalid data", {
         category: "invalid_data",
@@ -873,10 +932,10 @@ function validateOptionalBorderColorField(
 
   if (!validateColorValue(borderColorValue)) {
     const reason = getColorInvalidReason(borderColorValue);
-    const reasonSuffix = reason ? ` (${reason})` : "";
-    console.warn(
-      `⚠️ [${endpoint}] Card ${cardIndex} invalid borderColor format${reasonSuffix}`,
-    );
+    logValidationWarning(endpoint, "Card borderColor format invalid", request, {
+      cardIndex,
+      ...(reason ? { reason } : {}),
+    });
     return apiErrorResponse(request, 400, "Invalid data", {
       category: "invalid_data",
       retryable: false,
@@ -899,8 +958,14 @@ function validateGridNumericField(
 
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 1 || parsed > 5) {
-    console.warn(
-      `⚠️ [${endpoint}] Card ${cardIndex} ${fieldName} must be an integer between 1 and 5`,
+    logValidationWarning(
+      endpoint,
+      "Card grid dimension must be an integer between 1 and 5",
+      request,
+      {
+        cardIndex,
+        fieldName,
+      },
     );
     return apiErrorResponse(request, 400, "Invalid data", {
       category: "invalid_data",
@@ -924,8 +989,13 @@ function validateBorderRadiusField(
       return null;
     }
 
-    console.warn(
-      `⚠️ [${endpoint}] Card ${cardIndex} borderRadius required when border is enabled`,
+    logValidationWarning(
+      endpoint,
+      "Card borderRadius required when border is enabled",
+      request,
+      {
+        cardIndex,
+      },
     );
     return apiErrorResponse(request, 400, "Invalid data", {
       category: "invalid_data",
@@ -934,8 +1004,14 @@ function validateBorderRadiusField(
   }
 
   if (typeof borderRadiusValue !== "number") {
-    console.warn(
-      `⚠️ [${endpoint}] Card ${cardIndex} borderRadius must be a number`,
+    logValidationWarning(
+      endpoint,
+      "Card borderRadius must be numeric",
+      request,
+      {
+        cardIndex,
+        valueType: describeValueType(borderRadiusValue),
+      },
     );
     return apiErrorResponse(request, 400, "Invalid data", {
       category: "invalid_data",
@@ -944,9 +1020,9 @@ function validateBorderRadiusField(
   }
 
   if (!validateBorderRadius(borderRadiusValue)) {
-    console.warn(
-      `⚠️ [${endpoint}] Card ${cardIndex} borderRadius out of range: ${borderRadiusValue}`,
-    );
+    logValidationWarning(endpoint, "Card borderRadius out of range", request, {
+      cardIndex,
+    });
     return apiErrorResponse(request, 400, "Invalid data", {
       category: "invalid_data",
       retryable: false,
@@ -1030,11 +1106,11 @@ function validateUserIdField(
   }
 
   if (userId === undefined || userId === null) {
-    console.warn(`⚠️ [${endpoint}] Missing userId`);
+    logValidationWarning(endpoint, "Missing userId", request);
   } else {
-    console.warn(
-      `⚠️ [${endpoint}] Invalid userId format: ${safeStringifyValue(userId)}`,
-    );
+    logValidationWarning(endpoint, "Invalid userId format", request, {
+      valueType: describeValueType(userId),
+    });
   }
 
   return apiErrorResponse(request, 400, "Invalid data", {
@@ -1052,7 +1128,9 @@ function validateCardsArrayField(
     return null;
   }
 
-  console.warn(`⚠️ [${endpoint}] Cards must be an array`);
+  logValidationWarning(endpoint, "Cards must be an array", request, {
+    valueType: describeValueType(cards),
+  });
   return apiErrorResponse(request, 400, "Invalid data", {
     category: "invalid_data",
     retryable: false,
@@ -1150,9 +1228,9 @@ function validateUniqueCardTypes(
   const maxAllowedCards = Math.max(33, supportedNames.size || 33);
 
   if (unknownNames.size > 0) {
-    console.warn(
-      `⚠️ [${endpoint}] Invalid card types provided: ${[...unknownNames].join(", ")}`,
-    );
+    logValidationWarning(endpoint, "Invalid card types provided", request, {
+      invalidCount: unknownNames.size,
+    });
 
     return apiErrorResponse(request, 400, "Invalid data: Invalid card type", {
       category: "invalid_data",
@@ -1167,8 +1245,14 @@ function validateUniqueCardTypes(
   }
 
   if (uniqueSupportedNames.size > maxAllowedCards) {
-    console.warn(
-      `⚠️ [${endpoint}] Too many unique card types provided: ${uniqueSupportedNames.size} (max ${maxAllowedCards})`,
+    logValidationWarning(
+      endpoint,
+      "Too many unique card types provided",
+      request,
+      {
+        count: uniqueSupportedNames.size,
+        maxAllowedCards,
+      },
     );
     return apiErrorResponse(
       request,
@@ -1192,7 +1276,15 @@ function validateCardsItems(
   for (let index = 0; index < cards.length; index += 1) {
     const card = cards[index];
     if (typeof card !== "object" || card === null) {
-      console.warn(`⚠️ [${endpoint}] Card ${index} is not a valid object`);
+      logValidationWarning(
+        endpoint,
+        "Card item is not a valid object",
+        request,
+        {
+          cardIndex: index,
+          valueType: describeValueType(card),
+        },
+      );
       return apiErrorResponse(request, 400, "Invalid data", {
         category: "invalid_data",
         retryable: false,

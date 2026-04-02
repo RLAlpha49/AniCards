@@ -1,7 +1,8 @@
 /**
  * Durable structured error reporting for client and server paths.
  * Reports are normalized through the shared error model, persisted via Redis on
- * the server, and forwarded through a same-origin ingestion route from the client.
+ * the server, and forwarded through a request-proof-protected ingestion route
+ * from the client.
  * @source
  */
 
@@ -69,6 +70,8 @@ export interface ErrorReportBufferSnapshot {
   cumulativeSaturationRate: number;
 }
 
+export const ERROR_REPORT_REQUEST_MAX_BYTES = 24_000;
+
 const ERROR_REPORTS_KEY = "telemetry:error-reports:v1";
 const ERROR_REPORTS_TOTAL_KEY = `${ERROR_REPORTS_KEY}:total`;
 const ERROR_REPORTS_DROPPED_KEY = `${ERROR_REPORTS_KEY}:dropped`;
@@ -76,6 +79,50 @@ const MAX_ERROR_REPORTS = 250;
 const MAX_TEXT_FIELD_LENGTH = 2_000;
 const MAX_STACK_LENGTH = 8_000;
 const MAX_METADATA_KEY_LENGTH = 64;
+const MAX_METADATA_VALUE_LENGTH = 160;
+const MAX_METADATA_ENTRIES = 12;
+const REDACTED_EMAIL = "[redacted-email]";
+const REDACTED_PATH = "[redacted-path]";
+const REDACTED_SECRET = "[redacted]";
+const REDACTED_URL = "[redacted-url]";
+const SENSITIVE_METADATA_KEY_FRAGMENTS = [
+  "auth",
+  "authorization",
+  "cookie",
+  "csrf",
+  "email",
+  "mail",
+  "ip",
+  "jwt",
+  "password",
+  "passwd",
+  "phone",
+  "query",
+  "route",
+  "search",
+  "secret",
+  "session",
+  "token",
+  "url",
+  "uri",
+  "username",
+  "user_id",
+] as const;
+const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+const FILE_PATH_PATTERN =
+  /(?:[A-Za-z]:\\|\/Users\/|\/home\/|\/var\/|\/tmp\/)[^\s"'`)\]}]+/g;
+const QUERY_PARAMETER_PATTERN = /([?&][A-Za-z0-9_-]{1,64}=)[^&#\s"'`)\]}]+/g;
+const RELATIVE_ROUTE_WITH_QUERY_PATTERN =
+  /((?:\/[A-Za-z0-9._~-]+)+)\?([^\s"'`)\]}]+)/g;
+const ACCOUNT_KEY_VALUE_PATTERN =
+  /\b(email|username|user(?:[_-]?id)?)\s*[:=]\s*([^\s,;]+)/gi;
+const SECRET_KEY_VALUE_PATTERN =
+  /\b(token|secret|password|passwd)\s*[:=]\s*([^\s,;]+)/gi;
+const SESSION_KEY_VALUE_PATTERN =
+  /\b(authorization|cookie|session|api(?:[_-]?key)?)\s*[:=]\s*([^\s,;]+)/gi;
+const TOKEN_LIKE_PATTERN =
+  /\b(?:eyJ[A-Za-z0-9._-]+|gh[pousr]_[A-Za-z0-9]{20,}|sk_[A-Za-z0-9]{16,}|[A-Fa-f0-9]{32,}|[A-Za-z0-9+/_-]{40,})\b/g;
+const URL_PATTERN = /\bhttps?:\/\/[^\s"'`)\]}]+/gi;
 
 function roundRatio(value: number): number {
   return Number(value.toFixed(4));
@@ -126,7 +173,8 @@ const MAX_CLIENT_QUEUED_ERROR_REPORTS = 8;
 const MAX_CLIENT_QUEUED_ERROR_REPORT_ATTEMPTS = 5;
 const CLIENT_ERROR_REPORT_RETRY_BASE_DELAY_MS = 250;
 const CLIENT_ERROR_REPORT_MAX_BACKOFF_MS = 2_000;
-const MAX_CLIENT_QUEUED_ERROR_REPORT_BODY_LENGTH = 24_000;
+const MAX_CLIENT_QUEUED_ERROR_REPORT_BODY_LENGTH =
+  ERROR_REPORT_REQUEST_MAX_BYTES;
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,120}$/;
 
 interface QueuedClientErrorReport {
@@ -143,6 +191,21 @@ function truncateText(value: string, maxLength: number): string {
     : `${value.slice(0, Math.max(0, maxLength - 1))}…`;
 }
 
+function normalizeMetadataKey(value: string): string {
+  return value.replaceAll(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase();
+}
+
+function isSensitiveMetadataKey(value: string): boolean {
+  const normalizedKey = normalizeMetadataKey(value.trim());
+  if (!normalizedKey) {
+    return false;
+  }
+
+  return SENSITIVE_METADATA_KEY_FRAGMENTS.some((fragment) =>
+    normalizedKey.includes(fragment),
+  );
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -157,6 +220,50 @@ function sanitizeOptionalText(
   if (!trimmed) return undefined;
 
   return truncateText(trimmed, maxLength);
+}
+
+export function sanitizeErrorReportText(
+  value: string | undefined,
+  maxLength: number,
+  options?: {
+    normalizeRelativeRoutes?: boolean;
+  },
+): string | undefined {
+  if (typeof value !== "string") return undefined;
+
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+
+  let sanitized = trimmed;
+
+  if (options?.normalizeRelativeRoutes ?? true) {
+    sanitized = sanitized.replaceAll(
+      RELATIVE_ROUTE_WITH_QUERY_PATTERN,
+      (_match, path: string, query: string) =>
+        normalizeRoute(`${path}?${query}`) ?? path,
+    );
+  }
+
+  sanitized = sanitized
+    .replaceAll(FILE_PATH_PATTERN, REDACTED_PATH)
+    .replaceAll(URL_PATTERN, REDACTED_URL)
+    .replaceAll(EMAIL_PATTERN, REDACTED_EMAIL)
+    .replaceAll(QUERY_PARAMETER_PATTERN, (_match, prefix: string) => {
+      return `${prefix}${REDACTED_SECRET}`;
+    })
+    .replaceAll(ACCOUNT_KEY_VALUE_PATTERN, (_match, key: string) => {
+      return `${key}=${REDACTED_SECRET}`;
+    })
+    .replaceAll(SECRET_KEY_VALUE_PATTERN, (_match, key: string) => {
+      return `${key}=${REDACTED_SECRET}`;
+    })
+    .replaceAll(SESSION_KEY_VALUE_PATTERN, (_match, key: string) => {
+      return `${key}=${REDACTED_SECRET}`;
+    })
+    .replaceAll(TOKEN_LIKE_PATTERN, REDACTED_SECRET)
+    .replaceAll(/\s+/g, " ");
+
+  return truncateText(sanitized, maxLength);
 }
 
 function isWhitespaceCodePoint(codePoint: number | undefined): boolean {
@@ -219,8 +326,11 @@ function sanitizeStackTrace(
 }
 
 function sanitizeUserAction(userAction: string): string {
-  const trimmed = userAction.trim();
-  return truncateText(trimmed || "unknown_action", 120);
+  return (
+    sanitizeErrorReportText(userAction, 120, {
+      normalizeRelativeRoutes: false,
+    }) ?? "unknown_action"
+  );
 }
 
 function sanitizeRequestId(value: unknown): string | undefined {
@@ -239,7 +349,9 @@ function getCurrentClientRoute(): string | undefined {
   return `${globalThis.location.pathname}${globalThis.location.search}`;
 }
 
-function normalizeRoute(route: string | undefined): string | undefined {
+export function sanitizeErrorReportRoute(
+  route: string | undefined,
+): string | undefined {
   const candidate = sanitizeOptionalText(route, 512);
   if (!candidate) return undefined;
 
@@ -259,29 +371,45 @@ function normalizeRoute(route: string | undefined): string | undefined {
   }
 }
 
-function sanitizeMetadata(
+function normalizeRoute(route: string | undefined): string | undefined {
+  return sanitizeErrorReportRoute(route);
+}
+
+export function sanitizeErrorReportMetadata(
   metadata: Record<string, unknown> | undefined,
 ): Record<string, SerializableMetadataValue> | undefined {
   if (!metadata) return undefined;
 
-  const entries = Object.entries(metadata).flatMap(([key, value]) => {
-    const normalizedKey = key.trim().slice(0, MAX_METADATA_KEY_LENGTH);
-    if (!normalizedKey) return [];
+  const entries = Object.entries(metadata)
+    .slice(0, MAX_METADATA_ENTRIES)
+    .flatMap(([key, value]) => {
+      const normalizedKey = key.trim().slice(0, MAX_METADATA_KEY_LENGTH);
+      if (
+        !normalizedKey ||
+        normalizedKey.toLowerCase() === "requestid" ||
+        isSensitiveMetadataKey(normalizedKey)
+      ) {
+        return [];
+      }
 
-    if (
-      value === null ||
-      typeof value === "number" ||
-      typeof value === "boolean"
-    ) {
-      return [[normalizedKey, value satisfies SerializableMetadataValue]];
-    }
+      if (
+        value === null ||
+        typeof value === "number" ||
+        typeof value === "boolean"
+      ) {
+        return [[normalizedKey, value satisfies SerializableMetadataValue]];
+      }
 
-    if (typeof value === "string") {
-      return [[normalizedKey, truncateText(value, 160)]];
-    }
+      if (typeof value === "string") {
+        const sanitizedValue = sanitizeErrorReportText(
+          value,
+          MAX_METADATA_VALUE_LENGTH,
+        );
+        return sanitizedValue ? [[normalizedKey, sanitizedValue]] : [];
+      }
 
-    return [[normalizedKey, truncateText(String(value), 160)]];
-  });
+      return [];
+    });
 
   if (entries.length === 0) {
     return undefined;
@@ -306,11 +434,17 @@ function coerceErrorMessage(error: unknown): string {
 }
 
 function resolveErrorName(error: unknown, explicitName?: string): string {
-  const sanitizedExplicitName = sanitizeOptionalText(explicitName, 120);
+  const sanitizedExplicitName = sanitizeErrorReportText(explicitName, 120, {
+    normalizeRelativeRoutes: false,
+  });
   if (sanitizedExplicitName) return sanitizedExplicitName;
 
   if (error instanceof Error) {
-    return sanitizeOptionalText(error.name, 120) ?? "Error";
+    return (
+      sanitizeErrorReportText(error.name, 120, {
+        normalizeRelativeRoutes: false,
+      }) ?? "Error"
+    );
   }
 
   return typeof error === "string" ? "Error" : "UnknownError";
@@ -336,10 +470,11 @@ function resolveErrorStack(
 function buildStructuredErrorReport(
   options: ReportErrorOptions,
 ): StructuredErrorReport {
-  const technicalMessage = truncateText(
-    coerceErrorMessage(options.error) || "Unknown error",
-    MAX_TEXT_FIELD_LENGTH,
-  );
+  const technicalMessage =
+    sanitizeErrorReportText(
+      coerceErrorMessage(options.error) || "Unknown error",
+      MAX_TEXT_FIELD_LENGTH,
+    ) ?? "Unknown error";
   const details = getErrorDetails(technicalMessage, options.statusCode);
   const category = options.category ?? details.category;
   const retryable = options.category
@@ -367,7 +502,7 @@ function buildStructuredErrorReport(
       options.componentStack,
       MAX_STACK_LENGTH,
     ),
-    metadata: sanitizeMetadata(options.metadata),
+    metadata: sanitizeErrorReportMetadata(options.metadata),
   };
 }
 
