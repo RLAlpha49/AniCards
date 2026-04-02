@@ -1,9 +1,18 @@
+import {
+  isClientRequestCancelled,
+  isClientTimeoutError,
+  requestClientJson,
+} from "@/lib/api/client-fetch";
+import { getErrorDetails } from "@/lib/error-messages";
 import type {
   CardsRecord,
   GlobalCardSettings,
   StoredCardConfig,
 } from "@/lib/types/records";
-import { getResponseErrorMessage, parseResponsePayload } from "@/lib/utils";
+import {
+  getStructuredResponseError,
+  type StructuredResponseError,
+} from "@/lib/utils";
 
 /**
  * Shape of card data received from the server.
@@ -19,7 +28,15 @@ export type ServerGlobalSettings = GlobalCardSettings;
 
 export type FetchUserCardsSuccess = CardsRecord;
 
-export type FetchUserCardsError = { error: string; notFound?: true };
+export type FetchUserCardsError = {
+  error: StructuredResponseError;
+  notFound?: true;
+};
+
+export interface FetchUserCardsOptions {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+}
 
 function isStrictPositiveInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
@@ -71,33 +88,71 @@ function normalizeFetchUserCardsSuccess(
   };
 }
 
+function createFetchUserCardsError(
+  message: string,
+  status?: number,
+): StructuredResponseError {
+  const details = getErrorDetails(message, status);
+
+  return {
+    message,
+    status,
+    category: details.category,
+    retryable: details.retryable,
+    recoverySuggestions: details.suggestions,
+  };
+}
+
 /**
  * Fetch cards and optional global settings for a user from the server.
  * Behavior and error handling preserved from previous hook-local implementations.
  */
 export async function fetchUserCards(
   userId: string,
+  options: FetchUserCardsOptions = {},
 ): Promise<FetchUserCardsSuccess | FetchUserCardsError> {
   try {
-    const res = await fetch(
+    const { response: res, payload } = await requestClientJson(
       `/api/get-cards?userId=${encodeURIComponent(userId)}`,
+      {
+        signal: options.signal,
+        timeoutMs: options.timeoutMs,
+      },
     );
-    const payload = await parseResponsePayload(res);
 
     if (!res.ok) {
-      const msg = getResponseErrorMessage(res, payload);
-      if (res.status === 404) return { error: msg, notFound: true };
-      return { error: msg };
+      const error = getStructuredResponseError(res, payload);
+      if (res.status === 404) return { error, notFound: true };
+      return { error };
     }
 
     const data = normalizeFetchUserCardsSuccess(payload);
     if (!data) {
-      return { error: "Invalid cards data received" };
+      return {
+        error: createFetchUserCardsError("Invalid cards data received"),
+      };
     }
 
     return data;
   } catch (err) {
+    if (isClientRequestCancelled(err, options.signal)) {
+      throw err;
+    }
+
     console.error("Error fetching cards:", err);
-    return { error: "Failed to fetch cards" };
+
+    if (isClientTimeoutError(err)) {
+      return {
+        error: createFetchUserCardsError(
+          "Loading your cards timed out. Please try again.",
+        ),
+      };
+    }
+
+    return {
+      error: createFetchUserCardsError(
+        "Failed to fetch cards. Please check your connection and try again.",
+      ),
+    };
   }
 }

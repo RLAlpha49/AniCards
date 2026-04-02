@@ -15,6 +15,11 @@ import { useShallow } from "zustand/react/shallow";
 
 import { colorPresets } from "@/components/stat-card-generator/constants";
 import type { ServerCardData } from "@/lib/api/cards";
+import {
+  isClientRequestCancelled,
+  isClientTimeoutError,
+  requestClientJson,
+} from "@/lib/api/client-fetch";
 import { statCardTypes } from "@/lib/card-types";
 import {
   buildLocalEditsPatch,
@@ -22,10 +27,18 @@ import {
   useUserPageEditor,
 } from "@/lib/stores/user-page-editor";
 import type { ColorValue } from "@/lib/types/card";
-import { getResponseErrorMessage, parseResponsePayload } from "@/lib/utils";
+import {
+  getResponseErrorMessage,
+  getStructuredResponseError,
+} from "@/lib/utils";
 
 // Fast enough to feel responsive, slow enough to avoid POSTing on every edit.
 const DEFAULT_DEBOUNCE_MS = 1500;
+const AUTO_SAVE_REQUEST_TIMEOUT_MS = 15_000;
+const AUTO_SAVE_TOTAL_RETRY_BUDGET_MS = 20_000;
+const AUTO_SAVE_MAX_RETRY_ATTEMPTS = 3;
+const AUTO_SAVE_RETRY_BASE_DELAY_MS = 500;
+const AUTO_SAVE_RETRY_MAX_BACKOFF_MS = 5_000;
 
 interface GlobalSettingsPayload {
   colorPreset: string;
@@ -50,6 +63,16 @@ type SaveCardsResponse =
 
 type SaveConflictInfo = {
   currentUpdatedAt?: string;
+};
+
+type SaveRetryPlan =
+  | { shouldRetry: false }
+  | { shouldRetry: true; delayMs: number };
+
+type ActiveSaveRequest = {
+  requestId: number;
+  userId: string;
+  controller: AbortController;
 };
 
 /**
@@ -250,6 +273,362 @@ function diffGlobalSettingsPayload(
   return diff;
 }
 
+function getPayloadField(
+  payload: unknown,
+  field: "currentUpdatedAt" | "updatedAt",
+): string | undefined {
+  if (typeof payload !== "object" || payload === null) {
+    return undefined;
+  }
+
+  const value = (payload as Record<string, unknown>)[field];
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function buildSaveCardsRequestBody(
+  userId: string,
+  cards: ServerCardData[],
+  opts: {
+    globalSettings?: Partial<GlobalSettingsPayload>;
+    cardOrder?: string[];
+    ifMatchUpdatedAt?: string;
+  },
+): Record<string, unknown> {
+  return {
+    userId,
+    cards,
+    ...(opts.globalSettings ? { globalSettings: opts.globalSettings } : {}),
+    ...(Array.isArray(opts.cardOrder) ? { cardOrder: opts.cardOrder } : {}),
+    ...(typeof opts.ifMatchUpdatedAt === "string" &&
+    opts.ifMatchUpdatedAt.length > 0
+      ? { ifMatchUpdatedAt: opts.ifMatchUpdatedAt }
+      : {}),
+  };
+}
+
+function parseSaveCardsResponse(
+  response: Response,
+  payload: unknown,
+): SaveCardsResponse {
+  if (response.status === 409) {
+    return {
+      conflict: true,
+      error: getResponseErrorMessage(response, payload),
+      currentUpdatedAt: getPayloadField(payload, "currentUpdatedAt"),
+    };
+  }
+
+  if (!response.ok) {
+    return { error: getResponseErrorMessage(response, payload) };
+  }
+
+  const updatedAt = getPayloadField(payload, "updatedAt");
+  if (!updatedAt) {
+    return { error: "Save succeeded but no updatedAt was returned" };
+  }
+
+  return { success: true, updatedAt };
+}
+
+function buildSaveCardsTransportErrorMessage(error: unknown): string {
+  if (isClientTimeoutError(error)) {
+    return "Saving your cards timed out. Please try again.";
+  }
+
+  return "Failed to save cards. Please check your connection and try again.";
+}
+
+function createSaveAbortError(message: string): DOMException {
+  return new DOMException(message, "AbortError");
+}
+
+function getRetryAfterDelayMs(
+  retryAfterHeader: string | null,
+): number | undefined {
+  if (!retryAfterHeader) {
+    return undefined;
+  }
+
+  const asSeconds = Number(retryAfterHeader);
+  if (Number.isFinite(asSeconds) && asSeconds >= 0) {
+    return asSeconds * 1000;
+  }
+
+  const retryAt = Date.parse(retryAfterHeader);
+  if (Number.isNaN(retryAt)) {
+    return undefined;
+  }
+
+  return Math.max(0, retryAt - Date.now());
+}
+
+function computeSaveRetryDelayMs(options: {
+  attempt: number;
+  retryAfterMs?: number;
+}): number {
+  if (typeof options.retryAfterMs === "number") {
+    return options.retryAfterMs;
+  }
+
+  return Math.min(
+    AUTO_SAVE_RETRY_BASE_DELAY_MS * 2 ** Math.max(0, options.attempt - 1),
+    AUTO_SAVE_RETRY_MAX_BACKOFF_MS,
+  );
+}
+
+function getRemainingSaveRequestBudgetMs(
+  requestStartedAt: number,
+  totalBudgetMs: number,
+): number {
+  return Math.max(0, totalBudgetMs - (Date.now() - requestStartedAt));
+}
+
+function hasBudgetForSaveRetry(options: {
+  requestStartedAt: number;
+  totalBudgetMs: number;
+  delayMs: number;
+}): boolean {
+  return (
+    getRemainingSaveRequestBudgetMs(
+      options.requestStartedAt,
+      options.totalBudgetMs,
+    ) > options.delayMs
+  );
+}
+
+function isRetryableSaveTransportFailure(
+  error: unknown,
+  signal?: AbortSignal,
+): boolean {
+  if (isClientRequestCancelled(error, signal)) {
+    return false;
+  }
+
+  if (isClientTimeoutError(error)) {
+    return true;
+  }
+
+  return error instanceof TypeError;
+}
+
+async function waitForSaveRetryDelay(
+  delayMs: number,
+  signal?: AbortSignal,
+): Promise<void> {
+  if (delayMs <= 0) {
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const timeoutId = globalThis.setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, delayMs);
+
+    const onAbort = () => {
+      globalThis.clearTimeout(timeoutId);
+      signal?.removeEventListener("abort", onAbort);
+      reject(
+        signal?.reason instanceof Error
+          ? signal.reason
+          : createSaveAbortError(
+              "The card save request was cancelled during retry backoff.",
+            ),
+      );
+    };
+
+    if (signal) {
+      if (signal.aborted) {
+        onAbort();
+        return;
+      }
+
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
+  });
+}
+
+function buildSaveRetryPlan(options: {
+  attempt: number;
+  retryable: boolean;
+  retryAfterMs?: number;
+}): SaveRetryPlan {
+  if (!options.retryable || options.attempt >= AUTO_SAVE_MAX_RETRY_ATTEMPTS) {
+    return { shouldRetry: false };
+  }
+
+  return {
+    shouldRetry: true,
+    delayMs: computeSaveRetryDelayMs({
+      attempt: options.attempt,
+      retryAfterMs: options.retryAfterMs,
+    }),
+  };
+}
+
+function getSaveResponseRetryPlan(
+  response: Response,
+  payload: unknown,
+  attempt: number,
+): SaveRetryPlan {
+  if (response.ok) {
+    return { shouldRetry: false };
+  }
+
+  const structuredError = getStructuredResponseError(response, payload);
+  const responseStatusIsRetryable =
+    response.status === 429 || response.status >= 500;
+
+  return buildSaveRetryPlan({
+    attempt,
+    retryable: responseStatusIsRetryable && structuredError.retryable,
+    retryAfterMs: getRetryAfterDelayMs(response.headers.get("retry-after")),
+  });
+}
+
+function getSaveTransportRetryPlan(
+  error: unknown,
+  attempt: number,
+  signal?: AbortSignal,
+): SaveRetryPlan {
+  return buildSaveRetryPlan({
+    attempt,
+    retryable: isRetryableSaveTransportFailure(error, signal),
+  });
+}
+
+async function waitForPlannedSaveRetry(options: {
+  retryPlan: SaveRetryPlan;
+  requestStartedAt: number;
+  totalBudgetMs: number;
+  signal?: AbortSignal;
+}): Promise<boolean> {
+  if (!options.retryPlan.shouldRetry) {
+    return false;
+  }
+
+  if (
+    !hasBudgetForSaveRetry({
+      requestStartedAt: options.requestStartedAt,
+      totalBudgetMs: options.totalBudgetMs,
+      delayMs: options.retryPlan.delayMs,
+    })
+  ) {
+    return false;
+  }
+
+  await waitForSaveRetryDelay(options.retryPlan.delayMs, options.signal);
+  return true;
+}
+
+async function requestSaveCardsAttempt(options: {
+  body: string;
+  remainingBudgetMs: number;
+  signal?: AbortSignal;
+  timeoutMs: number;
+}): Promise<{ response: Response; payload: unknown }> {
+  return requestClientJson("/api/store-cards", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: options.body,
+    signal: options.signal,
+    timeoutMs: Math.min(options.timeoutMs, options.remainingBudgetMs),
+  });
+}
+
+function cancelActiveSave(
+  activeSaveRef: { current: ActiveSaveRequest | null },
+  reason: string,
+): boolean {
+  if (!activeSaveRef.current) {
+    return false;
+  }
+
+  activeSaveRef.current.controller.abort(createSaveAbortError(reason));
+  activeSaveRef.current = null;
+  return true;
+}
+
+function beginSaveAttempt(
+  activeSaveRef: { current: ActiveSaveRequest | null },
+  nextSaveRequestIdRef: { current: number },
+  userId: string,
+) {
+  const controller = new AbortController();
+  const requestId = nextSaveRequestIdRef.current + 1;
+  nextSaveRequestIdRef.current = requestId;
+  activeSaveRef.current = {
+    requestId,
+    userId,
+    controller,
+  };
+
+  return {
+    controller,
+    requestId,
+    isCurrentSave: () =>
+      activeSaveRef.current?.requestId === requestId &&
+      activeSaveRef.current?.controller === controller &&
+      !controller.signal.aborted,
+  };
+}
+
+function buildUnexpectedSaveFailureMessage(error: unknown): string {
+  if (isClientTimeoutError(error)) {
+    return "Saving your cards timed out. Please try again.";
+  }
+
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  return "Failed to save cards. Please check your connection and try again.";
+}
+
+function applySaveResult(params: {
+  result: SaveCardsResponse;
+  store: ReturnType<typeof useUserPageEditor.getState>;
+  payloadPatch: NonNullable<ReturnType<typeof buildLocalEditsPatch>>;
+  toastId: string;
+  shouldNotify: boolean;
+  setSaveConflict: (next: SaveConflictInfo | null) => void;
+}): void {
+  if ("conflict" in params.result) {
+    params.store.setSaveError(params.result.error);
+    if (params.shouldNotify) {
+      params.setSaveConflict({
+        currentUpdatedAt: params.result.currentUpdatedAt,
+      });
+      toast.error("Save conflict", {
+        id: params.toastId,
+        description:
+          "Changes were saved in another tab. Reload to sync, then re-apply your edits.",
+      });
+    }
+    return;
+  }
+
+  if ("error" in params.result) {
+    params.store.setSaveError(params.result.error);
+    if (params.shouldNotify) {
+      toast.error("Save failed", {
+        id: params.toastId,
+        description: params.result.error,
+      });
+    }
+    return;
+  }
+
+  params.store.markSaved({
+    serverUpdatedAt: params.result.updatedAt,
+    appliedPatch: params.payloadPatch,
+  });
+  if (params.shouldNotify) {
+    params.setSaveConflict(null);
+    toast.success("Saved", { id: params.toastId });
+  }
+}
+
 async function saveCardsToApi(
   userId: string,
   cards: ServerCardData[],
@@ -258,56 +637,77 @@ async function saveCardsToApi(
     cardOrder?: string[];
     ifMatchUpdatedAt?: string;
   },
+  requestOptions: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<SaveCardsResponse> {
-  try {
-    const body: Record<string, unknown> = {
-      userId,
-      cards,
-      ...(opts.globalSettings ? { globalSettings: opts.globalSettings } : {}),
-      ...(Array.isArray(opts.cardOrder) ? { cardOrder: opts.cardOrder } : {}),
-      ...(typeof opts.ifMatchUpdatedAt === "string" &&
-      opts.ifMatchUpdatedAt.length > 0
-        ? { ifMatchUpdatedAt: opts.ifMatchUpdatedAt }
-        : {}),
-    };
+  const body = JSON.stringify(buildSaveCardsRequestBody(userId, cards, opts));
+  const timeoutMs = requestOptions.timeoutMs ?? AUTO_SAVE_REQUEST_TIMEOUT_MS;
+  const totalRetryBudgetMs = Math.max(
+    timeoutMs,
+    AUTO_SAVE_TOTAL_RETRY_BUDGET_MS,
+  );
+  const requestStartedAt = Date.now();
 
-    const res = await fetch("/api/store-cards", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-
-    const payload = await parseResponsePayload(res);
-
-    if (res.status === 409) {
-      const msg = getResponseErrorMessage(res, payload);
-      const currentUpdatedAt =
-        payload && typeof payload === "object"
-          ? ((payload as Record<string, unknown>).currentUpdatedAt as
-              | string
-              | undefined)
-          : undefined;
-      return { conflict: true, error: msg, currentUpdatedAt };
+  for (let attempt = 1; attempt <= AUTO_SAVE_MAX_RETRY_ATTEMPTS; attempt += 1) {
+    const remainingBudgetMs = getRemainingSaveRequestBudgetMs(
+      requestStartedAt,
+      totalRetryBudgetMs,
+    );
+    if (remainingBudgetMs <= 0) {
+      return {
+        error: "Saving your cards timed out. Please try again.",
+      };
     }
 
-    if (!res.ok) {
-      const msg = getResponseErrorMessage(res, payload);
-      return { error: msg };
-    }
+    try {
+      const { response: res, payload } = await requestSaveCardsAttempt({
+        body,
+        remainingBudgetMs,
+        signal: requestOptions.signal,
+        timeoutMs,
+      });
 
-    const updatedAt =
-      payload && typeof payload === "object"
-        ? ((payload as Record<string, unknown>).updatedAt as string | undefined)
-        : undefined;
-    if (!updatedAt) {
-      return { error: "Save succeeded but no updatedAt was returned" };
-    }
+      if (
+        await waitForPlannedSaveRetry({
+          retryPlan: getSaveResponseRetryPlan(res, payload, attempt),
+          requestStartedAt,
+          totalBudgetMs: totalRetryBudgetMs,
+          signal: requestOptions.signal,
+        })
+      ) {
+        continue;
+      }
 
-    return { success: true, updatedAt };
-  } catch (err) {
-    console.error("Error saving cards:", err);
-    return { error: "Failed to save cards" };
+      return parseSaveCardsResponse(res, payload);
+    } catch (err) {
+      if (isClientRequestCancelled(err, requestOptions.signal)) {
+        throw err;
+      }
+
+      if (
+        await waitForPlannedSaveRetry({
+          retryPlan: getSaveTransportRetryPlan(
+            err,
+            attempt,
+            requestOptions.signal,
+          ),
+          requestStartedAt,
+          totalBudgetMs: totalRetryBudgetMs,
+          signal: requestOptions.signal,
+        })
+      ) {
+        continue;
+      }
+
+      console.error("Error saving cards:", err);
+      return {
+        error: buildSaveCardsTransportErrorMessage(err),
+      };
+    }
   }
+
+  return {
+    error: "Failed to save cards. Please check your connection and try again.",
+  };
 }
 
 function buildSavePayloadFromStoreState(
@@ -412,6 +812,8 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMountedRef = useRef(true);
+  const activeSaveRef = useRef<ActiveSaveRequest | null>(null);
+  const nextSaveRequestIdRef = useRef(0);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -421,8 +823,32 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
       }
+
+      cancelActiveSave(
+        activeSaveRef,
+        "The card save request was cancelled during cleanup.",
+      );
+      useUserPageEditor.getState().setSaving(false);
     };
   }, []);
+
+  useEffect(() => {
+    const activeSave = activeSaveRef.current;
+
+    if (!activeSave) {
+      return;
+    }
+
+    if (userId && activeSave.userId === userId) {
+      return;
+    }
+
+    cancelActiveSave(
+      activeSaveRef,
+      "The card save request was cancelled because the active user changed.",
+    );
+    useUserPageEditor.getState().setSaving(false);
+  }, [userId]);
 
   const performSave = useCallback(
     async (opts?: { reason?: "auto" | "manual" }) => {
@@ -441,6 +867,11 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
       const payload = buildSavePayloadFromStoreState(snapshot);
       if (!payload || !isMountedRef.current) return;
       const store = useUserPageEditor.getState();
+      const { controller, requestId, isCurrentSave } = beginSaveAttempt(
+        activeSaveRef,
+        nextSaveRequestIdRef,
+        payload.userId,
+      );
 
       setAutoSaveDueAt(null);
       store.setSaving(true);
@@ -450,41 +881,61 @@ export function useCardAutoSave(options: UseCardAutoSaveOptions = {}) {
         id: toastId,
       });
 
-      const result = await saveCardsToApi(payload.userId, payload.cards, {
-        globalSettings: payload.globalSettings,
-        cardOrder: payload.cardOrder,
-        ifMatchUpdatedAt: payload.ifMatchUpdatedAt,
-      });
+      try {
+        const result = await saveCardsToApi(
+          payload.userId,
+          payload.cards,
+          {
+            globalSettings: payload.globalSettings,
+            cardOrder: payload.cardOrder,
+            ifMatchUpdatedAt: payload.ifMatchUpdatedAt,
+          },
+          {
+            signal: controller.signal,
+            timeoutMs: AUTO_SAVE_REQUEST_TIMEOUT_MS,
+          },
+        );
 
-      const shouldNotify = isMountedRef.current;
-
-      if ("conflict" in result) {
-        store.setSaveError(result.error);
-        if (shouldNotify) {
-          setSaveConflict({ currentUpdatedAt: result.currentUpdatedAt });
-          toast.error("Save conflict", {
-            id: toastId,
-            description:
-              "Changes were saved in another tab. Reload to sync, then re-apply your edits.",
-          });
+        if (!isCurrentSave()) {
+          return;
         }
-      } else if ("error" in result) {
-        store.setSaveError(result.error);
-        if (shouldNotify) {
+
+        if (useUserPageEditor.getState().userId !== payload.userId) {
+          return;
+        }
+
+        applySaveResult({
+          result,
+          store,
+          payloadPatch: payload.patch,
+          toastId,
+          shouldNotify: isMountedRef.current,
+          setSaveConflict,
+        });
+      } catch (error) {
+        if (
+          isClientRequestCancelled(error, controller.signal) ||
+          !isCurrentSave()
+        ) {
+          return;
+        }
+
+        const message = buildUnexpectedSaveFailureMessage(error);
+
+        store.setSaveError(message);
+
+        if (isMountedRef.current) {
           toast.error("Save failed", {
             id: toastId,
-            description: result.error,
+            description: message,
           });
         }
-      } else {
-        store.markSaved({
-          serverUpdatedAt: result.updatedAt,
-          appliedPatch: payload.patch,
-        });
-        if (shouldNotify) {
-          setSaveConflict(null);
-          toast.success("Saved", { id: toastId });
+      } finally {
+        if (activeSaveRef.current?.requestId === requestId) {
+          activeSaveRef.current = null;
         }
+
+        useUserPageEditor.getState().setSaving(false);
       }
     },
     [saveConflict],

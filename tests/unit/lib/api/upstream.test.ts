@@ -188,4 +188,67 @@ describe("lib/api/upstream shared circuit breaker", () => {
 
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
+
+  it("retries transport failures based on cause codes instead of brittle messages", async () => {
+    let attempt = 0;
+
+    globalThis.fetch = mock(() => {
+      attempt += 1;
+
+      if (attempt === 1) {
+        const transportError = new TypeError("opaque upstream failure");
+        (transportError as TypeError & { cause?: unknown }).cause =
+          Object.assign(new Error("socket hang up"), {
+            code: "ECONNRESET",
+          });
+
+        return Promise.reject(transportError);
+      }
+
+      return Promise.resolve(
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }),
+      );
+    }) as unknown as typeof fetch;
+
+    const response = await fetchUpstreamWithRetry({
+      service: "AniList GraphQL",
+      url: "https://graphql.anilist.co",
+      maxAttempts: 2,
+      timeoutMs: 5_000,
+      totalTimeoutMs: 5_000,
+    });
+
+    expect(response.status).toBe(200);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("caps retrying within the total upstream request budget", async () => {
+    globalThis.fetch = mock(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ error: "upstream unavailable" }), {
+          status: 503,
+          headers: {
+            "Content-Type": "application/json",
+            "Retry-After": "10",
+          },
+        }),
+      ),
+    ) as unknown as typeof fetch;
+
+    const response = await fetchUpstreamWithRetry({
+      service: "AniList GraphQL",
+      url: "https://graphql.anilist.co",
+      maxAttempts: 3,
+      timeoutMs: 5_000,
+      totalTimeoutMs: 1_000,
+    });
+
+    expect(response.status).toBe(503);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
 });

@@ -7,6 +7,13 @@
 import { useCallback, useState } from "react";
 
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
+import {
+  isClientAbortError,
+  isClientRequestCancelled,
+  isClientTimeoutError,
+  requestClientJson,
+  throwIfClientRequestAborted,
+} from "@/lib/api/client-fetch";
 import { statCardTypes } from "@/lib/card-types";
 import { getErrorDetails } from "@/lib/error-messages";
 import { trackUserActionError } from "@/lib/error-tracking";
@@ -16,14 +23,14 @@ import {
   buildNewUserStarterCardsSnapshot,
   NEW_USER_STARTER_GLOBAL_SETTINGS,
 } from "@/lib/user-page-starters";
-import { getResponseErrorMessage, parseResponsePayload } from "@/lib/utils";
+import { getResponseErrorMessage } from "@/lib/utils";
 
 interface AniListStatsResponse {
   User?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
-type NewUserSetupResult =
+export type NewUserSetupResult =
   | {
       success: true;
       userId: number;
@@ -37,21 +44,68 @@ type NewUserSetupResult =
   | { error: string };
 
 const ALL_CARD_IDS = statCardTypes.map((t) => t.id);
+const NEW_USER_SETUP_REQUEST_TIMEOUT_MS = 20_000;
+
+export interface StartNewUserSetupRequestOptions {
+  signal?: AbortSignal;
+  isCurrentRequest?: () => boolean;
+  timeoutMs?: number;
+}
+
+export type StartNewUserSetup = (
+  userIdParam: string | null,
+  usernameParam: string | null,
+  setLoadingPhase?: (phase: LoadingPhase) => void,
+  requestOptions?: StartNewUserSetupRequestOptions,
+) => Promise<
+  { success: true; userId: number; username: string | null } | { error: string }
+>;
+
+function isSupersededNewUserSetupRequest(
+  error: unknown,
+  requestOptions?: StartNewUserSetupRequestOptions,
+): boolean {
+  if (!isClientAbortError(error)) {
+    return false;
+  }
+
+  if (requestOptions?.signal?.aborted) {
+    return true;
+  }
+
+  return requestOptions?.isCurrentRequest
+    ? !requestOptions.isCurrentRequest()
+    : false;
+}
+
+function assertSetupRequestIsCurrent(
+  requestOptions?: StartNewUserSetupRequestOptions,
+): void {
+  throwIfClientRequestAborted(requestOptions?.signal);
+
+  if (requestOptions?.isCurrentRequest && !requestOptions.isCurrentRequest()) {
+    throw new DOMException(
+      "The new-user setup request was superseded by a newer load.",
+      "AbortError",
+    );
+  }
+}
 
 async function fetchUserIdFromAniList(
   username: string,
+  requestOptions?: StartNewUserSetupRequestOptions,
 ): Promise<{ userId: number } | { error: string }> {
   try {
-    const res = await fetch("/api/anilist", {
+    const { response: res, payload } = await requestClientJson("/api/anilist", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         query: USER_ID_QUERY,
         variables: { userName: username },
       }),
+      signal: requestOptions?.signal,
+      timeoutMs: requestOptions?.timeoutMs ?? NEW_USER_SETUP_REQUEST_TIMEOUT_MS,
     });
-
-    const payload = await parseResponsePayload(res);
 
     if (!res.ok) {
       if (res.status === 404) {
@@ -76,7 +130,18 @@ async function fetchUserIdFromAniList(
 
     return { userId: data.User.id };
   } catch (err) {
+    if (isClientRequestCancelled(err, requestOptions?.signal)) {
+      throw err;
+    }
+
     console.error("Error fetching user ID from AniList:", err);
+
+    if (isClientTimeoutError(err)) {
+      return {
+        error: "Fetching your AniList profile timed out. Please try again.",
+      };
+    }
+
     return {
       error:
         "Failed to connect to AniList. Please check your connection and try again.",
@@ -86,15 +151,16 @@ async function fetchUserIdFromAniList(
 
 async function fetchUserStatsFromAniList(
   userId: number,
+  requestOptions?: StartNewUserSetupRequestOptions,
 ): Promise<{ stats: AniListStatsResponse } | { error: string }> {
   try {
-    const res = await fetch("/api/anilist", {
+    const { response: res, payload } = await requestClientJson("/api/anilist", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query: USER_STATS_QUERY, variables: { userId } }),
+      signal: requestOptions?.signal,
+      timeoutMs: requestOptions?.timeoutMs ?? NEW_USER_SETUP_REQUEST_TIMEOUT_MS,
     });
-
-    const payload = await parseResponsePayload(res);
 
     if (!res.ok) {
       if (res.status === 429) {
@@ -109,8 +175,21 @@ async function fetchUserStatsFromAniList(
 
     return { stats: payload as AniListStatsResponse };
   } catch (err) {
+    if (isClientRequestCancelled(err, requestOptions?.signal)) {
+      throw err;
+    }
+
     console.error("Error fetching user stats from AniList:", err);
-    return { error: "Failed to fetch stats from AniList. Please try again." };
+
+    if (isClientTimeoutError(err)) {
+      return {
+        error: "Fetching your AniList stats timed out. Please try again.",
+      };
+    }
+
+    return {
+      error: "Failed to fetch stats from AniList. Please try again.",
+    };
   }
 }
 
@@ -118,15 +197,20 @@ async function saveUserToDatabase(
   userId: number,
   username: string,
   stats: AniListStatsResponse,
+  requestOptions?: StartNewUserSetupRequestOptions,
 ): Promise<{ success: true } | { error: string }> {
   try {
-    const res = await fetch("/api/store-users", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, username, stats }),
-    });
-
-    const payload = await parseResponsePayload(res);
+    const { response: res, payload } = await requestClientJson(
+      "/api/store-users",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, username, stats }),
+        signal: requestOptions?.signal,
+        timeoutMs:
+          requestOptions?.timeoutMs ?? NEW_USER_SETUP_REQUEST_TIMEOUT_MS,
+      },
+    );
 
     if (!res.ok) {
       const msg = getResponseErrorMessage(res, payload);
@@ -135,26 +219,44 @@ async function saveUserToDatabase(
 
     return { success: true };
   } catch (err) {
+    if (isClientRequestCancelled(err, requestOptions?.signal)) {
+      throw err;
+    }
+
     console.error("Error saving user to database:", err);
+
+    if (isClientTimeoutError(err)) {
+      return { error: "Saving your profile timed out. Please try again." };
+    }
+
     return { error: "Failed to save your profile. Please try again." };
   }
 }
-async function saveInitialCards(userId: number, stats: unknown) {
+
+async function saveInitialCards(
+  userId: number,
+  stats: unknown,
+  requestOptions?: StartNewUserSetupRequestOptions,
+) {
   try {
     const initialCards = buildNewUserStarterCardsSnapshot();
 
-    const res = await fetch("/api/store-cards", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId,
-        cards: initialCards,
-        statsData: stats,
-        globalSettings: NEW_USER_STARTER_GLOBAL_SETTINGS,
-      }),
-    });
-
-    const payload = await parseResponsePayload(res);
+    const { response: res, payload } = await requestClientJson(
+      "/api/store-cards",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          cards: initialCards,
+          statsData: stats,
+          globalSettings: NEW_USER_STARTER_GLOBAL_SETTINGS,
+        }),
+        signal: requestOptions?.signal,
+        timeoutMs:
+          requestOptions?.timeoutMs ?? NEW_USER_SETUP_REQUEST_TIMEOUT_MS,
+      },
+    );
 
     if (!res.ok) {
       const msg = getResponseErrorMessage(res, payload);
@@ -170,7 +272,18 @@ async function saveInitialCards(userId: number, stats: unknown) {
       updatedAt: data.updatedAt ?? null,
     };
   } catch (err) {
+    if (isClientRequestCancelled(err, requestOptions?.signal)) {
+      throw err;
+    }
+
     console.error("Error saving initial cards:", err);
+
+    if (isClientTimeoutError(err)) {
+      return {
+        error: "Initializing your starter cards timed out. Please try again.",
+      };
+    }
+
     return { error: "Failed to initialize cards. Please try again." };
   }
 }
@@ -184,7 +297,9 @@ export function useNewUserSetup() {
       userIdParam: string | null,
       usernameParam: string | null,
       setLoadingPhase?: (phase: LoadingPhase) => void,
+      requestOptions?: StartNewUserSetupRequestOptions,
     ): Promise<NewUserSetupResult> => {
+      assertSetupRequestIsCurrent(requestOptions);
       setLoadingPhase?.("setting_up");
 
       let resolvedUserId: number | null = null;
@@ -193,8 +308,14 @@ export function useNewUserSetup() {
       if (userIdParam) {
         resolvedUserId = Number.parseInt(userIdParam, 10);
       } else if (usernameParam) {
+        assertSetupRequestIsCurrent(requestOptions);
         setLoadingPhase?.("fetching_anilist");
-        const anilistIdResult = await fetchUserIdFromAniList(usernameParam);
+        const anilistIdResult = await fetchUserIdFromAniList(
+          usernameParam,
+          requestOptions,
+        );
+
+        assertSetupRequestIsCurrent(requestOptions);
 
         if ("error" in anilistIdResult) {
           const errorDetails = getErrorDetails(anilistIdResult.error);
@@ -213,8 +334,14 @@ export function useNewUserSetup() {
         return { error: "Could not determine user ID. Please try again." };
       }
 
+      assertSetupRequestIsCurrent(requestOptions);
       setLoadingPhase?.("fetching_anilist");
-      const statsResult = await fetchUserStatsFromAniList(resolvedUserId);
+      const statsResult = await fetchUserStatsFromAniList(
+        resolvedUserId,
+        requestOptions,
+      );
+
+      assertSetupRequestIsCurrent(requestOptions);
 
       if ("error" in statsResult) {
         const errorDetails = getErrorDetails(statsResult.error);
@@ -232,12 +359,16 @@ export function useNewUserSetup() {
         | undefined;
       if (!resolvedUsername && statsUsername) resolvedUsername = statsUsername;
 
+      assertSetupRequestIsCurrent(requestOptions);
       setLoadingPhase?.("saving");
       const saveUserResult = await saveUserToDatabase(
         resolvedUserId,
         resolvedUsername || "",
         statsResult.stats,
+        requestOptions,
       );
+
+      assertSetupRequestIsCurrent(requestOptions);
 
       if ("error" in saveUserResult) {
         const errorDetails = getErrorDetails(saveUserResult.error);
@@ -252,7 +383,11 @@ export function useNewUserSetup() {
       const saveCardsResult = await saveInitialCards(
         resolvedUserId,
         statsResult.stats,
+        requestOptions,
       );
+
+      assertSetupRequestIsCurrent(requestOptions);
+
       const fallbackInitialCards = buildNewUserStarterCardsSnapshot();
       if ("error" in saveCardsResult) {
         // Non-fatal: user account is created; cards will use defaults and can be re-saved later
@@ -300,14 +435,19 @@ export function useNewUserSetup() {
   );
 
   const hydrateNewUserCards = useCallback(
-    (params: {
-      userId: number;
-      username: string | null;
-      avatarUrl: string | null;
-      initialCards: ReturnType<typeof buildNewUserStarterCardsSnapshot>;
-      updatedAt: string | null;
-      cardsPersisted: boolean;
-    }) => {
+    (
+      params: {
+        userId: number;
+        username: string | null;
+        avatarUrl: string | null;
+        initialCards: ReturnType<typeof buildNewUserStarterCardsSnapshot>;
+        updatedAt: string | null;
+        cardsPersisted: boolean;
+      },
+      requestOptions?: StartNewUserSetupRequestOptions,
+    ) => {
+      assertSetupRequestIsCurrent(requestOptions);
+
       useUserPageEditor
         .getState()
         .initializeFromServerData(
@@ -319,6 +459,8 @@ export function useNewUserSetup() {
           ALL_CARD_IDS,
           params.updatedAt,
         );
+
+      assertSetupRequestIsCurrent(requestOptions);
 
       if (params.cardsPersisted) {
         setCardsWarning(null);
@@ -332,20 +474,26 @@ export function useNewUserSetup() {
     [],
   );
 
-  const startSetup = useCallback(
+  const startSetup = useCallback<StartNewUserSetup>(
     async (
       userIdParam: string | null,
       usernameParam: string | null,
       setLoadingPhase?: (phase: LoadingPhase) => void,
+      requestOptions?: StartNewUserSetupRequestOptions,
     ) => {
+      assertSetupRequestIsCurrent(requestOptions);
       setIsNewUser(true);
+      setCardsWarning(null);
 
       try {
         const setupResult = await setupNewUserNetwork(
           userIdParam,
           usernameParam,
           setLoadingPhase,
+          requestOptions,
         );
+
+        assertSetupRequestIsCurrent(requestOptions);
 
         if ("error" in setupResult) {
           setIsNewUser(false);
@@ -353,6 +501,8 @@ export function useNewUserSetup() {
         }
 
         setLoadingPhase?.("loading_cards");
+        assertSetupRequestIsCurrent(requestOptions);
+
         // Expose the resolved identity first so the page shell can render the
         // correct user context while card hydration finishes in the next step.
         useUserPageEditor
@@ -363,14 +513,19 @@ export function useNewUserSetup() {
             setupResult.avatarUrl,
           );
 
-        hydrateNewUserCards({
-          userId: setupResult.userId,
-          username: setupResult.username,
-          avatarUrl: setupResult.avatarUrl,
-          initialCards: setupResult.initialCards,
-          updatedAt: setupResult.cardsUpdatedAt,
-          cardsPersisted: setupResult.cardsPersisted,
-        });
+        hydrateNewUserCards(
+          {
+            userId: setupResult.userId,
+            username: setupResult.username,
+            avatarUrl: setupResult.avatarUrl,
+            initialCards: setupResult.initialCards,
+            updatedAt: setupResult.cardsUpdatedAt,
+            cardsPersisted: setupResult.cardsPersisted,
+          },
+          requestOptions,
+        );
+
+        assertSetupRequestIsCurrent(requestOptions);
 
         setLoadingPhase?.("complete");
 
@@ -380,6 +535,10 @@ export function useNewUserSetup() {
           username: setupResult.username,
         } as const;
       } catch (err) {
+        if (isSupersededNewUserSetupRequest(err, requestOptions)) {
+          throw err;
+        }
+
         setIsNewUser(false);
         setLoadingPhase?.("error");
 

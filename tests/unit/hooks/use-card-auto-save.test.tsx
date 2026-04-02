@@ -164,7 +164,7 @@ describe("useCardAutoSave", () => {
 
     await act(async () => {
       vi.advanceTimersByTime(1);
-      await flushMicrotasks();
+      await flushMicrotasks(10);
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -301,5 +301,150 @@ describe("useCardAutoSave", () => {
 
     expect(result.current.saveConflict).toBeNull();
     expect(editorStore.getState().saveError).toBeNull();
+  });
+
+  it("retries retryable save failures after Retry-After before succeeding", async () => {
+    const patch: LocalEditsPatch = {
+      cardConfigs: {
+        animeStats: createCardConfig("animeStats", {
+          enabled: false,
+        }),
+      },
+    };
+
+    editorStore.reset({
+      cardOrder: ["animeStats"],
+      isDirty: true,
+      localEditsPatch: patch,
+      userId: "42",
+    });
+
+    let attempt = 0;
+    const fetchMock = mock(async () => {
+      attempt += 1;
+
+      if (attempt === 1) {
+        return new Response(
+          JSON.stringify({
+            error: "Temporary save failure",
+            retryable: true,
+            status: 503,
+          }),
+          {
+            headers: {
+              "Content-Type": "application/json",
+              "Retry-After": "1",
+            },
+            status: 503,
+            statusText: "Service Unavailable",
+          },
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ updatedAt: "2026-04-02T04:05:06.000Z" }),
+        {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        },
+      );
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const { result } = renderHook(() =>
+      useCardAutoSave({ debounceMs: 500, enabled: false }),
+    );
+
+    const savePromise = result.current.saveNow();
+
+    await act(async () => {
+      await flushMicrotasks();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(editorStore.getState().isSaving).toBe(true);
+
+    await act(async () => {
+      vi.advanceTimersByTime(999);
+      await flushMicrotasks();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+      await savePromise;
+      await flushMicrotasks();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(editorStore.getState().isSaving).toBe(false);
+    expect(editorStore.mocks.markSaved).toHaveBeenCalledWith({
+      appliedPatch: patch,
+      serverUpdatedAt: "2026-04-02T04:05:06.000Z",
+    });
+    expect(toast.success).toHaveBeenCalledWith("Saved", {
+      id: "user-page-autosave",
+    });
+  });
+
+  it("aborts an in-flight save during cleanup and ignores the stale completion", async () => {
+    const patch: LocalEditsPatch = {
+      cardConfigs: {
+        animeStats: createCardConfig("animeStats", {
+          enabled: false,
+        }),
+      },
+    };
+
+    editorStore.reset({
+      cardOrder: ["animeStats"],
+      isDirty: true,
+      localEditsPatch: patch,
+      userId: "42",
+    });
+
+    let capturedSignal: AbortSignal | undefined;
+    const fetchMock = mock(
+      (_input: unknown, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          capturedSignal = init?.signal as AbortSignal | undefined;
+
+          capturedSignal?.addEventListener(
+            "abort",
+            () => {
+              reject(
+                capturedSignal?.reason ??
+                  new DOMException("The request was aborted.", "AbortError"),
+              );
+            },
+            { once: true },
+          );
+        }),
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const { result, unmount } = renderHook(() =>
+      useCardAutoSave({ debounceMs: 500, enabled: false }),
+    );
+
+    const savePromise = result.current.saveNow();
+
+    await act(async () => {
+      await flushMicrotasks();
+    });
+
+    expect(editorStore.getState().isSaving).toBe(true);
+
+    unmount();
+
+    await act(async () => {
+      await savePromise;
+      await flushMicrotasks();
+    });
+
+    expect(capturedSignal?.aborted).toBe(true);
+    expect(editorStore.getState().isSaving).toBe(false);
+    expect(editorStore.mocks.markSaved).not.toHaveBeenCalled();
   });
 });

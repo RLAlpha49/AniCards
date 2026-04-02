@@ -227,7 +227,13 @@ function UserPageEditorLoadingScreen(
   );
 }
 
-function UserPageEditorErrorScreen(props: Readonly<{ loadError: string }>) {
+function UserPageEditorErrorScreen(
+  props: Readonly<{
+    loadError: string;
+    canRetry?: boolean;
+    onRetry?: () => void;
+  }>,
+) {
   return (
     <div className="
       relative z-10 container mx-auto flex min-h-screen items-center justify-center px-4
@@ -260,15 +266,36 @@ function UserPageEditorErrorScreen(props: Readonly<{ loadError: string }>) {
           <p className="mb-6 font-body-serif text-muted-foreground">
             {props.loadError}
           </p>
-          <Button
-            asChild
-            className="
-              bg-linear-to-r from-gold via-amber-500 to-gold-dim text-primary-foreground shadow-lg
-              shadow-gold/20
-            "
-          >
-            <Link href="/search">Search for User</Link>
-          </Button>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+            {props.canRetry && props.onRetry ? (
+              <Button
+                type="button"
+                onClick={() => props.onRetry?.()}
+                className="
+                  bg-linear-to-r from-gold via-amber-500 to-gold-dim text-primary-foreground
+                  shadow-lg shadow-gold/20
+                "
+              >
+                Try again
+              </Button>
+            ) : null}
+
+            <Button
+              asChild
+              variant={props.canRetry ? "outline" : undefined}
+              className={cn(
+                props.canRetry
+                  ? `border-gold/30 text-foreground hover:bg-gold/5 dark:border-gold/20`
+                  : `
+                    bg-linear-to-r from-gold via-amber-500 to-gold-dim text-primary-foreground
+                    shadow-lg shadow-gold/20
+                  `,
+              )}
+            >
+              <Link href="/search">Search for User</Link>
+            </Button>
+          </div>
         </div>
       </motion.div>
     </div>
@@ -1073,7 +1100,7 @@ export function UserPageEditor({
     }
   }, [canEnterReorderMode, isReorderMode]);
 
-  const { isNewUser, setIsNewUser, cardsWarning, setCardsWarning } =
+  const { isNewUser, setIsNewUser, cardsWarning, setCardsWarning, startSetup } =
     useNewUserSetup();
 
   const prefetchHelpDialog = useCallback(() => {
@@ -1128,7 +1155,10 @@ export function UserPageEditor({
     customFilter,
   });
 
-  const { loadingPhase, reload } = useUserDataLoader({ routeUsername });
+  const { loadingPhase, reload, canRetryLoadInPlace } = useUserDataLoader({
+    routeUsername,
+    startSetup,
+  });
 
   const {
     saveNow,
@@ -1514,7 +1544,15 @@ export function UserPageEditor({
   }
 
   if (loadError) {
-    return <UserPageEditorErrorScreen loadError={loadError} />;
+    return (
+      <UserPageEditorErrorScreen
+        loadError={loadError}
+        canRetry={canRetryLoadInPlace}
+        onRetry={() => {
+          void reload();
+        }}
+      />
+    );
   }
 
   return (

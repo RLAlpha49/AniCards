@@ -7,6 +7,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import { fetchUserCards } from "@/lib/api/cards";
+import {
+  isClientAbortError,
+  isClientRequestCancelled,
+  isClientTimeoutError,
+  requestClientJson,
+} from "@/lib/api/client-fetch";
 import { isValidUsername } from "@/lib/api-utils";
 import { statCardTypes } from "@/lib/card-types";
 import { getErrorDetails, getSafeErrorSummary } from "@/lib/error-messages";
@@ -18,34 +24,195 @@ import type {
   PublicUserRecord,
   UserBootstrapRecord,
 } from "@/lib/types/records";
-import { getResponseErrorMessage, parseResponsePayload } from "@/lib/utils";
+import {
+  getStructuredResponseError,
+  type StructuredResponseError,
+} from "@/lib/utils";
 
-import { useNewUserSetup } from "./useNewUserSetup";
+import type { StartNewUserSetup } from "./useNewUserSetup";
 
 const ALL_CARD_IDS = statCardTypes.map((t) => t.id);
+const USER_ROUTE_REQUEST_TIMEOUT_MS = 15_000;
+
+type UserLoadRequest = {
+  id: number;
+  requestedId: string;
+  controller: AbortController;
+};
+
+type UserDataResult =
+  | { userId: string; username: string | null; avatarUrl: string | null }
+  | { error: StructuredResponseError; notFound?: boolean };
+
+type SearchParamsReader = {
+  get: (key: string) => string | null;
+};
+
+type RequestedUserSelection = {
+  rawUserIdParam: string | null;
+  rawUsernameParam: string | null;
+  userIdParam: string | null;
+  usernameParam: string | null;
+  requestedId: string;
+};
+
+type ActiveLoadContext = {
+  selection: RequestedUserSelection;
+  controller: AbortController;
+  requestId: number;
+  isCurrentRequest: () => boolean;
+  finishRequest: () => void;
+  failLoad: (message: string, retryable: boolean) => void;
+};
+
+function resolveRequestedUserSelection(
+  searchParams: SearchParamsReader,
+  routeUsername?: string,
+): RequestedUserSelection {
+  const rawUserIdParam = searchParams.get("userId");
+  const rawUsernameParam =
+    searchParams.get("username") ?? routeUsername ?? null;
+
+  let userIdParam = rawUserIdParam?.trim() ?? null;
+  let usernameParam = rawUsernameParam?.trim() ?? null;
+
+  if (!/^\d+$/.test(userIdParam ?? "")) {
+    userIdParam = null;
+  }
+
+  if (usernameParam === null || !isValidUsername(usernameParam)) {
+    usernameParam = null;
+  }
+
+  return {
+    rawUserIdParam,
+    rawUsernameParam,
+    userIdParam,
+    usernameParam,
+    requestedId: `${userIdParam ?? ""}|${usernameParam ?? ""}`,
+  };
+}
+
+function getRequestedUserValidationMessage(
+  selection: RequestedUserSelection,
+): string {
+  return selection.rawUserIdParam || selection.rawUsernameParam
+    ? "Invalid user specified. Please check the username/user ID and try again."
+    : "No user specified. Please search for a user first.";
+}
+
+function createStructuredLoadError(
+  message: string,
+  status?: number,
+): StructuredResponseError {
+  const details = getErrorDetails(message, status);
+
+  return {
+    message,
+    status,
+    category: details.category,
+    retryable: details.retryable,
+    recoverySuggestions: details.suggestions,
+  };
+}
+
+function getStructuredErrorUserMessage(error: StructuredResponseError): string {
+  const derivedDetails = getErrorDetails(error.message, error.status);
+
+  if (derivedDetails.category === error.category) {
+    return derivedDetails.userMessage;
+  }
+
+  return getErrorDetails(error.category).userMessage;
+}
+
+function getStructuredErrorSummary(error: StructuredResponseError): string {
+  const primarySuggestion = error.recoverySuggestions.find(
+    (suggestion) => suggestion.description.trim().length > 0,
+  )?.description;
+
+  if (!primarySuggestion) {
+    return getSafeErrorSummary(error.message, error.status);
+  }
+
+  const userMessage = getStructuredErrorUserMessage(error).trim();
+  const suggestion = primarySuggestion.trim();
+
+  if (!userMessage) {
+    return suggestion;
+  }
+
+  if (suggestion.toLowerCase().startsWith(userMessage.toLowerCase())) {
+    return suggestion;
+  }
+
+  const hasTerminalPunctuation = /[.!?]$/.test(userMessage);
+  return `${userMessage}${hasTerminalPunctuation ? "" : "."} ${suggestion}`;
+}
+
+function buildStructuredErrorTrackingMetadata(
+  error: StructuredResponseError,
+): Record<string, unknown> | undefined {
+  if (!error.additionalFields) {
+    return undefined;
+  }
+
+  const metadataEntries = Object.entries(error.additionalFields).filter(
+    (_entry): _entry is [string, string | number | boolean | null] => {
+      const [, value] = _entry;
+      return (
+        value === null ||
+        typeof value === "string" ||
+        typeof value === "number" ||
+        typeof value === "boolean"
+      );
+    },
+  );
+
+  if (metadataEntries.length === 0) {
+    return undefined;
+  }
+
+  return Object.fromEntries(metadataEntries);
+}
+
+function buildUnexpectedLoadMessage(error: unknown): string {
+  if (isClientTimeoutError(error)) {
+    return "Loading your profile timed out. Please try again.";
+  }
+
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  return "Failed to fetch user data. Please check your connection and try again.";
+}
 
 async function fetchUserData(
   userId: string | null,
   username: string | null,
-): Promise<
-  | { userId: string; username: string | null; avatarUrl: string | null }
-  | { error: string; notFound?: boolean }
-> {
+  options: { signal?: AbortSignal; timeoutMs?: number } = {},
+): Promise<UserDataResult> {
   const params = new URLSearchParams();
   if (userId) params.set("userId", userId);
   else if (username) params.set("username", username);
   params.set("view", "bootstrap");
 
   try {
-    const res = await fetch(`/api/get-user?${params.toString()}`);
-    const payload = await parseResponsePayload(res);
+    const { response: res, payload } = await requestClientJson(
+      `/api/get-user?${params.toString()}`,
+      {
+        signal: options.signal,
+        timeoutMs: options.timeoutMs,
+      },
+    );
 
     if (!res.ok) {
-      const msg = getResponseErrorMessage(res, payload);
+      const error = getStructuredResponseError(res, payload);
       if (res.status === 404) {
-        return { error: msg, notFound: true };
+        return { error, notFound: true };
       }
-      return { error: msg };
+      return { error };
     }
 
     const data = payload as PublicUserRecord | UserBootstrapRecord;
@@ -54,7 +221,7 @@ async function fetchUserData(
     // legacy string responses during tests/backfills. Normalize to a numeric
     // value and reject only when parsing fails.
     if (data?.userId === undefined || data?.userId === null) {
-      return { error: "Invalid user data received" };
+      return { error: createStructuredLoadError("Invalid user data received") };
     }
 
     const parsedUserId =
@@ -63,7 +230,7 @@ async function fetchUserData(
         : Number.parseInt(String(data.userId), 10);
 
     if (Number.isNaN(parsedUserId)) {
-      return { error: "Invalid user data received" };
+      return { error: createStructuredLoadError("Invalid user data received") };
     }
 
     return {
@@ -78,10 +245,24 @@ async function fetchUserData(
           : null),
     };
   } catch (err) {
+    if (isClientRequestCancelled(err, options.signal)) {
+      throw err;
+    }
+
     console.error("Error fetching user:", err);
+
+    if (isClientTimeoutError(err)) {
+      return {
+        error: createStructuredLoadError(
+          "Loading your profile timed out. Please try again.",
+        ),
+      };
+    }
+
     return {
-      error:
+      error: createStructuredLoadError(
         "Failed to fetch user data. Please check your connection and try again.",
+      ),
     };
   }
 }
@@ -100,12 +281,34 @@ function buildCanonicalUserPageUrl(
   return search ? `${pathname}?${search}` : pathname;
 }
 
-export function useUserDataLoader(options?: { routeUsername?: string }) {
+function isSupersededUserLoadRequest(
+  error: unknown,
+  signal: AbortSignal,
+  isCurrentRequest: () => boolean,
+): boolean {
+  if (!isClientAbortError(error)) {
+    return false;
+  }
+
+  if (signal.aborted) {
+    return true;
+  }
+
+  return !isCurrentRequest();
+}
+
+export function useUserDataLoader(options: {
+  routeUsername?: string;
+  startSetup: StartNewUserSetup;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const lastLoadedUserRef = useRef<string | null>(null);
+  const activeLoadRequestRef = useRef<UserLoadRequest | null>(null);
+  const nextLoadRequestIdRef = useRef(0);
   const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>("idle");
+  const [canRetryLoadInPlace, setCanRetryLoadInPlace] = useState(false);
 
   const { isLoading, loadError } = useUserPageEditor(
     useShallow((state) => ({
@@ -113,13 +316,54 @@ export function useUserDataLoader(options?: { routeUsername?: string }) {
       loadError: state.loadError,
     })),
   );
-  const { startSetup } = useNewUserSetup();
+
+  const beginLoadRequest = useCallback((requestedId: string) => {
+    activeLoadRequestRef.current?.controller.abort(
+      new DOMException(
+        "The user load request was superseded by a newer request.",
+        "AbortError",
+      ),
+    );
+
+    const controller = new AbortController();
+    const requestId = nextLoadRequestIdRef.current + 1;
+    nextLoadRequestIdRef.current = requestId;
+
+    activeLoadRequestRef.current = {
+      id: requestId,
+      requestedId,
+      controller,
+    };
+
+    return {
+      controller,
+      requestId,
+    };
+  }, []);
+
+  const clearActiveLoadRequest = useCallback((requestId: number) => {
+    if (activeLoadRequestRef.current?.id === requestId) {
+      activeLoadRequestRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      activeLoadRequestRef.current?.controller.abort(
+        new DOMException(
+          "The user load request was cancelled during cleanup.",
+          "AbortError",
+        ),
+      );
+      activeLoadRequestRef.current = null;
+    };
+  }, []);
 
   const navigateToCanonicalUserRoute = useCallback(
-    (username: string | null | undefined) => {
+    (username: string | null | undefined, isCurrentRequest: () => boolean) => {
       const normalizedUsername = username?.trim();
 
-      if (!normalizedUsername || pathname !== "/user") {
+      if (!isCurrentRequest() || !normalizedUsername || pathname !== "/user") {
         return;
       }
 
@@ -147,10 +391,18 @@ export function useUserDataLoader(options?: { routeUsername?: string }) {
       userIdStr: string,
       uname: string | null,
       aUrl: string | null,
-      cardsResultPromise: ReturnType<typeof fetchUserCards>,
+      signal: AbortSignal,
+      isCurrentRequest: () => boolean,
     ) => {
       const store = useUserPageEditor.getState();
-      const cardsResult = await cardsResultPromise;
+      const cardsResult = await fetchUserCards(userIdStr, {
+        signal,
+        timeoutMs: USER_ROUTE_REQUEST_TIMEOUT_MS,
+      });
+
+      if (!isCurrentRequest()) {
+        return;
+      }
 
       if ("error" in cardsResult) {
         if (cardsResult.notFound) {
@@ -164,30 +416,35 @@ export function useUserDataLoader(options?: { routeUsername?: string }) {
           );
           setLoadingPhase("complete");
           return;
-        } else {
-          const errorDetails = getErrorDetails(
-            cardsResult.error ?? "Unknown error",
-          );
-          void trackUserActionError(
-            "user_page_load_fetch_cards",
-            new Error(cardsResult.error ?? "Unknown error"),
-            errorDetails.category,
-          );
-          setLoadingPhase("complete");
-          store.setLoading(false);
-          store.setLoadError(
-            "Failed to load saved cards due to a server error. Default cards are shown for now.",
-          );
-          store.initializeFromServerData(
-            userIdStr,
-            uname,
-            aUrl,
-            [],
-            undefined,
-            ALL_CARD_IDS,
-          );
-          return;
         }
+
+        const error = cardsResult.error;
+        void trackUserActionError(
+          "user_page_load_fetch_cards",
+          new Error(error.message),
+          error.category,
+          {
+            statusCode: error.status,
+            requestId: error.requestId,
+            retryable: error.retryable,
+            recoverySuggestions: error.recoverySuggestions,
+            metadata: buildStructuredErrorTrackingMetadata(error),
+          },
+        );
+        setLoadingPhase("complete");
+        store.setLoading(false);
+        store.setLoadError(
+          "Failed to load saved cards due to a server error. Default cards are shown for now.",
+        );
+        store.initializeFromServerData(
+          userIdStr,
+          uname,
+          aUrl,
+          [],
+          undefined,
+          ALL_CARD_IDS,
+        );
+        return;
       }
 
       store.initializeFromServerData(
@@ -205,134 +462,245 @@ export function useUserDataLoader(options?: { routeUsername?: string }) {
     [],
   );
 
-  const load = useCallback(async () => {
-    const rawUserIdParam = searchParams.get("userId");
-    const rawUsernameParam =
-      searchParams.get("username") ?? options?.routeUsername ?? null;
-
-    let userIdParam = rawUserIdParam?.trim() ?? null;
-    let usernameParam = rawUsernameParam?.trim() ?? null;
-
-    if (!/^\d+$/.test(userIdParam ?? "")) userIdParam = null;
-    if (usernameParam === null || !isValidUsername(usernameParam))
-      usernameParam = null;
-
-    const requestedId = `${userIdParam ?? ""}|${usernameParam ?? ""}`;
-    const store = useUserPageEditor.getState();
-
-    if (lastLoadedUserRef.current === requestedId) {
-      store.setLoading(false);
-      return;
-    }
-    lastLoadedUserRef.current = requestedId;
-
-    store.setLoadError(null);
-
-    if (!userIdParam && !usernameParam) {
-      if (rawUserIdParam || rawUsernameParam) {
-        store.setLoadError(
-          "Invalid user specified. Please check the username/user ID and try again.",
-        );
-      } else {
-        store.setLoadError(
-          "No user specified. Please search for a user first.",
-        );
-      }
-      store.setLoading(false);
-      setLoadingPhase("error");
-      lastLoadedUserRef.current = null;
-      return;
-    }
-
-    store.setLoading(true);
-    setLoadingPhase("checking");
-
-    const userResult = await fetchUserData(userIdParam, usernameParam);
-
-    if ("error" in userResult && userResult.notFound) {
+  const handleMissingUserLoad = useCallback(
+    async (request: ActiveLoadContext) => {
       setLoadingPhase("setting_up");
-      const setupResult = await startSetup(
-        userIdParam,
-        usernameParam,
+
+      const setupResult = await options.startSetup(
+        request.selection.userIdParam,
+        request.selection.usernameParam,
         setLoadingPhase,
+        {
+          signal: request.controller.signal,
+          isCurrentRequest: request.isCurrentRequest,
+          timeoutMs: USER_ROUTE_REQUEST_TIMEOUT_MS,
+        },
       );
 
-      if ("error" in setupResult) {
-        store.setLoading(false);
-        store.setLoadError(
-          getSafeErrorSummary(setupResult.error ?? "Unknown error"),
-        );
-        setLoadingPhase("error");
-        lastLoadedUserRef.current = null;
+      if (!request.isCurrentRequest()) {
         return;
       }
 
-      navigateToCanonicalUserRoute(setupResult.username);
+      if ("error" in setupResult) {
+        const errorDetails = getErrorDetails(
+          setupResult.error ?? "Unknown error",
+        );
+
+        request.failLoad(
+          getSafeErrorSummary(setupResult.error ?? "Unknown error"),
+          errorDetails.retryable,
+        );
+        return;
+      }
+
+      navigateToCanonicalUserRoute(
+        setupResult.username,
+        request.isCurrentRequest,
+      );
+
+      if (!request.isCurrentRequest()) {
+        return;
+      }
+
+      setCanRetryLoadInPlace(false);
       setLoadingPhase("complete");
-      return;
-    }
+      request.finishRequest();
+    },
+    [navigateToCanonicalUserRoute, options.startSetup],
+  );
 
-    if ("error" in userResult) {
-      const errorDetails = getErrorDetails(userResult.error ?? "Unknown error");
-      void trackUserActionError(
-        "user_page_load",
-        new Error(userResult.error ?? "Unknown error"),
-        errorDetails.category,
+  const handleExistingUserLoad = useCallback(
+    async (
+      userResult: Extract<UserDataResult, { userId: string }>,
+      request: ActiveLoadContext,
+    ) => {
+      const store = useUserPageEditor.getState();
+
+      store.setUserData(
+        userResult.userId,
+        userResult.username,
+        userResult.avatarUrl,
       );
-      store.setLoading(false);
-      store.setLoadError(
-        getSafeErrorSummary(userResult.error ?? "Unknown error"),
+      setLoadingPhase("loading_cards");
+
+      await handleCardsForExistingUser(
+        userResult.userId,
+        userResult.username,
+        userResult.avatarUrl,
+        request.controller.signal,
+        request.isCurrentRequest,
       );
-      setLoadingPhase("error");
-      lastLoadedUserRef.current = null;
-      return;
-    }
 
-    store.setUserData(
-      userResult.userId,
-      userResult.username,
-      userResult.avatarUrl,
-    );
-    setLoadingPhase("loading_cards");
+      if (!request.isCurrentRequest()) {
+        return;
+      }
 
-    const cardsResultPromise = fetchUserCards(userResult.userId);
+      navigateToCanonicalUserRoute(
+        userResult.username,
+        request.isCurrentRequest,
+      );
 
-    await handleCardsForExistingUser(
-      userResult.userId,
-      userResult.username,
-      userResult.avatarUrl,
-      cardsResultPromise,
-    );
+      if (!request.isCurrentRequest()) {
+        return;
+      }
 
-    navigateToCanonicalUserRoute(userResult.username);
+      setCanRetryLoadInPlace(false);
+      setLoadingPhase("complete");
+      request.finishRequest();
+    },
+    [handleCardsForExistingUser, navigateToCanonicalUserRoute],
+  );
 
-    store.setLoading(false);
-    setLoadingPhase("complete");
-  }, [
-    options?.routeUsername,
-    navigateToCanonicalUserRoute,
-    searchParams,
-    startSetup,
-    handleCardsForExistingUser,
-  ]);
+  const load = useCallback(
+    async (loadOptions?: { force?: boolean }) => {
+      const selection = resolveRequestedUserSelection(
+        searchParams,
+        options.routeUsername,
+      );
+      const store = useUserPageEditor.getState();
+
+      if (!loadOptions?.force) {
+        if (
+          activeLoadRequestRef.current?.requestedId === selection.requestedId
+        ) {
+          return;
+        }
+
+        if (lastLoadedUserRef.current === selection.requestedId) {
+          store.setLoading(false);
+          setCanRetryLoadInPlace(false);
+          return;
+        }
+      }
+
+      const { controller, requestId } = beginLoadRequest(selection.requestedId);
+      const isCurrentRequest = () =>
+        activeLoadRequestRef.current?.id === requestId &&
+        !controller.signal.aborted;
+      const finishRequest = () => {
+        clearActiveLoadRequest(requestId);
+      };
+      const failLoad = (message: string, retryable: boolean) => {
+        if (!isCurrentRequest()) {
+          return;
+        }
+
+        store.setLoading(false);
+        store.setLoadError(message);
+        setCanRetryLoadInPlace(retryable);
+        setLoadingPhase("error");
+        lastLoadedUserRef.current = null;
+        finishRequest();
+      };
+      const request: ActiveLoadContext = {
+        selection,
+        controller,
+        requestId,
+        isCurrentRequest,
+        finishRequest,
+        failLoad,
+      };
+
+      lastLoadedUserRef.current = selection.requestedId;
+      setCanRetryLoadInPlace(false);
+      store.setLoadError(null);
+
+      try {
+        if (!selection.userIdParam && !selection.usernameParam) {
+          request.failLoad(getRequestedUserValidationMessage(selection), false);
+          return;
+        }
+
+        store.setLoading(true);
+        setLoadingPhase("checking");
+
+        const userResult = await fetchUserData(
+          selection.userIdParam,
+          selection.usernameParam,
+          {
+            signal: controller.signal,
+            timeoutMs: USER_ROUTE_REQUEST_TIMEOUT_MS,
+          },
+        );
+
+        if (!request.isCurrentRequest()) {
+          return;
+        }
+
+        if ("error" in userResult) {
+          if (userResult.notFound) {
+            await handleMissingUserLoad(request);
+            return;
+          }
+
+          const error = userResult.error;
+          void trackUserActionError(
+            "user_page_load",
+            new Error(error.message),
+            error.category,
+            {
+              statusCode: error.status,
+              requestId: error.requestId,
+              retryable: error.retryable,
+              recoverySuggestions: error.recoverySuggestions,
+              metadata: buildStructuredErrorTrackingMetadata(error),
+            },
+          );
+
+          request.failLoad(getStructuredErrorSummary(error), error.retryable);
+          return;
+        }
+
+        await handleExistingUserLoad(userResult, request);
+      } catch (err) {
+        if (
+          isSupersededUserLoadRequest(
+            err,
+            controller.signal,
+            request.isCurrentRequest,
+          )
+        ) {
+          request.finishRequest();
+          return;
+        }
+
+        console.error("Error loading user data:", err);
+
+        const fallbackMessage = buildUnexpectedLoadMessage(err);
+        const errorDetails = createStructuredLoadError(fallbackMessage);
+
+        request.failLoad(
+          getStructuredErrorSummary(errorDetails),
+          errorDetails.retryable,
+        );
+      }
+    },
+    [
+      beginLoadRequest,
+      clearActiveLoadRequest,
+      handleExistingUserLoad,
+      handleCardsForExistingUser,
+      handleMissingUserLoad,
+      navigateToCanonicalUserRoute,
+      options.routeUsername,
+      searchParams,
+    ],
+  );
 
   useEffect(() => {
-    load().catch((err) => {
-      console.error("Error loading user data:", err);
-      lastLoadedUserRef.current = null;
-      useUserPageEditor
-        .getState()
-        .setLoadError(
-          "Failed to fetch user data. Please check your connection and try again.",
-        );
-      setLoadingPhase("error");
-    });
+    void load();
   }, [load]);
 
   const reload = useCallback(() => {
     lastLoadedUserRef.current = null;
-    return load();
+    return load({ force: true });
   }, [load]);
 
-  return { isLoading, loadError, loadingPhase, reload } as const;
+  return {
+    isLoading,
+    loadError,
+    loadingPhase,
+    reload,
+    canRetryLoadInPlace,
+  } as const;
 }

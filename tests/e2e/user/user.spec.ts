@@ -1,5 +1,8 @@
 import { gotoReady } from "../fixtures/browser-utils";
-import { mockServerError } from "../fixtures/mock-data";
+import {
+  mockBootstrapUserRecord,
+  mockServerError,
+} from "../fixtures/mock-data";
 import { expect, mockSuccessfulApiRoutes, test } from "../fixtures/test-utils";
 
 test.use({ serviceWorkers: "block" });
@@ -176,7 +179,59 @@ test.describe("User page", () => {
         page.getByText(/server error|an unexpected error occurred/i),
       ).toBeVisible({ timeout: 15000 });
       await expect(
+        page.getByRole("button", { name: /try again/i }),
+      ).toBeVisible({ timeout: 15000 });
+      await expect(
         page.getByRole("link", { name: /search for user/i }),
+      ).toBeVisible({ timeout: 15000 });
+    });
+  });
+
+  test("recovers a transient user-route load failure in place", async ({
+    page,
+  }) => {
+    let getUserRequestCount = 0;
+
+    await test.step("Fail the first bootstrap request, then succeed on retry", async () => {
+      await mockSuccessfulApiRoutes(page, {
+        getUser: async (route) => {
+          getUserRequestCount += 1;
+
+          await route.fulfill({
+            status: getUserRequestCount === 1 ? 503 : 200,
+            contentType: "application/json",
+            body: JSON.stringify(
+              getUserRequestCount === 1
+                ? mockServerError
+                : mockBootstrapUserRecord,
+            ),
+          });
+        },
+      });
+    });
+
+    await test.step("Show the retry-in-place recovery affordance", async () => {
+      await gotoReady(page, "/user/TestUser");
+
+      await expect(
+        page.getByRole("heading", { name: /something went wrong/i }),
+      ).toBeVisible({ timeout: 15000 });
+      await expect(
+        page.getByRole("button", { name: /try again/i }),
+      ).toBeVisible({ timeout: 15000 });
+    });
+
+    await test.step("Retry and recover the editor without leaving the route", async () => {
+      await page.getByRole("button", { name: /try again/i }).click();
+
+      await expect
+        .poll(() => getUserRequestCount, { timeout: 15000 })
+        .toBeGreaterThanOrEqual(2);
+      await expect(
+        page.getByRole("heading", { name: /your cards/i }),
+      ).toBeVisible({ timeout: 15000 });
+      await expect(
+        page.getByRole("img", { name: /anime stats preview/i }),
       ).toBeVisible({ timeout: 15000 });
     });
   });

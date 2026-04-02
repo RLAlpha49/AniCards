@@ -92,6 +92,10 @@ test.describe("User page error states (mocked API)", () => {
       page.getByText(/rate limit exceeded|too many requests/i),
     ).toBeVisible({ timeout: 15000 });
 
+    await expect(
+      page.getByRole("button", { name: /try again/i }),
+    ).toBeVisible();
+
     const recoveryLink = page.getByRole("link", { name: /search for user/i });
     await expect(recoveryLink).toBeVisible();
     await expect(recoveryLink).toHaveAttribute("href", "/search");
@@ -110,6 +114,10 @@ test.describe("User page error states (mocked API)", () => {
         /failed to fetch user data|network connection error|check your connection/i,
       ),
     ).toBeVisible({ timeout: 15000 });
+
+    await expect(
+      page.getByRole("button", { name: /try again/i }),
+    ).toBeVisible();
 
     const recoveryLink = page.getByRole("link", { name: /search for user/i });
     await expect(recoveryLink).toBeVisible();

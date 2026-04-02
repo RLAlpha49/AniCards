@@ -13,11 +13,7 @@ import { redisClient } from "@/lib/api/clients";
 import { readBooleanEnv, readPositiveIntegerEnv } from "@/lib/api/config";
 import { apiErrorResponse } from "@/lib/api/errors";
 import { logPrivacySafe } from "@/lib/api/logging";
-import {
-  categorizeError,
-  isRetryableErrorCategory,
-  isRetryableStatusCode,
-} from "@/lib/error-messages";
+import { isRetryableStatusCode } from "@/lib/error-messages";
 import { getSecureRandomFraction } from "@/lib/utils";
 
 interface UpstreamCircuitState {
@@ -37,6 +33,7 @@ interface UpstreamFetchOptions {
   url: string;
   init?: RequestInit;
   timeoutMs?: number;
+  totalTimeoutMs?: number;
   maxAttempts?: number;
   backoffBaseMs?: number;
   maxBackoffMs?: number;
@@ -45,6 +42,7 @@ interface UpstreamFetchOptions {
 
 interface NormalizedUpstreamFetchOptions extends UpstreamFetchOptions {
   timeoutMs: number;
+  totalTimeoutMs: number;
   maxAttempts: number;
   backoffBaseMs: number;
   maxBackoffMs: number;
@@ -57,6 +55,36 @@ const DEFAULT_UPSTREAM_MAX_BACKOFF_MS = 5_000;
 const DEFAULT_CIRCUIT_BREAKER_FAILURE_THRESHOLD = 5;
 const DEFAULT_CIRCUIT_BREAKER_COOLDOWN_MS = 30_000;
 const UPSTREAM_CIRCUIT_KEY_PREFIX = "upstream:circuit";
+const RETRYABLE_UPSTREAM_ERROR_CODES = new Set([
+  "ECONNABORTED",
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "EHOSTUNREACH",
+  "EPIPE",
+  "ETIMEDOUT",
+  "UND_ERR_BODY_TIMEOUT",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_HEADERS_TIMEOUT",
+  "UND_ERR_SOCKET",
+]);
+const RETRYABLE_UPSTREAM_ERROR_NAMES = new Set([
+  "BodyTimeoutError",
+  "ConnectTimeoutError",
+  "HeadersTimeoutError",
+  "SocketError",
+  "TimeoutError",
+]);
+const RETRYABLE_UPSTREAM_ERROR_MESSAGE_PATTERNS = [
+  /\bnetwork\b/i,
+  /\bfetch failed\b/i,
+  /\bconnection\b/i,
+  /\bconnect(?:ion)?\b/i,
+  /\bsocket\b/i,
+  /\bdns\b/i,
+  /\btls\b/i,
+  /\btimeout\b/i,
+  /\btimed out\b/i,
+];
 const upstreamCircuitStates = new Map<string, UpstreamCircuitState>();
 
 /**
@@ -158,6 +186,117 @@ function isAbortErrorLike(error: unknown): boolean {
     : false;
 }
 
+function iterateErrorChain(error: unknown): unknown[] {
+  const chain: unknown[] = [];
+  const seen = new Set<unknown>();
+  let current = error;
+
+  while (
+    (typeof current === "object" || typeof current === "function") &&
+    current !== null &&
+    !seen.has(current)
+  ) {
+    seen.add(current);
+    chain.push(current);
+
+    const cause = (current as { cause?: unknown }).cause;
+    if (cause === undefined) {
+      return chain;
+    }
+
+    current = cause;
+  }
+
+  if (current !== undefined && !seen.has(current)) {
+    chain.push(current);
+  }
+
+  return chain;
+}
+
+function getRetryableUpstreamErrorCode(error: unknown): string | undefined {
+  for (const candidate of iterateErrorChain(error)) {
+    if (
+      typeof candidate === "object" &&
+      candidate !== null &&
+      typeof (candidate as { code?: unknown }).code === "string"
+    ) {
+      return (candidate as { code: string }).code.trim().toUpperCase();
+    }
+  }
+
+  return undefined;
+}
+
+function hasRetryableUpstreamErrorName(error: unknown): boolean {
+  for (const candidate of iterateErrorChain(error)) {
+    if (
+      candidate instanceof Error &&
+      RETRYABLE_UPSTREAM_ERROR_NAMES.has(candidate.name)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function hasRetryableUpstreamErrorMessage(error: unknown): boolean {
+  for (const candidate of iterateErrorChain(error)) {
+    if (!(candidate instanceof Error)) {
+      continue;
+    }
+
+    const message = candidate.message.trim();
+    if (
+      RETRYABLE_UPSTREAM_ERROR_MESSAGE_PATTERNS.some((pattern) =>
+        pattern.test(message),
+      )
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function isRetryableUpstreamTransportFailure(options: {
+  error: unknown;
+  didTimeout: boolean;
+  signal?: AbortSignal;
+}): boolean {
+  if (options.signal?.aborted && !options.didTimeout) {
+    return false;
+  }
+
+  if (options.error instanceof UpstreamTransportError) {
+    return isRetryableStatusCode(options.error.statusCode);
+  }
+
+  if (options.didTimeout) {
+    return true;
+  }
+
+  if (hasRetryableUpstreamErrorName(options.error)) {
+    return true;
+  }
+
+  const errorCode = getRetryableUpstreamErrorCode(options.error);
+  if (errorCode && RETRYABLE_UPSTREAM_ERROR_CODES.has(errorCode)) {
+    return true;
+  }
+
+  // Some fetch implementations only surface transport failures as opaque
+  // message strings without stable error codes. Keep this as a final fallback
+  // after checking structured names/codes so runtime differences do not disable
+  // retries for otherwise transient upstream network failures.
+  if (hasRetryableUpstreamErrorMessage(options.error)) {
+    return true;
+  }
+
+  return false;
+}
+
 function getAbortSignal(signal?: AbortSignal | null): AbortSignal | undefined {
   return signal ?? undefined;
 }
@@ -191,6 +330,26 @@ function sleep(delayMs: number, signal?: AbortSignal): Promise<void> {
       signal.addEventListener("abort", onAbort, { once: true });
     }
   });
+}
+
+function getRemainingRequestBudgetMs(
+  requestStartedAt: number,
+  totalTimeoutMs: number,
+): number {
+  return Math.max(0, totalTimeoutMs - (Date.now() - requestStartedAt));
+}
+
+function hasBudgetForAnotherAttempt(options: {
+  requestStartedAt: number;
+  delayMs: number;
+  normalizedOptions: NormalizedUpstreamFetchOptions;
+}): boolean {
+  const remainingBudgetMs = getRemainingRequestBudgetMs(
+    options.requestStartedAt,
+    options.normalizedOptions.totalTimeoutMs,
+  );
+
+  return remainingBudgetMs > options.delayMs;
 }
 
 function hashSecretForConstantTimeComparison(value: string): Buffer {
@@ -510,9 +669,12 @@ async function recordCircuitBreakerFailure(
 function normalizeUpstreamFetchOptions(
   options: UpstreamFetchOptions,
 ): NormalizedUpstreamFetchOptions {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_UPSTREAM_TIMEOUT_MS;
+
   return {
     ...options,
-    timeoutMs: options.timeoutMs ?? DEFAULT_UPSTREAM_TIMEOUT_MS,
+    timeoutMs,
+    totalTimeoutMs: Math.max(1, options.totalTimeoutMs ?? timeoutMs),
     maxAttempts: Math.max(
       1,
       options.maxAttempts ?? DEFAULT_UPSTREAM_MAX_ATTEMPTS,
@@ -537,8 +699,9 @@ function shouldRetryUpstreamResponse(
 async function waitForUpstreamRetryDelay(options: {
   attempt: number;
   retryAfterMs?: number;
+  requestStartedAt: number;
   normalizedOptions: NormalizedUpstreamFetchOptions;
-}): Promise<void> {
+}): Promise<boolean> {
   const delayMs = computeRetryDelayMs({
     attempt: options.attempt,
     retryAfterMs: options.retryAfterMs,
@@ -546,7 +709,69 @@ async function waitForUpstreamRetryDelay(options: {
     maxBackoffMs: options.normalizedOptions.maxBackoffMs,
   });
 
+  if (
+    !hasBudgetForAnotherAttempt({
+      requestStartedAt: options.requestStartedAt,
+      delayMs,
+      normalizedOptions: options.normalizedOptions,
+    })
+  ) {
+    return false;
+  }
+
   await sleep(delayMs, getAbortSignal(options.normalizedOptions.init?.signal));
+  return true;
+}
+
+async function shouldContinueRetryingUpstreamResponse(options: {
+  response: Response;
+  attempt: number;
+  retryAfterMs?: number;
+  requestStartedAt: number;
+  normalizedOptions: NormalizedUpstreamFetchOptions;
+}): Promise<boolean> {
+  if (
+    !shouldRetryUpstreamResponse(
+      options.response,
+      options.attempt,
+      options.normalizedOptions.maxAttempts,
+    )
+  ) {
+    return false;
+  }
+
+  return waitForUpstreamRetryDelay({
+    attempt: options.attempt,
+    retryAfterMs: options.retryAfterMs,
+    requestStartedAt: options.requestStartedAt,
+    normalizedOptions: options.normalizedOptions,
+  });
+}
+
+async function shouldContinueRetryingUpstreamError(options: {
+  error: unknown;
+  attempt: number;
+  didTimeout: boolean;
+  requestStartedAt: number;
+  normalizedOptions: NormalizedUpstreamFetchOptions;
+}): Promise<boolean> {
+  if (
+    !shouldRetryUpstreamError(
+      options.error,
+      options.attempt,
+      options.normalizedOptions.maxAttempts,
+      options.didTimeout,
+      getAbortSignal(options.normalizedOptions.init?.signal),
+    )
+  ) {
+    return false;
+  }
+
+  return waitForUpstreamRetryDelay({
+    attempt: options.attempt,
+    requestStartedAt: options.requestStartedAt,
+    normalizedOptions: options.normalizedOptions,
+  });
 }
 
 async function finalizeUpstreamResponse(
@@ -596,22 +821,32 @@ function shouldRetryUpstreamError(
   attempt: number,
   maxAttempts: number,
   didTimeout: boolean,
+  signal?: AbortSignal,
 ): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  const category = didTimeout ? "timeout" : categorizeError(message);
-  return isRetryableErrorCategory(category) && attempt < maxAttempts;
+  return (
+    attempt < maxAttempts &&
+    isRetryableUpstreamTransportFailure({
+      error,
+      didTimeout,
+      signal,
+    })
+  );
 }
 
 async function recordUpstreamErrorFailure(
   service: string,
   error: unknown,
   didTimeout: boolean,
+  signal?: AbortSignal,
   circuitBreaker?: UpstreamCircuitBreakerOptions | false,
 ): Promise<void> {
-  const message = error instanceof Error ? error.message : String(error);
-  const category = didTimeout ? "timeout" : categorizeError(message);
-
-  if (isRetryableErrorCategory(category)) {
+  if (
+    isRetryableUpstreamTransportFailure({
+      error,
+      didTimeout,
+      signal,
+    })
+  ) {
     await recordCircuitBreakerFailure(service, circuitBreaker);
   }
 }
@@ -627,6 +862,7 @@ export async function fetchUpstreamWithRetry(
   options: UpstreamFetchOptions,
 ): Promise<Response> {
   const normalizedOptions = normalizeUpstreamFetchOptions(options);
+  const requestStartedAt = Date.now();
 
   await ensureCircuitBreakerAllowsRequest(
     normalizedOptions.service,
@@ -638,8 +874,19 @@ export async function fetchUpstreamWithRetry(
     attempt <= normalizedOptions.maxAttempts;
     attempt += 1
   ) {
+    const remainingBudgetMs = getRemainingRequestBudgetMs(
+      requestStartedAt,
+      normalizedOptions.totalTimeoutMs,
+    );
+    if (remainingBudgetMs <= 0) {
+      throw new UpstreamTransportError(
+        `${normalizedOptions.service} request timed out after ${normalizedOptions.totalTimeoutMs}ms`,
+        504,
+      );
+    }
+
     const abortContext = createAbortContext(
-      normalizedOptions.timeoutMs,
+      Math.min(normalizedOptions.timeoutMs, remainingBudgetMs),
       getAbortSignal(normalizedOptions.init?.signal),
     );
 
@@ -651,17 +898,14 @@ export async function fetchUpstreamWithRetry(
 
       const retryAfterMs = getRetryAfterMs(response.headers.get("retry-after"));
       if (
-        shouldRetryUpstreamResponse(
+        await shouldContinueRetryingUpstreamResponse({
           response,
           attempt,
-          normalizedOptions.maxAttempts,
-        )
-      ) {
-        await waitForUpstreamRetryDelay({
-          attempt,
           retryAfterMs,
+          requestStartedAt,
           normalizedOptions,
-        });
+        })
+      ) {
         continue;
       }
 
@@ -672,17 +916,14 @@ export async function fetchUpstreamWithRetry(
       );
     } catch (error) {
       if (
-        shouldRetryUpstreamError(
+        await shouldContinueRetryingUpstreamError({
           error,
           attempt,
-          normalizedOptions.maxAttempts,
-          abortContext.didTimeout(),
-        )
-      ) {
-        await waitForUpstreamRetryDelay({
-          attempt,
+          didTimeout: abortContext.didTimeout(),
+          requestStartedAt,
           normalizedOptions,
-        });
+        })
+      ) {
         continue;
       }
 
@@ -690,6 +931,7 @@ export async function fetchUpstreamWithRetry(
         normalizedOptions.service,
         error,
         abortContext.didTimeout(),
+        getAbortSignal(normalizedOptions.init?.signal),
         normalizedOptions.circuitBreaker,
       );
 
@@ -697,7 +939,7 @@ export async function fetchUpstreamWithRetry(
         service: normalizedOptions.service,
         error,
         timedOut: abortContext.didTimeout(),
-        timeoutMs: normalizedOptions.timeoutMs,
+        timeoutMs: normalizedOptions.totalTimeoutMs,
       });
     } finally {
       abortContext.cleanup();

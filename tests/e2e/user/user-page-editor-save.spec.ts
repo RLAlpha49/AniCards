@@ -83,7 +83,6 @@ async function getPrimaryEditorCardToggle(
 
 function expectSavedTogglePayload(
   payloadCard: Record<string, unknown> | undefined,
-  _target: Pick<EditorCardToggleTarget, "cardId" | "initialChecked">,
 ) {
   expect(typeof payloadCard?.cardName).toBe("string");
 
@@ -145,7 +144,6 @@ test.describe("User page editor - save UX", () => {
     });
 
     await test.step("Press Ctrl+S and capture the latest save payload", async () => {
-      const targetToggle = await getPrimaryEditorCardToggle(page);
       await page.keyboard.press("Control+S");
 
       await expect
@@ -159,7 +157,7 @@ test.describe("User page editor - save UX", () => {
       const cards = payload.cards as Array<Record<string, unknown>>;
       expect(Array.isArray(cards)).toBe(true);
       expect(cards).toHaveLength(1);
-      expectSavedTogglePayload(cards[0], targetToggle);
+      expectSavedTogglePayload(cards[0]);
     });
 
     await test.step("Editor should become clean after save", async () => {
@@ -325,7 +323,6 @@ test.describe("User page editor - save UX", () => {
 
     await test.step("Autosave should hit a save conflict and surface recovery UI", async () => {
       const saveButton = page.getByRole("button", { name: /save changes/i });
-      const targetToggle = await getPrimaryEditorCardToggle(page);
 
       await expect.poll(() => savePayloads.length, { timeout: 5000 }).toBe(1);
 
@@ -336,7 +333,7 @@ test.describe("User page editor - save UX", () => {
       >;
       expect(Array.isArray(conflictedCards)).toBe(true);
       expect(conflictedCards).toHaveLength(1);
-      expectSavedTogglePayload(conflictedCards[0], targetToggle);
+      expectSavedTogglePayload(conflictedCards[0]);
 
       await expect(
         page.getByText(
@@ -349,7 +346,6 @@ test.describe("User page editor - save UX", () => {
 
     await test.step("Reload & keep edits should fetch the latest version and re-save the queued patch", async () => {
       const getCardsCountBeforeRecovery = getCardsCount;
-      const targetToggle = await getPrimaryEditorCardToggle(page);
 
       await page.getByRole("button", { name: /reload & keep edits/i }).click();
 
@@ -367,7 +363,7 @@ test.describe("User page editor - save UX", () => {
       >;
       expect(Array.isArray(recoveredCards)).toBe(true);
       expect(recoveredCards).toHaveLength(1);
-      expectSavedTogglePayload(recoveredCards[0], targetToggle);
+      expectSavedTogglePayload(recoveredCards[0]);
 
       await expect(
         page.getByRole("button", { name: /reload & keep edits/i }),
