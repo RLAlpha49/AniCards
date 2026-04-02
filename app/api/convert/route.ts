@@ -24,7 +24,11 @@ import {
 } from "@/lib/api-utils";
 import type { ConversionFormat } from "@/lib/utils";
 
-const ratelimit = createRateLimiter({ limit: 20, window: "1 m" });
+const ratelimit = createRateLimiter({
+  limit: 20,
+  window: "1 m",
+  hotPath: true,
+});
 const SVG_FETCH_TIMEOUT_MS = 5_000;
 const SVG_MAX_BYTES = 1_000_000;
 const SVG_MAX_DIMENSION_PX = 4_096;
@@ -770,7 +774,7 @@ function parseRequestedFormat(format: unknown): ConversionFormat {
 }
 
 function parseResponseMode(responseType: unknown): ConvertResponseMode {
-  return responseType === "binary" ? "binary" : "json";
+  return responseType === "json" ? "json" : "binary";
 }
 
 function parseSvgRequestBody(body: unknown): {
@@ -829,6 +833,19 @@ function validateSvgTargetUrl(parsedUrl: URL): URL {
 
   if (isDevelopment && parsedUrl.hostname === "api.localhost") {
     parsedUrl.hostname = "localhost";
+  }
+
+  const normalizedPath = parsedUrl.pathname.toLowerCase();
+  const isAniCardsCardRoute =
+    normalizedPath === "/api/card" || normalizedPath === "/api/card.svg";
+  const isLegacyStatCardRoute =
+    normalizedPath.includes("/statcards/") && normalizedPath.endsWith(".svg");
+
+  if (
+    (isAniCardsCardRoute || isLegacyStatCardRoute) &&
+    !parsedUrl.searchParams.has("animate")
+  ) {
+    parsedUrl.searchParams.set("animate", "false");
   }
 
   return parsedUrl;
@@ -1151,11 +1168,13 @@ type ConvertJsonResponse = {
 };
 
 function binaryWithCors(
-  body: Blob,
+  body: Uint8Array | Buffer,
   mimeType: string,
   request: NextRequest,
 ): Response {
-  return new Response(body, {
+  const responseBody = Uint8Array.from(body);
+
+  return new Response(responseBody, {
     headers: {
       ...apiJsonHeaders(request),
       "Content-Type": mimeType,
@@ -1265,11 +1284,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (responseMode === "binary") {
-      return binaryWithCors(
-        new Blob([Uint8Array.from(convertedBuffer)], { type: mimeType }),
-        mimeType,
-        request,
-      );
+      return binaryWithCors(convertedBuffer, mimeType, request);
     }
 
     const responseBody: ConvertJsonResponse = {

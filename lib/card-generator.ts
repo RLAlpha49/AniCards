@@ -27,8 +27,10 @@ import {
 import { getCardVariations, getDefaultCardVariation } from "@/lib/card-types";
 import {
   embedFavoritesGridImages,
+  embedMediaListCoverImages,
   fetchImageAsDataUrl,
 } from "@/lib/image-utils";
+import { generateStaticRenderStyles } from "@/lib/svg-templates/common/style-generators";
 import {
   AnimeStats as TemplateAnimeStats,
   MangaStats as TemplateMangaStats,
@@ -40,9 +42,37 @@ import {
   UserRecord,
   UserStatsData,
 } from "@/lib/types/records";
-import { TrustedSVG } from "@/lib/types/svg";
-import { extractStyles } from "@/lib/utils";
+import { toCleanSvgResponse, TrustedSVG } from "@/lib/types/svg";
+import { extractStyles, markTrustedSvg } from "@/lib/utils";
 import { calculateMilestones } from "@/lib/utils/milestones";
+
+const STATIC_RENDER_MODE_MARKER = 'data-anicards-render-mode="static"';
+
+interface CardRenderOptions {
+  animationsEnabled?: boolean;
+}
+
+function applyRenderModeStyles(
+  svg: TrustedSVG,
+  options?: CardRenderOptions,
+): TrustedSVG {
+  if (options?.animationsEnabled !== false) {
+    return svg;
+  }
+
+  const cleanSvg = toCleanSvgResponse(svg);
+  if (cleanSvg.includes(STATIC_RENDER_MODE_MARKER)) {
+    return svg;
+  }
+
+  const staticStyleBlock = `<style ${STATIC_RENDER_MODE_MARKER}>${generateStaticRenderStyles()}</style>`;
+  const injectedSvg = cleanSvg.replace(
+    /<svg\b([^>]*)>/i,
+    (match) => `${match}${staticStyleBlock}`,
+  );
+
+  return markTrustedSvg(injectedSvg);
+}
 
 function createLazyLoader<T>(loader: () => Promise<T>): () => Promise<T> {
   let modulePromise: Promise<T> | undefined;
@@ -506,6 +536,7 @@ async function generateCardSvg(
   userRecord: UserRecord,
   variant: string,
   favorites?: string[],
+  renderOptions?: CardRenderOptions,
 ): Promise<TrustedSVG> {
   if (!cardConfig || !userRecord?.stats) {
     throw new CardDataError(
@@ -516,15 +547,23 @@ async function generateCardSvg(
 
   const [baseCardType] = cardConfig.cardName.split("-");
   const normalizedVariant = normalizeVariant(String(variant), baseCardType);
+  const renderableCardConfig = {
+    ...cardConfig,
+    animate: renderOptions?.animationsEnabled !== false,
+  } as StoredCardConfig;
   const params: CardGenerationParams = {
-    cardConfig,
+    cardConfig: renderableCardConfig,
     userRecord,
     variant: normalizedVariant,
     favorites,
     favoritesGridCols:
-      typeof cardConfig.gridCols === "number" ? cardConfig.gridCols : undefined,
+      typeof renderableCardConfig.gridCols === "number"
+        ? renderableCardConfig.gridCols
+        : undefined,
     favoritesGridRows:
-      typeof cardConfig.gridRows === "number" ? cardConfig.gridRows : undefined,
+      typeof renderableCardConfig.gridRows === "number"
+        ? renderableCardConfig.gridRows
+        : undefined,
   };
 
   const comparativeDispatch: Record<
@@ -549,78 +588,85 @@ async function generateCardSvg(
 
   const comparativeGenerator = comparativeDispatch[baseCardType];
   if (comparativeGenerator) {
-    return comparativeGenerator(params);
+    return applyRenderModeStyles(
+      await comparativeGenerator(params),
+      renderOptions,
+    );
   }
 
-  switch (baseCardType) {
-    case "animeStats":
-      return generateStatsCard(params, "anime");
-    case "mangaStats":
-      return generateStatsCard(params, "manga");
-    case "socialStats":
-      return generateSocialStatsCard(params);
-    case "socialMilestones":
-      return generateSocialMilestonesCard(params);
-    case "animeGenres":
-    case "animeTags":
-    case "animeVoiceActors":
-    case "animeStudios":
-    case "animeStaff":
-    case "mangaGenres":
-    case "mangaTags":
-    case "mangaStaff":
-      return generateCategoryCard(params, baseCardType);
-    case "animeStatusDistribution":
-    case "mangaStatusDistribution":
-      return generateStatusDistributionCard(params, baseCardType);
-    case "animeFormatDistribution":
-    case "mangaFormatDistribution":
-      return generateFormatDistributionCard(params, baseCardType);
-    case "animeSourceMaterialDistribution":
-      return generateSourceMaterialDistributionCard(params);
-    case "animeSeasonalPreference":
-      return generateSeasonalPreferenceCard(params);
-    case "animeEpisodeLengthPreferences":
-      return generateEpisodeLengthPreferencesCard(params);
-    case "animeGenreSynergy":
-      return generateGenreSynergyCard(params);
-    case "animeScoreDistribution":
-    case "mangaScoreDistribution":
-      return generateDistributionCard(params, baseCardType, "score");
-    case "animeYearDistribution":
-    case "mangaYearDistribution":
-      return generateDistributionCard(params, baseCardType, "year");
-    case "animeCountry":
-    case "mangaCountry":
-      return generateCountryCard(params, baseCardType);
-    case "profileOverview":
-      return await generateProfileOverviewCard(params);
-    case "favoritesSummary":
-      return generateFavoritesSummaryCard(params);
-    case "favoritesGrid":
-      return generateFavoritesGridCard(params);
-    case "recentActivitySummary":
-      return generateRecentActivitySummaryCard(params);
-    case "activityStreaks":
-      return generateActivityStreaksCard(params);
-    case "topActivityDays":
-      return generateTopActivityDaysCard(params);
-    case "statusCompletionOverview":
-      return generateStatusCompletionOverviewCard(params);
-    case "milestones":
-      return generateMilestonesCard(params);
-    case "personalRecords":
-      return generatePersonalRecordsCard(params);
-    case "planningBacklog":
-      return generatePlanningBacklogCard(params);
-    case "mostRewatched":
-      return generateMostRewatchedCard(params);
-    case "currentlyWatchingReading":
-      return await generateCurrentlyWatchingReadingCard(params);
+  const generatedSvg = await (async () => {
+    switch (baseCardType) {
+      case "animeStats":
+        return generateStatsCard(params, "anime");
+      case "mangaStats":
+        return generateStatsCard(params, "manga");
+      case "socialStats":
+        return generateSocialStatsCard(params);
+      case "socialMilestones":
+        return generateSocialMilestonesCard(params);
+      case "animeGenres":
+      case "animeTags":
+      case "animeVoiceActors":
+      case "animeStudios":
+      case "animeStaff":
+      case "mangaGenres":
+      case "mangaTags":
+      case "mangaStaff":
+        return generateCategoryCard(params, baseCardType);
+      case "animeStatusDistribution":
+      case "mangaStatusDistribution":
+        return generateStatusDistributionCard(params, baseCardType);
+      case "animeFormatDistribution":
+      case "mangaFormatDistribution":
+        return generateFormatDistributionCard(params, baseCardType);
+      case "animeSourceMaterialDistribution":
+        return generateSourceMaterialDistributionCard(params);
+      case "animeSeasonalPreference":
+        return generateSeasonalPreferenceCard(params);
+      case "animeEpisodeLengthPreferences":
+        return generateEpisodeLengthPreferencesCard(params);
+      case "animeGenreSynergy":
+        return generateGenreSynergyCard(params);
+      case "animeScoreDistribution":
+      case "mangaScoreDistribution":
+        return generateDistributionCard(params, baseCardType, "score");
+      case "animeYearDistribution":
+      case "mangaYearDistribution":
+        return generateDistributionCard(params, baseCardType, "year");
+      case "animeCountry":
+      case "mangaCountry":
+        return generateCountryCard(params, baseCardType);
+      case "profileOverview":
+        return generateProfileOverviewCard(params);
+      case "favoritesSummary":
+        return generateFavoritesSummaryCard(params);
+      case "favoritesGrid":
+        return generateFavoritesGridCard(params);
+      case "recentActivitySummary":
+        return generateRecentActivitySummaryCard(params);
+      case "activityStreaks":
+        return generateActivityStreaksCard(params);
+      case "topActivityDays":
+        return generateTopActivityDaysCard(params);
+      case "statusCompletionOverview":
+        return generateStatusCompletionOverviewCard(params);
+      case "milestones":
+        return generateMilestonesCard(params);
+      case "personalRecords":
+        return generatePersonalRecordsCard(params);
+      case "planningBacklog":
+        return generatePlanningBacklogCard(params);
+      case "mostRewatched":
+        return generateMostRewatchedCard(params);
+      case "currentlyWatchingReading":
+        return generateCurrentlyWatchingReadingCard(params);
 
-    default:
-      throw new CardDataError("Unsupported card type", 400);
-  }
+      default:
+        throw new CardDataError("Unsupported card type", 400);
+    }
+  })();
+
+  return applyRenderModeStyles(generatedSvg, renderOptions);
 }
 
 /**
@@ -1198,6 +1244,8 @@ async function generateCountryCard(
 
 /**
  * Generate a Profile Overview card showing user avatar, name, and key stats.
+ * Uses a precomputed/cached avatar data URL when available and otherwise lets
+ * the template fall back to the raw allow-listed AniList avatar URL.
  * @param params - Card generation parameters and options.
  * @returns A TrustedSVG with the rendered profile overview card.
  * @source
@@ -1214,7 +1262,9 @@ async function generateProfileOverviewCard(
   }
 
   const avatarUrl = user.avatar?.large || user.avatar?.medium;
-  const avatarDataUrl = avatarUrl ? await fetchImageAsDataUrl(avatarUrl) : null;
+  const avatarDataUrl = avatarUrl
+    ? await fetchImageAsDataUrl(avatarUrl, { cacheOnly: true })
+    : null;
 
   return profileOverviewTemplate({
     username: userRecord.username ?? userRecord.userId,
@@ -1254,6 +1304,8 @@ async function generateFavoritesSummaryCard(
 
 /**
  * Generate a Favourites Grid card showing favourite anime/manga/characters as a grid.
+ * Uses precomputed/cached data URLs when available and otherwise leaves the
+ * original allow-listed image URLs in place for graceful degradation.
  * @param params - Card generation parameters and options.
  * @returns A TrustedSVG with the rendered favourites grid card.
  * @source
@@ -1269,44 +1321,13 @@ async function generateFavoritesGridCard(
     throw new CardDataError("Not Found: Missing user favourites data", 404);
   }
 
-  let embeddedFavourites = await embedFavoritesGridImages(
+  const embeddedFavourites = await embedFavoritesGridImages(
     user.favourites,
     variant as FavoritesGridVariant,
     params.favoritesGridRows,
     params.favoritesGridCols,
+    { cacheOnly: true },
   );
-
-  // Ensure staff images are embedded as data URLs when possible.
-  if (embeddedFavourites.staff?.nodes?.length) {
-    const TRANSPARENT_PNG_DATA_URL =
-      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAAWgmWQ0AAAAASUVORK5CYII=";
-    const updatedStaffNodes = await Promise.all(
-      embeddedFavourites.staff.nodes.map(async (n) => {
-        const url = n.image?.large ?? n.image?.medium;
-        if (!url || url.startsWith("data:")) return n;
-        const dataUrl = await fetchImageAsDataUrl(url);
-        if (!dataUrl) {
-          // Fallback to a tiny transparent PNG to ensure the template receives a data URL.
-          console.warn(`Failed to fetch staff image for embedding: ${url}`);
-          return {
-            ...n,
-            image: {
-              large: TRANSPARENT_PNG_DATA_URL,
-              medium: TRANSPARENT_PNG_DATA_URL,
-            },
-          };
-        }
-        return { ...n, image: { large: dataUrl, medium: dataUrl } };
-      }),
-    );
-    embeddedFavourites = {
-      ...embeddedFavourites,
-      staff: {
-        ...(embeddedFavourites.staff ?? { nodes: [] }),
-        nodes: updatedStaffNodes,
-      },
-    };
-  }
 
   return favoritesGridTemplate({
     username: userRecord.username ?? userRecord.userId,
@@ -1556,7 +1577,8 @@ async function generateMostRewatchedCard(
 
 /**
  * Generate a Currently Watching / Reading card showing current anime and manga.
- * Embeds cover images as data URLs for reliable SVG rendering.
+ * Uses precomputed/cached cover data URLs when available and otherwise keeps
+ * allow-listed remote cover URLs so cold renders do not block on image fetches.
  * @source
  */
 async function generateCurrentlyWatchingReadingCard(
@@ -1595,36 +1617,9 @@ async function generateCurrentlyWatchingReadingCard(
   const animeDisplay = animeCurrent.slice(0, animeLimit + animeExtra);
   const mangaDisplay = mangaCurrent.slice(0, mangaLimit + mangaExtra);
 
-  const embedCovers = async (
-    entries: MediaListEntry[],
-  ): Promise<MediaListEntry[]> => {
-    return Promise.all(
-      entries.map(async (entry) => {
-        const cover = entry.media.coverImage;
-        const url = cover?.large || cover?.medium;
-        if (!url) return entry;
-
-        const dataUrl = await fetchImageAsDataUrl(url);
-        if (!dataUrl) return entry;
-
-        return {
-          ...entry,
-          media: {
-            ...entry.media,
-            coverImage: {
-              ...cover,
-              large: dataUrl,
-              medium: dataUrl,
-            },
-          },
-        };
-      }),
-    );
-  };
-
   const [embeddedAnime, embeddedManga] = await Promise.all([
-    embedCovers(animeDisplay),
-    embedCovers(mangaDisplay),
+    embedMediaListCoverImages(animeDisplay, { cacheOnly: true }),
+    embedMediaListCoverImages(mangaDisplay, { cacheOnly: true }),
   ]);
 
   return currentlyWatchingReadingTemplate({

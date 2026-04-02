@@ -12,6 +12,7 @@ import { getCardDimensions } from "@/lib/svg-templates/common/dimensions";
 import {
   generateCommonStyles,
   generateRankCircleStyles,
+  generateStaticRenderStyles,
 } from "@/lib/svg-templates/common/style-generators";
 import {
   createGroupElement,
@@ -128,16 +129,26 @@ describe("svg template common utilities", () => {
       includeRankCircle: true,
       includeStagger: false,
     });
+    const staticCommonStyles = generateCommonStyles(resolvedColors, 18, {
+      includeAnimations: false,
+    });
     const rankCircleStyles = generateRankCircleStyles(
       "#38bdf8",
       "90.00",
       "45.00",
+    );
+    const staticRankCircleStyles = generateRankCircleStyles(
+      "#38bdf8",
+      "90.00",
+      "45.00",
+      { includeAnimations: false },
     );
     const rankCircleWithoutDash = generateRankCircleStyles(
       "#38bdf8",
       null,
       null,
     );
+    const staticRenderStyles = generateStaticRenderStyles();
     const text = createTextElement(10, 12, "Alice & Bob <3", "stat", {
       fill: "#fff",
       fontSize: 14,
@@ -166,9 +177,14 @@ describe("svg template common utilities", () => {
     expect(commonStyles).not.toContain("@keyframes fadeInAnimation");
     expect(commonStyles).not.toContain(".stagger {");
     expect(commonStyles).toContain(".rank-circle-rim");
+    expect(staticCommonStyles).toContain("animation: none");
+    expect(staticCommonStyles).not.toContain("@keyframes fadeInAnimation");
     expect(rankCircleStyles).toContain("stroke-dasharray: 90.00");
     expect(rankCircleStyles).toContain("to { stroke-dashoffset: 45.00; }");
+    expect(staticRankCircleStyles).toContain("stroke-dashoffset: 45.00");
+    expect(staticRankCircleStyles).not.toContain("@keyframes rankAnimation");
     expect(rankCircleWithoutDash).toContain("animation: none");
+    expect(staticRenderStyles).toContain("animation: none !important");
     expect(text).toContain('text-anchor="end"');
     expect(text).toContain("Alice &amp; Bob &lt;3");
     expect(rect).toContain('opacity="0.5"');

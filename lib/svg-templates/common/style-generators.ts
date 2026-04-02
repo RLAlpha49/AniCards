@@ -10,29 +10,66 @@ export function generateFadeInKeyframes(): string {
   `;
 }
 
+export function generateStaticRenderStyles(): string {
+  return `
+    * {
+      animation: none !important;
+      transition: none !important;
+    }
+
+    .stagger {
+      opacity: 1 !important;
+    }
+
+    [style*="opacity:0"],
+    [style*="opacity: 0"] {
+      opacity: 1 !important;
+    }
+
+    [style*="visibility:hidden"],
+    [style*="visibility: hidden"] {
+      visibility: visible !important;
+    }
+  `;
+}
+
 export function generateRankCircleStyles(
   circleColor: string,
   scaledDasharray: string | null,
   scaledDashoffset: string | null,
+  options?: {
+    includeAnimations?: boolean;
+  },
 ): string {
   const hasDash = Boolean(scaledDasharray && scaledDashoffset);
+  const includeAnimations = options?.includeAnimations ?? true;
+  const rankCircleDashoffset = includeAnimations
+    ? scaledDasharray
+    : scaledDashoffset;
+  const rankCircleAnimation = includeAnimations
+    ? "rankAnimation 1s forwards ease-in-out"
+    : "none";
+  const rankCircleKeyframes = includeAnimations
+    ? `@keyframes rankAnimation {
+      from { stroke-dashoffset: ${scaledDasharray}; }
+      to { stroke-dashoffset: ${scaledDashoffset}; }
+    }`
+    : "";
 
   const rankCircle = hasDash
     ? `
     .rank-circle {
       stroke-dasharray: ${scaledDasharray};
+      stroke-dashoffset: ${rankCircleDashoffset};
       stroke: ${circleColor};
       fill: none;
       stroke-width: 6;
       stroke-linecap: round;
       opacity: 0.8;
-      animation: rankAnimation 1s forwards ease-in-out;
+      animation: ${rankCircleAnimation};
     }
 
-    @keyframes rankAnimation {
-      from { stroke-dashoffset: ${scaledDasharray}; }
-      to { stroke-dashoffset: ${scaledDashoffset}; }
-    }
+    ${rankCircleKeyframes}
   `
     : `
     .rank-circle {
@@ -63,13 +100,23 @@ export function generateCommonStyles(
   const includeRankCircle = options?.includeRankCircle ?? false;
   const includeStagger = options?.includeStagger ?? true;
   const includeFadeIn = options?.includeFadeIn ?? true;
+  const includeAnimations = options?.includeAnimations ?? true;
+  const shouldAnimateHeader = includeAnimations && includeFadeIn;
+  const shouldAnimateStagger = includeAnimations && includeFadeIn;
+  const headerAnimation = shouldAnimateHeader
+    ? "fadeInAnimation 0.8s ease-in-out forwards"
+    : "none";
+  const staggerOpacity = shouldAnimateStagger ? "0" : "1";
+  const staggerAnimation = shouldAnimateStagger
+    ? "fadeInAnimation 0.3s ease-in-out forwards"
+    : "none";
 
   return `
     /* stylelint-disable selector-class-pattern, keyframes-name-pattern */
     .header {
       fill: ${resolvedColors.titleColor};
       font: 600 ${titleFontSize}px 'Segoe UI', Ubuntu, Sans-Serif;
-      animation: fadeInAnimation 0.8s ease-in-out forwards;
+      animation: ${headerAnimation};
     }
 
     [data-testid="card-title"] text {
@@ -114,8 +161,8 @@ export function generateCommonStyles(
       includeStagger
         ? `
     .stagger {
-      opacity: 0;
-      animation: fadeInAnimation 0.3s ease-in-out forwards;
+      opacity: ${staggerOpacity};
+      animation: ${staggerAnimation};
     }
     `
         : ""
@@ -132,6 +179,6 @@ export function generateCommonStyles(
         : ""
     }
 
-    ${includeFadeIn ? generateFadeInKeyframes() : ""}
+    ${shouldAnimateHeader || shouldAnimateStagger ? generateFadeInKeyframes() : ""}
   `;
 }

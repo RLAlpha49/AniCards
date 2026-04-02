@@ -71,6 +71,8 @@ export const profileOverviewTemplate = (data: {
 
   const dims = getCardDimensions("profileOverview", "default");
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);
+  const animationsEnabled =
+    (data.styles as { animate?: boolean }).animate !== false;
 
   const title = `${data.username}'s Profile`;
   const safeTitle = escapeForXml(title);
@@ -108,7 +110,7 @@ export const profileOverviewTemplate = (data: {
   </desc>
 
   <style>
-    ${generateCommonStyles(resolvedColors, Number.parseFloat(calculateDynamicFontSize(title)))}
+    ${generateCommonStyles(resolvedColors, Number.parseFloat(calculateDynamicFontSize(title)), { includeAnimations: animationsEnabled })}
 
     .username {
       fill: ${resolvedColors.titleColor};

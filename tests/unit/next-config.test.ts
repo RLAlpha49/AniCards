@@ -20,3 +20,22 @@ describe("next.config static headers", () => {
     );
   });
 });
+
+describe("next.config rewrites", () => {
+  it("keeps the legacy card aliases pointed at the canonical card handler", async () => {
+    const rewriteRules = await nextConfig.rewrites?.();
+
+    expect(rewriteRules).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: "/card.svg",
+          destination: "/api/card",
+        }),
+        expect.objectContaining({
+          source: "/api/card.svg",
+          destination: "/api/card",
+        }),
+      ]),
+    );
+  });
+});

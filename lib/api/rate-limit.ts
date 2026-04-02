@@ -40,6 +40,7 @@ function createConfiguredRateLimiter(options?: {
   window?: Parameters<typeof Ratelimit.slidingWindow>[1];
   redis?: Redis;
   analytics?: boolean;
+  hotPath?: boolean;
   enableProtection?: boolean;
   prefix?: string;
   timeout?: number;
@@ -48,7 +49,17 @@ function createConfiguredRateLimiter(options?: {
   const window =
     options?.window ?? ("5 s" as Parameters<typeof Ratelimit.slidingWindow>[1]);
   const redis = options?.redis ?? createRealRedisClient();
-  const analytics = options?.analytics ?? shouldEnableRateLimitAnalytics();
+  const analytics = (() => {
+    if (typeof options?.analytics === "boolean") {
+      return options.analytics;
+    }
+
+    if (options?.hotPath) {
+      return false;
+    }
+
+    return shouldEnableRateLimitAnalytics();
+  })();
   const enableProtection =
     options?.enableProtection ?? shouldEnableRateLimitProtection();
   const prefix = options?.prefix ?? getRateLimitPrefix();
@@ -127,6 +138,7 @@ export function createRateLimiter(options?: {
   window?: Parameters<typeof Ratelimit.slidingWindow>[1];
   redis?: Redis;
   analytics?: boolean;
+  hotPath?: boolean;
   enableProtection?: boolean;
   prefix?: string;
   timeout?: number;

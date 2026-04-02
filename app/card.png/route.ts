@@ -7,6 +7,16 @@ const MAX_RASTER_INPUT_PIXELS = 16_777_216;
 type CardSvgHandler = (request: Request) => Promise<Response>;
 type RasterizeSvg = (svgMarkup: string) => Promise<Uint8Array<ArrayBuffer>>;
 
+function withStaticCardRenderRequest(request: Request): Request {
+  const url = new URL(request.url);
+
+  if (!url.searchParams.has("animate")) {
+    url.searchParams.set("animate", "false");
+  }
+
+  return new Request(url, request);
+}
+
 function createPngHeaders(svgResponse: Response): Headers {
   const headers = new Headers(svgResponse.headers);
   headers.set("Content-Type", "image/png");
@@ -26,11 +36,21 @@ async function rasterizeSvgMarkup(
   return Uint8Array.from(pngBuffer);
 }
 
+function createSvgFallbackResponse(
+  svgResponse: Response,
+  svgBytes: Uint8Array<ArrayBuffer>,
+): Response {
+  return new Response(svgBytes, {
+    headers: new Headers(svgResponse.headers),
+    status: svgResponse.status,
+    statusText: svgResponse.statusText,
+  });
+}
+
 export async function convertCardSvgResponseToPngResponse(
   svgResponse: Response,
   rasterizeSvg: RasterizeSvg = rasterizeSvgMarkup,
 ): Promise<Response> {
-  const fallbackResponse = svgResponse.clone();
   const contentType = svgResponse.headers
     .get("Content-Type")
     ?.split(";")[0]
@@ -41,17 +61,19 @@ export async function convertCardSvgResponseToPngResponse(
     return svgResponse;
   }
 
+  const svgBytes = new Uint8Array(await svgResponse.arrayBuffer());
+
   try {
-    const svgMarkup = await svgResponse.text();
+    const svgMarkup = new TextDecoder().decode(svgBytes);
     const pngBytes = await rasterizeSvg(svgMarkup);
 
-    return new Response(new Blob([pngBytes], { type: "image/png" }), {
+    return new Response(pngBytes, {
       headers: createPngHeaders(svgResponse),
       status: svgResponse.status,
       statusText: svgResponse.statusText,
     });
   } catch {
-    return fallbackResponse;
+    return createSvgFallbackResponse(svgResponse, svgBytes);
   }
 }
 
@@ -60,7 +82,9 @@ export function createCardPngRoute(
   rasterizeSvg: RasterizeSvg = rasterizeSvgMarkup,
 ) {
   return async function GET(request: Request): Promise<Response> {
-    const svgResponse = await cardSvgHandler(request);
+    const svgResponse = await cardSvgHandler(
+      withStaticCardRenderRequest(request),
+    );
     return convertCardSvgResponseToPngResponse(svgResponse, rasterizeSvg);
   };
 }

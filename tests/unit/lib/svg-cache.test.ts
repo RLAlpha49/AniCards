@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
   clearSvgCache,
   getSvgFromSharedCache,
+  releaseSvgRevalidationLock,
   setSvgInSharedCache,
+  tryAcquireSvgRevalidationLock,
 } from "@/lib/stores/svg-cache";
 import { sharedRedisMockGet, sharedRedisMockSet } from "@/tests/unit/__setup__";
 
@@ -79,5 +81,26 @@ describe("svg-cache shared Redis compression", () => {
       borderRadius: 6,
       isStale: false,
     });
+  });
+
+  it("coalesces stale revalidation locks per cache key and resets them on release", () => {
+    const cacheKey = "svg:542244:animeStats";
+
+    expect(tryAcquireSvgRevalidationLock(cacheKey)).toBe(true);
+    expect(tryAcquireSvgRevalidationLock(cacheKey)).toBe(false);
+
+    releaseSvgRevalidationLock(cacheKey);
+
+    expect(tryAcquireSvgRevalidationLock(cacheKey)).toBe(true);
+  });
+
+  it("clears any held revalidation locks when the cache is reset", () => {
+    const cacheKey = "svg:542244:animeStats";
+
+    expect(tryAcquireSvgRevalidationLock(cacheKey)).toBe(true);
+
+    clearSvgCache();
+
+    expect(tryAcquireSvgRevalidationLock(cacheKey)).toBe(true);
   });
 });

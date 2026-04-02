@@ -342,10 +342,13 @@ export const mediaStatsTemplate = (data: {
     ? (originalDashoffset * scale).toFixed(2)
     : null;
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);
+  const animationsEnabled =
+    (data.styles as { animate?: boolean }).animate !== false;
   const rankCircleStyle = generateRankCircleStyles(
     resolvedColors.circleColor,
     scaledDasharray,
     scaledDashoffset,
+    { includeAnimations: animationsEnabled },
   );
 
   return markTrustedSvg(`
@@ -362,14 +365,14 @@ export const mediaStatsTemplate = (data: {
   ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
   <title id="title-id">${safeTitle}</title>
   <desc id="desc-id">
-    Count: ${escapeForXml(data.stats.count)}, 
+    Count: ${escapeForXml(data.stats.count)},
     ${safeMainStatLabel}: ${escapeForXml(config.mainStat.value)},
-    ${safeSecondaryStatLabel}: ${escapeForXml(config.mainStat.secondary.value)}, 
+    ${safeSecondaryStatLabel}: ${escapeForXml(config.mainStat.secondary.value)},
     Mean Score: ${escapeForXml(data.stats.meanScore)},
     Standard Deviation: ${escapeForXml(data.stats.standardDeviation)}
   </desc>
   <style>
-    ${generateCommonStyles(resolvedColors, Number.parseFloat(calculateDynamicFontSize(titleText)) || 18)}
+    ${generateCommonStyles(resolvedColors, Number.parseFloat(calculateDynamicFontSize(titleText)) || 18, { includeAnimations: animationsEnabled })}
     ${rankCircleStyle}
   </style>
   ${generateCardBackground(dims, cardRadius, resolvedColors)}

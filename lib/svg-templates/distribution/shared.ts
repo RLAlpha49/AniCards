@@ -532,6 +532,7 @@ export function distributionTemplate(
   const safeTitle = escapeForXml(title);
   const baseDims = getCardDimensions("distribution", variant);
   const dims = computeDimsForVariant(variant, renderedData, baseDims);
+  const animationsEnabled = (styles as { animate?: boolean }).animate !== false;
 
   const barColor = resolvedColors.circleColor;
   const countBaseX = DISTRIBUTION.COUNT_BASE_X;
@@ -577,7 +578,7 @@ export function distributionTemplate(
         .join(" "),
     )}</desc>
     <style>
-      ${generateCommonStyles(resolvedColors, headerFontSizeNumber)}
+      ${generateCommonStyles(resolvedColors, headerFontSizeNumber, { includeAnimations: animationsEnabled })}
       .score-label,.score-count,.h-score,.h-count { fill:${resolvedColors.textColor}; font:400 ${TYPOGRAPHY.STAT_LABEL_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
       .score-count { font-size:${TYPOGRAPHY.SECTION_TITLE_SIZE}px; }
       .h-score,.h-count { font-size:${TYPOGRAPHY.SMALL_TEXT_SIZE}px; }

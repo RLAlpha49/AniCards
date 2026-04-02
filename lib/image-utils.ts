@@ -8,7 +8,7 @@
 import { createHash } from "node:crypto";
 
 import { redisClient } from "@/lib/api-utils";
-import type { UserFavourites } from "@/lib/types/records";
+import type { MediaListEntry, UserFavourites } from "@/lib/types/records";
 
 /**
  * Allowed AniList image hosts for fetching images.
@@ -37,39 +37,153 @@ export const IMAGE_DATA_URL_SHARED_CACHE_KEY_PREFIX = "image-data-url:v1";
 /** Maximum number of transformed assets retained in memory per process. */
 export const IMAGE_DATA_URL_MEMORY_CACHE_MAX_ENTRIES = 500;
 
+/** Maximum total bytes retained in memory per process for transformed assets. */
+export const IMAGE_DATA_URL_MEMORY_CACHE_MAX_BYTES = 16 * 1024 * 1024;
+
+/** Maximum data URL payload persisted to the shared Redis cache. */
+export const IMAGE_DATA_URL_SHARED_CACHE_MAX_BYTES = 1 * 1024 * 1024;
+
 /** In-memory cache for fetched image data URLs. */
-type ImageCacheEntry = { dataUrl: string; expiresAt: number };
+type ImageCacheEntry = {
+  dataUrl: string;
+  expiresAt: number;
+  byteLength: number;
+};
+type ImageCacheEntryShape = Pick<ImageCacheEntry, "dataUrl" | "expiresAt"> &
+  Partial<Pick<ImageCacheEntry, "byteLength">>;
+
+interface FetchImageAsDataUrlOptions {
+  cacheOnly?: boolean;
+}
+
+type EmbedImageOptions = FetchImageAsDataUrlOptions;
+
 export const imageDataUrlCache = new Map<string, ImageCacheEntry>();
+let imageDataUrlCacheBytes = 0;
 const imageDataUrlInflightCache = new Map<string, Promise<string | null>>();
+
+function getDataUrlByteLength(dataUrl: string): number {
+  return Buffer.byteLength(dataUrl, "utf8");
+}
+
+function normalizeImageCacheEntry(value: unknown): ImageCacheEntry | null {
+  if (value === null || typeof value !== "object") return null;
+
+  const record = value as ImageCacheEntryShape;
+  if (
+    typeof record.dataUrl !== "string" ||
+    typeof record.expiresAt !== "number" ||
+    !Number.isFinite(record.expiresAt)
+  ) {
+    return null;
+  }
+
+  const byteLength =
+    typeof record.byteLength === "number" &&
+    Number.isFinite(record.byteLength) &&
+    record.byteLength > 0
+      ? Math.trunc(record.byteLength)
+      : getDataUrlByteLength(record.dataUrl);
+
+  return {
+    dataUrl: record.dataUrl,
+    expiresAt: record.expiresAt,
+    byteLength,
+  };
+}
+
+function syncMemoryCacheByteUsage(): void {
+  const normalizedEntries: Array<[string, ImageCacheEntry]> = [];
+  const invalidKeys: string[] = [];
+  let totalBytes = 0;
+
+  for (const [key, value] of imageDataUrlCache.entries()) {
+    const normalizedEntry = normalizeImageCacheEntry(value);
+    if (!normalizedEntry) {
+      invalidKeys.push(key);
+      continue;
+    }
+
+    totalBytes += normalizedEntry.byteLength;
+
+    if (
+      value.byteLength !== normalizedEntry.byteLength ||
+      value.dataUrl !== normalizedEntry.dataUrl ||
+      value.expiresAt !== normalizedEntry.expiresAt
+    ) {
+      normalizedEntries.push([key, normalizedEntry]);
+    }
+  }
+
+  for (const key of invalidKeys) {
+    imageDataUrlCache.delete(key);
+  }
+
+  for (const [key, normalizedEntry] of normalizedEntries) {
+    imageDataUrlCache.set(key, normalizedEntry);
+  }
+
+  imageDataUrlCacheBytes = totalBytes;
+}
+
+function removeMemoryCachedDataUrl(urlString: string): void {
+  const cached = imageDataUrlCache.get(urlString);
+  if (!cached) return;
+
+  const normalizedEntry = normalizeImageCacheEntry(cached);
+  imageDataUrlCache.delete(urlString);
+
+  if (!normalizedEntry) {
+    syncMemoryCacheByteUsage();
+    return;
+  }
+
+  imageDataUrlCacheBytes = Math.max(
+    0,
+    imageDataUrlCacheBytes - normalizedEntry.byteLength,
+  );
+}
+
+function enforceMemoryCacheBudgets(): void {
+  syncMemoryCacheByteUsage();
+
+  while (
+    imageDataUrlCache.size > IMAGE_DATA_URL_MEMORY_CACHE_MAX_ENTRIES ||
+    imageDataUrlCacheBytes > IMAGE_DATA_URL_MEMORY_CACHE_MAX_BYTES
+  ) {
+    const oldestKey = imageDataUrlCache.keys().next().value;
+    if (typeof oldestKey !== "string") {
+      break;
+    }
+
+    removeMemoryCachedDataUrl(oldestKey);
+  }
+}
 
 function touchMemoryCachedDataUrl(
   urlString: string,
-  entry: ImageCacheEntry,
+  entryValue: ImageCacheEntryShape,
 ): void {
-  imageDataUrlCache.delete(urlString);
-  imageDataUrlCache.set(urlString, entry);
-
-  if (imageDataUrlCache.size > IMAGE_DATA_URL_MEMORY_CACHE_MAX_ENTRIES) {
-    const oldestKey = imageDataUrlCache.keys().next().value;
-    if (typeof oldestKey === "string") {
-      imageDataUrlCache.delete(oldestKey);
-    }
+  const entry = normalizeImageCacheEntry(entryValue);
+  if (!entry) {
+    removeMemoryCachedDataUrl(urlString);
+    return;
   }
+
+  removeMemoryCachedDataUrl(urlString);
+
+  if (entry.byteLength > IMAGE_DATA_URL_MEMORY_CACHE_MAX_BYTES) {
+    return;
+  }
+
+  imageDataUrlCache.set(urlString, entry);
+  imageDataUrlCacheBytes += entry.byteLength;
+  enforceMemoryCacheBudgets();
 }
 
 function getImageDataUrlCacheKey(urlString: string): string {
   const digest = createHash("sha256").update(urlString).digest("hex");
   return `${IMAGE_DATA_URL_SHARED_CACHE_KEY_PREFIX}:${digest}`;
-}
-
-function isImageCacheEntry(value: unknown): value is ImageCacheEntry {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    typeof (value as ImageCacheEntry).dataUrl === "string" &&
-    typeof (value as ImageCacheEntry).expiresAt === "number" &&
-    Number.isFinite((value as ImageCacheEntry).expiresAt)
-  );
 }
 
 function getFreshMemoryCachedDataUrl(
@@ -78,43 +192,60 @@ function getFreshMemoryCachedDataUrl(
 ): string | null {
   const cached = imageDataUrlCache.get(urlString);
   if (!cached) return null;
-  if (cached.expiresAt <= now) {
-    imageDataUrlCache.delete(urlString);
+
+  const normalizedEntry = normalizeImageCacheEntry(cached);
+  if (!normalizedEntry) {
+    removeMemoryCachedDataUrl(urlString);
     return null;
   }
 
-  touchMemoryCachedDataUrl(urlString, cached);
-  return cached.dataUrl;
+  if (normalizedEntry.expiresAt <= now) {
+    removeMemoryCachedDataUrl(urlString);
+    return null;
+  }
+
+  touchMemoryCachedDataUrl(urlString, normalizedEntry);
+  return normalizedEntry.dataUrl;
 }
 
 function setMemoryCachedDataUrl(
   urlString: string,
   dataUrl: string,
   expiresAt: number,
+  byteLength = getDataUrlByteLength(dataUrl),
 ): void {
-  touchMemoryCachedDataUrl(urlString, { dataUrl, expiresAt });
+  touchMemoryCachedDataUrl(urlString, { dataUrl, expiresAt, byteLength });
 }
 
 async function readSharedCachedDataUrl(
   urlString: string,
   now: number,
 ): Promise<string | null> {
+  const cacheKey = getImageDataUrlCacheKey(urlString);
+
   try {
-    const rawEntry = await redisClient.get(getImageDataUrlCacheKey(urlString));
+    const rawEntry = await redisClient.get(cacheKey);
     if (typeof rawEntry !== "string") return null;
 
-    const parsedEntry = JSON.parse(rawEntry) as unknown;
-    if (!isImageCacheEntry(parsedEntry)) return null;
+    const parsedEntry = normalizeImageCacheEntry(
+      JSON.parse(rawEntry) as unknown,
+    );
+    if (!parsedEntry) return null;
 
     if (parsedEntry.expiresAt <= now) {
-      void redisClient.del(getImageDataUrlCacheKey(urlString)).catch(() => {});
+      void redisClient.del(cacheKey).catch(() => {});
       return null;
+    }
+
+    if (parsedEntry.byteLength > IMAGE_DATA_URL_SHARED_CACHE_MAX_BYTES) {
+      void redisClient.del(cacheKey).catch(() => {});
     }
 
     setMemoryCachedDataUrl(
       urlString,
       parsedEntry.dataUrl,
       parsedEntry.expiresAt,
+      parsedEntry.byteLength,
     );
     return parsedEntry.dataUrl;
   } catch {
@@ -126,6 +257,10 @@ async function writeSharedCachedDataUrl(
   urlString: string,
   entry: ImageCacheEntry,
 ): Promise<void> {
+  if (entry.byteLength > IMAGE_DATA_URL_SHARED_CACHE_MAX_BYTES) {
+    return;
+  }
+
   try {
     await redisClient.set(
       getImageDataUrlCacheKey(urlString),
@@ -140,7 +275,14 @@ async function writeSharedCachedDataUrl(
 /** Clears all local image data URL caches. Intended for tests. */
 export function clearImageDataUrlCaches(): void {
   imageDataUrlCache.clear();
+  imageDataUrlCacheBytes = 0;
   imageDataUrlInflightCache.clear();
+}
+
+/** Returns the current in-memory image cache byte usage. Intended for tests. */
+export function getImageDataUrlMemoryCacheSizeBytes(): number {
+  syncMemoryCacheByteUsage();
+  return imageDataUrlCacheBytes;
 }
 
 /**
@@ -172,6 +314,7 @@ export function isAllowedAniListImageUrl(urlString: string): boolean {
  */
 export async function fetchImageAsDataUrl(
   urlString: string,
+  options: FetchImageAsDataUrlOptions = {},
 ): Promise<string | null> {
   if (!urlString || typeof urlString !== "string") return null;
   if (urlString.startsWith("data:")) return urlString;
@@ -180,6 +323,10 @@ export async function fetchImageAsDataUrl(
   const now = Date.now();
   const memoryCached = getFreshMemoryCachedDataUrl(urlString, now);
   if (memoryCached) return memoryCached;
+
+  if (options.cacheOnly) {
+    return readSharedCachedDataUrl(urlString, now);
+  }
 
   const inflight = imageDataUrlInflightCache.get(urlString);
   if (inflight) {
@@ -218,10 +365,15 @@ export async function fetchImageAsDataUrl(
 
       const base64 = Buffer.from(buffer).toString("base64");
       const dataUrl = `data:${contentType};base64,${base64}`;
+      const byteLength = getDataUrlByteLength(dataUrl);
       const expiresAt = Date.now() + IMAGE_DATA_URL_CACHE_TTL_MS;
 
-      setMemoryCachedDataUrl(urlString, dataUrl, expiresAt);
-      await writeSharedCachedDataUrl(urlString, { dataUrl, expiresAt });
+      setMemoryCachedDataUrl(urlString, dataUrl, expiresAt, byteLength);
+      await writeSharedCachedDataUrl(urlString, {
+        dataUrl,
+        expiresAt,
+        byteLength,
+      });
 
       return dataUrl;
     } catch {
@@ -263,13 +415,16 @@ function clampGridDim(n: number | undefined, fallback: number): number {
 /**
  * Embed a cover image object (large/medium) by converting its URL to a data URL.
  */
-async function embedCover(cover: {
-  large?: string;
-  medium?: string;
-}): Promise<{ large?: string; medium?: string }> {
+async function embedCover(
+  cover: {
+    large?: string;
+    medium?: string;
+  },
+  options: EmbedImageOptions = {},
+): Promise<{ large?: string; medium?: string }> {
   const url = cover.large || cover.medium;
   if (!url) return cover;
-  const dataUrl = await fetchImageAsDataUrl(url);
+  const dataUrl = await fetchImageAsDataUrl(url, options);
   if (!dataUrl) return cover;
   return { ...cover, large: dataUrl, medium: dataUrl };
 }
@@ -277,13 +432,16 @@ async function embedCover(cover: {
 /**
  * Embed a generic image (used for character images).
  */
-async function embedImage(image: {
-  large?: string;
-  medium?: string;
-}): Promise<{ large?: string; medium?: string }> {
+async function embedImage(
+  image: {
+    large?: string;
+    medium?: string;
+  },
+  options: EmbedImageOptions = {},
+): Promise<{ large?: string; medium?: string }> {
   const url = image.large || image.medium;
   if (!url) return image;
-  const dataUrl = await fetchImageAsDataUrl(url);
+  const dataUrl = await fetchImageAsDataUrl(url, options);
   if (!dataUrl) return image;
   return { ...image, large: dataUrl, medium: dataUrl };
 }
@@ -293,13 +451,13 @@ async function embedImage(image: {
  */
 async function embedCoverNodesWithLimit<
   T extends { coverImage: { large?: string; medium?: string } },
->(nodes: T[], limit: number): Promise<T[]> {
+>(nodes: T[], limit: number, options: EmbedImageOptions = {}): Promise<T[]> {
   const head = nodes.slice(0, limit);
   const tail = nodes.slice(limit);
   const embeddedHead = await Promise.all(
     head.map(async (n) => ({
       ...n,
-      coverImage: await embedCover(n.coverImage),
+      coverImage: await embedCover(n.coverImage, options),
     })),
   );
   return [...embeddedHead, ...tail];
@@ -310,13 +468,36 @@ async function embedCoverNodesWithLimit<
  */
 async function embedCharacterNodesWithLimit<
   T extends { image: { large?: string; medium?: string } },
->(nodes: T[], limit: number): Promise<T[]> {
+>(nodes: T[], limit: number, options: EmbedImageOptions = {}): Promise<T[]> {
   const head = nodes.slice(0, limit);
   const tail = nodes.slice(limit);
   const embeddedHead = await Promise.all(
-    head.map(async (n) => ({ ...n, image: await embedImage(n.image) })),
+    head.map(async (n) => ({
+      ...n,
+      image: await embedImage(n.image, options),
+    })),
   );
   return [...embeddedHead, ...tail];
+}
+
+export async function embedMediaListCoverImages(
+  entries: MediaListEntry[],
+  options: EmbedImageOptions = {},
+): Promise<MediaListEntry[]> {
+  return Promise.all(
+    entries.map(async (entry) => {
+      const coverImage = entry.media.coverImage;
+      if (!coverImage) return entry;
+
+      return {
+        ...entry,
+        media: {
+          ...entry.media,
+          coverImage: await embedCover(coverImage, options),
+        },
+      };
+    }),
+  );
 }
 
 /**
@@ -379,6 +560,7 @@ function computeMixedCounts(
 async function embedNonMixed(
   favourites: UserFavourites,
   limit: number,
+  options: EmbedImageOptions = {},
 ): Promise<UserFavourites> {
   const anime = favourites.anime
     ? {
@@ -386,6 +568,7 @@ async function embedNonMixed(
         nodes: await embedCoverNodesWithLimit(
           favourites.anime.nodes ?? [],
           limit,
+          options,
         ),
       }
     : undefined;
@@ -395,6 +578,7 @@ async function embedNonMixed(
         nodes: await embedCoverNodesWithLimit(
           favourites.manga.nodes ?? [],
           limit,
+          options,
         ),
       }
     : undefined;
@@ -404,6 +588,7 @@ async function embedNonMixed(
         nodes: await embedCharacterNodesWithLimit(
           favourites.characters.nodes ?? [],
           limit,
+          options,
         ),
       }
     : undefined;
@@ -415,6 +600,7 @@ export async function embedFavoritesGridImages(
   variant: "anime" | "manga" | "characters" | "staff" | "studios" | "mixed",
   gridRows?: number,
   gridCols?: number,
+  options: EmbedImageOptions = {},
 ): Promise<UserFavourites> {
   const rows = clampGridDim(gridRows, 3);
   const cols = clampGridDim(gridCols, 3);
@@ -436,13 +622,13 @@ export async function embedFavoritesGridImages(
     const staffNodes = favourites.staff?.nodes ?? [];
     const staff = {
       ...(favourites.staff ?? { nodes: [] }),
-      nodes: await embedCharacterNodesWithLimit(staffNodes, capacity),
+      nodes: await embedCharacterNodesWithLimit(staffNodes, capacity, options),
     };
     return { ...favourites, staff };
   }
 
   if (variant !== "mixed") {
-    return await embedNonMixed(favourites, capacity);
+    return await embedNonMixed(favourites, capacity, options);
   }
 
   return await embedMixedVariant(favourites, capacity);
@@ -490,13 +676,21 @@ export async function embedFavoritesGridImages(
     const anime = favourites.anime
       ? {
           ...favourites.anime,
-          nodes: await embedCoverNodesWithLimit(animeNodes, counts.anime),
+          nodes: await embedCoverNodesWithLimit(
+            animeNodes,
+            counts.anime,
+            options,
+          ),
         }
       : undefined;
     const manga = favourites.manga
       ? {
           ...favourites.manga,
-          nodes: await embedCoverNodesWithLimit(mangaNodes, counts.manga),
+          nodes: await embedCoverNodesWithLimit(
+            mangaNodes,
+            counts.manga,
+            options,
+          ),
         }
       : undefined;
     const characters = favourites.characters
@@ -505,6 +699,7 @@ export async function embedFavoritesGridImages(
           nodes: await embedCharacterNodesWithLimit(
             characterNodes,
             counts.characters,
+            options,
           ),
         }
       : undefined;
@@ -515,7 +710,11 @@ export async function embedFavoritesGridImages(
         : Math.min(staffNodes.length, capacity);
     const staff = {
       ...(favourites.staff ?? { nodes: [] }),
-      nodes: await embedCharacterNodesWithLimit(staffNodes, staffLimit),
+      nodes: await embedCharacterNodesWithLimit(
+        staffNodes,
+        staffLimit,
+        options,
+      ),
     };
 
     return { ...favourites, anime, manga, characters, staff };

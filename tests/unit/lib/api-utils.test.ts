@@ -441,6 +441,18 @@ describe("api-utils hardening", () => {
     });
   });
 
+  it("disables rate-limit analytics by default for hot-path limiters", () => {
+    process.env.UPSTASH_RATELIMIT_ANALYTICS = "true";
+
+    createRateLimiter({ limit: 18, window: "15 s", hotPath: true });
+
+    expect(sharedRatelimitMockSlidingWindow).toHaveBeenCalledWith(18, "15 s");
+    expect(getLastRatelimitConstructorOptions()).toMatchObject({
+      limiter: "fake-limiter",
+      analytics: false,
+    });
+  });
+
   it("passes request metadata into successful rate-limit checks", async () => {
     const limit = mock().mockResolvedValue({
       success: true,

@@ -81,6 +81,8 @@ export const extraAnimeMangaStatsTemplate = (data: {
   const safeTitle = escapeForXml(titleText);
   const titleFontSize =
     Number.parseFloat(calculateDynamicFontSize(titleText)) || 18;
+  const animationsEnabled =
+    (data.styles as { animate?: boolean }).animate !== false;
 
   // Determine variant flags
   const isPie = data.showPieChart || data.variant === "pie";
@@ -259,7 +261,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
               <path
                 d="M ${cx} ${cy}
                   L ${cx + r * Math.cos(startRadians)} ${cy + r * Math.sin(startRadians)}
-                  A ${r} ${r} 0 ${largeArc} 1 
+                  A ${r} ${r} 0 ${largeArc} 1
                   ${cx + r * Math.cos(endRadians)} ${cy + r * Math.sin(endRadians)}
                   Z"
                 fill="${getStatColor(
@@ -597,7 +599,7 @@ export const extraAnimeMangaStatsTemplate = (data: {
         ${data.stats.map((stat) => `${escapeForXml(stat.name)}: ${escapeForXml(stat.count)}`).join(", ")}
       </desc>
       <style>
-        ${generateCommonStyles(resolvedColors, titleFontSize)}
+        ${generateCommonStyles(resolvedColors, titleFontSize, { includeAnimations: animationsEnabled })}
 
         .stat.bold {
           fill: ${resolvedColors.textColor};

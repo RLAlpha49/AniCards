@@ -59,7 +59,10 @@ describe("/card.png route", () => {
       | undefined;
 
     expect(cardSvgGetMock).toHaveBeenCalledTimes(1);
-    expect(forwardedRequest?.url).toBe(request.url);
+    const forwardedUrl = new URL(forwardedRequest?.url ?? request.url);
+    expect(forwardedUrl.searchParams.get("userId")).toBe("542244");
+    expect(forwardedUrl.searchParams.get("cardType")).toBe("animeStats");
+    expect(forwardedUrl.searchParams.get("animate")).toBe("false");
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("image/png");
     expect(response.headers.get("Cache-Control")).toBe("public, max-age=86400");
@@ -70,6 +73,21 @@ describe("/card.png route", () => {
 
     const body = Buffer.from(await response.arrayBuffer());
     expect(body.toString()).toBe("FAKEPNG");
+  });
+
+  it("preserves an explicit animate query when forwarding to the SVG route", async () => {
+    await GET(
+      new Request(
+        "http://localhost/card.png?userId=542244&cardType=animeStats&animate=true",
+      ),
+    );
+
+    const forwardedRequest = cardSvgGetMock.mock.calls[0]?.[0] as
+      | Request
+      | undefined;
+    const forwardedUrl = new URL(forwardedRequest?.url ?? "http://localhost");
+
+    expect(forwardedUrl.searchParams.get("animate")).toBe("true");
   });
 
   it("passes through non-successful SVG responses without rasterizing them", async () => {

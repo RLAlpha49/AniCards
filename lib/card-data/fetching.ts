@@ -293,7 +293,9 @@ export async function fetchUserDataForCardWithState(
 }> {
   try {
     const parts = getPartsForCard(cardName);
-    const userDataResult = await fetchUserDataSnapshot(numericUserId, parts);
+    const userDataResult = await fetchUserDataSnapshot(numericUserId, parts, {
+      audit: false,
+    });
     const userDataParts = userDataResult.parts;
 
     if (!userDataParts.meta) {
@@ -391,6 +393,7 @@ export async function fetchUserDataWithState(
   const optimisticUserDataPromise = fetchUserDataSnapshot(
     numericUserId,
     parts,
+    { audit: false },
   ).then(
     (value) => ({ ok: true as const, value }),
     (error) => ({ ok: false as const, error }),

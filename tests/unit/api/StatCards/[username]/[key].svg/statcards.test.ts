@@ -3,12 +3,20 @@ import { describe, expect, it } from "bun:test";
 import { GET } from "../../../../../../app/StatCards/[username]/[key].svg/route";
 
 describe("StatCards SVG notice route", () => {
-  it("returns static notice SVG with cache control disabled", async () => {
+  it("returns static notice SVG with long-lived edge caching", async () => {
     const response = await GET();
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("image/svg+xml");
-    expect(response.headers.get("Cache-Control")).toBe("no-cache");
+    expect(response.headers.get("Cache-Control")).toBe(
+      "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=1209600",
+    );
+    expect(response.headers.get("CDN-Cache-Control")).toBe(
+      "public, s-maxage=86400, stale-while-revalidate=604800, stale-if-error=1209600",
+    );
+    expect(response.headers.get("Edge-Cache-Control")).toBe(
+      "public, s-maxage=86400, stale-while-revalidate=604800, stale-if-error=1209600",
+    );
 
     const body = await response.text();
     expect(body).toContain("AniCards Updated!");

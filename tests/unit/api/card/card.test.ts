@@ -7,10 +7,19 @@
 
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
-import { createRateLimiter } from "@/lib/api-utils";
+import {
+  createRateLimiter,
+  flushScheduledTelemetryTasksForTests,
+} from "@/lib/api-utils";
 import { clearImageDataUrlCaches } from "@/lib/image-utils";
 import { getPartsForCard, splitUserRecord } from "@/lib/server/user-data";
-import { clearSvgCache, clearUserRequestStats } from "@/lib/stores/svg-cache";
+import {
+  clearSvgCache,
+  clearUserRequestStats,
+  generateCacheKey,
+  setSvgInMemoryCache,
+  setSvgInSharedCache,
+} from "@/lib/stores/svg-cache";
 import {
   allowConsoleWarningsAndErrors,
   sharedRatelimitMockLimit,
@@ -1626,6 +1635,55 @@ describe("Card SVG Route", () => {
       expect(incrCalls).toContain("analytics:card_svg:cache_hits");
     });
 
+    it("should keep animated and non-animated renders in separate cache entries", async () => {
+      const userId = 987654;
+      const animatedCacheKey = generateCacheKey(userId, "animeStats", {
+        animate: true,
+        gridCols: 3,
+        gridRows: 3,
+      });
+      setSvgInMemoryCache(
+        animatedCacheKey,
+        '<svg data-cache="animated">Animated Cache</svg>',
+        60_000,
+        userId,
+      );
+
+      const cardsData = createMockCardData("animeStats", "default");
+      const userData = createMockUserData(userId, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupSuccessfulMocks(cardsData, userData);
+
+      const animatedResponse = await GET(
+        new Request(
+          createRequestUrl(baseUrl, {
+            userId: String(userId),
+            cardType: "animeStats",
+          }),
+        ),
+      );
+      expect(animatedResponse.status).toBe(200);
+      expect(await getResponseText(animatedResponse)).toContain(
+        'data-cache="animated"',
+      );
+
+      const staticResponse = await GET(
+        new Request(
+          createRequestUrl(baseUrl, {
+            userId: String(userId),
+            cardType: "animeStats",
+            animate: "false",
+          }),
+        ),
+      );
+      const staticBody = await getResponseText(staticResponse);
+
+      expect(staticResponse.status).toBe(200);
+      expect(staticBody).not.toContain('data-cache="animated"');
+      expect(staticBody).toContain('data-anicards-render-mode="static"');
+    });
+
     it("should accept favoritesGrid with staff variant and render correctly", async () => {
       const userData = createMockUserData(542244, "testUser", {
         User: {
@@ -1680,7 +1738,7 @@ describe("Card SVG Route", () => {
       }
     });
 
-    it("should embed staff images as data URLs in mixed variant", async () => {
+    it("should avoid remote staff-image fetches in mixed variant when cache-only lookup misses", async () => {
       const userData = createMockUserData(542244, "testUser", {
         User: {
           favourites: {
@@ -1705,52 +1763,52 @@ describe("Card SVG Route", () => {
       setupUserDataOnlyMocks(userData, "favoritesGrid");
 
       const originalFetch = globalThis.fetch;
-      globalThis.fetch = mock().mockResolvedValue({
-        ok: true,
-        status: 200,
-        headers: {
-          get: (n: string) =>
-            n.toLowerCase() === "content-type" ? "image/png" : null,
-        },
-        arrayBuffer: async () => new Uint8Array([137, 80, 78, 71]).buffer,
-      }) as unknown as typeof fetch;
+      const fetchSpy = mock(async () => {
+        throw new Error(
+          "mixed favorites-grid renders should not refetch remote staff images on cache-only misses",
+        );
+      });
 
-      const req = new Request(
-        createRequestUrl(baseUrl, {
-          userId: "542244",
-          cardType: "favoritesGrid",
-          variation: "mixed",
-          gridCols: "2",
-          gridRows: "2",
-          titleColor: "#3cc8ff",
-          backgroundColor: "#0b1622",
-          textColor: "#E8E8E8",
-          circleColor: "#3cc8ff",
-        }),
-      );
+      globalThis.fetch = fetchSpy as unknown as typeof fetch;
 
-      const res = await GET(req);
-      expect([200, 404]).toContain(res.status);
-      if (res.status === 200) {
-        expect(favoritesGridTemplateMock).toHaveBeenCalled();
-        const callArgs = favoritesGridTemplateMock.mock.calls[0]?.[0] as
-          | {
-              gridCols?: number;
-              gridRows?: number;
-              variant?: string;
-              favourites?: {
-                staff?: { nodes?: { image?: { large?: string } }[] };
-              };
-            }
-          | undefined;
-        expect(callArgs).toBeTruthy();
-        expect(
-          callArgs?.favourites?.staff?.nodes?.[0]?.image?.large?.startsWith(
-            "data:",
-          ),
-        ).toBe(true);
+      try {
+        const req = new Request(
+          createRequestUrl(baseUrl, {
+            userId: "542244",
+            cardType: "favoritesGrid",
+            variation: "mixed",
+            gridCols: "2",
+            gridRows: "2",
+            titleColor: "#3cc8ff",
+            backgroundColor: "#0b1622",
+            textColor: "#E8E8E8",
+            circleColor: "#3cc8ff",
+          }),
+        );
+
+        const res = await GET(req);
+        expect([200, 404]).toContain(res.status);
+        if (res.status === 200) {
+          expect(favoritesGridTemplateMock).toHaveBeenCalled();
+          const callArgs = favoritesGridTemplateMock.mock.calls[0]?.[0] as
+            | {
+                gridCols?: number;
+                gridRows?: number;
+                variant?: string;
+                favourites?: {
+                  staff?: { nodes?: { image?: { large?: string } }[] };
+                };
+              }
+            | undefined;
+          expect(callArgs).toBeTruthy();
+          expect(callArgs?.favourites?.staff?.nodes?.[0]?.image?.large).toBe(
+            "https://s4.anilist.co/file/anilistcdn/staff/1.jpg",
+          );
+        }
+        expect(fetchSpy).not.toHaveBeenCalled();
+      } finally {
+        globalThis.fetch = originalFetch;
       }
-      globalThis.fetch = originalFetch;
     });
 
     it("should persist card data when store-cards is called", async () => {
@@ -2703,6 +2761,40 @@ describe("Card SVG Route", () => {
       expect(res.headers.get("Cache-Control")).toContain(
         "stale-if-error=1209600",
       );
+      expect(res.headers.get("CDN-Cache-Control")).toBe(
+        "public, s-maxage=86400, stale-while-revalidate=604800, stale-if-error=1209600",
+      );
+      expect(res.headers.get("Edge-Cache-Control")).toBe(
+        "public, s-maxage=86400, stale-while-revalidate=604800, stale-if-error=1209600",
+      );
+    });
+
+    it("should shorten cache headers for preview-style variant requests", async () => {
+      const userData = createMockUserData(542244, "testUser", {
+        User: { statistics: { anime: {} } },
+      });
+      setupUserDataOnlyMocks(userData, "animeStats");
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+          colorPreset: "anilistDark",
+          titleColor: "#ff0000",
+        }),
+      );
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Cache-Control")).toBe(
+        "public, max-age=3600, stale-while-revalidate=86400, stale-if-error=604800",
+      );
+      expect(res.headers.get("CDN-Cache-Control")).toBe(
+        "public, s-maxage=3600, stale-while-revalidate=86400, stale-if-error=604800",
+      );
+      expect(res.headers.get("Edge-Cache-Control")).toBe(
+        "public, s-maxage=3600, stale-while-revalidate=86400, stale-if-error=604800",
+      );
     });
 
     it("should set correct error cache headers (no-store)", async () => {
@@ -2712,6 +2804,8 @@ describe("Card SVG Route", () => {
       expect(res.headers.get("Cache-Control")).toContain("no-store");
       expect(res.headers.get("Cache-Control")).toContain("max-age=0");
       expect(res.headers.get("Cache-Control")).toContain("must-revalidate");
+      expect(res.headers.get("CDN-Cache-Control")).toBe("no-store");
+      expect(res.headers.get("Edge-Cache-Control")).toBe("no-store");
     });
 
     it("should set CORS origin from request when in dev", async () => {
@@ -2852,6 +2946,8 @@ describe("Card SVG Route", () => {
 
       expect(res.status).toBe(200);
       expect(res.headers.get("Cache-Control")).toContain("no-store");
+      expect(res.headers.get("CDN-Cache-Control")).toBe("no-store");
+      expect(res.headers.get("Edge-Cache-Control")).toBe("no-store");
       expect(res.headers.get("X-Cache-Source")).toBe("refresh");
 
       const sharedCacheWrite = getSharedSvgCacheSetCall();
@@ -2907,6 +3003,57 @@ describe("Card SVG Route", () => {
       expect(secondRes.status).toBe(200);
       expect(secondRes.headers.get("X-Cache-Source")).toBe("redis");
       expect(secondRes.headers.get("X-Card-Border-Radius")).toBe("8");
+      expect(sharedRedisMockMget).not.toHaveBeenCalled();
+    });
+
+    it("should refresh stale memory entries from shared cache before re-rendering", async () => {
+      const cacheKey = generateCacheKey(542244, "animeStats", {
+        animate: true,
+        gridCols: 3,
+        gridRows: 3,
+      });
+      const staleSvg = '<svg data-template="stale">Stale Memory</svg>';
+      const sharedSvg = '<svg data-template="shared">Shared Fresh</svg>';
+
+      setSvgInMemoryCache(cacheKey, staleSvg, 0, 542244, 4);
+      await setSvgInSharedCache(
+        cacheKey,
+        sharedSvg,
+        24 * 60 * 60 * 1000,
+        542244,
+        12,
+      );
+
+      const sharedCacheWrite = getSharedSvgCacheSetCall();
+      expect(sharedCacheWrite).toBeTruthy();
+      const [sharedCacheKey, sharedCachePayload] = sharedCacheWrite!;
+
+      resetSharedRouteMocks();
+      sharedRedisMockGet.mockImplementation(async (key: string) => {
+        if (key === sharedCacheKey) {
+          return sharedCachePayload;
+        }
+
+        return null;
+      });
+
+      const req = new Request(
+        createRequestUrl(baseUrl, {
+          userId: "542244",
+          cardType: "animeStats",
+        }),
+      );
+
+      const firstRes = await GET(req);
+      expect(firstRes.status).toBe(200);
+      expect(await firstRes.text()).toBe(staleSvg);
+
+      await flushScheduledTelemetryTasksForTests();
+
+      const secondRes = await GET(req);
+      expect(secondRes.status).toBe(200);
+      expect(await secondRes.text()).toBe(sharedSvg);
+      expect(secondRes.headers.get("X-Card-Border-Radius")).toBe("12");
       expect(sharedRedisMockMget).not.toHaveBeenCalled();
     });
   });

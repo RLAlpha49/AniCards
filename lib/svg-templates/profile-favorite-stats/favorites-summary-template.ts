@@ -60,6 +60,8 @@ export const favoritesSummaryTemplate = (data: {
 
   const dims = getCardDimensions("favoritesSummary", "default");
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);
+  const animationsEnabled =
+    (data.styles as { animate?: boolean }).animate !== false;
 
   const title = `${data.username}'s Favourites`;
   const safeTitle = escapeForXml(title);
@@ -83,7 +85,7 @@ export const favoritesSummaryTemplate = (data: {
   </desc>
 
   <style>
-    ${generateCommonStyles(resolvedColors, Number.parseFloat(calculateDynamicFontSize(title)))}
+    ${generateCommonStyles(resolvedColors, Number.parseFloat(calculateDynamicFontSize(title)), { includeAnimations: animationsEnabled })}
 
     .total-count {
       fill: ${resolvedColors.circleColor};

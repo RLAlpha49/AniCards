@@ -6,7 +6,6 @@ import {
   convertSvgToBlob,
   readSvgMarkupFromObjectUrl,
   readSvgMarkupFromUrl,
-  type SvgConversionSource,
 } from "@/lib/utils";
 
 export type { CardDownloadFormat, ConversionFormat } from "@/lib/utils";
@@ -68,6 +67,20 @@ export interface BatchExportSummary {
 /** Max number of concurrent conversions during batch processing. @source */
 const BATCH_CONCURRENCY_LIMIT = 4;
 
+function createQueueCursor<T>(items: T[]): () => T | null {
+  let nextIndex = 0;
+
+  return () => {
+    if (nextIndex >= items.length) {
+      return null;
+    }
+
+    const next = items[nextIndex];
+    nextIndex += 1;
+    return next;
+  };
+}
+
 async function readRawSvgMarkup(card: BatchExportCard): Promise<string> {
   if (card.cachedSvgObjectUrl) {
     try {
@@ -92,22 +105,7 @@ async function convertCardToBlob(
     return new Blob([svgMarkup], { type: "image/svg+xml" });
   }
 
-  let source: string | SvgConversionSource = card.svgUrl;
-
-  if (card.cachedSvgObjectUrl) {
-    try {
-      source = {
-        svgContent: await readSvgMarkupFromObjectUrl(card.cachedSvgObjectUrl),
-      };
-    } catch (error) {
-      console.warn(
-        `Failed to reuse cached preview SVG for ${card.rawType || card.type}; falling back to URL conversion.`,
-        error,
-      );
-    }
-  }
-
-  return await convertSvgToBlob(source, format);
+  return await convertSvgToBlob(card.svgUrl, format);
 }
 
 async function batchExportCards(
@@ -116,11 +114,11 @@ async function batchExportCards(
   progressCallback?: (progress: BatchConversionProgress) => void,
 ): Promise<BatchConversionResult[]> {
   const queue = cards.map((card, index) => ({ card, index }));
-  let nextQueueIndex = 0;
   const total = cards.length;
   let completed = 0;
   let successCount = 0;
   let failureCount = 0;
+  const getNextQueueEntry = createQueueCursor(queue);
 
   const convertCard = async (
     card: BatchExportCard,
@@ -163,16 +161,6 @@ async function batchExportCards(
 
   const results: BatchConversionResult[] = [];
 
-  const getNextQueueEntry = () => {
-    if (nextQueueIndex >= queue.length) {
-      return null;
-    }
-
-    const next = queue[nextQueueIndex];
-    nextQueueIndex += 1;
-    return next;
-  };
-
   const worker = async () => {
     while (true) {
       const next = getNextQueueEntry();
@@ -214,9 +202,11 @@ export async function generateZipFromImages(
   images: BatchConversionImage[],
 ): Promise<Blob> {
   const zip = new JSZip();
+
   for (const image of images) {
     zip.file(image.filename, await image.blob.arrayBuffer());
   }
+
   return await zip.generateAsync({ type: "blob" });
 }
 
@@ -256,37 +246,106 @@ export async function batchConvertAndZip(
     throw new Error("No cards available for export.");
   }
 
-  const conversionResults = await batchExportCards(
-    cards,
-    format,
-    progressCallback,
-  );
+  const queue = cards.map((card, index) => ({ card, index }));
+  let completed = 0;
+  let successCount = 0;
+  let failureCount = 0;
+  const zip = new JSZip();
+  const pendingZipEntries = new Map<number, BatchConversionImage>();
+  const failedCardIndexes = new Set<number>();
+  const failedResults: BatchConversionFailure[] = [];
+  let nextZipIndex = 0;
+  let zipDrainChain = Promise.resolve();
+  const getNextQueueEntry = createQueueCursor(queue);
 
-  const successful = conversionResults.filter(
-    (result): result is BatchConversionSuccess => result.success,
-  );
+  const drainZipQueue = () => {
+    zipDrainChain = zipDrainChain.then(async () => {
+      while (nextZipIndex < cards.length) {
+        const pendingEntry = pendingZipEntries.get(nextZipIndex);
+        if (pendingEntry) {
+          pendingZipEntries.delete(nextZipIndex);
+          zip.file(
+            pendingEntry.filename,
+            await pendingEntry.blob.arrayBuffer(),
+          );
+          nextZipIndex += 1;
+          continue;
+        }
 
-  if (successful.length === 0) {
+        if (failedCardIndexes.has(nextZipIndex)) {
+          nextZipIndex += 1;
+          continue;
+        }
+
+        break;
+      }
+    });
+
+    return zipDrainChain;
+  };
+
+  const convertCard = async (
+    card: BatchExportCard,
+    index: number,
+  ): Promise<void> => {
+    try {
+      const blob = await convertCardToBlob(card, format);
+      successCount += 1;
+      pendingZipEntries.set(index, {
+        filename: `${card.rawType || card.type}.${format}`,
+        blob,
+        format,
+      });
+    } catch (error) {
+      failureCount += 1;
+      failedCardIndexes.add(index);
+      failedResults.push({
+        success: false,
+        card,
+        error: error instanceof Error ? error.message : String(error),
+        cardIndex: index,
+      });
+    } finally {
+      completed += 1;
+      progressCallback?.({
+        current: completed,
+        total: cards.length,
+        success: successCount,
+        failure: failureCount,
+        cardIndex: index,
+      });
+      await drainZipQueue();
+    }
+  };
+
+  const workers = new Array(
+    Math.min(BATCH_CONCURRENCY_LIMIT, queue.length),
+  ).fill(null);
+
+  const worker = async () => {
+    while (true) {
+      const next = getNextQueueEntry();
+      if (!next) {
+        break;
+      }
+
+      await convertCard(next.card, next.index);
+    }
+  };
+
+  await Promise.all(workers.map(() => worker()));
+  await drainZipQueue();
+
+  if (successCount === 0) {
     throw new Error("Unable to convert any cards for export.");
   }
 
-  const images: BatchConversionImage[] = successful.map((result) => ({
-    filename: `${result.card.rawType || result.card.type}.${format}`,
-    blob: result.blob,
-    format: result.format,
-  }));
-
-  const zipBlob = await generateZipFromImages(images);
+  const zipBlob = await zip.generateAsync({ type: "blob" });
   const timestamp = new Date()
     .toISOString()
     .replaceAll(":", "-")
     .replaceAll(".", "-");
   downloadBlob(zipBlob, `anicards-export-${timestamp}.zip`);
-
-  // Collect details about failed conversions to provide actionable feedback to the caller.
-  const failedResults = conversionResults.filter(
-    (result): result is BatchConversionFailure => !result.success,
-  );
 
   const failedCards = failedResults.map((f) => ({
     type: f.card.type,
@@ -296,8 +355,8 @@ export async function batchConvertAndZip(
 
   return {
     total: cards.length,
-    exported: successful.length,
-    failed: conversionResults.length - successful.length,
+    exported: successCount,
+    failed: failureCount,
     failedCards: failedCards.length > 0 ? failedCards : undefined,
   };
 }

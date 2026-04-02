@@ -254,6 +254,7 @@ describe("Convert API POST Endpoint", () => {
         body: JSON.stringify({
           svgUrl: "http://localhost/dummy.svg",
           format: "png",
+          responseType: "json",
         }),
       }) as unknown as NextRequest;
 
@@ -282,6 +283,7 @@ describe("Convert API POST Endpoint", () => {
         body: JSON.stringify({
           svgUrl: "http://localhost/dummy.svg",
           format: "webp",
+          responseType: "json",
         }),
       }) as unknown as NextRequest;
 
@@ -307,7 +309,10 @@ describe("Convert API POST Endpoint", () => {
           "Content-Type": "application/json",
           "x-forwarded-for": "127.0.0.1",
         },
-        body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
+        body: JSON.stringify({
+          svgUrl: "http://localhost/dummy.svg",
+          responseType: "json",
+        }),
       }) as unknown as NextRequest;
 
       mockFetchResolve(
@@ -559,7 +564,10 @@ describe("Convert API POST Endpoint", () => {
           "Content-Type": "application/json",
           "x-forwarded-for": "127.0.0.1",
         },
-        body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
+        body: JSON.stringify({
+          svgUrl: "http://localhost/dummy.svg",
+          responseType: "json",
+        }),
       }) as unknown as NextRequest;
 
       mockFetchResolve(
@@ -590,6 +598,7 @@ describe("Convert API POST Endpoint", () => {
         body: JSON.stringify({
           svgUrl: "http://localhost/dummy.svg",
           format: "webp",
+          responseType: "json",
         }),
       }) as unknown as NextRequest;
 
@@ -631,6 +640,7 @@ describe("Convert API POST Endpoint", () => {
         body: JSON.stringify({
           svgContent: dummySVG,
           format: "png",
+          responseType: "json",
         }),
       }) as unknown as NextRequest;
 
@@ -640,6 +650,77 @@ describe("Convert API POST Endpoint", () => {
       expect(data.format).toBe("png");
       expect(data.imageDataUrl).toContain("data:image/png;base64,");
       expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("requests AniCards card SVGs in static mode before rasterizing them", async () => {
+      const fetchSpy = mock(
+        async () =>
+          new Response("<svg></svg>", {
+            status: 200,
+            headers: { "Content-Type": "image/svg+xml" },
+          }),
+      );
+      globalThis.fetch = fetchSpy as unknown as typeof globalThis.fetch;
+
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+          host: "localhost",
+        },
+        body: JSON.stringify({
+          svgUrl:
+            "http://localhost/api/card.svg?userId=542244&cardType=animeStats",
+          responseType: "json",
+        }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+
+      expect(res.status).toBe(200);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const firstFetchCall = fetchSpy.mock.calls.at(0) as unknown as
+        | [RequestInfo | URL, RequestInit | undefined]
+        | undefined;
+      const fetchedUrl = String(firstFetchCall?.[0] ?? "");
+      expect(fetchedUrl).toContain("/api/card.svg");
+      expect(fetchedUrl).toContain("animate=false");
+    });
+
+    it("preserves explicit animate queries for AniCards card SVG conversions", async () => {
+      const fetchSpy = mock(
+        async () =>
+          new Response("<svg></svg>", {
+            status: 200,
+            headers: { "Content-Type": "image/svg+xml" },
+          }),
+      );
+      globalThis.fetch = fetchSpy as unknown as typeof globalThis.fetch;
+
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+          host: "localhost",
+        },
+        body: JSON.stringify({
+          svgUrl:
+            "http://localhost/api/card.svg?userId=542244&cardType=animeStats&animate=true",
+          responseType: "json",
+        }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+
+      expect(res.status).toBe(200);
+      const firstFetchCall = fetchSpy.mock.calls.at(0) as unknown as
+        | [RequestInfo | URL, RequestInit | undefined]
+        | undefined;
+      const fetchedUrl = String(firstFetchCall?.[0] ?? "");
+      expect(fetchedUrl).toContain("animate=true");
+      expect(fetchedUrl).not.toContain("animate=false");
     });
 
     it("reuses a single sharp constructor call and clones it for raster output", async () => {
@@ -662,6 +743,27 @@ describe("Convert API POST Endpoint", () => {
       expect(sharpConstructorCallCount).toBe(1);
       expect(lastSharpCloneCount).toBe(1);
       expect(sharpConstructorMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("defaults to binary image data when responseType is omitted", async () => {
+      const dummySVG = `<svg><circle cx="50" cy="50" r="40"/></svg>`;
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({
+          svgContent: dummySVG,
+          format: "png",
+        }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toBe("image/png");
+      const body = Buffer.from(await res.arrayBuffer()).toString();
+      expect(body).toBe("FAKEPNG");
     });
 
     it("should stream binary image data when responseType is binary", async () => {
@@ -694,7 +796,10 @@ describe("Convert API POST Endpoint", () => {
           "Content-Type": "application/json",
           "x-forwarded-for": "127.0.0.1",
         },
-        body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
+        body: JSON.stringify({
+          svgUrl: "http://localhost/dummy.svg",
+          responseType: "json",
+        }),
       }) as unknown as NextRequest;
 
       mockFetchResolve(
@@ -739,7 +844,10 @@ describe("Convert API POST Endpoint", () => {
           "x-forwarded-for": "127.0.0.1",
           host: "localhost",
         },
-        body: JSON.stringify({ svgUrl: "http://localhost/dummy.svg" }),
+        body: JSON.stringify({
+          svgUrl: "http://localhost/dummy.svg",
+          responseType: "json",
+        }),
       }) as unknown as NextRequest;
 
       mockFetchResolve(

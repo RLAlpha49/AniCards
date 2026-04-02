@@ -21,6 +21,11 @@ import {
   toCardApiHref,
 } from "@/lib/utils";
 
+interface DownloadTarget {
+  href: string;
+  revokeObjectUrl: boolean;
+}
+
 async function resolveDownloadSvgMarkup(
   previewUrl: string,
   cachedSvgObjectUrl: string | null,
@@ -41,49 +46,49 @@ async function resolveDownloadSvgMarkup(
 
 async function createRasterDownloadUrl(
   previewUrl: string,
-  cachedSvgObjectUrl: string | null,
+  previewApiHref: string | null,
   format: Exclude<CardDownloadFormat, "svg">,
-): Promise<string> {
-  let conversionSource:
-    | string
-    | {
-        svgContent: string;
-      } = previewUrl;
-
-  if (cachedSvgObjectUrl) {
+): Promise<DownloadTarget> {
+  if (format === "png" && previewApiHref) {
     try {
-      conversionSource = {
-        svgContent: await readSvgMarkupFromObjectUrl(cachedSvgObjectUrl),
+      const cardUrl = new URL(previewApiHref, "https://example.invalid");
+      return {
+        href: `/card.png${cardUrl.search}`,
+        revokeObjectUrl: false,
       };
-    } catch (error) {
-      console.warn(
-        "Failed to reuse cached preview SVG for download; falling back to URL conversion.",
-        error,
-      );
+    } catch {
+      // Fall through to the conversion API when the normalized card route cannot be parsed.
     }
   }
 
-  const rasterBlob = await convertSvgToBlob(conversionSource, format);
-  return URL.createObjectURL(rasterBlob);
+  const rasterBlob = await convertSvgToBlob(previewUrl, format);
+  return {
+    href: URL.createObjectURL(rasterBlob),
+    revokeObjectUrl: true,
+  };
 }
 
-async function createDownloadObjectUrl(
+async function createDownloadTarget(
   previewUrl: string,
+  previewApiHref: string | null,
   cachedSvgObjectUrl: string | null,
   format: CardDownloadFormat,
-): Promise<string> {
+): Promise<DownloadTarget> {
   if (format === "svg") {
     const svgMarkup = await resolveDownloadSvgMarkup(
       previewUrl,
       cachedSvgObjectUrl,
     );
 
-    return URL.createObjectURL(
-      new Blob([svgMarkup], { type: "image/svg+xml" }),
-    );
+    return {
+      href: URL.createObjectURL(
+        new Blob([svgMarkup], { type: "image/svg+xml" }),
+      ),
+      revokeObjectUrl: true,
+    };
   }
 
-  return await createRasterDownloadUrl(previewUrl, cachedSvgObjectUrl, format);
+  return await createRasterDownloadUrl(previewUrl, previewApiHref, format);
 }
 
 /**
@@ -124,18 +129,23 @@ export function useDownload(
       }
       let link: HTMLAnchorElement | null = null;
       let downloadUrl: string | null = null;
+      let revokeObjectUrl = false;
       try {
         const absoluteUrl = getAbsoluteUrl(previewUrl);
         const previewApiHref = toCardApiHref(previewUrl);
-        const cachedSvgObjectUrl = previewApiHref
-          ? getCachedPreviewObjectUrl(previewApiHref)
-          : null;
+        const cachedSvgObjectUrl =
+          format === "svg" && previewApiHref
+            ? getCachedPreviewObjectUrl(previewApiHref)
+            : null;
 
-        downloadUrl = await createDownloadObjectUrl(
+        const downloadTarget = await createDownloadTarget(
           absoluteUrl,
+          previewApiHref,
           cachedSvgObjectUrl,
           format,
         );
+        downloadUrl = downloadTarget.href;
+        revokeObjectUrl = downloadTarget.revokeObjectUrl;
 
         // Browsers still behave most consistently when downloads come from a
         // real anchor click instead of navigating directly to the response.
@@ -155,7 +165,7 @@ export function useDownload(
         }
       } finally {
         link?.remove();
-        if (downloadUrl) {
+        if (downloadUrl && revokeObjectUrl) {
           URL.revokeObjectURL(downloadUrl);
         }
         isDownloadingRef.current = false;

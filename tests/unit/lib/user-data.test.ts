@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
+import { flushScheduledTelemetryTasksForTests } from "@/lib/api-utils";
 import type { PersistedUserRecord } from "@/lib/types/records";
 import {
   allowConsoleWarningsAndErrors,
@@ -257,7 +258,8 @@ describe("user-data persistence", () => {
     );
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await flushScheduledTelemetryTasksForTests();
     mock.clearAllMocks();
   });
 
@@ -749,6 +751,8 @@ describe("user-data persistence", () => {
     ).toBe(false);
     expect(sharedRedisMockDel).not.toHaveBeenCalledWith("user:13:migrating");
 
+    await flushScheduledTelemetryTasksForTests();
+
     const auditEntry = JSON.parse(
       String(sharedRedisMockRpush.mock.calls.at(-1)?.[1]),
     );
@@ -757,6 +761,45 @@ describe("user-data persistence", () => {
       triggerSource: "user_data_fetch",
       userId: "13",
     });
+  });
+
+  it("skips access audit writes when hot-path reads disable auditing", async () => {
+    sharedRedisMockGet.mockImplementation((key: string) => {
+      if (key === "user:27:commit") {
+        return Promise.resolve(
+          createCommitPointer({
+            userId: "27",
+            revision: 2,
+            username: "HotPathUser",
+            usernameNormalized: "hotpathuser",
+          }),
+        );
+      }
+
+      return Promise.resolve(null);
+    });
+    sharedRedisMockMget.mockResolvedValueOnce([
+      JSON.stringify({
+        userId: "27",
+        username: "HotPathUser",
+        createdAt: "2026-03-27T00:00:00.000Z",
+        updatedAt: "2026-03-27T00:00:01.000Z",
+      }),
+      JSON.stringify({ activityHistory: [] }),
+    ]);
+
+    const parts = await fetchUserDataParts("27", ["meta", "activity"], {
+      audit: false,
+    });
+
+    await flushScheduledTelemetryTasksForTests();
+
+    expect(parts.meta).toMatchObject({
+      userId: "27",
+      username: "HotPathUser",
+    });
+    expect(sharedRedisMockRpush).not.toHaveBeenCalled();
+    expect(sharedRedisMockLtrim).not.toHaveBeenCalled();
   });
 
   it("skips duplicate split rewrites when the legacy migration lock is already held", async () => {
@@ -930,6 +973,8 @@ describe("user-data persistence", () => {
       "completed",
       "aggregates",
     ]);
+
+    await flushScheduledTelemetryTasksForTests();
 
     const reconstructed = reconstructUserRecord(parts);
     expect(reconstructed.requestMetadata).toEqual({

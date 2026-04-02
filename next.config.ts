@@ -170,7 +170,10 @@ const nextConfig: NextConfig = {
     return [
       ...primaryRules,
       ...devRules,
-      // Keep old embeddable card URLs working while `/api/card` remains the canonical handler.
+      // Keep old embeddable card URLs working while `/api/card` remains the
+      // canonical handler. Cache semantics live in the route response because
+      // canonical embeds, preview variants, and aliases now need different
+      // policies without fighting static pre-rewrite headers.
       {
         source: "/card.svg",
         destination: "/api/card",

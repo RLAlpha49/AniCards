@@ -7,6 +7,7 @@ export interface StyleOptions {
   includeRankCircle?: boolean;
   includeStagger?: boolean;
   includeFadeIn?: boolean;
+  includeAnimations?: boolean;
 }
 
 export interface TextOptions {

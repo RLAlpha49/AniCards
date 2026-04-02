@@ -31,7 +31,11 @@ import {
   USER_BOOTSTRAP_DATA_PARTS,
 } from "@/lib/server/user-data";
 
-const ratelimit = createRateLimiter({ limit: 60, window: "10 s" });
+const ratelimit = createRateLimiter({
+  limit: 60,
+  window: "10 s",
+  hotPath: true,
+});
 const USER_API_ENDPOINT = "User API";
 const USER_API_FAILED_METRIC = "analytics:user_api:failed_requests";
 const USER_API_SUCCESS_METRIC = "analytics:user_api:successful_requests";

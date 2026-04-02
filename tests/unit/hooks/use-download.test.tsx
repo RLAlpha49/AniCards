@@ -132,7 +132,44 @@ afterAll(() => {
 });
 
 describe("useDownload", () => {
-  it("reuses cached preview markup and ignores duplicate in-flight downloads", async () => {
+  it("routes PNG downloads through /card.png without creating an object URL", async () => {
+    getAbsoluteUrl.mockReturnValue(
+      "https://anicards.test/card.svg?card=animeStats",
+    );
+    toCardApiHref.mockReturnValue("/api/card?card=animeStats");
+    previewCache.getCachedPreviewObjectUrl.mockReturnValue(
+      "blob:cached-preview",
+    );
+
+    const { result } = renderHook(() =>
+      useDownload("https://anicards.test/card.svg?card=animeStats", {
+        cardId: "animeStats",
+        variant: "minimal",
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleDownload("png");
+    });
+
+    expect(previewCache.getCachedPreviewObjectUrl).not.toHaveBeenCalled();
+    expect(convertSvgToBlob).not.toHaveBeenCalled();
+    expect(createObjectURL).not.toHaveBeenCalled();
+    expect(anchorClick).toHaveBeenCalledTimes(1);
+
+    const createdAnchor = createdAnchors[0];
+    if (!createdAnchor) {
+      throw new Error("Expected the hook to create a download anchor.");
+    }
+
+    expect(createdAnchor.download).toBe("animeStats-minimal.png");
+    expect(createdAnchor.href).toBe(
+      "https://anicards.test/card.png?card=animeStats",
+    );
+    expect(document.body.contains(createdAnchor)).toBe(false);
+  });
+
+  it("uses URL-based raster conversion and ignores duplicate in-flight downloads", async () => {
     const deferredBlob = createDeferred<Blob>();
 
     getAbsoluteUrl.mockReturnValue(
@@ -164,12 +201,11 @@ describe("useDownload", () => {
 
     expect(result.current.isDownloading).toBe(true);
     expect(result.current.status).toBe("downloading");
+    expect(previewCache.getCachedPreviewObjectUrl).not.toHaveBeenCalled();
     expect(convertSvgToBlob).toHaveBeenCalledTimes(1);
-    expect(readSvgMarkupFromObjectUrl).toHaveBeenCalledWith(
-      "blob:cached-preview",
-    );
+    expect(readSvgMarkupFromObjectUrl).not.toHaveBeenCalled();
     expect(convertSvgToBlob).toHaveBeenCalledWith(
-      { svgContent: "<svg>cached</svg>" },
+      "https://anicards.test/api/card?card=animeStats",
       "webp",
     );
 

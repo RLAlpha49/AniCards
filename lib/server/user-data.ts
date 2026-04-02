@@ -7,6 +7,7 @@
  */
 import { randomUUID } from "node:crypto";
 
+import { scheduleTelemetryTask } from "@/lib/api/telemetry";
 import {
   buildPersistedRequestMetadata,
   logPrivacySafe,
@@ -752,6 +753,17 @@ async function auditUserLifecycleEvent(options: {
     timestamp: new Date().toISOString(),
     triggerSource: options.triggerSource,
     userId: String(options.userId),
+  });
+}
+
+function scheduleUserLifecycleAuditEvent(options: {
+  action: UserLifecycleAuditAction;
+  triggerSource: UserLifecycleAuditTriggerSource;
+  userId: string | number;
+}): void {
+  scheduleTelemetryTask(() => auditUserLifecycleEvent(options), {
+    endpoint: "User Data",
+    taskName: `user-lifecycle-audit:${options.action}:${options.triggerSource}`,
   });
 }
 
@@ -2592,6 +2604,7 @@ export async function fetchUserDataParts(
   parts: UserDataPart[],
   options?: {
     audit?: boolean;
+    awaitAudit?: boolean;
     triggerSource?: UserLifecycleAuditTriggerSource;
   },
 ): Promise<Partial<Record<UserDataPart, unknown>>> {
@@ -2605,6 +2618,7 @@ export async function fetchUserDataSnapshot(
   parts: UserDataPart[],
   options?: {
     audit?: boolean;
+    awaitAudit?: boolean;
     expectedSnapshotToken?: string;
     expectedUpdatedAt?: string;
     triggerSource?: UserLifecycleAuditTriggerSource;
@@ -2616,11 +2630,17 @@ export async function fetchUserDataSnapshot(
     expectedUpdatedAt: options?.expectedUpdatedAt,
   });
   if (shouldAudit && Object.keys(result.parts).length > 0) {
-    await auditUserLifecycleEvent({
-      action: "access",
+    const auditOptions = {
+      action: "access" as const,
       triggerSource: options?.triggerSource ?? "user_data_fetch",
       userId,
-    });
+    };
+
+    if (options?.awaitAudit) {
+      await auditUserLifecycleEvent(auditOptions);
+    } else {
+      scheduleUserLifecycleAuditEvent(auditOptions);
+    }
   }
 
   return result;

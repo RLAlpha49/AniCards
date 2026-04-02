@@ -281,6 +281,96 @@ describe("batch-export queue scheduling", () => {
     ]);
   });
 
+  it("keeps raster exports URL-based even when a cached SVG preview exists", async () => {
+    convertSvgToBlob.mockResolvedValueOnce(
+      new Blob(["png"], { type: "image/png" }),
+    );
+    readSvgMarkupFromObjectUrl.mockResolvedValueOnce("<svg>cached</svg>");
+
+    const results = await batchConvertSvgsToPngs(
+      [
+        {
+          cachedSvgObjectUrl: "blob:cached-preview",
+          rawType: "animeStats-default",
+          svgUrl: "https://api.anicards.test/card.svg?card=animeStats",
+          type: "animeStats",
+        },
+      ],
+      "png",
+    );
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.success).toBe(true);
+    expect(convertSvgToBlob).toHaveBeenCalledWith(
+      "https://api.anicards.test/card.svg?card=animeStats",
+      "png",
+    );
+    expect(readSvgMarkupFromObjectUrl).not.toHaveBeenCalled();
+  });
+
+  it("preserves input filename ordering in the generated ZIP when conversions finish out of order", async () => {
+    const deferredConversions = Array.from({ length: 3 }, () =>
+      createDeferred<Blob>(),
+    );
+
+    convertSvgToBlob.mockImplementation(
+      async (source: string, format: "png" | "webp") => {
+        void format;
+        const match = /card-(\d+)/.exec(source);
+
+        if (!match) {
+          throw new Error(`Unexpected source key: ${source}`);
+        }
+
+        return await deferredConversions[Number(match[1])].promise;
+      },
+    );
+
+    const exportPromise = batchConvertAndZip(
+      [
+        { rawType: "raw-0", svgUrl: "card-0", type: "type-0" },
+        { rawType: "raw-1", svgUrl: "card-1", type: "type-1" },
+        { rawType: "raw-2", svgUrl: "card-2", type: "type-2" },
+      ],
+      "png",
+    );
+
+    await waitFor(
+      () => convertSvgToBlob.mock.calls.length === 3,
+      "Expected all queued PNG conversions to start.",
+    );
+
+    deferredConversions[2].resolve(new Blob(["card-2"], { type: "image/png" }));
+    deferredConversions[1].resolve(new Blob(["card-1"], { type: "image/png" }));
+    deferredConversions[0].resolve(new Blob(["card-0"], { type: "image/png" }));
+
+    const summary = await exportPromise;
+
+    expect(summary).toEqual({
+      total: 3,
+      exported: 3,
+      failed: 0,
+      failedCards: undefined,
+    });
+
+    const firstCreateObjectUrlCall = createObjectURL.mock.calls[0];
+    if (!firstCreateObjectUrlCall) {
+      throw new TypeError("Expected PNG batch export to create a ZIP blob.");
+    }
+
+    const [zipBlob] = firstCreateObjectUrlCall;
+    if (!(zipBlob instanceof Blob)) {
+      throw new TypeError("Expected PNG batch export to create a ZIP blob.");
+    }
+
+    const zip = await JSZip.loadAsync(await zipBlob.arrayBuffer());
+    expect(Object.keys(zip.files)).toEqual([
+      "raw-0.png",
+      "raw-1.png",
+      "raw-2.png",
+    ]);
+  });
+
   it("packages raw SVG files into the ZIP without raster conversion", async () => {
     readSvgMarkupFromObjectUrl.mockResolvedValue('<svg data-cache="cached" />');
     readSvgMarkupFromUrl.mockImplementation(

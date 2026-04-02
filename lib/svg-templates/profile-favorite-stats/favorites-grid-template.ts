@@ -228,6 +228,8 @@ export const favoritesGridTemplate = (data: {
     h: 55 + rows * (cellHeight + spacing) + 10,
   };
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);
+  const animationsEnabled =
+    (data.styles as { animate?: boolean }).animate !== false;
 
   const variantLabel = getVariantLabel(variant);
   const title =
@@ -254,7 +256,7 @@ export const favoritesGridTemplate = (data: {
   </desc>
 
   <style>
-    ${generateCommonStyles(resolvedColors, Number.parseFloat(calculateDynamicFontSize(title)))}
+    ${generateCommonStyles(resolvedColors, Number.parseFloat(calculateDynamicFontSize(title)), { includeAnimations: animationsEnabled })}
 
     .item-name {
       fill: ${resolvedColors.textColor};
@@ -313,11 +315,11 @@ export const favoritesGridTemplate = (data: {
           <g class="stagger" style="animation-delay: ${ANIMATION.BASE_DELAY - ANIMATION.STAGGER_INCREMENT + i * ANIMATION.MEDIUM_INCREMENT}ms" transform="translate(${x}, ${y})">
             <a xlink:href="${escapeForXml(anilistUrl)}" target="_blank">
               <rect x="0" y="0" width="${cellWidth}" height="${cellHeight - 25}" rx="4" fill="${studioColor}" opacity="0.9"/>
-              <text x="${cellWidth / 2}" y="${(cellHeight - 25) / 2 + 12}" 
-                    text-anchor="middle" 
-                    fill="white" 
-                    font-size="32" 
-                    font-weight="bold" 
+              <text x="${cellWidth / 2}" y="${(cellHeight - 25) / 2 + 12}"
+                    text-anchor="middle"
+                    fill="white"
+                    font-size="32"
+                    font-weight="bold"
                     font-family="'Segoe UI', Ubuntu, Sans-Serif">${escapeForXml(initials)}</text>
             </a>
             <text class="item-name" style="font-size:${TYPOGRAPHY.LARGE_TEXT_SIZE}px" x="0" y="${cellHeight - 3}">

@@ -234,6 +234,7 @@ export function comparativeTwoColumnTemplate(
     Number.parseFloat(
       calculateDynamicFontSize(fullTitle, 18, baseDims.w - 40),
     ) || TYPOGRAPHY.HEADER_SIZE;
+  const animationsEnabled = (styles as { animate?: boolean }).animate !== false;
 
   const padding = SPACING.CARD_PADDING;
   const colGap = 20;
@@ -315,7 +316,7 @@ export function comparativeTwoColumnTemplate(
       ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
       <title id="title-id">${safeTitle}</title>
       <style>
-        ${generateCommonStyles(resolvedColors, headerFontSize)}
+        ${generateCommonStyles(resolvedColors, headerFontSize, { includeAnimations: animationsEnabled })}
         .col-title { fill: ${resolvedColors.circleColor}; font: 600 ${TYPOGRAPHY.STAT_VALUE_SIZE}px 'Segoe UI', Ubuntu, Sans-Serif; }
       </style>
       ${generateCardBackground(dims, cardRadius, resolvedColors)}

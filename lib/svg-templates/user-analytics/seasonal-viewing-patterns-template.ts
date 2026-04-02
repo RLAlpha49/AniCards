@@ -99,6 +99,8 @@ export function seasonalViewingPatternsTemplate(
   const cardRadius = getCardBorderRadius(data.styles.borderRadius);
   const title = `${data.username}'s Seasonal Activity`;
   const safeTitle = escapeForXml(title);
+  const animationsEnabled =
+    (data.styles as { animate?: boolean }).animate !== false;
 
   const dims = getCardDimensions("seasonalViewingPatterns", "default");
   const seasons = groupBySeason(data.activityHistory);
@@ -142,14 +144,21 @@ export function seasonalViewingPatternsTemplate(
   ${gradientDefs ? `<defs>${gradientDefs}</defs>` : ""}
   <title id="title-id">${safeTitle}</title>
   <style>
-    ${generateCommonStyles(resolvedColors, Number.parseFloat(calculateDynamicFontSize(title)))}
-    .stagger {
+    ${generateCommonStyles(resolvedColors, Number.parseFloat(calculateDynamicFontSize(title)), { includeAnimations: animationsEnabled })}
+    ${
+      animationsEnabled
+        ? `.stagger {
       opacity: 0;
       animation: fadeInAnimation 0.3s ease-in-out forwards;
     }
     @keyframes fadeInAnimation {
       from { opacity: 0; }
       to { opacity: 1; }
+    }`
+        : `.stagger {
+      opacity: 1;
+      animation: none;
+    }`
     }
   </style>
   ${generateCardBackground(dims, cardRadius, resolvedColors)}

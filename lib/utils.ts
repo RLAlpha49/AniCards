@@ -1193,6 +1193,10 @@ export function getAbsoluteUrl(url: string): string {
 export function extractStyles(
   cardConfig: StoredCardConfig | TemplateCardConfig,
 ) {
+  const renderStyleOptions = cardConfig as {
+    animate?: boolean;
+  };
+
   return {
     titleColor: cardConfig.titleColor ?? DEFAULT_TITLE_COLOR,
     backgroundColor: cardConfig.backgroundColor ?? DEFAULT_BACKGROUND_COLOR,
@@ -1200,6 +1204,9 @@ export function extractStyles(
     circleColor: cardConfig.circleColor ?? DEFAULT_CIRCLE_COLOR,
     borderColor: cardConfig.borderColor,
     borderRadius: cardConfig.borderRadius,
+    ...(typeof renderStyleOptions.animate === "boolean"
+      ? { animate: renderStyleOptions.animate }
+      : {}),
   };
 }
 

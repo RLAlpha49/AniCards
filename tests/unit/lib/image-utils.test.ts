@@ -5,9 +5,19 @@ import { sharedRedisMockGet, sharedRedisMockSet } from "@/tests/unit/__setup__";
 const {
   clearImageDataUrlCaches,
   fetchImageAsDataUrl,
+  getImageDataUrlMemoryCacheSizeBytes,
+  IMAGE_DATA_URL_MEMORY_CACHE_MAX_BYTES,
   IMAGE_DATA_URL_MEMORY_CACHE_MAX_ENTRIES,
+  IMAGE_DATA_URL_SHARED_CACHE_MAX_BYTES,
   imageDataUrlCache,
 } = await import("@/lib/image-utils");
+
+function createSizedDataUrl(targetBytes: number): string {
+  const prefix = "data:image/png;base64,";
+  const prefixBytes = Buffer.byteLength(prefix, "utf8");
+  const payloadBytes = Math.max(0, targetBytes - prefixBytes);
+  return `${prefix}${"A".repeat(payloadBytes)}`;
+}
 
 describe("image-utils shared asset cache", () => {
   const originalFetch = globalThis.fetch;
@@ -58,9 +68,11 @@ describe("image-utils shared asset cache", () => {
       index < IMAGE_DATA_URL_MEMORY_CACHE_MAX_ENTRIES;
       index += 1
     ) {
+      const dataUrl = `data:image/png;base64,${index}`;
       imageDataUrlCache.set(makeImageUrl(index), {
-        dataUrl: `data:image/png;base64,${index}`,
+        dataUrl,
         expiresAt,
+        byteLength: Buffer.byteLength(dataUrl, "utf8"),
       });
     }
 
@@ -90,6 +102,65 @@ describe("image-utils shared asset cache", () => {
     expect(imageDataUrlCache.has(evictedUrl)).toBe(false);
     expect(imageDataUrlCache.has(insertedUrl)).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("enforces the in-memory byte budget even when the entry cap is not reached", async () => {
+    const expiresAt = Date.now() + 60_000;
+    const largeEntryBytes =
+      Math.floor(IMAGE_DATA_URL_MEMORY_CACHE_MAX_BYTES / 2) - 64;
+    const firstUrl =
+      "https://s4.anilist.co/file/anilistcdn/staff/byte-budget-1.jpg";
+    const secondUrl =
+      "https://s4.anilist.co/file/anilistcdn/staff/byte-budget-2.jpg";
+    const thirdUrl =
+      "https://s4.anilist.co/file/anilistcdn/staff/byte-budget-3.jpg";
+
+    const largeDataUrl = createSizedDataUrl(largeEntryBytes);
+    const smallDataUrl = createSizedDataUrl(256);
+
+    imageDataUrlCache.set(firstUrl, {
+      dataUrl: largeDataUrl,
+      expiresAt,
+      byteLength: Buffer.byteLength(largeDataUrl, "utf8"),
+    });
+    imageDataUrlCache.set(secondUrl, {
+      dataUrl: largeDataUrl,
+      expiresAt,
+      byteLength: Buffer.byteLength(largeDataUrl, "utf8"),
+    });
+    imageDataUrlCache.set(thirdUrl, {
+      dataUrl: smallDataUrl,
+      expiresAt,
+      byteLength: Buffer.byteLength(smallDataUrl, "utf8"),
+    });
+
+    const refreshedResult = await fetchImageAsDataUrl(firstUrl);
+
+    expect(refreshedResult).toBe(largeDataUrl);
+    expect(imageDataUrlCache.has(firstUrl)).toBe(true);
+    expect(imageDataUrlCache.has(secondUrl)).toBe(false);
+    expect(imageDataUrlCache.has(thirdUrl)).toBe(true);
+    expect(getImageDataUrlMemoryCacheSizeBytes()).toBeLessThanOrEqual(
+      IMAGE_DATA_URL_MEMORY_CACHE_MAX_BYTES,
+    );
+  });
+
+  it("skips remote fetches when a hot render asks for cache-only image resolution", async () => {
+    const imageUrl =
+      "https://s4.anilist.co/file/anilistcdn/staff/cache-only.jpg";
+
+    sharedRedisMockGet.mockResolvedValueOnce(null);
+
+    const fetchMock = mock(async () => {
+      throw new Error("remote fetch should not run in cache-only mode");
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await fetchImageAsDataUrl(imageUrl, { cacheOnly: true });
+
+    expect(result).toBeNull();
+    expect(sharedRedisMockGet).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("dedupes concurrent fetches and persists the transformed asset to shared cache", async () => {
@@ -126,5 +197,32 @@ describe("image-utils shared asset cache", () => {
     expect(JSON.parse(serializedEntry)).toMatchObject({
       dataUrl: firstResult,
     });
+  });
+
+  it("skips shared-cache writes for oversized data URLs", async () => {
+    const imageUrl =
+      "https://s4.anilist.co/file/anilistcdn/staff/oversized-cache-entry.jpg";
+
+    sharedRedisMockGet.mockResolvedValueOnce(null);
+
+    const oversizedBufferBytes = Math.ceil(
+      IMAGE_DATA_URL_SHARED_CACHE_MAX_BYTES * 0.8,
+    );
+    const fetchMock = mock().mockResolvedValue({
+      ok: true,
+      headers: {
+        get: (name: string) =>
+          name.toLowerCase() === "content-type" ? "image/png" : null,
+      },
+      arrayBuffer: async () => new Uint8Array(oversizedBufferBytes).buffer,
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await fetchImageAsDataUrl(imageUrl);
+
+    expect(result).toBeTruthy();
+    expect(sharedRedisMockGet).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(sharedRedisMockSet).not.toHaveBeenCalled();
   });
 });

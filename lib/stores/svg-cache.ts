@@ -83,6 +83,7 @@ interface UserRequestStats {
 }
 
 const userRequestStats = new Map<number, UserRequestStats>();
+const staleSvgRevalidationLocks = new Set<string>();
 
 /**
  * Generates a stable cache key for an SVG based on user and card parameters.
@@ -171,6 +172,35 @@ export function setSvgInMemoryCache(
   if (userId) {
     updateUserRequestStats(userId);
   }
+}
+
+/**
+ * Attempts to acquire the per-key stale revalidation lock.
+ *
+ * This coalesces stale-while-revalidate refresh work so concurrent stale hits
+ * for the same SVG only trigger one background refresh.
+ *
+ * @param cacheKey - The cache key being revalidated.
+ * @returns True when the caller acquired the lock, otherwise false.
+ * @source
+ */
+export function tryAcquireSvgRevalidationLock(cacheKey: string): boolean {
+  if (staleSvgRevalidationLocks.has(cacheKey)) {
+    return false;
+  }
+
+  staleSvgRevalidationLocks.add(cacheKey);
+  return true;
+}
+
+/**
+ * Releases the per-key stale revalidation lock.
+ *
+ * @param cacheKey - The cache key whose lock should be cleared.
+ * @source
+ */
+export function releaseSvgRevalidationLock(cacheKey: string): void {
+  staleSvgRevalidationLocks.delete(cacheKey);
 }
 
 function getSharedCacheKey(cacheKey: string): string {
@@ -349,6 +379,7 @@ function updateUserRequestStats(userId: number): void {
  */
 export function clearSvgCache(): void {
   svgCache.clear();
+  staleSvgRevalidationLocks.clear();
 }
 
 /**
