@@ -537,12 +537,32 @@ const errorReportSourceSchema = z.enum([
   "app_router_error_boundary",
   "api_route",
 ]);
+const errorCategorySchema = z.enum([
+  "user_not_found",
+  "rate_limited",
+  "network_error",
+  "invalid_data",
+  "server_error",
+  "timeout",
+  "authentication",
+  "unknown",
+]);
+const recoverySuggestionSchema = z
+  .object({
+    title: sanitizeRequiredErrorReportText(120),
+    description: sanitizeRequiredErrorReportText(240),
+    actionLabel: sanitizeOptionalErrorReportText(80),
+  })
+  .strip();
 
 export const errorReportPayloadSchema = z
   .object({
     source: errorReportSourceSchema.optional(),
     userAction: sanitizeRequiredErrorReportText(120),
     message: sanitizeRequiredErrorReportText(2_000),
+    category: errorCategorySchema.optional(),
+    retryable: z.boolean().optional(),
+    recoverySuggestions: z.array(recoverySuggestionSchema).max(6).optional(),
     requestId: z
       .preprocess((value) => {
         if (typeof value !== "string") {

@@ -41,6 +41,7 @@ export default function AppErrorBoundary({
       onRetry={reset}
       retryLabel="Try Again"
       digest={error.digest}
+      incidentReference={error.digest}
     />
   );
 }

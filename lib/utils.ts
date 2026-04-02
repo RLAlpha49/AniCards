@@ -9,6 +9,12 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+import {
+  type ErrorCategory,
+  getErrorDetails,
+  isRetryableErrorCategory,
+  type RecoverySuggestion,
+} from "@/lib/error-messages";
 import type {
   ColorValue,
   GradientDefinition,
@@ -855,6 +861,202 @@ export async function convertSvgToBlob(
   return new Blob([await blob.arrayBuffer()], { type: expectedMimeType });
 }
 
+const RESPONSE_REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,120}$/;
+const STRUCTURED_RESPONSE_ERROR_FIELDS = new Set<string>([
+  "category",
+  "error",
+  "message",
+  "recoverySuggestions",
+  "requestId",
+  "retryable",
+  "status",
+]);
+const STRUCTURED_RESPONSE_ERROR_CATEGORIES = new Set<ErrorCategory>([
+  "user_not_found",
+  "rate_limited",
+  "network_error",
+  "invalid_data",
+  "server_error",
+  "timeout",
+  "authentication",
+  "unknown",
+]);
+
+export interface StructuredResponseError {
+  message: string;
+  status?: number;
+  category: ErrorCategory;
+  retryable: boolean;
+  recoverySuggestions: RecoverySuggestion[];
+  requestId?: string;
+  additionalFields?: Record<string, unknown>;
+}
+
+function isResponsePayloadRecord(
+  value: unknown,
+): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isErrorCategoryValue(value: unknown): value is ErrorCategory {
+  return (
+    typeof value === "string" &&
+    STRUCTURED_RESPONSE_ERROR_CATEGORIES.has(value as ErrorCategory)
+  );
+}
+
+function isRecoverySuggestionValue(
+  value: unknown,
+): value is RecoverySuggestion {
+  if (!isResponsePayloadRecord(value)) {
+    return false;
+  }
+
+  if (typeof value.title !== "string" || value.title.trim().length === 0) {
+    return false;
+  }
+
+  if (
+    typeof value.description !== "string" ||
+    value.description.trim().length === 0
+  ) {
+    return false;
+  }
+
+  if (
+    value.actionLabel !== undefined &&
+    (typeof value.actionLabel !== "string" ||
+      value.actionLabel.trim().length === 0)
+  ) {
+    return false;
+  }
+
+  if (
+    value.actionUrl !== undefined &&
+    (typeof value.actionUrl !== "string" || value.actionUrl.trim().length === 0)
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function sanitizeResponseRequestId(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (!RESPONSE_REQUEST_ID_PATTERN.test(trimmed)) {
+    return undefined;
+  }
+
+  return trimmed;
+}
+
+function resolveStructuredResponseStatus(
+  response: Response,
+  payload: Record<string, unknown> | undefined,
+): number {
+  const payloadStatus = payload?.status;
+
+  if (
+    typeof payloadStatus === "number" &&
+    Number.isInteger(payloadStatus) &&
+    payloadStatus >= 400 &&
+    payloadStatus <= 599
+  ) {
+    return payloadStatus;
+  }
+
+  return response.status;
+}
+
+function resolveStructuredResponseMessage(
+  response: Response,
+  payload: unknown,
+): string {
+  const defaultMessage = `HTTP ${response.status} ${response.statusText}`;
+  const payloadRecord = isResponsePayloadRecord(payload) ? payload : undefined;
+
+  if (
+    typeof payloadRecord?.error === "string" &&
+    payloadRecord.error.trim().length > 0
+  ) {
+    return payloadRecord.error;
+  }
+
+  if (
+    typeof payloadRecord?.message === "string" &&
+    payloadRecord.message.trim().length > 0
+  ) {
+    return payloadRecord.message;
+  }
+
+  if (typeof payload === "string" && payload.trim().length > 0) {
+    return payload;
+  }
+
+  return defaultMessage;
+}
+
+function resolveStructuredResponseAdditionalFields(
+  payload: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!payload) {
+    return undefined;
+  }
+
+  const additionalEntries = Object.entries(payload).filter(
+    ([key]) => !STRUCTURED_RESPONSE_ERROR_FIELDS.has(key),
+  );
+
+  if (additionalEntries.length === 0) {
+    return undefined;
+  }
+
+  return Object.fromEntries(additionalEntries);
+}
+
+export function getStructuredResponseError(
+  response: Response,
+  payload: unknown,
+): StructuredResponseError {
+  const payloadRecord = isResponsePayloadRecord(payload) ? payload : undefined;
+  const message = resolveStructuredResponseMessage(response, payload);
+  const status = resolveStructuredResponseStatus(response, payloadRecord);
+  const fallbackDetails = getErrorDetails(message, status);
+  const category = isErrorCategoryValue(payloadRecord?.category)
+    ? payloadRecord.category
+    : fallbackDetails.category;
+  let retryable = fallbackDetails.retryable;
+
+  if (typeof payloadRecord?.retryable === "boolean") {
+    retryable = payloadRecord.retryable;
+  } else if (isErrorCategoryValue(payloadRecord?.category)) {
+    retryable = isRetryableErrorCategory(payloadRecord.category);
+  }
+
+  const recoverySuggestions = Array.isArray(payloadRecord?.recoverySuggestions)
+    ? payloadRecord.recoverySuggestions.filter(isRecoverySuggestionValue)
+    : fallbackDetails.suggestions;
+  const requestId =
+    sanitizeResponseRequestId(response.headers.get("X-Request-Id")) ??
+    sanitizeResponseRequestId(payloadRecord?.requestId);
+  const additionalFields =
+    resolveStructuredResponseAdditionalFields(payloadRecord);
+
+  return {
+    message,
+    status,
+    category,
+    retryable,
+    recoverySuggestions,
+    ...(requestId ? { requestId } : {}),
+    ...(additionalFields ? { additionalFields } : {}),
+  };
+}
+
 /**
  * Try to parse a Response body as JSON; if that fails, return the text body.
  * If both attempts fail, return null.
@@ -884,16 +1086,7 @@ export function getResponseErrorMessage(
   response: Response,
   payload: unknown,
 ): string {
-  const message = `HTTP ${response.status} ${response.statusText}`;
-  if (!payload) return message;
-  if (typeof payload === "object" && payload !== null) {
-    const obj = payload as Record<string, unknown>;
-    if (typeof obj.error === "string" && obj.error.trim()) return obj.error;
-    if (typeof obj.message === "string" && obj.message.trim())
-      return obj.message;
-  }
-  if (typeof payload === "string" && payload.trim()) return payload;
-  return message;
+  return getStructuredResponseError(response, payload).message;
 }
 
 /**

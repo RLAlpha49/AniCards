@@ -5,7 +5,6 @@ import {
   createRequestProofToken,
   REQUEST_PROOF_COOKIE_NAME,
 } from "@/lib/api/request-proof";
-import { flushScheduledTelemetryTasksForTests } from "@/lib/api-utils";
 import { ERROR_REPORT_REQUEST_MAX_BYTES } from "@/lib/error-tracking";
 import {
   allowConsoleWarningsAndErrors,
@@ -90,10 +89,9 @@ describe("error reports API route", () => {
     );
     const payload = await response.json();
 
-    expect(response.status).toBe(202);
-    expect(payload).toEqual({ accepted: true });
+    expect(response.status).toBe(200);
+    expect(payload).toEqual({ recorded: true });
 
-    await flushScheduledTelemetryTasksForTests();
     expect(sharedRedisMockRpush).toHaveBeenCalledWith(
       "telemetry:error-reports:v1",
       expect.any(String),
@@ -120,9 +118,7 @@ describe("error reports API route", () => {
       }),
     );
 
-    expect(response.status).toBe(202);
-
-    await flushScheduledTelemetryTasksForTests();
+    expect(response.status).toBe(200);
 
     const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1] as
       | string
@@ -150,9 +146,7 @@ describe("error reports API route", () => {
       ),
     );
 
-    expect(response.status).toBe(202);
-
-    await flushScheduledTelemetryTasksForTests();
+    expect(response.status).toBe(200);
 
     const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1] as
       | string
@@ -162,6 +156,70 @@ describe("error reports API route", () => {
     };
 
     expect(report.requestId).toBe("req-payload-12345");
+  });
+
+  it("persists structured API error facts supplied by the client payload", async () => {
+    const response = await POST(
+      createRequest(
+        {
+          source: "client_hook",
+          userAction: "user_page_load",
+          message:
+            "Conflict: data was updated elsewhere. Please reload and try again.",
+          category: "invalid_data",
+          retryable: false,
+          requestId: "req-structured-client-12345",
+          route: "/user/Alex?tab=cards",
+          statusCode: 409,
+          recoverySuggestions: [
+            {
+              title: "Reload the page",
+              description: "Refresh the page to load the latest saved data.",
+              actionLabel: "Reload",
+            },
+          ],
+          metadata: {
+            currentUpdatedAt: "2026-04-02T12:34:56.000Z",
+          },
+        },
+        {
+          "x-request-id": "req-ingestion-99999",
+        },
+      ),
+    );
+
+    expect(response.status).toBe(200);
+
+    const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1] as
+      | string
+      | undefined;
+    const report = JSON.parse(String(serializedReport)) as {
+      category: string;
+      retryable: boolean;
+      requestId?: string;
+      route?: string;
+      statusCode?: number;
+      suggestions: Array<{
+        title: string;
+        description: string;
+        actionLabel?: string;
+      }>;
+      metadata?: Record<string, string>;
+    };
+
+    expect(report.category).toBe("invalid_data");
+    expect(report.retryable).toBe(false);
+    expect(report.requestId).toBe("req-structured-client-12345");
+    expect(report.route).toBe("/user/[username]");
+    expect(report.statusCode).toBe(409);
+    expect(report.suggestions).toEqual([
+      {
+        title: "Reload the page",
+        description: "Refresh the page to load the latest saved data.",
+        actionLabel: "Reload",
+      },
+    ]);
+    expect(report.metadata?.currentUpdatedAt).toBe("2026-04-02T12:34:56.000Z");
   });
 
   it("returns 429 when the dedicated error-report limiter is exceeded", async () => {
@@ -204,7 +262,7 @@ describe("error reports API route", () => {
       }),
     );
 
-    expect(response.status).toBe(202);
+    expect(response.status).toBe(200);
   });
 
   it("rejects oversized JSON payloads before validation or persistence", async () => {
@@ -223,19 +281,30 @@ describe("error reports API route", () => {
     expect(sharedRedisMockRpush).not.toHaveBeenCalled();
   });
 
-  it("returns 202 before durable error persistence settles", async () => {
+  it("waits for durable error persistence before returning success", async () => {
     let resolveRpush: ((value: number) => void) | undefined;
+    let persistenceStarted = false;
 
-    sharedRedisMockRpush.mockImplementationOnce(
-      () =>
-        new Promise<number>((resolve) => {
-          resolveRpush = resolve;
-        }),
-    );
+    sharedRedisMockRpush.mockImplementationOnce(() => {
+      persistenceStarted = true;
 
-    const response = await POST(createRequest());
+      return new Promise<number>((resolve) => {
+        resolveRpush = resolve;
+      });
+    });
 
-    expect(response.status).toBe(202);
+    let responseSettled = false;
+    const responsePromise = POST(createRequest()).then((response) => {
+      responseSettled = true;
+      return response;
+    });
+
+    for (let attempt = 0; attempt < 10 && !persistenceStarted; attempt += 1) {
+      await Promise.resolve();
+    }
+
+    expect(persistenceStarted).toBe(true);
+    expect(responseSettled).toBe(false);
     expect(sharedRedisMockRpush).toHaveBeenCalledWith(
       "telemetry:error-reports:v1",
       expect.any(String),
@@ -243,13 +312,32 @@ describe("error reports API route", () => {
     expect(sharedRedisMockLtrim).not.toHaveBeenCalled();
 
     resolveRpush?.(1);
-    await flushScheduledTelemetryTasksForTests();
+
+    const response = await responsePromise;
 
     expect(sharedRedisMockLtrim).toHaveBeenCalledWith(
       "telemetry:error-reports:v1",
       -250,
       -1,
     );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ recorded: true });
+  });
+
+  it("returns 503 when durable error persistence is temporarily unavailable", async () => {
+    sharedRedisMockRpush.mockRejectedValueOnce(
+      new Error("Upstash Redis connection failed"),
+    );
+
+    const response = await POST(createRequest());
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      error: "Structured error reporting is temporarily unavailable",
+      category: "server_error",
+      retryable: true,
+      status: 503,
+    });
   });
 
   it("rejects missing required fields", async () => {
@@ -280,9 +368,7 @@ describe("error reports API route", () => {
       }),
     );
 
-    expect(response.status).toBe(202);
-
-    await flushScheduledTelemetryTasksForTests();
+    expect(response.status).toBe(200);
 
     const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1] as
       | string

@@ -6,11 +6,79 @@ import {
 } from "@/lib/error-tracking";
 import {
   allowConsoleWarningsAndErrors,
+  sharedRedisMockGet,
   sharedRedisMockIncr,
+  sharedRedisMockLrange,
   sharedRedisMockLtrim,
   sharedRedisMockMget,
   sharedRedisMockRpush,
+  sharedRedisMockSet,
 } from "@/tests/unit/__setup__";
+
+const CLIENT_ERROR_REPORT_QUEUE_STORAGE_KEY = "anicards:error-report-queue:v1";
+
+function createStorageMock(storageState: Map<string, string>): Storage {
+  return {
+    clear() {
+      storageState.clear();
+    },
+    getItem(key: string) {
+      return storageState.get(key) ?? null;
+    },
+    key(index: number) {
+      return [...storageState.keys()][index] ?? null;
+    },
+    get length() {
+      return storageState.size;
+    },
+    removeItem(key: string) {
+      storageState.delete(key);
+    },
+    setItem(key: string, value: string) {
+      storageState.set(key, value);
+    },
+  } satisfies Storage;
+}
+
+function readStoredClientQueueState(storageState: Map<string, string>): {
+  reports: Array<{
+    body: string;
+    nextAttemptAt?: number;
+  }>;
+  stats: {
+    storage: string;
+    totalQueued: number;
+    totalDelivered: number;
+    totalEvicted: number;
+    totalExpired: number;
+    totalDroppedAfterMaxAttempts: number;
+    totalRateLimited: number;
+    recentDrops: Array<{
+      reason: string;
+    }>;
+  };
+} {
+  const rawQueueState = storageState.get(CLIENT_ERROR_REPORT_QUEUE_STORAGE_KEY);
+  expect(rawQueueState).toBeTruthy();
+  return JSON.parse(String(rawQueueState)) as {
+    reports: Array<{
+      body: string;
+      nextAttemptAt?: number;
+    }>;
+    stats: {
+      storage: string;
+      totalQueued: number;
+      totalDelivered: number;
+      totalEvicted: number;
+      totalExpired: number;
+      totalDroppedAfterMaxAttempts: number;
+      totalRateLimited: number;
+      recentDrops: Array<{
+        reason: string;
+      }>;
+    };
+  };
+}
 
 describe("error tracking", () => {
   const originalWindow = globalThis.window;
@@ -19,12 +87,18 @@ describe("error tracking", () => {
 
   beforeEach(() => {
     allowConsoleWarningsAndErrors();
+    sharedRedisMockGet.mockReset();
     sharedRedisMockIncr.mockReset();
+    sharedRedisMockLrange.mockReset();
     sharedRedisMockMget.mockReset();
     sharedRedisMockRpush.mockReset();
+    sharedRedisMockSet.mockReset();
     sharedRedisMockLtrim.mockReset();
+    sharedRedisMockGet.mockResolvedValue(null);
     sharedRedisMockIncr.mockResolvedValue(1);
+    sharedRedisMockLrange.mockResolvedValue([]);
     sharedRedisMockRpush.mockResolvedValue(1);
+    sharedRedisMockSet.mockResolvedValue("OK");
     sharedRedisMockLtrim.mockResolvedValue("OK");
 
     Object.defineProperty(globalThis, "window", {
@@ -121,6 +195,45 @@ describe("error tracking", () => {
     expect(payload.requestId).toBe("req-track-12345");
   });
 
+  it("preserves explicit retryability and recovery suggestions when callers provide them", async () => {
+    const suggestions = [
+      {
+        title: "Reload the page",
+        description: "Reload the page after the upstream recovers.",
+        actionLabel: "Reload",
+      },
+    ];
+
+    const report = await trackUserActionError(
+      "user_page_load",
+      new Error("Upstream bootstrap temporarily unavailable"),
+      "server_error",
+      {
+        retryable: false,
+        recoverySuggestions: suggestions,
+        source: "client_hook",
+      },
+    );
+
+    expect(report?.retryable).toBe(false);
+    expect(report?.suggestions).toEqual(suggestions);
+
+    const serializedReport = sharedRedisMockRpush.mock.calls.at(-1)?.[1] as
+      | string
+      | undefined;
+    const payload = JSON.parse(String(serializedReport)) as {
+      retryable: boolean;
+      suggestions: Array<{
+        title: string;
+        description: string;
+        actionLabel?: string;
+      }>;
+    };
+
+    expect(payload.retryable).toBe(false);
+    expect(payload.suggestions).toEqual(suggestions);
+  });
+
   it("redacts sensitive message fragments and drops sensitive metadata before persistence", async () => {
     const report = await trackUserActionError(
       "user_page_load",
@@ -203,6 +316,18 @@ describe("error tracking", () => {
   });
 
   it("increments the dropped counter when the ring buffer rolls over", async () => {
+    sharedRedisMockLrange.mockResolvedValueOnce([
+      JSON.stringify({
+        id: "rep-evicted-1",
+        timestamp: 1_710_000_000_000,
+        source: "api_route",
+        userAction: "render_component_tree",
+        category: "server_error",
+        retryable: false,
+        technicalMessage: "Oldest retained error",
+        errorName: "Error",
+      }),
+    ]);
     sharedRedisMockRpush.mockResolvedValueOnce(251);
 
     await trackUserActionError(
@@ -218,19 +343,150 @@ describe("error tracking", () => {
     expect(sharedRedisMockIncr).toHaveBeenCalledWith(
       "telemetry:error-reports:v1:dropped",
     );
+    expect(sharedRedisMockSet).toHaveBeenCalledWith(
+      "telemetry:error-reports:v1:evicted-summary",
+      expect.any(String),
+    );
   });
 
   it("reads the current ring-buffer saturation snapshot", async () => {
     sharedRedisMockMget.mockResolvedValueOnce(["18", "4"]);
+    sharedRedisMockLrange.mockResolvedValueOnce([
+      JSON.stringify({
+        id: "rep-retained-1",
+        timestamp: 1_710_000_100_000,
+        source: "react_error_boundary",
+        userAction: "render_component_tree",
+        category: "network_error",
+        retryable: true,
+        technicalMessage: "Segment render failed after retry",
+        errorName: "Error",
+        route: "/user/Alex",
+        requestId: "req-retained-12345",
+        digest: "digest-retained-1",
+      }),
+      JSON.stringify({
+        id: "rep-retained-2",
+        timestamp: 1_710_000_200_000,
+        source: "client_hook",
+        userAction: "bootstrap_user_page",
+        category: "server_error",
+        retryable: false,
+        technicalMessage: "Bootstrap payload missing required shape",
+        errorName: "TypeError",
+        route: "/user/Alex?tab=cards",
+      }),
+    ]);
+    sharedRedisMockGet.mockResolvedValueOnce(
+      JSON.stringify({
+        totalReports: 4,
+        updatedAt: 1_710_000_300_000,
+        routes: {
+          "/user/Alex": {
+            reports: 3,
+            latest: {
+              id: "rep-evicted-1",
+              timestamp: 1_710_000_250_000,
+              source: "react_error_boundary",
+              userAction: "render_component_tree",
+              category: "network_error",
+              retryable: true,
+              technicalMessage: "Earlier incident rolled out of the buffer",
+              errorName: "Error",
+              route: "/user/Alex",
+              requestId: "req-evicted-12345",
+              digest: "digest-evicted-1",
+            },
+          },
+        },
+        categories: {
+          network_error: {
+            reports: 4,
+            latest: {
+              id: "rep-evicted-1",
+              timestamp: 1_710_000_250_000,
+              source: "react_error_boundary",
+              userAction: "render_component_tree",
+              category: "network_error",
+              retryable: true,
+              technicalMessage: "Earlier incident rolled out of the buffer",
+              errorName: "Error",
+            },
+          },
+        },
+        sources: {
+          react_error_boundary: {
+            reports: 4,
+            latest: {
+              id: "rep-evicted-1",
+              timestamp: 1_710_000_250_000,
+              source: "react_error_boundary",
+              userAction: "render_component_tree",
+              category: "network_error",
+              retryable: true,
+              technicalMessage: "Earlier incident rolled out of the buffer",
+              errorName: "Error",
+            },
+          },
+        },
+        userActions: {
+          render_component_tree: {
+            reports: 4,
+            latest: {
+              id: "rep-evicted-1",
+              timestamp: 1_710_000_250_000,
+              source: "react_error_boundary",
+              userAction: "render_component_tree",
+              category: "network_error",
+              retryable: true,
+              technicalMessage: "Earlier incident rolled out of the buffer",
+              errorName: "Error",
+            },
+          },
+        },
+        recentReports: [
+          {
+            id: "rep-evicted-1",
+            timestamp: 1_710_000_250_000,
+            source: "react_error_boundary",
+            userAction: "render_component_tree",
+            category: "network_error",
+            retryable: true,
+            technicalMessage: "Earlier incident rolled out of the buffer",
+            errorName: "Error",
+          },
+        ],
+      }),
+    );
 
     const snapshot = await getErrorReportBufferSnapshot();
 
-    expect(snapshot).toEqual({
+    expect(snapshot).toMatchObject({
       capacity: 250,
       retained: 14,
       totalCaptured: 18,
       totalDropped: 4,
       cumulativeSaturationRate: 0.2222,
+      retainedTriage: {
+        totalReports: 2,
+      },
+      evictedTriage: {
+        totalReports: 4,
+        updatedAt: 1_710_000_300_000,
+      },
+    });
+    expect(
+      snapshot.retainedTriage.topRoutes.some(
+        (bucket) =>
+          bucket.value === "/user/Alex" &&
+          bucket.reports === 1 &&
+          bucket.latest.requestId === "req-retained-12345" &&
+          bucket.latest.digest === "digest-retained-1",
+      ),
+    ).toBe(true);
+    expect(snapshot.evictedTriage.topCategories[0]).toMatchObject({
+      value: "network_error",
+      reports: 4,
     });
     expect(sharedRedisMockMget).toHaveBeenCalledWith(
       "telemetry:error-reports:v1:total",
@@ -299,18 +555,12 @@ describe("error tracking", () => {
 
       return Promise.resolve(new Response(null, { status: 202 }));
     });
+    const localStorageState = new Map<string, string>();
 
     Object.defineProperty(globalThis, "window", {
       value: {
-        sessionStorage: {
-          clear: () => undefined,
-          getItem: () => null,
-          key: () => null,
-          length: 0,
-          removeItem: () => undefined,
-          setItem: () => undefined,
-        } as Storage,
-      } satisfies Pick<Window, "sessionStorage">,
+        localStorage: createStorageMock(localStorageState),
+      } satisfies Pick<Window, "localStorage">,
       configurable: true,
       writable: true,
     });
@@ -337,35 +587,15 @@ describe("error tracking", () => {
   });
 
   it("queues failed client error reports and flushes them on the next success", async () => {
-    const sessionStorageState = new Map<string, string>();
-    const sessionStorageMock = {
-      clear() {
-        sessionStorageState.clear();
-      },
-      getItem(key: string) {
-        return sessionStorageState.get(key) ?? null;
-      },
-      key(index: number) {
-        return [...sessionStorageState.keys()][index] ?? null;
-      },
-      get length() {
-        return sessionStorageState.size;
-      },
-      removeItem(key: string) {
-        sessionStorageState.delete(key);
-      },
-      setItem(key: string, value: string) {
-        sessionStorageState.set(key, value);
-      },
-    } satisfies Storage;
+    const localStorageState = new Map<string, string>();
     const fetchMock = mock(() =>
       Promise.resolve(new Response(null, { status: 503 })),
     );
 
     Object.defineProperty(globalThis, "window", {
       value: {
-        sessionStorage: sessionStorageMock,
-      } satisfies Pick<Window, "sessionStorage">,
+        localStorage: createStorageMock(localStorageState),
+      } satisfies Pick<Window, "localStorage">,
       configurable: true,
       writable: true,
     });
@@ -389,8 +619,16 @@ describe("error tracking", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(
-      sessionStorageState.get("anicards:error-report-queue:v1"),
+      localStorageState.get(CLIENT_ERROR_REPORT_QUEUE_STORAGE_KEY),
     ).toBeTruthy();
+
+    const queuedState = readStoredClientQueueState(localStorageState);
+    expect(queuedState.reports).toHaveLength(1);
+    expect(queuedState.stats).toMatchObject({
+      storage: "local_storage",
+      totalQueued: 1,
+      totalDelivered: 0,
+    });
 
     fetchMock.mockImplementation(() =>
       Promise.resolve(new Response(null, { status: 202 })),
@@ -404,41 +642,195 @@ describe("error tracking", () => {
     );
 
     expect(fetchMock).toHaveBeenCalledTimes(5);
-    expect(
-      sessionStorageState.get("anicards:error-report-queue:v1"),
-    ).toBeUndefined();
+    expect(readStoredClientQueueState(localStorageState)).toMatchObject({
+      reports: [],
+      stats: {
+        storage: "local_storage",
+        totalQueued: 1,
+        totalDelivered: 1,
+      },
+    });
   });
 
-  it("stores only minimized payloads in the client retry queue", async () => {
-    const sessionStorageState = new Map<string, string>();
-    const sessionStorageMock = {
-      clear() {
-        sessionStorageState.clear();
-      },
-      getItem(key: string) {
-        return sessionStorageState.get(key) ?? null;
-      },
-      key(index: number) {
-        return [...sessionStorageState.keys()][index] ?? null;
-      },
-      get length() {
-        return sessionStorageState.size;
-      },
-      removeItem(key: string) {
-        sessionStorageState.delete(key);
-      },
-      setItem(key: string, value: string) {
-        sessionStorageState.set(key, value);
-      },
-    } satisfies Storage;
+  it("tracks queue evictions when durable client storage reaches capacity", async () => {
+    const localStorageState = new Map<string, string>();
+    localStorageState.set(
+      CLIENT_ERROR_REPORT_QUEUE_STORAGE_KEY,
+      JSON.stringify(
+        Array.from({ length: 24 }, (_, index) => ({
+          attempts: 0,
+          body: JSON.stringify({
+            source: "react_error_boundary",
+            userAction: `queued_report_${index}`,
+            message: `Queued report ${index}`,
+            category: "network_error",
+            errorName: "Error",
+          }),
+          requestId: `req-queued-${index}`,
+        })),
+      ),
+    );
+
     const fetchMock = mock(() =>
       Promise.resolve(new Response(null, { status: 503 })),
     );
 
     Object.defineProperty(globalThis, "window", {
       value: {
-        sessionStorage: sessionStorageMock,
-      } satisfies Pick<Window, "sessionStorage">,
+        localStorage: createStorageMock(localStorageState),
+      } satisfies Pick<Window, "localStorage">,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "location", {
+      value: new URL("https://anicards.test/user/Alex?tab=cards"),
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "fetch", {
+      value: fetchMock,
+      configurable: true,
+      writable: true,
+    });
+
+    await trackUserActionError(
+      "render_component_tree",
+      new Error("Client error burst exceeded durable queue capacity"),
+      "network_error",
+      { source: "react_error_boundary" },
+    );
+
+    const queueState = readStoredClientQueueState(localStorageState);
+    expect(queueState.reports).toHaveLength(24);
+    expect(queueState.stats).toMatchObject({
+      totalQueued: 25,
+      totalEvicted: 1,
+    });
+    expect(queueState.stats.recentDrops[0]?.reason).toBe("queue_evicted");
+  });
+
+  it("does not queue permanent client error report failures", async () => {
+    const localStorageState = new Map<string, string>();
+    const fetchMock = mock(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            category: "invalid_data",
+            error: "Invalid error report payload",
+            retryable: false,
+            status: 400,
+          }),
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
+            status: 400,
+            statusText: "Bad Request",
+          },
+        ),
+      ),
+    );
+
+    Object.defineProperty(globalThis, "window", {
+      value: {
+        localStorage: createStorageMock(localStorageState),
+      } satisfies Pick<Window, "localStorage">,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "location", {
+      value: new URL("https://anicards.test/user/Alex?tab=cards"),
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "fetch", {
+      value: fetchMock,
+      configurable: true,
+      writable: true,
+    });
+
+    await trackUserActionError(
+      "render_component_tree",
+      new Error("Failed to fetch user Alex profile"),
+      "network_error",
+      { source: "react_error_boundary" },
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(
+      localStorageState.get(CLIENT_ERROR_REPORT_QUEUE_STORAGE_KEY),
+    ).toBeUndefined();
+  });
+
+  it("defers queued client error report replay until Retry-After elapses", async () => {
+    const localStorageState = new Map<string, string>();
+    const replayNotBefore = Date.now() + 60_000;
+
+    localStorageState.set(
+      CLIENT_ERROR_REPORT_QUEUE_STORAGE_KEY,
+      JSON.stringify([
+        {
+          attempts: 1,
+          body: JSON.stringify({
+            message: "Queued error report",
+            source: "react_error_boundary",
+            userAction: "queued_report",
+          }),
+          nextAttemptAt: replayNotBefore,
+          requestId: "req-queued-12345",
+        },
+      ]),
+    );
+
+    const fetchMock = mock(() =>
+      Promise.resolve(new Response(null, { status: 202 })),
+    );
+
+    Object.defineProperty(globalThis, "window", {
+      value: {
+        localStorage: createStorageMock(localStorageState),
+      } satisfies Pick<Window, "localStorage">,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "location", {
+      value: new URL("https://anicards.test/user/Alex?tab=cards"),
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "fetch", {
+      value: fetchMock,
+      configurable: true,
+      writable: true,
+    });
+
+    await trackUserActionError(
+      "render_component_tree",
+      new Error("Failed to fetch user Alex profile"),
+      "network_error",
+      { source: "react_error_boundary" },
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    expect(readStoredClientQueueState(localStorageState).reports).toHaveLength(
+      1,
+    );
+    expect(
+      readStoredClientQueueState(localStorageState).reports[0]?.nextAttemptAt,
+    ).toBe(replayNotBefore);
+  });
+
+  it("stores only minimized payloads in the client retry queue", async () => {
+    const localStorageState = new Map<string, string>();
+    const fetchMock = mock(() =>
+      Promise.resolve(new Response(null, { status: 503 })),
+    );
+
+    Object.defineProperty(globalThis, "window", {
+      value: {
+        localStorage: createStorageMock(localStorageState),
+      } satisfies Pick<Window, "localStorage">,
       configurable: true,
       writable: true,
     });
@@ -470,10 +862,8 @@ describe("error tracking", () => {
       },
     );
 
-    const queuedPayload = sessionStorageState.get(
-      "anicards:error-report-queue:v1",
-    );
-    expect(queuedPayload).toBeTruthy();
+    const queuedState = readStoredClientQueueState(localStorageState);
+    const queuedPayload = JSON.stringify(queuedState);
     expect(queuedPayload).not.toContain("alex@example.com");
     expect(queuedPayload).not.toContain("super-secret-token-value-1234567890");
     expect(queuedPayload).not.toContain("authToken");

@@ -2,16 +2,17 @@ import { errorReportPayloadSchema } from "@/lib/api/validation";
 import {
   apiErrorResponse,
   apiJsonHeaders,
+  buildAnalyticsMetricKey,
   createRateLimiter,
+  handleError,
   initializeApiRequest,
   jsonWithCors,
   readJsonRequestBody,
-  scheduleTelemetryTask,
 } from "@/lib/api-utils";
 import {
   ERROR_REPORT_REQUEST_MAX_BYTES,
   type ErrorReportSource,
-  reportStructuredError,
+  recordStructuredErrorOrThrow,
 } from "@/lib/error-tracking";
 
 const errorReportsRateLimiter = createRateLimiter({
@@ -34,7 +35,12 @@ export async function POST(request: Request) {
   );
   if (init.errorResponse) return init.errorResponse;
 
-  const { endpoint, endpointKey, requestId: ingestionRequestId } = init;
+  const {
+    endpoint,
+    endpointKey,
+    requestId: ingestionRequestId,
+    startTime,
+  } = init;
 
   const bodyResult = await readJsonRequestBody<Record<string, unknown>>(
     request,
@@ -59,32 +65,48 @@ export async function POST(request: Request) {
   }
 
   const reportPayload = parsedPayload.data;
+  const source =
+    (reportPayload.source as ErrorReportSource | undefined) ?? "client_hook";
+  const requestId = reportPayload.requestId ?? ingestionRequestId;
 
-  scheduleTelemetryTask(
-    () =>
-      reportStructuredError({
-        source:
-          (reportPayload.source as ErrorReportSource | undefined) ??
-          "client_hook",
-        userAction: reportPayload.userAction,
-        error: reportPayload.message,
-        requestId: reportPayload.requestId ?? ingestionRequestId,
-        errorName: reportPayload.errorName,
-        route: reportPayload.route,
-        statusCode: reportPayload.statusCode,
-        digest: reportPayload.digest,
-        stack: reportPayload.stack,
-        componentStack: reportPayload.componentStack,
-        metadata: reportPayload.metadata,
-      }),
-    {
-      endpoint: "Error Reports API",
-      taskName: "reportStructuredError",
+  try {
+    await recordStructuredErrorOrThrow({
+      source,
+      userAction: reportPayload.userAction,
+      error: reportPayload.message,
+      category: reportPayload.category,
+      retryable: reportPayload.retryable,
+      recoverySuggestions: reportPayload.recoverySuggestions,
+      requestId,
+      errorName: reportPayload.errorName,
+      route: reportPayload.route,
+      statusCode: reportPayload.statusCode,
+      digest: reportPayload.digest,
+      stack: reportPayload.stack,
+      componentStack: reportPayload.componentStack,
+      metadata: reportPayload.metadata,
+    });
+  } catch (error) {
+    return handleError(
+      error instanceof Error ? error : new Error(String(error)),
+      endpoint,
+      startTime,
+      buildAnalyticsMetricKey(endpointKey, "failed_requests"),
+      "Failed to record error report",
       request,
-    },
-  );
+      {
+        redisUnavailableMessage:
+          "Structured error reporting is temporarily unavailable",
+        logContext: {
+          userAction: reportPayload.userAction,
+          source,
+          requestId,
+        },
+      },
+    );
+  }
 
-  return jsonWithCors({ accepted: true }, request, 202);
+  return jsonWithCors({ recorded: true }, request, 200);
 }
 
 export function OPTIONS(request: Request) {

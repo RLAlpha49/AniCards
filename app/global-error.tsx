@@ -46,6 +46,7 @@ export default function GlobalError({
           onRetry={reset}
           retryLabel="Try Again"
           digest={error.digest}
+          incidentReference={error.digest}
           homeHref="/"
         />
       </body>

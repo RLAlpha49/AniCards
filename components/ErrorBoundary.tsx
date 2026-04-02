@@ -123,9 +123,11 @@ export function ErrorFallbackPanel(
     retryLabel?: string;
     homeHref?: string;
     digest?: string;
+    incidentReference?: string;
   }>,
 ) {
   const model = buildErrorFallbackModel(props.error ?? null);
+  const incidentReference = props.incidentReference?.trim();
   const devDetailsVisible =
     process.env.NODE_ENV !== "production" &&
     Boolean(props.error?.message || props.digest);
@@ -166,6 +168,21 @@ export function ErrorFallbackPanel(
             {model.message}
           </p>
 
+          {incidentReference ? (
+            <div className="border border-border/60 bg-background/50 p-4">
+              <p className="text-sm font-semibold text-foreground">
+                Incident reference
+              </p>
+              <p className="mt-1 font-mono text-sm tracking-wide text-foreground/80">
+                {incidentReference}
+              </p>
+              <p className="mt-2 text-sm/relaxed text-muted-foreground">
+                Include this reference if you report the problem so we can match
+                it to the recorded incident faster.
+              </p>
+            </div>
+          ) : null}
+
           {model.suggestions.length > 0 ? (
             <ul className="space-y-3 border border-border/60 bg-background/50 p-4">
               {model.suggestions.map((suggestion) => (
@@ -204,7 +221,7 @@ export function ErrorFallbackPanel(
                     {props.error.message}
                   </p>
                 ) : null}
-                {props.digest ? (
+                {props.digest && props.digest !== incidentReference ? (
                   <p>
                     <span className="font-semibold text-foreground">
                       Digest:

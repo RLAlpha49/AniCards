@@ -20,6 +20,8 @@ export interface ApiError {
   recoverySuggestions: RecoverySuggestion[];
 }
 
+export type ApiErrorResponsePayload = ApiError & Record<string, unknown>;
+
 interface SafeStructuredApiError extends Error {
   statusCode?: number;
   status?: number;
@@ -137,7 +139,7 @@ function createApiErrorPayload(
     recoverySuggestions?: RecoverySuggestion[];
     additionalFields?: Record<string, unknown>;
   },
-): ApiError & Record<string, unknown> {
+): ApiErrorResponsePayload {
   const details = getErrorDetails(error, status);
   const payload = {
     error,
@@ -169,7 +171,7 @@ export function apiErrorResponse(
     recoverySuggestions?: RecoverySuggestion[];
     additionalFields?: Record<string, unknown>;
   },
-): NextResponse<ApiError & Record<string, unknown>> {
+): NextResponse<ApiErrorResponsePayload> {
   return jsonWithCors(
     createApiErrorPayload(error, status, {
       category: options?.category,
@@ -186,7 +188,7 @@ export function apiErrorResponse(
 export function invalidJsonResponse(
   request: Request | undefined,
   options?: { headers?: Record<string, string> },
-): NextResponse<ApiError & Record<string, unknown>> {
+): NextResponse<ApiErrorResponsePayload> {
   return apiErrorResponse(request, 400, "Invalid JSON body", {
     headers: options?.headers,
     category: "invalid_data",
@@ -201,7 +203,7 @@ export function payloadTooLargeResponse(
     message?: string;
     maxBytes?: number;
   },
-): NextResponse<ApiError & Record<string, unknown>> {
+): NextResponse<ApiErrorResponsePayload> {
   return apiErrorResponse(
     request,
     413,

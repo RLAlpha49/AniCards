@@ -706,13 +706,14 @@ paths:
       operationId: "reportClientError"
       tags:
         - "telemetry"
-      summary: "Accept a structured client error report"
+      summary: "Record a structured client error report"
       description: >-
-        Accepts privacy-safe structured client error reports for durable
-        telemetry. In production this route enforces same-origin validation and
-        a dedicated `3 requests / 10 s` limiter. The server sanitizes the
-        payload, ignores client-supplied `userId` and `username`, and drops
-        unsupported nested metadata values before persistence.
+        Validates and durably records privacy-safe structured client error
+        reports before returning success. In production this route enforces
+        same-origin validation and a dedicated `3 requests / 10 s` limiter.
+        The server sanitizes the payload, ignores client-supplied `userId` and
+        `username`, and drops unsupported nested metadata values before
+        persistence.
       requestBody:
         required: true
         content:
@@ -733,16 +734,16 @@ paths:
                     tab: "cards"
                     retried: false
       responses:
-        "202":
-          description: "Error report accepted for asynchronous durable persistence"
+        "200":
+          description: "Structured error report durably recorded"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorReportAccepted"
+                $ref: "#/components/schemas/ErrorReportRecorded"
               examples:
-                accepted:
+                recorded:
                   value:
-                    accepted: true
+                    recorded: true
         "400":
           description: "Malformed JSON body or invalid required fields"
           content:
@@ -769,7 +770,7 @@ paths:
         "429":
           $ref: "#/components/responses/TooManyRequestsJson"
         "500":
-          description: "Unexpected structured error ingestion failure before acceptance"
+          description: "Unexpected structured error ingestion failure before durable recording"
           content:
             application/json:
               schema:
@@ -777,18 +778,27 @@ paths:
               examples:
                 failure:
                   value:
-                    error: "Internal server error"
+                    error: "Failed to record error report"
                     category: "server_error"
                     retryable: true
                     status: 500
                     recoverySuggestions: []
         "503":
-          description: "Same-origin validation cannot run because the server is misconfigured"
+          description: >-
+            Temporary availability failure or required security configuration
+            issue before durable recording
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
               examples:
+                unavailable:
+                  value:
+                    error: "Structured error reporting is temporarily unavailable"
+                    category: "server_error"
+                    retryable: true
+                    status: 503
+                    recoverySuggestions: []
                 misconfigured:
                   value:
                     error: "Server misconfigured"
@@ -1506,15 +1516,15 @@ components:
         - title
         - description
 
-    ErrorReportAccepted:
+    ErrorReportRecorded:
       type: object
       additionalProperties: false
       properties:
-        accepted:
+        recorded:
           type: boolean
           const: true
       required:
-        - accepted
+        - recorded
 
     ErrorReportSource:
       type: string
@@ -1552,7 +1562,7 @@ components:
       type: object
       additionalProperties: true
       description: >-
-        Structured client error report accepted by `/api/error-reports`.
+        Structured client error report durably recorded by `/api/error-reports`.
         `userAction` and `message` are required. Unknown top-level fields are
         ignored, and client-supplied identifiers are not trusted or persisted.
       properties:
