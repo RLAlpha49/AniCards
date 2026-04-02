@@ -11,7 +11,10 @@ import {
   scanAllKeys,
 } from "@/lib/api-utils";
 import {
+  type ErrorReportBreakdownBucket,
   type ErrorReportBufferSnapshot,
+  type ErrorReportTriageSample,
+  type ErrorReportTriageSummary,
   getErrorReportBufferSnapshot,
 } from "@/lib/error-tracking";
 import { safeParse } from "@/lib/utils";
@@ -208,6 +211,19 @@ function createEmptyErrorReportBufferSnapshot(): ErrorReportBufferSnapshot {
     totalCaptured: 0,
     totalDropped: 0,
     cumulativeSaturationRate: 0,
+    retainedTriage: createEmptyErrorReportTriageSummary(),
+    evictedTriage: createEmptyErrorReportTriageSummary(),
+  };
+}
+
+function createEmptyErrorReportTriageSummary(): ErrorReportTriageSummary {
+  return {
+    totalReports: 0,
+    topRoutes: [],
+    topCategories: [],
+    topSources: [],
+    topUserActions: [],
+    recentReports: [],
   };
 }
 
@@ -239,6 +255,8 @@ function parseErrorReportBufferSnapshot(
     totalDropped: Math.max(0, Math.trunc(totalDropped)),
     cumulativeSaturationRate:
       totalCaptured <= 0 ? 0 : roundRatio(totalDropped / totalCaptured),
+    retainedTriage: createEmptyErrorReportTriageSummary(),
+    evictedTriage: createEmptyErrorReportTriageSummary(),
   };
 }
 
@@ -417,6 +435,70 @@ function toErrorReportBufferMetricGroup(
     totalCaptured: snapshot.totalCaptured,
     totalDropped: snapshot.totalDropped,
     cumulativeSaturationRate: snapshot.cumulativeSaturationRate,
+    retainedTriage: toErrorReportTriageMetricGroup(snapshot.retainedTriage),
+    evictedTriage: toErrorReportTriageMetricGroup(snapshot.evictedTriage),
+  };
+}
+
+function toErrorReportTriageSampleMetricGroup(
+  sample: ErrorReportTriageSample,
+): AnalyticsMetricGroup {
+  return {
+    id: sample.id,
+    timestamp: sample.timestamp,
+    source: sample.source,
+    userAction: sample.userAction,
+    category: sample.category,
+    retryable: sample.retryable,
+    errorName: sample.errorName,
+    technicalMessage: sample.technicalMessage,
+    ...(sample.requestId ? { requestId: sample.requestId } : {}),
+    ...(sample.digest ? { digest: sample.digest } : {}),
+    ...(sample.route ? { route: sample.route } : {}),
+    ...(typeof sample.statusCode === "number"
+      ? { statusCode: sample.statusCode }
+      : {}),
+    ...(sample.stack ? { stack: sample.stack } : {}),
+    ...(sample.componentStack ? { componentStack: sample.componentStack } : {}),
+    ...(sample.metadata ? { metadata: sample.metadata } : {}),
+  };
+}
+
+function toErrorReportBreakdownBucketMetricGroup(
+  bucket: ErrorReportBreakdownBucket,
+): AnalyticsMetricGroup {
+  return {
+    value: bucket.value,
+    reports: bucket.reports,
+    latest: toErrorReportTriageSampleMetricGroup(bucket.latest),
+  };
+}
+
+function toErrorReportTriageMetricGroup(
+  summary: ErrorReportTriageSummary & {
+    updatedAt?: number;
+  },
+): AnalyticsMetricGroup {
+  return {
+    totalReports: summary.totalReports,
+    topRoutes: summary.topRoutes.map((bucket) =>
+      toErrorReportBreakdownBucketMetricGroup(bucket),
+    ),
+    topCategories: summary.topCategories.map((bucket) =>
+      toErrorReportBreakdownBucketMetricGroup(bucket),
+    ),
+    topSources: summary.topSources.map((bucket) =>
+      toErrorReportBreakdownBucketMetricGroup(bucket),
+    ),
+    topUserActions: summary.topUserActions.map((bucket) =>
+      toErrorReportBreakdownBucketMetricGroup(bucket),
+    ),
+    recentReports: summary.recentReports.map((sample) =>
+      toErrorReportTriageSampleMetricGroup(sample),
+    ),
+    ...(typeof summary.updatedAt === "number"
+      ? { updatedAt: summary.updatedAt }
+      : {}),
   };
 }
 

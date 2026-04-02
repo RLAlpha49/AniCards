@@ -9,9 +9,38 @@ import {
   hasAnalyticsConsent,
   normalizeAnalyticsPage,
   pageview,
+  safeTrack,
   setAnalyticsConsentState,
   trackError,
 } from "@/lib/utils/google-analytics";
+
+async function flushAnalyticsTelemetry(cycles = 6): Promise<void> {
+  for (let index = 0; index < cycles; index++) {
+    await Promise.resolve();
+  }
+
+  await new Promise<void>((resolve) => {
+    globalThis.setTimeout(resolve, 0);
+  });
+
+  for (let index = 0; index < cycles; index++) {
+    await Promise.resolve();
+  }
+}
+
+async function waitForReportedAnalyticsCalls(
+  fetchMock: ReturnType<typeof mock>,
+  expectedCalls: number,
+  maxAttempts = 10,
+): Promise<void> {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (fetchMock.mock.calls.length >= expectedCalls) {
+      return;
+    }
+
+    await flushAnalyticsTelemetry();
+  }
+}
 
 function createStorageMock() {
   const backingStore = new Map<string, string>();
@@ -40,11 +69,30 @@ describe("google analytics privacy utilities", () => {
   const originalWindow = globalThis.window;
   const originalLocation = globalThis.location;
   const originalCustomEvent = globalThis.CustomEvent;
+  const originalFetch = globalThis.fetch;
   const originalGtag = (globalThis as typeof globalThis & { gtag?: unknown })
     .gtag;
+  const originalDateNow = Date.now;
 
+  let fetchMock: ReturnType<typeof mock>;
   let gtagMock: ReturnType<typeof mock>;
   let dispatchEventMock: ReturnType<typeof mock>;
+
+  const getReportedErrorPayload = (callIndex = 0) => {
+    const fetchCall = fetchMock.mock.calls[callIndex] as
+      | [string, RequestInit]
+      | undefined;
+
+    expect(fetchCall?.[0]).toBe("/api/error-reports");
+    expect(fetchCall?.[1]?.method).toBe("POST");
+
+    return JSON.parse(String(fetchCall?.[1]?.body)) as {
+      category?: string;
+      metadata?: Record<string, unknown>;
+      source?: string;
+      userAction?: string;
+    };
+  };
 
   beforeEach(() => {
     process.env = {
@@ -56,6 +104,13 @@ describe("google analytics privacy utilities", () => {
     const storage = createStorageMock();
     gtagMock = mock(() => {});
     dispatchEventMock = mock(() => true);
+    fetchMock = mock(
+      async () =>
+        new Response(JSON.stringify({ recorded: true }), {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        }),
+    );
 
     const testWindow = {
       localStorage: storage,
@@ -76,6 +131,11 @@ describe("google analytics privacy utilities", () => {
 
     Object.defineProperty(globalThis, "location", {
       value: new URL("https://anicards.test"),
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "fetch", {
+      value: fetchMock,
       configurable: true,
       writable: true,
     });
@@ -121,6 +181,12 @@ describe("google analytics privacy utilities", () => {
       configurable: true,
       writable: true,
     });
+    Object.defineProperty(globalThis, "fetch", {
+      value: originalFetch,
+      configurable: true,
+      writable: true,
+    });
+    Date.now = originalDateNow;
 
     delete process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
   });
@@ -225,5 +291,83 @@ describe("google analytics privacy utilities", () => {
       expect.objectContaining({ event_label: "typeerror_network" }),
     );
     expect(dispatchEventMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports repeated pageview dispatch failures through structured telemetry without flooding every occurrence", async () => {
+    let fakeNow = 1_000;
+    Date.now = () => fakeNow;
+
+    setAnalyticsConsentState("granted");
+    gtagMock.mockImplementation(() => {
+      const error = new Error("Failed to fetch analytics beacon");
+      error.name = "PageviewTelemetryTestError";
+      throw error;
+    });
+
+    pageview({
+      pathname: "/user/Alex",
+      search: "q=naruto",
+    });
+    await waitForReportedAnalyticsCalls(fetchMock, 1);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(getReportedErrorPayload(0)).toMatchObject({
+      source: "analytics_instrumentation",
+      userAction: "analytics_pageview_dispatch",
+      category: "network_error",
+      metadata: expect.objectContaining({
+        analyticsFailureBucket: "network",
+        analyticsFailureCount: 1,
+        analyticsSuppressedDuplicates: 0,
+        pagePath: "/user/[username]?filter=[redacted]",
+        pageTitle: "user_profile",
+      }),
+    });
+
+    pageview({
+      pathname: "/user/Alex",
+      search: "q=naruto",
+    });
+    await flushAnalyticsTelemetry();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    fakeNow += 60_001;
+    pageview({
+      pathname: "/user/Alex",
+      search: "q=naruto",
+    });
+    await waitForReportedAnalyticsCalls(fetchMock, 2);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(getReportedErrorPayload(1)).toMatchObject({
+      source: "analytics_instrumentation",
+      userAction: "analytics_pageview_dispatch",
+      metadata: expect.objectContaining({
+        analyticsFailureCount: 3,
+        analyticsSuppressedDuplicates: 1,
+        pagePath: "/user/[username]?filter=[redacted]",
+      }),
+    });
+  });
+
+  it("reports safeTrack callback failures through the structured telemetry path", async () => {
+    setAnalyticsConsentState("granted");
+
+    safeTrack(() => {
+      throw new Error("analytics callback exploded");
+    });
+    await waitForReportedAnalyticsCalls(fetchMock, 1);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(getReportedErrorPayload(0)).toMatchObject({
+      source: "analytics_instrumentation",
+      userAction: "analytics_safe_track",
+      metadata: expect.objectContaining({
+        analyticsFailureBucket: "unknown",
+        analyticsFailureCount: 1,
+        analyticsSuppressedDuplicates: 0,
+      }),
+    });
   });
 });

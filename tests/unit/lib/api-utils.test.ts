@@ -20,6 +20,7 @@ import {
   initializeApiRequest,
   invalidJsonResponse,
   readJsonRequestBody,
+  scheduleTelemetryTask,
   validateSameOrigin,
 } from "@/lib/api-utils";
 import {
@@ -230,6 +231,54 @@ describe("api-utils hardening", () => {
       ANALYTICS_COUNTER_TTL_SECONDS,
     );
     expect(sharedRedisMockIncr).toHaveBeenCalledWith(metric);
+  });
+
+  it("falls back to immediate telemetry scheduling when waitUntil throws", async () => {
+    const requestContextSymbol = Symbol.for("@next/request-context");
+    const globalWithRequestContext = globalThis as typeof globalThis & {
+      [key: symbol]:
+        | {
+            get?: () => {
+              waitUntil?: (promise: Promise<unknown>) => void;
+            };
+          }
+        | undefined;
+    };
+    const originalRequestContext =
+      globalWithRequestContext[requestContextSymbol];
+    const originalTelemetryTestFlag = process.env.ANICARDS_UNIT_TEST;
+    let executions = 0;
+
+    process.env.ANICARDS_UNIT_TEST = "false";
+    globalWithRequestContext[requestContextSymbol] = {
+      get: () => ({
+        waitUntil: () => {
+          throw new Error("waitUntil unavailable");
+        },
+      }),
+    };
+
+    try {
+      scheduleTelemetryTask(
+        () => {
+          executions += 1;
+        },
+        {
+          endpoint: "Test API",
+          taskName: "waitUntil-fallback",
+          request: createApiRequest(),
+        },
+      );
+
+      await new Promise<void>((resolve) => {
+        globalThis.setTimeout(resolve, 0);
+      });
+
+      expect(executions).toBe(1);
+    } finally {
+      process.env.ANICARDS_UNIT_TEST = originalTelemetryTestFlag;
+      globalWithRequestContext[requestContextSymbol] = originalRequestContext;
+    }
   });
 
   it("batches analytics increments through a single Redis pipeline while preserving monthly buckets", async () => {

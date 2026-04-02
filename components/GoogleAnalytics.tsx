@@ -5,6 +5,7 @@ import { useEffect } from "react";
 
 import {
   buildAnalyticsConsentMode,
+  reportAnalyticsInstrumentationFailure,
   updateAnalyticsConsentMode,
 } from "@/lib/utils/google-analytics";
 
@@ -50,6 +51,23 @@ export default function GoogleAnalytics({
     updateAnalyticsConsentMode(consentGranted);
   }, [consentGranted]);
 
+  const handleLoaderError = (error: Error) => {
+    reportAnalyticsInstrumentationFailure({
+      userAction: "analytics_script_load",
+      error,
+      category: "network_error",
+      metadata: {
+        consentGranted,
+        pagePath:
+          globalThis.location === undefined
+            ? "/"
+            : globalThis.location.pathname,
+        scriptId: "google_analytics_loader",
+        scriptStrategy: "afterInteractive",
+      },
+    });
+  };
+
   return (
     <>
       <Script
@@ -75,6 +93,7 @@ export default function GoogleAnalytics({
           src={`https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(trackingId)}`}
           strategy="afterInteractive"
           nonce={nonce}
+          onError={handleLoaderError}
         />
       ) : null}
     </>

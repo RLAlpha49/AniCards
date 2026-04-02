@@ -19,9 +19,11 @@ import {
 let pathname = "/";
 let searchParams = new URLSearchParams();
 const NEXT_NAVIGATION_STATE_KEY = "__ANICARDS_TEST_NEXT_NAVIGATION__";
+const originalFetch = globalThis.fetch;
 const originalGtag = (globalThis as typeof globalThis & { gtag?: unknown })
   .gtag;
 const gtagMock = mock(() => {});
+let fetchMock: ReturnType<typeof mock>;
 
 type NextNavigationState = {
   pathname: string;
@@ -60,11 +62,33 @@ installHappyDom();
 const { act, cleanup, renderHook } = await import("@testing-library/react");
 const { useGoogleAnalytics } = await import("@/hooks/useGoogleAnalytics");
 
+function getReportedErrorPayload(callIndex = 0) {
+  const fetchCall = fetchMock.mock.calls[callIndex] as
+    | [string, RequestInit]
+    | undefined;
+
+  expect(fetchCall?.[0]).toBe("/api/error-reports");
+  expect(fetchCall?.[1]?.method).toBe("POST");
+
+  return JSON.parse(String(fetchCall?.[1]?.body)) as {
+    metadata?: Record<string, unknown>;
+    source?: string;
+    userAction?: string;
+  };
+}
+
 beforeEach(() => {
   resetHappyDom();
   pathname = "/user/Alex";
   searchParams = new URLSearchParams("q=naruto");
   gtagMock.mockReset();
+  fetchMock = mock(
+    async () =>
+      new Response(JSON.stringify({ recorded: true }), {
+        headers: { "Content-Type": "application/json" },
+        status: 200,
+      }),
+  );
   globalThis.window.localStorage.removeItem(ANALYTICS_CONSENT_STORAGE_KEY);
   (globalThis as Record<string, unknown>)[NEXT_NAVIGATION_STATE_KEY] = {
     pathname,
@@ -77,6 +101,11 @@ beforeEach(() => {
     value: gtagMock,
     writable: true,
   });
+  Object.defineProperty(globalThis, "fetch", {
+    configurable: true,
+    value: fetchMock,
+    writable: true,
+  });
 });
 
 afterEach(() => {
@@ -84,6 +113,11 @@ afterEach(() => {
   Object.defineProperty(globalThis, "gtag", {
     configurable: true,
     value: originalGtag,
+    writable: true,
+  });
+  Object.defineProperty(globalThis, "fetch", {
+    configurable: true,
+    value: originalFetch,
     writable: true,
   });
 
@@ -188,5 +222,38 @@ describe("useGoogleAnalytics", () => {
     });
 
     expect(gtagMock).not.toHaveBeenCalled();
+  });
+
+  it("reports pageview dispatch failures with normalized page metadata", async () => {
+    process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID = "G-TEST123";
+    globalThis.window.localStorage.setItem(
+      ANALYTICS_CONSENT_STORAGE_KEY,
+      "granted",
+    );
+    gtagMock.mockImplementation(() => {
+      throw new TypeError("Failed to fetch analytics beacon");
+    });
+
+    renderHook(() => useGoogleAnalytics(true));
+
+    await act(async () => {
+      await flushMicrotasks(10);
+      await new Promise<void>((resolve) => {
+        globalThis.setTimeout(resolve, 0);
+      });
+      await flushMicrotasks(10);
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(getReportedErrorPayload(0)).toMatchObject({
+      source: "analytics_instrumentation",
+      userAction: "analytics_pageview_dispatch",
+      category: "network_error",
+      metadata: expect.objectContaining({
+        analyticsFailureBucket: "network",
+        pagePath: "/user/[username]?filter=[redacted]",
+        pageTitle: "user_profile",
+      }),
+    });
   });
 });

@@ -1,3 +1,5 @@
+import type { ErrorCategory } from "@/lib/error-messages";
+
 export type AnalyticsConsentState = "unset" | "granted" | "denied";
 
 export const ANALYTICS_CONSENT_STORAGE_KEY = "anicards:analytics-consent:v1";
@@ -11,8 +13,20 @@ declare global {
 }
 
 type GtagFunction = (...args: unknown[]) => void;
+type AnalyticsTelemetryMetadataValue = boolean | number | string | null;
+type AnalyticsInstrumentationUserAction =
+  | "analytics_consent_update"
+  | "analytics_event_dispatch"
+  | "analytics_pageview_dispatch"
+  | "analytics_safe_track"
+  | "analytics_script_load";
 
 const MAX_ANALYTICS_TOKEN_LENGTH = 48;
+const ANALYTICS_FAILURE_REPORT_COOLDOWN_MS = 1000 * 60;
+const ANALYTICS_FAILURE_BUCKET_TTL_MS =
+  ANALYTICS_FAILURE_REPORT_COOLDOWN_MS * 10;
+const MAX_ANALYTICS_FAILURE_BUCKETS = 12;
+const MAX_ANALYTICS_FAILURE_COUNT = 99;
 const PAGE_TITLE_BY_PATH: Record<string, string> = {
   "/": "home",
   "/contact": "contact",
@@ -25,6 +39,27 @@ const PAGE_TITLE_BY_PATH: Record<string, string> = {
 };
 
 let cachedConsentState: AnalyticsConsentState = "unset";
+const analyticsFailureBuckets = new Map<
+  string,
+  {
+    lastReportedAt: number;
+    lastSeenAt: number;
+    suppressedSinceLastReport: number;
+    totalCount: number;
+  }
+>();
+
+interface AnalyticsInstrumentationFailureOptions {
+  userAction: AnalyticsInstrumentationUserAction;
+  error: unknown;
+  category?: ErrorCategory;
+  metadata?: Record<string, AnalyticsTelemetryMetadataValue | undefined>;
+}
+
+interface SafeTrackOptions {
+  userAction?: AnalyticsInstrumentationUserAction;
+  metadata?: Record<string, AnalyticsTelemetryMetadataValue | undefined>;
+}
 
 const isAsciiLowerAlphaNumeric = (char: string): boolean => {
   const code = char.codePointAt(0);
@@ -45,6 +80,10 @@ const appendAnalyticsTokenChar = (value: string, char: string): string => {
   if (value.length >= MAX_ANALYTICS_TOKEN_LENGTH) return value;
 
   return `${value}${char}`;
+};
+
+const clampAnalyticsFailureCount = (value: number): number => {
+  return Math.min(MAX_ANALYTICS_FAILURE_COUNT, Math.max(0, Math.trunc(value)));
 };
 
 const stripTrailingSlashes = (value: string): string => {
@@ -205,6 +244,217 @@ const classifyAnalyticsError = (value?: string): string => {
   return "unknown";
 };
 
+const mapAnalyticsErrorBucketToCategory = (
+  errorBucket: string,
+): ErrorCategory => {
+  switch (errorBucket) {
+    case "authorization":
+      return "authentication";
+    case "network":
+      return "network_error";
+    case "rate_limited":
+      return "rate_limited";
+    case "timeout":
+      return "timeout";
+    case "validation":
+      return "invalid_data";
+    default:
+      return "unknown";
+  }
+};
+
+const getAnalyticsFailureFallbackMessage = (
+  userAction: AnalyticsInstrumentationUserAction,
+): string => {
+  switch (userAction) {
+    case "analytics_consent_update":
+      return "Google Analytics consent update failed";
+    case "analytics_event_dispatch":
+      return "Google Analytics event dispatch failed";
+    case "analytics_pageview_dispatch":
+      return "Google Analytics pageview dispatch failed";
+    case "analytics_safe_track":
+      return "Safe analytics tracking call failed";
+    case "analytics_script_load":
+      return "Google Analytics loader script failed to load";
+  }
+};
+
+const normalizeAnalyticsFailureError = (
+  error: unknown,
+  fallbackMessage: string,
+): Error => {
+  if (error instanceof Error) {
+    return error;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof (error as { message: unknown }).message === "string"
+  ) {
+    return new Error((error as { message: string }).message);
+  }
+
+  return new Error(typeof error === "string" ? error : fallbackMessage);
+};
+
+const sanitizeAnalyticsTelemetryMetadata = (
+  metadata:
+    | Record<string, AnalyticsTelemetryMetadataValue | undefined>
+    | undefined,
+): Record<string, AnalyticsTelemetryMetadataValue> | undefined => {
+  if (!metadata) return undefined;
+
+  const entries = Object.entries(metadata).filter((entry) => {
+    const value = entry[1];
+    return (
+      value === null ||
+      typeof value === "string" ||
+      typeof value === "boolean" ||
+      (typeof value === "number" && Number.isFinite(value))
+    );
+  });
+
+  return entries.length > 0
+    ? (Object.fromEntries(entries) as Record<
+        string,
+        AnalyticsTelemetryMetadataValue
+      >)
+    : undefined;
+};
+
+const trimAnalyticsFailureBuckets = (now: number): void => {
+  for (const [key, bucket] of analyticsFailureBuckets) {
+    if (now - bucket.lastSeenAt > ANALYTICS_FAILURE_BUCKET_TTL_MS) {
+      analyticsFailureBuckets.delete(key);
+    }
+  }
+
+  if (analyticsFailureBuckets.size <= MAX_ANALYTICS_FAILURE_BUCKETS) {
+    return;
+  }
+
+  const overflow = analyticsFailureBuckets.size - MAX_ANALYTICS_FAILURE_BUCKETS;
+  const oldestBuckets = [...analyticsFailureBuckets.entries()]
+    .sort((left, right) => left[1].lastSeenAt - right[1].lastSeenAt)
+    .slice(0, overflow);
+
+  for (const [key] of oldestBuckets) {
+    analyticsFailureBuckets.delete(key);
+  }
+};
+
+const reserveAnalyticsFailureReport = (options: {
+  errorBucket: string;
+  errorName: string;
+  userAction: AnalyticsInstrumentationUserAction;
+}):
+  | {
+      suppressedSinceLastReport: number;
+      totalCount: number;
+    }
+  | undefined => {
+  const now = Date.now();
+  trimAnalyticsFailureBuckets(now);
+
+  const fingerprint = [
+    options.userAction,
+    sanitizeAnalyticsToken(options.errorName, "error"),
+    options.errorBucket,
+  ].join(":");
+  const existingBucket = analyticsFailureBuckets.get(fingerprint);
+  const totalCount = clampAnalyticsFailureCount(
+    (existingBucket?.totalCount ?? 0) + 1,
+  );
+
+  if (
+    existingBucket &&
+    now - existingBucket.lastReportedAt < ANALYTICS_FAILURE_REPORT_COOLDOWN_MS
+  ) {
+    analyticsFailureBuckets.set(fingerprint, {
+      ...existingBucket,
+      lastSeenAt: now,
+      suppressedSinceLastReport: clampAnalyticsFailureCount(
+        existingBucket.suppressedSinceLastReport + 1,
+      ),
+      totalCount,
+    });
+    return undefined;
+  }
+
+  const suppressedSinceLastReport =
+    existingBucket?.suppressedSinceLastReport ?? 0;
+
+  analyticsFailureBuckets.set(fingerprint, {
+    lastReportedAt: now,
+    lastSeenAt: now,
+    suppressedSinceLastReport: 0,
+    totalCount,
+  });
+
+  return {
+    suppressedSinceLastReport,
+    totalCount,
+  };
+};
+
+export const reportAnalyticsInstrumentationFailure = (
+  options: AnalyticsInstrumentationFailureOptions,
+): void => {
+  if (globalThis.window === undefined) {
+    return;
+  }
+
+  const normalizedError = normalizeAnalyticsFailureError(
+    options.error,
+    getAnalyticsFailureFallbackMessage(options.userAction),
+  );
+  const errorBucket = classifyAnalyticsError(
+    `${normalizedError.name} ${normalizedError.message}`,
+  );
+  const rateLimitState = reserveAnalyticsFailureReport({
+    errorBucket,
+    errorName: normalizedError.name,
+    userAction: options.userAction,
+  });
+
+  if (!rateLimitState) {
+    return;
+  }
+
+  const metadata = sanitizeAnalyticsTelemetryMetadata({
+    analyticsConfigured: Boolean(process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID),
+    analyticsConsentState: cachedConsentState,
+    analyticsFailureBucket: errorBucket,
+    analyticsFailureCount: rateLimitState.totalCount,
+    analyticsGtagAvailable: Boolean(getGtag()),
+    analyticsSuppressedDuplicates: rateLimitState.suppressedSinceLastReport,
+    ...options.metadata,
+  });
+
+  void import("@/lib/error-tracking")
+    .then(({ reportStructuredError }) => {
+      return reportStructuredError({
+        source: "analytics_instrumentation",
+        userAction: options.userAction,
+        error: normalizedError,
+        category:
+          options.category ?? mapAnalyticsErrorBucketToCategory(errorBucket),
+        metadata,
+      });
+    })
+    .catch((error) => {
+      if (process.env.NODE_ENV === "development") {
+        console.error(
+          "[AnalyticsTelemetry] Failed to report analytics instrumentation failure:",
+          error,
+        );
+      }
+    });
+};
+
 const buildAnalyticsErrorLabel = (
   errorType: string,
   errorMessage?: string,
@@ -316,8 +566,14 @@ export function updateAnalyticsConsentMode(granted: boolean): void {
 
   try {
     gtag("consent", "update", buildAnalyticsConsentMode(granted));
-  } catch {
-    console.error("Google Analytics consent update failed");
+  } catch (error) {
+    reportAnalyticsInstrumentationFailure({
+      userAction: "analytics_consent_update",
+      error,
+      metadata: {
+        consentGranted: granted,
+      },
+    });
   }
 }
 
@@ -416,8 +672,15 @@ export const pageview = ({
         page_title: pageTitle,
         page_location: pageLocation,
       });
-    } catch {
-      console.error("Google Analytics pageview failed");
+    } catch (error) {
+      reportAnalyticsInstrumentationFailure({
+        userAction: "analytics_pageview_dispatch",
+        error,
+        metadata: {
+          pagePath,
+          pageTitle,
+        },
+      });
     }
   }
 };
@@ -462,8 +725,16 @@ export const event = ({
             ? value
             : undefined,
       });
-    } catch {
-      console.error("Google Analytics event failed");
+    } catch (error) {
+      reportAnalyticsInstrumentationFailure({
+        userAction: "analytics_event_dispatch",
+        error,
+        metadata: {
+          eventAction: normalizedAction,
+          eventCategory: normalizedCategory,
+          eventLabelPresent: normalizedLabel !== undefined,
+        },
+      });
     }
   }
 };
@@ -472,13 +743,17 @@ export const event = ({
  * Thin helper used across the app to safely invoke analytics code without
  * allowing exceptions thrown by analytics shims to crash the UI.
  */
-export const safeTrack = (fn: () => void) => {
+export const safeTrack = (fn: () => void, options?: SafeTrackOptions) => {
   if (!hasAnalyticsConsent()) return;
 
   try {
     fn();
-  } catch {
-    console.error("Safe analytics tracking call failed");
+  } catch (error) {
+    reportAnalyticsInstrumentationFailure({
+      userAction: options?.userAction ?? "analytics_safe_track",
+      error,
+      metadata: options?.metadata,
+    });
   }
 };
 

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import {
   allowConsoleWarningsAndErrors,
+  sharedRedisMockGet,
   sharedRedisMockLrange,
   sharedRedisMockLtrim,
   sharedRedisMockMget,
@@ -35,11 +36,13 @@ function createCronRequest(
 function setupAnalyticsData(values: Record<string, string | null>) {
   const keys = Object.keys(values);
   sharedRedisMockLrange.mockResolvedValueOnce([]);
+  sharedRedisMockLrange.mockResolvedValueOnce([]);
   sharedRedisMockScan.mockResolvedValueOnce([0, keys]);
   sharedRedisMockMget.mockResolvedValueOnce(
     keys.map((key) => values[key] ?? null),
   );
   sharedRedisMockMget.mockResolvedValueOnce([null, null]);
+  sharedRedisMockGet.mockResolvedValueOnce(null);
   sharedRedisMockRpush.mockResolvedValueOnce(1);
   sharedRedisMockLtrim.mockResolvedValueOnce("OK");
 }
@@ -98,11 +101,13 @@ describe("Analytics & Reporting Cron API", () => {
       NODE_ENV: "test",
     };
     delete process.env.ALLOW_UNSECURED_CRON_IN_DEV;
+    sharedRedisMockGet.mockReset();
     sharedRedisMockScan.mockReset();
     sharedRedisMockMget.mockReset();
     sharedRedisMockRpush.mockReset();
     sharedRedisMockLrange.mockReset();
     sharedRedisMockLtrim.mockReset();
+    sharedRedisMockGet.mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -173,6 +178,12 @@ describe("Analytics & Reporting Cron API", () => {
         errorReports: {
           totalCaptured: 0,
           totalDropped: 0,
+          retainedTriage: {
+            totalReports: 0,
+          },
+          evictedTriage: {
+            totalReports: 0,
+          },
         },
       },
     });
@@ -233,9 +244,11 @@ describe("Analytics & Reporting Cron API", () => {
 
   it("surfaces error-report ring-buffer saturation metrics in the cron summary", async () => {
     sharedRedisMockLrange.mockResolvedValueOnce([]);
+    sharedRedisMockLrange.mockResolvedValueOnce([]);
     sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:visits"]]);
     sharedRedisMockMget.mockResolvedValueOnce(["100"]);
     sharedRedisMockMget.mockResolvedValueOnce(["8", "2"]);
+    sharedRedisMockGet.mockResolvedValueOnce(null);
     sharedRedisMockRpush.mockResolvedValueOnce(1);
     sharedRedisMockLtrim.mockResolvedValueOnce("OK");
 
@@ -250,6 +263,22 @@ describe("Analytics & Reporting Cron API", () => {
         totalCaptured: 8,
         totalDropped: 2,
         cumulativeSaturationRate: 0.25,
+        retainedTriage: {
+          totalReports: 0,
+          topRoutes: [],
+          topCategories: [],
+          topSources: [],
+          topUserActions: [],
+          recentReports: [],
+        },
+        evictedTriage: {
+          totalReports: 0,
+          topRoutes: [],
+          topCategories: [],
+          topSources: [],
+          topUserActions: [],
+          recentReports: [],
+        },
       },
       alerts: {
         webhookConfigured: false,
@@ -266,6 +295,160 @@ describe("Analytics & Reporting Cron API", () => {
           skippedReason: "baseline_unavailable",
         },
       },
+    });
+  });
+
+  it("adds retained and evicted top-N error breakdowns to cron observability summaries", async () => {
+    sharedRedisMockLrange.mockResolvedValueOnce([]);
+    sharedRedisMockLrange.mockResolvedValueOnce([
+      JSON.stringify({
+        id: "rep-retained-1",
+        timestamp: 1_710_000_100_000,
+        source: "react_error_boundary",
+        userAction: "render_component_tree",
+        category: "network_error",
+        retryable: true,
+        technicalMessage: "Segment render failed after retry",
+        errorName: "Error",
+        route: "/user/Alex",
+        requestId: "req-retained-12345",
+        digest: "digest-retained-1",
+      }),
+      JSON.stringify({
+        id: "rep-retained-2",
+        timestamp: 1_710_000_200_000,
+        source: "client_hook",
+        userAction: "bootstrap_user_page",
+        category: "server_error",
+        retryable: false,
+        technicalMessage: "Bootstrap payload missing required shape",
+        errorName: "TypeError",
+        route: "/user/Alex?tab=cards",
+      }),
+    ]);
+    sharedRedisMockScan.mockResolvedValueOnce([0, ["analytics:visits"]]);
+    sharedRedisMockMget.mockResolvedValueOnce(["100"]);
+    sharedRedisMockMget.mockResolvedValueOnce(["8", "2"]);
+    sharedRedisMockGet.mockResolvedValueOnce(
+      JSON.stringify({
+        totalReports: 4,
+        updatedAt: 1_710_000_300_000,
+        routes: {
+          "/user/Alex": {
+            reports: 3,
+            latest: {
+              id: "rep-evicted-1",
+              timestamp: 1_710_000_250_000,
+              source: "react_error_boundary",
+              userAction: "render_component_tree",
+              category: "network_error",
+              retryable: true,
+              technicalMessage: "Earlier incident rolled out of the buffer",
+              errorName: "Error",
+              route: "/user/Alex",
+              requestId: "req-evicted-12345",
+              digest: "digest-evicted-1",
+            },
+          },
+        },
+        categories: {
+          network_error: {
+            reports: 4,
+            latest: {
+              id: "rep-evicted-1",
+              timestamp: 1_710_000_250_000,
+              source: "react_error_boundary",
+              userAction: "render_component_tree",
+              category: "network_error",
+              retryable: true,
+              technicalMessage: "Earlier incident rolled out of the buffer",
+              errorName: "Error",
+            },
+          },
+        },
+        sources: {
+          react_error_boundary: {
+            reports: 4,
+            latest: {
+              id: "rep-evicted-1",
+              timestamp: 1_710_000_250_000,
+              source: "react_error_boundary",
+              userAction: "render_component_tree",
+              category: "network_error",
+              retryable: true,
+              technicalMessage: "Earlier incident rolled out of the buffer",
+              errorName: "Error",
+            },
+          },
+        },
+        userActions: {
+          render_component_tree: {
+            reports: 4,
+            latest: {
+              id: "rep-evicted-1",
+              timestamp: 1_710_000_250_000,
+              source: "react_error_boundary",
+              userAction: "render_component_tree",
+              category: "network_error",
+              retryable: true,
+              technicalMessage: "Earlier incident rolled out of the buffer",
+              errorName: "Error",
+            },
+          },
+        },
+        recentReports: [
+          {
+            id: "rep-evicted-1",
+            timestamp: 1_710_000_250_000,
+            source: "react_error_boundary",
+            userAction: "render_component_tree",
+            category: "network_error",
+            retryable: true,
+            technicalMessage: "Earlier incident rolled out of the buffer",
+            errorName: "Error",
+          },
+        ],
+      }),
+    );
+    sharedRedisMockRpush.mockResolvedValueOnce(1);
+    sharedRedisMockLtrim.mockResolvedValueOnce("OK");
+
+    const report = await expectSuccessfulReport(
+      await POST(createCronRequest()),
+    );
+
+    expect(
+      report.summary.observability.errorReports.retainedTriage,
+    ).toMatchObject({
+      totalReports: 2,
+    });
+    expect(
+      report.summary.observability.errorReports.retainedTriage.topRoutes.some(
+        (bucket: {
+          value: string;
+          reports: number;
+          latest?: {
+            requestId?: string;
+            digest?: string;
+          };
+        }) =>
+          bucket.value === "/user/Alex" &&
+          bucket.reports === 1 &&
+          bucket.latest?.requestId === "req-retained-12345" &&
+          bucket.latest?.digest === "digest-retained-1",
+      ),
+    ).toBe(true);
+    expect(
+      report.summary.observability.errorReports.evictedTriage,
+    ).toMatchObject({
+      totalReports: 4,
+      updatedAt: 1_710_000_300_000,
+    });
+    expect(
+      report.summary.observability.errorReports.evictedTriage.topCategories[0],
+    ).toMatchObject({
+      value: "network_error",
+      reports: 4,
     });
   });
 

@@ -682,12 +682,18 @@ function scheduleTelemetryTask(
 
   const waitUntil = getRequestContextWaitUntil();
   if (waitUntil) {
-    const pendingTask = createDeferredTelemetryTask(runTask);
+    let shouldRunDeferredTask = true;
+    const pendingTask = createDeferredTelemetryTask(async () => {
+      if (!shouldRunDeferredTask) return;
+
+      await runTask();
+    });
 
     try {
       waitUntil(pendingTask);
       return;
     } catch (error) {
+      shouldRunDeferredTask = false;
       logPrivacySafe(
         "warn",
         endpoint,
@@ -698,6 +704,8 @@ function scheduleTelemetryTask(
         },
         options?.request,
       );
+
+      void runTask();
       return;
     }
   }
