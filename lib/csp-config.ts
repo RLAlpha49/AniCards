@@ -13,7 +13,7 @@
 export const CSP_KEYWORDS = {
   /** Allow resources from the same origin */
   SELF: "'self'",
-  /** Allow inline styles (required for Tailwind CSS) */
+  /** Allow inline resources when a directive explicitly opts into them */
   UNSAFE_INLINE: "'unsafe-inline'",
   /** Allow eval()-based development tooling; avoid this in production */
   UNSAFE_EVAL: "'unsafe-eval'",
@@ -136,14 +136,21 @@ export const CSP_DIRECTIVES = {
   ],
 
   /**
-   * Style sources - controls which stylesheets can be applied
-   * unsafe-inline is required for Tailwind CSS's runtime styles
+   * Style sources - controls which stylesheet URLs and nonce-backed inline
+   * style blocks can be applied.
+   *
+   * Production uses a request nonce instead of a universal inline allowance so
+   * framework-generated `<style>` tags (for example, from Next.js font
+   * optimization) stay authorized without broadly permitting all inline CSS.
    */
-  styleSrc: [
-    CSP_KEYWORDS.SELF,
-    CSP_KEYWORDS.UNSAFE_INLINE,
-    "https://fonts.googleapis.com",
-  ],
+  styleSrc: [CSP_KEYWORDS.SELF, "https://fonts.googleapis.com"],
+
+  /**
+   * Inline style attributes remain explicitly allowed for now because the app
+   * still relies on dynamic `style={...}` props across loading states and UI
+   * layout surfaces.
+   */
+  styleSrcAttr: [CSP_KEYWORDS.UNSAFE_INLINE],
 
   /**
    * Image sources - controls which images can be loaded
@@ -212,7 +219,10 @@ export const CSP_DIRECTIVES = {
  */
 export function buildCSPHeader(
   nonce: string,
-  options: { allowUnsafeEval?: boolean } = {},
+  options: {
+    allowUnsafeEval?: boolean;
+    allowUnsafeInlineStyles?: boolean;
+  } = {},
 ): string {
   const scriptSrcValues = [
     CSP_KEYWORDS.SELF,
@@ -223,10 +233,21 @@ export function buildCSPHeader(
     ),
   ];
 
+  const styleSrcValues = [
+    CSP_KEYWORDS.SELF,
+    ...(options.allowUnsafeInlineStyles
+      ? [CSP_KEYWORDS.UNSAFE_INLINE]
+      : [`'nonce-${nonce}'`]),
+    ...CSP_DIRECTIVES.styleSrc.filter(
+      (src) => src !== CSP_KEYWORDS.SELF, // Avoid duplicate 'self'
+    ),
+  ];
+
   const directives = [
     `default-src ${CSP_DIRECTIVES.defaultSrc.join(" ")}`,
     `script-src ${scriptSrcValues.join(" ")}`,
-    `style-src ${CSP_DIRECTIVES.styleSrc.join(" ")}`,
+    `style-src ${styleSrcValues.join(" ")}`,
+    `style-src-attr ${CSP_DIRECTIVES.styleSrcAttr.join(" ")}`,
     `img-src ${CSP_DIRECTIVES.imgSrc.join(" ")}`,
     `font-src ${CSP_DIRECTIVES.fontSrc.join(" ")}`,
     `connect-src ${CSP_DIRECTIVES.connectSrc.join(" ")}`,

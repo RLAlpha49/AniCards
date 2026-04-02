@@ -12,6 +12,12 @@ import {
   scheduleTelemetryTask,
 } from "@/lib/api/telemetry";
 
+export interface RateLimitIdentity {
+  ip: string;
+  source?: string;
+  verified?: boolean;
+}
+
 function shouldEnableRateLimitAnalytics(): boolean {
   return readBooleanEnv("UPSTASH_RATELIMIT_ANALYTICS") ?? true;
 }
@@ -148,12 +154,44 @@ function createRateLimitHeaders(options: {
 
 export async function checkRateLimit(
   request: Request | undefined,
-  ip: string,
+  identity: string | RateLimitIdentity,
   endpointName: string,
   endpointKey: string,
   limiter?: Ratelimit,
+  options?: {
+    requireVerifiedIp?: boolean;
+  },
 ): Promise<NextResponse<ApiError> | null> {
   const effectiveLimiter = limiter ?? ratelimit;
+  const normalizedIdentity: RateLimitIdentity =
+    typeof identity === "string" ? { ip: identity } : identity;
+  const ip = normalizedIdentity.ip;
+
+  if (options?.requireVerifiedIp && !normalizedIdentity.verified) {
+    logPrivacySafe(
+      "error",
+      endpointName,
+      "Rejected request because rate limiting requires a verified client IP.",
+      {
+        ip,
+        source: normalizedIdentity.source ?? "unverified",
+      },
+      request,
+    );
+
+    const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
+    scheduleTelemetryTask(() => incrementAnalytics(metric), {
+      endpoint: endpointName,
+      taskName: metric,
+      request,
+    });
+
+    return apiErrorResponse(request, 503, "Client IP could not be verified", {
+      category: "server_error",
+      retryable: true,
+    });
+  }
+
   const userAgent = request?.headers.get("user-agent") ?? undefined;
   const country =
     request?.headers.get("x-vercel-ip-country") ??

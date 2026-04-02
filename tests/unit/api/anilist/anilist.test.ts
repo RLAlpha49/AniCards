@@ -2,6 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import { OPTIONS, POST } from "@/app/api/anilist/route";
 import { USER_ID_QUERY, USER_STATS_QUERY } from "@/lib/anilist/queries";
+import {
+  createRequestProofToken,
+  REQUEST_PROOF_COOKIE_NAME,
+} from "@/lib/api/request-proof";
 import { flushScheduledTelemetryTasksForTests } from "@/lib/api-utils";
 import {
   allowConsoleWarningsAndErrors,
@@ -26,6 +30,7 @@ function createAniListRequest(options?: {
     headers: new Headers({
       "Content-Type": "application/json",
       origin: "http://localhost",
+      "x-vercel-forwarded-for": "127.0.0.1",
       ...extraHeaders,
     }),
     body: JSON.stringify(options?.body ?? {}),
@@ -42,6 +47,15 @@ function setEnvironment(
   } else {
     delete process.env.ANILIST_TOKEN;
   }
+}
+
+async function createRequestProofCookie(): Promise<string> {
+  const token = await createRequestProofToken({ ip: "127.0.0.1" });
+  if (!token) {
+    throw new Error("Expected request proof token to be generated");
+  }
+
+  return `${REQUEST_PROOF_COOKIE_NAME}=${token}`;
 }
 
 function mockJsonFetch(
@@ -70,7 +84,11 @@ describe("AniList API Route", () => {
 
   beforeEach(() => {
     allowConsoleWarningsAndErrors();
-    process.env = { ...originalEnv, NEXT_PUBLIC_APP_URL: "http://localhost" };
+    process.env = {
+      ...originalEnv,
+      NEXT_PUBLIC_APP_URL: "http://localhost",
+      NODE_ENV: "test",
+    };
     sharedRatelimitMockLimit.mockReset();
     sharedRedisMockGet.mockReset();
     sharedRedisMockIncr.mockReset();
@@ -96,10 +114,14 @@ describe("AniList API Route", () => {
 
   it("simulates a 429 test response only in development", async () => {
     setEnvironment("development");
+    const requestProofCookie = await createRequestProofCookie();
 
     const response = await POST(
       createAniListRequest({
-        headers: { "X-Test-Status": "429" },
+        headers: {
+          cookie: requestProofCookie,
+          "X-Test-Status": "429",
+        },
       }),
     );
 
@@ -111,7 +133,7 @@ describe("AniList API Route", () => {
   });
 
   it("accepts the explicit GetUserStats contract and forwards the canonical query", async () => {
-    setEnvironment("production", true);
+    setEnvironment("test", true);
     mockJsonFetch({ data: { User: { id: 123 } } });
 
     const response = await POST(
@@ -142,7 +164,7 @@ describe("AniList API Route", () => {
   });
 
   it("accepts the exact approved GetUserId query for backward compatibility", async () => {
-    setEnvironment("production");
+    setEnvironment("test");
     mockJsonFetch({ data: { User: { id: 99 } } });
 
     const response = await POST(
@@ -164,7 +186,7 @@ describe("AniList API Route", () => {
   });
 
   it("rejects unsupported operations", async () => {
-    setEnvironment("production");
+    setEnvironment("test");
 
     const response = await POST(
       createAniListRequest({
@@ -183,7 +205,7 @@ describe("AniList API Route", () => {
   });
 
   it("rejects invalid user identifiers before contacting AniList", async () => {
-    setEnvironment("production");
+    setEnvironment("test");
 
     const invalidUserIdResponse = await POST(
       createAniListRequest({
@@ -215,10 +237,12 @@ describe("AniList API Route", () => {
 
   it("rejects missing or mismatched origins for browser-facing mutations", async () => {
     setEnvironment("production");
+    process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+    const requestProofCookie = await createRequestProofCookie();
 
     const missingOriginResponse = await POST(
       createAniListRequest({
-        headers: { origin: "" },
+        headers: { cookie: requestProofCookie, origin: "" },
         body: {
           operation: "GetUserStats",
           variables: { userId: 123 },
@@ -229,7 +253,10 @@ describe("AniList API Route", () => {
 
     const crossOriginResponse = await POST(
       createAniListRequest({
-        headers: { origin: "https://evil.example" },
+        headers: {
+          cookie: requestProofCookie,
+          origin: "https://evil.example",
+        },
         body: {
           operation: "GetUserStats",
           variables: { userId: 123 },
@@ -240,12 +267,33 @@ describe("AniList API Route", () => {
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
+  it("rejects requests without request proof when API_SECRET_TOKEN is configured", async () => {
+    setEnvironment("production");
+    process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+
+    const response = await POST(
+      createAniListRequest({
+        body: {
+          operation: "GetUserStats",
+          variables: { userId: 123 },
+        },
+      }),
+    );
+
+    expect(response.status).toBe(401);
+    expect((await response.json()).error).toBe("Unauthorized");
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
   it("fails closed when NEXT_PUBLIC_APP_URL is missing in production", async () => {
     setEnvironment("production");
+    process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+    const requestProofCookie = await createRequestProofCookie();
     delete process.env.NEXT_PUBLIC_APP_URL;
 
     const response = await POST(
       createAniListRequest({
+        headers: { cookie: requestProofCookie },
         body: {
           operation: "GetUserStats",
           variables: { userId: 123 },
@@ -259,7 +307,7 @@ describe("AniList API Route", () => {
   });
 
   it("surfaces non-retried AniList HTTP errors", async () => {
-    setEnvironment("production");
+    setEnvironment("test");
     mockJsonFetch(
       { error: "Invalid query" },
       {
@@ -290,7 +338,7 @@ describe("AniList API Route", () => {
   });
 
   it("returns GraphQL payload errors as 500s", async () => {
-    setEnvironment("production");
+    setEnvironment("test");
     mockJsonFetch({ errors: [{ message: "User not found" }] });
 
     const response = await POST(
@@ -307,7 +355,7 @@ describe("AniList API Route", () => {
   });
 
   it("wraps upstream transport failures", async () => {
-    setEnvironment("production");
+    setEnvironment("test");
     globalThis.fetch = mock(() =>
       Promise.reject(new Error("Network error")),
     ) as unknown as typeof fetch;
@@ -326,7 +374,7 @@ describe("AniList API Route", () => {
   });
 
   it("propagates Retry-After when the shared upstream circuit is already open", async () => {
-    setEnvironment("production");
+    setEnvironment("test");
 
     const openedUntil = Date.now() + 30_000;
     sharedRedisMockGet.mockImplementation((key: string) => {
@@ -366,7 +414,7 @@ describe("AniList API Route", () => {
   });
 
   it("handles invalid JSON request bodies gracefully", async () => {
-    setEnvironment("production");
+    setEnvironment("test");
 
     const response = await POST(
       new Request(BASE_URL, {
@@ -374,6 +422,7 @@ describe("AniList API Route", () => {
         headers: {
           origin: "http://localhost",
           "Content-Type": "application/json",
+          "x-vercel-forwarded-for": "127.0.0.1",
         },
         body: "{ invalid json",
       }),
@@ -403,7 +452,7 @@ describe("AniList API Route", () => {
   });
 
   it("echoes X-Request-Id on successful responses", async () => {
-    setEnvironment("production");
+    setEnvironment("test");
     mockJsonFetch({ data: { User: { id: 123 } } });
 
     const response = await POST(

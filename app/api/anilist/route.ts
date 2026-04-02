@@ -416,6 +416,11 @@ export async function POST(request: Request) {
     request,
     "AniList API",
     "anilist_api",
+    undefined,
+    {
+      requireRequestProof: true,
+      requireVerifiedClientIp: true,
+    },
   );
   if (init.errorResponse) return init.errorResponse;
 

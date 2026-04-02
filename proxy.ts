@@ -9,8 +9,9 @@ export const config = {
 /**
  * Next.js 16 uses the root `proxy.ts` file convention for request interception.
  * Reuse the existing middleware logic so every matched request receives a
- * forwarded request ID, while only HTML routes receive CSP/nonce headers.
+ * forwarded request ID, while only HTML routes receive CSP/nonce headers and
+ * request-proof cookie bootstrapping.
  */
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   return middleware(request);
 }

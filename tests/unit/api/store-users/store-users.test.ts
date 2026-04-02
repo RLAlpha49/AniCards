@@ -15,6 +15,10 @@ import {
   mock,
 } from "bun:test";
 
+import {
+  createRequestProofToken,
+  REQUEST_PROOF_COOKIE_NAME,
+} from "@/lib/api/request-proof";
 import { mockUserStatsData } from "@/tests/e2e/fixtures/mock-data";
 import {
   allowConsoleWarningsAndErrors,
@@ -32,6 +36,7 @@ import {
 } from "@/tests/unit/__setup__";
 
 const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+const originalApiSecretToken = process.env.API_SECRET_TOKEN;
 process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
 
 let POST: typeof import("@/app/api/store-users/route").POST;
@@ -63,8 +68,27 @@ function createTestRequest(reqBody: object, origin?: string): Request {
     method: "POST",
     headers: {
       "x-forwarded-for": "127.0.0.1",
+      "x-vercel-forwarded-for": "127.0.0.1",
       ...(origin && { origin }),
       "Content-Type": "application/json",
+    },
+    body: JSON.stringify(reqBody),
+  });
+}
+
+function createTestRequestWithHeaders(
+  reqBody: object,
+  origin: string | undefined,
+  extraHeaders: Record<string, string>,
+): Request {
+  return new Request("http://localhost/api/store-users", {
+    method: "POST",
+    headers: {
+      "x-forwarded-for": "127.0.0.1",
+      "x-vercel-forwarded-for": "127.0.0.1",
+      ...(origin && { origin }),
+      "Content-Type": "application/json",
+      ...extraHeaders,
     },
     body: JSON.stringify(reqBody),
   });
@@ -98,9 +122,18 @@ async function mgetReturnNulls(...keys: string[]): Promise<(string | null)[]> {
 describe("Store Users API", () => {
   beforeEach(() => {
     allowConsoleWarningsAndErrors();
+    process.env = {
+      ...process.env,
+      NODE_ENV: "test",
+    };
   });
 
   afterEach(() => {
+    if (originalApiSecretToken === undefined) {
+      delete process.env.API_SECRET_TOKEN;
+    } else {
+      process.env.API_SECRET_TOKEN = originalApiSecretToken;
+    }
     mock.clearAllMocks();
     sharedRedisMockGet.mockReset();
     sharedRedisMockSet.mockReset();
@@ -140,12 +173,29 @@ describe("Store Users API", () => {
 
     it("should reject cross-origin requests in production when origin differs", async () => {
       const originalEnv = process.env;
-      process.env = { ...process.env, NODE_ENV: "production" };
+      process.env = {
+        ...process.env,
+        NODE_ENV: "production",
+        API_SECRET_TOKEN: "test-request-proof-secret",
+      };
 
       sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
 
+      const requestProofToken = await createRequestProofToken({
+        ip: "127.0.0.1",
+      });
+      if (!requestProofToken) {
+        throw new Error("Expected request proof token to be generated");
+      }
+
       const reqBody = { userId: 1, username: "user1", stats: { score: 10 } };
-      const req = createTestRequest(reqBody, "http://different-origin.com");
+      const req = createTestRequestWithHeaders(
+        reqBody,
+        "http://different-origin.com",
+        {
+          cookie: `${REQUEST_PROOF_COOKIE_NAME}=${requestProofToken}`,
+        },
+      );
 
       const res = await POST(req);
       expect(res.status).toBe(401);
@@ -335,6 +385,21 @@ describe("Store Users API", () => {
       expect(sharedRedisMockIncr).toHaveBeenCalledWith(
         "analytics:store_users:failed_requests",
       );
+    });
+
+    it("should reject protected writes without a request proof when API_SECRET_TOKEN is configured", async () => {
+      process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const req = createTestRequest(
+        { userId: 1, username: "user1", stats: { score: 10 } },
+        "http://localhost",
+      );
+
+      const res = await POST(req);
+      expect(res.status).toBe(401);
+      const data = await getJsonResponse(res);
+      expect(data.error).toBe("Unauthorized");
     });
   });
 

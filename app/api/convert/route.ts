@@ -908,20 +908,26 @@ function sanitizeFullSvg(svgContent: string): {
   svg: string;
   classesToStrip: string[];
 } {
-  const styleMatch = /<style>([\s\S]*?)<\/style>/.exec(svgContent);
-  const cssContent = styleMatch?.[1] || "";
-  const { css: sanitizedCss, classesToStrip } = sanitizeCssContent(cssContent);
+  const classesToStrip = new Set<string>();
 
-  if (styleMatch) {
-    svgContent =
-      svgContent.slice(0, styleMatch.index) +
-      `<style>${sanitizedCss}</style>` +
-      svgContent.slice(styleMatch.index + styleMatch[0].length);
-  }
-  svgContent = removeClassTokensFromMarkup(svgContent, classesToStrip);
+  svgContent = svgContent.replaceAll(
+    /<style\b([^>]*)>([\s\S]*?)<\/style>/gi,
+    (_match, attributes, cssContent) => {
+      const { css: sanitizedCss, classesToStrip: cssClassesToStrip } =
+        sanitizeCssContent(cssContent);
+      for (const className of cssClassesToStrip) {
+        classesToStrip.add(className);
+      }
+
+      return `<style${attributes}>${sanitizedCss}</style>`;
+    },
+  );
+
+  const classesToRemove = Array.from(classesToStrip);
+  svgContent = removeClassTokensFromMarkup(svgContent, classesToRemove);
   svgContent = sanitizeInlineStyleAttributes(svgContent);
   svgContent = svgContent.replaceAll(/\sstyle=(['"])\1/g, "");
-  return { svg: svgContent, classesToStrip };
+  return { svg: svgContent, classesToStrip: classesToRemove };
 }
 
 /**
@@ -1169,7 +1175,11 @@ export async function POST(request: NextRequest) {
     "Convert API",
     "convert_api",
     ratelimit,
-    { skipSameOrigin: true },
+    {
+      requireRequestProof: true,
+      requireVerifiedClientIp: true,
+      skipSameOrigin: true,
+    },
   );
   if (init.errorResponse) return init.errorResponse;
 

@@ -14,6 +14,24 @@ describe("CSP header builder", () => {
     expect(header).toContain("'nonce-abc123'");
   });
 
+  it("uses nonce-backed style-src in production while isolating inline style attributes", () => {
+    const header = buildCSPHeader("abc123");
+    const styleSrcDirective = header
+      .split("; ")
+      .find((directive) => directive.startsWith("style-src "));
+    const styleSrcAttrDirective = header
+      .split("; ")
+      .find((directive) => directive.startsWith("style-src-attr "));
+
+    expect(styleSrcDirective).toBeTruthy();
+    expect(styleSrcDirective).toContain("'nonce-abc123'");
+    expect(styleSrcDirective).toContain("https://fonts.googleapis.com");
+    expect(styleSrcDirective).not.toContain("'unsafe-inline'");
+
+    expect(styleSrcAttrDirective).toBeTruthy();
+    expect(styleSrcAttrDirective).toBe("style-src-attr 'unsafe-inline'");
+  });
+
   it("allows unsafe-eval only when explicitly enabled", () => {
     const developmentHeader = buildCSPHeader("abc123", {
       allowUnsafeEval: true,
@@ -22,6 +40,25 @@ describe("CSP header builder", () => {
 
     expect(developmentHeader).toContain("'unsafe-eval'");
     expect(productionHeader).not.toContain("'unsafe-eval'");
+  });
+
+  it("allows unsafe-inline styles only when explicitly enabled", () => {
+    const developmentHeader = buildCSPHeader("abc123", {
+      allowUnsafeInlineStyles: true,
+    });
+    const productionHeader = buildCSPHeader("abc123");
+
+    const developmentStyleSrcDirective = developmentHeader
+      .split("; ")
+      .find((directive) => directive.startsWith("style-src "));
+    const productionStyleSrcDirective = productionHeader
+      .split("; ")
+      .find((directive) => directive.startsWith("style-src "));
+
+    expect(developmentStyleSrcDirective).toBeTruthy();
+    expect(developmentStyleSrcDirective).toContain("'unsafe-inline'");
+    expect(productionStyleSrcDirective).toBeTruthy();
+    expect(productionStyleSrcDirective).not.toContain("'unsafe-inline'");
   });
 
   it("blocks object embeds and restricts image sources to explicit origins", () => {

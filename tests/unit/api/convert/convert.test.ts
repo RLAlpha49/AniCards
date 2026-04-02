@@ -19,6 +19,8 @@ import {
   sharedRatelimitMockLimit,
 } from "@/tests/unit/__setup__";
 
+const originalApiSecretToken = process.env.API_SECRET_TOKEN;
+
 /**
  * Captures the buffer passed into `sharp` so tests can inspect the SVG payload.
  */
@@ -121,6 +123,10 @@ describe("Convert API POST Endpoint", () => {
 
   beforeEach(() => {
     allowConsoleWarningsAndErrors();
+    process.env = {
+      ...process.env,
+      NODE_ENV: "test",
+    };
     lastSharpBuffer = null;
     lastSharpFormat = "png";
     sharpConstructorCallCount = 0;
@@ -136,6 +142,11 @@ describe("Convert API POST Endpoint", () => {
   });
 
   afterEach(() => {
+    if (originalApiSecretToken === undefined) {
+      delete process.env.API_SECRET_TOKEN;
+    } else {
+      process.env.API_SECRET_TOKEN = originalApiSecretToken;
+    }
     globalThis.fetch = originalFetch;
   });
 
@@ -336,6 +347,24 @@ describe("Convert API POST Endpoint", () => {
 
       const res = await POST(req);
       expect(res.status).toBe(200);
+    });
+
+    it("should reject requests without request proof when API_SECRET_TOKEN is configured", async () => {
+      process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+
+      const req = new Request("http://localhost/api/convert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-forwarded-for": "127.0.0.1",
+        },
+        body: JSON.stringify({ svgContent: "<svg></svg>" }),
+      }) as unknown as NextRequest;
+
+      const res = await POST(req);
+      expect(res.status).toBe(401);
+      const data = await res.json();
+      expect(data.error).toBe("Unauthorized");
     });
   });
 
@@ -888,6 +917,30 @@ describe("Convert API POST Endpoint", () => {
       expect(captured).not.toMatch(/class=(['"]).*?\bstagger\b.*?\1/);
       expect(captured).not.toMatch(/animation-delay\s*:/i);
       expect(captured).toMatch(/opacity\s*:\s*1/);
+    });
+
+    it("sanitizes every style block, including attributed style tags", async () => {
+      const dummySVG = `
+        <svg>
+          <style>.stagger { animation: fadeIn 0.8s ease-in-out forwards; }</style>
+          <defs>
+            <style type="text/css" media="screen">
+              .keep { fill: red; }
+              .fade { animation-delay: 120ms; opacity: 0; }
+            </style>
+          </defs>
+          <g class="stagger keep" style="animation: fadeIn 1s; opacity: 0;">
+            <rect x="0" y="0" width="10" height="10"></rect>
+          </g>
+        </svg>`;
+
+      const { captured } = await postAndCaptureSvg(dummySVG);
+      expect(captured.match(/<style\b/gi)?.length).toBe(2);
+      expect(captured).toContain('<style type="text/css" media="screen">');
+      expect(captured).not.toMatch(/animation\s*:/i);
+      expect(captured).not.toMatch(/animation-delay\s*:/i);
+      expect(captured).toMatch(/opacity\s*:\s*1/);
+      expect(captured).toMatch(/fill\s*:\s*red/);
     });
 
     it("does not remove .stagger if the .stagger rule has no animation", async () => {

@@ -26,6 +26,7 @@ import {
 } from "@/tests/unit/__setup__";
 
 const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+const originalApiSecretToken = process.env.API_SECRET_TOKEN;
 process.env.NEXT_PUBLIC_APP_URL = "http://localhost";
 
 const { POST, OPTIONS } = await import("@/app/api/store-cards/route");
@@ -47,6 +48,7 @@ function createRequest(
     method,
     headers: {
       "x-forwarded-for": "127.0.0.1",
+      "x-vercel-forwarded-for": "127.0.0.1",
       origin,
       "Content-Type": "application/json",
     },
@@ -79,11 +81,20 @@ function getStoredCard(
 
 describe("Store Cards API POST Endpoint", () => {
   afterEach(() => {
+    if (originalApiSecretToken === undefined) {
+      delete process.env.API_SECRET_TOKEN;
+    } else {
+      process.env.API_SECRET_TOKEN = originalApiSecretToken;
+    }
     mock.clearAllMocks();
   });
 
   beforeEach(() => {
     allowConsoleWarningsAndErrors();
+    process.env = {
+      ...process.env,
+      NODE_ENV: "test",
+    };
     sharedRedisMockGet.mockReset();
     sharedRedisMockSet.mockReset();
     sharedRedisMockEval.mockReset();
@@ -150,6 +161,7 @@ describe("Store Cards API POST Endpoint", () => {
           method: "POST",
           headers: {
             "x-forwarded-for": "127.0.0.1",
+            "x-vercel-forwarded-for": "127.0.0.1",
             origin: "http://localhost",
             "Content-Type": "application/json",
             "x-request-id": "req-store-cards-12345",
@@ -165,6 +177,19 @@ describe("Store Cards API POST Endpoint", () => {
       expect(response.headers.get("Access-Control-Expose-Headers")).toContain(
         "X-Request-Id",
       );
+    });
+
+    it("should reject protected writes without a request proof when API_SECRET_TOKEN is configured", async () => {
+      process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+      sharedRatelimitMockLimit.mockResolvedValueOnce({ success: true });
+
+      const res = await POST(
+        createRequest({ userId: 1, statsData: {}, cards: [] }),
+      );
+
+      expect(res.status).toBe(401);
+      const data = await res.json();
+      expect(data.error).toBe("Unauthorized");
     });
   });
 

@@ -1,6 +1,13 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
+import {
+  createRequestProofCookie,
+  getRequestProofCookie,
+  REQUEST_PROOF_COOKIE_NAME,
+  resolveVerifiedClientIp,
+  verifyRequestProofToken,
+} from "@/lib/api/request-proof";
 import { buildCSPHeader } from "@/lib/csp-config";
 import { generateSecureId } from "@/lib/utils";
 
@@ -48,6 +55,56 @@ function generateNonce(): string {
   return btoa(String.fromCodePoint(...array));
 }
 
+async function maybeRefreshRequestProof(
+  request: NextRequest,
+  response: NextResponse,
+  isApiRequest: boolean,
+): Promise<void> {
+  const clientIp = resolveVerifiedClientIp(request);
+  const existingProofCookie = getRequestProofCookie(request);
+
+  if (!clientIp.verified) {
+    if (existingProofCookie) {
+      response.cookies.set({
+        name: REQUEST_PROOF_COOKIE_NAME,
+        value: "",
+        maxAge: 0,
+        path: "/",
+      });
+    }
+
+    return;
+  }
+
+  if (isApiRequest) {
+    if (!existingProofCookie) {
+      return;
+    }
+
+    const verification = await verifyRequestProofToken(existingProofCookie, {
+      ip: clientIp.ip,
+      userAgent: request.headers.get("user-agent"),
+    });
+    if (!verification.valid) {
+      response.cookies.set({
+        name: REQUEST_PROOF_COOKIE_NAME,
+        value: "",
+        maxAge: 0,
+        path: "/",
+      });
+      return;
+    }
+  }
+
+  const proofCookie = await createRequestProofCookie({
+    ip: clientIp.ip,
+    userAgent: request.headers.get("user-agent"),
+  });
+  if (proofCookie) {
+    response.cookies.set(proofCookie);
+  }
+}
+
 /**
  * Next.js Middleware for CSP and Route Protection
  *
@@ -71,16 +128,28 @@ function generateNonce(): string {
  * @see docs/SECURITY.md for the durable CSP, nonce, and route-protection notes
  * @source
  */
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const requestId = getOrCreateRequestId(request);
   const isApiRequest = getRequestPathname(request).startsWith("/api/");
   const nonce = isApiRequest ? undefined : generateNonce();
+  const isDevelopment = process.env.NODE_ENV !== "production";
 
   const forwardedHeaders = new Headers(request.headers);
   forwardedHeaders.set(REQUEST_ID_HEADER, requestId);
 
-  if (nonce) {
+  const cspHeader = nonce
+    ? buildCSPHeader(nonce, {
+        allowUnsafeEval: isDevelopment,
+        allowUnsafeInlineStyles: isDevelopment,
+      })
+    : undefined;
+
+  if (nonce && cspHeader) {
     forwardedHeaders.set("x-nonce", nonce);
+    // Next.js reads the request-side CSP header during rendering so it can
+    // automatically attach the nonce to framework-generated inline scripts and
+    // styles (such as the font optimization `<style>` tags).
+    forwardedHeaders.set("Content-Security-Policy", cspHeader);
   }
 
   const response = NextResponse.next({
@@ -90,14 +159,12 @@ export function middleware(request: NextRequest) {
   });
   response.headers.set("X-Request-Id", requestId);
 
-  if (nonce) {
-    const cspHeader = buildCSPHeader(nonce, {
-      allowUnsafeEval: process.env.NODE_ENV !== "production",
-    });
-
+  if (nonce && cspHeader) {
     response.headers.set("Content-Security-Policy", cspHeader);
     response.headers.set("x-nonce", nonce);
   }
+
+  await maybeRefreshRequestProof(request, response, isApiRequest);
 
   return response;
 }

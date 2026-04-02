@@ -7,6 +7,12 @@ import { logPrivacySafe, logRequest } from "@/lib/api/logging";
 import { checkRateLimit } from "@/lib/api/rate-limit";
 import { ensureRequestContext } from "@/lib/api/request-context";
 import {
+  getRequestProofCookie,
+  resolveVerifiedClientIp,
+  type VerifiedClientIpResult,
+  verifyRequestProofToken,
+} from "@/lib/api/request-proof";
+import {
   buildAnalyticsMetricKey,
   incrementAnalytics,
 } from "@/lib/api/telemetry";
@@ -15,19 +21,90 @@ import {
  * Extracts the client IP address from trusted deployment headers only.
  */
 export function getRequestIp(request?: Request): string {
-  if (!request) {
-    return "127.0.0.1";
+  const clientIp = resolveVerifiedClientIp(request);
+  return clientIp.verified ? clientIp.ip : "unknown";
+}
+
+function incrementFailedRequestMetric(endpointKey: string): void {
+  const metric = buildAnalyticsMetricKey(endpointKey, "failed_requests");
+  void incrementAnalytics(metric);
+}
+
+function createUnverifiedClientIpResponse(
+  request: Request,
+  endpointName: string,
+  endpointKey: string,
+  clientIp: Extract<VerifiedClientIpResult, { verified: false }>,
+): NextResponse<ApiError> {
+  logPrivacySafe(
+    "error",
+    endpointName,
+    "Rejected request because the client IP could not be verified.",
+    {
+      reason: clientIp.reason,
+    },
+    request,
+  );
+  incrementFailedRequestMetric(endpointKey);
+
+  return apiErrorResponse(request, 503, "Client IP could not be verified", {
+    category: "server_error",
+    retryable: true,
+  });
+}
+
+async function validateRequestProof(
+  request: Request,
+  endpointName: string,
+  endpointKey: string,
+  clientIp: VerifiedClientIpResult,
+): Promise<NextResponse<ApiError> | null> {
+  if (!clientIp.verified) {
+    return createUnverifiedClientIpResponse(
+      request,
+      endpointName,
+      endpointKey,
+      clientIp,
+    );
   }
 
-  const trustedHeaderNames = ["x-vercel-forwarded-for", "cf-connecting-ip"];
-  for (const headerName of trustedHeaderNames) {
-    const headerValue = request.headers.get(headerName)?.trim();
-    if (headerValue) {
-      return headerValue;
-    }
+  const verification = await verifyRequestProofToken(
+    getRequestProofCookie(request),
+    {
+      ip: clientIp.ip,
+      userAgent: request.headers.get("user-agent"),
+    },
+  );
+
+  if (verification.valid) {
+    return null;
   }
 
-  return process.env.NODE_ENV === "production" ? "unknown" : "127.0.0.1";
+  const isServerMisconfigured = verification.reason === "missing_secret";
+  logPrivacySafe(
+    isServerMisconfigured ? "error" : "warn",
+    endpointName,
+    isServerMisconfigured
+      ? "Rejected request because API_SECRET_TOKEN is not configured."
+      : "Rejected request with missing or invalid request proof.",
+    {
+      reason: verification.reason,
+    },
+    request,
+  );
+  incrementFailedRequestMetric(endpointKey);
+
+  return apiErrorResponse(
+    request,
+    isServerMisconfigured ? 503 : 401,
+    isServerMisconfigured
+      ? "API_SECRET_TOKEN is not configured"
+      : "Unauthorized",
+    {
+      category: isServerMisconfigured ? "server_error" : "authentication",
+      retryable: isServerMisconfigured,
+    },
+  );
 }
 
 export function validateSameOrigin(
@@ -129,14 +206,19 @@ export async function initializeApiRequest(
   limiter?: Ratelimit,
   options?: {
     requireOrigin?: boolean;
+    requireRequestProof?: boolean;
+    requireVerifiedClientIp?: boolean;
     skipRateLimit?: boolean;
     skipSameOrigin?: boolean;
     requestId?: string;
   },
 ): Promise<ApiInitResult> {
   const startTime = Date.now();
-  const ip = getRequestIp(request);
+  const clientIp = resolveVerifiedClientIp(request);
+  const ip = clientIp.verified ? clientIp.ip : "unknown";
   const endpoint = endpointName;
+  const requireVerifiedClientIp =
+    options?.requireVerifiedClientIp ?? options?.requireRequestProof ?? false;
   const requestContext = ensureRequestContext(request, {
     endpoint,
     endpointKey,
@@ -146,13 +228,34 @@ export async function initializeApiRequest(
 
   logRequest(endpoint, ip, request);
 
-  if (!options?.skipRateLimit) {
-    const rateLimitResponse = await checkRateLimit(
-      request,
+  if (requireVerifiedClientIp && !clientIp.verified) {
+    return {
+      startTime,
       ip,
       endpoint,
       endpointKey,
+      requestId: requestContext.requestId,
+      errorResponse: createUnverifiedClientIpResponse(
+        request,
+        endpoint,
+        endpointKey,
+        clientIp,
+      ),
+    };
+  }
+
+  if (!options?.skipRateLimit) {
+    const rateLimitResponse = await checkRateLimit(
+      request,
+      {
+        ip,
+        verified: clientIp.verified,
+        ...(clientIp.verified ? { source: clientIp.source } : {}),
+      },
+      endpoint,
+      endpointKey,
       limiter,
+      { requireVerifiedIp: requireVerifiedClientIp },
     );
     if (rateLimitResponse) {
       return {
@@ -162,6 +265,25 @@ export async function initializeApiRequest(
         endpointKey,
         requestId: requestContext.requestId,
         errorResponse: rateLimitResponse,
+      };
+    }
+  }
+
+  if (options?.requireRequestProof) {
+    const requestProofResponse = await validateRequestProof(
+      request,
+      endpoint,
+      endpointKey,
+      clientIp,
+    );
+    if (requestProofResponse) {
+      return {
+        startTime,
+        ip,
+        endpoint,
+        endpointKey,
+        requestId: requestContext.requestId,
+        errorResponse: requestProofResponse,
       };
     }
   }

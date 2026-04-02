@@ -1200,6 +1200,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     request,
     "Store Cards",
     "store_cards",
+    undefined,
+    {
+      requireRequestProof: true,
+      requireVerifiedClientIp: true,
+    },
   );
   if (init.errorResponse) return init.errorResponse;
 

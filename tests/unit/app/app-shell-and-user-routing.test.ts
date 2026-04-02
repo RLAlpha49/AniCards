@@ -7,20 +7,23 @@ import {
   buildLegacyUserRedirectUrl,
   generateMetadata as generateLookupUserMetadata,
 } from "@/app/user/page";
+import { REQUEST_PROOF_COOKIE_NAME } from "@/lib/api/request-proof";
 import { getSiteUrl, resolveSiteUrl } from "@/lib/site-config";
 import { config as middlewareConfig, proxy } from "@/proxy";
 
 describe("App shell server coverage", () => {
-  it("injects CSP and nonce headers for HTML routes", () => {
+  it("injects CSP, nonce headers, and a request proof cookie for HTML routes", async () => {
     const request = new Request("http://localhost/search", {
       headers: {
         "user-agent": "bun-test",
+        "x-vercel-forwarded-for": "127.0.0.1",
       },
     }) as unknown as NextRequest;
 
-    const response = proxy(request);
+    const response = await proxy(request);
     const nonce = response.headers.get("x-nonce");
     const cspHeader = response.headers.get("content-security-policy");
+    const setCookieHeader = response.headers.get("set-cookie");
     const imgSrcDirective = cspHeader
       ?.split("; ")
       .find((directive) => directive.startsWith("img-src "));
@@ -33,6 +36,9 @@ describe("App shell server coverage", () => {
     expect(imgSrcDirective).toBeTruthy();
     expect(cspHeader).toContain("object-src 'none'");
     expect(imgSrcDirective).not.toMatch(/\shttps:(?=[\s;]|$)/);
+    expect(setCookieHeader).toContain(`${REQUEST_PROOF_COOKIE_NAME}=`);
+    expect(setCookieHeader).toContain("HttpOnly");
+    expect(setCookieHeader).toMatch(/SameSite=strict/i);
   });
 
   it("covers API routes in the proxy matcher so request IDs are injected consistently", () => {
@@ -41,7 +47,7 @@ describe("App shell server coverage", () => {
     );
   });
 
-  it("injects request IDs for API routes without adding HTML-only CSP headers", () => {
+  it("injects request IDs for API routes without adding HTML-only CSP headers", async () => {
     const request = new Request("http://localhost/api/error-reports", {
       method: "POST",
       headers: {
@@ -49,11 +55,12 @@ describe("App shell server coverage", () => {
       },
     }) as unknown as NextRequest;
 
-    const response = proxy(request);
+    const response = await proxy(request);
 
     expect(response.headers.get("X-Request-Id")).toBeTruthy();
     expect(response.headers.get("Content-Security-Policy")).toBeNull();
     expect(response.headers.get("x-nonce")).toBeNull();
+    expect(response.headers.get("set-cookie")).toBeNull();
   });
 
   it("returns robots metadata that blocks API indexing and advertises the sitemap", () => {

@@ -232,6 +232,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     request,
     "Store Users",
     "store_users",
+    undefined,
+    {
+      requireRequestProof: true,
+      requireVerifiedClientIp: true,
+    },
   );
   if (init.errorResponse) return init.errorResponse;
 

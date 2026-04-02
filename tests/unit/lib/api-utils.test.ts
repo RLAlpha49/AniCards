@@ -2,6 +2,11 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import {
+  createRequestProofToken,
+  REQUEST_PROOF_COOKIE_NAME,
+  resolveVerifiedClientIp,
+} from "@/lib/api/request-proof";
+import {
   ANALYTICS_COUNTER_TTL_SECONDS,
   apiErrorResponse,
   buildAnalyticsStorageKey,
@@ -123,6 +128,28 @@ describe("api-utils hardening", () => {
     });
 
     expect(getRequestIp(request)).toBe("127.0.0.1");
+  });
+
+  it("resolves verified client IPs from configurable trusted headers", () => {
+    process.env = {
+      ...process.env,
+      NODE_ENV: "production",
+      TRUSTED_CLIENT_IP_HEADERS: "x-real-ip",
+    };
+
+    const result = resolveVerifiedClientIp(
+      new Request("http://localhost/api/test", {
+        headers: {
+          "x-real-ip": "198.51.100.24",
+        },
+      }),
+    );
+
+    expect(result).toEqual({
+      verified: true,
+      ip: "198.51.100.24",
+      source: "x-real-ip",
+    });
   });
 
   it("tracks rate-limit timeouts with dedicated analytics while preserving fail-open behavior", async () => {
@@ -453,6 +480,29 @@ describe("api-utils hardening", () => {
     );
   });
 
+  it("rejects rate limiting when a verified client IP is required but unavailable", async () => {
+    const response = await checkRateLimit(
+      createApiRequest(),
+      { ip: "unknown", verified: false },
+      "Test API",
+      "test_api",
+      undefined,
+      { requireVerifiedIp: true },
+    );
+
+    await flushScheduledTelemetryTasksForTests();
+
+    expect(response?.status).toBe(503);
+    expect(await response?.json()).toMatchObject({
+      error: "Client IP could not be verified",
+      retryable: true,
+      status: 503,
+    });
+    expect(sharedRedisMockIncr).toHaveBeenCalledWith(
+      "analytics:test_api:failed_requests",
+    );
+  });
+
   it("records dedicated analytics when the rate-limit provider throws", async () => {
     const limiter = {
       limit: mock().mockRejectedValue(new Error("Upstash exploded")),
@@ -537,6 +587,78 @@ describe("api-utils hardening", () => {
     expect(result.errorResponse?.headers.get("X-Request-Id")).toBe(
       "req-init-limited-12345",
     );
+  });
+
+  it("rejects initializeApiRequest when request proof is missing for protected routes", async () => {
+    process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+
+    const limiter = {
+      limit: mock().mockResolvedValue({
+        success: true,
+        limit: 10,
+        remaining: 9,
+        reset: Date.now() + 10_000,
+        pending: Promise.resolve(),
+      }),
+    };
+
+    const result = await initializeApiRequest(
+      createApiRequest({
+        "user-agent": "AniCardsTest/Protected",
+        "x-vercel-forwarded-for": "198.51.100.50",
+      }),
+      "Test API",
+      "test_api",
+      limiter as never,
+      {
+        requireRequestProof: true,
+        requireVerifiedClientIp: true,
+      },
+    );
+
+    expect(result.errorResponse?.status).toBe(401);
+  });
+
+  it("accepts initializeApiRequest when request proof matches the verified IP and user agent", async () => {
+    process.env.API_SECRET_TOKEN = "test-request-proof-secret";
+
+    const userAgent = "AniCardsTest/Protected";
+    const clientIp = "198.51.100.50";
+    const token = await createRequestProofToken({
+      ip: clientIp,
+      userAgent,
+    });
+    if (!token) {
+      throw new Error("Expected request proof token to be generated");
+    }
+
+    const limiter = {
+      limit: mock().mockResolvedValue({
+        success: true,
+        limit: 10,
+        remaining: 9,
+        reset: Date.now() + 10_000,
+        pending: Promise.resolve(),
+      }),
+    };
+
+    const result = await initializeApiRequest(
+      createApiRequest({
+        cookie: `${REQUEST_PROOF_COOKIE_NAME}=${token}`,
+        "user-agent": userAgent,
+        "x-vercel-forwarded-for": clientIp,
+      }),
+      "Test API",
+      "test_api",
+      limiter as never,
+      {
+        requireRequestProof: true,
+        requireVerifiedClientIp: true,
+      },
+    );
+
+    expect(result.errorResponse).toBeUndefined();
+    expect(result.ip).toBe(clientIp);
   });
 
   it("builds apiErrorResponse payloads with merged headers and request-id exposure", async () => {
